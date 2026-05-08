@@ -1,7 +1,7 @@
 ---
 title: "feat: Sensemaking Agents v0.1 — wiki + cron, Mirror live + Connector→Pathfinder Handoff"
 type: feat
-status: active
+status: completed
 date: 2026-05-08
 origin: docs/brainstorms/2026-05-08-sensemaking-agents-loop-premise-check.md
 ---
