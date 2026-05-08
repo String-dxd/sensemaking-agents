@@ -192,11 +192,14 @@ function mapSdkEventToStep(
   ev: unknown,
   emit: (e: RunStepEventInput) => void,
 ): void {
-  if (!ev || typeof ev !== 'object') return
-  const evObj = ev as Record<string, unknown>
+  // Wrap the entire mapper in try/catch — different SDK versions emit
+  // slightly different shapes, and a single mapping failure must never
+  // abort the run-stream iterator.
+  try {
+    if (!ev || typeof ev !== 'object') return
+    const evObj = ev as Record<string, unknown>
+    if (evObj.type !== 'run_item_stream_event') return
 
-  // RunItemStreamEvent
-  if (evObj.type === 'run_item_stream_event') {
     const name = evObj.name as string | undefined
     const item = (evObj.item ?? {}) as Record<string, unknown>
     const itemType = (item.type as string | undefined) ?? ''
@@ -214,7 +217,7 @@ function mapSdkEventToStep(
         type: 'tool_call_started',
         agent,
         toolName,
-        argsPreview: truncate(JSON.stringify(argsObj)),
+        argsPreview: truncate(safeStringify(argsObj)),
       })
       return
     }
@@ -229,18 +232,16 @@ function mapSdkEventToStep(
         type: 'tool_call_completed',
         agent,
         toolName,
-        resultPreview: truncate(typeof output === 'string' ? output : JSON.stringify(output)),
+        resultPreview: truncate(typeof output === 'string' ? output : safeStringify(output)),
       })
       return
     }
     if (name === 'message_output_created' || itemType === 'message_output_item') {
-      // We surface only that a message landed, not its full text — that's the
-      // final output, captured separately.
-      const text =
-        (item.content as Array<{ text?: string }> | undefined)
-          ?.map((c) => c.text ?? '')
-          .join(' ') ?? ''
-      emit({ type: 'message_output', agent, preview: truncate(text) })
+      // The SDK has historically used several shapes for message content:
+      // string, Array<{text}>, {text}, etc. We surface only that a message
+      // landed plus a short preview — the full output is captured at
+      // agent_completed time.
+      emit({ type: 'message_output', agent, preview: truncate(extractMessageText(item)) })
       return
     }
     if (name === 'handoff_occurred' || name === 'handoff_requested') {
@@ -252,5 +253,42 @@ function mapSdkEventToStep(
       emit({ type: 'reasoning', agent })
       return
     }
+  } catch (err) {
+    // Single event mapping failure — do not abort the run.
+    console.warn('[mapSdkEventToStep] mapping skipped:', err instanceof Error ? err.message : err)
+  }
+}
+
+function extractMessageText(item: Record<string, unknown>): string {
+  const content = item.content
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) {
+    return content
+      .map((c) => {
+        if (typeof c === 'string') return c
+        if (c && typeof c === 'object' && 'text' in c) {
+          const t = (c as { text?: unknown }).text
+          return typeof t === 'string' ? t : ''
+        }
+        return ''
+      })
+      .filter(Boolean)
+      .join(' ')
+  }
+  if (content && typeof content === 'object' && 'text' in content) {
+    const t = (content as { text?: unknown }).text
+    if (typeof t === 'string') return t
+  }
+  // Fall back to top-level `text` field that some SDK versions use.
+  const top = item.text
+  if (typeof top === 'string') return top
+  return ''
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return typeof value === 'string' ? value : JSON.stringify(value)
+  } catch {
+    return String(value)
   }
 }
