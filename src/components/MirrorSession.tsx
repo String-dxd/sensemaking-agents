@@ -176,9 +176,7 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
 
         startVolumeLoop()
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Could not acquire camera or microphone.'
-        dispatch({ type: 'permission-error', message })
+        dispatch({ type: 'permission-error', message: friendlyMediaError(err) })
       }
     }
 
@@ -454,6 +452,28 @@ function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: numbe
       </p>
     )
   return null
+}
+
+function friendlyMediaError(err: unknown): string {
+  const name = err instanceof Error ? err.name : ''
+  const raw = err instanceof Error ? err.message : String(err ?? 'unknown error')
+  if (name === 'NotAllowedError' || /permission denied|not allowed/i.test(raw)) {
+    return [
+      'Camera + microphone access was denied without a prompt.',
+      'On macOS: open System Settings → Privacy & Security → Camera, make sure your browser is enabled. Repeat for Microphone. Quit and re-open the browser, then refresh.',
+      'If the browser already asked once and you said No, click the lock/site-info icon in the address bar and re-allow Camera + Microphone for localhost.',
+    ].join(' ')
+  }
+  if (name === 'NotFoundError') {
+    return 'No camera or microphone was found on this device.'
+  }
+  if (name === 'NotReadableError') {
+    return 'Camera or microphone is in use by another app. Close the other app and try again.'
+  }
+  if (name === 'SecurityError') {
+    return 'Browser blocked the request because the page is not in a secure context. Try http://localhost:3000 specifically (not 127.0.0.1).'
+  }
+  return `Could not acquire camera or microphone: ${raw}`
 }
 
 function pickMimeType(): string | undefined {

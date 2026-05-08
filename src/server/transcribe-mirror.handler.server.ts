@@ -68,9 +68,15 @@ export async function transcribeMirrorHandler(
   const start = Date.now()
   try {
     const file = await toFile(buffer, filename, { type: parsed.mimeType })
+    // gpt-4o-mini-transcribe replaces whisper-1: same call shape, same
+    // language hint, materially better on accented English (the failure
+    // mode whisper-1 hit on SG/Indonesian/Malay-accented English in
+    // local testing). Drops verbose_json + timestamps support, which we
+    // don't use. See OpenAI's speech-to-text guide.
     const result = await client.audio.transcriptions.create({
       file,
-      model: 'whisper-1',
+      model: 'gpt-4o-mini-transcribe',
+      language: 'en',
     })
     return {
       transcript: result.text,
