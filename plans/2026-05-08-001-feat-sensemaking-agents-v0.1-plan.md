@@ -8,7 +8,7 @@ origin: docs/brainstorms/2026-05-08-sensemaking-agents-loop-premise-check.md
 
 # feat: Sensemaking Agents v0.1 — wiki + cron, Mirror live + Connector→Pathfinder Handoff
 
-> **Target repo:** standalone at `~/Developer/sensemaking-agents/`. App code lives in `app/`.
+> **Target repo:** standalone at `~/Developer/sensemaking-agents/`. App code lives at the repo root (originally planned under `app/`; flattened post-implementation).
 >
 > **Plan relationship:** the scope contract is the brainstorm at `docs/brainstorms/2026-05-08-sensemaking-agents-loop-premise-check.md`. The earlier `plans/sensemaking-agents.md` is a structural scaffold that carries the brainstorm's scope but explicitly defers eight decisions to ce-plan; this plan resolves those eight decisions and defines the implementation units that ship v0.1.
 
@@ -62,7 +62,7 @@ R-IDs in this plan inherit verbatim from the origin brainstorm so traceability i
 - `plans/sensemaking-agents.md` — structural scaffold with the same 3-agent architecture, file layout sketch, and `[ce-plan]` deferral markers this plan resolves. Treat as related-prior-work; this plan supersedes it for implementation guidance.
 - `plans/_archive/voice-wiki.md` — archived prior voice-wiki plan; the Zod-as-source-of-truth pattern for agent schemas and the six anti-sycophancy fixtures are directly forward-portable to v1.
 - `plans/sensemaking-agents-ecg-reflection-architecture-plan.md` — product framing doc (target user, ECG context, positioning, Core Promise). Not load-bearing for implementation; useful for editorial calibration.
-- No existing application code in this repo — fresh `app/` build.
+- No existing application code in this repo — fresh build at the repo root.
 
 ### Institutional Learnings
 
@@ -122,7 +122,7 @@ These are the eight decisions the origin brainstorm deferred to planning. Each i
 ## Output Structure
 
 ```
-app/
+.
 ├── package.json                              # tanstack-start, @tanstack/react-router, @tanstack/react-query, @openai/agents, openai, zod, better-sqlite3, @trigger.dev/sdk
 ├── vite.config.ts                            # TanStack Start plugin
 ├── tsconfig.json
@@ -245,20 +245,20 @@ Cron sense-making:
 
 ### U1. TanStack Start scaffold + tooling
 
-**Goal:** Empty `app/` builds, lints, runs dev server with TanStack Router/Query wired and a TanStack server function reachable.
+**Goal:** Empty repo builds, lints, runs dev server with TanStack Router/Query wired and a TanStack server function reachable.
 
 **Requirements:** Structural prerequisite for all subsequent units.
 
 **Dependencies:** None.
 
 **Files:**
-- Create: `app/package.json` (`@tanstack/react-start`, `@tanstack/react-router`, `@tanstack/react-query`, `tailwindcss@^4`, `@openai/agents`, `openai`, `zod@^4`, `better-sqlite3@^12`, `@trigger.dev/sdk`, `dotenv`; dev: `typescript@^5.9`, `vite`, `vitest@^3`, `@biomejs/biome@^2.3`)
-- Create: `app/vite.config.ts` (TanStack Start plugin)
-- Create: `app/tsconfig.json`, `tailwind.config.ts`, `postcss.config.mjs`, `biome.json`, `vitest.config.ts`, `.env.example`, `.gitignore`
-- Create: `app/src/routes/__root.tsx`, `index.tsx` (landing with one-sentence hero)
-- Create: `app/src/server/mirror-session.functions.ts` (placeholder server fn returning `{ ok: true }` — proves wiring)
-- Create: `app/src/styles.css` (Tailwind base + theme)
-- Create: `app/README.md` (setup + demo run)
+- Create: `package.json` (`@tanstack/react-start`, `@tanstack/react-router`, `@tanstack/react-query`, `tailwindcss@^4`, `@openai/agents`, `openai`, `zod@^4`, `better-sqlite3@^12`, `@trigger.dev/sdk`, `dotenv`; dev: `typescript@^5.9`, `vite`, `vitest@^3`, `@biomejs/biome@^2.3`)
+- Create: `vite.config.ts` (TanStack Start plugin)
+- Create: `tsconfig.json`, `tailwind.config.ts`, `postcss.config.mjs`, `biome.json`, `vitest.config.ts`, `.env.example`, `.gitignore`
+- Create: `src/routes/__root.tsx`, `index.tsx` (landing with one-sentence hero)
+- Create: `src/server/mirror-session.functions.ts` (placeholder server fn returning `{ ok: true }` — proves wiring)
+- Create: `src/styles.css` (Tailwind base + theme)
+- Create: `README.md` (setup + demo run)
 
 **Approach:**
 - Initialize via TanStack Start CLI; install shadcn primitives (button, card, textarea, dialog) without adopting the full registry — only the components U10 actually uses.
@@ -286,14 +286,14 @@ Cron sense-making:
 **Dependencies:** U1.
 
 **Files:**
-- Create: `app/src/db/client.ts` (open `app.db` with WAL, set `PRAGMA foreign_keys=ON`, restrict file mode 0600)
-- Create: `app/src/db/schema.sql` (`mirror_entries`, `connector_outputs`, `pathfinder_outputs`, `tags`, `mirror_entry_tags`, `agent_traces`, FTS5 virtual table over `mirror_entries.summary`)
-- Create: `app/src/db/queries.ts` (typed `searchMirrors`, `insertMirrorEntry`, `insertConnectorOutput`, `insertPathfinderOutput`, all taking `studentId` as first arg)
-- Create: `app/src/db/seed.ts` (8 fixture reflections + `student_id='demo'`)
-- Create: `app/src/data/ecg-taxonomy.ts` (~30 hand-curated SG entries: subject combinations, CCAs, JC/poly/ITE/uni tracks, MOE career clusters)
-- Create: `app/src/server/tenancy.server.ts` (`withStudent<T>(studentId: string, fn: (s: string) => T): T` — narrow guard that asserts `studentId` is non-empty and returns `fn(studentId)`)
-- Create: `app/test/tenancy.test.ts`, `app/test/db.test.ts`
-- Create: `app/test/ablation/fixtures/seed-corpus.json` (canonical 8-reflection fixture used by both U2 seed and U9 ablation)
+- Create: `src/db/client.ts` (open `app.db` with WAL, set `PRAGMA foreign_keys=ON`, restrict file mode 0600)
+- Create: `src/db/schema.sql` (`mirror_entries`, `connector_outputs`, `pathfinder_outputs`, `tags`, `mirror_entry_tags`, `agent_traces`, FTS5 virtual table over `mirror_entries.summary`)
+- Create: `src/db/queries.ts` (typed `searchMirrors`, `insertMirrorEntry`, `insertConnectorOutput`, `insertPathfinderOutput`, all taking `studentId` as first arg)
+- Create: `src/db/seed.ts` (8 fixture reflections + `student_id='demo'`)
+- Create: `src/data/ecg-taxonomy.ts` (~30 hand-curated SG entries: subject combinations, CCAs, JC/poly/ITE/uni tracks, MOE career clusters)
+- Create: `src/server/tenancy.server.ts` (`withStudent<T>(studentId: string, fn: (s: string) => T): T` — narrow guard that asserts `studentId` is non-empty and returns `fn(studentId)`)
+- Create: `test/tenancy.test.ts`, `test/db.test.ts`
+- Create: `test/ablation/fixtures/seed-corpus.json` (canonical 8-reflection fixture used by both U2 seed and U9 ablation)
 
 **Approach:**
 - Schema columns include `student_id TEXT NOT NULL DEFAULT 'demo'` on every persisted row. v1 RLS is additive over the same column.
@@ -326,12 +326,12 @@ Cron sense-making:
 **Dependencies:** U1.
 
 **Files:**
-- Create: `app/src/routes/reflect.tsx` (voice button + text fallback — non-functional; just routes)
-- Create: `app/src/routes/wiki.index.tsx` (list of mock cards: 1 Mirror entry, 1 Connector pattern set, 1 Pathfinder trajectory + pathways)
-- Create: `app/src/routes/wiki.$entryId.tsx` (entry detail with linked sense-maker outputs)
-- Create: `app/src/components/EditableField.tsx`, `ConfirmAndSave.tsx`
-- Create: `app/src/components/WikiEntryCard.tsx`, `ConnectorPatternCard.tsx`, `PathfinderTrajectoryCard.tsx`, `PathfinderPathwaysCard.tsx`
-- Create: `app/test/components/EditableField.test.tsx`
+- Create: `src/routes/reflect.tsx` (voice button + text fallback — non-functional; just routes)
+- Create: `src/routes/wiki.index.tsx` (list of mock cards: 1 Mirror entry, 1 Connector pattern set, 1 Pathfinder trajectory + pathways)
+- Create: `src/routes/wiki.$entryId.tsx` (entry detail with linked sense-maker outputs)
+- Create: `src/components/EditableField.tsx`, `ConfirmAndSave.tsx`
+- Create: `src/components/WikiEntryCard.tsx`, `ConnectorPatternCard.tsx`, `PathfinderTrajectoryCard.tsx`, `PathfinderPathwaysCard.tsx`
+- Create: `test/components/EditableField.test.tsx`
 
 **Approach:**
 - TanStack Query `useMutation` against a mock function returning resolved values — replaced in U5/U10 with real server fns.
@@ -361,10 +361,10 @@ Cron sense-making:
 **Dependencies:** U1.
 
 **Files:**
-- Modify: `app/src/server/mirror-session.functions.ts` (replace placeholder with `createServerFn({ method: 'POST' }).inputValidator(z.object({ studentId: z.string().min(1) })).handler(async ({ data }) => { /* call OpenAI sessions endpoint, return { ephemeralKey, sessionId, expiresAt } */ })`)
-- Create: `app/src/components/MirrorSession.tsx` (WebRTC client: `RTCPeerConnection`, `getUserMedia({ audio: true })`, attach session via fetched ephemeral key, connect to `https://api.openai.com/v1/realtime` per OpenAI Realtime client spec)
-- Modify: `app/src/routes/reflect.tsx` (mount `<MirrorSession>` behind a "Start reflection" button)
-- Create: `app/src/agents/mirror.ts` (early skeleton — just the session config object that's sent in the realtime `session.update` event: model, voice, modalities, turn detection)
+- Modify: `src/server/mirror-session.functions.ts` (replace placeholder with `createServerFn({ method: 'POST' }).inputValidator(z.object({ studentId: z.string().min(1) })).handler(async ({ data }) => { /* call OpenAI sessions endpoint, return { ephemeralKey, sessionId, expiresAt } */ })`)
+- Create: `src/components/MirrorSession.tsx` (WebRTC client: `RTCPeerConnection`, `getUserMedia({ audio: true })`, attach session via fetched ephemeral key, connect to `https://api.openai.com/v1/realtime` per OpenAI Realtime client spec)
+- Modify: `src/routes/reflect.tsx` (mount `<MirrorSession>` behind a "Start reflection" button)
+- Create: `src/agents/mirror.ts` (early skeleton — just the session config object that's sent in the realtime `session.update` event: model, voice, modalities, turn detection)
 
 **Approach:**
 - Server fn calls `POST https://api.openai.com/v1/realtime/sessions` with the model + voice + tools config and returns the response's `client_secret.value` to the browser. Token is short-lived (~1 minute per OpenAI's pattern); browser uses it within a few seconds to establish the WebRTC connection.
@@ -394,17 +394,17 @@ Cron sense-making:
 **Dependencies:** U2, U4.
 
 **Files:**
-- Create: `app/src/agents/tools/search-corpus.ts` (definition reused by Mirror tool config and by Connector/Pathfinder via the SDK's `Tool` primitive; backed by `searchMirrors` query in U2)
-- Create: `app/src/agents/tools/schemas.ts` (Zod for tool I/O — schemas locked in K.T.D. #4)
-- Create: `app/src/server/search-past-mirrors.functions.ts` (the server fn the realtime session calls back into when Mirror invokes `search_past_mirrors`)
-- Create: `app/src/server/persist-mirror.functions.ts` (writes `mirror_entries` row + tags + tool trace; raw audio path explicitly absent)
-- Create: `app/src/agents/mirror.prompt.md` (constraints from K.T.D. #5: signal categories, required `caution`, no diagnostic language)
-- Create: `app/src/agents/schemas.ts` (`MirrorEntrySchema` Zod with `signals: Array<{ kind: 'observed' | 'inferred' | 'uncertain', text, evidence_excerpts? }>`, `caution: string`, `tags: string[]`, `transcript: string`)
-- Modify: `app/src/agents/mirror.ts` (full session config: model, voice, modalities, turn detection, tools array referencing `search_past_mirrors` schema, instructions loaded from `mirror.prompt.md`)
-- Modify: `app/src/components/MirrorSession.tsx` (handle `response.function_call_arguments.done` events, route to server fn, send result via `conversation.item.create`; on `session.end` POST `persist-mirror` with transcript + final structured output)
-- Modify: `app/src/routes/reflect.tsx` (after persist, navigate to `/wiki/$entryId`)
-- Create: `app/test/agents/mirror.test.ts` (mocked WebSocket: assert tool-call routing + persisted shape)
-- Create: `app/test/safety.test.ts` (assert prompt + post-validation rejects diagnostic language)
+- Create: `src/agents/tools/search-corpus.ts` (definition reused by Mirror tool config and by Connector/Pathfinder via the SDK's `Tool` primitive; backed by `searchMirrors` query in U2)
+- Create: `src/agents/tools/schemas.ts` (Zod for tool I/O — schemas locked in K.T.D. #4)
+- Create: `src/server/search-past-mirrors.functions.ts` (the server fn the realtime session calls back into when Mirror invokes `search_past_mirrors`)
+- Create: `src/server/persist-mirror.functions.ts` (writes `mirror_entries` row + tags + tool trace; raw audio path explicitly absent)
+- Create: `src/agents/mirror.prompt.md` (constraints from K.T.D. #5: signal categories, required `caution`, no diagnostic language)
+- Create: `src/agents/schemas.ts` (`MirrorEntrySchema` Zod with `signals: Array<{ kind: 'observed' | 'inferred' | 'uncertain', text, evidence_excerpts? }>`, `caution: string`, `tags: string[]`, `transcript: string`)
+- Modify: `src/agents/mirror.ts` (full session config: model, voice, modalities, turn detection, tools array referencing `search_past_mirrors` schema, instructions loaded from `mirror.prompt.md`)
+- Modify: `src/components/MirrorSession.tsx` (handle `response.function_call_arguments.done` events, route to server fn, send result via `conversation.item.create`; on `session.end` POST `persist-mirror` with transcript + final structured output)
+- Modify: `src/routes/reflect.tsx` (after persist, navigate to `/wiki/$entryId`)
+- Create: `test/agents/mirror.test.ts` (mocked WebSocket: assert tool-call routing + persisted shape)
+- Create: `test/safety.test.ts` (assert prompt + post-validation rejects diagnostic language)
 
 **Approach:**
 - The realtime session's `tools` array declares `search_past_mirrors` with the Zod-derived JSON schema; when the session emits a function-call event, `MirrorSession.tsx` calls the server fn and pipes the result back into the session as a `function_call_output` item.
@@ -419,7 +419,7 @@ Cron sense-making:
 
 **Test scenarios:**
 - Covers AE1. Mocked realtime session emits a `search_past_mirrors` function-call event with `{ query: 'physics' }`; Mirror's tool-handler invokes the server fn; server fn returns 2 mock results; the test asserts the model received exactly one `function_call_output` and no other tool was registered or called.
-- Covers AE2. After `session.end`, the persisted `mirror_entries` row contains `transcript` and `signals` JSON; no row exists in any audio table; no file was written under `app/audio/` (path doesn't exist).
+- Covers AE2. After `session.end`, the persisted `mirror_entries` row contains `transcript` and `signals` JSON; no row exists in any audio table; no file was written under `audio/` (path doesn't exist).
 - Happy path: structured signals payload from the model parses against `MirrorEntrySchema`; persistence writes one row + N tag rows + 1 trace row in one transaction.
 - Error path: structured payload that fails Zod validation triggers a single retry with a stricter "your last output was malformed" instruction; second failure surfaces a UX error and persists nothing.
 - Edge case: `caution` field empty after retry → reject and surface error (the brainstorm's "confusion is valuable" — empty caution is a regression).
@@ -439,11 +439,11 @@ Cron sense-making:
 **Dependencies:** U2.
 
 **Files:**
-- Create: `app/src/agents/tools/lookup-ecg-taxonomy.ts` (reads from `data/ecg-taxonomy.ts`; supports optional `category` filter)
-- Create: `app/src/agents/tools/self-critique.ts` (calls `gpt-4.1` via Agents SDK with a critique-only system prompt; returns `{ critique, suggestions, confidence }`)
-- Modify: `app/src/agents/tools/schemas.ts` (extend with `LookupEcgTaxonomyInput/Output`, `SelfCritiqueInput/Output` per K.T.D. #4)
-- Modify: `app/src/agents/tools/search-corpus.ts` (export an SDK `Tool` instance in addition to the realtime tool config used by Mirror — both share the `searchMirrors` query backend)
-- Create: `app/test/tools/lookup-ecg-taxonomy.test.ts`, `app/test/tools/self-critique.test.ts`, `app/test/tools/search-corpus.test.ts`
+- Create: `src/agents/tools/lookup-ecg-taxonomy.ts` (reads from `data/ecg-taxonomy.ts`; supports optional `category` filter)
+- Create: `src/agents/tools/self-critique.ts` (calls `gpt-4.1` via Agents SDK with a critique-only system prompt; returns `{ critique, suggestions, confidence }`)
+- Modify: `src/agents/tools/schemas.ts` (extend with `LookupEcgTaxonomyInput/Output`, `SelfCritiqueInput/Output` per K.T.D. #4)
+- Modify: `src/agents/tools/search-corpus.ts` (export an SDK `Tool` instance in addition to the realtime tool config used by Mirror — both share the `searchMirrors` query backend)
+- Create: `test/tools/lookup-ecg-taxonomy.test.ts`, `test/tools/self-critique.test.ts`, `test/tools/search-corpus.test.ts`
 
 **Approach:**
 - Each tool exports `{ name, schema, handler }`. Handlers are pure functions over the Zod-typed input; they're wrapped into SDK `Tool` instances in U7.
@@ -475,13 +475,13 @@ Cron sense-making:
 **Dependencies:** U6, U2.
 
 **Files:**
-- Create: `app/src/agents/connector.ts` (SDK `Agent` with `gpt-4.1`, three tools, instructions from `connector.prompt.md`, structured-output schema = `ConnectorOutputSchema`)
-- Create: `app/src/agents/pathfinder.ts` (same shape; instructions from `pathfinder.prompt.md`; output = `PathfinderOutputSchema` with `{ trajectory, pathways }`)
-- Create: `app/src/agents/connector.prompt.md` (question-reframing for prior patterns per AISI 2026; required evidence IDs)
-- Create: `app/src/agents/pathfinder.prompt.md` (depersonalized framing; 2–5 pathways max; required disclaimer; trajectory and pathways are separate output keys)
-- Create: `app/src/agents/handoff-chain.ts` (one exported `runSenseMakingForStudent(studentId)` that invokes the SDK `Runner`, runs Connector → Handoff → Pathfinder, validates, persists, returns the Handoff trace)
-- Modify: `app/src/agents/schemas.ts` (add `ConnectorOutputSchema` with `patterns: Array<{ text, strength, evidence_reflection_ids: number[]+min(1) }>` + `still_unclear`; `PathfinderOutputSchema` with `trajectory`, `pathways: Array<{ label, reasoning, ecg_taxonomy_ids: string[] }>`, `disclaimer`)
-- Create: `app/test/agents/handoff-chain.test.ts` (mocked LLM: assert Connector's patterns flow into Pathfinder via Handoff, persistence writes both rows in one cron pass)
+- Create: `src/agents/connector.ts` (SDK `Agent` with `gpt-4.1`, three tools, instructions from `connector.prompt.md`, structured-output schema = `ConnectorOutputSchema`)
+- Create: `src/agents/pathfinder.ts` (same shape; instructions from `pathfinder.prompt.md`; output = `PathfinderOutputSchema` with `{ trajectory, pathways }`)
+- Create: `src/agents/connector.prompt.md` (question-reframing for prior patterns per AISI 2026; required evidence IDs)
+- Create: `src/agents/pathfinder.prompt.md` (depersonalized framing; 2–5 pathways max; required disclaimer; trajectory and pathways are separate output keys)
+- Create: `src/agents/handoff-chain.ts` (one exported `runSenseMakingForStudent(studentId)` that invokes the SDK `Runner`, runs Connector → Handoff → Pathfinder, validates, persists, returns the Handoff trace)
+- Modify: `src/agents/schemas.ts` (add `ConnectorOutputSchema` with `patterns: Array<{ text, strength, evidence_reflection_ids: number[]+min(1) }>` + `still_unclear`; `PathfinderOutputSchema` with `trajectory`, `pathways: Array<{ label, reasoning, ecg_taxonomy_ids: string[] }>`, `disclaimer`)
+- Create: `test/agents/handoff-chain.test.ts` (mocked LLM: assert Connector's patterns flow into Pathfinder via Handoff, persistence writes both rows in one cron pass)
 
 **Approach:**
 - Agents share an identical `tools: [searchCorpus, lookupEcgTaxonomy, selfCritique]` array; what differs is `instructions` and the `outputSchema`. R11 is implemented at the import level — both agents import the same tools array.
@@ -516,13 +516,13 @@ Cron sense-making:
 **Dependencies:** U7.
 
 **Files:**
-- Create: `app/trigger.config.ts` (Trigger.dev project config — project ID, runtime: node 22, dirs: `./trigger`)
-- Create: `app/trigger/sense-make.ts` (`task({ id: 'sense-make', maxDuration: 600, run: async ({ studentId }) => runSenseMakingForStudent(studentId) })`)
-- Create: `app/src/server/schedule-onboard.functions.ts` (`createServerFn` that calls `schedules.create({ task: 'sense-make', cron: '0 3 * * *', externalId: studentId })` once per student)
-- Create: `app/src/server/trigger-cron.functions.ts` (dev-only: invoke the task ad-hoc for the current `studentId='demo'`)
-- Modify: `app/src/routes/wiki.index.tsx` (add a "Run sense-making now" button wired to `trigger-cron`; visible only with `NODE_ENV !== 'production'`)
-- Modify: `app/.env.example` (add `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_REF`)
-- Create: `app/test/trigger/sense-make.test.ts` (mocked Trigger SDK: assert task signature, payload Zod, and that running the task calls `runSenseMakingForStudent` with the right `studentId`)
+- Create: `trigger.config.ts` (Trigger.dev project config — project ID, runtime: node 22, dirs: `./trigger`)
+- Create: `trigger/sense-make.ts` (`task({ id: 'sense-make', maxDuration: 600, run: async ({ studentId }) => runSenseMakingForStudent(studentId) })`)
+- Create: `src/server/schedule-onboard.functions.ts` (`createServerFn` that calls `schedules.create({ task: 'sense-make', cron: '0 3 * * *', externalId: studentId })` once per student)
+- Create: `src/server/trigger-cron.functions.ts` (dev-only: invoke the task ad-hoc for the current `studentId='demo'`)
+- Modify: `src/routes/wiki.index.tsx` (add a "Run sense-making now" button wired to `trigger-cron`; visible only with `NODE_ENV !== 'production'`)
+- Modify: `.env.example` (add `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_REF`)
+- Create: `test/trigger/sense-make.test.ts` (mocked Trigger SDK: assert task signature, payload Zod, and that running the task calls `runSenseMakingForStudent` with the right `studentId`)
 
 **Approach:**
 - Single task; v0.1 cadence default `0 3 * * *` (nightly 03:00 in the deploy region). Per-student schedules created on first reflection persist (call `schedule-onboard` from `persist-mirror`).
@@ -552,15 +552,15 @@ Cron sense-making:
 **Dependencies:** U3, U5, U7.
 
 **Files:**
-- Modify: `app/src/routes/wiki.index.tsx` (replace mock data with `useQuery({ queryKey: ['wiki', studentId], queryFn: ... })` against a new `app/src/server/load-wiki.functions.ts`)
-- Modify: `app/src/routes/wiki.$entryId.tsx` (replace mock with real load + linked sense-maker outputs)
-- Create: `app/src/server/load-wiki.functions.ts`, `app/src/server/edit-wiki.functions.ts` (edit-and-confirm POST per agent surface)
-- Create: `app/test/ablation/score.ts` (`scoreAblation(onOutputs, offOutputs, dimensions)` — returns a per-dimension Likert scaffolding; humans fill in scores)
-- Create: `app/test/ablation/mirror-tools-off.test.ts` (runs Mirror's structured-output completion against the 8-reflection corpus with `tools: []` then with `tools: [searchPastMirrors]`; emits a JSON report under `test/ablation/reports/`)
-- Create: `app/test/ablation/cron-tools-off.test.ts` (same, for Connector + Pathfinder; tools-off = empty tools array on both agents)
-- Create: `app/scripts/ablate.ts` (wrapper: `--surface=mirror` or `--surface=cron`; writes `reports/2026-MM-DD-<surface>-ablation.md` with sections for the human scorer)
-- Modify: `app/package.json` (add `"ablate:mirror": "tsx scripts/ablate.ts --surface=mirror"`, `"ablate:cron": "tsx scripts/ablate.ts --surface=cron"`)
-- Modify: `app/README.md` (demo run + ablation run + judge-readable one-pager)
+- Modify: `src/routes/wiki.index.tsx` (replace mock data with `useQuery({ queryKey: ['wiki', studentId], queryFn: ... })` against a new `src/server/load-wiki.functions.ts`)
+- Modify: `src/routes/wiki.$entryId.tsx` (replace mock with real load + linked sense-maker outputs)
+- Create: `src/server/load-wiki.functions.ts`, `src/server/edit-wiki.functions.ts` (edit-and-confirm POST per agent surface)
+- Create: `test/ablation/score.ts` (`scoreAblation(onOutputs, offOutputs, dimensions)` — returns a per-dimension Likert scaffolding; humans fill in scores)
+- Create: `test/ablation/mirror-tools-off.test.ts` (runs Mirror's structured-output completion against the 8-reflection corpus with `tools: []` then with `tools: [searchPastMirrors]`; emits a JSON report under `test/ablation/reports/`)
+- Create: `test/ablation/cron-tools-off.test.ts` (same, for Connector + Pathfinder; tools-off = empty tools array on both agents)
+- Create: `scripts/ablate.ts` (wrapper: `--surface=mirror` or `--surface=cron`; writes `reports/2026-MM-DD-<surface>-ablation.md` with sections for the human scorer)
+- Modify: `package.json` (add `"ablate:mirror": "tsx scripts/ablate.ts --surface=mirror"`, `"ablate:cron": "tsx scripts/ablate.ts --surface=cron"`)
+- Modify: `README.md` (demo run + ablation run + judge-readable one-pager)
 
 **Approach:**
 - Wiki view: each agent surface is a card with provenance/uncertainty fields visible (Mirror's `caution`, Connector's `still_unclear`, Pathfinder's `disclaimer`). Edit-and-confirm uses optimistic TanStack Query mutations; failure reverts.
@@ -581,7 +581,7 @@ Cron sense-making:
 - Safety: `safety.test.ts` (extended) asserts no rendered text matches the diagnostic-language regex on any seeded or live output.
 
 **Verification:**
-- `pnpm dev` end-to-end demo flow works on `student_id='demo'`. `vitest run` passes including ablation scaffolding tests. Two ablation reports exist under `app/test/ablation/reports/` after one run of each script. README shows judges what to look for.
+- `pnpm dev` end-to-end demo flow works on `student_id='demo'`. `vitest run` passes including ablation scaffolding tests. Two ablation reports exist under `test/ablation/reports/` after one run of each script. README shows judges what to look for.
 
 ---
 
@@ -616,7 +616,7 @@ Cron sense-making:
 - **README:** judge-readable one-pager — what the product is, what to look for in the demo, exact commands (`pnpm install`, `pnpm dev`, click flow, `pnpm ablate:mirror`, `pnpm ablate:cron`).
 - **`.env.example`:** list every required key (`OPENAI_API_KEY`, `TRIGGER_SECRET_KEY`, `TRIGGER_PROJECT_REF`, `DATABASE_PATH`).
 - **Demo data:** the 8-reflection seed corpus is checked in; `pnpm seed` rebuilds `app.db` from scratch idempotently.
-- **Ablation reports:** under `app/test/ablation/reports/`; the v1-commit decision per surface is a Markdown verdict in each report. Report files are not gitignored — they are the artifact.
+- **Ablation reports:** under `test/ablation/reports/`; the v1-commit decision per surface is a Markdown verdict in each report. Report files are not gitignored — they are the artifact.
 - **Cost monitoring:** OpenAI usage dashboard during the demo; budget alarm at $50/day during judging window.
 
 ---
