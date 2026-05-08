@@ -26,16 +26,17 @@ function makeFetchSpy(response: Response): ReturnType<typeof vi.fn> {
 
 const NOW_UNIX = Math.floor(new Date('2026-05-08T20:30:00Z').getTime() / 1000)
 
+// GA Realtime API response shape: top-level `value` + `expires_at`,
+// session id nested under `session`. The legacy beta `client_secret`
+// envelope is no longer returned.
 const happyPayload = {
-  id: 'sess_abc',
-  client_secret: { value: 'ek_xyz', expires_at: NOW_UNIX + 60 },
+  value: 'ek_xyz',
   expires_at: NOW_UNIX + 60,
-  model: 'gpt-realtime-2',
-  voice: 'alloy',
+  session: { id: 'sess_abc', model: 'gpt-realtime-2' },
 }
 
-describe('mintMirrorSession server fn', () => {
-  it('mints an ephemeral session and returns the client_secret to the browser', async () => {
+describe('mintMirrorSession server fn (GA Realtime API)', () => {
+  it('mints an ephemeral client_secret and returns it to the browser', async () => {
     const spy = makeFetchSpy(new Response(JSON.stringify(happyPayload), { status: 200 }))
 
     const result = await mintMirrorSessionHandler({ studentId: 'demo' })
@@ -48,15 +49,17 @@ describe('mintMirrorSession server fn', () => {
       voice: 'alloy',
     })
     expect(spy).toHaveBeenCalledWith(
-      'https://api.openai.com/v1/realtime/sessions',
+      'https://api.openai.com/v1/realtime/client_secrets',
       expect.objectContaining({ method: 'POST' }),
     )
     const init = spy.mock.calls[0]?.[1] as RequestInit
-    const body = JSON.parse(String(init.body)) as Record<string, unknown>
-    expect(body.model).toBe('gpt-realtime-2')
-    expect(body.voice).toBe('alloy')
-    expect(body.modalities).toEqual(['audio', 'text'])
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test-fixture')
+    const body = JSON.parse(String(init.body)) as { session?: { model?: string; audio?: unknown } }
+    expect(body.session?.model).toBe('gpt-realtime-2')
+    expect(body.session?.audio).toBeDefined()
+    const headers = init.headers as Record<string, string>
+    expect(headers.Authorization).toBe('Bearer sk-test-fixture')
+    // No `OpenAI-Beta` header on the GA endpoint.
+    expect(headers['OpenAI-Beta']).toBeUndefined()
   })
 
   it('rejects an empty studentId at the Zod boundary before calling OpenAI', async () => {
@@ -70,13 +73,11 @@ describe('mintMirrorSession server fn', () => {
     await expect(mintMirrorSessionHandler({ studentId: 'demo' })).rejects.toThrowError(/401/)
   })
 
-  it('rejects a malformed OpenAI response (missing client_secret)', async () => {
+  it('rejects a malformed OpenAI response (missing value or session.id)', async () => {
     makeFetchSpy(
-      new Response(JSON.stringify({ id: 'sess_x', expires_at: NOW_UNIX + 60 }), { status: 200 }),
+      new Response(JSON.stringify({ expires_at: NOW_UNIX + 60, session: {} }), { status: 200 }),
     )
-    await expect(mintMirrorSessionHandler({ studentId: 'demo' })).rejects.toThrowError(
-      /client_secret/,
-    )
+    await expect(mintMirrorSessionHandler({ studentId: 'demo' })).rejects.toThrowError(/missing/)
   })
 
   it('rejects when OPENAI_API_KEY is missing', async () => {

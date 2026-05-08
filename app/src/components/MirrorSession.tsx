@@ -30,7 +30,9 @@ export interface MirrorSessionProps {
   onEnded?: (transcript: string) => void
 }
 
-const REALTIME_BASE = 'https://api.openai.com/v1/realtime'
+// GA Realtime WebRTC endpoint. Beta was `/v1/realtime?model=...`; GA is
+// `/v1/realtime/calls?model=...` and does not need the `OpenAI-Beta` header.
+const REALTIME_CALLS_ENDPOINT = 'https://api.openai.com/v1/realtime/calls'
 
 /**
  * U4 Mirror live-session client. Establishes a direct browser → OpenAI
@@ -125,13 +127,14 @@ export function MirrorSession({ studentId, onActive, onEnded, onPersisted }: Mir
         })
       })
       dc.addEventListener('open', () => {
-        // Push the Mirror session config + the single tool. The realtime
-        // model needs `instructions` and `tools` in a `session.update`
-        // before it'll invoke the tool.
+        // Push the Mirror session config + the single tool. GA shape:
+        // `session.update` carries a `session: { type: 'realtime', ... }`
+        // payload. Tools and instructions live inside that nested object.
         dc.send(
           JSON.stringify({
             type: 'session.update',
             session: {
+              type: 'realtime',
               instructions: MIRROR_INSTRUCTIONS,
               tools: [realtimeToolConfig()],
             },
@@ -144,15 +147,17 @@ export function MirrorSession({ studentId, onActive, onEnded, onPersisted }: Mir
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
 
-      const sdpResponse = await fetch(`${REALTIME_BASE}?model=${encodeURIComponent(model)}`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${ephemeralKey}`,
-          'Content-Type': 'application/sdp',
-          'OpenAI-Beta': 'realtime=v1',
+      const sdpResponse = await fetch(
+        `${REALTIME_CALLS_ENDPOINT}?model=${encodeURIComponent(model)}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${ephemeralKey}`,
+            'Content-Type': 'application/sdp',
+          },
+          body: offer.sdp ?? '',
         },
-        body: offer.sdp ?? '',
-      })
+      )
 
       if (!sdpResponse.ok) {
         throw new Error(
