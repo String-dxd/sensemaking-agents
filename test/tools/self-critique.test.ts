@@ -13,7 +13,7 @@ describe('self-critique', () => {
       confidence: 'medium',
     })
     const result = await executeSelfCritique(
-      { draft: { trajectory: 'something' }, dimension: 'evidence' },
+      { draft: JSON.stringify({ trajectory: 'something' }), dimension: 'evidence' },
       { runCritique },
     )
     expect(result.critique).toMatch(/generic/)

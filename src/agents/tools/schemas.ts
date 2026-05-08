@@ -62,8 +62,15 @@ export type LookupEcgTaxonomyInput = z.infer<typeof LookupEcgTaxonomyInputSchema
 export type LookupEcgTaxonomyOutput = z.infer<typeof LookupEcgTaxonomyOutputSchema>
 
 // ── self_critique ────────────────────────────────────────────────────────
+// `draft` is a JSON-serialized blob of arbitrary shape (Connector or
+// Pathfinder draft). OpenAI's tool-parameter schema validator requires
+// every property to have a `type`, so we declare it as a string the
+// caller fills with `JSON.stringify(draft)` instead of `z.unknown()`.
 export const SelfCritiqueInputSchema = z.object({
-  draft: z.unknown().describe('The agent draft to critique. Pass through as JSON.'),
+  draft: z
+    .string()
+    .min(1)
+    .describe('JSON-serialized draft from another agent. Re-parsed inside the critique runner.'),
   dimension: z.enum(['evidence', 'sycophancy', 'specificity']),
 })
 

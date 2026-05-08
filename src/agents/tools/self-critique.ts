@@ -42,7 +42,7 @@ export async function executeSelfCritique(
   if (deps.runCritique) {
     return SelfCritiqueOutputSchema.parse(await deps.runCritique(input))
   }
-  const userMessage = `Dimension: ${input.dimension}\nFocus: ${CRITIQUE_INSTRUCTIONS_BY_DIMENSION[input.dimension]}\n\nDraft:\n${JSON.stringify(input.draft, null, 2)}`
+  const userMessage = `Dimension: ${input.dimension}\nFocus: ${CRITIQUE_INSTRUCTIONS_BY_DIMENSION[input.dimension]}\n\nDraft (JSON):\n${input.draft}`
   const result = await run(critiqueAgent, userMessage)
   return SelfCritiqueOutputSchema.parse(result.finalOutput)
 }
