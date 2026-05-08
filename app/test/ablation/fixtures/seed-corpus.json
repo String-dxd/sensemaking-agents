@@ -1,0 +1,170 @@
+{
+  "student_id": "demo",
+  "description": "Canonical 8-reflection seed corpus for v0.1 ablation. Spans ~6 months of an SG Sec 4 student exploring after-school direction. Reflections are deliberately uneven in resolution — some confident, some confused — to test whether agents preserve uncertainty.",
+  "reflections": [
+    {
+      "id": 1,
+      "summary": "First time tearing down the robotics arm at club. Kept losing track of which screw went where, but felt absorbed for hours.",
+      "transcript": "We had robotics today and Mr Lim brought in the new arm kit. I thought I would be lost because everyone else has done two builds already, but I asked Wei Jie if I could try disassembling first to see how it goes together. I lost track of which screw went where halfway through and had to redo a section. The strange thing is it didn't feel frustrating — I just kept going. We were there until 7pm and I didn't notice. I want to come back next week and try the same kit but blindfolded the second time, just to see if my hands remember.",
+      "signals": [
+        { "kind": "observed", "text": "Lost track of time during a hands-on engineering task." },
+        {
+          "kind": "observed",
+          "text": "Chose disassembly-first as a self-directed way in, rather than copying others."
+        },
+        {
+          "kind": "uncertain",
+          "text": "Whether the absorption was about the task or about the social cover of robotics club."
+        }
+      ],
+      "caution": "One session. Could be novelty.",
+      "tags": ["robotics", "engineering", "absorption"]
+    },
+    {
+      "id": 2,
+      "summary": "Maths test on vectors — got 17/20 but the three I lost were the geometric reasoning ones, not the algebra. I notice this is the third test where the same shape of mistake shows up.",
+      "transcript": "Vectors test today. 17 out of 20. The three I lost were all geometric-reasoning ones — drawing the position of a point from two vectors. I checked my last two tests and the same kind of question is what tripped me up. The algebra is fine; the picture-in-my-head part keeps breaking. Wei Jie said he just rotates the diagram in his head until it clicks, and that didn't work for me at all. I might need a different way in — maybe building it physically, since the robotics arm thing felt similar.",
+      "signals": [
+        {
+          "kind": "observed",
+          "text": "Same shape of error has recurred across three maths tests — geometric reasoning, not algebra."
+        },
+        {
+          "kind": "inferred",
+          "text": "Visual / mental-rotation strategies that work for peers do not transfer."
+        },
+        {
+          "kind": "uncertain",
+          "text": "Whether physical / hands-on representation is a real workaround or just preference."
+        }
+      ],
+      "caution": "Three data points isn't a pattern; it's a hint.",
+      "tags": ["maths", "geometry", "learning-strategy"]
+    },
+    {
+      "id": 3,
+      "summary": "Lit class — we had to argue both sides of an essay question. I stayed in the role of 'against' for the whole 40 minutes and Mrs Tan said my argument was the cleanest she'd heard this year.",
+      "transcript": "Mrs Tan ran a debate-style class on the war poems. She paired us up and we had to argue one side then swap. I drew 'against' first and I just kept going for the whole 40 minutes — I didn't want to swap. She said afterwards that my argument was the cleanest she's heard this year, but I think the reason was I wasn't trying to be balanced. I was trying to find the best version of one side. It was different from the way I usually write essays where I want to be fair to both. I felt sharper.",
+      "signals": [
+        {
+          "kind": "observed",
+          "text": "Argued one side of a literary question for 40 minutes without swapping."
+        },
+        {
+          "kind": "observed",
+          "text": "Teacher unprompted feedback that the argument was the strongest she'd heard."
+        },
+        {
+          "kind": "inferred",
+          "text": "Feels sharper when committing to a single thesis vs. balancing two."
+        },
+        {
+          "kind": "uncertain",
+          "text": "Whether the sharpness is about the topic, the format, or the role."
+        }
+      ],
+      "caution": "One class period. Mrs Tan grades on commitment-to-argument, which biases the feedback.",
+      "tags": ["literature", "argument", "debate"]
+    },
+    {
+      "id": 4,
+      "summary": "Family dinner — Pa asked about JC subject combinations. I said I'd take PCME. I'm not sure I meant it. It just made the conversation end.",
+      "transcript": "We had dinner at Po Po's tonight and Pa asked again about subject combos. I said PCME. Everyone nodded and the topic moved on. The truth is I haven't really thought it through; I just know it's the safe answer because half my family is in engineering. After dinner I felt a bit hollow — I had agreed to a thing without examining it. But also I don't know what else I would have said. Bio? I don't know that I want medicine. Lit? Then I'd have to defend it.",
+      "signals": [
+        { "kind": "observed", "text": "Stated PCME as the choice in a family conversation." },
+        {
+          "kind": "uncertain",
+          "text": "Whether the choice was a real decision or a way to close the conversation."
+        },
+        {
+          "kind": "uncertain",
+          "text": "What an honest answer would have been if defending it weren't required."
+        }
+      ],
+      "caution": "The reflection shows a disagreement between what was said and what was felt — that's data, not a verdict.",
+      "tags": ["family", "subject-combination", "decision"]
+    },
+    {
+      "id": 5,
+      "summary": "Three weeks into Sec 4 prelims. I got bored of physics revision after 20 minutes but did Lit close-reading for two hours straight.",
+      "transcript": "Started physics this morning around 9. By 9:25 I was checking my phone. I forced another 30 minutes and then switched to Lit and did close-reading on 'Refugee Blues' until past 11. I'd rather not admit it because PCME is my plan, but the gap was big. The physics wasn't hard, I just kept losing the thread. The Lit kept pulling me back into the next layer.",
+      "signals": [
+        {
+          "kind": "observed",
+          "text": "Stopped voluntary physics revision after 25 minutes; sustained Lit close-reading for two hours."
+        },
+        {
+          "kind": "uncertain",
+          "text": "Whether this is about the topic, the format (problem-solving vs. close-reading), or the time of day."
+        },
+        {
+          "kind": "uncertain",
+          "text": "Whether the PCME plan needs to be reopened or whether this is one off-day."
+        }
+      ],
+      "caution": "One morning. The physics could have been a stale topic; the Lit poem might be unusually compelling.",
+      "tags": ["revision", "physics", "literature", "absorption"]
+    },
+    {
+      "id": 6,
+      "summary": "Robotics again. Built the arm in 35 minutes blindfolded. I noticed I was tracking the screws by the *position my hand was in*, not by what they looked like.",
+      "transcript": "I came back to the kit today and tried it blindfolded like I said. I built the arm in 35 minutes which was faster than my last sighted run. The interesting thing was — I wasn't tracking the screws by their look or feel, I was tracking them by where my hand had been when I'd taken them out. It was almost like the workspace was the diagram. Wei Jie said that's how mechanics talk about 'muscle memory' but it didn't feel like memory, it felt more like a map.",
+      "signals": [
+        { "kind": "observed", "text": "Built the arm faster blindfolded than sighted." },
+        {
+          "kind": "observed",
+          "text": "Used spatial location of objects in the workspace as the primary index, not visual or tactile features."
+        },
+        {
+          "kind": "inferred",
+          "text": "Spatial-positional reasoning may be a stronger track than visual-rotational reasoning (echoing the maths-test pattern)."
+        },
+        {
+          "kind": "uncertain",
+          "text": "Whether this generalizes beyond mechanical-assembly tasks."
+        }
+      ],
+      "caution": "This connects to the vectors-test reflection but the chain is two data points across two domains; treat as hypothesis, not finding.",
+      "tags": ["robotics", "spatial-reasoning", "engineering"]
+    },
+    {
+      "id": 7,
+      "summary": "Open house at NUS Engineering. Walked through three labs. The mechatronics one was the only one I asked questions in.",
+      "transcript": "Pa took me to NUS Engineering open house. I walked through Civil, EE, and Mechatronics. In Civil I just nodded. In EE I nodded. In Mechatronics I asked the demonstrator about the actuator they used and we talked for ten minutes about why they'd picked the smaller one. On the way home I realized I had only asked one question all day and it was the one about the smaller actuator. I'm trying not to over-read this.",
+      "signals": [
+        {
+          "kind": "observed",
+          "text": "Asked one substantive question across three lab visits — and it was in mechatronics."
+        },
+        {
+          "kind": "inferred",
+          "text": "Differentiated curiosity may be a more honest signal than stated preference."
+        },
+        {
+          "kind": "uncertain",
+          "text": "Whether mechatronics specifically draws me, or any hands-on engineering corner would have."
+        }
+      ],
+      "caution": "Open-house demos are curated; the engagement is partly the demonstrator's skill, not just the subject.",
+      "tags": ["open-house", "mechatronics", "curiosity"]
+    },
+    {
+      "id": 8,
+      "summary": "Mrs Tan stayed back after class. She asked if I'd considered Lit at H2 and I said probably not. The conversation kept going for 20 minutes.",
+      "transcript": "Mrs Tan asked me to stay back. She said the way I handled the war poems essay was unusual and asked if I'd thought about Lit at H2. I said probably not — PCME is the family plan. She didn't argue. She asked instead what I would do if Lit and engineering were both kept open. I said I'd probably be miserable trying to defend the choice for two years. She laughed and said 'so you already know it's a defended choice.' I don't know what to do with that.",
+      "signals": [
+        { "kind": "observed", "text": "Spontaneous teacher invitation to consider Lit at H2." },
+        {
+          "kind": "observed",
+          "text": "Acknowledged out loud that the PCME plan is currently a 'defended choice', not an examined one."
+        },
+        {
+          "kind": "uncertain",
+          "text": "Whether the right next step is to keep both open longer or to commit to examining one."
+        }
+      ],
+      "caution": "A 20-minute conversation surfaces a frame; it doesn't resolve it. The 'defended choice' phrase is Mrs Tan's, accepted in the moment.",
+      "tags": ["literature", "subject-combination", "decision", "teacher-feedback"]
+    }
+  ]
+}
