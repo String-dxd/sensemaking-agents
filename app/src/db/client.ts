@@ -51,6 +51,11 @@ export function resetDbForTests(): void {
   }
 }
 
+/** Inject a db handle as the cached one. Test-only — used by integration tests. */
+export function setDbForTests(db: DatabaseInstance | null): void {
+  cached = db
+}
+
 /** Open a fresh in-memory db. Test-only — does not touch the cache. */
 export function openInMemoryDb(): DatabaseInstance {
   const db = new Database(':memory:')

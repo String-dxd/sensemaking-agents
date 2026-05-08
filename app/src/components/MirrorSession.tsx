@@ -1,14 +1,32 @@
 import { useEffect, useRef, useState } from 'react'
+import mirrorPrompt from '~/agents/mirror.prompt.md?raw'
+import { handleRealtimeEvent } from '~/agents/mirror-event-router'
+import { MirrorEntrySchema } from '~/agents/schemas'
+import { realtimeToolConfig } from '~/agents/tools/search-corpus'
 import { Button } from '~/components/ui/button'
 import { mintMirrorSession } from '~/server/mirror-session.functions'
+import { persistMirror } from '~/server/persist-mirror.functions'
+import { searchPastMirrors } from '~/server/search-past-mirrors.functions'
 
-type SessionStatus = 'idle' | 'minting' | 'connecting' | 'active' | 'ended' | 'error'
+const MIRROR_INSTRUCTIONS = mirrorPrompt
+
+type SessionStatus =
+  | 'idle'
+  | 'minting'
+  | 'connecting'
+  | 'active'
+  | 'ending'
+  | 'persisting'
+  | 'ended'
+  | 'error'
 
 export interface MirrorSessionProps {
   studentId: string
   /** Called once the peer connection is fully established. */
   onActive?: () => void
-  /** Called when the session ends (user-initiated or remote). U5 hands off to persistence here. */
+  /** Called when the structured payload has been validated and persisted. */
+  onPersisted?: (entryId: number) => void
+  /** Called when the session ends (user-initiated or remote). */
   onEnded?: (transcript: string) => void
 }
 
@@ -24,7 +42,7 @@ const REALTIME_BASE = 'https://api.openai.com/v1/realtime'
  * U5 adds tool-call routing on the data channel and session-end
  * persistence; this component holds the wiring those steps build on.
  */
-export function MirrorSession({ studentId, onActive, onEnded }: MirrorSessionProps) {
+export function MirrorSession({ studentId, onActive, onEnded, onPersisted }: MirrorSessionProps) {
   const [status, setStatus] = useState<SessionStatus>('idle')
   const [error, setError] = useState<string | null>(null)
   const [transcript, setTranscript] = useState('')
@@ -77,11 +95,48 @@ export function MirrorSession({ studentId, onActive, onEnded }: MirrorSessionPro
         }
       }
 
-      // Data channel for events (transcripts, tool calls in U5).
+      // Data channel for events (transcripts, tool calls, structured-output).
       const dc = pc.createDataChannel('oai-events')
       dcRef.current = dc
-      dc.addEventListener('message', (msg) => handleEvent(msg.data))
+      dc.addEventListener('message', (msg) => {
+        if (typeof msg.data !== 'string') return
+        // Structured-output capture for session-end persistence.
+        try {
+          const parsed = JSON.parse(msg.data) as { type?: string; text?: string }
+          if (
+            (parsed.type === 'response.output_text.done' || parsed.type === 'response.text.done') &&
+            typeof parsed.text === 'string'
+          ) {
+            void persistFinalPayload(parsed.text)
+          }
+        } catch {
+          /* fall through to router */
+        }
+        void handleRealtimeEvent({
+          raw: msg.data,
+          studentId,
+          send: (envelope) => dc.send(JSON.stringify(envelope)),
+          onTranscriptDelta: (delta) => setTranscript((prev) => prev + delta),
+          onTranscriptDone: (full) => setTranscript(full),
+          runSearch: async (input) =>
+            searchPastMirrors({
+              data: { studentId, query: input.query, limit: input.limit },
+            }),
+        })
+      })
       dc.addEventListener('open', () => {
+        // Push the Mirror session config + the single tool. The realtime
+        // model needs `instructions` and `tools` in a `session.update`
+        // before it'll invoke the tool.
+        dc.send(
+          JSON.stringify({
+            type: 'session.update',
+            session: {
+              instructions: MIRROR_INSTRUCTIONS,
+              tools: [realtimeToolConfig()],
+            },
+          }),
+        )
         setStatus('active')
         onActive?.()
       })
@@ -114,33 +169,52 @@ export function MirrorSession({ studentId, onActive, onEnded }: MirrorSessionPro
     }
   }
 
-  function handleEvent(raw: unknown) {
-    if (typeof raw !== 'string') return
-    let event: { type?: string; delta?: string; transcript?: string }
-    try {
-      event = JSON.parse(raw) as typeof event
-    } catch {
-      return
-    }
-    // U5 will branch on type to route tool calls; U4 only listens for transcript fragments.
-    if (event.type === 'response.audio_transcript.delta' && typeof event.delta === 'string') {
-      setTranscript((prev) => prev + event.delta)
-    }
-    if (
-      event.type === 'response.audio_transcript.done' &&
-      typeof event.transcript === 'string' &&
-      event.transcript.length > 0
-    ) {
-      // Use the canonical full transcript from the server when it arrives.
-      setTranscript(event.transcript)
+  function end() {
+    setStatus('ending')
+    onEnded?.(transcript)
+    const dc = dcRef.current
+    if (dc && dc.readyState === 'open') {
+      dc.send(
+        JSON.stringify({
+          type: 'response.create',
+          response: {
+            modalities: ['text'],
+            instructions:
+              'The session is ending. Return ONLY a JSON object matching this exact shape: { "summary": string, "transcript": string, "signals": [{ "kind": "observed"|"inferred"|"uncertain", "text": string }], "caution": string, "tags": string[] }. No prose. No markdown.',
+          },
+        }),
+      )
+    } else {
+      setStatus('ended')
+      cleanup()
     }
   }
 
-  function end() {
-    const finalTranscript = transcript
-    cleanup()
-    setStatus('ended')
-    onEnded?.(finalTranscript)
+  async function persistFinalPayload(rawText: string) {
+    if (status !== 'ending') return
+    setStatus('persisting')
+    try {
+      // The model is instructed to return raw JSON; allow a stray code-fence.
+      const cleaned = rawText.replace(/^```(?:json)?\s*|\s*```$/g, '').trim()
+      const draft = MirrorEntrySchema.parse(JSON.parse(cleaned))
+      const row = await persistMirror({
+        data: {
+          studentId,
+          entry: draft,
+        },
+      })
+      setStatus('ended')
+      cleanup()
+      onPersisted?.(row.id)
+    } catch (e) {
+      setStatus('error')
+      setError(
+        e instanceof Error
+          ? `Failed to persist reflection: ${e.message}`
+          : 'Failed to persist reflection.',
+      )
+      cleanup()
+    }
   }
 
   return (

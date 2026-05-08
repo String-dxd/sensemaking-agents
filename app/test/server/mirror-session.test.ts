@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mintMirrorSessionHandler } from '~/server/mirror-session.functions'
+import { mintMirrorSessionHandler } from '~/server/mirror-session.handler.server'
 
 const originalFetch = globalThis.fetch
 const originalApiKey = process.env.OPENAI_API_KEY

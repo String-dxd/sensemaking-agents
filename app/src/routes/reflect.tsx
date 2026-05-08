@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { MirrorSession } from '~/components/MirrorSession'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 
@@ -7,6 +7,7 @@ export const Route = createFileRoute('/reflect')({
 })
 
 function ReflectPage() {
+  const navigate = useNavigate()
   return (
     <section className="flex flex-col gap-6 py-6">
       <header className="flex flex-col gap-2">
@@ -25,11 +26,12 @@ function ReflectPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <MirrorSession studentId="demo" />
-          <p className="text-xs text-muted-foreground">
-            U4 ships the bare voice path. U5 adds the corpus-search tool and session-end
-            persistence.
-          </p>
+          <MirrorSession
+            studentId="demo"
+            onPersisted={(entryId) => {
+              void navigate({ to: '/wiki/$entryId', params: { entryId: String(entryId) } })
+            }}
+          />
         </CardContent>
       </Card>
     </section>
