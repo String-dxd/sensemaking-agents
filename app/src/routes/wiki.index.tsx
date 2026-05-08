@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { ConfirmAndSave } from '~/components/ConfirmAndSave'
 import { ConnectorPatternCard } from '~/components/ConnectorPatternCard'
@@ -6,35 +6,46 @@ import { PathfinderPathwaysCard } from '~/components/PathfinderPathwaysCard'
 import { PathfinderTrajectoryCard } from '~/components/PathfinderTrajectoryCard'
 import { Button } from '~/components/ui/button'
 import { WikiEntryCard } from '~/components/WikiEntryCard'
-import { loadMockWiki, mockEditCaution } from '~/lib/wiki-mocks'
+import { editMirrorCaution } from '~/server/edit-wiki.functions'
+import { loadWiki } from '~/server/load-wiki.functions'
 import { triggerSenseMakeNow } from '~/server/trigger-cron.functions'
 
+const STUDENT_ID = 'demo'
+
 export const Route = createFileRoute('/wiki/')({
+  loader: async ({ context }) => {
+    await context.queryClient.ensureQueryData({
+      queryKey: ['wiki', STUDENT_ID],
+      queryFn: () => loadWiki({ data: { studentId: STUDENT_ID } }),
+    })
+  },
   component: WikiIndexPage,
 })
 
 function WikiIndexPage() {
+  const qc = useQueryClient()
   const { data, isPending } = useQuery({
-    queryKey: ['wiki', 'demo', 'mock'],
-    queryFn: loadMockWiki,
+    queryKey: ['wiki', STUDENT_ID],
+    queryFn: () => loadWiki({ data: { studentId: STUDENT_ID } }),
   })
   const triggerNow = useMutation({
-    mutationFn: () => triggerSenseMakeNow({ data: { studentId: 'demo' } }),
+    mutationFn: () => triggerSenseMakeNow({ data: { studentId: STUDENT_ID } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] }),
   })
 
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>
   if (!data) return <p className="py-8 text-sm">No wiki yet.</p>
 
-  const firstEntry = data.entries[0]
   const isDev = import.meta.env.DEV
+  const firstEntry = data.entries[0]
 
   return (
     <section className="flex flex-col gap-6 py-6">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Wiki</h1>
         <p className="max-w-prose text-sm text-muted-foreground">
-          Mirror entries, Connector patterns, Pathfinder trajectory + pathways. Mock data in U3 — U9
-          wires real persistence.
+          Mirror entries, Connector patterns, Pathfinder trajectory + pathways. Every field is
+          editable — click Edit, change, then Confirm.
         </p>
         {isDev ? (
           <div className="flex items-center gap-2">
@@ -62,23 +73,31 @@ function WikiIndexPage() {
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
         Reflections
       </h2>
-      <div className="flex flex-col gap-4">
-        {data.entries.map((entry) => (
-          <WikiEntryCard key={entry.id} entry={entry} />
-        ))}
-      </div>
+      {data.entries.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No reflections yet. Open <code>/reflect</code> to start one.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {data.entries.map((entry) => (
+            <WikiEntryCard key={entry.id} entry={entry} />
+          ))}
+        </div>
+      )}
 
       {firstEntry ? (
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Edit caution (mock round-trip)
+            Edit caution on reflection #{firstEntry.id}
           </h2>
           <ConfirmAndSave
             value={firstEntry.caution}
             label={`Caution for reflection #${firstEntry.id}`}
-            buildInput={(next) => ({ entryId: firstEntry.id, caution: next })}
-            mutationFn={mockEditCaution}
-            invalidate={[['wiki', 'demo', 'mock']]}
+            buildInput={(next) => ({
+              data: { studentId: STUDENT_ID, entryId: firstEntry.id, caution: next },
+            })}
+            mutationFn={editMirrorCaution}
+            invalidate={[['wiki', STUDENT_ID]]}
           />
         </div>
       ) : null}
@@ -86,9 +105,19 @@ function WikiIndexPage() {
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
         Sense-making
       </h2>
-      <ConnectorPatternCard output={data.connector} />
-      <PathfinderTrajectoryCard output={data.pathfinder} />
-      <PathfinderPathwaysCard output={data.pathfinder} />
+      {data.connector ? (
+        <ConnectorPatternCard output={data.connector} />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          No Connector output yet. Cron runs nightly, or click "Run sense-making now" above.
+        </p>
+      )}
+      {data.pathfinder ? (
+        <>
+          <PathfinderTrajectoryCard output={data.pathfinder} />
+          <PathfinderPathwaysCard output={data.pathfinder} />
+        </>
+      ) : null}
     </section>
   )
 }

@@ -6,7 +6,10 @@ import { PathfinderPathwaysCard } from '~/components/PathfinderPathwaysCard'
 import { PathfinderTrajectoryCard } from '~/components/PathfinderTrajectoryCard'
 import { Button } from '~/components/ui/button'
 import { WikiEntryCard } from '~/components/WikiEntryCard'
-import { loadMockEntry, mockEditCaution } from '~/lib/wiki-mocks'
+import { editMirrorCaution, editMirrorSummary } from '~/server/edit-wiki.functions'
+import { loadWikiEntry } from '~/server/load-wiki.functions'
+
+const STUDENT_ID = 'demo'
 
 export const Route = createFileRoute('/wiki/$entryId')({
   loader: async ({ params }) => {
@@ -20,8 +23,8 @@ export const Route = createFileRoute('/wiki/$entryId')({
 function WikiEntryPage() {
   const { entryId } = Route.useLoaderData()
   const { data, isPending } = useQuery({
-    queryKey: ['wiki', 'demo', 'mock', entryId],
-    queryFn: () => loadMockEntry(entryId),
+    queryKey: ['wiki', STUDENT_ID, entryId],
+    queryFn: () => loadWikiEntry({ data: { studentId: STUDENT_ID, entryId } }),
   })
 
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>
@@ -44,18 +47,36 @@ function WikiEntryPage() {
       </Link>
       <WikiEntryCard entry={data.entry} />
       <ConfirmAndSave
-        value={data.entry.caution}
-        label="Caution"
-        buildInput={(next) => ({ entryId: data.entry.id, caution: next })}
-        mutationFn={mockEditCaution}
+        value={data.entry.summary}
+        label="Summary"
+        buildInput={(next) => ({
+          data: { studentId: STUDENT_ID, entryId: data.entry.id, summary: next },
+        })}
+        mutationFn={editMirrorSummary}
         invalidate={[
-          ['wiki', 'demo', 'mock', entryId],
-          ['wiki', 'demo', 'mock'],
+          ['wiki', STUDENT_ID, entryId],
+          ['wiki', STUDENT_ID],
         ]}
       />
-      <ConnectorPatternCard output={data.connector} />
-      <PathfinderTrajectoryCard output={data.pathfinder} />
-      <PathfinderPathwaysCard output={data.pathfinder} />
+      <ConfirmAndSave
+        value={data.entry.caution}
+        label="Caution"
+        buildInput={(next) => ({
+          data: { studentId: STUDENT_ID, entryId: data.entry.id, caution: next },
+        })}
+        mutationFn={editMirrorCaution}
+        invalidate={[
+          ['wiki', STUDENT_ID, entryId],
+          ['wiki', STUDENT_ID],
+        ]}
+      />
+      {data.connector ? <ConnectorPatternCard output={data.connector} /> : null}
+      {data.pathfinder ? (
+        <>
+          <PathfinderTrajectoryCard output={data.pathfinder} />
+          <PathfinderPathwaysCard output={data.pathfinder} />
+        </>
+      ) : null}
     </section>
   )
 }
