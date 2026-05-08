@@ -32,14 +32,14 @@ const connectorPrompt = readFileSync(resolve('src/agents/connector.prompt.md'), 
 const pathfinderPrompt = readFileSync(resolve('src/agents/pathfinder.prompt.md'), 'utf8')
 
 interface CliArgs {
-  surface: 'mirror' | 'cron'
+  surface: 'mirror' | 'sensemake'
 }
 
 function parseArgs(argv: string[]): CliArgs {
   const surfaceArg = argv.find((a) => a.startsWith('--surface='))
   const surface = surfaceArg?.split('=')[1]
-  if (surface !== 'mirror' && surface !== 'cron') {
-    console.error('usage: tsx scripts/ablate.ts --surface=<mirror|cron>')
+  if (surface !== 'mirror' && surface !== 'sensemake') {
+    console.error('usage: tsx scripts/ablate.ts --surface=<mirror|sensemake>')
     process.exit(2)
   }
   return { surface }
@@ -53,7 +53,10 @@ function formatCorpus(): string {
   return entries
     .slice()
     .reverse()
-    .map((e) => `# Reflection #${e.id} — ${e.created_at}\n${e.summary}`)
+    .map(
+      (e) =>
+        `# Reflection #${e.id} — ${e.created_at}\n${e.story_reframe}\n\nValidation: ${e.validation}\nInferred meaning: ${e.inferred_meaning}`,
+    )
     .join('\n\n---\n\n')
 }
 
@@ -76,8 +79,11 @@ async function runMirrorVariant(opts: { tools: 'on' | 'off'; corpus: string }): 
   return JSON.stringify(result.finalOutput, null, 2)
 }
 
-async function runCronVariant(opts: { tools: 'on' | 'off'; corpus: string }): Promise<string> {
-  if (!process.env.OPENAI_API_KEY) return placeholderOutput('cron', opts.tools)
+async function runSensemakeVariant(opts: {
+  tools: 'on' | 'off'
+  corpus: string
+}): Promise<string> {
+  if (!process.env.OPENAI_API_KEY) return placeholderOutput('sensemake', opts.tools)
   const tools =
     opts.tools === 'on'
       ? [searchCorpusToolFor('demo'), lookupEcgTaxonomyTool, selfCritiqueTool]
@@ -111,7 +117,7 @@ async function runCronVariant(opts: { tools: 'on' | 'off'; corpus: string }): Pr
   )
 }
 
-function placeholderOutput(surface: 'mirror' | 'cron', variant: 'on' | 'off'): string {
+function placeholderOutput(surface: 'mirror' | 'sensemake', variant: 'on' | 'off'): string {
   return JSON.stringify(
     {
       placeholder: true,
@@ -131,10 +137,10 @@ async function main() {
   const [onOutput, offOutput] = await Promise.all([
     surface === 'mirror'
       ? runMirrorVariant({ tools: 'on', corpus })
-      : runCronVariant({ tools: 'on', corpus }),
+      : runSensemakeVariant({ tools: 'on', corpus }),
     surface === 'mirror'
       ? runMirrorVariant({ tools: 'off', corpus })
-      : runCronVariant({ tools: 'off', corpus }),
+      : runSensemakeVariant({ tools: 'off', corpus }),
   ])
 
   const ranAt = new Date().toISOString()

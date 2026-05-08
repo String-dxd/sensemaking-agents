@@ -3,28 +3,33 @@ import { z } from 'zod'
 /**
  * Output schemas for Mirror, Connector, and Pathfinder.
  *
- * Constraints from K.T.D. #4 and #5: every signal is labeled by epistemic
- * kind, every Connector pattern cites at least one reflection ID, every
- * Pathfinder pathway names ≥1 ECG taxonomy ID. The schemas are the
- * *enforcement* point — uncited patterns fail Zod and the SDK retries.
+ * Mirror's output is the three-part reflection: validation, inferred_meaning,
+ * story_reframe (see docs/brainstorms/2026-05-08-quiet-mirror-pivot-requirements.md
+ * R7). The transcript is supplied at persist time, not by the agent.
+ *
+ * Connector and Pathfinder shapes are unchanged from the prior brainstorm.
  */
 
 // ── Mirror ───────────────────────────────────────────────────────────────
-export const MirrorSignalSchema = z.object({
-  kind: z.enum(['observed', 'inferred', 'uncertain']),
-  text: z.string().min(1),
-  evidence_excerpts: z.array(z.string()).optional(),
+/** What the Mirror agent produces from a transcript. */
+export const MirrorOutputSchema = z.object({
+  validation: z.string().min(1),
+  inferred_meaning: z.string().min(1),
+  story_reframe: z.string().min(1),
 })
 
-export const MirrorEntrySchema = z.object({
-  summary: z.string().min(1),
+export type MirrorOutputDraft = z.infer<typeof MirrorOutputSchema>
+
+/** What gets persisted to mirror_entries. Transcript is supplied alongside the agent output. */
+export const MirrorEntrySchema = MirrorOutputSchema.extend({
   transcript: z.string().min(1),
-  signals: z.array(MirrorSignalSchema).min(1),
-  caution: z.string().min(1),
-  tags: z.array(z.string()).default([]),
 })
 
 export type MirrorEntryDraft = z.infer<typeof MirrorEntrySchema>
+
+/** Editable field discriminator used by the wiki edit-and-confirm primitives. */
+export const MirrorEditableField = z.enum(['validation', 'inferred_meaning', 'story_reframe'])
+export type MirrorEditableFieldName = z.infer<typeof MirrorEditableField>
 
 // ── Connector ────────────────────────────────────────────────────────────
 export const ConnectorPatternSchema = z.object({

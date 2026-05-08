@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { Database as DatabaseInstance } from 'better-sqlite3'
 import { openDb } from './client'
-import { insertMirrorEntry, type MirrorSignal } from './queries'
+import { insertMirrorEntry } from './queries'
 
 interface SeedReflection {
   id: number
-  summary: string
   transcript: string
-  signals: MirrorSignal[]
-  caution: string
+  validation: string
+  inferred_meaning: string
+  story_reframe: string
   tags: string[]
 }
 
@@ -28,7 +28,8 @@ export function loadSeedCorpus(): SeedCorpus {
 
 /**
  * Idempotent seed loader. If `mirror_entries` already has entries for the
- * student, the seed is a no-op. To rebuild: delete `app.db` first.
+ * student, the seed is a no-op. To rebuild: delete `app.db` first (or bump
+ * `SCHEMA_VERSION` so the client drops it on next boot).
  */
 export function seed(opts: { db?: DatabaseInstance } = {}): {
   inserted: number
@@ -46,10 +47,15 @@ export function seed(opts: { db?: DatabaseInstance } = {}): {
     insertMirrorEntry(
       corpus.student_id,
       {
-        summary: r.summary,
         transcript: r.transcript,
-        signals: r.signals,
-        caution: r.caution,
+        validation: r.validation,
+        inferred_meaning: r.inferred_meaning,
+        story_reframe: r.story_reframe,
+        raw_output: {
+          validation: r.validation,
+          inferred_meaning: r.inferred_meaning,
+          story_reframe: r.story_reframe,
+        },
         tags: r.tags,
       },
       { ctx: { db } },

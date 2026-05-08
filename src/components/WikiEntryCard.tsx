@@ -2,22 +2,15 @@ import { Link } from '@tanstack/react-router'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import type { MirrorEntryRow } from '~/db/queries'
 
-const KIND_LABEL: Record<MirrorEntryRow['signals'][number]['kind'], string> = {
-  observed: 'observed',
-  inferred: 'inferred',
-  uncertain: 'uncertain',
-}
-
-const KIND_TONE: Record<MirrorEntryRow['signals'][number]['kind'], string> = {
-  observed: 'bg-muted text-foreground',
-  inferred: 'bg-accent/10 text-accent',
-  uncertain: 'bg-warning/15 text-warning',
-}
-
 export interface WikiEntryCardProps {
   entry: MirrorEntryRow
 }
 
+/**
+ * Quiet-mirror reflection card. Shows the three editable fields produced by
+ * the Mirror agent in narrative order: story (the reframe), what Mirror
+ * heard (validation), and what it suspects you meant (inferred meaning).
+ */
 export function WikiEntryCard({ entry }: WikiEntryCardProps) {
   return (
     <Card>
@@ -33,34 +26,18 @@ export function WikiEntryCard({ entry }: WikiEntryCardProps) {
         </CardTitle>
         <CardDescription>{new Date(entry.created_at).toLocaleString()}</CardDescription>
       </CardHeader>
-      <CardContent>
-        <p className="text-sm leading-relaxed">{entry.summary}</p>
-        {entry.signals.length > 0 ? (
-          <ul className="flex flex-col gap-1.5 text-sm">
-            {entry.signals.map((s) => (
-              <li
-                key={`${s.kind}:${s.text}`}
-                className="flex items-start gap-2"
-                data-signal-kind={s.kind}
-              >
-                <span
-                  className={`mt-0.5 inline-flex shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide ${KIND_TONE[s.kind]}`}
-                >
-                  {KIND_LABEL[s.kind]}
-                </span>
-                <span>{s.text}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {entry.caution ? (
-          <p
-            className="rounded border border-warning/30 bg-warning/10 p-2 text-xs text-warning"
-            data-testid="mirror-caution"
-          >
-            <span className="font-medium">caution:</span> {entry.caution}
-          </p>
-        ) : null}
+      <CardContent className="flex flex-col gap-3">
+        <p className="text-sm leading-relaxed" data-testid="story-reframe">
+          {entry.story_reframe}
+        </p>
+        <div className="flex flex-col gap-2 rounded border border-border/40 bg-muted/30 p-3">
+          <FieldBlock label="Validation" value={entry.validation} testId="validation" />
+          <FieldBlock
+            label="Inferred meaning"
+            value={entry.inferred_meaning}
+            testId="inferred-meaning"
+          />
+        </div>
         {entry.tags.length > 0 ? (
           <ul className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
             {entry.tags.map((t) => (
@@ -72,5 +49,14 @@ export function WikiEntryCard({ entry }: WikiEntryCardProps) {
         ) : null}
       </CardContent>
     </Card>
+  )
+}
+
+function FieldBlock({ label, value, testId }: { label: string; value: string; testId: string }) {
+  return (
+    <p className="text-xs leading-relaxed" data-testid={testId}>
+      <span className="font-medium text-muted-foreground">{label}:</span>{' '}
+      <span className="text-foreground">{value}</span>
+    </p>
   )
 }

@@ -7,6 +7,8 @@ import { withStudent } from '~/server/tenancy.server'
 export const persistMirrorInputSchema = z.object({
   studentId: z.string().min(1),
   entry: MirrorEntrySchema,
+  /** Raw, un-edited Mirror agent output preserved for the R20 ablation. */
+  raw_output: z.unknown(),
   trace: z.unknown().optional(),
 })
 
@@ -24,23 +26,25 @@ export class DiagnosticLanguageError extends Error {
 export function persistMirrorHandler(data: PersistMirrorInput) {
   const parsed = persistMirrorInputSchema.parse(data)
 
-  // Safety gate: reject diagnostic language at persistence time. Without
-  // this, a model regression could quietly write personality labels to
-  // the wiki — Core Principle 6 says no.
+  // Safety gate: reject diagnostic language at persistence time.
   const safety = checkPayloadForDiagnosticLanguage({
-    summary: parsed.entry.summary,
-    signals: parsed.entry.signals,
-    caution: parsed.entry.caution,
+    validation: parsed.entry.validation,
+    inferred_meaning: parsed.entry.inferred_meaning,
+    story_reframe: parsed.entry.story_reframe,
   })
   if (!safety.ok) throw new DiagnosticLanguageError(safety.matches)
 
   return withStudent(parsed.studentId, (sid) =>
     insertMirrorEntry(sid, {
-      summary: parsed.entry.summary,
       transcript: parsed.entry.transcript,
-      signals: parsed.entry.signals,
-      caution: parsed.entry.caution,
-      tags: parsed.entry.tags,
+      validation: parsed.entry.validation,
+      inferred_meaning: parsed.entry.inferred_meaning,
+      story_reframe: parsed.entry.story_reframe,
+      raw_output: parsed.raw_output ?? {
+        validation: parsed.entry.validation,
+        inferred_meaning: parsed.entry.inferred_meaning,
+        story_reframe: parsed.entry.story_reframe,
+      },
       trace: parsed.trace,
     }),
   )

@@ -11,25 +11,28 @@ afterEach(() => {
   resetDbForTests()
 })
 
+const baseEntry = {
+  transcript: 'long transcript',
+  validation: 'You stayed with the moment.',
+  inferred_meaning: 'Maybe there is something here worth marking.',
+  raw_output: { v: 1 },
+}
+
 describe('search-corpus SDK tool', () => {
   it('returns ranked rows scoped to the calling student', () => {
     insertMirrorEntry('demo', {
-      summary: 'Robotics arm — built it blindfolded.',
-      transcript: 't',
-      signals: [],
-      caution: '-',
+      ...baseEntry,
+      story_reframe: 'Robotics arm — built it blindfolded.',
       tags: ['robotics'],
     })
     insertMirrorEntry('demo', {
-      summary: 'Lit class — argued one side for 40 minutes.',
-      transcript: 't',
-      signals: [],
-      caution: '-',
+      ...baseEntry,
+      story_reframe: 'Lit class — argued one side for 40 minutes.',
       tags: ['literature'],
     })
     const out = executeSearchPastMirrors('demo', { query: 'robotics' })
     expect(out.results.length).toBe(1)
-    expect(out.results[0]?.summary).toMatch(/Robotics/)
+    expect(out.results[0]?.story_reframe).toMatch(/Robotics/)
   })
 
   it('returns empty results on empty corpus instead of throwing', () => {

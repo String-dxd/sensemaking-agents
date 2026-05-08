@@ -1,26 +1,22 @@
 import type { Database as DatabaseInstance } from 'better-sqlite3'
 import { openDb } from './client'
 
-export interface MirrorSignal {
-  kind: 'observed' | 'inferred' | 'uncertain'
-  text: string
-  evidence_excerpts?: string[]
-}
-
 export interface MirrorEntryRow {
   id: number
   student_id: string
-  summary: string
   transcript: string
-  signals: MirrorSignal[]
-  caution: string
+  validation: string
+  inferred_meaning: string
+  story_reframe: string
+  /** The un-edited Mirror agent output, preserved for the R20 ablation. */
+  raw_output_json: string
   tags: string[]
   created_at: string
 }
 
 export interface MirrorSearchResult {
   id: number
-  summary: string
+  story_reframe: string
   tags: string[]
   created_at: string
   score: number
@@ -58,20 +54,22 @@ export interface PathfinderOutputRow {
 
 export type AgentName = 'mirror' | 'connector' | 'pathfinder'
 export type AgentRefTable = 'mirror_entries' | 'connector_outputs' | 'pathfinder_outputs'
+export type MirrorEditableField = 'validation' | 'inferred_meaning' | 'story_reframe'
 
 interface MirrorEntryDbRow {
   id: number
   student_id: string
-  summary: string
   transcript: string
-  signals_json: string
-  caution: string
+  validation: string
+  inferred_meaning: string
+  story_reframe: string
+  raw_output_json: string
   created_at: string
 }
 
 interface MirrorSearchDbRow {
   id: number
-  summary: string
+  story_reframe: string
   created_at: string
   score: number
 }
@@ -124,7 +122,21 @@ function upsertTag(db: DatabaseInstance, studentId: string, label: string): numb
   return Number(result.lastInsertRowid)
 }
 
-/** FTS5-backed search restricted to one student. Tags are intersected for boosting. */
+function rowToMirrorEntry(row: MirrorEntryDbRow, tags: string[]): MirrorEntryRow {
+  return {
+    id: row.id,
+    student_id: row.student_id,
+    transcript: row.transcript,
+    validation: row.validation,
+    inferred_meaning: row.inferred_meaning,
+    story_reframe: row.story_reframe,
+    raw_output_json: row.raw_output_json,
+    tags,
+    created_at: row.created_at,
+  }
+}
+
+/** FTS5-backed search restricted to one student. */
 export function searchMirrors(
   studentId: string,
   query: string,
@@ -135,7 +147,7 @@ export function searchMirrors(
   if (query.trim().length === 0) return []
   const rows = db
     .prepare(
-      `SELECT m.id, m.summary, m.created_at, bm25(mirror_entries_fts) AS score
+      `SELECT m.id, m.story_reframe, m.created_at, bm25(mirror_entries_fts) AS score
        FROM mirror_entries_fts
        JOIN mirror_entries m ON m.id = mirror_entries_fts.rowid
        WHERE mirror_entries_fts MATCH ? AND m.student_id = ?
@@ -146,7 +158,7 @@ export function searchMirrors(
 
   return rows.map((r) => ({
     id: r.id,
-    summary: r.summary,
+    story_reframe: r.story_reframe,
     created_at: r.created_at,
     score: r.score,
     tags: loadTags(db, r.id),
@@ -166,10 +178,12 @@ function escapeFtsQuery(query: string): string {
 }
 
 export interface InsertMirrorEntryInput {
-  summary: string
   transcript: string
-  signals: MirrorSignal[]
-  caution: string
+  validation: string
+  inferred_meaning: string
+  story_reframe: string
+  /** Raw, un-edited Mirror agent output (JSON-serializable). Preserved for R20 ablation. */
+  raw_output: unknown
   tags?: string[]
   trace?: unknown
 }
@@ -183,10 +197,18 @@ export function insertMirrorEntry(
   return db.transaction(() => {
     const result = db
       .prepare(
-        `INSERT INTO mirror_entries (student_id, summary, transcript, signals_json, caution)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mirror_entries
+           (student_id, transcript, validation, inferred_meaning, story_reframe, raw_output_json)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(studentId, input.summary, input.transcript, JSON.stringify(input.signals), input.caution)
+      .run(
+        studentId,
+        input.transcript,
+        input.validation,
+        input.inferred_meaning,
+        input.story_reframe,
+        JSON.stringify(input.raw_output),
+      )
     const id = Number(result.lastInsertRowid)
 
     for (const label of input.tags ?? []) {
@@ -205,16 +227,7 @@ export function insertMirrorEntry(
     }
 
     const row = db.prepare('SELECT * FROM mirror_entries WHERE id = ?').get(id) as MirrorEntryDbRow
-    return {
-      id: row.id,
-      student_id: row.student_id,
-      summary: row.summary,
-      transcript: row.transcript,
-      signals: JSON.parse(row.signals_json) as MirrorSignal[],
-      caution: row.caution,
-      tags: loadTags(db, id),
-      created_at: row.created_at,
-    }
+    return rowToMirrorEntry(row, loadTags(db, id))
   })()
 }
 
@@ -227,16 +240,7 @@ export function listMirrorEntries(
   const rows = db
     .prepare(`SELECT * FROM mirror_entries WHERE student_id = ? ORDER BY created_at DESC LIMIT ?`)
     .all(studentId, limit) as MirrorEntryDbRow[]
-  return rows.map((row) => ({
-    id: row.id,
-    student_id: row.student_id,
-    summary: row.summary,
-    transcript: row.transcript,
-    signals: JSON.parse(row.signals_json) as MirrorSignal[],
-    caution: row.caution,
-    tags: loadTags(db, row.id),
-    created_at: row.created_at,
-  }))
+  return rows.map((row) => rowToMirrorEntry(row, loadTags(db, row.id)))
 }
 
 export function getMirrorEntry(
@@ -249,16 +253,7 @@ export function getMirrorEntry(
     .prepare('SELECT * FROM mirror_entries WHERE id = ? AND student_id = ?')
     .get(id, studentId) as MirrorEntryDbRow | undefined
   if (!row) return null
-  return {
-    id: row.id,
-    student_id: row.student_id,
-    summary: row.summary,
-    transcript: row.transcript,
-    signals: JSON.parse(row.signals_json) as MirrorSignal[],
-    caution: row.caution,
-    tags: loadTags(db, row.id),
-    created_at: row.created_at,
-  }
+  return rowToMirrorEntry(row, loadTags(db, row.id))
 }
 
 export interface InsertConnectorOutputInput {
@@ -421,26 +416,31 @@ export function insertAgentTrace(
   ).run(studentId, input.agent, input.ref_table, input.ref_id, JSON.stringify(input.trace))
 }
 
+/**
+ * Update one of the three editable Mirror fields. The corresponding
+ * `raw_output_json` column is left untouched so the un-edited agent output
+ * remains queryable by the ablation harness.
+ */
 export function updateMirrorEntryFields(
   studentId: string,
   id: number,
-  patch: Partial<Pick<MirrorEntryRow, 'summary' | 'caution' | 'signals'>>,
+  patch: Partial<Pick<MirrorEntryRow, 'validation' | 'inferred_meaning' | 'story_reframe'>>,
   opts: { ctx?: DbContext } = {},
 ): MirrorEntryRow | null {
   const db = getDb(opts.ctx ?? {})
   const fields: string[] = []
   const values: unknown[] = []
-  if (patch.summary !== undefined) {
-    fields.push('summary = ?')
-    values.push(patch.summary)
+  if (patch.validation !== undefined) {
+    fields.push('validation = ?')
+    values.push(patch.validation)
   }
-  if (patch.caution !== undefined) {
-    fields.push('caution = ?')
-    values.push(patch.caution)
+  if (patch.inferred_meaning !== undefined) {
+    fields.push('inferred_meaning = ?')
+    values.push(patch.inferred_meaning)
   }
-  if (patch.signals !== undefined) {
-    fields.push('signals_json = ?')
-    values.push(JSON.stringify(patch.signals))
+  if (patch.story_reframe !== undefined) {
+    fields.push('story_reframe = ?')
+    values.push(patch.story_reframe)
   }
   if (fields.length === 0) return getMirrorEntry(studentId, id, opts)
   values.push(id, studentId)

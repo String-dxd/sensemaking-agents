@@ -33,9 +33,9 @@ describe('safety: diagnostic-language regex', () => {
 
   it('walks structured payloads and flags any string leaf', () => {
     const flagged = checkPayloadForDiagnosticLanguage({
-      summary: 'fine',
-      signals: [{ kind: 'inferred', text: 'You are a natural leader.' }],
-      caution: 'one session',
+      validation: 'fine',
+      inferred_meaning: 'You are a natural leader.',
+      story_reframe: 'one session',
     })
     expect(flagged.ok).toBe(false)
     expect(flagged.matches.length).toBeGreaterThan(0)

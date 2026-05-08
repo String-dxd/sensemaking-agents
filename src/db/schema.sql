@@ -3,18 +3,31 @@
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
 
+-- Schema version sentinel. Bumped when the table shape changes incompatibly.
+-- The client reads this on boot and drops + recreates the demo db on mismatch
+-- (acceptable for v0.1; production migration is out of scope).
+CREATE TABLE IF NOT EXISTS _meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT OR IGNORE INTO _meta (key, value) VALUES ('schema_version', '2');
+
 CREATE TABLE IF NOT EXISTS mirror_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id TEXT NOT NULL DEFAULT 'demo',
-  summary TEXT NOT NULL,
   transcript TEXT NOT NULL,
-  signals_json TEXT NOT NULL,
-  caution TEXT NOT NULL,
+  validation TEXT NOT NULL,
+  inferred_meaning TEXT NOT NULL,
+  story_reframe TEXT NOT NULL,
+  raw_output_json TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_mirror_entries_student ON mirror_entries(student_id, created_at DESC);
 
+-- Tags machinery preserved across the v0.1 -> v0.2 schema bump even though
+-- the new Mirror agent does not produce tags. v0.2 may reintroduce
+-- agent-driven or user-supplied tags without a migration.
 CREATE TABLE IF NOT EXISTS tags (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id TEXT NOT NULL,
@@ -65,24 +78,25 @@ CREATE TABLE IF NOT EXISTS agent_traces (
 
 CREATE INDEX IF NOT EXISTS idx_agent_traces_ref ON agent_traces(ref_table, ref_id);
 
--- FTS5 contentless mirror over mirror_entries.summary. INSERT/UPDATE/DELETE
--- triggers below keep it in sync. Search is via `MATCH`.
+-- FTS5 contentless mirror over mirror_entries.story_reframe (the narrative
+-- field most useful for past-reflection search). INSERT/UPDATE/DELETE
+-- triggers keep it in sync.
 CREATE VIRTUAL TABLE IF NOT EXISTS mirror_entries_fts USING fts5(
-  summary,
+  story_reframe,
   content='mirror_entries',
   content_rowid='id',
   tokenize='porter unicode61'
 );
 
 CREATE TRIGGER IF NOT EXISTS mirror_entries_ai AFTER INSERT ON mirror_entries BEGIN
-  INSERT INTO mirror_entries_fts(rowid, summary) VALUES (new.id, new.summary);
+  INSERT INTO mirror_entries_fts(rowid, story_reframe) VALUES (new.id, new.story_reframe);
 END;
 
 CREATE TRIGGER IF NOT EXISTS mirror_entries_ad AFTER DELETE ON mirror_entries BEGIN
-  INSERT INTO mirror_entries_fts(mirror_entries_fts, rowid, summary) VALUES ('delete', old.id, old.summary);
+  INSERT INTO mirror_entries_fts(mirror_entries_fts, rowid, story_reframe) VALUES ('delete', old.id, old.story_reframe);
 END;
 
 CREATE TRIGGER IF NOT EXISTS mirror_entries_au AFTER UPDATE ON mirror_entries BEGIN
-  INSERT INTO mirror_entries_fts(mirror_entries_fts, rowid, summary) VALUES ('delete', old.id, old.summary);
-  INSERT INTO mirror_entries_fts(rowid, summary) VALUES (new.id, new.summary);
+  INSERT INTO mirror_entries_fts(mirror_entries_fts, rowid, story_reframe) VALUES ('delete', old.id, old.story_reframe);
+  INSERT INTO mirror_entries_fts(rowid, story_reframe) VALUES (new.id, new.story_reframe);
 END;

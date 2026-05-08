@@ -15,7 +15,7 @@ export const SearchPastMirrorsInputSchema = z.object({
   query: z
     .string()
     .min(1)
-    .describe('Free-text query — student-scoped FTS5 over reflection summaries.'),
+    .describe('Free-text query — student-scoped FTS5 over reflection story_reframe text.'),
   limit: z
     .number()
     .int()
@@ -27,7 +27,7 @@ export const SearchPastMirrorsInputSchema = z.object({
 
 export const SearchPastMirrorResultSchema = z.object({
   id: z.number().int(),
-  summary: z.string(),
+  story_reframe: z.string(),
   tags: z.array(z.string()),
   created_at: z.string(),
   score: z.number(),

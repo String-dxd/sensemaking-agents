@@ -6,7 +6,8 @@ import { PathfinderPathwaysCard } from '~/components/PathfinderPathwaysCard'
 import { PathfinderTrajectoryCard } from '~/components/PathfinderTrajectoryCard'
 import { Button } from '~/components/ui/button'
 import { WikiEntryCard } from '~/components/WikiEntryCard'
-import { editMirrorCaution, editMirrorSummary } from '~/server/edit-wiki.functions'
+import type { MirrorEditableField } from '~/db/queries'
+import { editMirrorField } from '~/server/edit-wiki.functions'
 import { loadWikiEntry } from '~/server/load-wiki.functions'
 
 const STUDENT_ID = 'demo'
@@ -19,6 +20,12 @@ export const Route = createFileRoute('/wiki/$entryId')({
   },
   component: WikiEntryPage,
 })
+
+const FIELD_LABELS: Record<MirrorEditableField, string> = {
+  validation: 'Validation',
+  inferred_meaning: 'Inferred meaning',
+  story_reframe: 'Story reframe',
+}
 
 function WikiEntryPage() {
   const { entryId } = Route.useLoaderData()
@@ -40,36 +47,33 @@ function WikiEntryPage() {
       </div>
     )
 
+  const fields: MirrorEditableField[] = ['story_reframe', 'validation', 'inferred_meaning']
+
   return (
     <section className="flex flex-col gap-6 py-6">
       <Link to="/wiki" className="text-xs text-muted-foreground hover:text-foreground">
         ← Wiki
       </Link>
       <WikiEntryCard entry={data.entry} />
-      <ConfirmAndSave
-        value={data.entry.summary}
-        label="Summary"
-        buildInput={(next) => ({
-          data: { studentId: STUDENT_ID, entryId: data.entry.id, summary: next },
-        })}
-        mutationFn={editMirrorSummary}
-        invalidate={[
-          ['wiki', STUDENT_ID, entryId],
-          ['wiki', STUDENT_ID],
-        ]}
-      />
-      <ConfirmAndSave
-        value={data.entry.caution}
-        label="Caution"
-        buildInput={(next) => ({
-          data: { studentId: STUDENT_ID, entryId: data.entry.id, caution: next },
-        })}
-        mutationFn={editMirrorCaution}
-        invalidate={[
-          ['wiki', STUDENT_ID, entryId],
-          ['wiki', STUDENT_ID],
-        ]}
-      />
+      {fields.map((field) => (
+        <ConfirmAndSave
+          key={field}
+          value={data.entry[field]}
+          label={FIELD_LABELS[field]}
+          buildInput={(next) => ({
+            data: { studentId: STUDENT_ID, entryId: data.entry.id, field, value: next },
+          })}
+          mutationFn={editMirrorField}
+          invalidate={[
+            ['wiki', STUDENT_ID, entryId],
+            ['wiki', STUDENT_ID],
+          ]}
+        />
+      ))}
+      <details className="rounded border border-border/40 bg-muted/20 p-3 text-xs">
+        <summary className="cursor-pointer text-muted-foreground">Transcript</summary>
+        <p className="mt-2 whitespace-pre-wrap leading-relaxed">{data.entry.transcript}</p>
+      </details>
       {data.connector ? <ConnectorPatternCard output={data.connector} /> : null}
       {data.pathfinder ? (
         <>

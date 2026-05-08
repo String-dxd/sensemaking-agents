@@ -30,7 +30,7 @@ export interface AblationVariantOutput {
 }
 
 export interface AblationReportInput {
-  surface: 'mirror' | 'cron'
+  surface: 'mirror' | 'sensemake'
   /** ISO date for the report header. */
   ranAt: string
   /** Path to the seed corpus used. */

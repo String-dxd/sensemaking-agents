@@ -13,23 +13,29 @@ import {
 } from '~/db/queries'
 import { seed } from '~/db/seed'
 
+const baseEntry = {
+  transcript: 'long transcript',
+  validation: 'You stayed with the moment.',
+  inferred_meaning: 'Maybe there is something here worth marking.',
+  story_reframe: 'You did the thing and you noticed it.',
+  raw_output: { validation: 'v', inferred_meaning: 'i', story_reframe: 's' },
+}
+
 describe('schema + queries', () => {
   it('insertMirrorEntry then searchMirrors round-trips through FTS5', () => {
     const db = openInMemoryDb()
     insertMirrorEntry(
       'demo',
       {
-        summary: 'Physics test on circular motion went poorly.',
-        transcript: 'Long transcript about physics.',
-        signals: [{ kind: 'observed', text: 'forgot the centripetal direction' }],
-        caution: 'one test',
+        ...baseEntry,
+        story_reframe: 'Physics test on circular motion went poorly today.',
         tags: ['physics', 'sec-4'],
       },
       { ctx: { db } },
     )
     const hits = searchMirrors('demo', 'physics', { ctx: { db } })
     expect(hits.length).toBe(1)
-    expect(hits[0]?.summary).toMatch(/Physics test/)
+    expect(hits[0]?.story_reframe).toMatch(/Physics test/)
     expect(hits[0]?.tags).toEqual(['physics', 'sec-4'])
   })
 
@@ -37,50 +43,50 @@ describe('schema + queries', () => {
     const db = openInMemoryDb()
     insertMirrorEntry(
       'demo',
-      {
-        summary: 'Mine: physics test.',
-        transcript: 't',
-        signals: [],
-        caution: '-',
-      },
+      { ...baseEntry, story_reframe: 'Mine: physics test today.' },
       { ctx: { db } },
     )
     insertMirrorEntry(
       'other',
-      {
-        summary: 'Theirs: physics test.',
-        transcript: 't',
-        signals: [],
-        caution: '-',
-      },
+      { ...baseEntry, story_reframe: 'Theirs: physics test today.' },
       { ctx: { db } },
     )
     const hits = searchMirrors('demo', 'physics', { ctx: { db } })
     expect(hits.length).toBe(1)
-    expect(hits[0]?.summary).toMatch(/Mine/)
+    expect(hits[0]?.story_reframe).toMatch(/Mine/)
   })
 
-  it('FTS5 trigger fires on update — search returns the new summary text', () => {
+  it('FTS5 trigger fires on update — search returns the new story_reframe text', () => {
     const db = openInMemoryDb()
     const inserted = insertMirrorEntry(
       'demo',
-      {
-        summary: 'Walking home from school.',
-        transcript: 't',
-        signals: [],
-        caution: '-',
-      },
+      { ...baseEntry, story_reframe: 'Walking home from school today.' },
       { ctx: { db } },
     )
     updateMirrorEntryFields(
       'demo',
       inserted.id,
-      { summary: 'Walking home and thinking about robotics arm.' },
+      { story_reframe: 'Walking home and thinking about robotics arm.' },
       { ctx: { db } },
     )
     const hits = searchMirrors('demo', 'robotics', { ctx: { db } })
     expect(hits.length).toBe(1)
     expect(hits[0]?.id).toBe(inserted.id)
+  })
+
+  it('updates to validation/inferred_meaning leave raw_output_json untouched (R8)', () => {
+    const db = openInMemoryDb()
+    const inserted = insertMirrorEntry('demo', baseEntry, { ctx: { db } })
+    const originalRaw = inserted.raw_output_json
+    updateMirrorEntryFields(
+      'demo',
+      inserted.id,
+      { validation: 'edited validation' },
+      { ctx: { db } },
+    )
+    const after = listMirrorEntries('demo', { ctx: { db } })[0]
+    expect(after?.validation).toBe('edited validation')
+    expect(after?.raw_output_json).toBe(originalRaw)
   })
 
   it('queries return empty result on empty query string instead of throwing', () => {

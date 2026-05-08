@@ -1,30 +1,30 @@
 import type { ConnectorOutputRow, MirrorEntryRow, PathfinderOutputRow } from '~/db/queries'
 
 /**
- * U3 mock dataset — replaced in U9 with `load-wiki.functions.ts` reading
- * from sqlite. Shape mirrors the real DB row types so the swap is purely
- * the data source.
+ * Mock dataset preserved for component-level tests. Real loader is
+ * `load-wiki.functions.ts`; this exists so EditableField / WikiEntryCard
+ * tests can render without a server fn round-trip.
  */
 
 export const MOCK_MIRROR_ENTRY: MirrorEntryRow = {
   id: 1,
   student_id: 'demo',
-  summary:
-    'First time tearing down the robotics arm at club. Lost track of which screw went where, but felt absorbed for hours.',
   transcript:
     'We had robotics today and Mr Lim brought in the new arm kit. I lost track of which screw went where halfway through and had to redo a section. The strange thing is it didn’t feel frustrating — I just kept going. We were there until 7pm and I didn’t notice.',
-  signals: [
-    { kind: 'observed', text: 'Lost track of time during a hands-on engineering task.' },
-    {
-      kind: 'observed',
-      text: 'Chose disassembly-first as a self-directed way in, rather than copying others.',
-    },
-    {
-      kind: 'uncertain',
-      text: 'Whether the absorption was about the task or about the social cover of robotics club.',
-    },
-  ],
-  caution: 'One session. Could be novelty.',
+  validation:
+    'You stayed with the disassembly long enough that the time disappeared. That’s worth marking — losing track of hours doesn’t happen by accident.',
+  inferred_meaning:
+    'Maybe the absorption was less about robotics specifically and more about being given a self-directed way in. The not-knowing was part of what kept you there.',
+  story_reframe:
+    'It’s the new arm kit and everyone else has two builds on you. You take one apart first — your way in. Halfway through you’ve lost which screw goes where and you redo a section without minding. Seven o’clock comes and you didn’t notice it pass.',
+  raw_output_json: JSON.stringify({
+    validation:
+      'You stayed with the disassembly long enough that the time disappeared. That’s worth marking — losing track of hours doesn’t happen by accident.',
+    inferred_meaning:
+      'Maybe the absorption was less about robotics specifically and more about being given a self-directed way in. The not-knowing was part of what kept you there.',
+    story_reframe:
+      'It’s the new arm kit and everyone else has two builds on you. You take one apart first — your way in. Halfway through you’ve lost which screw goes where and you redo a section without minding. Seven o’clock comes and you didn’t notice it pass.',
+  }),
   tags: ['robotics', 'engineering', 'absorption'],
   created_at: new Date('2026-04-12T19:30:00').toISOString(),
 }
@@ -90,13 +90,13 @@ export type WikiData = typeof MOCK_WIKI
 
 const fakeStore: WikiData = JSON.parse(JSON.stringify(MOCK_WIKI)) as WikiData
 
-/** Mock wiki loader — U9 replaces with a real server fn. */
+/** Mock wiki loader — used only by component tests. */
 export async function loadMockWiki(): Promise<WikiData> {
   await new Promise((r) => setTimeout(r, 0))
   return fakeStore
 }
 
-/** Mock entry loader — U9 replaces. */
+/** Mock entry loader — used only by component tests. */
 export async function loadMockEntry(entryId: number): Promise<{
   entry: MirrorEntryRow
   connector: ConnectorOutputRow
@@ -109,20 +109,6 @@ export async function loadMockEntry(entryId: number): Promise<{
     connector: fakeStore.connector,
     pathfinder: fakeStore.pathfinder,
   }
-}
-
-export interface MockEditCautionInput {
-  entryId: number
-  caution: string
-}
-
-/** Mock edit-and-confirm — U9 replaces with a real edit-wiki server fn. */
-export async function mockEditCaution(input: MockEditCautionInput): Promise<MirrorEntryRow> {
-  await new Promise((r) => setTimeout(r, 0))
-  const entry = fakeStore.entries.find((e) => e.id === input.entryId)
-  if (!entry) throw new Error(`mock entry ${input.entryId} not found`)
-  entry.caution = input.caution
-  return entry
 }
 
 /** Reset the mock store between tests. */

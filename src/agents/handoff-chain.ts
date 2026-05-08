@@ -33,11 +33,14 @@ export interface RunSenseMakingDeps {
 }
 
 /**
- * Single cron pass: Connector → Handoff → Pathfinder. Connector reads the
- * whole corpus; Pathfinder receives Connector's patterns and returns a
+ * Single sense-making pass: Connector → Handoff → Pathfinder. Connector reads
+ * the whole corpus; Pathfinder receives Connector's patterns and returns a
  * trajectory + 2–5 pathways. Both rows are persisted with their traces; the
  * Pathfinder row carries `connector_output_id` so the handoff edge is
  * recoverable from the DB.
+ *
+ * Quiet-mirror pivot: this is the entry point for the manual "Run sense-making"
+ * button. The streaming variant lives in `handoff-chain-streamed.ts` (U5).
  *
  * The deps parameter exists so the handoff-chain test can provide
  * predetermined Connector / Pathfinder outputs instead of hitting the LLM.
@@ -80,7 +83,6 @@ export async function runSenseMakingForStudent(
       // Connector's output is already persisted — the chain reports partial
       // success rather than rolling back what the student can already see.
       partial = true
-      // biome-ignore lint/suspicious/noConsole: surfaced for cron logs
       console.error('Pathfinder failed; partial sense-making persisted', err)
     }
 
@@ -88,7 +90,13 @@ export async function runSenseMakingForStudent(
   })
 }
 
-function formatCorpusForAgent(studentId: string): string {
+/**
+ * Format the per-student mirror corpus for Connector / Pathfinder. The
+ * formatter exposes the three-part Mirror reflection (validation,
+ * inferred_meaning, story_reframe) plus the original transcript so agents
+ * can ground patterns in either the student's words or Mirror's framing.
+ */
+export function formatCorpusForAgent(studentId: string): string {
   const entries = listMirrorEntries(studentId, { limit: 200 })
   if (entries.length === 0) return 'No prior reflections.'
   return entries
@@ -96,9 +104,17 @@ function formatCorpusForAgent(studentId: string): string {
     .reverse() // chronological order
     .map(
       (e) =>
-        `# Reflection #${e.id} — ${e.created_at}\n${e.summary}\n\nSignals:\n${e.signals
-          .map((s) => `- [${s.kind}] ${s.text}`)
-          .join('\n')}\n\nCaution: ${e.caution}\n\nTags: ${e.tags.join(', ')}`,
+        `# Reflection #${e.id} — ${e.created_at}
+
+Story (Mirror's reframe):
+${e.story_reframe}
+
+Validation (Mirror): ${e.validation}
+
+Inferred meaning (Mirror, candidate): ${e.inferred_meaning}
+
+Transcript (the student's own words):
+${e.transcript}`,
     )
     .join('\n\n---\n\n')
 }
