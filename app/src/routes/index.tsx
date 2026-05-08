@@ -1,17 +1,11 @@
-import { useQuery } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
-import { mintMirrorSession } from '~/server/mirror-session.functions'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { Button } from '~/components/ui/button'
 
 export const Route = createFileRoute('/')({
   component: LandingPage,
 })
 
 function LandingPage() {
-  const probe = useQuery({
-    queryKey: ['mirror-session-probe'],
-    queryFn: () => mintMirrorSession(),
-  })
-
   return (
     <section className="flex flex-col gap-8 py-10">
       <div className="flex flex-col gap-3">
@@ -23,10 +17,18 @@ function LandingPage() {
           patterns and pathways. You edit and confirm — nothing is decided for you.
         </p>
       </div>
-      {/* U1 wiring probe — proves the TanStack server fn round-trips. */}
-      <p className="text-xs text-muted-foreground" data-testid="server-fn-probe">
-        server fn: {probe.isPending ? 'loading…' : probe.data?.ok ? 'ok' : 'not ok'}
-      </p>
+      <div className="flex gap-3">
+        <Link to="/reflect">
+          <Button variant="accent" size="lg">
+            Start a reflection
+          </Button>
+        </Link>
+        <Link to="/wiki">
+          <Button variant="outline" size="lg">
+            Open wiki
+          </Button>
+        </Link>
+      </div>
     </section>
   )
 }

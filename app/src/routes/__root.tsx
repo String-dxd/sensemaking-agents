@@ -40,7 +40,22 @@ function RootComponent() {
             <Link to="/" className="text-sm font-semibold tracking-tight">
               sensemaking · v0.1
             </Link>
-            {/* Nav links to /reflect and /wiki added in U3 once routes exist. */}
+            <nav className="flex gap-4 text-sm text-muted-foreground">
+              <Link
+                to="/reflect"
+                className="hover:text-foreground"
+                activeProps={{ className: 'text-foreground' }}
+              >
+                reflect
+              </Link>
+              <Link
+                to="/wiki"
+                className="hover:text-foreground"
+                activeProps={{ className: 'text-foreground' }}
+              >
+                wiki
+              </Link>
+            </nav>
           </header>
           <main className="flex-1">
             <Outlet />
