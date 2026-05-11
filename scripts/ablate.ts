@@ -39,7 +39,7 @@ import { buildAblationReportMarkdown } from '../test/ablation/score'
 // Vite's ?raw import works in the bundle but not under tsx; read prompts from disk.
 const mirrorPrompt = readFileSync(resolve('src/agents/mirror.prompt.md'), 'utf8')
 const connectorPrompt = readFileSync(resolve('src/agents/connector.prompt.md'), 'utf8')
-const pathfinderPrompt = readFileSync(resolve('src/agents/pathfinder.prompt.md'), 'utf8')
+const cartographerPrompt = readFileSync(resolve('src/agents/cartographer.prompt.md'), 'utf8')
 
 interface CliArgs {
   surface: 'mirror' | 'sensemake'
@@ -172,22 +172,22 @@ async function runSensemakeVariant(opts: {
     tools,
     outputType: ConnectorOutputSchema,
   })
-  const pathfinder = new Agent({
-    name: 'pathfinder-ablation',
+  const cartographer = new Agent({
+    name: 'cartographer-ablation',
     model: CARTOGRAPHER_MODEL,
-    instructions: pathfinderPrompt,
+    instructions: cartographerPrompt,
     tools,
     outputType: CartographerOutputSchema,
   })
   const connectorResult = await run(connector, opts.corpus)
-  const pathfinderResult = await run(
-    pathfinder,
+  const cartographerResult = await run(
+    cartographer,
     `Connector handed off:\n\n${JSON.stringify(connectorResult.finalOutput, null, 2)}`,
   )
   return JSON.stringify(
     {
       connector: connectorResult.finalOutput,
-      pathfinder: pathfinderResult.finalOutput,
+      cartographer: cartographerResult.finalOutput,
     },
     null,
     2,
