@@ -161,6 +161,30 @@ describe('runAutoConnectorAfterMirror — failure modes', () => {
     expect(result.staged_diff).toBeNull()
     expect(listVipsProposedDiffs('demo', { status: 'pending' })).toHaveLength(0)
   })
+
+  it('timeout: A11 — mirror entry STILL persists after Connector timeout (Finding #17)', async () => {
+    // The contract: `persistMirror` writes the mirror reflection BEFORE
+    // invoking the auto-connector chain. Even if the Connector hangs past
+    // 30s, the student's reflection must remain in `mirror_entries` —
+    // sense-making failures never cost the student their words (A11).
+    const mirror = seedMirror()
+    const { getMirrorEntry } = await import('~/db/queries')
+
+    expect(getMirrorEntry('demo', mirror.id)).not.toBeNull()
+
+    const runConnector = vi.fn(() => new Promise(() => {}) as Promise<never>)
+    vi.useFakeTimers()
+    const inFlight = runAutoConnectorAfterMirror('demo', mirror.id, { runConnector })
+    await vi.advanceTimersByTimeAsync(AUTO_CONNECTOR_TIMEOUT_MS + 50)
+    const result = await inFlight
+
+    expect(result.status).toBe('timeout')
+    // The mirror row must still be there — the timeout path returns early
+    // and never touches the reflection store.
+    const mirrorAfter = getMirrorEntry('demo', mirror.id)
+    expect(mirrorAfter).not.toBeNull()
+    expect(mirrorAfter?.transcript).toBe(mirror.transcript)
+  })
 })
 
 describe('runAutoConnectorAfterMirror — verifier-drop entries', () => {

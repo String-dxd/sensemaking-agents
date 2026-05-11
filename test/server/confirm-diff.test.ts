@@ -220,6 +220,121 @@ describe('confirmDiffHandler — partial batch + forget interaction', () => {
   })
 })
 
+describe('confirmDiffHandler — compiled_truth safety guard (#1, #3)', () => {
+  /**
+   * Helper: seed a diff with a *single* admitted entry in `dimension` whose
+   * `compiled_truth_rewrite` is the supplied string. Returns the diff +
+   * entryId so the test can confirm the only entry in one call.
+   */
+  function seedSingleDimDiff(opts: {
+    dimension: 'values' | 'interests' | 'personality' | 'skills'
+    compiled_truth_rewrite: string
+    canonical_claim_id?: string
+  }) {
+    const mirror = insertMirrorEntry('demo', {
+      transcript: 't',
+      validation: 'v',
+      inferred_meaning: 'm',
+      story_reframe: 's',
+      raw_output: {},
+      context_type: 'school',
+    })
+    const entry = annotatedEntry({
+      dimension: opts.dimension,
+      canonical_claim_id: opts.canonical_claim_id ?? `${opts.dimension}.fake`,
+      verbatim_quote: 'student speech here',
+      reflection_id: mirror.id,
+    })
+    const payload = {
+      diffs: {
+        values: emptyDimDiff(),
+        interests: emptyDimDiff(),
+        personality: emptyDimDiff(),
+        skills: emptyDimDiff(),
+      },
+      admitted: [entry],
+      downgraded: [],
+      dropped: [],
+    }
+    // Inject the rewrite into the right dimension.
+    payload.diffs[opts.dimension] = emptyDimDiff(opts.compiled_truth_rewrite, 'open?')
+    const diff = insertVipsProposedDiff('demo', {
+      mirror_entry_id: mirror.id,
+      payload,
+      verifier_result: { admitted: payload.admitted, downgraded: [], dropped: [] },
+    })
+    return { diff, entryId: buildReviewEntryId(entry) }
+  }
+
+  it('happy: clean compiled_truth_rewrite for Values → page is updated', () => {
+    const { diff, entryId } = seedSingleDimDiff({
+      dimension: 'values',
+      compiled_truth_rewrite: 'Practices self-direction in school settings.',
+    })
+
+    const result = confirmDiffHandler({ studentId: 'demo', diffId: diff.id, entryId })
+
+    expect(result.compiled_truth_safety_skip).toBeUndefined()
+    expect(listVipsTimelineEntries('demo', 'values')).toHaveLength(1)
+    expect(getVipsPage('demo', 'values')?.compiled_truth).toBe(
+      'Practices self-direction in school settings.',
+    )
+  })
+
+  it('edge: flagged compiled_truth_rewrite for Values → page NOT updated, timeline entry still inserted', () => {
+    // "you are a leader" trips the base diagnostic-language pattern set.
+    const { diff, entryId } = seedSingleDimDiff({
+      dimension: 'values',
+      compiled_truth_rewrite: 'You are a leader at heart and your true self is collaborative.',
+    })
+
+    const result = confirmDiffHandler({ studentId: 'demo', diffId: diff.id, entryId })
+
+    // Timeline entry still commits — student speech is canonical.
+    expect(listVipsTimelineEntries('demo', 'values')).toHaveLength(1)
+    // Page is NOT upserted (no prior row → still null).
+    expect(getVipsPage('demo', 'values')).toBeNull()
+    // Result advertises the skip so callers can show a "summary kept previous" notice.
+    expect(result.compiled_truth_safety_skip).toBeDefined()
+    expect(result.compiled_truth_safety_skip?.dimension).toBe('values')
+    expect(result.compiled_truth_safety_skip?.matches.length ?? 0).toBeGreaterThan(0)
+    // Diff still finalizes (all entries resolved → status confirmed).
+    expect(result.diff.status).toBe('confirmed')
+  })
+
+  it('edge: flagged compiled_truth_rewrite for Personality (stricter regex) → page NOT updated, entry inserted', () => {
+    // The third-person rewrite-aware pattern catches "they are an introvert".
+    const { diff, entryId } = seedSingleDimDiff({
+      dimension: 'personality',
+      canonical_claim_id: 'personality.team_energy',
+      compiled_truth_rewrite: 'They are an introvert by nature and recharge alone.',
+    })
+
+    const result = confirmDiffHandler({ studentId: 'demo', diffId: diff.id, entryId })
+
+    expect(listVipsTimelineEntries('demo', 'personality')).toHaveLength(1)
+    expect(getVipsPage('demo', 'personality')).toBeNull()
+    expect(result.compiled_truth_safety_skip?.dimension).toBe('personality')
+    expect(result.compiled_truth_safety_skip?.matches.length ?? 0).toBeGreaterThan(0)
+  })
+
+  it('edge: clean Personality compiled_truth_rewrite (behavior-shape) → page updated', () => {
+    // Behavior-shape language stays admitted per safety.ts comments.
+    const { diff, entryId } = seedSingleDimDiff({
+      dimension: 'personality',
+      canonical_claim_id: 'personality.team_energy',
+      compiled_truth_rewrite: 'They sustain attention longer in argument-driven tasks with a team.',
+    })
+
+    const result = confirmDiffHandler({ studentId: 'demo', diffId: diff.id, entryId })
+
+    expect(result.compiled_truth_safety_skip).toBeUndefined()
+    expect(getVipsPage('demo', 'personality')?.compiled_truth).toContain(
+      'sustain attention longer in argument-driven tasks',
+    )
+  })
+})
+
 describe('confirmDiffHandler — error paths', () => {
   it('throws when the diff is not pending', () => {
     const { diff, entryIds } = seedDiff()

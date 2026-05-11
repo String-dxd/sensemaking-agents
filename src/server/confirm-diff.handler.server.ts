@@ -24,6 +24,11 @@ import {
   type VipsProposedDiffRow,
 } from '~/db/queries'
 import {
+  checkOutputForDiagnosticLanguage,
+  checkPersonalityRewriteForDiagnosticLanguage,
+  type SafetyCheckResult,
+} from '~/lib/safety'
+import {
   allEntriesResolved,
   buildReviewEntryId,
   parseReviewPayload,
@@ -50,6 +55,31 @@ export class ConfirmDiffError extends Error {
 
 export interface ConfirmDiffResult {
   diff: VipsProposedDiffRow
+  /**
+   * Set when the compiled_truth_rewrite for this dimension tripped the
+   * diagnostic-language guard (#1, #3): the timeline entry was still
+   * committed (student-speech is the canonical record), but the vips_pages
+   * row was NOT updated — the previously-committed compiled_truth (if any)
+   * remains in place. Surface this so the UI can show "your reflection
+   * was saved, but the wiki summary kept its previous version."
+   */
+  compiled_truth_safety_skip?: {
+    dimension: string
+    matches: SafetyCheckResult['matches']
+  }
+}
+
+/**
+ * Returns the matching guard for a dimension. Personality uses the
+ * stricter rewrite-aware patterns (U7) because the third-person voice
+ * of compiled_truth_rewrite is the highest-risk surface for slipping
+ * into diagnostic labels. Values/Interests/Skills get the base sweep.
+ */
+function checkCompiledTruthForDimension(dimension: string, text: string): SafetyCheckResult {
+  if (dimension === 'personality') {
+    return checkPersonalityRewriteForDiagnosticLanguage(text)
+  }
+  return checkOutputForDiagnosticLanguage(text)
 }
 
 export function confirmDiffHandler(data: ConfirmDiffInput): ConfirmDiffResult {
@@ -106,6 +136,9 @@ export function confirmDiffHandler(data: ConfirmDiffInput): ConfirmDiffResult {
         { ctx: { db } },
       )
 
+      // Captured outside the `if` so we can attach it to the result.
+      let compiled_truth_safety_skip: ConfirmDiffResult['compiled_truth_safety_skip']
+
       if (isFirstConfirmInDimension) {
         // Design note (Known Residual #2): `compiled_truth_rewrite` is an
         // agent-rewritten holistic summary of the dimension. The Connector
@@ -117,15 +150,39 @@ export function confirmDiffHandler(data: ConfirmDiffInput): ConfirmDiffResult {
         // scratch. The compiled_truth string is therefore presentation;
         // the timeline is canon.
         const dimDiff = payload.diffs[dimension as keyof typeof payload.diffs]
-        upsertVipsPage(
-          sid,
-          {
-            dimension,
-            compiled_truth: dimDiff.compiled_truth_rewrite,
-            open_question: dimDiff.open_question,
-          },
-          { ctx: { db } },
-        )
+
+        // R28/R29 + U7 — per-dimension diagnostic-language guard on the
+        // compiled_truth_rewrite. Personality has always had a render-time
+        // guard (counsellor-brief-renderer); this gate adds the same check
+        // for Values/Interests/Skills using the base sweep, and runs the
+        // stricter rewrite-aware patterns for Personality.
+        //
+        // On flag: log + skip the page upsert. The timeline entry still
+        // commits (student speech is canonical, not the holistic summary)
+        // and the previously-committed compiled_truth — if any — stays in
+        // place. The next Connector pass will re-attempt with the new
+        // surviving entries; this prevents a one-bad-rewrite from
+        // overwriting an earlier clean summary.
+        const safety = checkCompiledTruthForDimension(dimension, dimDiff.compiled_truth_rewrite)
+        if (!safety.ok) {
+          // eslint-disable-next-line no-console -- structural log for ops
+          console.warn(
+            '[confirm-diff] compiled_truth_rewrite tripped diagnostic-language guard; ' +
+              `skipping vips_pages upsert. student=${sid} dimension=${dimension} ` +
+              `matches=${JSON.stringify(safety.matches)}`,
+          )
+          compiled_truth_safety_skip = { dimension, matches: safety.matches }
+        } else {
+          upsertVipsPage(
+            sid,
+            {
+              dimension,
+              compiled_truth: dimDiff.compiled_truth_rewrite,
+              open_question: dimDiff.open_question,
+            },
+            { ctx: { db } },
+          )
+        }
       }
 
       // Mutate the in-payload resolution flag and persist it.
@@ -143,9 +200,9 @@ export function confirmDiffHandler(data: ConfirmDiffInput): ConfirmDiffResult {
         const finalRow = updateVipsProposedDiffStatus(sid, parsed.diffId, 'confirmed', {
           ctx: { db },
         })
-        return { diff: finalRow ?? updated }
+        return { diff: finalRow ?? updated, compiled_truth_safety_skip }
       }
-      return { diff: updated }
+      return { diff: updated, compiled_truth_safety_skip }
     })()
   })
 }

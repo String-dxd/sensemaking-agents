@@ -136,6 +136,79 @@ describe('quote match (R10)', () => {
   })
 })
 
+// ── AE7-adjacent calibration suite: 0.8 partial-match threshold pin ────────
+// These tests *pin* the planning-time threshold bet from verifier.ts
+// (`PARTIAL_MATCH_THRESHOLD = 0.8`). Don't change them as a side effect of
+// other refactors; the threshold itself is a separate decision. If you
+// re-tune the threshold, retune these expectations in the same commit so
+// reviewers see the bet explicitly. (Finding #14 / #19.)
+describe('verifier partial-match threshold (0.8) — AE7-adjacent calibration', () => {
+  // Transcript: "i hated when teacher told us exactly what to do" (10 tokens).
+  // We construct quotes whose longest-contiguous-token run is a known
+  // fraction of the quote-length.
+
+  it('at-threshold: 80% contiguous overlap → downgraded to strength=low, partial_match=true', () => {
+    // 5-token quote: "teacher told us exactly tomorrow". First 4 tokens
+    // ("teacher told us exactly") are a contiguous run in the transcript;
+    // the last token is fabricated. 4 / 5 = 0.8 → at threshold → downgrade.
+    const result = verifyProposedDiff({
+      diff: {
+        timeline_entries: [
+          draft({
+            verbatim_quote: 'teacher told us exactly tomorrow',
+            strength: 'high',
+          }),
+        ],
+      },
+      mirrorEntry: baseMirror,
+      existingTimelineEntries: [],
+    })
+    expect(result.downgraded).toHaveLength(1)
+    expect(result.dropped).toHaveLength(0)
+    expect(result.downgraded[0]?.partial_match).toBe(true)
+    expect(result.downgraded[0]?.strength).toBe('low')
+  })
+
+  it('just-below-threshold: 75% contiguous overlap → dropped with no_quote_match', () => {
+    // 4-token quote: "told us exactly tomorrow". First 3 contiguous in
+    // transcript; 3 / 4 = 0.75 → below 0.8 → drop. (The plan's "79% drops"
+    // is the boundary intent — we pin 0.75 because the math lands cleanly
+    // on the discrete token count, and any ratio in [0, 0.8) drops by the
+    // same `>=` rule.)
+    const result = verifyProposedDiff({
+      diff: {
+        timeline_entries: [draft({ verbatim_quote: 'told us exactly tomorrow' })],
+      },
+      mirrorEntry: baseMirror,
+      existingTimelineEntries: [],
+    })
+    expect(result.dropped).toHaveLength(1)
+    expect(result.downgraded).toHaveLength(0)
+    expect(result.dropped[0]?.reason).toBe('no_quote_match')
+  })
+
+  it('well-above-threshold: 90% contiguous overlap → downgraded, partial_match=true', () => {
+    // 10-token quote, first 9 contiguous in transcript, 10th fabricated.
+    // 9 / 10 = 0.9 ≥ 0.8 → downgrade. Confirms the threshold is a one-sided
+    // gate and not a narrow band.
+    const result = verifyProposedDiff({
+      diff: {
+        timeline_entries: [
+          draft({
+            verbatim_quote: 'i hated when teacher told us exactly what to homework',
+            strength: 'high',
+          }),
+        ],
+      },
+      mirrorEntry: baseMirror,
+      existingTimelineEntries: [],
+    })
+    expect(result.downgraded).toHaveLength(1)
+    expect(result.downgraded[0]?.partial_match).toBe(true)
+    expect(result.downgraded[0]?.strength).toBe('low')
+  })
+})
+
 // ── parallax cap (R11) ────────────────────────────────────────────────────
 function existingEntry(
   overrides: Partial<VerifierExistingTimelineEntry> = {},

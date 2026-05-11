@@ -174,6 +174,62 @@ describe('persistMirror — auto-connector failure modes leave mirror intact', (
   })
 })
 
+describe('persistMirror — R30 pending-queue concurrency (Finding #18)', () => {
+  it('two concurrent persistMirror calls coexist with the seeded pending row without double-staging', async () => {
+    // R30 says: at most one `status='pending'` row per student at any time.
+    // The auto-connector handler reads `listVipsProposedDiffs({status:'pending'})`
+    // and writes only if empty. This test pins the concurrent-call boundary:
+    //   - Seed a pending row.
+    //   - Fire two persistMirror calls in parallel.
+    //   - Both mirror_entries rows MUST persist (A11 — student speech is canon).
+    //   - The pending count after the race MUST equal 1 (the seeded one);
+    //     no new pending row was staged. Both calls return `queued`.
+    //
+    // After Finding #6's structural unique index lands, the TOCTOU window
+    // closes and the assertion is the same. Without the index, the in-process
+    // test still sees the seeded row from both calls because better-sqlite3
+    // runs synchronously on the main thread — but documenting the
+    // assumption keeps the test honest.
+    const prior = insertMirrorEntry('demo', {
+      transcript: 'earlier reflection',
+      validation: 'v',
+      inferred_meaning: 'm',
+      story_reframe: 's',
+      raw_output: {},
+      context_type: 'school',
+    })
+    insertVipsProposedDiff('demo', {
+      mirror_entry_id: prior.id,
+      payload: { admitted: [], downgraded: [], dropped: [], diffs: emptyDiff().diffs },
+      verifier_result: { admitted: [], downgraded: [], dropped: [] },
+    })
+
+    const runConnector = vi.fn().mockResolvedValue(emptyDiff())
+    const inputA = baseInput()
+    const inputB = { ...baseInput(), entry: { ...baseInput().entry, transcript: 'another one' } }
+
+    const [resA, resB] = await Promise.all([
+      persistMirrorHandler(inputA, { autoConnector: { runConnector } }),
+      persistMirrorHandler(inputB, { autoConnector: { runConnector } }),
+    ])
+
+    // Both mirror entries persist regardless of the queue check outcome.
+    expect(resA.mirror_entry.id).toBeGreaterThan(0)
+    expect(resB.mirror_entry.id).toBeGreaterThan(0)
+    expect(getMirrorEntry('demo', resA.mirror_entry.id)).not.toBeNull()
+    expect(getMirrorEntry('demo', resB.mirror_entry.id)).not.toBeNull()
+
+    // R30: no new pending rows beyond the seeded one. Both calls saw the
+    // pending row and returned `queued`.
+    const { listVipsProposedDiffs } = await import('~/db/queries')
+    const pending = listVipsProposedDiffs('demo', { status: 'pending' })
+    expect(pending).toHaveLength(1)
+    expect(resA.auto_connector_status).toBe('queued')
+    expect(resB.auto_connector_status).toBe('queued')
+    expect(runConnector).not.toHaveBeenCalled()
+  })
+})
+
 describe('persistMirror — safety gate (existing behavior carried forward)', () => {
   it('rejects diagnostic language at persistence time before chaining Connector', async () => {
     const runConnector = vi.fn()
