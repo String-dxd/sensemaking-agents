@@ -30,8 +30,13 @@ function ReflectPage() {
         <CardContent>
           <MirrorSession
             studentId="demo"
-            onPersisted={(entryId) => {
-              void navigate({ to: '/wiki/$entryId', params: { entryId: String(entryId) } })
+            onPersisted={(_result) => {
+              // U8: after every persistMirror, route to the post-Mirror
+              // review surface. When `_result.pendingQueued: true` (R30),
+              // the loader will surface the prior pending diff first;
+              // when the auto-Connector returned `ok`, the loader will
+              // surface the just-staged diff.
+              void navigate({ to: '/reflect/review' })
             }}
           />
         </CardContent>

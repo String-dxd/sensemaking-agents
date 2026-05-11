@@ -90,9 +90,25 @@ function reduce(state: State, action: Action): State {
   }
 }
 
+export interface MirrorSessionResult {
+  entryId: number
+  /** U7 auto-Connector outcome. Callers route on this to /reflect/review. */
+  autoConnectorStatus: 'ok' | 'queued' | 'timeout' | 'schema_reject' | 'missing_mirror'
+  /** R30: true iff a prior pending diff caused this run to be queued. */
+  pendingQueued: boolean
+}
+
 export interface MirrorSessionProps {
   studentId: string
-  onPersisted?: (entryId: number) => void
+  /**
+   * Called after `persistMirror` succeeds. The callback receives the
+   * mirror-entry id, the auto-Connector status, and the R30 queued flag
+   * so the consumer can decide where to route. In U8 the consumer in
+   * `routes/reflect.tsx` always routes to `/reflect/review` — that
+   * route's loader surfaces the prior pending diff when `pendingQueued`
+   * is true, or the newly-staged diff when the chain returned `ok`.
+   */
+  onPersisted?: (result: MirrorSessionResult) => void
 }
 
 /**
@@ -344,7 +360,11 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
       })
 
       dispatch({ type: 'done' })
-      onPersisted?.(result.mirror_entry.id)
+      onPersisted?.({
+        entryId: result.mirror_entry.id,
+        autoConnectorStatus: result.auto_connector_status,
+        pendingQueued: result.pending_queued,
+      })
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong saving the reflection.'

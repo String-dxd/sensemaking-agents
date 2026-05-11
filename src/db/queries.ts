@@ -57,8 +57,20 @@ export interface PathfinderOutputRow {
   created_at: string
 }
 
-export type AgentName = 'mirror' | 'connector' | 'pathfinder'
-export type AgentRefTable = 'mirror_entries' | 'connector_outputs' | 'pathfinder_outputs'
+/**
+ * v0.2 (U10/U11): `'cartographer'` is the new agent label and writes into
+ * `cartographer_outputs`. The CHECK constraint on `agent_traces.agent` was
+ * widened in U10 to admit both `'pathfinder'` (legacy chain) and
+ * `'cartographer'` (U11 manual sense-making) — see `schema.sql`. Legacy
+ * 'pathfinder' rows remain queryable; new Cartographer rows write with
+ * `'cartographer'` as their agent label.
+ */
+export type AgentName = 'mirror' | 'connector' | 'pathfinder' | 'cartographer'
+export type AgentRefTable =
+  | 'mirror_entries'
+  | 'connector_outputs'
+  | 'pathfinder_outputs'
+  | 'cartographer_outputs'
 export type MirrorEditableField = 'validation' | 'inferred_meaning' | 'story_reframe'
 
 interface MirrorEntryDbRow {
@@ -912,6 +924,27 @@ export function updateVipsProposedDiffStatus(
   return getVipsProposedDiff(studentId, id, opts)
 }
 
+/**
+ * Overwrite the `payload_json` column of a staged diff row. Used by the
+ * U8 review surface to track per-entry `resolved: 'pending' | 'confirmed'
+ * | 'forgotten'` flags without adding a new column. Tenancy-scoped on
+ * `student_id` so a stray diffId from another student is a no-op.
+ */
+export function updateVipsProposedDiffPayload(
+  studentId: string,
+  id: number,
+  payload: unknown,
+  opts: { ctx?: DbContext } = {},
+): VipsProposedDiffRow | null {
+  const db = getDb(opts.ctx ?? {})
+  db.prepare(
+    `UPDATE vips_proposed_diffs
+       SET payload_json = ?
+     WHERE id = ? AND student_id = ?`,
+  ).run(JSON.stringify(payload), id, studentId)
+  return getVipsProposedDiff(studentId, id, opts)
+}
+
 // ---- vips_forget_count ----------------------------------------------------
 
 export function getVipsForgetCount(
@@ -961,11 +994,16 @@ export function insertCartographerOutput(
         JSON.stringify(input.raw_output),
       )
     const id = Number(result.lastInsertRowid)
-    // agent_traces' `agent` column CHECK only allows 'mirror' | 'connector' |
-    // 'pathfinder' today. U10 widens the enum during the Pathfinder →
-    // Cartographer rename; until then, cartographer traces are not written
-    // here to avoid CHECK violations.
-    void input.trace
+    // v0.2 (U11): the CHECK on `agent_traces.agent` was widened in U10 to
+    // admit 'cartographer', so we can persist the trace row here alongside
+    // the cartographer_outputs row in the same transaction. U1's earlier
+    // skip is removed.
+    if (input.trace !== undefined) {
+      db.prepare(
+        `INSERT INTO agent_traces (student_id, agent, ref_table, ref_id, trace_json)
+         VALUES (?, 'cartographer', 'cartographer_outputs', ?, ?)`,
+      ).run(studentId, id, JSON.stringify(input.trace))
+    }
     const row = db
       .prepare('SELECT * FROM cartographer_outputs WHERE id = ?')
       .get(id) as CartographerOutputDbRow
