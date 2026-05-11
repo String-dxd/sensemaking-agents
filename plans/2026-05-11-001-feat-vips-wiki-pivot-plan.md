@@ -1,7 +1,7 @@
 ---
 title: "feat: VIPS Wiki Pivot — compiled-truth + timeline, deterministic verifier, post-Mirror review, Cartographer"
 type: feat
-status: active
+status: completed
 date: 2026-05-11
 origin: docs/brainstorms/2026-05-11-vips-wiki-pivot-requirements.md
 ---
