@@ -7,6 +7,7 @@ build/
 
 # Environment
 .env
+.env.example
 .env.local
 .env.*.local
 
@@ -29,7 +30,16 @@ pnpm-debug.log*
 # Editor
 .vscode/
 .idea/
+*.swp
+*~
+
+# OS
 .DS_Store
+**/.DS_Store
+Thumbs.db
+
+# Agent tooling (local state, not portable)
+.claude/
 
 # Test artifacts (kept in version control: test/ablation/reports/)
 coverage/

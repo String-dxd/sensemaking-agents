@@ -74,3 +74,7 @@ src/
   components/     # MirrorSession, AgentRunVisualizer, WikiEntryCard, primitives
 test/             # vitest specs incl. test/ablation/
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
