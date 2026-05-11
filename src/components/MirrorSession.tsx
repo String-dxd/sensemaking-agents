@@ -92,8 +92,19 @@ function reduce(state: State, action: Action): State {
 
 export interface MirrorSessionResult {
   entryId: number
-  /** U7 auto-Connector outcome. Callers route on this to /reflect/review. */
-  autoConnectorStatus: 'ok' | 'queued' | 'timeout' | 'schema_reject' | 'missing_mirror'
+  /** U7 auto-Connector outcome. Callers route on this to /reflect/review.
+   * Finding #7 split the previous catch-all `schema_reject` into discrete
+   * failure buckets — add the new strings so the consumer can render a
+   * specific error toast per cause. */
+  autoConnectorStatus:
+    | 'ok'
+    | 'queued'
+    | 'timeout'
+    | 'schema_reject'
+    | 'transport_error'
+    | 'auth_error'
+    | 'unknown'
+    | 'missing_mirror'
   /** R30: true iff a prior pending diff caused this run to be queued. */
   pendingQueued: boolean
 }

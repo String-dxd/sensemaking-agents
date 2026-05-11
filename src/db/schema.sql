@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS _meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
-INSERT OR IGNORE INTO _meta (key, value) VALUES ('schema_version', '3');
+INSERT OR IGNORE INTO _meta (key, value) VALUES ('schema_version', '4');
 
 CREATE TABLE IF NOT EXISTS mirror_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -120,7 +120,12 @@ END;
 -- closed set per R2; the canonical taxonomy fixture (U2) carries the labels.
 CREATE TABLE IF NOT EXISTS vips_pages (
   student_id TEXT NOT NULL,
-  dimension TEXT NOT NULL,
+  -- Closed VIPS-dimension enum (Finding #4). The application-side
+  -- `VIPS_DIMENSIONS` constant is the canonical list; this CHECK is the
+  -- structural belt-and-suspenders so a typo or non-lowercase value
+  -- can't slip into the persistent wiki.
+  dimension TEXT NOT NULL
+    CHECK (dimension IN ('values','interests','personality','skills')),
   compiled_truth TEXT NOT NULL,
   open_question TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -137,7 +142,9 @@ CREATE INDEX IF NOT EXISTS idx_vips_pages_student ON vips_pages(student_id, upda
 CREATE TABLE IF NOT EXISTS vips_timeline_entries (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id TEXT NOT NULL,
-  dimension TEXT NOT NULL,
+  -- Closed VIPS-dimension enum (Finding #4). See vips_pages.dimension.
+  dimension TEXT NOT NULL
+    CHECK (dimension IN ('values','interests','personality','skills')),
   canonical_claim_id TEXT NOT NULL,
   verbatim_quote TEXT NOT NULL,
   reflection_id INTEGER,
@@ -171,11 +178,21 @@ CREATE TABLE IF NOT EXISTS vips_proposed_diffs (
 CREATE INDEX IF NOT EXISTS idx_vips_proposed_diffs_student_status
   ON vips_proposed_diffs(student_id, status, created_at DESC);
 
+-- R30 pending-queue rule (Finding #6): at most one pending row per student
+-- at any time. The partial unique index closes the TOCTOU race in the
+-- auto-connector handler's check-then-insert pattern; concurrent
+-- persistMirror calls now resolve via SQLITE_CONSTRAINT instead of via
+-- the (lossy) read-and-pick-empty path.
+CREATE UNIQUE INDEX IF NOT EXISTS vips_proposed_diffs_pending_per_student
+  ON vips_proposed_diffs(student_id) WHERE status = 'pending';
+
 -- Separate from vips_pages so updates don't touch the compiled-truth row's
 -- updated_at — R20 records the forget count without surfacing it to agents.
 CREATE TABLE IF NOT EXISTS vips_forget_count (
   student_id TEXT NOT NULL,
-  dimension TEXT NOT NULL,
+  -- Closed VIPS-dimension enum (Finding #4). See vips_pages.dimension.
+  dimension TEXT NOT NULL
+    CHECK (dimension IN ('values','interests','personality','skills')),
   count INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (student_id, dimension)
 );

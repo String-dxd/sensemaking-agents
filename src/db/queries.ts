@@ -546,10 +546,27 @@ export interface VipsForgetCountRow {
   count: number
 }
 
+/**
+ * Row-shape mirror of `CartographerPathwayDraft` from `~/agents/schemas`
+ * (Finding #8). v0.1 had `reasoning` + `ecg_taxonomy_ids` here; the v0.2
+ * column `cartographer_outputs.pathways_json` stores the lead-sheet shape
+ * below. Keeping the row type aligned with the schema lets callers drop
+ * the three `as unknown as CartographerPathwayDraft[]` casts that
+ * previously bridged the mismatch.
+ *
+ * If the schema in `~/agents/schemas` evolves, mirror it here in the same
+ * commit so the DB read path stays honest.
+ */
 export interface CartographerPathway {
   label: string
-  reasoning: string
-  ecg_taxonomy_ids: string[]
+  trait_combination: Array<{
+    claim_id: string
+    dimension: 'values' | 'interests' | 'personality' | 'skills'
+    timeline_entry_id?: number
+  }>
+  ecg_region_tags: string[]
+  risks_tradeoffs: string
+  exploration_prompt: string
 }
 
 export interface CartographerOutputRow {

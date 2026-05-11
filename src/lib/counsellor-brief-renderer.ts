@@ -33,17 +33,12 @@
  */
 
 import type { CartographerOutputDraft } from '~/agents/schemas'
-import type { VipsDimension } from '~/data/vips-taxonomy'
+import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import type { VipsPageRow, VipsTimelineEntryRow } from '~/db/queries'
 import { checkPersonalityRewriteForDiagnosticLanguage } from '~/lib/safety'
 
-/** Canonical render order — matches `VIPS_DIMENSIONS` in load-vips-pages. */
-const DIMENSION_ORDER: readonly VipsDimension[] = [
-  'values',
-  'interests',
-  'personality',
-  'skills',
-] as const
+/** Canonical render order — alias for `VIPS_DIMENSIONS` from the taxonomy. */
+const DIMENSION_ORDER: readonly VipsDimension[] = VIPS_DIMENSIONS
 
 const DIMENSION_HEADING: Record<VipsDimension, string> = {
   values: 'Values',

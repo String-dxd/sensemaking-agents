@@ -21,8 +21,8 @@
  * `/wiki/trajectory` in `src/routes/wiki.trajectory.tsx`.
  */
 import { z } from 'zod'
-import type { CartographerOutputDraft, CartographerPathwayDraft } from '~/agents/schemas'
-import type { VipsDimension } from '~/data/vips-taxonomy'
+import type { CartographerOutputDraft } from '~/agents/schemas'
+import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import {
   latestCartographerOutput,
   listVipsPages,
@@ -48,14 +48,6 @@ export class CounsellorBriefError extends Error {
     this.name = 'CounsellorBriefError'
   }
 }
-
-/** Canonical render order — mirrors `VIPS_DIMENSIONS` in load-vips-pages. */
-const VIPS_DIMENSIONS: readonly VipsDimension[] = [
-  'values',
-  'interests',
-  'personality',
-  'skills',
-] as const
 
 export function counsellorBriefHandler(data: CounsellorBriefInput): CounsellorBriefResult {
   const parsed = counsellorBriefInputSchema.parse(data)
@@ -88,11 +80,10 @@ export function counsellorBriefHandler(data: CounsellorBriefInput): CounsellorBr
     const cartographerRow = latestCartographerOutput(sid)
     const trajectory: CartographerOutputDraft | null = cartographerRow
       ? {
-          // The DB row exposes legacy v0.1 field names on its typed surface,
-          // but the persisted JSON is v0.2. Re-map the trajectory text field
-          // and pass `pathways` through `unknown` to the v0.2 draft shape.
+          // The DB row's `CartographerPathway` shape now mirrors the v0.2
+          // draft (Finding #8), so this assembly is a direct field copy.
           trajectory_paragraph: cartographerRow.trajectory_text,
-          pathways: cartographerRow.pathways as unknown as CartographerPathwayDraft[],
+          pathways: cartographerRow.pathways,
           open_questions: cartographerRow.open_questions,
           disclaimer: cartographerRow.disclaimer,
         }

@@ -133,16 +133,66 @@ describe('runAutoConnectorAfterMirror — failure modes', () => {
     expect(listVipsProposedDiffs('demo', { status: 'pending' })).toHaveLength(0)
   })
 
-  it('schema_reject: Connector throws → no staged diff row, mirror entry intact (A11)', async () => {
+  it('unknown: Connector throws a plain Error → status=unknown, no staged diff (A11)', async () => {
+    // Finding #7: plain unclassified errors used to collapse into
+    // `schema_reject`, which gave operators no signal. They now bucket
+    // as `unknown` so ops can pull the log line for diagnosis.
     const mirror = seedMirror()
 
     const runConnector = vi.fn().mockRejectedValue(new Error('LLM transport error'))
 
     const result = await runAutoConnectorAfterMirror('demo', mirror.id, { runConnector })
 
-    expect(result.status).toBe('schema_reject')
+    expect(result.status).toBe('unknown')
     expect(result.staged_diff).toBeNull()
     expect(listVipsProposedDiffs('demo', { status: 'pending' })).toHaveLength(0)
+  })
+
+  it('transport_error: Connector rejects with a 5xx-shaped APIError → status=transport_error (Finding #7)', async () => {
+    const mirror = seedMirror()
+    // Duck-typed OpenAI SDK error: APIError carries a numeric `status`.
+    const sdkErr = Object.assign(new Error('Internal Server Error'), {
+      name: 'InternalServerError',
+      status: 503,
+    })
+    const runConnector = vi.fn().mockRejectedValue(sdkErr)
+
+    const result = await runAutoConnectorAfterMirror('demo', mirror.id, { runConnector })
+
+    expect(result.status).toBe('transport_error')
+    expect(result.staged_diff).toBeNull()
+  })
+
+  it('auth_error: Connector rejects with a 401-shaped APIError → status=auth_error (Finding #7)', async () => {
+    const mirror = seedMirror()
+    const sdkErr = Object.assign(new Error('Unauthorized'), {
+      name: 'AuthenticationError',
+      status: 401,
+    })
+    const runConnector = vi.fn().mockRejectedValue(sdkErr)
+
+    const result = await runAutoConnectorAfterMirror('demo', mirror.id, { runConnector })
+
+    expect(result.status).toBe('auth_error')
+    expect(result.staged_diff).toBeNull()
+  })
+
+  it('schema_reject: Connector throws ZodError → status=schema_reject (Finding #7)', async () => {
+    const mirror = seedMirror()
+    // Generate a real ZodError so the runtime check passes.
+    const { z } = await import('zod')
+    let zerr: unknown
+    try {
+      z.string().parse(123)
+    } catch (e) {
+      zerr = e
+    }
+    const runConnector = vi.fn().mockRejectedValue(zerr)
+
+    const result = await runAutoConnectorAfterMirror('demo', mirror.id, { runConnector })
+
+    expect(result.status).toBe('schema_reject')
+    expect(result.staged_diff).toBeNull()
   })
 
   it('timeout: Connector hangs past the soft budget → status=timeout, mirror entry intact', async () => {

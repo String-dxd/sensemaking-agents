@@ -11,7 +11,7 @@
  * and clients learn about it through neither this fn nor the wiki UI.
  */
 import { z } from 'zod'
-import type { VipsDimension } from '~/data/vips-taxonomy'
+import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import {
   listVipsPages,
   listVipsTimelineEntries,
@@ -26,12 +26,9 @@ export const loadVipsPagesInputSchema = z.object({
 
 export type LoadVipsPagesInput = z.output<typeof loadVipsPagesInputSchema>
 
-export const VIPS_DIMENSIONS: readonly VipsDimension[] = [
-  'values',
-  'interests',
-  'personality',
-  'skills',
-] as const
+// Re-export for backward compatibility with any in-repo consumers; the
+// canonical home is now `~/data/vips-taxonomy`.
+export { VIPS_DIMENSIONS }
 
 export interface LoadVipsPagesResult {
   /**

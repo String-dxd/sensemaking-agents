@@ -413,9 +413,14 @@ describe('VIPS schema (U1)', () => {
         trajectory_text: 'A drift toward applied, hands-on engineering.',
         pathways: [
           {
+            // Finding #8: `CartographerPathway` row type now mirrors the
+            // v0.2 `CartographerPathwayDraft` schema. Old v0.1 fields
+            // (`reasoning`, `ecg_taxonomy_ids`) are gone.
             label: 'Mechatronics-leaning engineering',
-            reasoning: 'Recurring mechatronics curiosity across school + hobby.',
-            ecg_taxonomy_ids: ['cluster.engineering'],
+            trait_combination: [{ claim_id: 'values.contribution', dimension: 'values' }],
+            ecg_region_tags: ['cluster.engineering'],
+            risks_tradeoffs: 'JC delays hands-on time by two years.',
+            exploration_prompt: 'What would a Friday afternoon at a robotics lab feel like?',
           },
         ],
         open_questions: ['Does the pull hold outside mechanical assembly?'],
@@ -424,7 +429,7 @@ describe('VIPS schema (U1)', () => {
       },
       { ctx: { db } },
     )
-    expect(out.pathways[0]?.ecg_taxonomy_ids).toEqual(['cluster.engineering'])
+    expect(out.pathways[0]?.ecg_region_tags).toEqual(['cluster.engineering'])
     expect(out.open_questions.length).toBe(1)
     expect(latestCartographerOutput('demo', { ctx: { db } })?.id).toBe(out.id)
   })

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { Database as DatabaseInstance } from 'better-sqlite3'
+import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
 import { openDb } from './client'
 import { upsertVipsPage } from './queries'
 
@@ -59,9 +60,6 @@ export interface MultiStudentSeedCorpus {
 }
 
 const SEED_PATH = resolve(process.cwd(), 'test/ablation/fixtures/seed-multistudent.json')
-
-/** Canonical VIPS dimensions (matches `VipsDimension` in `src/data/vips-taxonomy.ts`). */
-const VIPS_DIMENSIONS = ['values', 'interests', 'personality', 'skills'] as const
 
 export function loadSeedCorpus(): MultiStudentSeedCorpus {
   const raw = readFileSync(SEED_PATH, 'utf8')

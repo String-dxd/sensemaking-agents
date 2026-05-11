@@ -34,6 +34,22 @@
 
 export type VipsDimension = 'values' | 'interests' | 'personality' | 'skills'
 
+/**
+ * Canonical order of the four VIPS dimensions. Single source of truth so
+ * server handlers, renderers, and DB seed scripts don't drift on order or
+ * spelling. (Finding #12 — was previously inlined as a string-literal
+ * array in 6+ places.)
+ *
+ * Order matters: it pins the UI render order on the wiki overview cards,
+ * the brief markdown sections, and the cartographer prompt blocks.
+ */
+export const VIPS_DIMENSIONS = [
+  'values',
+  'interests',
+  'personality',
+  'skills',
+] as const satisfies readonly VipsDimension[]
+
 export interface VipsTaxonomyEntry {
   id: string
   dimension: VipsDimension

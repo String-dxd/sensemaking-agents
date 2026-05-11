@@ -40,6 +40,7 @@ import {
   type CartographerPathwayDraft,
 } from '~/agents/schemas'
 import { ECG_TAXONOMY } from '~/data/ecg-taxonomy'
+import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
 import {
   insertCartographerOutput,
   listMirrorEntries,
@@ -108,8 +109,6 @@ export interface RunCartographerDeps {
     emit: (e: RunStepEventInput) => void
   }) => Promise<unknown>
 }
-
-const VIPS_DIMENSIONS = ['values', 'interests', 'personality', 'skills'] as const
 
 /** Pre-computed set of valid `cluster.*` IDs from the ECG taxonomy fixture. */
 const VALID_CLUSTER_IDS: ReadonlySet<string> = new Set(
@@ -228,18 +227,12 @@ export async function runCartographerHandler(
     }
 
     // ── Persist ────────────────────────────────────────────────────────────
-    // The `cartographer_outputs.pathways_json` column stores the v0.2 lead-
-    // sheet shape verbatim; the DB row type's `CartographerPathway` field
-    // names are v0.1 leftovers (`reasoning`, `ecg_taxonomy_ids`) and don't
-    // match the v0.2 shape. We persist the JSON via the helper's
-    // `pathways` arg (typed loosely as `CartographerPathway[]` today) and
-    // round-trip the canonical v0.2 shape through `raw_output_json`.
-    const persistedPathways = keptPathways as unknown as Parameters<
-      typeof insertCartographerOutput
-    >[1]['pathways']
+    // `cartographer_outputs.pathways_json` stores the v0.2 lead-sheet shape;
+    // the DB row type's `CartographerPathway` now matches that shape
+    // exactly (Finding #8), so we pass `keptPathways` directly.
     const row = insertCartographerOutput(sid, {
       trajectory_text: draft.trajectory_paragraph,
-      pathways: persistedPathways,
+      pathways: keptPathways,
       open_questions: draft.open_questions,
       disclaimer: draft.disclaimer,
       raw_output: {

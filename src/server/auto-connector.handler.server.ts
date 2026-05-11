@@ -20,6 +20,7 @@
  * the mirror entry is intact.
  */
 import { run } from '@openai/agents'
+import { ZodError } from 'zod'
 import { createConnectorAgent } from '~/agents/connector'
 import {
   type ConnectorDiffDraft,
@@ -33,6 +34,7 @@ import type {
   VerifierResult,
 } from '~/agents/tools/schemas'
 import { verifyProposedDiff } from '~/agents/verifier'
+import { VIPS_DIMENSIONS as TAXONOMY_VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
 import {
   getMirrorEntry,
   insertVipsProposedDiff,
@@ -48,7 +50,10 @@ import { withStudent } from '~/server/tenancy.server'
 /** 30s soft budget per plan Approach ("Wall-clock budget: 30s soft timeout"). */
 export const AUTO_CONNECTOR_TIMEOUT_MS = 30_000
 
-const VIPS_DIMENSIONS: ConnectorDimension[] = ['values', 'interests', 'personality', 'skills']
+// Re-typed to the Connector's narrowed dimension union (which is a subset
+// of `VipsDimension` literals — they are byte-equivalent today but the
+// schema-layer alias keeps the type-level provenance honest).
+const VIPS_DIMENSIONS = TAXONOMY_VIPS_DIMENSIONS as readonly ConnectorDimension[]
 
 /**
  * Auto-Connector status values surfaced to the caller (and to the UI via
@@ -58,14 +63,31 @@ const VIPS_DIMENSIONS: ConnectorDimension[] = ['values', 'interests', 'personali
  * - `ok`: Connector ran, output parsed, verifier ran, diff staged.
  * - `queued`: R30 — a prior `status='pending'` row exists; new run skipped.
  * - `timeout`: Connector did not return inside `AUTO_CONNECTOR_TIMEOUT_MS`.
- * - `schema_reject`: Connector returned malformed JSON OR raised an
- *   exception. The mirror entry is still persisted (A11).
+ * - `schema_reject`: Connector returned a payload that failed `ConnectorDiffSchema`
+ *   (Zod parse error). The mirror entry is still persisted (A11).
+ * - `transport_error`: OpenAI SDK or network error (5xx, ECONNRESET, fetch
+ *   abort). Likely transient — caller can retry.
+ * - `auth_error`: OpenAI SDK returned 401 / 403. Configuration problem;
+ *   retry will not help.
+ * - `unknown`: Any other thrown error in the Connector call path. Catch-all
+ *   so we never silently leak an exception into the persistMirror flow.
  * - `missing_mirror`: Defensive — caller passed a mirror_entry_id that is
  *   not visible under `withStudent(studentId)`. Should not happen in
  *   practice because `persistMirror` invokes this with the row it just
  *   inserted.
+ *
+ * (Finding #7: previous versions collapsed every non-timeout failure mode
+ * into `schema_reject`, which was useless for ops triage.)
  */
-export type AutoConnectorStatus = 'ok' | 'queued' | 'timeout' | 'schema_reject' | 'missing_mirror'
+export type AutoConnectorStatus =
+  | 'ok'
+  | 'queued'
+  | 'timeout'
+  | 'schema_reject'
+  | 'transport_error'
+  | 'auth_error'
+  | 'unknown'
+  | 'missing_mirror'
 
 export interface AutoConnectorResult {
   status: AutoConnectorStatus
@@ -129,6 +151,13 @@ export async function runAutoConnectorAfterMirror(
     )
 
     // ── Step 3: invoke Connector with a soft 30s timeout. ──
+    // Finding #5: pass an AbortController.signal through to the SDK so a
+    // timeout actually CANCELS the underlying request — previously the
+    // Promise.race only rejected the wrapper while the SDK call kept
+    // burning tokens in the background. Test-seam `deps.runConnector`
+    // doesn't need the signal (its mocks resolve synchronously) but we
+    // pass it anyway for symmetry; it can ignore it.
+    const ac = new AbortController()
     let rawDraft: unknown
     try {
       rawDraft = await raceWithTimeout(
@@ -144,16 +173,19 @@ export async function runAutoConnectorAfterMirror(
               mirrorEntry: mirrorProjection,
               pages,
               timeline,
+              signal: ac.signal,
             }),
         AUTO_CONNECTOR_TIMEOUT_MS,
+        ac,
       )
     } catch (err) {
       if (err instanceof AutoConnectorTimeoutError) {
         return { status: 'timeout', staged_diff: null }
       }
-      // Any other thrown error (LLM transport, JSON parse upstream, etc.)
-      // is treated as schema_reject — the mirror entry is intact regardless.
-      return { status: 'schema_reject', staged_diff: null }
+      // Finding #7: split the previously-overloaded schema_reject status into
+      // discrete buckets so ops triage isn't blind. Log the underlying
+      // message at each branch.
+      return mapConnectorErrorToStatus(err)
     }
 
     // ── Step 4: parse against ConnectorDiffSchema. ──
@@ -183,14 +215,109 @@ export async function runAutoConnectorAfterMirror(
       downgraded: verifierResult.downgraded,
       dropped: verifierResult.dropped,
     }
-    const stagedRow = insertVipsProposedDiff(sid, {
-      mirror_entry_id: mirror.id,
-      payload,
-      verifier_result: verifierResult,
-    })
-
-    return { status: 'ok', staged_diff: stagedRow }
+    try {
+      const stagedRow = insertVipsProposedDiff(sid, {
+        mirror_entry_id: mirror.id,
+        payload,
+        verifier_result: verifierResult,
+      })
+      return { status: 'ok', staged_diff: stagedRow }
+    } catch (err) {
+      // R30 (Finding #6): the partial-unique index
+      // `vips_proposed_diffs_pending_per_student` rejects a second pending
+      // row for the same student. This closes the TOCTOU window between
+      // the listVipsProposedDiffs check at the top of this handler and
+      // the insert here — a concurrent call may have raced past the same
+      // check. Treat the constraint violation as a `queued` outcome:
+      // return the prior pending row's id so the UI can link to it.
+      if (isPendingPerStudentConstraintViolation(err)) {
+        const priorAfterRace = listVipsProposedDiffs(sid, { status: 'pending' })
+        const prior = priorAfterRace[0]
+        return {
+          status: 'queued' as const,
+          staged_diff: null,
+          ...(prior ? { pending_diff_id: prior.id } : {}),
+        }
+      }
+      throw err
+    }
   })
+}
+
+/**
+ * Map a thrown Connector error to one of the discrete AutoConnectorStatus
+ * buckets (Finding #7). The previous implementation collapsed every
+ * non-timeout failure mode into `schema_reject`, which gave operators no
+ * signal — was the LLM rate-limited? Was our API key revoked? Was the
+ * SDK 5xx-ing on us? Were they returning malformed JSON? — all of these
+ * collapsed into one log line.
+ *
+ * Duck-typing on a `status: number` field rather than `instanceof
+ * APIError` so we don't pull the openai SDK error class into our
+ * top-level imports (and survive minor SDK version drift).
+ */
+function mapConnectorErrorToStatus(err: unknown): AutoConnectorResult {
+  if (err instanceof ZodError) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn('[auto-connector] schema_reject: Zod parse error on Connector output', {
+      issues: err.issues,
+    })
+    return { status: 'schema_reject', staged_diff: null }
+  }
+
+  // Duck-type the OpenAI SDK error shape (APIError carries a numeric `status`).
+  const status =
+    err && typeof err === 'object' && typeof (err as { status?: unknown }).status === 'number'
+      ? (err as { status: number }).status
+      : undefined
+  const message =
+    err && typeof err === 'object' && typeof (err as { message?: unknown }).message === 'string'
+      ? (err as { message: string }).message
+      : String(err)
+
+  if (status === 401 || status === 403) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn(`[auto-connector] auth_error: Connector SDK returned ${status}`, { message })
+    return { status: 'auth_error', staged_diff: null }
+  }
+  if (typeof status === 'number' && status >= 500 && status < 600) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn(`[auto-connector] transport_error: Connector SDK ${status}`, { message })
+    return { status: 'transport_error', staged_diff: null }
+  }
+  // APIConnectionError / APIConnectionTimeoutError have no numeric status
+  // but are still transport-class. Match on a few common name suffixes.
+  const name =
+    err && typeof err === 'object' && typeof (err as { name?: unknown }).name === 'string'
+      ? (err as { name: string }).name
+      : ''
+  if (name.endsWith('ConnectionError') || name.endsWith('ConnectionTimeoutError')) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn(`[auto-connector] transport_error: ${name}`, { message })
+    return { status: 'transport_error', staged_diff: null }
+  }
+
+  // eslint-disable-next-line no-console -- ops triage signal
+  console.warn('[auto-connector] unknown: unclassified Connector error', { name, status, message })
+  return { status: 'unknown', staged_diff: null }
+}
+
+/**
+ * Recognize the SQLITE_CONSTRAINT thrown when our partial unique index
+ * `vips_proposed_diffs_pending_per_student` rejects a second pending row.
+ * better-sqlite3 raises an error with `code === 'SQLITE_CONSTRAINT_UNIQUE'`
+ * and a message that mentions the index name; we match on either to be
+ * resilient across sqlite versions.
+ */
+function isPendingPerStudentConstraintViolation(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const code = (err as { code?: unknown }).code
+  const message = (err as { message?: unknown }).message
+  const isUnique =
+    typeof code === 'string' &&
+    (code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT')
+  if (!isUnique) return false
+  return typeof message === 'string' && message.includes('vips_proposed_diffs_pending_per_student')
 }
 
 /**
@@ -240,9 +367,16 @@ class AutoConnectorTimeoutError extends Error {
   }
 }
 
-function raceWithTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+function raceWithTimeout<T>(p: Promise<T>, ms: number, ac?: AbortController): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const t = setTimeout(() => reject(new AutoConnectorTimeoutError()), ms)
+    const t = setTimeout(() => {
+      // Finding #5: abort the underlying SDK request when our soft timeout
+      // fires so token spend stops at the network layer, not just inside
+      // this wrapper. SDK versions that don't honor `signal` will simply
+      // see an ignored abort — behavior is no worse than before.
+      ac?.abort()
+      reject(new AutoConnectorTimeoutError())
+    }, ms)
     p.then(
       (v) => {
         clearTimeout(t)
@@ -261,10 +395,14 @@ async function runConnectorViaSdk(input: {
   mirrorEntry: VerifierMirrorEntry
   pages: VipsPageRow[]
   timeline: VipsTimelineEntryRow[]
+  signal?: AbortSignal
 }): Promise<unknown> {
   const agent = createConnectorAgent({ studentId: input.studentId })
   const prompt = formatConnectorPromptContext(input)
-  const result = await run(agent, prompt)
+  // The `@openai/agents` `run()` SharedRunOptions accepts `signal`; we pass
+  // it so the auto-connector timeout actually cancels the in-flight call
+  // (Finding #5). Verified in node_modules/@openai/agents-core/dist/run.d.ts.
+  const result = await run(agent, prompt, { signal: input.signal })
   return result.finalOutput
 }
 

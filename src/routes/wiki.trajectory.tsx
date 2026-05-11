@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
-import type { CartographerPathwayDraft } from '~/agents/schemas'
 import { TrajectoryPageView } from '~/components/TrajectoryPageView'
 import { Button } from '~/components/ui/button'
 import { loadTrajectory } from '~/server/load-trajectory.functions'
@@ -50,11 +49,9 @@ function WikiTrajectoryPage() {
     )
   }
 
-  // `cartographer_outputs.pathways_json` round-trips the v0.2 lead-sheet
-  // shape verbatim. The DB row type still names the field
-  // `CartographerPathway` (v0.1 leftover); narrow it to the agent draft
-  // shape here for the view.
-  const pathways = data.trajectory.pathways as unknown as CartographerPathwayDraft[]
+  // The DB row's `CartographerPathway` type now mirrors the v0.2 lead-sheet
+  // shape (Finding #8), so pathways pass through directly.
+  const pathways = data.trajectory.pathways
 
   return (
     <section className="flex flex-col gap-6 py-6">

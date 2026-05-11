@@ -6,7 +6,7 @@ import Database, { type Database as DatabaseInstance } from 'better-sqlite3'
 const SCHEMA_PATH = resolve(dirname(fileURLToPath(import.meta.url)), './schema.sql')
 
 /** Bumped when the schema changes incompatibly. See schema.sql `_meta`. */
-const SCHEMA_VERSION = '3'
+const SCHEMA_VERSION = '4'
 
 let cached: DatabaseInstance | null = null
 
