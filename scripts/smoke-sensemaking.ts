@@ -14,6 +14,7 @@ import 'dotenv/config'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Agent, run } from '@openai/agents'
+import { CARTOGRAPHER_MODEL, CONNECTOR_MODEL } from '~/agents/config'
 import {
   type AgentName,
   type RunSensemakingResult,
@@ -121,7 +122,7 @@ async function main() {
       () =>
         new Agent({
           name: 'connector',
-          model: 'gpt-4.1',
+          model: CONNECTOR_MODEL,
           instructions: connectorPrompt,
           tools: [searchCorpusToolFor('demo'), lookupEcgTaxonomyTool, selfCritiqueTool],
           outputType: ConnectorOutputSchema,
@@ -166,7 +167,7 @@ async function main() {
       () =>
         new Agent({
           name: 'pathfinder',
-          model: 'gpt-4.1',
+          model: CARTOGRAPHER_MODEL,
           instructions: pathfinderPrompt,
           tools: [searchCorpusToolFor('demo'), lookupEcgTaxonomyTool, selfCritiqueTool],
           outputType: PathfinderOutputSchema,

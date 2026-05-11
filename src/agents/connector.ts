@@ -1,4 +1,5 @@
 import { Agent } from '@openai/agents'
+import { CONNECTOR_MODEL } from '~/agents/config'
 import connectorPrompt from '~/agents/connector.prompt.md?raw'
 import { ConnectorOutputSchema } from '~/agents/schemas'
 import { lookupEcgTaxonomyTool } from '~/agents/tools/lookup-ecg-taxonomy'
@@ -18,7 +19,7 @@ export interface BuildConnectorAgentOpts {
 export function buildConnectorAgent({ studentId }: BuildConnectorAgentOpts) {
   return new Agent({
     name: 'connector',
-    model: 'gpt-4.1',
+    model: CONNECTOR_MODEL,
     instructions: connectorPrompt,
     tools: [searchCorpusToolFor(studentId), lookupEcgTaxonomyTool, selfCritiqueTool],
     outputType: ConnectorOutputSchema,

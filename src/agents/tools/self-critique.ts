@@ -1,4 +1,5 @@
 import { Agent, run, tool } from '@openai/agents'
+import { SELF_CRITIQUE_MODEL } from '../config'
 import {
   type SelfCritiqueInput,
   SelfCritiqueInputSchema,
@@ -24,7 +25,7 @@ const SYSTEM_PROMPT = `You are a critique-only reviewer. You will be given a dra
 
 const critiqueAgent = new Agent({
   name: 'self-critique',
-  model: 'gpt-4.1',
+  model: SELF_CRITIQUE_MODEL,
   instructions: SYSTEM_PROMPT,
   outputType: SelfCritiqueOutputSchema,
 })

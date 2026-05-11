@@ -1,4 +1,5 @@
 import { Agent } from '@openai/agents'
+import { CARTOGRAPHER_MODEL } from '~/agents/config'
 import pathfinderPrompt from '~/agents/pathfinder.prompt.md?raw'
 import { PathfinderOutputSchema } from '~/agents/schemas'
 import { lookupEcgTaxonomyTool } from '~/agents/tools/lookup-ecg-taxonomy'
@@ -16,7 +17,7 @@ export interface BuildPathfinderAgentOpts {
 export function buildPathfinderAgent({ studentId }: BuildPathfinderAgentOpts) {
   return new Agent({
     name: 'pathfinder',
-    model: 'gpt-4.1',
+    model: CARTOGRAPHER_MODEL,
     instructions: pathfinderPrompt,
     tools: [searchCorpusToolFor(studentId), lookupEcgTaxonomyTool, selfCritiqueTool],
     outputType: PathfinderOutputSchema,

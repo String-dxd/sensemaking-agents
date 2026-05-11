@@ -2,9 +2,11 @@
 
 Three OpenAI agents over a per-student SQLite wiki, structured around a quiet self-directed reflection ritual.
 
-- **Mirror** (`gpt-4.1`, async) — runs after the student stops talking. Reads the transcript, returns a three-part reflection: `validation`, `inferred_meaning`, `story_reframe`. No AI voice during the session.
-- **Connector** (`gpt-4.1`, manual button) — re-reads the per-student wiki and surfaces patterns with evidence IDs.
-- **Pathfinder** (`gpt-4.1`, manual button) — receives Connector's patterns via SDK Handoff, returns trajectory + 2–5 pathways with SG-ECG mapping.
+- **Mirror** (`gpt-5.5`, async) — runs after the student stops talking. Reads the transcript, returns a three-part reflection: `validation`, `inferred_meaning`, `story_reframe`. No AI voice during the session.
+- **Connector** (`gpt-5.5`, manual button) — re-reads the per-student wiki and surfaces patterns with evidence IDs.
+- **Pathfinder** (`gpt-5.5`, manual button) — receives Connector's patterns via SDK Handoff, returns trajectory + 2–5 pathways with SG-ECG mapping.
+
+All three agents read their model id from `src/agents/config.ts`. Set `AGENT_MODEL=<id>` in the env to override (e.g. `AGENT_MODEL=gpt-4.1 pnpm ablate:mirror` to score the prior baseline). The ablate script also accepts `--model=<id>` as an inline shortcut.
 
 The reflect path is browser → MediaRecorder → OpenAI Whisper → Mirror agent. The sense-making path is a single in-process Connector → Pathfinder Handoff chain with **live step-event visualization** in the wiki view.
 
