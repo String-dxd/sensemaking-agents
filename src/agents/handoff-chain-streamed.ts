@@ -1,7 +1,7 @@
 import { run } from '@openai/agents'
+import { buildCartographerAgent } from '~/agents/cartographer.ts'
 import { buildConnectorAgent } from '~/agents/connector.ts'
 import { formatCorpusForAgent } from '~/agents/handoff-chain'
-import { buildPathfinderAgent } from '~/agents/pathfinder.ts'
 import {
   type AgentName,
   type RunSensemakingResult,
@@ -12,8 +12,8 @@ import {
 import {
   type ConnectorOutputDraft,
   ConnectorOutputSchema,
-  type PathfinderOutputDraft,
-  PathfinderOutputSchema,
+  type LegacyPathfinderOutputDraft,
+  LegacyPathfinderOutputSchema,
 } from '~/agents/schemas'
 import { insertConnectorOutput, insertPathfinderOutput } from '~/db/queries'
 import { withStudent } from '~/server/tenancy.server'
@@ -29,21 +29,24 @@ export interface RunSensemakingStreamedDeps {
     corpus: string
     emit: (e: RunStepEventInput) => void
   }) => Promise<ConnectorOutputDraft>
-  runPathfinder?: (input: {
+  /** v0.1 legacy shape — see `handoff-chain.ts` for rationale. The streamed
+   *  variant of the passthrough chain emits the same `{trajectory, pathways,
+   *  disclaimer}` payload so `insertPathfinderOutput` can write it. */
+  runCartographer?: (input: {
     studentId: string
     connector: ConnectorOutputDraft
     emit: (e: RunStepEventInput) => void
-  }) => Promise<PathfinderOutputDraft>
+  }) => Promise<LegacyPathfinderOutputDraft>
 }
 
 /**
- * Runs Connector → Pathfinder once for a student and captures step-level
+ * Runs Connector → Cartographer once for a student and captures step-level
  * events from the SDK's streaming run. Caller waits for completion, then
  * the UI replays the events for visualization (U6).
  *
  * The chain is the same as `runSenseMakingForStudent` in `handoff-chain.ts`
- * — Connector reads the corpus, persists, hands off to Pathfinder, which
- * runs and persists. Pathfinder failure produces `partial: true` rather
+ * — Connector reads the corpus, persists, hands off to Cartographer, which
+ * runs and persists. Cartographer failure produces `partial: true` rather
  * than rolling back Connector.
  */
 export async function runSensemakingStreamed(
@@ -102,31 +105,33 @@ export async function runSensemakingStreamed(
     }
 
     // ── Handoff ──────────────────────────────────────────────────────────
-    emit({ type: 'handoff', from: 'connector', to: 'pathfinder' })
+    emit({ type: 'handoff', from: 'connector', to: 'cartographer' })
 
-    // ── Pathfinder ───────────────────────────────────────────────────────
-    emit({ type: 'agent_started', agent: 'pathfinder' })
+    // ── Cartographer ─────────────────────────────────────────────────────
+    emit({ type: 'agent_started', agent: 'cartographer' })
     let pathfinderRowId: number | null = null
     let partial = false
     try {
-      const pathfinderDraft = deps.runPathfinder
-        ? await deps.runPathfinder({ studentId: sid, connector: connectorDraft, emit })
+      const cartographerDraft = deps.runCartographer
+        ? await deps.runCartographer({ studentId: sid, connector: connectorDraft, emit })
         : await runWithStreaming(
-            'pathfinder',
+            'cartographer',
             () =>
               run(
-                buildPathfinderAgent({ studentId: sid }),
+                buildCartographerAgent({ studentId: sid }),
                 `Connector handed off the following patterns:\n\n${JSON.stringify(connectorDraft, null, 2)}\n\nProduce trajectory + pathways. Verify Connector's evidence IDs by calling search_past_mirrors when needed.`,
                 { stream: true },
               ),
             emit,
           )
-      const validated = PathfinderOutputSchema.parse(pathfinderDraft)
+      const validated = LegacyPathfinderOutputSchema.parse(cartographerDraft)
       const row = insertPathfinderOutput(sid, {
         trajectory: validated.trajectory,
         pathways: validated.pathways,
         disclaimer: validated.disclaimer,
         connector_output_id: connectorRowId,
+        // Trace agent label retains 'pathfinder' for v0.1 DB compatibility —
+        // see schema.sql `agent_traces.agent` CHECK widening note.
         trace: {
           agent: 'pathfinder',
           handoff_from: connectorRowId,
@@ -136,12 +141,12 @@ export async function runSensemakingStreamed(
       pathfinderRowId = row.id
       emit({
         type: 'agent_completed',
-        agent: 'pathfinder',
+        agent: 'cartographer',
         outputPreview: truncate(validated.trajectory),
       })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      emit({ type: 'error', agent: 'pathfinder', message: msg })
+      emit({ type: 'error', agent: 'cartographer', message: msg })
       partial = true
     }
 
@@ -186,6 +191,10 @@ async function runWithStreaming<T>(
  * Best-effort mapping of `RunStreamEvent` shapes from
  * `@openai/agents` to our step-event union. Different SDK versions emit
  * slightly different fields; we read defensively.
+ *
+ * TODO(v0.3-cutover): this is the canonical mapper. `run-cartographer.handler.server.ts`
+ * inlines a byte-equivalent copy; consolidate into a shared module once
+ * `run-sensemaking.handler.server.ts` (the legacy chain entry point) is deleted.
  */
 function mapSdkEventToStep(
   agent: AgentName,
@@ -245,7 +254,7 @@ function mapSdkEventToStep(
       return
     }
     if (name === 'handoff_occurred' || name === 'handoff_requested') {
-      // Connector → Pathfinder handoff is emitted by the chain orchestrator,
+      // Connector → Cartographer handoff is emitted by the chain orchestrator,
       // not by the SDK; ignore SDK-internal handoff events.
       return
     }

@@ -1,15 +1,19 @@
 /**
  * Discriminated union of step-level events emitted by the streamed
- * Connector → Pathfinder sense-making chain. Server captures these as the
+ * Connector → Cartographer sense-making chain. Server captures these as the
  * underlying SDK Runner events arrive; the UI consumes them via the
  * `run-sensemaking` server fn and animates them into the live agent
  * visualization (U6).
  *
  * Step-level on purpose (R12). Token-level streaming would be too noisy
  * at demo distance; agent + tool transitions are legible and meaningful.
+ *
+ * v0.2 rename note: `'pathfinder'` was renamed to `'cartographer'` in U10.
+ * The union is now `'connector' | 'cartographer'`; legacy `'pathfinder'`
+ * agent-event payloads are no longer emitted by the chain orchestrators.
  */
 
-export type AgentName = 'connector' | 'pathfinder'
+export type AgentName = 'connector' | 'cartographer'
 
 export type RunStepEvent =
   | { type: 'agent_started'; agent: AgentName; timestampMs: number }

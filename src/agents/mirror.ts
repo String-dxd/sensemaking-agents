@@ -1,4 +1,5 @@
 import { Agent, run } from '@openai/agents'
+import { MIRROR_MODEL } from '~/agents/config'
 import mirrorPrompt from '~/agents/mirror.prompt.md?raw'
 import { type MirrorOutputDraft, MirrorOutputSchema } from '~/agents/schemas'
 import { searchCorpusToolFor } from '~/agents/tools/search-corpus.server'
@@ -19,7 +20,7 @@ export interface BuildMirrorAgentOpts {
 export function buildMirrorAgent({ studentId }: BuildMirrorAgentOpts) {
   return new Agent({
     name: 'mirror',
-    model: 'gpt-4.1',
+    model: MIRROR_MODEL,
     instructions: mirrorPrompt,
     tools: [searchCorpusToolFor(studentId)],
     outputType: MirrorOutputSchema,

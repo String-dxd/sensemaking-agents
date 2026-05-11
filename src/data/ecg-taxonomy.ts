@@ -19,7 +19,92 @@ export interface EcgTaxonomyEntry {
   links?: string[]
 }
 
-export const ECG_TAXONOMY: EcgTaxonomyEntry[] = [
+/**
+ * Deterministic subject/CCA → cluster crosswalk rules (R21, U3).
+ *
+ * Rules are explicit label-pattern matches, not LLM inference — the rule
+ * source IS the link source, so reviewers can trace any link back to a
+ * specific pattern below. Cluster IDs referenced here must exist as
+ * `cluster.*` entries further down in `ECG_TAXONOMY`.
+ *
+ * Subject rules (matched against `entry.label`, case-insensitive):
+ *   - /Physics|Maths|Mathematics|Chemistry|Computing/  → engineering + computing
+ *   - /Biology|Health/                                  → healthcare + applied-sciences
+ *   - /History|Literature|Humanities|Econs/             → legal + public-service + creative-arts
+ *
+ * CCA rules (matched against `entry.id` + `entry.label` since CCAs have no
+ * `category` sub-field in v0.1; the in-fixture id segment is the proxy):
+ *   - /robotics|olympiad/                               → engineering + computing
+ *   - /sports/                                          → healthcare + education
+ *   - /music|ensemble|performing/                       → creative-arts + education
+ *   - /debate|public.?speaking/                         → legal + public-service
+ *   - /community|service|via|uniformed/                 → public-service + education
+ *   - /entrepreneur|business/                           → business-finance + education
+ *
+ * Fallback (documented inline below): subjects without a match default to
+ * `cluster.applied-sciences`; CCAs without a match default to
+ * `cluster.education`. Every subject/CCA entry ends up with ≥1 cluster link.
+ * Cluster and pathway entries are left with `links: []`.
+ */
+function computeLinks(entry: { id: string; label: string; category: EcgCategory }): string[] {
+  if (entry.category === 'cluster' || entry.category === 'pathway') return []
+
+  const haystack = `${entry.id} ${entry.label}`.toLowerCase()
+  const links = new Set<string>()
+
+  if (entry.category === 'subject') {
+    if (/physics|maths|mathematics|chemistry|computing/.test(haystack)) {
+      links.add('cluster.engineering')
+      links.add('cluster.computing')
+    }
+    if (/biology|health/.test(haystack)) {
+      links.add('cluster.healthcare')
+      links.add('cluster.applied-sciences')
+    }
+    if (/history|literature|humanities|econs/.test(haystack)) {
+      links.add('cluster.legal')
+      links.add('cluster.public-service')
+      links.add('cluster.creative-arts')
+    }
+    // Fallback: any subject that matched nothing routes to applied-sciences
+    // (broad scientific/academic surface) so every subject has ≥1 link.
+    if (links.size === 0) links.add('cluster.applied-sciences')
+  }
+
+  if (entry.category === 'cca') {
+    if (/robotics|olympiad/.test(haystack)) {
+      links.add('cluster.engineering')
+      links.add('cluster.computing')
+    }
+    if (/sports/.test(haystack)) {
+      links.add('cluster.healthcare')
+      links.add('cluster.education')
+    }
+    if (/music|ensemble|performing/.test(haystack)) {
+      links.add('cluster.creative-arts')
+      links.add('cluster.education')
+    }
+    if (/debate|public.?speaking/.test(haystack)) {
+      links.add('cluster.legal')
+      links.add('cluster.public-service')
+    }
+    if (/community|service|via|uniformed/.test(haystack)) {
+      links.add('cluster.public-service')
+      links.add('cluster.education')
+    }
+    if (/entrepreneur|business/.test(haystack)) {
+      links.add('cluster.business-finance')
+      links.add('cluster.education')
+    }
+    // Fallback: any CCA that matched nothing routes to education
+    // (CCAs are co-curricular by definition) so every CCA has ≥1 link.
+    if (links.size === 0) links.add('cluster.education')
+  }
+
+  return [...links]
+}
+
+const RAW_ECG_TAXONOMY: EcgTaxonomyEntry[] = [
   // ── Subject combinations (JC H2 — illustrative, not exhaustive) ─────────────
   {
     id: 'subject.h2-pcme',
@@ -246,6 +331,13 @@ export const ECG_TAXONOMY: EcgTaxonomyEntry[] = [
       'Research-track careers (A*STAR, university research, R&D in industry), spanning physical, life, and computational sciences.',
   },
 ]
+
+// Populate `links` on every entry via the deterministic helper above.
+// Cluster + pathway entries receive `[]`; subjects + CCAs receive ≥1 link.
+export const ECG_TAXONOMY: EcgTaxonomyEntry[] = RAW_ECG_TAXONOMY.map((entry) => ({
+  ...entry,
+  links: computeLinks(entry),
+}))
 
 export function lookupEcgTaxonomy(opts: {
   query: string

@@ -13,8 +13,8 @@ afterEach(() => {
   resetDbForTests()
 })
 
-describe('AE3: Connector → Handoff → Pathfinder in one cron pass', () => {
-  it('Pathfinder receives Connector patterns as input context and emits trajectory + pathways', async () => {
+describe('AE3: Connector → Handoff → Cartographer in one sense-making pass', () => {
+  it('Cartographer receives Connector patterns as input context and emits trajectory + pathways', async () => {
     const runConnector = vi.fn().mockResolvedValue({
       patterns: [
         {
@@ -30,8 +30,8 @@ describe('AE3: Connector → Handoff → Pathfinder in one cron pass', () => {
       ],
       still_unclear: 'Whether spatial reasoning generalizes outside mechanical assembly.',
     })
-    const runPathfinder = vi.fn(async ({ connector }) => {
-      // The handoff edge is what we are asserting — Pathfinder's input must
+    const runCartographer = vi.fn(async ({ connector }) => {
+      // The handoff edge is what we are asserting — Cartographer's input must
       // include Connector's patterns.
       expect(connector.patterns.length).toBe(2)
       expect(connector.patterns[0].evidence_reflection_ids).toEqual([1, 6])
@@ -53,10 +53,10 @@ describe('AE3: Connector → Handoff → Pathfinder in one cron pass', () => {
       }
     })
 
-    const result = await runSenseMakingForStudent('demo', { runConnector, runPathfinder })
+    const result = await runSenseMakingForStudent('demo', { runConnector, runCartographer })
 
     expect(runConnector).toHaveBeenCalledOnce()
-    expect(runPathfinder).toHaveBeenCalledOnce()
+    expect(runCartographer).toHaveBeenCalledOnce()
     expect(result.partial).toBe(false)
 
     const connector = latestConnectorOutput('demo')
@@ -77,15 +77,15 @@ describe('AE3: Connector → Handoff → Pathfinder in one cron pass', () => {
       ],
       still_unclear: null,
     })
-    const runPathfinder = vi.fn()
+    const runCartographer = vi.fn()
 
     await expect(
-      runSenseMakingForStudent('demo', { runConnector, runPathfinder }),
+      runSenseMakingForStudent('demo', { runConnector, runCartographer }),
     ).rejects.toThrow()
-    expect(runPathfinder).not.toHaveBeenCalled()
+    expect(runCartographer).not.toHaveBeenCalled()
   })
 
-  it('reports partial success when Pathfinder fails — Connector output is still persisted', async () => {
+  it('reports partial success when Cartographer fails — Connector output is still persisted', async () => {
     const runConnector = vi.fn().mockResolvedValue({
       patterns: [
         {
@@ -96,9 +96,9 @@ describe('AE3: Connector → Handoff → Pathfinder in one cron pass', () => {
       ],
       still_unclear: null,
     })
-    const runPathfinder = vi.fn().mockRejectedValue(new Error('rate-limited'))
+    const runCartographer = vi.fn().mockRejectedValue(new Error('rate-limited'))
 
-    const result = await runSenseMakingForStudent('demo', { runConnector, runPathfinder })
+    const result = await runSenseMakingForStudent('demo', { runConnector, runCartographer })
 
     expect(result.partial).toBe(true)
     expect(result.connector.id).toBeGreaterThan(0)
@@ -107,7 +107,7 @@ describe('AE3: Connector → Handoff → Pathfinder in one cron pass', () => {
     expect(latestPathfinderOutput('demo')).toBeNull()
   })
 
-  it('rejects Pathfinder output with fewer than 2 pathways — schema enforces 2-5 range', async () => {
+  it('rejects Cartographer output with fewer than 2 pathways — schema enforces 2-5 range', async () => {
     const runConnector = vi.fn().mockResolvedValue({
       patterns: [
         {
@@ -118,7 +118,7 @@ describe('AE3: Connector → Handoff → Pathfinder in one cron pass', () => {
       ],
       still_unclear: null,
     })
-    const runPathfinder = vi.fn().mockResolvedValue({
+    const runCartographer = vi.fn().mockResolvedValue({
       trajectory: 'A direction.',
       pathways: [
         {
@@ -130,9 +130,9 @@ describe('AE3: Connector → Handoff → Pathfinder in one cron pass', () => {
       disclaimer: 'Only one is dishonest.',
     })
 
-    const result = await runSenseMakingForStudent('demo', { runConnector, runPathfinder })
+    const result = await runSenseMakingForStudent('demo', { runConnector, runCartographer })
 
-    // Connector persisted, Pathfinder failed validation → partial.
+    // Connector persisted, Cartographer failed validation → partial.
     expect(result.partial).toBe(true)
     expect(result.pathfinder).toBeNull()
   })

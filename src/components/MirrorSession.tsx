@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef } from 'react'
+import { type ContextType, ContextTypePicker } from '~/components/ContextTypePicker'
 import { Button } from '~/components/ui/button'
 import { persistMirror } from '~/server/persist-mirror.functions'
 import { runMirror } from '~/server/run-mirror.functions'
@@ -16,6 +17,7 @@ type Phase =
   | 'permission-pending'
   | 'recording'
   | 'transcribing'
+  | 'picking-context'
   | 'reflecting'
   | 'persisting'
   | 'done'
@@ -28,6 +30,12 @@ interface State {
   /** Smoothed amplitude for the volume ring [0..1]. */
   amplitude: number
   errorMessage: string | null
+  /**
+   * U7: held between `transcribing` → `picking-context` → `reflecting`. If the
+   * user navigates away during `picking-context`, the transcript is discarded
+   * with the component unmount and no `persistMirror` is invoked.
+   */
+  pendingTranscript: string | null
 }
 
 type Action =
@@ -37,6 +45,7 @@ type Action =
   | { type: 'opening-silence' }
   | { type: 'stop-pressed' }
   | { type: 'transcribing' }
+  | { type: 'picking-context'; transcript: string }
   | { type: 'reflecting' }
   | { type: 'persisting' }
   | { type: 'done' }
@@ -49,6 +58,7 @@ const initialState: State = {
   elapsedMs: 0,
   amplitude: 0,
   errorMessage: null,
+  pendingTranscript: null,
 }
 
 function reduce(state: State, action: Action): State {
@@ -65,6 +75,8 @@ function reduce(state: State, action: Action): State {
       return state.phase === 'recording' ? { ...state, phase: 'transcribing' } : state
     case 'transcribing':
       return { ...state, phase: 'transcribing' }
+    case 'picking-context':
+      return { ...state, phase: 'picking-context', pendingTranscript: action.transcript }
     case 'reflecting':
       return { ...state, phase: 'reflecting' }
     case 'persisting':
@@ -78,9 +90,36 @@ function reduce(state: State, action: Action): State {
   }
 }
 
+export interface MirrorSessionResult {
+  entryId: number
+  /** U7 auto-Connector outcome. Callers route on this to /reflect/review.
+   * Finding #7 split the previous catch-all `schema_reject` into discrete
+   * failure buckets — add the new strings so the consumer can render a
+   * specific error toast per cause. */
+  autoConnectorStatus:
+    | 'ok'
+    | 'queued'
+    | 'timeout'
+    | 'schema_reject'
+    | 'transport_error'
+    | 'auth_error'
+    | 'unknown'
+    | 'missing_mirror'
+  /** R30: true iff a prior pending diff caused this run to be queued. */
+  pendingQueued: boolean
+}
+
 export interface MirrorSessionProps {
   studentId: string
-  onPersisted?: (entryId: number) => void
+  /**
+   * Called after `persistMirror` succeeds. The callback receives the
+   * mirror-entry id, the auto-Connector status, and the R30 queued flag
+   * so the consumer can decide where to route. In U8 the consumer in
+   * `routes/reflect.tsx` always routes to `/reflect/review` — that
+   * route's loader surfaces the prior pending diff when `pendingQueued`
+   * is true, or the newly-staged diff when the chain returned `ok`.
+   */
+  onPersisted?: (result: MirrorSessionResult) => void
 }
 
 /**
@@ -114,6 +153,20 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only effect; cleanup and handleStop close over refs that are stable for the lifetime of the component
   useEffect(() => {
     let cancelled = false
+
+    // Dev-only seam: ?inject=<transcript> skips media acquisition entirely so
+    // headless/automation smoke tests (and humans without a working mic) can
+    // drive the rest of the F1 pipeline. Dead-stripped from production builds
+    // via `import.meta.env.DEV`.
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      const injected = new URLSearchParams(window.location.search).get('inject')
+      if (injected && injected.trim().length > 0) {
+        dispatch({ type: 'picking-context', transcript: injected.trim() })
+        return () => {
+          cancelled = true
+        }
+      }
+    }
 
     async function acquire() {
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
@@ -290,11 +343,33 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
         return
       }
 
+      // U7: pause at `picking-context` for the student to pick the VIPS
+      // parallax context_type. The chain resumes in `handleContextChosen`.
+      dispatch({ type: 'picking-context', transcript })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
+      dispatch({ type: 'fail', message })
+    } finally {
+      // Release media stream regardless of branch — recorder is already stopped.
+      // The Mirror agent + persistMirror run server-side after the picker
+      // selection; no audio is needed beyond this point.
+      cleanup()
+    }
+  }
+
+  async function handleContextChosen(contextType: ContextType) {
+    const transcript = state.pendingTranscript
+    if (!transcript) {
+      dispatch({ type: 'fail', message: 'Lost the transcript before context was chosen.' })
+      return
+    }
+    try {
       dispatch({ type: 'reflecting' })
       const { output } = await runMirror({ data: { studentId, transcript } })
 
       dispatch({ type: 'persisting' })
-      const row = await persistMirror({
+      const result = await persistMirror({
         data: {
           studentId,
           entry: {
@@ -303,20 +378,22 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
             inferred_meaning: output.inferred_meaning,
             story_reframe: output.story_reframe,
           },
+          context_type: contextType,
           raw_output: output,
           trace: { capturedDurationMs: state.elapsedMs },
         },
       })
 
       dispatch({ type: 'done' })
-      onPersisted?.(row.id)
+      onPersisted?.({
+        entryId: result.mirror_entry.id,
+        autoConnectorStatus: result.auto_connector_status,
+        pendingQueued: result.pending_queued,
+      })
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
       dispatch({ type: 'fail', message })
-    } finally {
-      // We can release the stream regardless of branch; the recorder is already stopped.
-      cleanup()
     }
   }
 
@@ -392,6 +469,15 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
 
       <div className="flex w-full max-w-md flex-col items-center gap-3">
         <PhaseLabel phase={state.phase} remainingSec={remainingSec} />
+        {state.phase === 'picking-context' && state.pendingTranscript ? (
+          <div className="flex w-full flex-col gap-3" data-testid="picking-context-block">
+            <div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Here’s what I heard: </span>
+              {state.pendingTranscript}
+            </div>
+            <ContextTypePicker onSelect={(value) => void handleContextChosen(value)} />
+          </div>
+        ) : null}
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
@@ -427,6 +513,12 @@ function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: numbe
         transcribing what you said…
       </p>
     )
+  if (phase === 'picking-context')
+    return (
+      <p className="text-xs text-muted-foreground" data-testid="phase-label">
+        what was this about?
+      </p>
+    )
   if (phase === 'reflecting')
     return (
       <p className="text-xs text-muted-foreground" data-testid="phase-label">
@@ -436,7 +528,7 @@ function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: numbe
   if (phase === 'persisting')
     return (
       <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        saving to your wiki…
+        saving to your library…
       </p>
     )
   if (phase === 'done')

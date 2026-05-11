@@ -23,7 +23,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       { title: 'Sensemaking Agents' },
       {
         name: 'description',
-        content: 'Mirror, Connector, Pathfinder — a per-student wiki of reflections.',
+        content: 'Mirror, Connector, Cartographer — a per-student library of reflections.',
       },
     ],
     links: [{ rel: 'stylesheet', href: styles }],
@@ -40,7 +40,7 @@ function RootComponent() {
             <Link to="/" className="text-sm font-semibold tracking-tight">
               sensemaking · v0.1
             </Link>
-            <nav className="flex gap-4 text-sm text-muted-foreground">
+            <nav className="flex items-center gap-4 text-sm text-muted-foreground">
               <Link
                 to="/reflect"
                 className="hover:text-foreground"
@@ -49,11 +49,18 @@ function RootComponent() {
                 reflect
               </Link>
               <Link
-                to="/wiki"
+                to="/library"
                 className="hover:text-foreground"
                 activeProps={{ className: 'text-foreground' }}
               >
-                wiki
+                library
+              </Link>
+              <Link
+                to="/reflect/review"
+                className="text-xs hover:text-foreground"
+                activeProps={{ className: 'text-foreground' }}
+              >
+                review
               </Link>
             </nav>
           </header>

@@ -3,17 +3,20 @@ import type { AgentName, RunStepEvent } from '~/agents/run-events'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 
 /**
- * Live(-ish) visualization of the Connector → Pathfinder handoff chain.
+ * Live(-ish) visualization of the Cartographer sense-making run.
  *
  * The server fn returns events with their captured timestamps after the
  * actual run completes. We replay them client-side with a small synthetic
  * floor between consecutive events (so the eye can follow), preserving the
  * relative timing of agent transitions and tool calls.
  *
- * Demo wow factor (R18): both agent cards always visible; the active one
- * is highlighted with a soft pulsing ring. Tool calls render with query
- * + result preview. The handoff transition is an explicit row between
- * the two cards.
+ * v0.2 single-card layout (U10): in v0.1 this view rendered two cards
+ * (Connector + Pathfinder) with an explicit handoff pill between them.
+ * The v0.2 wiki flow makes Connector run automatically per-mirror (U7), so
+ * this view is now a **single Cartographer card** showing only the
+ * manual-button run. Connector events that arrive (e.g. from the streamed
+ * orchestrator) are ignored here — the Cartographer card consumes only
+ * `agent === 'cartographer'` events.
  */
 
 const MIN_GAP_MS = 220
@@ -75,31 +78,15 @@ export function AgentRunVisualizer({
 
   const visible = events.slice(0, playedCount)
   const activeAgent = computeActiveAgent(visible)
-  const handoffShown = visible.some((e) => e.type === 'handoff')
 
   return (
     <div className="flex flex-col gap-3" data-testid="agent-run-visualizer">
       <AgentCard
-        agent="connector"
-        title="Connector"
-        subtitle="Patterns across your reflections"
-        events={visible.filter((e) => agentScope(e) === 'connector')}
-        active={activeAgent === 'connector'}
-      />
-      {handoffShown ? (
-        <div
-          className="self-center rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-accent transition-opacity"
-          data-testid="handoff-transition"
-        >
-          ↳ handoff to pathfinder
-        </div>
-      ) : null}
-      <AgentCard
-        agent="pathfinder"
-        title="Pathfinder"
+        agent="cartographer"
+        title="Cartographer"
         subtitle="Trajectory + pathways"
-        events={visible.filter((e) => agentScope(e) === 'pathfinder')}
-        active={activeAgent === 'pathfinder'}
+        events={visible.filter((e) => agentScope(e) === 'cartographer')}
+        active={activeAgent === 'cartographer'}
       />
       {visible.some((e) => e.type === 'run_completed') ? (
         <p className="self-center text-xs text-muted-foreground">
@@ -149,7 +136,7 @@ function AgentCard({
           <span>
             {title}
             <span className="ml-2 text-[11px] font-normal uppercase tracking-wider text-muted-foreground">
-              {agent === 'connector' ? 'looking back' : 'looking forward'}
+              looking forward
             </span>
           </span>
           <span

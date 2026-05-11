@@ -24,7 +24,7 @@ export interface EditableFieldProps {
  * when the user clicks Confirm. Cancel reverts to the last displayed value.
  *
  * Used by Mirror signals/caution, Connector still_unclear, Pathfinder
- * trajectory, and any other field the wiki view marks editable.
+ * trajectory, and any other field the library view marks editable.
  */
 export function EditableField({
   value,

@@ -13,8 +13,8 @@ function LandingPage() {
           A wiki for what you've been figuring out.
         </h1>
         <p className="max-w-prose text-muted-foreground">
-          Mirror listens for two minutes. Connector and Pathfinder reread the wiki nightly and add
-          patterns and pathways. You edit and confirm — nothing is decided for you.
+          Mirror listens for two minutes. Connector and Pathfinder reread the library nightly and
+          add patterns and pathways. You edit and confirm — nothing is decided for you.
         </p>
       </div>
       <div className="flex gap-3">
@@ -23,7 +23,7 @@ function LandingPage() {
             Start a reflection
           </Button>
         </Link>
-        <Link to="/wiki">
+        <Link to="/library">
           <Button variant="outline" size="lg">
             Open wiki
           </Button>

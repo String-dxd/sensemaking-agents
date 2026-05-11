@@ -29,19 +29,38 @@ describe('Sense-making tools-off ablation (R20 surface 2)', () => {
     )
   })
 
-  it('builds a per-surface report with the four-dimension scaffold', () => {
+  it('builds a per-surface report with the five-dimension scaffold (v0.2 / U13)', () => {
     const md = buildAblationReportMarkdown({
       surface: 'sensemake',
-      ranAt: '2026-05-08T20:00:00Z',
-      corpusPath: 'test/ablation/fixtures/seed-corpus.json',
-      on: { variant: 'on', rawOutput: '{"connector":{},"pathfinder":{}}' },
-      off: { variant: 'off', rawOutput: '{"connector":{},"pathfinder":{}}' },
-      notes: 'gpt-4.1 on both Connector and Pathfinder',
+      ranAt: '2026-05-11T20:00:00Z',
+      corpusPath: 'test/ablation/fixtures/seed-multistudent.json',
+      studentId: 'demo-a',
+      on: { variant: 'on', rawOutput: '{"connector":{},"cartographer":{}}' },
+      off: { variant: 'off', rawOutput: '{"connector":{},"cartographer":{}}' },
+      notes: 'gpt-5.5 on both Connector and Cartographer',
     })
+    expect(ABLATION_DIMENSIONS).toHaveLength(5)
+    expect(ABLATION_DIMENSIONS).toContain('parallax_discipline')
     for (const dim of ABLATION_DIMENSIONS) {
       expect(md).toContain(dim)
     }
+    const dimRowMatches = md.match(
+      /\| (provenance|specificity|novelty|anti-sycophancy|parallax_discipline) \|/g,
+    )
+    expect(dimRowMatches?.length).toBe(5)
     expect(md).toContain('sensemake')
-    expect(md).toContain('gpt-4.1')
+    expect(md).toContain('gpt-5.5')
+    expect(md).toContain('demo-a')
+  })
+
+  it('omitting studentId renders the cross-student-union framing in the header', () => {
+    const md = buildAblationReportMarkdown({
+      surface: 'sensemake',
+      ranAt: '2026-05-11T20:00:00Z',
+      corpusPath: 'test/ablation/fixtures/seed-multistudent.json',
+      on: { variant: 'on', rawOutput: '{}' },
+      off: { variant: 'off', rawOutput: '{}' },
+    })
+    expect(md).toContain('cross-student union')
   })
 })

@@ -17,7 +17,7 @@ export function WikiEntryCard({ entry }: WikiEntryCardProps) {
       <CardHeader>
         <CardTitle>
           <Link
-            to="/wiki/$entryId"
+            to="/library/$entryId"
             params={{ entryId: String(entry.id) }}
             className="hover:underline"
           >

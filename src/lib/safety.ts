@@ -49,6 +49,42 @@ export function checkPayloadForDiagnosticLanguage(payload: unknown): SafetyCheck
   return { ok: matches.length === 0, matches }
 }
 
+/**
+ * Extra Personality-dimension diagnostic patterns (U7 / R28+R29). The
+ * Connector's compiled-truth rewrite for the Personality VIPS page is the
+ * highest-risk surface for slipping into diagnostic labels — "they are
+ * introverted", "they are conscientious by nature", etc. The regexes here
+ * widen the base set with phrasings that the Connector specifically might
+ * produce when rewriting the Personality page (third-person "they/she/he
+ * is …", Big-5 label nouns, and dispositional "by nature / by temperament"
+ * phrasing). Behavior-shape language stays admitted ("they sustain attention
+ * longer in argument-driven tasks" passes; "they're an introvert" does not).
+ */
+const PERSONALITY_REWRITE_PATTERNS: RegExp[] = [
+  /\b(?:they|she|he)(?:'re|'s|\s+(?:is|are))\s+(?:an?|the)\s+(?:\w+\s+)?(introvert|extrovert|perfectionist|empath|leader|follower|conscientious|neurotic|agreeable)\b/i,
+  /\b(?:they|she|he)(?:'re|'s|\s+(?:is|are))\s+naturally\s+(introverted|extroverted|conscientious|neurotic|agreeable|open|empathetic)\b/i,
+  /\b(?:by\s+nature|by\s+temperament|naturally\s+\w+\s+(?:by\s+(?:nature|temperament)))\b/i,
+  /\b(?:their|her|his)\s+(?:true|core|authentic)\s+(?:personality|self|nature)\b/i,
+]
+
+/**
+ * Personality-dimension compiled-truth rewrite check (U7). Runs the base
+ * `checkOutputForDiagnosticLanguage` AND a stricter set of patterns aimed
+ * at the third-person Personality-page voice. Other dimensions' rewrites
+ * go through the base check only — the broader pattern set here would
+ * over-trigger on the Skills page (where labelling competencies is fine).
+ */
+export function checkPersonalityRewriteForDiagnosticLanguage(text: string): SafetyCheckResult {
+  const base = checkOutputForDiagnosticLanguage(text)
+  const extra: SafetyCheckResult['matches'] = []
+  for (const re of PERSONALITY_REWRITE_PATTERNS) {
+    const m = re.exec(text)
+    if (m) extra.push({ text: m[0], pattern: re.source })
+  }
+  const matches = [...base.matches, ...extra]
+  return { ok: matches.length === 0, matches }
+}
+
 function walk(value: unknown, onString: (text: string) => void): void {
   if (typeof value === 'string') {
     onString(value)
