@@ -192,6 +192,50 @@ describe('ECG taxonomy fixture', () => {
     const empty = lookupEcgTaxonomy({ query: '__no_such_thing__' })
     expect(empty).toEqual([])
   })
+
+  // ── ECG taxonomy crosswalk (U3, R21) ──────────────────────────────────────
+  it('every subject entry has ≥1 cluster link (R21)', () => {
+    const subjects = ECG_TAXONOMY.filter((e) => e.category === 'subject')
+    expect(subjects.length).toBeGreaterThan(0)
+    for (const s of subjects) {
+      expect(s.links, `subject ${s.id} has no links`).toBeDefined()
+      expect((s.links ?? []).length, `subject ${s.id} has 0 links`).toBeGreaterThanOrEqual(1)
+      expect((s.links ?? []).every((l) => l.startsWith('cluster.'))).toBe(true)
+    }
+  })
+
+  it('every cca entry has ≥1 cluster link (R21)', () => {
+    const ccas = ECG_TAXONOMY.filter((e) => e.category === 'cca')
+    expect(ccas.length).toBeGreaterThan(0)
+    for (const c of ccas) {
+      expect(c.links, `cca ${c.id} has no links`).toBeDefined()
+      expect((c.links ?? []).length, `cca ${c.id} has 0 links`).toBeGreaterThanOrEqual(1)
+      expect((c.links ?? []).every((l) => l.startsWith('cluster.'))).toBe(true)
+    }
+  })
+
+  it('every link target resolves to an existing cluster.* entry — no dangling refs (R21)', () => {
+    const clusterIds = new Set(
+      ECG_TAXONOMY.filter((e) => e.category === 'cluster').map((e) => e.id),
+    )
+    expect(clusterIds.size).toBeGreaterThan(0)
+    for (const entry of ECG_TAXONOMY) {
+      for (const link of entry.links ?? []) {
+        expect(
+          clusterIds.has(link),
+          `entry ${entry.id} links to non-existent cluster ${link}`,
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('cluster entries themselves have empty links — clusters do not link to clusters (R21)', () => {
+    const clusters = ECG_TAXONOMY.filter((e) => e.category === 'cluster')
+    expect(clusters.length).toBeGreaterThan(0)
+    for (const c of clusters) {
+      expect(c.links ?? []).toEqual([])
+    }
+  })
 })
 
 describe('VIPS schema (U1)', () => {
