@@ -1,25 +1,67 @@
+/**
+ * U9 — `/wiki` overview. Four cards (one per VIPS dimension) + a single
+ * "Run sense-making" button. The v0.1 mirror-entry list and the
+ * `SENSEMAKE_GATE = 3` hard gate are gone — the gate is now a confirm
+ * dialog driven by `total_claim_count` from `loadVipsPages` (R24 / AE5).
+ *
+ * Run-sense-making invocation: the button mutates via `runCartographer`
+ * inline (same pattern as U11's scaffolding) so the AgentRunVisualizer
+ * surfaces a live agent chain on this page during the run. On a
+ * successful run we navigate to `/wiki/trajectory`. We deliberately do
+ * NOT hand the trajectory route the responsibility of triggering
+ * runCartographer — its loader is a read-only fetch of the most-recent
+ * `cartographer_outputs` row (U11) and adding a side-effect to it would
+ * double-fire on tab-revisit. Keeping the mutation here also lets the
+ * weak-corpus confirm dialog gate cleanly: only on confirm (or count >=
+ * 3) do we kick the agent run.
+ *
+ * R30 enforcement: the loader hits `loadPendingReview` first. Any pending
+ * diff bounces to `/reflect/review` before the cards render. Same rule
+ * as `/wiki/$dimension` (U9) and `/wiki/trajectory` (U11) — F1's review
+ * queue blocks every wiki surface.
+ */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
 import type { RunStepEvent } from '~/agents/run-events'
 import { AgentRunVisualizer } from '~/components/AgentRunVisualizer'
+import { ConfirmDialog } from '~/components/ConfirmDialog'
 import { Button } from '~/components/ui/button'
-import { WikiEntryCard } from '~/components/WikiEntryCard'
-import { loadWiki } from '~/server/load-wiki.functions'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
+import type { VipsDimension } from '~/data/vips-taxonomy'
+import { loadPendingReview } from '~/server/load-pending-review.functions'
+import { loadVipsPages } from '~/server/load-vips-pages.functions'
 import { runCartographer } from '~/server/run-cartographer.functions'
 
-// U9 will replace this overview with the 4-card VIPS pages layout. For U11
-// we only add minimal scaffolding so the F2 flow (Run sense-making → live
-// visualizer → /wiki/trajectory) works end-to-end; the legacy
-// Connector/Pathfinder cards have been removed because U11 reshapes those
-// outputs.
 const STUDENT_ID = 'demo'
-const SENSEMAKE_GATE = 3
+const WEAK_CORPUS_THRESHOLD = 3
+
+const DIMENSION_LABEL: Record<VipsDimension, string> = {
+  values: 'Values',
+  interests: 'Interests',
+  personality: 'Personality',
+  skills: 'Skills',
+}
+
+const DIMENSION_TAGLINE: Record<VipsDimension, string> = {
+  values: 'What you orient toward.',
+  interests: 'Where your attention pulls.',
+  personality: 'How you tend to show up.',
+  skills: 'What you practice and build.',
+}
 
 export const Route = createFileRoute('/wiki/')({
   loader: async ({ context }) => {
+    const pending = await context.queryClient.ensureQueryData({
+      queryKey: ['pending-review', STUDENT_ID],
+      queryFn: () => loadPendingReview({ data: { studentId: STUDENT_ID } }),
+    })
+    if (pending.diff) {
+      throw redirect({ to: '/reflect/review' })
+    }
     await context.queryClient.ensureQueryData({
-      queryKey: ['wiki', STUDENT_ID],
-      queryFn: () => loadWiki({ data: { studentId: STUDENT_ID } }),
+      queryKey: ['vips-pages', STUDENT_ID],
+      queryFn: () => loadVipsPages({ data: { studentId: STUDENT_ID } }),
     })
   },
   component: WikiIndexPage,
@@ -28,21 +70,22 @@ export const Route = createFileRoute('/wiki/')({
 function WikiIndexPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
+  const [weakCorpusOpen, setWeakCorpusOpen] = useState(false)
+
   const { data, isPending } = useQuery({
-    queryKey: ['wiki', STUDENT_ID],
-    queryFn: () => loadWiki({ data: { studentId: STUDENT_ID } }),
+    queryKey: ['vips-pages', STUDENT_ID],
+    queryFn: () => loadVipsPages({ data: { studentId: STUDENT_ID } }),
   })
 
   const sensemake = useMutation({
     mutationFn: () => runCartographer({ data: { studentId: STUDENT_ID } }),
     onSuccess: (result) => {
-      qc.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] })
+      qc.invalidateQueries({ queryKey: ['vips-pages', STUDENT_ID] })
       qc.invalidateQueries({ queryKey: ['trajectory', STUDENT_ID] })
       // Navigate only on a successful Cartographer run (ok=true). On
-      // schema_reject / no_valid_pathways / agent_error we stay on /wiki
-      // so the visualizer's error row remains visible; the student can
-      // press Run sense-making again. U9 may upgrade this to surface the
-      // explicit error in a banner.
+      // schema_reject / no_valid_pathways / agent_error we stay here so
+      // the visualizer's error row is visible and the student can press
+      // again. Mirrors U11's scaffolding behavior.
       if (result.ok) {
         navigate({ to: '/wiki/trajectory' })
       }
@@ -52,56 +95,107 @@ function WikiIndexPage() {
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>
   if (!data) return <p className="py-8 text-sm">No wiki yet.</p>
 
-  const corpusSize = data.entries.length
-  const gated = corpusSize < SENSEMAKE_GATE
   const events: RunStepEvent[] = sensemake.data?.events ?? []
   const showVisualizer = sensemake.isPending || sensemake.isSuccess
+
+  // R24 / AE5: no hard gate. The dialog fires only when the corpus is
+  // weak; otherwise we mutate immediately.
+  const onRunClicked = () => {
+    if (sensemake.isPending) return
+    if (data.total_claim_count < WEAK_CORPUS_THRESHOLD) {
+      setWeakCorpusOpen(true)
+      return
+    }
+    sensemake.mutate()
+  }
 
   return (
     <section className="flex flex-col gap-6 py-6">
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Wiki</h1>
         <p className="max-w-prose text-sm text-muted-foreground">
-          Mirror entries and the patterns that emerge across them. Every reflection field is
-          editable — click Edit, change, then Confirm. Sense-making is on demand.
+          The patterns we've heard across your reflections, grouped by Values, Interests,
+          Personality, and Skills. Pages refine themselves as you reflect.
         </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => sensemake.mutate()}
-            disabled={gated || sensemake.isPending}
-            data-testid="run-sensemaking"
-            title={
-              gated
-                ? `Add at least ${SENSEMAKE_GATE} reflections to enable sense-making`
-                : 'Run Cartographer over your VIPS pages and generate a Trajectory page'
-            }
-          >
-            {sensemake.isPending
-              ? 'mapping your trajectory…'
-              : sensemake.isSuccess
-                ? 'Run sense-making again'
-                : 'Run sense-making'}
-          </Button>
-          {gated ? (
-            <span className="text-xs text-muted-foreground" data-testid="gate-tooltip">
-              {`add ${SENSEMAKE_GATE - corpusSize} more reflection${
-                SENSEMAKE_GATE - corpusSize === 1 ? '' : 's'
-              } to enable`}
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">
-              {corpusSize} reflection{corpusSize === 1 ? '' : 's'} in the corpus
-            </span>
-          )}
-          {sensemake.isError ? (
-            <span className="text-xs text-warning" role="alert">
-              {sensemake.error instanceof Error ? sensemake.error.message : 'sense-making failed'}
-            </span>
-          ) : null}
-        </div>
       </header>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="vips-overview-grid">
+        {data.pages.map((page) => {
+          const dim = page.dimension as VipsDimension
+          const claimCount = data.claim_count_by_dimension[dim] ?? 0
+          return (
+            <Link
+              key={dim}
+              to="/wiki/$dimension"
+              params={{ dimension: dim }}
+              className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
+              data-testid={`vips-card-${dim}`}
+            >
+              <Card className="h-full transition-colors hover:bg-muted/30">
+                <CardHeader>
+                  <CardTitle>{DIMENSION_LABEL[dim]}</CardTitle>
+                  <CardDescription>{DIMENSION_TAGLINE[dim]}</CardDescription>
+                </CardHeader>
+                <CardContent className="gap-2">
+                  {page.compiled_truth.trim().length > 0 ? (
+                    <p
+                      className="line-clamp-2 text-sm leading-relaxed"
+                      data-testid={`vips-card-${dim}-compiled-truth`}
+                    >
+                      {page.compiled_truth}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No pattern yet — reflect a few times to fill this in.
+                    </p>
+                  )}
+                  <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span data-testid={`vips-card-${dim}-claim-count`}>
+                      {claimCount} {claimCount === 1 ? 'claim' : 'claims'}
+                    </span>
+                    {page.updated_at ? (
+                      <span data-testid={`vips-card-${dim}-updated-at`}>
+                        updated {new Date(page.updated_at).toLocaleDateString()}
+                      </span>
+                    ) : (
+                      <span className="italic">never updated</span>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          )
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onRunClicked}
+          disabled={sensemake.isPending}
+          data-testid="run-sensemaking"
+          title="Run Cartographer over your VIPS pages and generate a Trajectory page"
+        >
+          {sensemake.isPending
+            ? 'mapping your trajectory…'
+            : sensemake.isSuccess
+              ? 'Run sense-making again'
+              : 'Run sense-making'}
+        </Button>
+        <span className="text-xs text-muted-foreground" data-testid="claim-count-tooltip">
+          {data.total_claim_count} verified {data.total_claim_count === 1 ? 'claim' : 'claims'}{' '}
+          across all dimensions
+        </span>
+        {sensemake.isError ? (
+          <span className="text-xs text-warning" role="alert">
+            {sensemake.error instanceof Error ? sensemake.error.message : 'sense-making failed'}
+          </span>
+        ) : null}
+        {/* U12 will land an "Export counsellor brief" link here. Reserved
+            slot — do not wire in U9. */}
+        {/* TODO(U12): <ExportCounsellorBriefLink /> */}
+      </div>
 
       {showVisualizer ? (
         <section data-testid="live-run-section" className="flex flex-col gap-3">
@@ -129,20 +223,18 @@ function WikiIndexPage() {
         </section>
       ) : null}
 
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Reflections
-      </h2>
-      {data.entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          No reflections yet. Open <code>/reflect</code> to start one.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {data.entries.map((entry) => (
-            <WikiEntryCard key={entry.id} entry={entry} />
-          ))}
-        </div>
-      )}
+      <ConfirmDialog
+        open={weakCorpusOpen}
+        title="Patterns may be weak"
+        description="You have fewer than 3 verified claims across your VIPS pages. The Trajectory page may read tentative or generic. Run anyway?"
+        confirmLabel="Run anyway"
+        cancelLabel="Cancel"
+        onConfirm={() => {
+          setWeakCorpusOpen(false)
+          sensemake.mutate()
+        }}
+        onCancel={() => setWeakCorpusOpen(false)}
+      />
     </section>
   )
 }
