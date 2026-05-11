@@ -504,7 +504,13 @@ export interface VipsPageRow {
   dimension: string
   compiled_truth: string
   open_question: string
-  updated_at: string
+  /**
+   * ISO timestamp of last upsert, or `null` for the synthetic stub rows
+   * returned by `loadVipsPagesHandler`/`counsellorBriefHandler` when a
+   * dimension has no `vips_pages` row yet. Real DB rows always have a
+   * string here.
+   */
+  updated_at: string | null
 }
 
 export interface VipsTimelineEntryRow {
@@ -848,6 +854,10 @@ export function searchVipsTimelineEntries(
 
 // ---- vips_proposed_diffs --------------------------------------------------
 
+// TODO(v0.3-cutover): `verifier_result_json` and the verifier section embedded
+// inside `payload_json` (via U8's resolution-tracking blob) can drift if a
+// caller updates one and not the other. The v0.3 cleanup PR collapses one of
+// them; for now we keep both as belt-and-suspenders.
 export interface InsertVipsProposedDiffInput {
   mirror_entry_id: number
   payload: unknown

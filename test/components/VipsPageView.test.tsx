@@ -86,7 +86,7 @@ describe('VipsPageView', () => {
       <VipsPageView
         studentId="demo"
         dimension="values"
-        page={makePage({ compiled_truth: '', open_question: '', updated_at: '' })}
+        page={makePage({ compiled_truth: '', open_question: '', updated_at: null })}
         timeline={[]}
       />,
       { wrapper: makeWrapper() },

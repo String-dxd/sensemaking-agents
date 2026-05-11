@@ -58,6 +58,9 @@ export function loadVipsPagesHandler(data: LoadVipsPagesInput): LoadVipsPagesRes
     // Render the four dimensions in canonical order. A dimension without an
     // upserted page row returns a stub so the overview grid is always 4
     // cards; the empty-state copy lives in the view (R3: read-only).
+    // `updated_at: null` (rather than the previous empty-string sentinel)
+    // signals "no upsert yet" — the view-side `page.updated_at ?` guard
+    // already handled this falsy case, but `null` is the honest shape.
     const pages: VipsPageRow[] = VIPS_DIMENSIONS.map(
       (dim): VipsPageRow =>
         pagesByDimension.get(dim) ?? {
@@ -65,7 +68,7 @@ export function loadVipsPagesHandler(data: LoadVipsPagesInput): LoadVipsPagesRes
           dimension: dim,
           compiled_truth: '',
           open_question: '',
-          updated_at: '',
+          updated_at: null,
         },
     )
 

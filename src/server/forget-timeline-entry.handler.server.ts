@@ -37,6 +37,8 @@ export class ForgetTimelineEntryError extends Error {
 }
 
 export interface ForgetTimelineEntryResult {
+  /** The original entry id — echoed so callers can disambiguate when multiple forgets are in flight. */
+  entry_id: number
   /** The dimension the forgotten entry belonged to — for query invalidation. */
   dimension: VipsDimension
   /** ISO timestamp the row was forgotten at (driven by the DB clock). */
@@ -66,6 +68,7 @@ export function forgetTimelineEntryHandler(
       )
     }
     return {
+      entry_id: parsed.entryId,
       dimension: row.dimension as VipsDimension,
       forgotten_at: row.forgotten_at,
     }

@@ -243,6 +243,9 @@ function indexPagesByDimension(pages: VipsPageRow[]): Map<VipsDimension, VipsPag
  *   - `*` and `_` (bold/italic)
  *   - `` ` `` (inline code)
  *   - `[` and `]` (link syntax)
+ *   - `(` and `)` (image/link target parens — without these an `![alt](url)`
+ *     payload inside a student utterance could render as an image)
+ *   - `!` (image-link prefix, paired with the bracket/paren escapes)
  *   - `>` (would start a nested blockquote when on a continuation line)
  *   - `"` (terminates our quote wrapper)
  *
@@ -254,5 +257,5 @@ export function escapeForMarkdownBlockquote(s: string): string {
   return s
     .replace(/\r?\n/g, ' ')
     .replace(/\\/g, '\\\\')
-    .replace(/([*_`[\]>"])/g, '\\$1')
+    .replace(/([*_`[\]()!>"])/g, '\\$1')
 }

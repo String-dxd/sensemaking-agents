@@ -107,6 +107,15 @@ export function confirmDiffHandler(data: ConfirmDiffInput): ConfirmDiffResult {
       )
 
       if (isFirstConfirmInDimension) {
+        // Design note (Known Residual #2): `compiled_truth_rewrite` is an
+        // agent-rewritten holistic summary of the dimension. The Connector
+        // prompt is responsible for grounding it in all non-forgotten
+        // timeline entries we hand it as context. R2's preservation rule
+        // is enforced by the append-only `vips_timeline_entries` table —
+        // forgetting one entry just flips a flag; the next Connector pass
+        // sees the surviving entries and rewrites compiled_truth from
+        // scratch. The compiled_truth string is therefore presentation;
+        // the timeline is canon.
         const dimDiff = payload.diffs[dimension as keyof typeof payload.diffs]
         upsertVipsPage(
           sid,

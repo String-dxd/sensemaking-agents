@@ -368,6 +368,10 @@ async function runCartographerViaSdkStreamed(
  * Scope Boundaries, and the U11 cut-over keeps Cartographer self-contained.
  * Logic is byte-equivalent to commit 71b0510's hardened mapper at
  * lines 190-260 of `handoff-chain-streamed.ts`.
+ *
+ * TODO(v0.3-cutover): consolidate with the canonical mapper in
+ * `src/agents/handoff-chain-streamed.ts` once `run-sensemaking.handler.server.ts`
+ * is deleted — until then the legacy chain still references it.
  */
 function mapSdkEventToStep(
   agent: AgentName,

@@ -64,7 +64,9 @@ export function counsellorBriefHandler(data: CounsellorBriefInput): CounsellorBr
     const pagesByDimension = new Map<string, VipsPageRow>(rawPages.map((p) => [p.dimension, p]))
 
     // Render four pages in canonical order — a missing dimension becomes a
-    // stub so the markdown always carries four `## ` headings.
+    // stub so the markdown always carries four `## ` headings. `updated_at`
+    // is `null` (rather than empty string) so the brief renderer can omit
+    // the "last refined" suffix cleanly.
     const pages: VipsPageRow[] = VIPS_DIMENSIONS.map(
       (dim): VipsPageRow =>
         pagesByDimension.get(dim) ?? {
@@ -72,7 +74,7 @@ export function counsellorBriefHandler(data: CounsellorBriefInput): CounsellorBr
           dimension: dim,
           compiled_truth: '',
           open_question: '',
-          updated_at: '',
+          updated_at: null,
         },
     )
 

@@ -191,6 +191,10 @@ async function runWithStreaming<T>(
  * Best-effort mapping of `RunStreamEvent` shapes from
  * `@openai/agents` to our step-event union. Different SDK versions emit
  * slightly different fields; we read defensively.
+ *
+ * TODO(v0.3-cutover): this is the canonical mapper. `run-cartographer.handler.server.ts`
+ * inlines a byte-equivalent copy; consolidate into a shared module once
+ * `run-sensemaking.handler.server.ts` (the legacy chain entry point) is deleted.
  */
 function mapSdkEventToStep(
   agent: AgentName,

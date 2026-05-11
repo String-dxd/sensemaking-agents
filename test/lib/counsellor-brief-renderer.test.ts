@@ -250,6 +250,19 @@ describe('renderCounsellorBrief — markdown safety', () => {
     expect(escapeForMarkdownBlockquote('line one\nline two')).toBe('line one line two')
     expect(escapeForMarkdownBlockquote('he said "hi"')).toBe('he said \\"hi\\"')
   })
+
+  it('escapeForMarkdownBlockquote neutralizes image-link payloads (!, (, ))', () => {
+    // Without `(`, `)`, `!` escapes, this would render as an embedded image
+    // in the counsellor brief markdown — a classic injection vector.
+    const payload = '![pwn](https://evil.example/x.png)'
+    const escaped = escapeForMarkdownBlockquote(payload)
+    expect(escaped).toBe('\\!\\[pwn\\]\\(https://evil.example/x.png\\)')
+    // The raw image syntax must not survive escape.
+    expect(escaped).not.toContain('![pwn]')
+    expect(escaped).not.toMatch(/\]\(/)
+    // And the standalone characters round-trip through the escape.
+    expect(escapeForMarkdownBlockquote('parens (x) and bang!')).toBe('parens \\(x\\) and bang\\!')
+  })
 })
 
 describe('renderCounsellorBrief — Personality safety', () => {
