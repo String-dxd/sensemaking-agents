@@ -23,7 +23,6 @@
  * AE7 calibration pair lives in `test/agents/verifier.test.ts`.
  */
 import type {
-  ProposedTimelineEntryDraft,
   VerifierAnnotatedEntry,
   VerifierDroppedEntry,
   VerifierExistingTimelineEntry,
