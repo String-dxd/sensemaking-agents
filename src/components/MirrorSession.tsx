@@ -154,6 +154,20 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
   useEffect(() => {
     let cancelled = false
 
+    // Dev-only seam: ?inject=<transcript> skips media acquisition entirely so
+    // headless/automation smoke tests (and humans without a working mic) can
+    // drive the rest of the F1 pipeline. Dead-stripped from production builds
+    // via `import.meta.env.DEV`.
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      const injected = new URLSearchParams(window.location.search).get('inject')
+      if (injected && injected.trim().length > 0) {
+        dispatch({ type: 'picking-context', transcript: injected.trim() })
+        return () => {
+          cancelled = true
+        }
+      }
+    }
+
     async function acquire() {
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
         dispatch({
