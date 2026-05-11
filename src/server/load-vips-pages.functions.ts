@@ -3,7 +3,7 @@ import { loadVipsPagesHandler, loadVipsPagesInputSchema } from './load-vips-page
 
 /**
  * U9 — fetch the four VIPS pages + non-forgotten timeline entries for the
- * `/wiki` overview and `/wiki/$dimension` per-dimension pages. The
+ * `/wiki` overview and `/library/$dimension` per-dimension pages. The
  * response shape is deliberately narrow: it does NOT include
  * `vips_forget_count` (R20 — recorded server-side, never surfaced).
  */

@@ -14,7 +14,7 @@ export interface ConfirmDialogProps {
 }
 
 /**
- * Lightweight modal confirm. Used by the wiki overview's "Run sense-making"
+ * Lightweight modal confirm. Used by the library overview's "Run sense-making"
  * weak-corpus warning (R24 / AE5) — and by VipsPageView's per-entry forget
  * inline confirm pattern lives on its own (smaller, inline; not this).
  *

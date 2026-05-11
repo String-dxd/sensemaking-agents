@@ -6,7 +6,7 @@
  *   - Header: dimension label + compiled_truth paragraph + "Open question:" line
  *   - Body: chronological timeline (newest first), one card per entry
  *     · verbatim block-quote
- *     · "see source reflection" link to /wiki/$reflection_id
+ *     · "see source reflection" link to /library/$reflection_id
  *     · strength badge (low / medium / high)
  *     · parallax tag chips
  *     · small unobtrusive forget icon button → inline confirm
@@ -116,7 +116,7 @@ function TimelineEntryRow({ studentId, entry }: TimelineEntryRowProps) {
     mutationFn: () => forgetTimelineEntry({ data: { studentId, entryId: entry.id } }),
     onSuccess: (result) => {
       // Invalidate both the overview's umbrella key and the dimension-scoped
-      // page key so a forget on `/wiki/$dimension` immediately removes the
+      // page key so a forget on `/library/$dimension` immediately removes the
       // entry, and a subsequent navigation to `/wiki` shows the new claim
       // count.
       qc.invalidateQueries({ queryKey: ['vips-pages', studentId] })
@@ -145,13 +145,13 @@ function TimelineEntryRow({ studentId, entry }: TimelineEntryRowProps) {
           </span>
         ))}
         {entry.reflection_id != null ? (
-          // Plain `<a>` rather than TanStack `<Link>` because `/wiki/$entryId`
+          // Plain `<a>` rather than TanStack `<Link>` because `/library/$entryId`
           // requires a typegen-validated params object and this surface also
           // renders inside test wrappers that don't always mount a router.
           // Mirrors `TrajectoryPageView`'s trait-chip pattern for the same
           // reason.
           <a
-            href={`/wiki/${entry.reflection_id}`}
+            href={`/library/${entry.reflection_id}`}
             className="ml-auto text-xs hover:text-foreground hover:underline"
             data-testid={`source-reflection-link-${entry.id}`}
           >

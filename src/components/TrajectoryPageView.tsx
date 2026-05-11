@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
  * risks/tradeoffs paragraph + exploration prompt), an open-questions
  * list, and a disclaimer.
  *
- * Trait_combination chips link back to `/wiki/$entryId` so the student can
+ * Trait_combination chips link back to `/library/$entryId` so the student can
  * click any cited claim into its source reflection. ECG region tag chips
  * are inert badges in v0.2 (a future iteration may wire them to a
  * `lookup-ecg-taxonomy` modal — out of scope for U11 to avoid scope creep
@@ -166,13 +166,13 @@ function TraitChip({
   timelineEntryId?: number
 }) {
   // Per the plan, trait_combination chips link back to the source VIPS
-  // page. The `/wiki/$dimension` and the per-timeline-entry anchor are U9's
+  // page. The `/library/$dimension` and the per-timeline-entry anchor are U9's
   // surface (they're not yet routed today); we encode the link target in
   // attributes so U9 can wire them without a TrajectoryPageView edit.
-  const href = `/wiki/${dimension}${timelineEntryId ? `#entry-${timelineEntryId}` : ''}`
+  const href = `/library/${dimension}${timelineEntryId ? `#entry-${timelineEntryId}` : ''}`
   // TanStack `<Link>` doesn't validate dynamic dimension paths against the
   // registered route tree, so we use a regular anchor to avoid a typegen
-  // dependency. U9 will tighten this once `/wiki/$dimension` is in the
+  // dependency. U9 will tighten this once `/library/$dimension` is in the
   // router tree.
   return (
     <a

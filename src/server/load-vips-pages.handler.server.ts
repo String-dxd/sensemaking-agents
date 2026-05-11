@@ -1,14 +1,14 @@
 /**
  * U9 — Load the four VIPS pages + non-forgotten timeline entries for a
  * student. Powers both the `/wiki` overview (4-card grid + run-sensemaking
- * gate logic) and `/wiki/$dimension` (per-dimension page body).
+ * gate logic) and `/library/$dimension` (per-dimension page body).
  *
  * Wrapped in `withStudent` so all reads are tenant-scoped.
  *
  * R20 boundary: the response intentionally does NOT include
  * `vips_forget_count`. The counter is incremented server-side by
  * `forgetVipsTimelineEntry` but is recorded-not-surfaced in v0.2 — agents
- * and clients learn about it through neither this fn nor the wiki UI.
+ * and clients learn about it through neither this fn nor the library UI.
  */
 import { z } from 'zod'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'

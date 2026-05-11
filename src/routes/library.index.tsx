@@ -17,7 +17,7 @@
  *
  * R30 enforcement: the loader hits `loadPendingReview` first. Any pending
  * diff bounces to `/reflect/review` before the cards render. Same rule
- * as `/wiki/$dimension` (U9) and `/wiki/trajectory` (U11) — F1's review
+ * as `/library/$dimension` (U9) and `/wiki/trajectory` (U11) — F1's review
  * queue blocks every wiki surface.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -51,7 +51,7 @@ const DIMENSION_TAGLINE: Record<VipsDimension, string> = {
   skills: 'What you practice and build.',
 }
 
-export const Route = createFileRoute('/wiki/')({
+export const Route = createFileRoute('/library/')({
   loader: async ({ context }) => {
     const pending = await context.queryClient.ensureQueryData({
       queryKey: ['pending-review', STUDENT_ID],
@@ -65,10 +65,10 @@ export const Route = createFileRoute('/wiki/')({
       queryFn: () => loadVipsPages({ data: { studentId: STUDENT_ID } }),
     })
   },
-  component: WikiIndexPage,
+  component: LibraryIndexPage,
 })
 
-function WikiIndexPage() {
+function LibraryIndexPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
   const [weakCorpusOpen, setWeakCorpusOpen] = useState(false)
@@ -88,13 +88,13 @@ function WikiIndexPage() {
       // the visualizer's error row is visible and the student can press
       // again. Mirrors U11's scaffolding behavior.
       if (result.ok) {
-        navigate({ to: '/wiki/trajectory' })
+        navigate({ to: '/library/trajectory' })
       }
     },
   })
 
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>
-  if (!data) return <p className="py-8 text-sm">No wiki yet.</p>
+  if (!data) return <p className="py-8 text-sm">No library yet.</p>
 
   const events: RunStepEvent[] = sensemake.data?.events ?? []
   const showVisualizer = sensemake.isPending || sensemake.isSuccess
@@ -113,7 +113,7 @@ function WikiIndexPage() {
   return (
     <section className="flex flex-col gap-6 py-6">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Wiki</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
         <p className="max-w-prose text-sm text-muted-foreground">
           The patterns we've heard across your reflections, grouped by Values, Interests,
           Personality, and Skills. Pages refine themselves as you reflect.
@@ -127,7 +127,7 @@ function WikiIndexPage() {
           return (
             <Link
               key={dim}
-              to="/wiki/$dimension"
+              to="/library/$dimension"
               params={{ dimension: dim }}
               className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
               data-testid={`vips-card-${dim}`}
@@ -277,7 +277,7 @@ function ExportCounsellorBriefLink({ studentId }: { studentId: string }) {
       disabled={exportBrief.isPending}
       className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:cursor-not-allowed disabled:opacity-60"
       data-testid="export-counsellor-brief"
-      title="Download a markdown brief of the wiki + trajectory for offline review"
+      title="Download a markdown brief of the library + trajectory for offline review"
     >
       {exportBrief.isPending
         ? 'downloading…'

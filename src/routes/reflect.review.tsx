@@ -41,11 +41,11 @@ function ReviewPage() {
       <section className="flex flex-col gap-4 py-8" data-testid="review-empty-state">
         <h1 className="text-2xl font-semibold tracking-tight">Review</h1>
         <p className="max-w-prose text-sm text-muted-foreground">
-          No pending review — head to your wiki.
+          No pending review — head to your library.
         </p>
-        <Link to="/wiki">
+        <Link to="/library">
           <Button variant="outline" size="sm">
-            Go to wiki
+            Go to library
           </Button>
         </Link>
       </section>
@@ -57,7 +57,7 @@ function ReviewPage() {
       studentId={STUDENT_ID}
       diff={data.diff}
       onDone={() => {
-        void navigate({ to: '/wiki' })
+        void navigate({ to: '/library' })
       }}
     />
   )

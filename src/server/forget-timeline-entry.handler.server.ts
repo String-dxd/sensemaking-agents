@@ -1,6 +1,6 @@
 /**
  * U9 — Soft-forget one already-committed `vips_timeline_entries` row.
- * Used by the wiki-side per-entry forget button (the forget-on-review-
+ * Used by the library-side per-entry forget button (the forget-on-review-
  * surface path is `forget-diff`, which is a different beast — see U8).
  *
  * Delegates to `forgetVipsTimelineEntry` (U1) which atomically:

@@ -61,7 +61,7 @@ export interface ConfirmDiffResult {
    * committed (student-speech is the canonical record), but the vips_pages
    * row was NOT updated — the previously-committed compiled_truth (if any)
    * remains in place. Surface this so the UI can show "your reflection
-   * was saved, but the wiki summary kept its previous version."
+   * was saved, but the library summary kept its previous version."
    */
   compiled_truth_safety_skip?: {
     dimension: string

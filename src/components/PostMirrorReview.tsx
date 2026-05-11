@@ -46,9 +46,29 @@ export interface PostMirrorReviewProps {
 }
 
 export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewProps) {
+  const qc = useQueryClient()
   const payload = useMemo(() => parseReviewPayload(diff.payload), [diff.payload])
   const reviewables = useMemo(() => [...payload.admitted, ...payload.downgraded], [payload])
-  const allResolved = reviewables.length === 0 || reviewables.every((e) => e.resolved !== 'pending')
+  const pendingEntries = useMemo(
+    () => reviewables.filter((e) => e.resolved === 'pending'),
+    [reviewables],
+  )
+  const allResolved = reviewables.length === 0 || pendingEntries.length === 0
+
+  // Bulk confirm — fires sequentially because each `confirmDiff` mutates the
+  // same staged row's `payload_json` inside a transaction. Concurrent confirms
+  // would race on last-write-wins for the resolution flags, lose entries, and
+  // potentially mis-fire the last-entry-resolved status flip.
+  const bulkConfirmMutation = useMutation({
+    mutationFn: async () => {
+      for (const entry of pendingEntries) {
+        await confirmDiff({
+          data: { studentId, diffId: diff.id, entryId: buildReviewEntryId(entry) },
+        })
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pending-review', studentId] }),
+  })
 
   return (
     <section className="flex flex-col gap-6 py-6" data-testid="post-mirror-review">
@@ -56,7 +76,7 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
         <h1 className="text-2xl font-semibold tracking-tight">Review</h1>
         <p className="max-w-prose text-sm text-muted-foreground">
           The Connector pulled these claims from your last reflection. Confirm what fits, forget
-          what doesn’t. Forgotten entries never reach your wiki.
+          what doesn’t. Forgotten entries never reach your library.
         </p>
       </header>
 
@@ -68,25 +88,50 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
             diff={diff}
             payload={payload}
             studentId={studentId}
+            disableActions={bulkConfirmMutation.isPending}
           />
         ))}
       </div>
 
       <DroppedSection dropped={payload.dropped} />
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           variant="default"
           size="sm"
           onClick={() => onDone?.()}
-          disabled={!allResolved}
+          disabled={!allResolved || bulkConfirmMutation.isPending}
           data-testid="review-done"
         >
           Done
         </Button>
-        {!allResolved ? (
+        {pendingEntries.length > 0 ? (
+          <Button
+            variant="accent"
+            size="sm"
+            onClick={() => bulkConfirmMutation.mutate()}
+            disabled={bulkConfirmMutation.isPending}
+            data-testid="review-confirm-all"
+          >
+            {bulkConfirmMutation.isPending
+              ? `Confirming ${pendingEntries.length}…`
+              : `Confirm all ${pendingEntries.length}`}
+          </Button>
+        ) : null}
+        {!allResolved && !bulkConfirmMutation.isPending ? (
           <span className="text-xs text-muted-foreground" data-testid="review-done-help">
             Confirm or forget every entry to continue.
+          </span>
+        ) : null}
+        {bulkConfirmMutation.isError ? (
+          <span
+            className="text-xs text-warning"
+            role="alert"
+            data-testid="review-confirm-all-error"
+          >
+            {bulkConfirmMutation.error instanceof Error
+              ? bulkConfirmMutation.error.message
+              : 'confirm all failed'}
           </span>
         ) : null}
       </div>
@@ -99,9 +144,16 @@ interface DimensionGroupProps {
   diff: VipsProposedDiffRow
   payload: ReviewPayload
   studentId: string
+  disableActions?: boolean
 }
 
-function DimensionGroup({ dimension, diff, payload, studentId }: DimensionGroupProps) {
+function DimensionGroup({
+  dimension,
+  diff,
+  payload,
+  studentId,
+  disableActions,
+}: DimensionGroupProps) {
   const dimDiff = payload.diffs[dimension]
   const entries = useMemo(
     () => [...payload.admitted, ...payload.downgraded].filter((e) => e.dimension === dimension),
@@ -140,6 +192,7 @@ function DimensionGroup({ dimension, diff, payload, studentId }: DimensionGroupP
             entry={entry}
             diffId={diff.id}
             studentId={studentId}
+            disableActions={disableActions}
           />
         ))}
       </ul>
@@ -151,9 +204,10 @@ interface EntryRowProps {
   entry: ReviewableAnnotatedEntry
   diffId: number
   studentId: string
+  disableActions?: boolean
 }
 
-function EntryRow({ entry, diffId, studentId }: EntryRowProps) {
+function EntryRow({ entry, diffId, studentId, disableActions }: EntryRowProps) {
   const qc = useQueryClient()
   const entryId = buildReviewEntryId(entry)
 
@@ -170,7 +224,7 @@ function EntryRow({ entry, diffId, studentId }: EntryRowProps) {
   })
 
   const verdict = verdictForEntry(entry)
-  const pending = confirmMutation.isPending || forgetMutation.isPending
+  const pending = confirmMutation.isPending || forgetMutation.isPending || disableActions === true
   const resolved = entry.resolved !== 'pending'
 
   return (

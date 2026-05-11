@@ -221,6 +221,53 @@ describe('PostMirrorReview', () => {
     expect(screen.getByText(/something never said/)).toBeInTheDocument()
   })
 
+  it('Confirm all button fires confirm for every pending entry sequentially', async () => {
+    const a = annotatedEntry({
+      dimension: 'values',
+      canonical_claim_id: 'values.a',
+      verbatim_quote: 'q1',
+    })
+    const b = annotatedEntry({
+      dimension: 'interests',
+      canonical_claim_id: 'interests.b',
+      verbatim_quote: 'q2',
+    })
+    const c = annotatedEntry({
+      dimension: 'skills',
+      canonical_claim_id: 'skills.c',
+      verbatim_quote: 'q3',
+      // Pre-resolved entries should NOT be re-confirmed by the bulk button.
+      resolved: 'forgotten',
+    })
+    const diff = makeDiff({ admitted: [a, b, c] })
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+
+    const bulkButton = screen.getByTestId('review-confirm-all')
+    expect(bulkButton).toHaveTextContent(/Confirm all 2/)
+    await userEvent.click(bulkButton)
+
+    await waitFor(() => expect(confirmMock).toHaveBeenCalledTimes(2))
+    expect(confirmMock).toHaveBeenNthCalledWith(1, {
+      data: { studentId: 'demo', diffId: 1, entryId: buildReviewEntryId(a) },
+    })
+    expect(confirmMock).toHaveBeenNthCalledWith(2, {
+      data: { studentId: 'demo', diffId: 1, entryId: buildReviewEntryId(b) },
+    })
+  })
+
+  it('Confirm all button is absent when every entry is already resolved', () => {
+    const a = annotatedEntry({
+      dimension: 'values',
+      canonical_claim_id: 'values.a',
+      verbatim_quote: 'q1',
+      resolved: 'confirmed',
+    })
+    const diff = makeDiff({ admitted: [a] })
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+
+    expect(screen.queryByTestId('review-confirm-all')).toBeNull()
+  })
+
   it('renders the right verdict badge per entry (verified / aspirational / partial-match)', () => {
     const verified = annotatedEntry({
       dimension: 'values',

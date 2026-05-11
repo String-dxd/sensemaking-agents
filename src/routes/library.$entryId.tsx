@@ -12,7 +12,7 @@ import { loadWikiEntry } from '~/server/load-wiki.functions'
 
 const STUDENT_ID = 'demo'
 
-export const Route = createFileRoute('/wiki/$entryId')({
+export const Route = createFileRoute('/library/$entryId')({
   loader: async ({ params }) => {
     const id = Number(params.entryId)
     if (!Number.isFinite(id)) throw notFound()
@@ -39,9 +39,9 @@ function WikiEntryPage() {
     return (
       <div className="flex flex-col gap-3 py-8">
         <p className="text-sm">Entry not found.</p>
-        <Link to="/wiki">
+        <Link to="/library">
           <Button variant="outline" size="sm">
-            ← Back to wiki
+            ← Back to library
           </Button>
         </Link>
       </div>
@@ -51,7 +51,7 @@ function WikiEntryPage() {
 
   return (
     <section className="flex flex-col gap-6 py-6">
-      <Link to="/wiki" className="text-xs text-muted-foreground hover:text-foreground">
+      <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
         ← Wiki
       </Link>
       <WikiEntryCard entry={data.entry} />

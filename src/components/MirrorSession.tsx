@@ -528,7 +528,7 @@ function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: numbe
   if (phase === 'persisting')
     return (
       <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        saving to your wiki…
+        saving to your library…
       </p>
     )
   if (phase === 'done')

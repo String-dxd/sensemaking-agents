@@ -1,5 +1,5 @@
 /**
- * VIPS canonical taxonomy fixture for the wiki-pivot (v0.2).
+ * VIPS canonical taxonomy fixture for the library-pivot (v0.2).
  *
  * 22 hand-curated entries covering the four VIPS dimensions:
  *   - Values (8): Schwartz-aligned, framed for MOE ECG / CCE counsellor use.
@@ -40,7 +40,7 @@ export type VipsDimension = 'values' | 'interests' | 'personality' | 'skills'
  * spelling. (Finding #12 — was previously inlined as a string-literal
  * array in 6+ places.)
  *
- * Order matters: it pins the UI render order on the wiki overview cards,
+ * Order matters: it pins the UI render order on the library overview cards,
  * the brief markdown sections, and the cartographer prompt blocks.
  */
 export const VIPS_DIMENSIONS = [

@@ -20,7 +20,7 @@ import { VipsClaimStrengthSchema, VipsContextTypeSchema } from '~/agents/tools/s
  *
  * v0.2 rename note: the role previously called "Pathfinder" is now
  * "Cartographer". U10 performed the mechanical rename; U11 reshapes the
- * output schema to the wiki Trajectory page shape
+ * output schema to the library Trajectory page shape
  * `{trajectory_paragraph, pathways, open_questions, disclaimer}` where each
  * pathway is a lead-sheet (label + trait_combination + ecg_region_tags +
  * risks_tradeoffs + exploration_prompt). The v0.1 shape lives on as
@@ -44,7 +44,7 @@ export const MirrorEntrySchema = MirrorOutputSchema.extend({
 
 export type MirrorEntryDraft = z.infer<typeof MirrorEntrySchema>
 
-/** Editable field discriminator used by the wiki edit-and-confirm primitives. */
+/** Editable field discriminator used by the library edit-and-confirm primitives. */
 export const MirrorEditableField = z.enum(['validation', 'inferred_meaning', 'story_reframe'])
 export type MirrorEditableFieldName = z.infer<typeof MirrorEditableField>
 

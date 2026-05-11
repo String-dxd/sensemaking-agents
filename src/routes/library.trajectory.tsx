@@ -6,7 +6,7 @@ import { loadTrajectory } from '~/server/load-trajectory.functions'
 
 const STUDENT_ID = 'demo'
 
-export const Route = createFileRoute('/wiki/trajectory')({
+export const Route = createFileRoute('/library/trajectory')({
   loader: async ({ context }) => {
     const data = await context.queryClient.ensureQueryData({
       queryKey: ['trajectory', STUDENT_ID],
@@ -35,14 +35,14 @@ function WikiTrajectoryPage() {
   if (!data?.trajectory) {
     return (
       <section className="flex flex-col gap-4 py-6">
-        <Link to="/wiki" className="text-xs text-muted-foreground hover:text-foreground">
+        <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
           ← Wiki
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Trajectory</h1>
         <p className="text-sm text-muted-foreground">Run sense-making to see your trajectory.</p>
-        <Link to="/wiki">
+        <Link to="/library">
           <Button size="sm" variant="outline">
-            Back to wiki
+            Back to library
           </Button>
         </Link>
       </section>
@@ -55,7 +55,7 @@ function WikiTrajectoryPage() {
 
   return (
     <section className="flex flex-col gap-6 py-6">
-      <Link to="/wiki" className="text-xs text-muted-foreground hover:text-foreground">
+      <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
         ← Wiki
       </Link>
       <TrajectoryPageView

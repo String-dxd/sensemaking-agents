@@ -1,5 +1,5 @@
 /**
- * U9 — `/wiki/$dimension` per-VIPS-dimension page. The student arrives here
+ * U9 — `/library/$dimension` per-VIPS-dimension page. The student arrives here
  * by clicking one of the four overview cards (or a trait-chip in
  * TrajectoryPageView). The full compiled-truth paragraph + open-question
  * line + chronological timeline render here.
@@ -9,7 +9,7 @@
  *     other value 404s (TanStack's `notFound()` boundary).
  *   - R30 / AE8: if any `vips_proposed_diffs.status='pending'` row exists
  *     for the student, defer to `/reflect/review`. The student must clear
- *     the queue before the wiki is reachable. Mirrors the wiki overview
+ *     the queue before the library is reachable. Mirrors the library overview
  *     and `/wiki/trajectory` (U11) rules.
  */
 import { useQuery } from '@tanstack/react-query'
@@ -33,14 +33,14 @@ function isVipsDimension(s: string): s is VipsDimension {
   return (VALID_DIMENSIONS as readonly string[]).includes(s)
 }
 
-export const Route = createFileRoute('/wiki/$dimension')({
+export const Route = createFileRoute('/library/$dimension')({
   loader: async ({ params, context }) => {
     if (!isVipsDimension(params.dimension)) throw notFound()
     const dimension: VipsDimension = params.dimension
 
     // R30: pending diffs first. We hit the dedicated pending-review fn
     // (not loadVipsPages) so the redirect decision is one tiny query and
-    // doesn't depend on the wiki query shape.
+    // doesn't depend on the library query shape.
     const pending = await context.queryClient.ensureQueryData({
       queryKey: ['pending-review', STUDENT_ID],
       queryFn: () => loadPendingReview({ data: { studentId: STUDENT_ID } }),
@@ -67,7 +67,7 @@ function WikiDimensionPage() {
   })
 
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>
-  if (!data) return <p className="py-8 text-sm">No wiki yet.</p>
+  if (!data) return <p className="py-8 text-sm">No library yet.</p>
 
   const page = data.pages.find((p) => p.dimension === dimension)
   const timeline = data.timeline_by_dimension[dimension] ?? []
@@ -77,7 +77,7 @@ function WikiDimensionPage() {
     // dimensions — but if it does, fail soft to a back-link.
     return (
       <section className="flex flex-col gap-4 py-8">
-        <Link to="/wiki" className="text-xs text-muted-foreground hover:text-foreground">
+        <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
           ← Wiki
         </Link>
         <p className="text-sm">No page for this dimension yet.</p>
@@ -87,14 +87,14 @@ function WikiDimensionPage() {
 
   return (
     <section className="flex flex-col gap-4 py-2">
-      <Link to="/wiki" className="text-xs text-muted-foreground hover:text-foreground">
+      <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
         ← Wiki
       </Link>
       <VipsPageView studentId={STUDENT_ID} dimension={dimension} page={page} timeline={timeline} />
       <div>
-        <Link to="/wiki">
+        <Link to="/library">
           <Button variant="outline" size="sm">
-            Back to wiki
+            Back to library
           </Button>
         </Link>
       </div>
