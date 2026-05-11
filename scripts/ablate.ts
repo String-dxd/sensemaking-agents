@@ -31,6 +31,9 @@
  *                                  union report:
  *                                  `YYYY-MM-DD-<surface>-ablation.md`.
  */
+// Load .env before any module reads process.env (notably OPENAI_API_KEY).
+// `tsx` does not auto-load .env; the side-effect import is the cheapest seam.
+import 'dotenv/config'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Agent, run } from '@openai/agents'
