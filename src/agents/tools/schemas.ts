@@ -61,6 +61,36 @@ export const LookupEcgTaxonomyOutputSchema = z.object({
 export type LookupEcgTaxonomyInput = z.infer<typeof LookupEcgTaxonomyInputSchema>
 export type LookupEcgTaxonomyOutput = z.infer<typeof LookupEcgTaxonomyOutputSchema>
 
+// ── lookup_vips_taxonomy ─────────────────────────────────────────────────
+// Closed VIPS vocabulary (A9 / R4): canonical Values, Interests, Personality
+// (Big5 E+N only), Skills. Every field has a concrete type per the typed-
+// schema rule from commit 665e07c — no z.unknown() / z.any() in the
+// parameter schema reaches the OpenAI tool-parameter validator.
+export const VipsTaxonomyInputSchema = z.object({
+  query: z
+    .string()
+    .describe(
+      'Free-text query — case-insensitive substring match over label, definition, and id. Empty string returns all entries within the dimension.',
+    ),
+  dimension: z.enum(['values', 'interests', 'personality', 'skills']).optional(),
+})
+
+export const VipsTaxonomyEntrySchema = z.object({
+  id: z.string(),
+  dimension: z.enum(['values', 'interests', 'personality', 'skills']),
+  label: z.string(),
+  definition: z.string(),
+  behavioral_indicators: z.array(z.string()),
+})
+
+export const VipsTaxonomyOutputSchema = z.object({
+  entries: z.array(VipsTaxonomyEntrySchema),
+})
+
+export type VipsTaxonomyInput = z.infer<typeof VipsTaxonomyInputSchema>
+export type VipsTaxonomyEntry = z.infer<typeof VipsTaxonomyEntrySchema>
+export type VipsTaxonomyOutput = z.infer<typeof VipsTaxonomyOutputSchema>
+
 // ── self_critique ────────────────────────────────────────────────────────
 // `draft` is a JSON-serialized blob of arbitrary shape (Connector or
 // Pathfinder draft). OpenAI's tool-parameter schema validator requires
