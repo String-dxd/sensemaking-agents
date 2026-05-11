@@ -10,10 +10,10 @@ import {
   truncate,
 } from '~/agents/run-events'
 import {
-  type CartographerOutputDraft,
-  CartographerOutputSchema,
   type ConnectorOutputDraft,
   ConnectorOutputSchema,
+  type LegacyPathfinderOutputDraft,
+  LegacyPathfinderOutputSchema,
 } from '~/agents/schemas'
 import { insertConnectorOutput, insertPathfinderOutput } from '~/db/queries'
 import { withStudent } from '~/server/tenancy.server'
@@ -29,11 +29,14 @@ export interface RunSensemakingStreamedDeps {
     corpus: string
     emit: (e: RunStepEventInput) => void
   }) => Promise<ConnectorOutputDraft>
+  /** v0.1 legacy shape — see `handoff-chain.ts` for rationale. The streamed
+   *  variant of the passthrough chain emits the same `{trajectory, pathways,
+   *  disclaimer}` payload so `insertPathfinderOutput` can write it. */
   runCartographer?: (input: {
     studentId: string
     connector: ConnectorOutputDraft
     emit: (e: RunStepEventInput) => void
-  }) => Promise<CartographerOutputDraft>
+  }) => Promise<LegacyPathfinderOutputDraft>
 }
 
 /**
@@ -121,7 +124,7 @@ export async function runSensemakingStreamed(
               ),
             emit,
           )
-      const validated = CartographerOutputSchema.parse(cartographerDraft)
+      const validated = LegacyPathfinderOutputSchema.parse(cartographerDraft)
       const row = insertPathfinderOutput(sid, {
         trajectory: validated.trajectory,
         pathways: validated.pathways,

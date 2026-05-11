@@ -2,10 +2,10 @@ import { run } from '@openai/agents'
 import { buildCartographerAgent } from '~/agents/cartographer.ts'
 import { buildConnectorAgent } from '~/agents/connector.ts'
 import {
-  type CartographerOutputDraft,
-  CartographerOutputSchema,
   type ConnectorOutputDraft,
   ConnectorOutputSchema,
+  type LegacyPathfinderOutputDraft,
+  LegacyPathfinderOutputSchema,
 } from '~/agents/schemas'
 import {
   type ConnectorOutputRow,
@@ -25,11 +25,15 @@ export interface RunSenseMakingResult {
 export interface RunSenseMakingDeps {
   /** Override Connector invocation. Default: build the agent and call `run`. */
   runConnector?: (input: { studentId: string; corpus: string }) => Promise<ConnectorOutputDraft>
-  /** Override Cartographer invocation. Default: build the agent and call `run`. */
+  /** Override Cartographer invocation. Default: build the agent and call `run`.
+   *  v0.1 legacy shape — the passthrough chain still expects the
+   *  `{trajectory, pathways, disclaimer}` payload to write into
+   *  `pathfinder_outputs`. U11's new Cartographer (`run-cartographer.*`)
+   *  emits the v0.2 shape against `cartographer_outputs` instead. */
   runCartographer?: (input: {
     studentId: string
     connector: ConnectorOutputDraft
-  }) => Promise<CartographerOutputDraft>
+  }) => Promise<LegacyPathfinderOutputDraft>
 }
 
 /**
@@ -76,7 +80,7 @@ export async function runSenseMakingForStudent(
         deps.runCartographer !== undefined
           ? await deps.runCartographer({ studentId: sid, connector: validatedConnector })
           : await runCartographerViaSdk({ studentId: sid, connector: validatedConnector })
-      const validatedCartographer = CartographerOutputSchema.parse(cartographerDraft)
+      const validatedCartographer = LegacyPathfinderOutputSchema.parse(cartographerDraft)
       pathfinderRow = insertPathfinderOutput(sid, {
         trajectory: validatedCartographer.trajectory,
         pathways: validatedCartographer.pathways,
@@ -150,9 +154,18 @@ async function runConnectorViaSdk(input: {
 async function runCartographerViaSdk(input: {
   studentId: string
   connector: ConnectorOutputDraft
-}): Promise<CartographerOutputDraft> {
+}): Promise<LegacyPathfinderOutputDraft> {
+  // U11 cut over: the Cartographer agent now emits the v0.2
+  // `{trajectory_paragraph, pathways: lead-sheets, open_questions,
+  // disclaimer}` shape. The v0.1 chain still expects the legacy
+  // `{trajectory, pathways, disclaimer}` shape so it can write into
+  // `pathfinder_outputs`. As of U7 + U11 this SDK path is no longer
+  // exercised in practice — every reachable v0.1 chain caller stubs
+  // `runCartographer`. The double cast keeps the v0.1 type contract intact
+  // while making the mismatch loud at the call site; the follow-up PR
+  // deletes this whole chain.
   const agent = buildCartographerAgent({ studentId: input.studentId })
   const handoff = `Connector handed off the following patterns:\n\n${JSON.stringify(input.connector, null, 2)}\n\nProduce trajectory + pathways. Verify Connector's evidence IDs by calling search_past_mirrors when needed.`
   const result = await run(agent, handoff)
-  return result.finalOutput as CartographerOutputDraft
+  return result.finalOutput as unknown as LegacyPathfinderOutputDraft
 }

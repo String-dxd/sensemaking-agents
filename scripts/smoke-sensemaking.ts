@@ -1,11 +1,17 @@
 #!/usr/bin/env tsx
 // @ts-nocheck — diagnostic script; works at runtime, generic Agent variance noisy under tsc.
 /**
- * Live smoke test for the Connector → Pathfinder chain. Hits the real
- * OpenAI API. Use a separate DATABASE_PATH so it doesn't trample
+ * Live smoke test for the v0.2 Cartographer Trajectory-page chain. Hits the
+ * real OpenAI API. Use a separate DATABASE_PATH so it doesn't trample
  * `app.db`.
  *
  *   DATABASE_PATH=/tmp/smoke.db pnpm exec tsx scripts/smoke-sensemaking.ts
+ *
+ * v0.2 (U11): replaces the v0.1 Connector → Pathfinder smoke. The v0.2
+ * surface is a single-agent Cartographer run that reads the four VIPS
+ * pages + corpus and emits a `CartographerOutputSchema`-shaped Trajectory
+ * page (trajectory_paragraph + 2–5 lead-sheet pathways + open_questions +
+ * disclaimer). Output assertion shape changes accordingly.
  *
  * Mirrors `scripts/ablate.ts` and reads prompts from disk because tsx
  * can't resolve Vite's `?raw` markdown imports outside the dev server.
@@ -14,33 +20,30 @@ import 'dotenv/config'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { Agent, run } from '@openai/agents'
-import { CARTOGRAPHER_MODEL, CONNECTOR_MODEL } from '~/agents/config'
+import { CARTOGRAPHER_MODEL } from '~/agents/config'
 import {
   type AgentName,
-  type RunSensemakingResult,
   type RunStepEvent,
   type RunStepEventInput,
   truncate,
 } from '~/agents/run-events'
-import {
-  type ConnectorOutputDraft,
-  ConnectorOutputSchema,
-  type PathfinderOutputDraft,
-  PathfinderOutputSchema,
-} from '~/agents/schemas'
+import { type CartographerOutputDraft, CartographerOutputSchema } from '~/agents/schemas'
 import { lookupEcgTaxonomyTool } from '~/agents/tools/lookup-ecg-taxonomy'
+import { lookupVipsTaxonomyTool } from '~/agents/tools/lookup-vips-taxonomy'
 import { searchCorpusToolFor } from '~/agents/tools/search-corpus.server'
 import { selfCritiqueTool } from '~/agents/tools/self-critique'
 import { openDb } from '~/db/client'
 import {
-  insertConnectorOutput,
-  insertPathfinderOutput,
+  insertCartographerOutput,
   listMirrorEntries,
+  listVipsPages,
+  listVipsTimelineEntries,
 } from '~/db/queries'
 import { seed } from '~/db/seed'
 
-const connectorPrompt = readFileSync(resolve('src/agents/connector.prompt.md'), 'utf8')
-const pathfinderPrompt = readFileSync(resolve('src/agents/pathfinder.prompt.md'), 'utf8')
+const cartographerPrompt = readFileSync(resolve('src/agents/cartographer.prompt.md'), 'utf8')
+
+const VIPS_DIMENSIONS = ['values', 'interests', 'personality', 'skills'] as const
 
 async function streamedRun(
   agent: AgentName,
@@ -101,7 +104,7 @@ async function main() {
     seed({ db })
   }
   console.log(`Corpus size: ${listMirrorEntries('demo').length}`)
-  console.log('Starting Connector → Pathfinder chain...\n')
+  console.log('Starting Cartographer Trajectory-page generation...\n')
 
   const start = Date.now()
   const events: RunStepEvent[] = []
@@ -109,133 +112,71 @@ async function main() {
     events.push({ ...e, timestampMs: Date.now() - start } as RunStepEvent)
   }
 
-  const corpus = formatCorpus()
-  let result: RunSensemakingResult
+  const prompt = formatPromptContext()
 
-  // ── Connector ─────────────────────────────────────────────────────────
-  emit({ type: 'agent_started', agent: 'connector' })
-  let connectorDraft: ConnectorOutputDraft
-  let connectorRowId: number | null = null
-  try {
-    const out = await streamedRun(
-      'connector',
-      () =>
-        new Agent({
-          name: 'connector',
-          model: CONNECTOR_MODEL,
-          instructions: connectorPrompt,
-          tools: [searchCorpusToolFor('demo'), lookupEcgTaxonomyTool, selfCritiqueTool],
-          outputType: ConnectorOutputSchema,
-        }),
-      `You are reading reflection corpus for student demo. Surface patterns.\n\n${corpus}`,
-      emit,
-    )
-    connectorDraft = ConnectorOutputSchema.parse(out)
-    const row = insertConnectorOutput('demo', {
-      patterns: connectorDraft.patterns,
-      still_unclear: connectorDraft.still_unclear,
-      trace: { agent: 'connector' },
-    })
-    connectorRowId = row.id
-    emit({
-      type: 'agent_completed',
-      agent: 'connector',
-      outputPreview: truncate(JSON.stringify(connectorDraft.patterns.slice(0, 1))),
-    })
-  } catch (err) {
-    emit({ type: 'error', agent: 'connector', message: err instanceof Error ? err.message : String(err) })
-    result = {
-      events,
-      totalDurationMs: Date.now() - start,
-      connectorOutputId: null,
-      pathfinderOutputId: null,
-      partial: true,
-    }
-    print(result)
-    return
-  }
-
-  emit({ type: 'handoff', from: 'connector', to: 'pathfinder' })
-
-  // ── Pathfinder ────────────────────────────────────────────────────────
-  emit({ type: 'agent_started', agent: 'pathfinder' })
-  let pathfinderRowId: number | null = null
+  emit({ type: 'agent_started', agent: 'cartographer' })
+  let row: { id: number } | null = null
   let partial = false
   try {
     const out = await streamedRun(
-      'pathfinder',
+      'cartographer',
       () =>
         new Agent({
-          name: 'pathfinder',
+          name: 'cartographer',
           model: CARTOGRAPHER_MODEL,
-          instructions: pathfinderPrompt,
-          tools: [searchCorpusToolFor('demo'), lookupEcgTaxonomyTool, selfCritiqueTool],
-          outputType: PathfinderOutputSchema,
+          instructions: cartographerPrompt,
+          tools: [
+            searchCorpusToolFor('demo'),
+            lookupEcgTaxonomyTool,
+            lookupVipsTaxonomyTool,
+            selfCritiqueTool,
+          ],
+          outputType: CartographerOutputSchema,
         }),
-      `Connector handed off the following patterns:\n\n${JSON.stringify(connectorDraft, null, 2)}\n\nProduce trajectory + pathways.`,
+      prompt,
       emit,
     )
-    const validated = PathfinderOutputSchema.parse(out)
-    const row = insertPathfinderOutput('demo', {
-      trajectory: validated.trajectory,
-      pathways: validated.pathways,
+    const validated: CartographerOutputDraft = CartographerOutputSchema.parse(out)
+    row = insertCartographerOutput('demo', {
+      trajectory_text: validated.trajectory_paragraph,
+      pathways: validated.pathways as unknown as Parameters<
+        typeof insertCartographerOutput
+      >[1]['pathways'],
+      open_questions: validated.open_questions,
       disclaimer: validated.disclaimer,
-      connector_output_id: connectorRowId,
-      trace: { agent: 'pathfinder', handoff_from: connectorRowId },
+      raw_output: validated,
+      trace: {
+        agent: 'cartographer',
+        events_captured: events.length,
+      },
     })
-    pathfinderRowId = row.id
     emit({
       type: 'agent_completed',
-      agent: 'pathfinder',
-      outputPreview: truncate(validated.trajectory),
+      agent: 'cartographer',
+      outputPreview: truncate(validated.trajectory_paragraph),
     })
   } catch (err) {
     partial = true
     emit({
       type: 'error',
-      agent: 'pathfinder',
+      agent: 'cartographer',
       message: err instanceof Error ? err.message : String(err),
     })
   }
 
   emit({
     type: 'run_completed',
-    connectorOutputId: connectorRowId ?? -1,
-    pathfinderOutputId: pathfinderRowId,
+    connectorOutputId: -1,
+    pathfinderOutputId: row?.id ?? null,
     partial,
   })
 
-  result = {
-    events,
-    totalDurationMs: Date.now() - start,
-    connectorOutputId: connectorRowId,
-    pathfinderOutputId: pathfinderRowId,
-    partial,
-  }
-  print(result)
-}
-
-function formatCorpus(): string {
-  const entries = listMirrorEntries('demo', { limit: 200 })
-  if (entries.length === 0) return 'No prior reflections.'
-  return entries
-    .slice()
-    .reverse()
-    .map(
-      (e) =>
-        `# Reflection #${e.id} — ${e.created_at}\n\nStory: ${e.story_reframe}\nValidation: ${e.validation}\nInferred meaning: ${e.inferred_meaning}\n\nTranscript: ${e.transcript}`,
-    )
-    .join('\n\n---\n\n')
-}
-
-function print(result: RunSensemakingResult) {
-  console.log(`\n=== RESULT in ${(result.totalDurationMs / 1000).toFixed(1)}s ===`)
-  console.log(`Connector row id: ${result.connectorOutputId}`)
-  console.log(`Pathfinder row id: ${result.pathfinderOutputId}`)
-  console.log(`Partial: ${result.partial}`)
-  console.log(`Events captured: ${result.events.length}\n`)
+  console.log(`\n=== RESULT in ${((Date.now() - start) / 1000).toFixed(1)}s ===`)
+  console.log(`Cartographer row id: ${row?.id ?? '(none)'}`)
+  console.log(`Partial: ${partial}`)
+  console.log(`Events captured: ${events.length}\n`)
   console.log('Event timeline:')
-  for (const ev of result.events) {
+  for (const ev of events) {
     const t = `${(ev.timestampMs / 1000).toFixed(1)}s`
     if (ev.type === 'tool_call_started') {
       console.log(`  [${t}] ${ev.agent}: TOOL ${ev.toolName} (${ev.argsPreview.slice(0, 80)})`)
@@ -245,8 +186,6 @@ function print(result: RunSensemakingResult) {
       console.log(`  [${t}] ${ev.agent} STARTED`)
     } else if (ev.type === 'agent_completed') {
       console.log(`  [${t}] ${ev.agent} COMPLETED: ${ev.outputPreview.slice(0, 80)}`)
-    } else if (ev.type === 'handoff') {
-      console.log(`  [${t}] HANDOFF ${ev.from} → ${ev.to}`)
     } else if (ev.type === 'run_completed') {
       console.log(`  [${t}] RUN COMPLETE (partial=${ev.partial})`)
     } else if (ev.type === 'error') {
@@ -257,6 +196,46 @@ function print(result: RunSensemakingResult) {
       console.log(`  [${t}] ${ev.agent}: msg "${ev.preview.slice(0, 80)}"`)
     }
   }
+}
+
+function formatPromptContext(): string {
+  const pages = listVipsPages('demo')
+  const timeline = VIPS_DIMENSIONS.flatMap((dim) =>
+    listVipsTimelineEntries('demo', dim, { includeForgotten: false }),
+  )
+  const entries = listMirrorEntries('demo', { limit: 200 })
+
+  const pagesBlock = VIPS_DIMENSIONS.map((dim) => {
+    const page = pages.find((p) => p.dimension === dim)
+    const entriesForDim = timeline.filter((e) => e.dimension === dim)
+    return [
+      `## ${dim.toUpperCase()}`,
+      page
+        ? `Compiled truth: ${page.compiled_truth}\nOpen question: ${page.open_question}`
+        : 'Compiled truth: (empty)\nOpen question: (empty)',
+      entriesForDim.length === 0
+        ? 'Timeline entries: (none)'
+        : `Timeline entries:\n${entriesForDim
+            .map(
+              (e) => `- id=${e.id} [${e.canonical_claim_id}] (${e.strength}) "${e.verbatim_quote}"`,
+            )
+            .join('\n')}`,
+    ].join('\n')
+  }).join('\n\n')
+
+  const corpus =
+    entries.length === 0
+      ? 'No prior reflections.'
+      : entries
+          .slice()
+          .reverse()
+          .map(
+            (e) =>
+              `# Reflection #${e.id} — ${e.created_at} (context=${e.context_type})\n\nStory: ${e.story_reframe}\nTranscript: ${e.transcript}`,
+          )
+          .join('\n\n---\n\n')
+
+  return `# Trajectory pass for student demo\n\n# Current VIPS pages\n\n${pagesBlock}\n\n# Mirror corpus (background)\n\n${corpus}\n\nProduce a CartographerOutputSchema-shaped Trajectory page. trait_combination claim_ids must appear on a current timeline entry above; ecg_region_tags must be cluster-level IDs.`
 }
 
 main().catch((e) => {

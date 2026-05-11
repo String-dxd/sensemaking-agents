@@ -1,15 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import type { RunStepEvent } from '~/agents/run-events'
 import { AgentRunVisualizer } from '~/components/AgentRunVisualizer'
-import { ConnectorPatternCard } from '~/components/ConnectorPatternCard'
-import { PathfinderPathwaysCard } from '~/components/PathfinderPathwaysCard'
-import { PathfinderTrajectoryCard } from '~/components/PathfinderTrajectoryCard'
 import { Button } from '~/components/ui/button'
 import { WikiEntryCard } from '~/components/WikiEntryCard'
 import { loadWiki } from '~/server/load-wiki.functions'
-import { runSensemaking } from '~/server/run-sensemaking.functions'
+import { runCartographer } from '~/server/run-cartographer.functions'
 
+// U9 will replace this overview with the 4-card VIPS pages layout. For U11
+// we only add minimal scaffolding so the F2 flow (Run sense-making → live
+// visualizer → /wiki/trajectory) works end-to-end; the legacy
+// Connector/Pathfinder cards have been removed because U11 reshapes those
+// outputs.
 const STUDENT_ID = 'demo'
 const SENSEMAKE_GATE = 3
 
@@ -25,14 +27,26 @@ export const Route = createFileRoute('/wiki/')({
 
 function WikiIndexPage() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const { data, isPending } = useQuery({
     queryKey: ['wiki', STUDENT_ID],
     queryFn: () => loadWiki({ data: { studentId: STUDENT_ID } }),
   })
 
   const sensemake = useMutation({
-    mutationFn: () => runSensemaking({ data: { studentId: STUDENT_ID } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] }),
+    mutationFn: () => runCartographer({ data: { studentId: STUDENT_ID } }),
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] })
+      qc.invalidateQueries({ queryKey: ['trajectory', STUDENT_ID] })
+      // Navigate only on a successful Cartographer run (ok=true). On
+      // schema_reject / no_valid_pathways / agent_error we stay on /wiki
+      // so the visualizer's error row remains visible; the student can
+      // press Run sense-making again. U9 may upgrade this to surface the
+      // explicit error in a banner.
+      if (result.ok) {
+        navigate({ to: '/wiki/trajectory' })
+      }
+    },
   })
 
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>
@@ -61,11 +75,11 @@ function WikiIndexPage() {
             title={
               gated
                 ? `Add at least ${SENSEMAKE_GATE} reflections to enable sense-making`
-                : 'Run Connector + Pathfinder over your reflections'
+                : 'Run Cartographer over your VIPS pages and generate a Trajectory page'
             }
           >
             {sensemake.isPending
-              ? 'thinking through your reflections…'
+              ? 'mapping your trajectory…'
               : sensemake.isSuccess
                 ? 'Run sense-making again'
                 : 'Run sense-making'}
@@ -96,7 +110,7 @@ function WikiIndexPage() {
           </h2>
           {sensemake.isPending ? (
             <p className="text-xs text-muted-foreground">
-              Connector is reading your wiki and looking for patterns…
+              Cartographer is reading your VIPS pages and sketching pathways…
             </p>
           ) : null}
           {sensemake.isSuccess ? (
@@ -106,7 +120,7 @@ function WikiIndexPage() {
               events={[
                 {
                   type: 'agent_started',
-                  agent: 'connector',
+                  agent: 'cartographer',
                   timestampMs: 0,
                 },
               ]}
@@ -129,23 +143,6 @@ function WikiIndexPage() {
           ))}
         </div>
       )}
-
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Sense-making
-      </h2>
-      {data.connector ? (
-        <ConnectorPatternCard output={data.connector} />
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          No Connector output yet. Press “Run sense-making” when you have a few reflections in.
-        </p>
-      )}
-      {data.pathfinder ? (
-        <>
-          <PathfinderTrajectoryCard output={data.pathfinder} />
-          <PathfinderPathwaysCard output={data.pathfinder} />
-        </>
-      ) : null}
     </section>
   )
 }
