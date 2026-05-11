@@ -25,6 +25,7 @@ export const MOCK_MIRROR_ENTRY: MirrorEntryRow = {
     story_reframe:
       'It’s the new arm kit and everyone else has two builds on you. You take one apart first — your way in. Halfway through you’ve lost which screw goes where and you redo a section without minding. Seven o’clock comes and you didn’t notice it pass.',
   }),
+  context_type: 'school',
   tags: ['robotics', 'engineering', 'absorption'],
   created_at: new Date('2026-04-12T19:30:00').toISOString(),
 }

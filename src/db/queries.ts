@@ -10,6 +10,11 @@ export interface MirrorEntryRow {
   story_reframe: string
   /** The un-edited Mirror agent output, preserved for the R20 ablation. */
   raw_output_json: string
+  /**
+   * U7: VIPS parallax context the student chose at Stop time. Default
+   * `'school'` when not supplied; the DB CHECK enforces the closed enum.
+   */
+  context_type: VipsContextType
   tags: string[]
   created_at: string
 }
@@ -64,6 +69,7 @@ interface MirrorEntryDbRow {
   inferred_meaning: string
   story_reframe: string
   raw_output_json: string
+  context_type: VipsContextType
   created_at: string
 }
 
@@ -131,6 +137,7 @@ function rowToMirrorEntry(row: MirrorEntryDbRow, tags: string[]): MirrorEntryRow
     inferred_meaning: row.inferred_meaning,
     story_reframe: row.story_reframe,
     raw_output_json: row.raw_output_json,
+    context_type: row.context_type,
     tags,
     created_at: row.created_at,
   }
@@ -184,6 +191,13 @@ export interface InsertMirrorEntryInput {
   story_reframe: string
   /** Raw, un-edited Mirror agent output (JSON-serializable). Preserved for R20 ablation. */
   raw_output: unknown
+  /**
+   * U7: closed VIPS parallax context for this reflection. Optional in the
+   * input shape so v0.1 call sites that did not pass it remain valid; when
+   * omitted, the DB column default (`'school'`) applies. New U7 call sites
+   * supply it explicitly from the Context-type picker.
+   */
+  context_type?: VipsContextType
   tags?: string[]
   trace?: unknown
 }
@@ -198,8 +212,8 @@ export function insertMirrorEntry(
     const result = db
       .prepare(
         `INSERT INTO mirror_entries
-           (student_id, transcript, validation, inferred_meaning, story_reframe, raw_output_json)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+           (student_id, transcript, validation, inferred_meaning, story_reframe, raw_output_json, context_type)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         studentId,
@@ -208,6 +222,7 @@ export function insertMirrorEntry(
         input.inferred_meaning,
         input.story_reframe,
         JSON.stringify(input.raw_output),
+        input.context_type ?? 'school',
       )
     const id = Number(result.lastInsertRowid)
 
@@ -458,6 +473,20 @@ export type VipsContextType = 'school' | 'family' | 'peer' | 'hobby' | 'civic'
 export type VipsClaimStrength = 'low' | 'medium' | 'high'
 export type VipsProposedDiffStatus = 'pending' | 'confirmed' | 'forgotten'
 
+/**
+ * Recursive JSON value — used as the typed surface for blob columns that
+ * round-trip through `JSON.stringify` / `JSON.parse`. Narrower than
+ * `unknown` so TanStack's `ValidateSerializableMapped` accepts the row
+ * when it's returned through a server fn.
+ */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: JsonValue }
+  | JsonValue[]
+
 export interface VipsPageRow {
   student_id: string
   dimension: string
@@ -484,8 +513,10 @@ export interface VipsProposedDiffRow {
   id: number
   student_id: string
   mirror_entry_id: number
-  payload: unknown
-  verifier_result: unknown
+  /** JSON-shaped blob — agent diff + verifier-annotated entries. */
+  payload: JsonValue
+  /** JSON-shaped blob — VerifierResult shape. */
+  verifier_result: JsonValue
   status: VipsProposedDiffStatus
   created_at: string
   reviewed_at: string | null
@@ -651,10 +682,7 @@ export function getVipsPage(
   return row ?? null
 }
 
-export function listVipsPages(
-  studentId: string,
-  opts: { ctx?: DbContext } = {},
-): VipsPageRow[] {
+export function listVipsPages(studentId: string, opts: { ctx?: DbContext } = {}): VipsPageRow[] {
   const db = getDb(opts.ctx ?? {})
   return db
     .prepare('SELECT * FROM vips_pages WHERE student_id = ? ORDER BY updated_at DESC')
@@ -856,9 +884,7 @@ export function listVipsProposedDiffs(
   opts: { status?: VipsProposedDiffStatus; ctx?: DbContext } = {},
 ): VipsProposedDiffRow[] {
   const db = getDb(opts.ctx ?? {})
-  const where = opts.status
-    ? 'student_id = ? AND status = ?'
-    : 'student_id = ?'
+  const where = opts.status ? 'student_id = ? AND status = ?' : 'student_id = ?'
   const params: unknown[] = opts.status ? [studentId, opts.status] : [studentId]
   const rows = db
     .prepare(`SELECT * FROM vips_proposed_diffs WHERE ${where} ORDER BY created_at DESC`)

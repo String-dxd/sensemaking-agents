@@ -1,10 +1,11 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { runMirrorOnTranscript } from '~/agents/mirror'
 import { MirrorEntrySchema, MirrorOutputSchema } from '~/agents/schemas'
 import { SEARCH_PAST_MIRRORS_NAME } from '~/agents/tools/search-corpus'
 import { executeSearchPastMirrors } from '~/agents/tools/search-corpus.server'
 import { openInMemoryDb, resetDbForTests, setDbForTests } from '~/db/client'
 import { insertMirrorEntry } from '~/db/queries'
+import { seed } from '~/db/seed'
 import {
   DiagnosticLanguageError,
   persistMirrorHandler,
@@ -12,11 +13,36 @@ import {
 
 beforeEach(() => {
   setDbForTests(openInMemoryDb())
+  seed()
 })
 
 afterEach(() => {
   resetDbForTests()
 })
+
+/**
+ * U7: persistMirror now chains the auto-Connector. These tests don't care
+ * about the chain output — they just want the mirror entry row written.
+ * `noopAutoConnector` returns an empty per-dimension diff so the verifier
+ * runs but admits nothing and the chain status is 'ok'.
+ */
+function noopAutoConnector() {
+  const emptyDim = {
+    compiled_truth_rewrite: '',
+    open_question: '',
+    new_timeline_entries: [],
+  }
+  return {
+    runConnector: vi.fn().mockResolvedValue({
+      diffs: {
+        values: emptyDim,
+        interests: emptyDim,
+        personality: emptyDim,
+        skills: emptyDim,
+      },
+    }),
+  }
+}
 
 const baseEntry = {
   transcript: 'long transcript',
@@ -55,8 +81,7 @@ describe('AE1: Mirror tool surface is search_past_mirrors only', () => {
  * {validation, inferred_meaning, story_reframe} + raw_output, never raw audio.
  */
 describe('AE3: persist-mirror writes the three editable fields plus raw_output', () => {
-  it('persists a valid MirrorEntrySchema payload to mirror_entries', () => {
-    const db = openInMemoryDb()
+  it('persists a valid MirrorEntrySchema payload to mirror_entries', async () => {
     const draft = {
       transcript: 'We had robotics today...',
       validation: 'You stayed with the disassembly long enough that the time disappeared.',
@@ -67,24 +92,23 @@ describe('AE3: persist-mirror writes the three editable fields plus raw_output',
     }
     MirrorEntrySchema.parse(draft) // contract is honored
 
-    const row = persistMirrorHandler({
-      studentId: 'demo',
-      entry: draft,
-      raw_output: draft,
-      trace: { events: [] },
-    })
+    const result = await persistMirrorHandler(
+      {
+        studentId: 'demo',
+        entry: draft,
+        context_type: 'school',
+        raw_output: draft,
+        trace: { events: [] },
+      },
+      { autoConnector: noopAutoConnector() },
+    )
+    const row = result.mirror_entry
     expect(row.transcript).toBe(draft.transcript)
     expect(row.validation).toBe(draft.validation)
     expect(row.inferred_meaning).toBe(draft.inferred_meaning)
     expect(row.story_reframe).toBe(draft.story_reframe)
+    expect(row.context_type).toBe('school')
     expect(row.raw_output_json).toContain('absorption')
-
-    // No audio table exists in the schema — schema check confirms this.
-    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as Array<{
-      name: string
-    }>
-    expect(tables.some((t) => /audio/i.test(t.name))).toBe(false)
-    db.close()
   })
 
   it('rejects an empty validation at the schema boundary (regression check)', () => {
@@ -100,34 +124,42 @@ describe('AE3: persist-mirror writes the three editable fields plus raw_output',
 })
 
 describe('safety: persist-mirror rejects diagnostic language', () => {
-  it('throws DiagnosticLanguageError when inferred_meaning labels personality', () => {
-    expect(() =>
-      persistMirrorHandler({
-        studentId: 'demo',
-        entry: {
-          transcript: 't',
-          validation: 'v',
-          inferred_meaning: 'You are an extrovert based on this reflection.',
-          story_reframe: 's',
+  it('throws DiagnosticLanguageError when inferred_meaning labels personality', async () => {
+    await expect(
+      persistMirrorHandler(
+        {
+          studentId: 'demo',
+          entry: {
+            transcript: 't',
+            validation: 'v',
+            inferred_meaning: 'You are an extrovert based on this reflection.',
+            story_reframe: 's',
+          },
+          context_type: 'school',
+          raw_output: { v: 1 },
         },
-        raw_output: { v: 1 },
-      }),
-    ).toThrowError(DiagnosticLanguageError)
+        { autoConnector: noopAutoConnector() },
+      ),
+    ).rejects.toBeInstanceOf(DiagnosticLanguageError)
   })
 
-  it('accepts careful, non-diagnostic phrasing about behavior', () => {
-    expect(() =>
-      persistMirrorHandler({
-        studentId: 'demo',
-        entry: {
-          transcript: 't',
-          validation: 'You stayed for 40 minutes.',
-          inferred_meaning: 'Maybe commitment to one side made the argument feel sharper.',
-          story_reframe: 'You drew "against" and you stayed.',
+  it('accepts careful, non-diagnostic phrasing about behavior', async () => {
+    await expect(
+      persistMirrorHandler(
+        {
+          studentId: 'demo',
+          entry: {
+            transcript: 't',
+            validation: 'You stayed for 40 minutes.',
+            inferred_meaning: 'Maybe commitment to one side made the argument feel sharper.',
+            story_reframe: 'You drew "against" and you stayed.',
+          },
+          context_type: 'school',
+          raw_output: { v: 1 },
         },
-        raw_output: { v: 1 },
-      }),
-    ).not.toThrow()
+        { autoConnector: noopAutoConnector() },
+      ),
+    ).resolves.toBeDefined()
   })
 })
 

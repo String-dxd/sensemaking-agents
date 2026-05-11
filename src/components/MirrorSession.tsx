@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef } from 'react'
+import { type ContextType, ContextTypePicker } from '~/components/ContextTypePicker'
 import { Button } from '~/components/ui/button'
 import { persistMirror } from '~/server/persist-mirror.functions'
 import { runMirror } from '~/server/run-mirror.functions'
@@ -16,6 +17,7 @@ type Phase =
   | 'permission-pending'
   | 'recording'
   | 'transcribing'
+  | 'picking-context'
   | 'reflecting'
   | 'persisting'
   | 'done'
@@ -28,6 +30,12 @@ interface State {
   /** Smoothed amplitude for the volume ring [0..1]. */
   amplitude: number
   errorMessage: string | null
+  /**
+   * U7: held between `transcribing` → `picking-context` → `reflecting`. If the
+   * user navigates away during `picking-context`, the transcript is discarded
+   * with the component unmount and no `persistMirror` is invoked.
+   */
+  pendingTranscript: string | null
 }
 
 type Action =
@@ -37,6 +45,7 @@ type Action =
   | { type: 'opening-silence' }
   | { type: 'stop-pressed' }
   | { type: 'transcribing' }
+  | { type: 'picking-context'; transcript: string }
   | { type: 'reflecting' }
   | { type: 'persisting' }
   | { type: 'done' }
@@ -49,6 +58,7 @@ const initialState: State = {
   elapsedMs: 0,
   amplitude: 0,
   errorMessage: null,
+  pendingTranscript: null,
 }
 
 function reduce(state: State, action: Action): State {
@@ -65,6 +75,8 @@ function reduce(state: State, action: Action): State {
       return state.phase === 'recording' ? { ...state, phase: 'transcribing' } : state
     case 'transcribing':
       return { ...state, phase: 'transcribing' }
+    case 'picking-context':
+      return { ...state, phase: 'picking-context', pendingTranscript: action.transcript }
     case 'reflecting':
       return { ...state, phase: 'reflecting' }
     case 'persisting':
@@ -290,11 +302,33 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
         return
       }
 
+      // U7: pause at `picking-context` for the student to pick the VIPS
+      // parallax context_type. The chain resumes in `handleContextChosen`.
+      dispatch({ type: 'picking-context', transcript })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
+      dispatch({ type: 'fail', message })
+    } finally {
+      // Release media stream regardless of branch — recorder is already stopped.
+      // The Mirror agent + persistMirror run server-side after the picker
+      // selection; no audio is needed beyond this point.
+      cleanup()
+    }
+  }
+
+  async function handleContextChosen(contextType: ContextType) {
+    const transcript = state.pendingTranscript
+    if (!transcript) {
+      dispatch({ type: 'fail', message: 'Lost the transcript before context was chosen.' })
+      return
+    }
+    try {
       dispatch({ type: 'reflecting' })
       const { output } = await runMirror({ data: { studentId, transcript } })
 
       dispatch({ type: 'persisting' })
-      const row = await persistMirror({
+      const result = await persistMirror({
         data: {
           studentId,
           entry: {
@@ -303,20 +337,18 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
             inferred_meaning: output.inferred_meaning,
             story_reframe: output.story_reframe,
           },
+          context_type: contextType,
           raw_output: output,
           trace: { capturedDurationMs: state.elapsedMs },
         },
       })
 
       dispatch({ type: 'done' })
-      onPersisted?.(row.id)
+      onPersisted?.(result.mirror_entry.id)
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
       dispatch({ type: 'fail', message })
-    } finally {
-      // We can release the stream regardless of branch; the recorder is already stopped.
-      cleanup()
     }
   }
 
@@ -392,6 +424,15 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
 
       <div className="flex w-full max-w-md flex-col items-center gap-3">
         <PhaseLabel phase={state.phase} remainingSec={remainingSec} />
+        {state.phase === 'picking-context' && state.pendingTranscript ? (
+          <div className="flex w-full flex-col gap-3" data-testid="picking-context-block">
+            <div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Here’s what I heard: </span>
+              {state.pendingTranscript}
+            </div>
+            <ContextTypePicker onSelect={(value) => void handleContextChosen(value)} />
+          </div>
+        ) : null}
         <div className="flex items-center gap-3">
           <Button
             variant="outline"
@@ -425,6 +466,12 @@ function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: numbe
     return (
       <p className="text-xs text-muted-foreground" data-testid="phase-label">
         transcribing what you said…
+      </p>
+    )
+  if (phase === 'picking-context')
+    return (
+      <p className="text-xs text-muted-foreground" data-testid="phase-label">
+        what was this about?
       </p>
     )
   if (phase === 'reflecting')

@@ -131,12 +131,20 @@ async function runConnectorViaSdk(input: {
   studentId: string
   corpus: string
 }): Promise<ConnectorOutputDraft> {
+  // U7 rewrote the Connector agent to emit `ConnectorDiffSchema`, so this
+  // legacy path (the manual sense-making chain) can no longer be exercised
+  // end-to-end against the real SDK; in practice the chain is only ever
+  // invoked with stubs in tests today (`deps.runConnector`), and U11 will
+  // delete this path entirely when it cuts over to Cartographer-only sense-
+  // making. The double cast keeps the v0.1 type contract intact for the
+  // remaining stubbed callers while making the mismatch loud at the call
+  // site.
   const agent = buildConnectorAgent({ studentId: input.studentId })
   const result = await run(
     agent,
     `You are reading reflection corpus for student ${input.studentId}. Surface patterns.\n\n${input.corpus}`,
   )
-  return result.finalOutput as ConnectorOutputDraft
+  return result.finalOutput as unknown as ConnectorOutputDraft
 }
 
 async function runCartographerViaSdk(input: {
