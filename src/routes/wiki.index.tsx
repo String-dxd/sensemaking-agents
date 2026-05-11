@@ -29,6 +29,7 @@ import { ConfirmDialog } from '~/components/ConfirmDialog'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import type { VipsDimension } from '~/data/vips-taxonomy'
+import { counsellorBrief } from '~/server/counsellor-brief.functions'
 import { loadPendingReview } from '~/server/load-pending-review.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 import { runCartographer } from '~/server/run-cartographer.functions'
@@ -192,9 +193,7 @@ function WikiIndexPage() {
             {sensemake.error instanceof Error ? sensemake.error.message : 'sense-making failed'}
           </span>
         ) : null}
-        {/* U12 will land an "Export counsellor brief" link here. Reserved
-            slot — do not wire in U9. */}
-        {/* TODO(U12): <ExportCounsellorBriefLink /> */}
+        <ExportCounsellorBriefLink studentId={STUDENT_ID} />
       </div>
 
       {showVisualizer ? (
@@ -236,5 +235,55 @@ function WikiIndexPage() {
         onCancel={() => setWeakCorpusOpen(false)}
       />
     </section>
+  )
+}
+
+/**
+ * U12 — "Export counsellor brief" link. Calls the `counsellorBrief` server
+ * fn, wraps the returned markdown in a `Blob`, and triggers an anchor-based
+ * download. Per R22 the brief is on-demand and not auto-persisted; the
+ * server fn never writes to disk, and the URL.createObjectURL handle is
+ * revoked immediately after the click so the blob is not retained.
+ *
+ * Filename: `counsellor-brief-{studentId}-{YYYY-MM-DD}.md` — same date as
+ * the markdown header for traceability between filename and rendered title.
+ */
+function ExportCounsellorBriefLink({ studentId }: { studentId: string }) {
+  const exportBrief = useMutation({
+    mutationFn: () => counsellorBrief({ data: { studentId } }),
+    onSuccess: (result) => {
+      const today = new Date().toISOString().slice(0, 10)
+      const blob = new Blob([result.markdown], { type: 'text/markdown' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `counsellor-brief-${studentId}-${today}.md`
+      document.body.appendChild(anchor)
+      anchor.click()
+      document.body.removeChild(anchor)
+      // Revoke synchronously — the browser has already started the download
+      // by the time the click handler returns.
+      URL.revokeObjectURL(url)
+    },
+  })
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (exportBrief.isPending) return
+        exportBrief.mutate()
+      }}
+      disabled={exportBrief.isPending}
+      className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+      data-testid="export-counsellor-brief"
+      title="Download a markdown brief of the wiki + trajectory for offline review"
+    >
+      {exportBrief.isPending
+        ? 'downloading…'
+        : exportBrief.isError
+          ? 'export failed — retry'
+          : 'Export counsellor brief'}
+    </button>
   )
 }
