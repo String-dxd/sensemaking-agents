@@ -1,0 +1,225 @@
+{
+  "description": "v0.2 multi-student seed (U13). Replaces the v0.1 1-student × 8-reflection seed (now archived at test/ablation/fixtures/_archive/seed-corpus.json). Four hand-curated SG secondary / JC students with distinct emerging VIPS profiles (different Values dominance, different RIASEC tilt, different Skills evident). Each student has ≥3 distinct context_type values across 7-8 reflections, and a mix of positive + ordinary + negative experiences. Hand-curated profiles + LLM-drafted reflections + hand-review pass per plan A3. Coverage matrix per student is committed as the `coverage_matrix` field inside each student record so AE6 is mechanically verifiable (downstream db.test.ts can read it and assert ≥3 context types per student).",
+  "students": [
+    {
+      "student_id": "demo-a",
+      "profile": {
+        "name_handle": "Mei (Sec 4, NA)",
+        "year_level": "Sec 4",
+        "school_type": "sec",
+        "values_dominance": ["values.contribution", "values.relationships"],
+        "riasec_tilt": ["interests.social", "interests.enterprising"],
+        "skills_evident": ["skills.interpersonal", "skills.communication"],
+        "notes_for_review": "The helper. Drawn to peer-support and group-facing CCA work; reads people quickly; gets a kick out of being the bridge between adults and friends. Lives in a HDB block in Pasir Ris; mum is a nurse at Changi General. The negative reflection (peer fallout) is deliberately ungeneralized — she's hurt, not righteous, and doesn't yet have language for the failure mode of over-helping."
+      },
+      "coverage_matrix": "context_type coverage for demo-a: school (r1, r4, r7), peer (r2, r5), civic (r3), family (r6), hobby (r8). 5 of 5 enum values; ≥3 satisfied. Affect spread: positive (r1, r3, r6), ordinary (r4, r7, r8), negative (r2, r5).",
+      "reflections": [
+        {
+          "context_type": "school",
+          "transcript": "Today during CCE Ms Norhayati paired me with Daryl for the buddy-reading thing. Daryl is in 4N1 and he doesn't really do schoolwork — everyone knows. I was a bit worried lah, because I didn't want him to feel like I'm pitying him. So I just brought the Manga Classics one — Frankenstein — and asked which character he thought was the real monster. He talked for 20 minutes straight, sia. I didn't say much. After class he said 'eh sis you should be the teacher leh.' I don't think I should be the teacher but I do think I want to do this kind of thing more.",
+          "created_at": "2025-10-14T08:30:00Z"
+        },
+        {
+          "context_type": "peer",
+          "transcript": "Big fight with Hui Min today. She said I was 'doing the Mei thing' again — meaning I jumped in to mediate between her and Shafiqah without anyone asking me. I thought I was helping. She said I was making it about me. I went home and cried in the bus. The worst part is I can see her point and I can't see her point at the same time. If I hadn't jumped in they'd still not be talking. But also it's not my problem to solve and I made it mine. I don't know which one is true.",
+          "created_at": "2025-10-19T19:10:00Z"
+        },
+        {
+          "context_type": "civic",
+          "transcript": "VIA at Lions Befrienders today. We went to visit Uncle Tan in his rental flat at Bedok North. He kept offering us biscuits and apologizing that the flat was small. I told him about the school carnival and he laughed when I described our principal trying to use the karaoke mic. On the bus back Wei Ling said I made it look easy and I genuinely don't understand what she means — I was just talking to him. But I noticed I came back feeling full, not tired. The other VIA sessions I came back tired. The visit one is different.",
+          "created_at": "2025-10-26T15:00:00Z"
+        },
+        {
+          "context_type": "school",
+          "transcript": "Maths today. Trigonometry — the bearings questions. Cikgu Hadi was explaining and I got bored halfway and started doodling. I didn't fail or anything, I just didn't track it. Then I helped Aisyah after class because she was confused about the same question. Explaining it to her, I suddenly understood it better than when I was doing it myself. Strange right. Like the maths only sticks when there's a person on the other end of it.",
+          "created_at": "2025-11-02T16:45:00Z"
+        },
+        {
+          "context_type": "peer",
+          "transcript": "Hui Min and I talked today, finally. She said she wasn't asking me to stop helping, she was asking me to ask first. I said okay but inside I felt small because asking first feels fake — by the time you ask, the moment is gone. But also I trust her so maybe I'm wrong about that. We didn't fully resolve it. I left feeling lighter than yesterday but not light. Friendship is harder than the LEAPS thing makes it sound.",
+          "created_at": "2025-11-04T20:20:00Z"
+        },
+        {
+          "context_type": "family",
+          "transcript": "Mum came home tired tonight — her ward had a difficult patient. I made her teh-o and asked her to sit. She said 'aiyo you don't need to do that' but she sat. I asked her how she handles patients who don't want help. She said you just keep showing up and one day they ask you for water and you know. We sat in the kitchen for an hour. I don't usually get to ask mum about her work. Tonight she let me. I think it's because she was tired enough that she forgot to be the mum.",
+          "created_at": "2025-11-09T22:30:00Z"
+        },
+        {
+          "context_type": "school",
+          "transcript": "Subject combo briefing today. Ms Norhayati was talking about the N-level routes and most of my friends were checking Insta. I asked about whether I could do POA at ITE then come back to do social work later. She said yes but it's a longer road. The 'longer road' part didn't scare me as much as I thought it would. Pa always says shortcut is the smart move. I don't think I want the shortcut if it lands me somewhere I don't fit.",
+          "created_at": "2025-11-16T09:00:00Z"
+        },
+        {
+          "context_type": "hobby",
+          "transcript": "Helped my neighbour Auntie Suria with her phone today. She kept thinking the WhatsApp was broken but she just had silent mode on. Took me 5 minutes. She gave me kuih lapis and we talked about her son in Australia for half an hour. On the way upstairs I thought — I've been doing this since Sec 1. It's never felt like a chore. Maybe that's data.",
+          "created_at": "2025-11-23T17:15:00Z"
+        }
+      ]
+    },
+    {
+      "student_id": "demo-b",
+      "profile": {
+        "name_handle": "Ravi (JC1, RI)",
+        "year_level": "JC1",
+        "school_type": "JC",
+        "values_dominance": ["values.achievement", "values.learning"],
+        "riasec_tilt": ["interests.investigative", "interests.realistic"],
+        "skills_evident": ["skills.analytical", "skills.practical"],
+        "notes_for_review": "The seeker. Sharp, internally driven, takes the hard problem on purpose. PCME at H2. Olympiad-track, but slightly disillusioned with the prestige-as-end framing his school culture pushes. The negative reflection (failing an Astro olympiad round) is real grief, not narrative. The 'helping his sister' beat shows he's not purely solitary."
+      },
+      "coverage_matrix": "context_type coverage for demo-b: school (r1, r3, r6), hobby (r2, r5, r8), family (r4), peer (r7). 4 of 5 enum values; ≥3 satisfied. Affect spread: positive (r1, r2, r4), ordinary (r3, r6, r8), negative (r5, r7).",
+      "reflections": [
+        {
+          "context_type": "school",
+          "transcript": "H2 Physics today — Mr Goh did the proof for SHM from first principles. The trig substitution at the end was the cleanest thing I've seen all term. Half the class was zoning out but I copied the whole derivation again at home just because I wanted to see if I could do it without the textbook. I could, after three tries. It was past midnight. I didn't notice it was midnight.",
+          "created_at": "2025-09-08T23:45:00Z"
+        },
+        {
+          "context_type": "hobby",
+          "transcript": "Built the eq-platform mount over the weekend, finally. The polar alignment kept drifting because I had the latitude scale 1.3 degrees off — took me until 2am to spot it. Once I corrected it Jupiter sat dead centre for the whole hour I tracked. Took photos of the Galilean moons. Showed Pa the next morning; he asked if I'd been sleeping. I have been sleeping. Just not on the nights when the sky is clear.",
+          "created_at": "2025-09-21T02:30:00Z"
+        },
+        {
+          "context_type": "school",
+          "transcript": "Econs essay back. 18 out of 25. Mr Iqbal said my reasoning was 'over-engineered for the marks available.' I get what he means but I also disagree — the simpler answer he wanted misses the actual mechanism. I'll write to the marks scheme next time. But I'm not going to pretend I think the marks scheme is the more honest answer.",
+          "created_at": "2025-09-29T15:00:00Z"
+        },
+        {
+          "context_type": "family",
+          "transcript": "Helped Anjali with her Sec 2 Maths. She was stuck on simultaneous equations because they were using the substitution method only and she'd been taught elimination first. I drew both on the same page and she got it in 10 minutes. She said 'why don't teachers do that.' I said because they have 40 of you and one of me. But the honest answer is I think most teachers don't enjoy explaining things twice and I do.",
+          "created_at": "2025-10-05T20:00:00Z"
+        },
+        {
+          "context_type": "hobby",
+          "transcript": "Astro olympiad selection round was today. I got the planetary motion question wrong because I read the problem wrong — confused aphelion with perihelion in the eccentricity formula. The maths was right but on the wrong input. Didn't make the team. I knew within 5 minutes of leaving the hall. I went home and didn't eat dinner. Mum knocked twice. The honest version is: I'm angry not because I lost but because the mistake was the kind of mistake I keep making, and I haven't found the discipline to stop making it.",
+          "created_at": "2025-10-12T22:15:00Z"
+        },
+        {
+          "context_type": "school",
+          "transcript": "Maths class today was vectors. The teacher was solving by inspection — guessing the answer and then verifying. I do the same but I don't tell anyone because it feels like cheating. After class I asked Mr Goh whether that's actually how mathematicians work or whether we should learn the formal method first. He said both — the inspection is the hypothesis, the formal method is the proof. That landed. I've been treating the inspection as a shortcut. It's actually the hypothesis step.",
+          "created_at": "2025-10-19T16:30:00Z"
+        },
+        {
+          "context_type": "peer",
+          "transcript": "Group study at Brandon's place. We were supposed to work through the chem mock. I solved questions 1 to 4 in 20 minutes and the others wanted me to explain how. I tried but I think I went too fast. Daniel said 'bro you're not actually explaining, you're showing off.' That stung because I wasn't trying to show off. I left at 9. The walk back I kept replaying it. Maybe the speed itself is the show-off, even when I don't mean it that way.",
+          "created_at": "2025-10-26T21:00:00Z"
+        },
+        {
+          "context_type": "hobby",
+          "transcript": "Two-hour stretch on the orbital mechanics simulator I'm building in Python. The two-body case works. The three-body case is chaotic and my naive RK4 step is too coarse — it diverges within 10 orbits. I knew the textbook said this. I didn't know what 'chaotic' felt like in my own code until I watched the trajectory smear. Different from reading about it. Adaptive step-size is next.",
+          "created_at": "2025-11-02T18:00:00Z"
+        }
+      ]
+    },
+    {
+      "student_id": "demo-c",
+      "profile": {
+        "name_handle": "Iman (Sec 3, IP)",
+        "year_level": "Sec 3",
+        "school_type": "IP",
+        "values_dominance": ["values.independence", "values.learning"],
+        "riasec_tilt": ["interests.artistic", "interests.investigative"],
+        "skills_evident": ["skills.creative", "skills.communication"],
+        "notes_for_review": "The maker. Visual-first, writes and draws compulsively, mistrusts pre-set paths. IP track so no O-levels to anchor against. Tension with family expectation (parents are both doctors) is real but not melodramatic — she still loves them, she just doesn't want what they want for her. The art-block reflection is the negative beat; the 'reading aloud in lit' is the positive."
+      },
+      "coverage_matrix": "context_type coverage for demo-c: hobby (r1, r4, r6), school (r2, r5, r7), family (r3, r8), peer (r9). 4 of 5 enum values; ≥3 satisfied. Affect spread: positive (r2, r4, r7), ordinary (r1, r5, r9), negative (r3, r6, r8).",
+      "reflections": [
+        {
+          "context_type": "hobby",
+          "transcript": "Started a new sketchbook today. Drew the same window from my desk seven times — different times of day. The 6am one is the only one I like. The afternoon ones all feel forced because I was trying to make them good. The 6am one I drew before I was fully awake so I wasn't trying. I want to remember that — the trying is what kills it for me. But I can't just decide to not try.",
+          "created_at": "2025-08-15T07:00:00Z"
+        },
+        {
+          "context_type": "school",
+          "transcript": "Mrs Devi asked me to read the Plath poem out loud in Lit today. 'Daddy.' I didn't want to but I did. Halfway through I forgot the rest of the class was there. When I stopped Mrs Devi said 'that's how it's supposed to feel' and didn't say anything else. The class was quiet. I felt exposed but also like I'd done something real. The two feelings sit together.",
+          "created_at": "2025-08-22T11:00:00Z"
+        },
+        {
+          "context_type": "family",
+          "transcript": "Dinner argument with Ma again. She asked which CCA I want to commit to for portfolio purposes and I said Art Club. She said 'just Art Club?' as if there was a more serious option I was missing. Pa stayed quiet which is somehow worse than if he'd agreed with her. I went to my room and didn't draw, I just sat. The part that's hard is I don't think she's wrong to worry — the math of it favours her. The part that's hard is I'm still going to do what I'm going to do.",
+          "created_at": "2025-08-29T21:30:00Z"
+        },
+        {
+          "context_type": "hobby",
+          "transcript": "Spent three hours in Bras Basah today. Bought a different kind of ink — sumi, the bottled one from the Kinokuniya stationery floor. Tried it with a stick instead of a brush. The lines were ugly and I loved them. Came back and wrote a paragraph about how the wrong-tool-on-purpose feels like the move I keep making. I don't know if that paragraph is for anyone or just for me. Probably just for me.",
+          "created_at": "2025-09-05T19:00:00Z"
+        },
+        {
+          "context_type": "school",
+          "transcript": "Chemistry today. Titration. I followed every step and got the right concentration to two decimal places. Mr Pereira said well done. I wasn't happy. There was nothing in it that was mine. I knew the answer before I started because we'd been told what the answer should be. I don't want to do this for a living. I'm sure that's not new information to me but today it landed differently.",
+          "created_at": "2025-09-13T15:30:00Z"
+        },
+        {
+          "context_type": "hobby",
+          "transcript": "Tried to start the next piece for the school art show. Sat at my desk for 90 minutes. Could not start. Every line felt like a commitment I wasn't ready to make. I ended up doodling the same vine pattern in the corner over and over. Eventually I put the paper away. I'm scared the show is going to be the first time I make work that I have to make rather than work that I want to make. Maybe that's just being a grown-up artist. Maybe it's a warning.",
+          "created_at": "2025-09-20T22:00:00Z"
+        },
+        {
+          "context_type": "school",
+          "transcript": "Lit lesson on close-reading today. Mrs Devi gave us four lines from a Mary Oliver and asked us to write 300 words. I wrote 800. I couldn't stop. The way the line break sits between 'wild' and 'precious' — there's a whole essay in just that space. I handed in 300 and saved the rest. The 500 I cut were the ones I cared about most. That's the second time this week I've noticed: the work I do for myself is bigger than the work I hand in.",
+          "created_at": "2025-09-27T16:00:00Z"
+        },
+        {
+          "context_type": "family",
+          "transcript": "Pa took me to his clinic on Saturday morning. He said he wasn't trying to recruit me, he just wanted me to see what a day looks like. I watched him with a young couple whose baby had a rash. He was good with them. He was patient in a way he sometimes isn't with me. I came home and didn't know what to do with that. He was right that it changed how I see him. He was also right that it didn't change what I want.",
+          "created_at": "2025-10-04T13:30:00Z"
+        },
+        {
+          "context_type": "peer",
+          "transcript": "Showed Hannah the sketchbook today. She flipped through it for ten minutes without saying anything. I almost said 'never mind' three times. At the end she said 'the 6am window one is the best.' That's the same one I'd marked. We didn't talk much after that but I felt seen in a way I don't usually feel seen at school. I want to remember her name in this notebook so future-me knows who saw me first.",
+          "created_at": "2025-10-11T18:00:00Z"
+        }
+      ]
+    },
+    {
+      "student_id": "demo-d",
+      "profile": {
+        "name_handle": "Aaron (Sec 4, IP transferring to poly route)",
+        "year_level": "Sec 4",
+        "school_type": "IP",
+        "values_dominance": ["values.relationships", "values.wellbeing"],
+        "riasec_tilt": ["interests.realistic", "interests.social"],
+        "skills_evident": ["skills.practical", "skills.leadership"],
+        "notes_for_review": "The steady. Hands-on, finishes things, is the one peers ask to make things work. Considering polytechnic (likely SP Mechanical Engineering) over JC despite the IP school's strong-default-to-JC culture. The reflections show the slow shape of him noticing his own pattern: he is happiest when something concrete needs doing for someone he likes. The negative beat is the relay race injury — physical setback that exposes the tightness of his self-image."
+      },
+      "coverage_matrix": "context_type coverage for demo-d: school (r1, r5), hobby (r2, r4, r7), peer (r3), family (r6). 4 of 5 enum values; ≥3 satisfied. Affect spread: positive (r1, r3, r6), ordinary (r5, r7), negative (r2, r4).",
+      "reflections": [
+        {
+          "context_type": "school",
+          "transcript": "Robotics CCA today. The Sec 1s were jamming on the chassis assembly — they kept stripping the M3 screws because they were over-torquing with the wrong driver. I sat with Faiz for 20 minutes and just showed him the half-turn-and-stop trick my brother taught me. By the end he was teaching the other two. Mr Selvam said 'you're the only senior they actually listen to.' That hit me funny because I'm not the smartest one in the room. I just don't make them feel stupid.",
+          "created_at": "2025-07-12T17:30:00Z"
+        },
+        {
+          "context_type": "hobby",
+          "transcript": "Pulled my hamstring at relay training today. The MO said two weeks off. I sat through the rest of the session watching from the bench and I hated it more than I expected. Not because of the race — the race I can win or lose, doesn't matter. It's because the team can't pass batons properly without the four of us actually running together. They were trying and they were failing and I couldn't help. I went home and iced it and pretended to be okay at dinner.",
+          "created_at": "2025-07-26T20:00:00Z"
+        },
+        {
+          "context_type": "peer",
+          "transcript": "Helped Jia Hao move into his new place at Hougang on Sunday. His family sold the old flat. He didn't ask anyone — I just heard from his cousin and showed up at 8am with a borrowed trolley. We were done by 2pm. He didn't say much. On the MRT back he said 'eh thanks ah' and I said 'no need' and we left it. That was enough for both of us. I think that's what 'enough' looks like for me — small actions, no speech.",
+          "created_at": "2025-08-03T18:00:00Z"
+        },
+        {
+          "context_type": "hobby",
+          "transcript": "Tried to fix Ma's broken kitchen tap myself before calling a plumber. Watched two YouTube videos. The cartridge was different from the videos. I broke the sink stopper trying to lever the old cartridge out. Plumber came and fixed it and charged 80. Ma laughed about it later but in the moment I felt small. I usually finish what I start. I don't usually fail in front of my own house.",
+          "created_at": "2025-08-10T15:00:00Z"
+        },
+        {
+          "context_type": "school",
+          "transcript": "Subject combo briefing today. Mrs Lim laid out the JC routes and a 10-minute slide at the end on poly. The poly slide was thinner. I asked her after class about SP Mechanical Engineering specifically. She was honest — said it's a strong programme but I'd be walking away from the IP advantage. I asked what advantage exactly and she said 'the keep-options-open advantage.' I left thinking — I don't actually want all the options open. I want one that fits.",
+          "created_at": "2025-08-17T10:00:00Z"
+        },
+        {
+          "context_type": "family",
+          "transcript": "Talked to Kor Kor about the poly decision. He did the JC route and he's now in NTU doing biz. He didn't try to talk me out of it — he just asked what my day-by-day would look like if I picked poly vs JC. I told him. He said 'the poly day sounds like you and the JC day sounds like me.' That's the first time anyone's said it that clearly. Ma still doesn't know I'm seriously thinking about poly. Telling her is the part I keep putting off.",
+          "created_at": "2025-08-24T22:00:00Z"
+        },
+        {
+          "context_type": "hobby",
+          "transcript": "Back at training after the two weeks. Hamstring held. I ran the 200 split slower than my PB but the baton pass with Idris was clean — we'd been doing pickups together for the whole break, off the track, just walking through the motion. Coach Yusof said the pass looked like we'd been running it for a year. We have, in a way. I don't think the speed is what makes the relay work. I think it's the handover.",
+          "created_at": "2025-09-07T19:00:00Z"
+        }
+      ]
+    }
+  ]
+}

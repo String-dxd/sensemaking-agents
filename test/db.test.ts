@@ -154,22 +154,35 @@ describe('schema + queries', () => {
 })
 
 describe('seed loader', () => {
-  it('produces 8 rows with deterministic IDs 1..8 against an empty DB', () => {
+  it('seeds the v0.2 multi-student fixture into an empty DB', () => {
     const db = openInMemoryDb()
     const result = seed({ db })
-    expect(result).toEqual({ inserted: 8, skipped: false })
-    const rows = listMirrorEntries('demo', { ctx: { db } })
-    expect(rows.length).toBe(8)
-    const ids = rows.map((r) => r.id).sort((a, b) => a - b)
-    expect(ids).toEqual([1, 2, 3, 4, 5, 6, 7, 8])
+    expect(result.skipped).toBe(false)
+    expect(result.studentsSeeded.length).toBeGreaterThanOrEqual(3)
+    expect(result.studentsSeeded.length).toBeLessThanOrEqual(5)
+    expect(result.studentsSkipped).toEqual([])
+    expect(result.inserted).toBeGreaterThan(0)
+    // Each seeded student must have ≥6 mirror_entries and span ≥3 context types
+    // (R25/R26/AE6 — context-type coverage is a load-bearing seed invariant).
+    for (const studentId of result.studentsSeeded) {
+      const rows = listMirrorEntries(studentId, { ctx: { db } })
+      expect(rows.length).toBeGreaterThanOrEqual(6)
+      const contextTypes = new Set(rows.map((r) => r.context_type))
+      expect(contextTypes.size).toBeGreaterThanOrEqual(3)
+    }
   })
 
-  it('is idempotent — re-running over a populated DB is a no-op', () => {
+  it('is idempotent — re-running over a populated DB skips every student', () => {
     const db = openInMemoryDb()
-    seed({ db })
+    const first = seed({ db })
     const second = seed({ db })
-    expect(second).toEqual({ inserted: 0, skipped: true })
-    expect(listMirrorEntries('demo', { ctx: { db } }).length).toBe(8)
+    expect(second.inserted).toBe(0)
+    expect(second.skipped).toBe(true)
+    expect(second.studentsSeeded).toEqual([])
+    expect(new Set(second.studentsSkipped)).toEqual(new Set(first.studentsSeeded))
+    for (const studentId of first.studentsSeeded) {
+      expect(listMirrorEntries(studentId, { ctx: { db } }).length).toBeGreaterThanOrEqual(6)
+    }
   })
 })
 

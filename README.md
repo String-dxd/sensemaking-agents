@@ -25,13 +25,15 @@ Requires Node 20+, pnpm, and an OpenAI key.
 ```bash
 pnpm install
 cp .env.example .env   # fill in OPENAI_API_KEY
-pnpm seed              # populate app.db with 8 reflections
+pnpm seed              # populate app.db with the v0.2 multi-student seed (3–5 students × 6–10 reflections)
 pnpm dev               # vite dev server on http://localhost:3000
 ```
 
 If you see a schema mismatch warning on boot, that's the v0.1 → v0.2 schema reshape: the demo db is dropped and recreated automatically (no production data exists in v0.1).
 
 ## Demo flow
+
+The v0.2 multi-student seed populates four students (`demo-a` … `demo-d`) with distinct emerging VIPS profiles (the helper, the seeker, the maker, the steady). v0.2 still hardcodes `STUDENT_ID = 'demo-a'` in the reflect/wiki routes — to demo a different student, edit the constant in `reflect.tsx`, `wiki.index.tsx`, `wiki.$dimension.tsx`, `wiki.trajectory.tsx`, and `wiki.$entryId.tsx`. A nav-level student picker is post-v0.2.
 
 1. `/` — landing.
 2. `/reflect` — click into the mirror. Allow camera + microphone. Look at yourself in the mirror, talk for ~60–90 seconds. The session is silent unless you stay quiet for the first 3 seconds, in which case one soft prompt appears: "Just talk to yourself, naturally."
@@ -54,14 +56,16 @@ pnpm build     # production build
 
 ## Ablation
 
-Per the prior brainstorm's premise check, two independent ablations on the fixed 8-reflection seed corpus:
+Two independent ablations against the v0.2 multi-student seed corpus (3–5 students × 6–10 reflections at `test/ablation/fixtures/seed-multistudent.json`):
 
 ```bash
-pnpm ablate:mirror     # corpus search ON vs OFF for Mirror
-pnpm ablate:sensemake  # full 3-tool surface ON vs OFF for Connector + Cartographer
+pnpm ablate:mirror                          # corpus search ON vs OFF for Mirror — cross-student union
+pnpm ablate:mirror -- --student=demo-a      # scope the Mirror ablation to a single student
+pnpm ablate:sensemake                       # full 3-tool surface ON vs OFF for Connector + Cartographer
+pnpm ablate:sensemake -- --student=demo-b   # per-student sense-making run
 ```
 
-Reports land under `test/ablation/reports/`. v0.1 bar: 1–2 humans score 0–3 per dimension across (provenance, specificity, novelty, anti-sycophancy); ON beats OFF by ≥2 points across ≥3 dimensions to "pass."
+Reports land under `test/ablation/reports/` — per-student runs use the filename pattern `YYYY-MM-DD-<surface>-ablation-<student_id>.md`; the cross-student union run drops the suffix. v0.2 bar: 1–2 humans score 0–3 per dimension across five dimensions (provenance, specificity, novelty, anti-sycophancy, **parallax_discipline** — single-context claims correctly capped at low); ON beats OFF by ≥2 points across ≥3 dimensions to "pass."
 
 ## Layout
 
