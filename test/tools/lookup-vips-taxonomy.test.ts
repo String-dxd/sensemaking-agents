@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { VIPS_TAXONOMY } from '~/data/vips-taxonomy'
 import {
   executeLookupVipsTaxonomy,
   LOOKUP_VIPS_TAXONOMY_NAME,
   lookupVipsTaxonomyTool,
 } from '~/agents/tools/lookup-vips-taxonomy'
+import { VIPS_TAXONOMY } from '~/data/vips-taxonomy'
 
 describe('lookup-vips-taxonomy', () => {
   it('returns values.contribution with full definition + behavioral indicators on happy path', () => {

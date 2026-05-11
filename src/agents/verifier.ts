@@ -74,10 +74,7 @@ function tokenize(s: string): string[] {
  * `O(n*m)` worst case; n and m are both small for our use (≤ ~50
  * tokens for a reflection quote). Fine for v0.2.
  */
-function longestContiguousTokenRatio(
-  quoteTokens: string[],
-  transcriptTokens: string[],
-): number {
+function longestContiguousTokenRatio(quoteTokens: string[], transcriptTokens: string[]): number {
   if (quoteTokens.length === 0) return 0
   for (let windowSize = quoteTokens.length; windowSize > 0; windowSize -= 1) {
     for (let start = 0; start + windowSize <= quoteTokens.length; start += 1) {
@@ -186,11 +183,11 @@ export function verifyProposedDiff(input: VerifyInput): VerifierResult {
     // sharing the canonical claim id. Sort by committed_at desc.
     const reinforcesCandidates = nonForgotten
       .filter(
-        (e) =>
-          e.dimension === entry.dimension &&
-          e.canonical_claim_id === entry.canonical_claim_id,
+        (e) => e.dimension === entry.dimension && e.canonical_claim_id === entry.canonical_claim_id,
       )
-      .sort((a, b) => (a.committed_at < b.committed_at ? 1 : a.committed_at > b.committed_at ? -1 : 0))
+      .sort((a, b) =>
+        a.committed_at < b.committed_at ? 1 : a.committed_at > b.committed_at ? -1 : 0,
+      )
     const reinforcesId = reinforcesCandidates[0]?.id ?? null
 
     const annotated: VerifierAnnotatedEntry = {

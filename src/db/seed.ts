@@ -165,7 +165,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       `seed: inserted ${result.inserted} reflection(s) across ${result.studentsSeeded.length} student(s): ${result.studentsSeeded.join(', ')}`,
     )
     if (result.studentsSkipped.length > 0) {
-      console.log(`seed: skipped ${result.studentsSkipped.length}: ${result.studentsSkipped.join(', ')}`)
+      console.log(
+        `seed: skipped ${result.studentsSkipped.length}: ${result.studentsSkipped.join(', ')}`,
+      )
     }
   }
 }

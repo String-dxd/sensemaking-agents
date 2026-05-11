@@ -44,7 +44,9 @@ describe('Sense-making tools-off ablation (R20 surface 2)', () => {
     for (const dim of ABLATION_DIMENSIONS) {
       expect(md).toContain(dim)
     }
-    const dimRowMatches = md.match(/\| (provenance|specificity|novelty|anti-sycophancy|parallax_discipline) \|/g)
+    const dimRowMatches = md.match(
+      /\| (provenance|specificity|novelty|anti-sycophancy|parallax_discipline) \|/g,
+    )
     expect(dimRowMatches?.length).toBe(5)
     expect(md).toContain('sensemake')
     expect(md).toContain('gpt-5.5')

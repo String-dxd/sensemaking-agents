@@ -44,7 +44,9 @@ describe('Mirror tools-off ablation (R20 surface 1)', () => {
       expect(md).toContain(dim)
     }
     // 5 dimension rows in the scoring table + 5 lines in the per-dimension verdict block.
-    const dimRowMatches = md.match(/\| (provenance|specificity|novelty|anti-sycophancy|parallax_discipline) \|/g)
+    const dimRowMatches = md.match(
+      /\| (provenance|specificity|novelty|anti-sycophancy|parallax_discipline) \|/g,
+    )
     expect(dimRowMatches?.length).toBe(5)
     expect(md).toContain('Surface verdict')
     expect(md).toContain('## ON variant raw output')

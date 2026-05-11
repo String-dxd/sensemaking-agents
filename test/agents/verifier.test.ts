@@ -6,16 +6,13 @@
  * makes it loud.
  */
 import { describe, expect, it } from 'vitest'
-import { verifyProposedDiff } from '~/agents/verifier'
-import {
-  ProposedTimelineEntryDraftSchema,
-  VerifierResultSchema,
-} from '~/agents/tools/schemas'
 import type {
   ProposedTimelineEntryDraft,
-  VerifierMirrorEntry,
   VerifierExistingTimelineEntry,
+  VerifierMirrorEntry,
 } from '~/agents/tools/schemas'
+import { ProposedTimelineEntryDraftSchema, VerifierResultSchema } from '~/agents/tools/schemas'
+import { verifyProposedDiff } from '~/agents/verifier'
 
 // ── fixtures ──────────────────────────────────────────────────────────────
 const baseMirror: VerifierMirrorEntry = {
@@ -24,9 +21,7 @@ const baseMirror: VerifierMirrorEntry = {
   context_type: 'school',
 }
 
-function draft(
-  overrides: Partial<ProposedTimelineEntryDraft> = {},
-): ProposedTimelineEntryDraft {
+function draft(overrides: Partial<ProposedTimelineEntryDraft> = {}): ProposedTimelineEntryDraft {
   return {
     dimension: 'values',
     canonical_claim_id: 'V.SELF_DIRECTION',
@@ -131,9 +126,7 @@ describe('quote match (R10)', () => {
     // transcript is "i hated" (2 of 5 tokens) → 0.4 → drop.
     const result = verifyProposedDiff({
       diff: {
-        timeline_entries: [
-          draft({ verbatim_quote: 'i hated about politics yesterday' }),
-        ],
+        timeline_entries: [draft({ verbatim_quote: 'i hated about politics yesterday' })],
       },
       mirrorEntry: baseMirror,
       existingTimelineEntries: [],

@@ -313,9 +313,10 @@ describe('VIPS schema (U1)', () => {
     expect(hits[0]?.id).toBe(inserted.id)
 
     // Direct UPDATE fires the AU trigger and re-indexes.
-    db.prepare(
-      `UPDATE vips_timeline_entries SET verbatim_quote = ? WHERE id = ?`,
-    ).run('I rebuilt the gripper three times until it held a marble.', inserted.id)
+    db.prepare(`UPDATE vips_timeline_entries SET verbatim_quote = ? WHERE id = ?`).run(
+      'I rebuilt the gripper three times until it held a marble.',
+      inserted.id,
+    )
     expect(searchVipsTimelineEntries('demo', 'robot arm', { ctx: { db } }).length).toBe(0)
     expect(searchVipsTimelineEntries('demo', 'gripper', { ctx: { db } }).length).toBe(1)
   })
@@ -354,9 +355,7 @@ describe('VIPS schema (U1)', () => {
     expect(hits[0]?.id).not.toBe(a.id)
 
     // Default list excludes the forgotten row; explicit opt-in includes it.
-    expect(
-      listVipsTimelineEntries('demo', 'interests', { ctx: { db } }).length,
-    ).toBe(1)
+    expect(listVipsTimelineEntries('demo', 'interests', { ctx: { db } }).length).toBe(1)
     expect(
       listVipsTimelineEntries('demo', 'interests', { includeForgotten: true, ctx: { db } }).length,
     ).toBe(2)
@@ -508,9 +507,7 @@ describe('VIPS schema (U1)', () => {
         mirror_entry_id: mirror.id,
         payload: {
           dimension: 'interests',
-          new_entries: [
-            { canonical_claim_id: 'claim.mechatronics', quote: 'rebuilt gripper' },
-          ],
+          new_entries: [{ canonical_claim_id: 'claim.mechatronics', quote: 'rebuilt gripper' }],
           compiled_truth: 'You are drawn to making physical things work.',
         },
         verifier_result: { admitted: 1, dropped: 0 },
