@@ -14,7 +14,7 @@ afterEach(() => {
 })
 
 describe('runSensemakingStreamed', () => {
-  it('captures step events in order: connector_started → handoff → pathfinder_started → run_completed', async () => {
+  it('captures step events in order: connector_started → handoff → cartographer_started → run_completed', async () => {
     const result = await runSensemakingStreamed('demo', {
       runConnector: async ({ emit }) => {
         emit({
@@ -40,11 +40,11 @@ describe('runSensemakingStreamed', () => {
           still_unclear: 'Whether spatial reasoning generalizes outside assembly.',
         }
       },
-      runPathfinder: async ({ connector, emit }) => {
+      runCartographer: async ({ connector, emit }) => {
         expect(connector.patterns.length).toBe(1)
         emit({
           type: 'tool_call_started',
-          agent: 'pathfinder',
+          agent: 'cartographer',
           toolName: 'lookup_ecg_taxonomy',
           argsPreview: '{"query":"engineering"}',
         })
@@ -79,14 +79,14 @@ describe('runSensemakingStreamed', () => {
     expect(types[types.length - 1]).toBe('run_completed')
 
     const handoffIdx = types.indexOf('handoff')
-    const pathStartIdx = types.findIndex((t, i) => i > handoffIdx && t === 'agent_started')
-    expect(pathStartIdx).toBeGreaterThan(handoffIdx)
+    const cartoStartIdx = types.findIndex((t, i) => i > handoffIdx && t === 'agent_started')
+    expect(cartoStartIdx).toBeGreaterThan(handoffIdx)
 
     expect(latestConnectorOutput('demo')?.id).toBe(result.connectorOutputId)
     expect(latestPathfinderOutput('demo')?.id).toBe(result.pathfinderOutputId)
   })
 
-  it('reports partial=true when Pathfinder fails — Connector output still persisted', async () => {
+  it('reports partial=true when Cartographer fails — Connector output still persisted', async () => {
     const result = await runSensemakingStreamed('demo', {
       runConnector: async () => ({
         patterns: [
@@ -98,7 +98,7 @@ describe('runSensemakingStreamed', () => {
         ],
         still_unclear: null,
       }),
-      runPathfinder: async () => {
+      runCartographer: async () => {
         throw new Error('rate-limited')
       },
     })
@@ -110,7 +110,7 @@ describe('runSensemakingStreamed', () => {
     expect(types).toContain('error')
   })
 
-  it('reports partial=true when Connector fails — no Pathfinder events emitted', async () => {
+  it('reports partial=true when Connector fails — no Cartographer events emitted', async () => {
     const result = await runSensemakingStreamed('demo', {
       runConnector: async () => {
         throw new Error('connector blew up')
@@ -120,7 +120,7 @@ describe('runSensemakingStreamed', () => {
     expect(result.connectorOutputId).toBeNull()
     expect(result.pathfinderOutputId).toBeNull()
     const types = result.events.map((e) => e.type)
-    // Connector started + error, no Pathfinder agent_started, no run_completed.
+    // Connector started + error, no Cartographer agent_started, no run_completed.
     expect(types).toEqual(['agent_started', 'error'])
   })
 })

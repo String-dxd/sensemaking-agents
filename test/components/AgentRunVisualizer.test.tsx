@@ -7,35 +7,37 @@ function ev<E extends RunStepEvent>(e: E): E {
   return e
 }
 
-describe('AgentRunVisualizer', () => {
-  it('renders both agent cards even before any events stream in', () => {
+describe('AgentRunVisualizer (v0.2 single-card Cartographer layout)', () => {
+  it('renders the Cartographer card even before any events stream in', () => {
     render(<AgentRunVisualizer events={[]} animate={false} />)
-    expect(screen.getByTestId('agent-card-connector')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-card-pathfinder')).toBeInTheDocument()
-    // Both queued initially.
-    expect(screen.getByTestId('agent-card-connector')).toHaveAttribute('data-active', 'false')
-    expect(screen.getByTestId('agent-card-pathfinder')).toHaveAttribute('data-active', 'false')
+    expect(screen.getByTestId('agent-card-cartographer')).toBeInTheDocument()
+    // No Connector card in v0.2 — that visualization moved out in U7's
+    // auto-Connector flow.
+    expect(screen.queryByTestId('agent-card-connector')).not.toBeInTheDocument()
+    // Queued initially.
+    expect(screen.getByTestId('agent-card-cartographer')).toHaveAttribute('data-active', 'false')
   })
 
-  it('marks Connector active while only its events have arrived', () => {
+  it('marks Cartographer active once its agent_started event arrives', () => {
     const events: RunStepEvent[] = [
-      ev({ type: 'agent_started', agent: 'connector', timestampMs: 0 }),
+      ev({ type: 'agent_started', agent: 'cartographer', timestampMs: 0 }),
       ev({
         type: 'tool_call_started',
-        agent: 'connector',
-        toolName: 'search_past_mirrors',
-        argsPreview: '{"query":"robotics"}',
+        agent: 'cartographer',
+        toolName: 'lookup_ecg_taxonomy',
+        argsPreview: '{"query":"engineering"}',
         timestampMs: 200,
       }),
     ]
     render(<AgentRunVisualizer events={events} animate={false} />)
-    expect(screen.getByTestId('agent-card-connector')).toHaveAttribute('data-active', 'true')
-    expect(screen.getByTestId('agent-card-pathfinder')).toHaveAttribute('data-active', 'false')
+    expect(screen.getByTestId('agent-card-cartographer')).toHaveAttribute('data-active', 'true')
     // Tool name + args preview surfaced.
-    expect(screen.getByText('search_past_mirrors')).toBeInTheDocument()
+    expect(screen.getByText('lookup_ecg_taxonomy')).toBeInTheDocument()
   })
 
-  it('shows the explicit handoff transition once the chain hands off', () => {
+  it('does not render a handoff transition pill in the single-card layout', () => {
+    // v0.1 rendered a "↳ handoff to pathfinder" row between Connector and
+    // Pathfinder cards. v0.2's single-card view omits it entirely.
     const events: RunStepEvent[] = [
       ev({ type: 'agent_started', agent: 'connector', timestampMs: 0 }),
       ev({
@@ -44,29 +46,20 @@ describe('AgentRunVisualizer', () => {
         outputPreview: 'patterns',
         timestampMs: 400,
       }),
-      ev({ type: 'handoff', from: 'connector', to: 'pathfinder', timestampMs: 410 }),
-      ev({ type: 'agent_started', agent: 'pathfinder', timestampMs: 420 }),
+      ev({ type: 'handoff', from: 'connector', to: 'cartographer', timestampMs: 410 }),
+      ev({ type: 'agent_started', agent: 'cartographer', timestampMs: 420 }),
     ]
     render(<AgentRunVisualizer events={events} animate={false} />)
-    expect(screen.getByTestId('handoff-transition')).toBeInTheDocument()
-    expect(screen.getByTestId('agent-card-pathfinder')).toHaveAttribute('data-active', 'true')
-    expect(screen.getByTestId('agent-card-connector')).toHaveAttribute('data-active', 'false')
+    expect(screen.queryByTestId('handoff-transition')).not.toBeInTheDocument()
+    expect(screen.getByTestId('agent-card-cartographer')).toHaveAttribute('data-active', 'true')
   })
 
   it('renders a final completion line after run_completed', () => {
     const events: RunStepEvent[] = [
-      ev({ type: 'agent_started', agent: 'connector', timestampMs: 0 }),
+      ev({ type: 'agent_started', agent: 'cartographer', timestampMs: 0 }),
       ev({
         type: 'agent_completed',
-        agent: 'connector',
-        outputPreview: 'p',
-        timestampMs: 100,
-      }),
-      ev({ type: 'handoff', from: 'connector', to: 'pathfinder', timestampMs: 105 }),
-      ev({ type: 'agent_started', agent: 'pathfinder', timestampMs: 110 }),
-      ev({
-        type: 'agent_completed',
-        agent: 'pathfinder',
+        agent: 'cartographer',
         outputPreview: 't',
         timestampMs: 200,
       }),
@@ -84,10 +77,10 @@ describe('AgentRunVisualizer', () => {
 
   it('surfaces an error message inline when an error event is present', () => {
     const events: RunStepEvent[] = [
-      ev({ type: 'agent_started', agent: 'connector', timestampMs: 0 }),
+      ev({ type: 'agent_started', agent: 'cartographer', timestampMs: 0 }),
       ev({
         type: 'error',
-        agent: 'connector',
+        agent: 'cartographer',
         message: 'rate-limited',
         timestampMs: 50,
       }),

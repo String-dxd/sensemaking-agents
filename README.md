@@ -4,11 +4,11 @@ Three OpenAI agents over a per-student SQLite wiki, structured around a quiet se
 
 - **Mirror** (`gpt-5.5`, async) — runs after the student stops talking. Reads the transcript, returns a three-part reflection: `validation`, `inferred_meaning`, `story_reframe`. No AI voice during the session.
 - **Connector** (`gpt-5.5`, manual button) — re-reads the per-student wiki and surfaces patterns with evidence IDs.
-- **Pathfinder** (`gpt-5.5`, manual button) — receives Connector's patterns via SDK Handoff, returns trajectory + 2–5 pathways with SG-ECG mapping.
+- **Cartographer** (`gpt-5.5`, manual button) — receives Connector's patterns via SDK Handoff, returns trajectory + 2–5 pathways with SG-ECG mapping. (Renamed from "Pathfinder" in v0.2.)
 
 All three agents read their model id from `src/agents/config.ts`. Set `AGENT_MODEL=<id>` in the env to override (e.g. `AGENT_MODEL=gpt-4.1 pnpm ablate:mirror` to score the prior baseline). The ablate script also accepts `--model=<id>` as an inline shortcut.
 
-The reflect path is browser → MediaRecorder → OpenAI Whisper → Mirror agent. The sense-making path is a single in-process Connector → Pathfinder Handoff chain with **live step-event visualization** in the wiki view.
+The reflect path is browser → MediaRecorder → OpenAI Whisper → Mirror agent. The sense-making path is a single in-process Connector → Cartographer Handoff chain with **live step-event visualization** in the wiki view.
 
 SQLite + FTS5 with a single tenancy boundary (`withStudent`); v0.1 has no auth — `student_id` defaults to `'demo'`.
 
@@ -39,9 +39,8 @@ If you see a schema mismatch warning on boot, that's the v0.1 → v0.2 schema re
 4. Repeat until your wiki has at least 3 reflections.
 5. `/wiki` — press **Run sense-making**. Watch the live agent chain:
    - Connector lights up, calls `search_past_mirrors`, surfaces patterns.
-   - Explicit `↳ handoff to pathfinder` transition row.
-   - Pathfinder lights up, calls `lookup_ecg_taxonomy`, returns trajectory + pathways.
-   - Final `ConnectorPatternCard`, `PathfinderTrajectoryCard`, `PathfinderPathwaysCard` render below.
+   - Cartographer lights up in its single-card view, calls `lookup_ecg_taxonomy`, returns trajectory + pathways.
+   - Final `ConnectorPatternCard`, `PathfinderTrajectoryCard`, `PathfinderPathwaysCard` render below (the wiki-card components are still named under the v0.1 `Pathfinder*` prefix while the v0.1 `pathfinder_outputs` table is kept through cutover).
 
 Pre-grant camera/microphone permissions for `localhost:3000` before the demo so the prompt doesn't break the flow.
 
@@ -59,7 +58,7 @@ Per the prior brainstorm's premise check, two independent ablations on the fixed
 
 ```bash
 pnpm ablate:mirror     # corpus search ON vs OFF for Mirror
-pnpm ablate:sensemake  # full 3-tool surface ON vs OFF for Connector + Pathfinder
+pnpm ablate:sensemake  # full 3-tool surface ON vs OFF for Connector + Cartographer
 ```
 
 Reports land under `test/ablation/reports/`. v0.1 bar: 1–2 humans score 0–3 per dimension across (provenance, specificity, novelty, anti-sycophancy); ON beats OFF by ≥2 points across ≥3 dimensions to "pass."
@@ -70,7 +69,7 @@ Reports land under `test/ablation/reports/`. v0.1 bar: 1–2 humans score 0–3 
 src/
   routes/         # TanStack Router file-based routes
   server/         # *.functions.ts — TanStack Start server fns
-  agents/         # Mirror, Connector, Pathfinder + tools + handoff chain (sync + streamed)
+  agents/         # Mirror, Connector, Cartographer + tools + handoff chain (sync + streamed)
   db/             # better-sqlite3 schema + queries + seed
   data/           # ecg-taxonomy.ts (~30 hand-curated SG entries)
   components/     # MirrorSession, AgentRunVisualizer, WikiEntryCard, primitives

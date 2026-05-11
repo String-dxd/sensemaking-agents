@@ -75,7 +75,15 @@ CREATE INDEX IF NOT EXISTS idx_pathfinder_outputs_student ON pathfinder_outputs(
 CREATE TABLE IF NOT EXISTS agent_traces (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id TEXT NOT NULL,
-  agent TEXT NOT NULL CHECK (agent IN ('mirror', 'connector', 'pathfinder')),
+  -- v0.2 (U10): the Pathfinder role was renamed to Cartographer. The CHECK
+  -- accepts BOTH literals through the cutover because the v0.1
+  -- `pathfinder_outputs` table (and its traces) is kept around per the plan's
+  -- Scope Boundaries — existing agent_traces rows with agent='pathfinder' must
+  -- continue to validate. The handoff-chain orchestrators still write
+  -- 'pathfinder' here for now (so v0.1 trace shape is preserved); a follow-up
+  -- PR after the cutover can tighten this CHECK to cartographer-only and
+  -- migrate the legacy rows.
+  agent TEXT NOT NULL CHECK (agent IN ('mirror', 'connector', 'pathfinder', 'cartographer')),
   ref_table TEXT NOT NULL,
   ref_id INTEGER NOT NULL,
   trace_json TEXT NOT NULL,

@@ -1,13 +1,20 @@
 import { z } from 'zod'
 
 /**
- * Output schemas for Mirror, Connector, and Pathfinder.
+ * Output schemas for Mirror, Connector, and Cartographer.
  *
  * Mirror's output is the three-part reflection: validation, inferred_meaning,
  * story_reframe (see docs/brainstorms/2026-05-08-quiet-mirror-pivot-requirements.md
  * R7). The transcript is supplied at persist time, not by the agent.
  *
- * Connector and Pathfinder shapes are unchanged from the prior brainstorm.
+ * Connector and Cartographer shapes are unchanged from the prior brainstorm.
+ *
+ * v0.2 rename note: the role previously called "Pathfinder" is now
+ * "Cartographer". U10 performed the mechanical rename only — the schema body
+ * here is the v0.1 shape `{trajectory, pathways, disclaimer}`. U11 reshapes
+ * the Cartographer output to the v0.2 wiki shape
+ * `{trajectory_text, pathways, open_questions, disclaimer}` and rewrites the
+ * prompt body accordingly.
  */
 
 // ── Mirror ───────────────────────────────────────────────────────────────
@@ -45,17 +52,17 @@ export const ConnectorOutputSchema = z.object({
 
 export type ConnectorOutputDraft = z.infer<typeof ConnectorOutputSchema>
 
-// ── Pathfinder ───────────────────────────────────────────────────────────
-export const PathfinderPathwaySchema = z.object({
+// ── Cartographer ─────────────────────────────────────────────────────────
+export const CartographerPathwaySchema = z.object({
   label: z.string().min(1),
   reasoning: z.string().min(1),
   ecg_taxonomy_ids: z.array(z.string()).min(1),
 })
 
-export const PathfinderOutputSchema = z.object({
+export const CartographerOutputSchema = z.object({
   trajectory: z.string().min(1),
-  pathways: z.array(PathfinderPathwaySchema).min(2).max(5),
+  pathways: z.array(CartographerPathwaySchema).min(2).max(5),
   disclaimer: z.string().min(1),
 })
 
-export type PathfinderOutputDraft = z.infer<typeof PathfinderOutputSchema>
+export type CartographerOutputDraft = z.infer<typeof CartographerOutputSchema>

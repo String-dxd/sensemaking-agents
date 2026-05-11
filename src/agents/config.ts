@@ -15,8 +15,9 @@
  * option to keep Mirror on a cheaper model in v0.3 without re-plumbing.
  *
  * Note: `CARTOGRAPHER_MODEL` is the v0.2 name for the Pathfinder/Cartographer
- * role. The file `src/agents/pathfinder.ts` still imports it under that name
- * until U10 renames the file to `cartographer.ts`.
+ * role. As of U10, `src/agents/cartographer.ts` imports it; the legacy
+ * `pathfinder.ts` was renamed to `cartographer.ts` and the const name now
+ * matches the agent.
  */
 
 export const MIRROR_MODEL = process.env.AGENT_MODEL || 'gpt-5.5'
