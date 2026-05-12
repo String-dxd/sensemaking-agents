@@ -64,7 +64,6 @@ async function main(): Promise<void> {
   const studentId = pickStudent(args.student)
 
   // Seed in-process so `buildCartographerContext` has pages + timeline + corpus.
-  // TODO(reza-step2-followup): seed() is rewritten for Postgres in Step 3.
   await seed()
 
   const pages = await listVipsPages(studentId)

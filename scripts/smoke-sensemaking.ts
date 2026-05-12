@@ -98,7 +98,6 @@ async function main() {
   const before = (await listMirrorEntries('demo')).length
   if (before < 3) {
     console.log(`Seeding (current: ${before})...`)
-    // TODO(reza-step2-followup): seed() is rewritten for Postgres in Step 3.
     await seed()
   }
   console.log(`Corpus size: ${(await listMirrorEntries('demo')).length}`)

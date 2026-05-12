@@ -1,41 +1,22 @@
-// @ts-nocheck — seed.ts is rewritten in Step 3 of the managed-agents migration
-// (plan §5 / §6). Until then we suppress TS for this file so the rest of the
-// repo can typecheck cleanly while the Postgres rewrite lands separately.
-// The runtime path remains the better-sqlite3 implementation; running seed()
-// under DATABASE_URL will fail (openDb no longer exists). Use only after
-// Step 3 lands.
+// Multi-student fixture loader. Seeds the v0.2 demo corpus into Neon via the
+// `withStudent` RLS envelope (see src/db/client.ts).
+//
+// Idempotency: per-student. If a student already has any `mirror_entries`
+// rows, that student is skipped — re-running after a partial seed only fills
+// in the missing students.
+//
+// tsvector columns (`story_reframe_tsv`, `verbatim_quote_tsv`) are GENERATED
+// ALWAYS AS in the schema, so they populate automatically on INSERT — no
+// SQLite-FTS5 → Postgres translation step is needed in the seed itself.
+
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import type { Database as DatabaseInstance } from 'better-sqlite3'
-import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
-// TODO(reza-step3): openDb is removed in the Postgres port. The seed helper
-// will be rewritten to use `withStudent` + Drizzle inserts directly.
-// biome-ignore lint/correctness/noUnusedImports: kept for the Step 3 rewrite
-import * as dbClient from './client'
-import { upsertVipsPage } from './queries'
+import { sql } from 'drizzle-orm'
 
-/**
- * v0.2 seed loader (U13). The v0.1 single-student × 8-reflection seed was
- * replaced by the multi-student fixture at
- * `test/ablation/fixtures/seed-multistudent.json`. The v0.1 fixture is
- * archived under `test/ablation/fixtures/_archive/` for cross-version
- * comparison of ablation reports.
- *
- * Shape: a top-level `students` array; each student carries a hand-curated
- * `profile` (used as reviewer-facing context, not persisted) plus a flat list
- * of `reflections`, each tagged with one of the closed `context_type` values
- * enforced by the `mirror_entries.context_type` CHECK (U1).
- *
- * Per-row insert uses raw SQL rather than `insertMirrorEntry` so we can set
- * `context_type` explicitly — `insertMirrorEntry` is still U7's surface area
- * during the parallel pivot and doesn't yet expose the column.
- *
- * Empty VIPS pages are pre-created per student × 4 dimensions
- * (`values`/`interests`/`personality`/`skills`), initialized with
- * `compiled_truth=""` and `open_question=""`. The auto-Connector populates
- * them on the first live Mirror session post-seed (U7's surface) — the seed
- * does not hand-design `vips_timeline_entries`.
- */
+import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
+import { withStudent } from './client'
+import { upsertVipsPage } from './queries'
+import { mirrorEntries } from './schema'
 
 export type SeedContextType = 'school' | 'family' | 'peer' | 'hobby' | 'civic'
 
@@ -75,30 +56,24 @@ export function loadSeedCorpus(): MultiStudentSeedCorpus {
   return JSON.parse(raw) as MultiStudentSeedCorpus
 }
 
-/**
- * Idempotent seed loader. For each student in the multi-student fixture:
- *   - If the student already has rows in `mirror_entries`, that student is a
- *     no-op (so partial state is preserved and `pnpm seed` is rerunnable).
- *   - Otherwise, insert one `mirror_entries` row per reflection (with explicit
- *     `context_type`) and one empty `vips_pages` row per (student, dimension).
- *
- * To rebuild from scratch: delete `app.db` (or bump `SCHEMA_VERSION` so the
- * client drops it on next boot).
- */
-export async function seed(opts: { db?: DatabaseInstance } = {}): Promise<{
+export interface SeedResult {
   inserted: number
   studentsSeeded: string[]
   studentsSkipped: string[]
   skipped: boolean
-}> {
-  // TODO(reza-step3): rewrite against Drizzle/Postgres. The body below is
-  // dead under DATABASE_URL but kept for reference until Step 3 lands.
-  const db = opts.db ?? (dbClient.openDb ? dbClient.openDb() : null)
-  if (!db) {
-    throw new Error(
-      'seed(): better-sqlite3 path removed in Step 2 migration; rewrite pending in Step 3.',
-    )
-  }
+}
+
+/**
+ * Seed the multi-student fixture into Neon. Per-student idempotent: if
+ * `mirror_entries` already has rows for a given student, that student is
+ * skipped. Empty VIPS pages are created on first seed so the live
+ * auto-Connector chain has a row to UPDATE on its first run.
+ *
+ * Reflections insert with explicit `created_at` from the fixture (the v0.2
+ * ablation harness sorts by this column, so it must match the curated
+ * timeline).
+ */
+export async function seed(): Promise<SeedResult> {
   const corpus = loadSeedCorpus()
 
   let inserted = 0
@@ -106,59 +81,61 @@ export async function seed(opts: { db?: DatabaseInstance } = {}): Promise<{
   const studentsSkipped: string[] = []
 
   for (const student of corpus.students) {
-    const existing = db
-      .prepare('SELECT COUNT(*) AS c FROM mirror_entries WHERE student_id = ?')
-      .get(student.student_id) as { c: number }
-    if (existing.c > 0) {
-      studentsSkipped.push(student.student_id)
-      continue
-    }
+    const result = await withStudent(student.student_id, async (ctx) => {
+      // RLS scopes this to `student.student_id`; counting all rows is fine.
+      const existing = await ctx.db.execute<{ c: number }>(
+        sql`select count(*)::int as c from ${mirrorEntries}`,
+      )
+      if ((existing.rows[0]?.c ?? 0) > 0) {
+        return { skipped: true, inserted: 0 }
+      }
 
-    db.transaction(() => {
+      let count = 0
       for (const r of student.reflections) {
         // Mirror agent output fields are intentionally left empty: the v0.2
         // seed represents the raw transcript surface only; the auto-Connector
-        // chain (U7) populates `vips_proposed_diffs` / VIPS pages live. The
+        // chain populates `vips_proposed_diffs` / VIPS pages live. The
         // ablation runner formats reflections from `story_reframe` when
         // present, so we mirror the transcript there as a graceful fallback
-        // for the cross-student combined-corpus run until U7's persist-mirror
-        // reshape wires the live Mirror output back into the seed harness.
+        // until the live Mirror output is wired back into the seed.
         const rawOutput = JSON.stringify({
           validation: '',
           inferred_meaning: '',
           story_reframe: r.transcript,
         })
-        db.prepare(
-          `INSERT INTO mirror_entries
-             (student_id, transcript, validation, inferred_meaning, story_reframe,
-              raw_output_json, context_type, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).run(
-          student.student_id,
-          r.transcript,
-          '',
-          '',
-          r.transcript,
-          rawOutput,
-          r.context_type,
-          r.created_at,
-        )
-        inserted++
+        await ctx.db.insert(mirrorEntries).values({
+          studentId: student.student_id,
+          transcript: r.transcript,
+          validation: '',
+          inferredMeaning: '',
+          storyReframe: r.transcript,
+          rawOutputJson: rawOutput,
+          contextType: r.context_type,
+          createdAt: r.created_at,
+        })
+        count++
       }
 
-      // Empty VIPS pages — the auto-Connector populates these on the first
-      // live Mirror session per U7's plan.
+      // Empty VIPS pages — auto-Connector populates these on the first live
+      // Mirror session. Reuse `upsertVipsPage` so the row shape stays
+      // consistent with the production write path.
       for (const dimension of VIPS_DIMENSIONS) {
-        // TODO(reza-step3): use the new TenantContext shape via withStudent.
-        upsertVipsPage(
+        await upsertVipsPage(
           student.student_id,
           { dimension, compiled_truth: '', open_question: '' },
-          { ctx: { db } },
+          { ctx },
         )
       }
-    })()
 
-    studentsSeeded.push(student.student_id)
+      return { skipped: false, inserted: count }
+    })
+
+    if (result.skipped) {
+      studentsSkipped.push(student.student_id)
+    } else {
+      studentsSeeded.push(student.student_id)
+      inserted += result.inserted
+    }
   }
 
   return {

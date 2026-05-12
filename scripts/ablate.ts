@@ -202,9 +202,6 @@ function loadReflectionsInScope(
  * sees the persisted (Mirror-reframed) entries.
  */
 async function formatConnectorCorpus(studentIds: string[]): Promise<string> {
-  // TODO(reza-step2-followup): seed() will be rewritten in Step 3 to target
-  // Postgres; for now we await it for compile-time correctness. The runtime
-  // path will only function once Step 3 lands.
   await seed()
   const blocks = await Promise.all(
     studentIds.map(async (sid) => {
@@ -621,8 +618,7 @@ async function main() {
   const { surface, runner, student, limit } = args
   const studentIds = resolveStudentIds(student)
   // Seed once so per-row Mirror calls can use search_past_mirrors against
-  // a populated DB. TODO(reza-step2-followup): seed() will be rewritten in
-  // Step 3 to target Postgres; awaited here for compile-time correctness.
+  // a populated DB.
   await seed()
   const reflections = loadReflectionsInScope(studentIds, limit)
 

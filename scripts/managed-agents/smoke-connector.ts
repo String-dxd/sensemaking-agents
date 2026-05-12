@@ -65,7 +65,6 @@ async function main(): Promise<void> {
   const studentId = pickStudent(args.student)
 
   // Seed in-process so `buildConnectorContext` has rows to FTS-match against.
-  // TODO(reza-step2-followup): seed() is rewritten for Postgres in Step 3.
   await seed()
   const entries = await listMirrorEntries(studentId, { limit: 1 })
   const newest = entries[0]
