@@ -1,0 +1,60 @@
+name: Lint — no stale USE_MANAGED_AGENTS flag past day 21
+
+# Plan reference:
+# plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md §12 + §13
+#
+# Why this exists:
+#   PR 1 of the managed-agents migration flips USE_MANAGED_AGENTS=true in
+#   production env vars but leaves the flag in code so a rollback during
+#   the observation window is a redeploy, not a revert. PR 2 (cleanup) is
+#   meant to ship 7–14 days after PR 1 once the dev-driven repeat-ablation
+#   signal looks clean. Without a forcing function, "PR 2 next week"
+#   becomes "PR 2 someday" and the flag rots in the codebase.
+#
+#   This workflow fails the build on day 21 (2026-06-02) if
+#   `USE_MANAGED_AGENTS` is still referenced anywhere in
+#   `src/agents/config.ts`. Two ways to resolve a failing build:
+#     (a) Ship PR 2 (preferred — removes the flag, deletes this workflow).
+#     (b) Edit the FLAG_DEADLINE date below and add a comment explaining
+#         why the migration is genuinely problematic and the observation
+#         window must extend.
+#
+# Note: this is the counterpart to `lint-no-dev-bypass-leak.yml`. That
+# one is permanent (guards a production escape hatch); this one is a
+# self-destructing timer (deletes alongside PR 2).
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-no-stale-flag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fail if USE_MANAGED_AGENTS still in src/agents/config.ts past day 21
+        run: |
+          set -e
+          # Day-21 backstop: PR 1 land date 2026-05-12 + 21 days = 2026-06-02.
+          FLAG_DEADLINE="2026-06-02"
+          TODAY="$(date -u +%Y-%m-%d)"
+          if [[ "$TODAY" < "$FLAG_DEADLINE" ]]; then
+            echo "Pre-deadline: $TODAY < $FLAG_DEADLINE. Skipping stale-flag check."
+            exit 0
+          fi
+          if grep -q 'USE_MANAGED_AGENTS' src/agents/config.ts; then
+            echo "::error::USE_MANAGED_AGENTS still referenced in src/agents/config.ts past $FLAG_DEADLINE."
+            echo "Resolution paths:"
+            echo "  (a) Ship PR 2 — removes the flag from config.ts and deletes this workflow."
+            echo "  (b) Edit FLAG_DEADLINE in .github/workflows/lint-no-stale-flag.yml AND add a"
+            echo "      comment explaining why the cutover observation window must extend."
+            exit 1
+          fi
+          echo "OK: USE_MANAGED_AGENTS is no longer referenced in src/agents/config.ts."
