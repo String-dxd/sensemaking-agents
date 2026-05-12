@@ -48,7 +48,9 @@ function Harness({ onPersisted, expose }: HarnessSignals) {
         phase={
           api.phase === 'recording'
             ? 'recording'
-            : api.phase === 'transcribing' || api.phase === 'reflecting' || api.phase === 'persisting'
+            : api.phase === 'transcribing' ||
+                api.phase === 'reflecting' ||
+                api.phase === 'persisting'
               ? 'working'
               : 'idle'
         }
@@ -87,10 +89,10 @@ beforeEach(() => {
   lastRecorder = null
   getUserMediaCalls = []
   getUserMediaImpl = () =>
-    Promise.resolve(({
+    Promise.resolve({
       getTracks: () => [{ stop: vi.fn() }],
       getAudioTracks: () => [{ stop: vi.fn() }],
-    } as unknown) as MediaStream)
+    } as unknown as MediaStream)
 
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
@@ -164,9 +166,9 @@ describe('MirrorSession (voice-mode controller)', () => {
   })
 
   it('mounts in idle phase; tapping Voice requests audio-only mic (NEVER video)', async () => {
-    let api: ReturnType<typeof useMirrorSession> | null = null
-    render(<Harness expose={(a) => (api = a)} />)
-    expect(api?.phase).toBe('idle')
+    const api: { current: ReturnType<typeof useMirrorSession> | null } = { current: null }
+    render(<Harness expose={(a) => (api.current = a)} />)
+    expect(api.current?.phase).toBe('idle')
 
     await userEvent.click(screen.getByTestId('voice-button'))
     expect(getUserMediaCalls).toHaveLength(1)
@@ -197,16 +199,16 @@ describe('MirrorSession (voice-mode controller)', () => {
     })
 
     const onPersisted = vi.fn()
-    let api: ReturnType<typeof useMirrorSession> | null = null
-    render(<Harness onPersisted={onPersisted} expose={(a) => (api = a)} />)
+    const api: { current: ReturnType<typeof useMirrorSession> | null } = { current: null }
+    render(<Harness onPersisted={onPersisted} expose={(a) => (api.current = a)} />)
 
     await userEvent.click(screen.getByTestId('voice-button'))
     // Wait for recording state.
-    await vi.waitFor(() => expect(api?.phase).toBe('recording'))
+    await vi.waitFor(() => expect(api.current?.phase).toBe('recording'))
     expect(lastRecorder?.state).toBe('recording')
     // Stop.
     await act(async () => {
-      api?.handleVoicePress()
+      api.current?.handleVoicePress()
     })
     await vi.waitFor(() => expect(onPersisted).toHaveBeenCalledTimes(1))
 
@@ -218,7 +220,7 @@ describe('MirrorSession (voice-mode controller)', () => {
       autoConnectorStatus: 'ok',
       pendingQueued: false,
     })
-    expect(api?.phase).toBe('done')
+    expect(api.current?.phase).toBe('done')
   })
 
   it('persistMirror call shape does NOT carry a `mood` field (Phase A contract)', async () => {
@@ -233,18 +235,18 @@ describe('MirrorSession (voice-mode controller)', () => {
     })
 
     const onPersisted = vi.fn()
-    let api: ReturnType<typeof useMirrorSession> | null = null
-    render(<Harness onPersisted={onPersisted} expose={(a) => (api = a)} />)
+    const api: { current: ReturnType<typeof useMirrorSession> | null } = { current: null }
+    render(<Harness onPersisted={onPersisted} expose={(a) => (api.current = a)} />)
 
     // Start recording via user click — same path the world view will use.
     await userEvent.click(screen.getByTestId('voice-button'))
-    await vi.waitFor(() => expect(api?.phase).toBe('recording'))
+    await vi.waitFor(() => expect(api.current?.phase).toBe('recording'))
     // Tag a mood mid-recording — Phase A: stays local, never reaches the
     // persistMirror call.
     act(() => {
-      api?.handleMoodTagged('sadness')
+      api.current?.handleMoodTagged('sadness')
     })
-    expect(api?.mood).toBe('sadness')
+    expect(api.current?.mood).toBe('sadness')
     // Stop via user click on the same button (now showing the stop icon).
     await userEvent.click(screen.getByTestId('voice-button'))
     await vi.waitFor(() => expect(onPersisted).toHaveBeenCalledTimes(1))
@@ -263,31 +265,31 @@ describe('MirrorSession (voice-mode controller)', () => {
     // Make persistMirror hang so the chain pauses in `persisting`.
     persistMock.mockReturnValue(new Promise(() => undefined))
 
-    let api: ReturnType<typeof useMirrorSession> | null = null
-    render(<Harness expose={(a) => (api = a)} />)
+    const api: { current: ReturnType<typeof useMirrorSession> | null } = { current: null }
+    render(<Harness expose={(a) => (api.current = a)} />)
     await userEvent.click(screen.getByTestId('voice-button'))
-    await vi.waitFor(() => expect(api?.phase).toBe('recording'))
+    await vi.waitFor(() => expect(api.current?.phase).toBe('recording'))
     await act(async () => {
-      api?.handleVoicePress()
+      api.current?.handleVoicePress()
     })
     await vi.waitFor(() =>
-      expect(['transcribing', 'reflecting', 'persisting']).toContain(api?.phase),
+      expect(['transcribing', 'reflecting', 'persisting']).toContain(api.current?.phase),
     )
     // Phase moved past recording — voice press should be a no-op now.
-    const phaseSnapshot = api?.phase
+    const phaseSnapshot = api.current?.phase
     await act(async () => {
-      api?.handleVoicePress()
+      api.current?.handleVoicePress()
     })
-    expect(api?.phase).toBe(phaseSnapshot)
+    expect(api.current?.phase).toBe(phaseSnapshot)
   })
 
   it('mood tagging is ignored when not recording (defensive guard)', () => {
-    let api: ReturnType<typeof useMirrorSession> | null = null
-    render(<Harness expose={(a) => (api = a)} />)
+    const api: { current: ReturnType<typeof useMirrorSession> | null } = { current: null }
+    render(<Harness expose={(a) => (api.current = a)} />)
     act(() => {
-      api?.handleMoodTagged('joy')
+      api.current?.handleMoodTagged('joy')
     })
-    expect(api?.mood).toBeNull()
+    expect(api.current?.mood).toBeNull()
   })
 
   it('renders the error panel on permission failure', async () => {
@@ -302,10 +304,10 @@ describe('MirrorSession (voice-mode controller)', () => {
   })
 
   it('voiceModeActive is true for non-idle/non-error phases', async () => {
-    let api: ReturnType<typeof useMirrorSession> | null = null
-    render(<Harness expose={(a) => (api = a)} />)
-    expect(api?.voiceModeActive).toBe(false)
+    const api: { current: ReturnType<typeof useMirrorSession> | null } = { current: null }
+    render(<Harness expose={(a) => (api.current = a)} />)
+    expect(api.current?.voiceModeActive).toBe(false)
     await userEvent.click(screen.getByTestId('voice-button'))
-    await vi.waitFor(() => expect(api?.voiceModeActive).toBe(true))
+    await vi.waitFor(() => expect(api.current?.voiceModeActive).toBe(true))
   })
 })

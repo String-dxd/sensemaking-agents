@@ -8,8 +8,9 @@
  *    `same`, `aligned`, or `different` based on a small neighbor-group
  *    lookup.
  */
-import { Button } from '~/components/ui/button'
+
 import type { Mood } from '~/agents/tools/schemas'
+import { Button } from '~/components/ui/button'
 import { cn } from '~/lib/utils'
 
 const MOOD_LABEL: Record<Mood, string> = {
@@ -75,10 +76,7 @@ export function EmotionChip({ mood, variant, onClick, asButton = false }: Emotio
 
   return (
     <span
-      className={cn(
-        'inline-flex items-center gap-2 rounded-full px-3 py-1.5',
-        palette,
-      )}
+      className={cn('inline-flex items-center gap-2 rounded-full px-3 py-1.5', palette)}
       data-testid={`emotion-chip-${variant}`}
       data-mood={mood}
     >
@@ -89,10 +87,7 @@ export function EmotionChip({ mood, variant, onClick, asButton = false }: Emotio
 
 export type EmotionConnectorVerdict = 'same' | 'aligned' | 'different'
 
-export function emotionConnectorVerdict(
-  inferred: Mood,
-  user: Mood,
-): EmotionConnectorVerdict {
+export function emotionConnectorVerdict(inferred: Mood, user: Mood): EmotionConnectorVerdict {
   if (inferred === user) return 'same'
   const inNeighborGroup = NEIGHBOR_GROUPS.some(
     (group) => group.includes(inferred) && group.includes(user),
@@ -108,11 +103,7 @@ export interface EmotionConnectorProps {
 export function EmotionConnector({ inferred, user }: EmotionConnectorProps) {
   const verdict = emotionConnectorVerdict(inferred, user)
   const copy =
-    verdict === 'same'
-      ? 'same read'
-      : verdict === 'aligned'
-        ? 'aligned reads'
-        : 'different reads'
+    verdict === 'same' ? 'same read' : verdict === 'aligned' ? 'aligned reads' : 'different reads'
   return (
     <span
       data-testid="emotion-connector"

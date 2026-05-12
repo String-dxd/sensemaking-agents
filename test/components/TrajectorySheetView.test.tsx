@@ -9,7 +9,11 @@ vi.mock('~/server/load-trajectory.functions', () => ({
 }))
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, children, ...props }: { to: string; children?: ReactNode } & Record<string, unknown>) => (
+  Link: ({
+    to,
+    children,
+    ...props
+  }: { to: string; children?: ReactNode } & Record<string, unknown>) => (
     <a href={to} {...(props as Record<string, unknown>)}>
       {children}
     </a>
@@ -53,16 +57,12 @@ describe('TrajectorySheetView', () => {
   it('renders an empty-state when no trajectory is available', async () => {
     loadTrajectoryMock.mockResolvedValue({ trajectory: null, pending_diff_present: false })
     render(<TrajectorySheetView studentId="demo" />, { wrapper: makeWrapper() })
-    await waitFor(() =>
-      expect(screen.getByTestId('trajectory-sheet-empty')).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByTestId('trajectory-sheet-empty')).toBeInTheDocument())
   })
 
   it('renders an error message when the query rejects', async () => {
     loadTrajectoryMock.mockRejectedValue(new Error('boom'))
     render(<TrajectorySheetView studentId="demo" />, { wrapper: makeWrapper() })
-    await waitFor(() =>
-      expect(screen.getByTestId('trajectory-sheet-error')).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByTestId('trajectory-sheet-error')).toBeInTheDocument())
   })
 })

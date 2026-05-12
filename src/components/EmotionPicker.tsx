@@ -13,7 +13,8 @@
  * the data structure (§10b of the plan).
  */
 import { useEffect, useRef, useState } from 'react'
-import { Mood, MoodSchema } from '~/agents/tools/schemas'
+import { type Mood, MoodSchema } from '~/agents/tools/schemas'
+import { Button } from '~/components/ui/button'
 import { cn } from '~/lib/utils'
 
 const LOCAL_STORAGE_KEY = 'sensemaking.mood.last_used'
@@ -142,25 +143,25 @@ export function EmotionPicker({
       {TILES.map((tile, idx) => {
         const isSelected = selected === tile.value
         return (
-          <button
+          <Button
             key={tile.value}
             type="button"
             role="radio"
             aria-checked={isSelected}
+            variant="outline"
             tabIndex={isSelected ? 0 : -1}
             onClick={() => handleSelect(tile.value)}
             onKeyDown={(e) => handleKey(e, idx)}
             data-testid={`emotion-tile-${tile.value}`}
             data-selected={isSelected ? 'true' : 'false'}
             className={cn(
-              'flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-background p-3 transition-colors',
-              'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              'flex aspect-square h-auto flex-col items-center justify-center gap-2 rounded-2xl p-3',
               isSelected ? 'ring-2 ring-accent' : null,
             )}
           >
             <MoodShape shape={tile.shape} />
             <span className="text-xs font-medium">{tile.label}</span>
-          </button>
+          </Button>
         )
       })}
     </div>
