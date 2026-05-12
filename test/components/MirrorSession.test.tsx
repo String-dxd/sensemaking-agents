@@ -63,7 +63,11 @@ function Harness({ onPersisted, expose }: HarnessSignals) {
         showSoftPrompt={api.showSoftPrompt}
       />
       {api.phase === 'error' && api.errorMessage ? (
-        <MirrorSessionErrorPanel message={api.errorMessage} onRetry={api.handleReset} />
+        <MirrorSessionErrorPanel
+          message={api.errorMessage}
+          onReset={api.handleReset}
+          onRetryChain={api.canRetryChain ? api.handleRetryChain : undefined}
+        />
       ) : null}
     </>
   )

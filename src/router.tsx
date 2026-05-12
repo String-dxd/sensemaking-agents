@@ -4,7 +4,15 @@ import { routeTree } from './routeTree.gen'
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, gcTime: 5 * 60_000, refetchOnWindowFocus: false },
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      // One retry on transient failures so a cold-start DB blip doesn't
+      // hard-fail route loaders before the user sees anything. Higher
+      // values risk masking real outages in dev.
+      retry: 1,
+    },
   },
 })
 

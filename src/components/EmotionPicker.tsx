@@ -9,8 +9,9 @@
  * aria-checked semantics live in Base UI's RadioGroup primitive — the
  * picker is just a styled wrapper around `<RadioGroup>` + `<Radio.Root>`.
  */
+import { Dialog as BaseDialog } from '@base-ui-components/react/dialog'
 import { Radio } from '@base-ui-components/react/radio'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { type Mood, MoodSchema } from '~/agents/tools/schemas'
 import { RadioGroup } from '~/components/ui/radio-group'
 import { cn } from '~/lib/utils'
@@ -76,15 +77,6 @@ export function EmotionPicker({
 }: EmotionPickerProps) {
   const [selected, setSelected] = useState<Mood>(() => defaultValue ?? readLastUsed())
 
-  useEffect(() => {
-    if (layout !== 'overlay' || !onDismiss) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onDismiss()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [layout, onDismiss])
-
   function handleChange(value: unknown) {
     // Base UI's `RadioGroup.onValueChange` types the payload as `unknown`.
     // Narrow against the canonical enum before committing.
@@ -133,23 +125,30 @@ export function EmotionPicker({
   )
 
   if (layout === 'overlay') {
+    // Base UI Dialog owns focus trap, Escape close, scroll lock, and backdrop
+    // click dismissal — keep the same testids for behavior continuity with
+    // the previous hand-rolled overlay.
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-end justify-end p-4 sm:items-center sm:justify-center"
-        data-testid="emotion-picker-overlay"
+      <BaseDialog.Root
+        open
+        onOpenChange={(open) => {
+          if (!open) onDismiss?.()
+        }}
       >
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-label="Close emotion picker"
-          onClick={onDismiss}
-          data-testid="emotion-picker-backdrop"
-          className="absolute inset-0 cursor-default bg-foreground/30"
-        />
-        <div className="relative w-full max-w-xs rounded-2xl border border-border bg-background p-4 shadow-2xl">
-          {grid}
-        </div>
-      </div>
+        <BaseDialog.Portal>
+          <BaseDialog.Backdrop
+            data-testid="emotion-picker-backdrop"
+            className="fixed inset-0 z-50 bg-foreground/30 transition-opacity duration-150 ease-out data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
+          />
+          <BaseDialog.Popup
+            data-testid="emotion-picker-overlay"
+            className="fixed left-1/2 top-1/2 z-50 w-full max-w-xs -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-background p-4 shadow-2xl transition-all duration-150 ease-out data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0"
+          >
+            <BaseDialog.Title className="sr-only">Pick an emotion</BaseDialog.Title>
+            {grid}
+          </BaseDialog.Popup>
+        </BaseDialog.Portal>
+      </BaseDialog.Root>
     )
   }
 
