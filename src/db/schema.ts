@@ -468,3 +468,57 @@ export const memorySnapshots = pgTable(
     }),
   ],
 ).enableRLS()
+
+// ---------------------------------------------------------------------------
+// student_memory_stores — 1:1 mapping of studentId → Anthropic memory_store_id
+// (`memstore_...`). No RLS: the handler resolves it before any tenant-scoped
+// transaction opens (same posture as `counselor_students`). The mapping is
+// effectively immutable — once a store is provisioned for a student, every
+// future session binds the same store via `resources[]` so the agent's
+// `/mnt/memory/*.md` content carries forward across runs.
+// ---------------------------------------------------------------------------
+
+export const studentMemoryStores = pgTable('student_memory_stores', {
+  studentId: text('student_id').primaryKey(),
+  memoryStoreId: text('memory_store_id').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull().defaultNow(),
+})
+
+// ---------------------------------------------------------------------------
+// student_memory_files — per-(studentId, filePath) write counter + cached
+// Anthropic `mem_...` id. Drives the "snapshot every 20 ops" cadence in
+// `appendStudentMemory` and avoids a `memories.list()` call on every write
+// (the cached `memory_id` lets us go straight to retrieve/update).
+//
+// RLS-enforced: rows here describe a student's memory state and must never
+// leak across tenants. The advisory lock used by `appendStudentMemory` only
+// serializes concurrent writes — it does NOT exempt this table from RLS.
+// ---------------------------------------------------------------------------
+
+export const studentMemoryFiles = pgTable(
+  'student_memory_files',
+  {
+    studentId: text('student_id').notNull(),
+    filePath: text('file_path').notNull(),
+    // Monotonic count of `appendStudentMemory` writes against this file.
+    // Every Nth write (N = 20) inserts a `memory_snapshots` row with
+    // `version = opCount` — the snapshot version is the op count it captured.
+    opCount: integer('op_count').notNull().default(0),
+    // Cached Anthropic memory id (`mem_...`). Null until the first write,
+    // populated thereafter so subsequent writes skip a list/lookup.
+    memoryId: text('memory_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.studentId, t.filePath] }),
+    pgPolicy('student_memory_files_rls', {
+      as: 'permissive',
+      for: 'all',
+      to: 'public',
+      using: RLS_STUDENT_PREDICATE,
+      withCheck: RLS_STUDENT_PREDICATE,
+    }),
+  ],
+).enableRLS()

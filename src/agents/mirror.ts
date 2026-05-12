@@ -1,5 +1,6 @@
 import { Agent, run } from '@openai/agents'
 import { getManagedAgentBinding, isManagedAgentsEnabled, MIRROR_MODEL } from '~/agents/config'
+import { getOrCreateMemoryStoreId, type MemoryStoreTransport } from '~/agents/memory'
 import mirrorPrompt from '~/agents/mirror.prompt.md?raw'
 import { runManagedAgent } from '~/agents/runner'
 import { type MirrorOutputDraft, MirrorOutputSchema } from '~/agents/schemas'
@@ -38,6 +39,8 @@ const MIRROR_USER_PROMPT_PREFIX =
 export interface RunMirrorOnTranscriptDeps {
   /** Override Mirror invocation. Default: build the agent and call `run`. */
   runMirror?: (input: { studentId: string; transcript: string }) => Promise<MirrorOutputDraft>
+  /** Override the Anthropic memory-store transport for session binding. */
+  memoryTransport?: MemoryStoreTransport
 }
 
 /**
@@ -65,6 +68,11 @@ export async function runMirrorOnTranscript(
   }
   if (isManagedAgentsEnabled()) {
     const binding = getManagedAgentBinding('mirror')
+    // Bind the per-student memory store so the agent can read prior
+    // `/student-voice.md` content carried forward by Step 10's server-side
+    // appends. Memory provisioning failure is non-blocking — Mirror can run
+    // without memory access; the session just won't see prior voice samples.
+    const memoryStoreId = await safelyResolveMemoryStoreId(studentId, deps.memoryTransport)
     const result = await runManagedAgent({
       agentId: binding.agentId,
       ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
@@ -72,10 +80,34 @@ export async function runMirrorOnTranscript(
       prompt: `${MIRROR_USER_PROMPT_PREFIX}${transcript}`,
       outputSchema: MirrorOutputSchema,
       sessionTitle: `mirror:${studentId}`,
+      ...(memoryStoreId !== null ? { memoryStoreId } : {}),
     })
     return result.output
   }
   const agent = buildMirrorAgent({ studentId })
   const result = await run(agent, `${MIRROR_USER_PROMPT_PREFIX}${transcript}`)
   return MirrorOutputSchema.parse(result.finalOutput)
+}
+
+/**
+ * Resolve the per-student memory store id, returning `null` on failure so
+ * the agent run can proceed without binding memory. Logs at warn level —
+ * if memory routinely fails to bind, the agent loses prior context but no
+ * single reflection blocks. Server-side memory writes are independent of
+ * this binding (they go through `appendStudentMemory` directly).
+ */
+async function safelyResolveMemoryStoreId(
+  studentId: string,
+  transport?: MemoryStoreTransport,
+): Promise<string | null> {
+  try {
+    return await getOrCreateMemoryStoreId(studentId, transport)
+  } catch (err) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn('[mirror] memory store resolve failed; running without binding', {
+      studentId,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+    return null
+  }
 }

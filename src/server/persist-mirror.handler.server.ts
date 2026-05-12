@@ -1,4 +1,11 @@
 import { z } from 'zod'
+import {
+  appendIfNovel,
+  appendStudentMemory,
+  MEMORY_FILE_PATHS,
+  type MemoryStoreTransport,
+  MemoryWriteError,
+} from '~/agents/memory'
 import { MirrorEntrySchema } from '~/agents/schemas'
 import { VipsContextTypeSchema } from '~/agents/tools/schemas'
 import { requireCounselorContext } from '~/auth/identity'
@@ -46,6 +53,11 @@ export interface PersistMirrorResult {
 
 export interface PersistMirrorDeps {
   autoConnector?: AutoConnectorDeps
+  /**
+   * Override the Anthropic memory-store transport. Default lazily wraps the
+   * live SDK. Tests pass an in-memory fake; production leaves unset.
+   */
+  memoryTransport?: MemoryStoreTransport
 }
 
 export async function persistMirrorHandler(
@@ -79,6 +91,41 @@ export async function persistMirrorHandler(
     },
     trace: parsed.trace,
   })
+
+  // ── Student-voice memory append (best-effort, non-blocking) ──
+  // The Mirror output passed the diagnostic-language gate above, so the
+  // inferred_meaning is voice-safe by construction. We append it as a
+  // timestamped entry to `/student-voice.md` if the text isn't already
+  // present verbatim in the file (cheap novelty guard against the agent
+  // re-emitting the same observation across nearby reflections).
+  //
+  // Failure here must not block persistence — the user has already given
+  // their reflection and the Mirror entry exists in Postgres. Log + move on.
+  try {
+    await appendStudentMemory(
+      studentId,
+      MEMORY_FILE_PATHS.studentVoice,
+      appendIfNovel(parsed.entry.inferred_meaning, {
+        source: `mirror#${mirrorEntry.id}`,
+      }),
+      deps.memoryTransport,
+    )
+  } catch (err) {
+    if (err instanceof MemoryWriteError && err.code === 'DIAGNOSTIC_LANGUAGE') {
+      // Treat diagnostic-language rejection as a hard signal worth surfacing
+      // — Mirror's payload passed the gate, so a memory-write reject means
+      // a phrasing only the Personality-rewrite check catches snuck in.
+      // Fail the request so the user re-edits; persistence already happened
+      // but the next reflection won't compound the issue.
+      throw err
+    }
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn('[persist-mirror] student-voice memory append failed; continuing', {
+      studentId,
+      mirrorEntryId: mirrorEntry.id,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+  }
 
   // ── Auto-Connector chain (in-process, same round trip per plan Approach) ──
   const autoResult = await runAutoConnectorAfterMirror(

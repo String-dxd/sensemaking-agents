@@ -116,6 +116,16 @@ function getDb(): AppDatabase {
 }
 
 /**
+ * Pool-level Drizzle handle for callers that intentionally manage their own
+ * transaction lifecycle (advisory-locked writes in `appendStudentMemory`, the
+ * out-of-RLS `counselor_students` and `student_memory_stores` lookups). All
+ * tenant-scoped reads/writes should still go through `withStudent`.
+ */
+export function getDbForMemoryModule(): AppDatabase {
+  return getDb()
+}
+
+/**
  * Run `fn` inside a Postgres transaction with `app.student_id` set as the
  * first statement. The transaction commits on resolve, rolls back on throw.
  *

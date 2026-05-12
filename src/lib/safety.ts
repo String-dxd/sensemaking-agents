@@ -85,6 +85,23 @@ export function checkPersonalityRewriteForDiagnosticLanguage(text: string): Safe
   return { ok: matches.length === 0, matches }
 }
 
+/**
+ * Diagnostic-language gate for per-student memory writes (Step 10).
+ *
+ * Memory files (`/student-voice.md`, `/pedagogical-state.md`, etc.) are
+ * read back into the agent's prompt on subsequent runs, so a label smuggled
+ * in here would poison every downstream Mirror/Connector/Cartographer call
+ * until manually purged. The bar is at least as strict as the output gate
+ * (`checkOutputForDiagnosticLanguage`) because memory accumulates — a stray
+ * label in `/rejected-diff-patterns.md` quoting why a previous rewrite was
+ * rejected could trivially survive the base check on its surrounding
+ * Connector output yet still poison the next Personality rewrite. So we use
+ * the union of the base + Personality-rewrite patterns.
+ */
+export function checkMemoryWriteForDiagnosticLanguage(text: string): SafetyCheckResult {
+  return checkPersonalityRewriteForDiagnosticLanguage(text)
+}
+
 function walk(value: unknown, onString: (text: string) => void): void {
   if (typeof value === 'string') {
     onString(value)

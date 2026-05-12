@@ -25,6 +25,14 @@ import { ZodError } from 'zod'
 import { getManagedAgentBinding, isManagedAgentsEnabled } from '~/agents/config'
 import { createConnectorAgent } from '~/agents/connector'
 import { buildConnectorContext } from '~/agents/context'
+import {
+  appendIfNovel,
+  appendStudentMemory,
+  getOrCreateMemoryStoreId,
+  MEMORY_FILE_PATHS,
+  type MemoryStoreTransport,
+  MemoryWriteError,
+} from '~/agents/memory'
 import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
 import {
   type ConnectorDiffDraft,
@@ -121,6 +129,8 @@ export interface AutoConnectorDeps {
     mirrorEntry: VerifierMirrorEntry
     existingTimelineEntries: VerifierExistingTimelineEntry[]
   }) => VerifierResult
+  /** Override the Anthropic memory-store transport for the rejected-diff append. */
+  memoryTransport?: MemoryStoreTransport
 }
 
 export async function runAutoConnectorAfterMirror(
@@ -184,6 +194,7 @@ export async function runAutoConnectorAfterMirror(
               newReflectionId: mirror.id,
               ctx,
               signal: ac.signal,
+              ...(deps.memoryTransport ? { memoryTransport: deps.memoryTransport } : {}),
             })
         : () =>
             runConnectorViaSdk({
@@ -222,6 +233,51 @@ export async function runAutoConnectorAfterMirror(
     }
     const verifierResult =
       deps.verify !== undefined ? deps.verify(verifierInput) : verifyProposedDiff(verifierInput)
+
+    // ── Rejected-diff memory append (best-effort, non-blocking) ──
+    // The verifier surfaces `dropped` entries with a structural reason
+    // (`no_quote_match`, `unknown_reflection`) and `downgraded` entries with
+    // `partial_match: true`. Both indicate the Connector emitted something
+    // the verifier could not anchor — useful pattern signal for the next
+    // run. We snapshot a compact JSON record to `/rejected-diff-patterns.md`
+    // so the agent can read past rejections on its next session.
+    //
+    // Failure here must not block staging — the diff has already been
+    // verified and is about to be inserted. Log + move on (except for the
+    // diagnostic-language gate, which is a hard signal).
+    if (verifierResult.dropped.length + verifierResult.downgraded.length > 0) {
+      const summary = summarizeRejection({
+        mirrorEntryId: mirror.id,
+        dropped: verifierResult.dropped,
+        downgraded: verifierResult.downgraded,
+      })
+      try {
+        await appendStudentMemory(
+          studentId,
+          MEMORY_FILE_PATHS.rejectedDiffPatterns,
+          appendIfNovel(summary, { source: `connector#${mirror.id}` }),
+          deps.memoryTransport,
+        )
+      } catch (err) {
+        if (err instanceof MemoryWriteError && err.code === 'DIAGNOSTIC_LANGUAGE') {
+          // Rejection summary echoing a label means the Connector's draft
+          // already contained one — surface it so the verifier triage owner
+          // can adjust prompts. Do not block diff staging.
+          // eslint-disable-next-line no-console -- ops triage signal
+          console.warn(
+            '[auto-connector] rejected-diff memory append blocked by diagnostic-language gate; verifier dropped/downgraded contained a label',
+            { studentId, mirrorEntryId: mirror.id, summary },
+          )
+        } else {
+          // eslint-disable-next-line no-console -- ops triage signal
+          console.warn('[auto-connector] rejected-diff memory append failed; continuing', {
+            studentId,
+            mirrorEntryId: mirror.id,
+            error: err instanceof Error ? { name: err.name, message: err.message } : err,
+          })
+        }
+      }
+    }
 
     // ── Step 6: persist staged diff (status='pending'). ──
     // Payload carries BOTH the agent's full per-dimension diff (compiled-
@@ -387,6 +443,31 @@ function toVerifierExisting(row: VipsTimelineEntryRow): VerifierExistingTimeline
   }
 }
 
+/**
+ * Render a compact one-paragraph summary of a verifier rejection for the
+ * `/rejected-diff-patterns.md` memory file. The shape is intentionally
+ * structural (`mirror_entry_id`, `dropped[]`, `downgraded[]`) so the agent
+ * can pattern-match without parsing prose. Verbatim quotes are truncated to
+ * 80 chars to keep the file lean over hundreds of runs.
+ */
+function summarizeRejection(input: {
+  mirrorEntryId: number
+  dropped: { entry: ProposedTimelineEntryDraft; reason: string }[]
+  downgraded: { canonical_claim_id: string; verbatim_quote: string; dimension: string }[]
+}): string {
+  const truncate = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 1)}…`)
+  const droppedLines = input.dropped.map(
+    (d) =>
+      `- DROP (${d.reason}) ${d.entry.dimension}/${d.entry.canonical_claim_id}: "${truncate(d.entry.verbatim_quote, 80)}"`,
+  )
+  const downgradedLines = input.downgraded.map(
+    (d) =>
+      `- DOWNGRADE (partial_match) ${d.dimension}/${d.canonical_claim_id}: "${truncate(d.verbatim_quote, 80)}"`,
+  )
+  const lines = [`mirror_entry_id=${input.mirrorEntryId}`, ...droppedLines, ...downgradedLines]
+  return lines.join('\n')
+}
+
 class AutoConnectorTimeoutError extends Error {
   constructor() {
     super('auto-connector exceeded soft timeout')
@@ -452,9 +533,22 @@ async function runConnectorViaManaged(input: {
   newReflectionId: number
   ctx: TenantContext
   signal?: AbortSignal
+  memoryTransport?: MemoryStoreTransport
 }): Promise<unknown> {
   const binding = getManagedAgentBinding('connector')
   const prompt = await buildConnectorContext(input.ctx, input.newReflectionId)
+  // Resolve memory store best-effort. Failure here doesn't block Connector;
+  // the agent simply runs without `/rejected-diff-patterns.md` carry-over.
+  let memoryStoreId: string | null = null
+  try {
+    memoryStoreId = await getOrCreateMemoryStoreId(input.studentId, input.memoryTransport)
+  } catch (err) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn('[auto-connector] memory store resolve failed; running without binding', {
+      studentId: input.studentId,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+  }
   const result = await runManagedAgent({
     agentId: binding.agentId,
     ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
@@ -463,6 +557,7 @@ async function runConnectorViaManaged(input: {
     outputSchema: ConnectorDiffSchema,
     sessionTitle: `connector:${input.studentId}`,
     ...(input.signal ? { signal: input.signal } : {}),
+    ...(memoryStoreId !== null ? { memoryStoreId } : {}),
   })
   return result.output
 }

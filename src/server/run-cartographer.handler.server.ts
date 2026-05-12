@@ -31,6 +31,14 @@ import { buildCartographerAgent } from '~/agents/cartographer'
 import { getManagedAgentBinding, isManagedAgentsEnabled } from '~/agents/config'
 import { buildCartographerContext } from '~/agents/context'
 import {
+  appendIfNovel,
+  appendStudentMemory,
+  getOrCreateMemoryStoreId,
+  MEMORY_FILE_PATHS,
+  type MemoryStoreTransport,
+  MemoryWriteError,
+} from '~/agents/memory'
+import {
   type AgentName,
   type RunStepEvent,
   type RunStepEventInput,
@@ -110,6 +118,8 @@ export interface RunCartographerDeps {
     corpus: string
     emit: (e: RunStepEventInput) => void
   }) => Promise<unknown>
+  /** Override the Anthropic memory-store transport for post-run memory writes. */
+  memoryTransport?: MemoryStoreTransport
 }
 
 /** Pre-computed set of valid `cluster.*` IDs from the ECG taxonomy fixture. */
@@ -151,7 +161,11 @@ export async function runCartographerHandler(
       rawDraft = deps.runCartographer
         ? await deps.runCartographer({ studentId: studentId, pages, timeline, corpus, emit })
         : isManagedAgentsEnabled()
-          ? await runCartographerViaManaged({ studentId: studentId, ctx })
+          ? await runCartographerViaManaged({
+              studentId: studentId,
+              ctx,
+              ...(deps.memoryTransport ? { memoryTransport: deps.memoryTransport } : {}),
+            })
           : await runCartographerViaSdkStreamed(
               { studentId: studentId, pages, timeline, corpus },
               emit,
@@ -285,6 +299,34 @@ export async function runCartographerHandler(
       partial: false,
     })
 
+    // ── Cartographer memory appends (best-effort, non-blocking) ──
+    // Pedagogical state: snapshot the trajectory paragraph + open questions
+    // (compact form). Exploratory threads: snapshot each pathway's
+    // `exploration_prompt`. Both files accumulate across runs so the agent
+    // can read its own prior framings on the next session.
+    //
+    // Cartographer outputs are long-form synthesis — failure to mirror them
+    // into memory must NEVER unwind the persisted row, so each append is
+    // independently caught.
+    const pedagogicalSummary = formatPedagogicalState(draft, row.id)
+    const exploratorySummary = formatExploratoryThreads(keptPathways, row.id)
+    await Promise.all([
+      appendMemoryBestEffort(
+        studentId,
+        MEMORY_FILE_PATHS.pedagogicalState,
+        pedagogicalSummary,
+        `cartographer#${row.id}/pedagogical`,
+        deps.memoryTransport,
+      ),
+      appendMemoryBestEffort(
+        studentId,
+        MEMORY_FILE_PATHS.exploratoryThreads,
+        exploratorySummary,
+        `cartographer#${row.id}/exploratory`,
+        deps.memoryTransport,
+      ),
+    ])
+
     return {
       ok: true as const,
       status: 'ok' as const,
@@ -399,12 +441,26 @@ async function runCartographerViaSdkStreamed(
 async function runCartographerViaManaged(input: {
   studentId: string
   ctx: TenantContext
+  memoryTransport?: MemoryStoreTransport
 }): Promise<unknown> {
   const binding = getManagedAgentBinding('cartographer')
   // Reuse the outer `withStudent` transaction's pool checkout — nested
   // envelopes deadlock the pool at DATABASE_POOL_MAX=5 with >=5 concurrent
   // Cartographer runs.
   const prompt = await buildCartographerContext(input.ctx)
+  // Memory store binding is best-effort — Cartographer's prompt already
+  // carries the full VIPS state, so missing `/pedagogical-state.md` carry-over
+  // degrades quality but does not break the run.
+  let memoryStoreId: string | null = null
+  try {
+    memoryStoreId = await getOrCreateMemoryStoreId(input.studentId, input.memoryTransport)
+  } catch (err) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn('[run-cartographer] memory store resolve failed; running without binding', {
+      studentId: input.studentId,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+  }
   const result = await runManagedAgent({
     agentId: binding.agentId,
     ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
@@ -413,6 +469,7 @@ async function runCartographerViaManaged(input: {
     outputSchema: CartographerOutputSchema,
     sessionTitle: `cartographer:${input.studentId}`,
     timeoutMs: 780_000,
+    ...(memoryStoreId !== null ? { memoryStoreId } : {}),
   })
   return result.output
 }
@@ -551,4 +608,71 @@ Transcript (student's own words):
 ${e.transcript}`,
     )
     .join('\n\n---\n\n')
+}
+
+/**
+ * `/pedagogical-state.md` payload — the trajectory paragraph plus open
+ * questions, tagged with the persisted output id so the agent can correlate
+ * against `cartographer_outputs` if it needs to dig deeper next session.
+ */
+function formatPedagogicalState(
+  draft: CartographerOutputDraft,
+  cartographerOutputId: number,
+): string {
+  const lines = [
+    `cartographer_output_id=${cartographerOutputId}`,
+    '',
+    'Trajectory:',
+    draft.trajectory_paragraph,
+  ]
+  if (draft.open_questions.length > 0) {
+    lines.push('', 'Open questions:')
+    for (const q of draft.open_questions) lines.push(`- ${q}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * `/exploratory-threads.md` payload — one bullet per kept pathway with the
+ * exploration prompt and its trait combination, so the agent can build on
+ * (or deliberately diverge from) prior threads.
+ */
+function formatExploratoryThreads(
+  pathways: CartographerPathwayDraft[],
+  cartographerOutputId: number,
+): string {
+  const lines = [`cartographer_output_id=${cartographerOutputId}`]
+  for (const p of pathways) {
+    const claims = p.trait_combination.map((t) => t.claim_id).join(', ')
+    lines.push('', `- ${p.label} [${claims}]`, `  ${p.exploration_prompt}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * Append to a memory file, swallowing all errors except `DIAGNOSTIC_LANGUAGE`
+ * (which is logged but still not propagated — the Cartographer row has
+ * already been persisted and the user is waiting on the response).
+ */
+async function appendMemoryBestEffort(
+  studentId: string,
+  filePath: (typeof MEMORY_FILE_PATHS)[keyof typeof MEMORY_FILE_PATHS],
+  content: string,
+  source: string,
+  transport: MemoryStoreTransport | undefined,
+): Promise<void> {
+  try {
+    await appendStudentMemory(studentId, filePath, appendIfNovel(content, { source }), transport)
+  } catch (err) {
+    const tag =
+      err instanceof MemoryWriteError && err.code === 'DIAGNOSTIC_LANGUAGE'
+        ? 'diagnostic-language gate'
+        : 'transport error'
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn(`[run-cartographer] ${filePath} append failed (${tag}); continuing`, {
+      studentId,
+      source,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+  }
 }

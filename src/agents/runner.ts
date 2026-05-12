@@ -49,12 +49,19 @@ export interface ManagedAgentTransport {
   /**
    * Create a session bound to the agent (optionally pinned to a version)
    * and environment. Returns the session id.
+   *
+   * `memoryStoreId` (when supplied) attaches the per-student memory store
+   * as a `resources[]` entry so the agent can read its prior `student-voice.md`,
+   * `pedagogical-state.md`, etc. at `/mnt/memory/`. Step 10 of the migration
+   * resolves this id via `getOrCreateMemoryStoreId(studentId)` before
+   * dispatching the agent.
    */
   createSession(params: {
     agentId: string
     agentVersion?: number
     environmentId: string
     title?: string
+    memoryStoreId?: string
   }): Promise<string>
 
   /** Push a single user text message into an existing session. */
@@ -113,6 +120,14 @@ export interface RunManagedAgentOptions<T> {
   outputSchema: z.ZodType<T>
   /** Optional human-readable session title (audit-friendly). */
   sessionTitle?: string
+  /**
+   * Optional Anthropic memory store id (`memstore_...`). Attached as a
+   * `read_write` resource so the agent can read prior memory files at
+   * `/mnt/memory/` and write back during its turn. Memory file writes
+   * the SERVER initiates go through `appendStudentMemory` (Step 10) and
+   * do NOT depend on this binding — but the agent reading them does.
+   */
+  memoryStoreId?: string
   /** Override the SDK transport. Default: build from `process.env.ANTHROPIC_API_KEY`. */
   transport?: ManagedAgentTransport
   /** Cancellation signal forwarded to the event stream. */
@@ -164,7 +179,7 @@ export function resetManagedAgentClientCacheForTests(): void {
 export function createAnthropicManagedTransport(client?: Anthropic): ManagedAgentTransport {
   const resolveClient = () => client ?? getAnthropicClient()
   return {
-    async createSession({ agentId, agentVersion, environmentId, title }) {
+    async createSession({ agentId, agentVersion, environmentId, title, memoryStoreId }) {
       const agent =
         agentVersion === undefined
           ? agentId
@@ -173,6 +188,17 @@ export function createAnthropicManagedTransport(client?: Anthropic): ManagedAgen
         agent,
         environment_id: environmentId,
         ...(title !== undefined ? { title } : {}),
+        ...(memoryStoreId !== undefined
+          ? {
+              resources: [
+                {
+                  type: 'memory_store' as const,
+                  memory_store_id: memoryStoreId,
+                  access: 'read_write' as const,
+                },
+              ],
+            }
+          : {}),
       })
       return session.id
     },
@@ -311,6 +337,7 @@ export async function runManagedAgent<T>(
     ...(opts.agentVersion !== undefined ? { agentVersion: opts.agentVersion } : {}),
     environmentId: opts.environmentId,
     ...(opts.sessionTitle !== undefined ? { title: opts.sessionTitle } : {}),
+    ...(opts.memoryStoreId !== undefined ? { memoryStoreId: opts.memoryStoreId } : {}),
   })
 
   // Open the event stream before sending input so we don't miss the first
