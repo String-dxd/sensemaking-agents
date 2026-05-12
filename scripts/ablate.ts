@@ -108,10 +108,12 @@ if (args.model !== undefined) {
   process.env.AGENT_MODEL = args.model
 }
 
-// ── Managed runner placeholder (wired in Step 6). ────────────────────────
-if (args.runner === 'managed') {
+// ── Managed runner — Mirror wired in Step 6; sensemake (Connector+Cartographer)
+// still pending Steps 8/9. Keep the surface-specific guard close to the
+// downstream code paths so the rest of the script stays linear.
+if (args.runner === 'managed' && args.surface === 'sensemake') {
   console.error(
-    '--runner=managed: managed runner not implemented (wired in Step 6 of plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md).',
+    '--runner=managed --surface=sensemake: Connector + Cartographer wire up in Steps 8/9 of plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md. Use --surface=mirror today.',
   )
   process.exit(2)
 }
@@ -124,6 +126,7 @@ const [
   vipsToolMod,
   corpusToolMod,
   selfCritiqueMod,
+  runnerMod,
   dbClientMod,
   queriesMod,
   seedMod,
@@ -135,6 +138,7 @@ const [
   import('~/agents/tools/lookup-vips-taxonomy'),
   import('~/agents/tools/search-corpus.server'),
   import('~/agents/tools/self-critique'),
+  import('~/agents/runner'),
   import('~/db/client'),
   import('~/db/queries'),
   import('~/db/seed'),
@@ -142,7 +146,8 @@ const [
 ])
 const { MirrorOutputSchema, ConnectorDiffSchema } = schemasMod
 type ConnectorDiffDraft = (typeof schemasMod)['ConnectorDiffSchema']['_output']
-const { MIRROR_MODEL, CONNECTOR_MODEL } = configMod
+const { MIRROR_MODEL, CONNECTOR_MODEL, getManagedAgentBinding } = configMod
+const { runManagedAgent, ManagedAgentError } = runnerMod
 const { lookupEcgTaxonomyTool } = ecgToolMod
 const { lookupVipsTaxonomyTool } = vipsToolMod
 const { searchCorpusToolFor } = corpusToolMod
@@ -236,6 +241,74 @@ function extractUsage(result: unknown, startedAt: number): RunStatsExtract {
     inputTokens: typeof usage?.inputTokens === 'number' ? usage.inputTokens : null,
     outputTokens: typeof usage?.outputTokens === 'number' ? usage.outputTokens : null,
     latencyMs,
+  }
+}
+
+const MIRROR_USER_PROMPT_PREFIX =
+  'The student spoke this transcript while looking into a webcam mirror. They are no longer present. Reflect what was said back in three parts.\n\nTranscript:\n\n'
+
+/**
+ * Mirror invocation under the managed-agents path. Mirrors `runMirrorForRow`
+ * but dispatches via `runManagedAgent` instead of the `@openai/agents`
+ * runtime. Token usage is summed across `span.model_request_end` events
+ * inside the runner.
+ */
+async function runMirrorManagedForRow(
+  row: ReflectionWithMeta,
+): Promise<{ stats: AgentRunStats; rawOutput: string | null }> {
+  const startedAt = Date.now()
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return {
+      stats: {
+        agent: 'mirror',
+        latency_ms: 0,
+        input_tokens: null,
+        output_tokens: null,
+        output_parsed: false,
+        parse_error: 'no-api-key',
+      },
+      rawOutput: null,
+    }
+  }
+  try {
+    const binding = getManagedAgentBinding('mirror')
+    const result = await runManagedAgent({
+      agentId: binding.agentId,
+      ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
+      environmentId: binding.environmentId,
+      prompt: `${MIRROR_USER_PROMPT_PREFIX}${row.transcript}`,
+      outputSchema: MirrorOutputSchema,
+      sessionTitle: `ablate:mirror:${row.student_id}`,
+    })
+    return {
+      stats: {
+        agent: 'mirror',
+        latency_ms: Date.now() - startedAt,
+        input_tokens: result.usage.inputTokens,
+        output_tokens: result.usage.outputTokens,
+        output_parsed: true,
+        parse_error: null,
+      },
+      rawOutput: result.rawText,
+    }
+  } catch (err) {
+    const message =
+      err instanceof ManagedAgentError
+        ? `${err.code}: ${err.message}`
+        : err instanceof Error
+          ? err.message
+          : String(err)
+    return {
+      stats: {
+        agent: 'mirror',
+        latency_ms: Date.now() - startedAt,
+        input_tokens: null,
+        output_tokens: null,
+        output_parsed: false,
+        parse_error: message,
+      },
+      rawOutput: null,
+    }
   }
 }
 
@@ -455,7 +528,10 @@ async function main() {
   let sampleMirrorOutput: string | null = null
 
   for (const reflection of reflections) {
-    const { stats, rawOutput } = await runMirrorForRow(reflection)
+    const { stats, rawOutput } =
+      args.runner === 'managed'
+        ? await runMirrorManagedForRow(reflection)
+        : await runMirrorForRow(reflection)
     if (sampleMirrorOutput === null && rawOutput !== null) sampleMirrorOutput = rawOutput
     rows.push({
       reflection_id: null,
@@ -510,15 +586,33 @@ async function main() {
   )
   mkdirSync(resolve('test/ablation/reports'), { recursive: true })
 
-  const structuredNote = process.env.OPENAI_API_KEY
-    ? `Live run against ${MIRROR_MODEL} (Mirror) / ${CONNECTOR_MODEL} (Connector). Cartographer skipped — see plan §9.3 step 3 for the manual review surface.`
-    : 'Placeholder run — OPENAI_API_KEY not set; every row carries error="no-api-key". Set the key to populate real metrics.'
+  // Note + report-model identity differ per runner. For the managed runner
+  // the runtime model is pinned by the agent version on Anthropic's side, so
+  // the report records the agent id/version rather than a local model id.
+  const managedMirrorIdentity =
+    runner === 'managed'
+      ? (() => {
+          try {
+            const b = getManagedAgentBinding('mirror')
+            return b.agentVersion !== undefined ? `${b.agentId}:v${b.agentVersion}` : b.agentId
+          } catch {
+            return 'managed-mirror:unprovisioned'
+          }
+        })()
+      : null
+  const requiredKey = runner === 'managed' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
+  const hasKey = process.env[requiredKey] !== undefined && process.env[requiredKey] !== ''
+  const liveModelLabel =
+    runner === 'managed' ? (managedMirrorIdentity ?? 'managed') : `${MIRROR_MODEL} (Mirror) / ${CONNECTOR_MODEL} (Connector)`
+  const structuredNote = hasKey
+    ? `Live run via runner=\`${runner}\` against ${liveModelLabel}. Cartographer skipped — see plan §9.3 step 3 for the manual review surface.`
+    : `Placeholder run — ${requiredKey} not set; every row carries error="no-api-key". Set the key to populate real metrics.`
 
   const structured = buildStructuredReport({
     runner,
     surface,
     ran_at: ranAt,
-    model: MIRROR_MODEL,
+    model: runner === 'managed' ? (managedMirrorIdentity ?? 'managed') : MIRROR_MODEL,
     student_scope: student ?? null,
     corpus_path: 'test/ablation/fixtures/seed-multistudent.json',
     rows,
@@ -546,9 +640,9 @@ async function main() {
         rawOutput:
           '{"placeholder":true,"reason":"runner-comparison era: OFF retired; see JSON for per-row metrics"}',
       },
-      notes: process.env.OPENAI_API_KEY
-        ? `Live run against ${MIRROR_MODEL} via runner=\`${runner}\`. ${studentNote}`
-        : `Placeholder run — OPENAI_API_KEY not set. ${studentNote}`,
+      notes: hasKey
+        ? `Live run via runner=\`${runner}\` against ${liveModelLabel}. ${studentNote}`
+        : `Placeholder run — ${requiredKey} not set. ${studentNote}`,
     }),
     'utf8',
   )
