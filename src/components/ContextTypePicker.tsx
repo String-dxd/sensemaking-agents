@@ -3,12 +3,10 @@ import { GraduationCap, Heart, Mic, Sparkles, Users } from 'lucide-react'
 import { useState } from 'react'
 import { type VipsContextType, VipsContextTypeSchema } from '~/agents/tools/schemas'
 import { RadioGroup } from '~/components/ui/radio-group'
+import { readLastUsedContextType, writeLastUsedContextType } from '~/lib/context-type-storage'
 import { cn } from '~/lib/utils'
 
-const CONTEXT_TYPES = VipsContextTypeSchema.options
 export type ContextType = VipsContextType
-
-const LOCAL_STORAGE_KEY = 'sensemaking.context_type.last_used'
 
 interface OptionMeta {
   value: ContextType
@@ -24,17 +22,6 @@ const OPTIONS: OptionMeta[] = [
   { value: 'hobby', label: 'Hobby', hint: 'CCA, side projects', Icon: Sparkles },
   { value: 'civic', label: 'Civic', hint: 'community, service', Icon: Mic },
 ]
-
-function readLastUsed(): ContextType {
-  if (typeof window === 'undefined') return 'school'
-  try {
-    const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY)
-    if (raw && (CONTEXT_TYPES as readonly string[]).includes(raw)) return raw as ContextType
-  } catch {
-    // localStorage unavailable (private mode / SSR / etc.) — fall through.
-  }
-  return 'school'
-}
 
 export interface ContextTypePickerProps {
   onSelect: (value: ContextType) => void
@@ -55,7 +42,9 @@ export interface ContextTypePickerProps {
  * next session pre-highlights it. First use defaults to `school`.
  */
 export function ContextTypePicker({ onSelect, defaultValue }: ContextTypePickerProps) {
-  const [selected, setSelected] = useState<ContextType>(() => defaultValue ?? readLastUsed())
+  const [selected, setSelected] = useState<ContextType>(
+    () => defaultValue ?? readLastUsedContextType(),
+  )
 
   function handleChange(value: unknown) {
     // Base UI's `RadioGroup.onValueChange` types the payload as `unknown`.
@@ -64,13 +53,7 @@ export function ContextTypePicker({ onSelect, defaultValue }: ContextTypePickerP
     if (!parsed.success) return
     const next = parsed.data
     setSelected(next)
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(LOCAL_STORAGE_KEY, next)
-      } catch {
-        // best-effort
-      }
-    }
+    writeLastUsedContextType(next)
     onSelect(next)
   }
 

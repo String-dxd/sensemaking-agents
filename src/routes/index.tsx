@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { BottomSheet } from '~/components/BottomSheet'
 import {
   MirrorSessionErrorPanel,
@@ -53,18 +53,29 @@ function landingPhaseToVoiceButton(
 
 function LandingPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [openSheet, setOpenSheet] = useState<SheetKey | null>(null)
   const sheetPanelId = useId()
   const session = useMirrorSession({
     studentId: STUDENT_ID,
     onPersisted: () => {
+      // Invalidate the pending-review cache so the /reflect/review loader
+      // re-fetches against the freshly-persisted staged diff. Without this,
+      // a two-tab session can read a stale `{diff: null}` and bounce the
+      // user to the empty-review state.
+      void queryClient.invalidateQueries({ queryKey: ['pending-review', STUDENT_ID] })
       void navigate({ to: '/reflect/review' })
     },
   })
 
   // Voice mode locks library navigation and sheet interaction.
   const voiceModeActive = session.voiceModeActive
-  if (voiceModeActive && openSheet !== null) setOpenSheet(null)
+  // Closing the sheet must happen in an effect — setState during render
+  // would force a second commit and can interrupt the Drawer's open→close
+  // transition mid-flight.
+  useEffect(() => {
+    if (voiceModeActive) setOpenSheet(null)
+  }, [voiceModeActive])
 
   const voiceSlot = (
     <VoiceButton
