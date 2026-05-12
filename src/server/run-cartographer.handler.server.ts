@@ -3,7 +3,7 @@
  *
  * The student or operator presses Run sense-making on `/wiki`; this handler:
  *   1. Reads the student's VIPS pages + non-forgotten timeline + corpus
- *      (mirror entries) under `withStudent`.
+ *      (mirror entries) under `withStudent` (one Postgres transaction).
  *   2. Streams the Cartographer SDK run (single-agent — no handoff) and
  *      maps SDK events to our step-event union via the defensive mapper
  *      from `handoff-chain-streamed.ts`.
@@ -28,19 +28,32 @@
 import { run } from '@openai/agents'
 import { z } from 'zod'
 import { buildCartographerAgent } from '~/agents/cartographer'
+import { getManagedAgentBinding, isManagedAgentsEnabled } from '~/agents/config'
+import { buildCartographerContext } from '~/agents/context'
+import {
+  appendIfNovel,
+  appendStudentMemory,
+  getOrCreateMemoryStoreId,
+  MEMORY_FILE_PATHS,
+  type MemoryStoreTransport,
+  MemoryWriteError,
+} from '~/agents/memory'
 import {
   type AgentName,
   type RunStepEvent,
   type RunStepEventInput,
   truncate,
 } from '~/agents/run-events'
+import { runManagedAgent } from '~/agents/runner'
 import {
   type CartographerOutputDraft,
   CartographerOutputSchema,
   type CartographerPathwayDraft,
 } from '~/agents/schemas'
+import { requireCounselorContext } from '~/auth/identity'
 import { ECG_TAXONOMY } from '~/data/ecg-taxonomy'
 import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
+import { type TenantContext, withStudent } from '~/db/client'
 import {
   insertCartographerOutput,
   listMirrorEntries,
@@ -49,11 +62,8 @@ import {
   type VipsPageRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
 
-export const runCartographerInputSchema = z.object({
-  studentId: z.string().min(1),
-})
+export const runCartographerInputSchema = z.object({})
 export type RunCartographerInput = z.output<typeof runCartographerInputSchema>
 
 export type RunCartographerStatus = 'ok' | 'schema_reject' | 'no_valid_pathways' | 'agent_error'
@@ -108,6 +118,8 @@ export interface RunCartographerDeps {
     corpus: string
     emit: (e: RunStepEventInput) => void
   }) => Promise<unknown>
+  /** Override the Anthropic memory-store transport for post-run memory writes. */
+  memoryTransport?: MemoryStoreTransport
 }
 
 /** Pre-computed set of valid `cluster.*` IDs from the ECG taxonomy fixture. */
@@ -119,28 +131,45 @@ export async function runCartographerHandler(
   data: RunCartographerInput,
   deps: RunCartographerDeps = {},
 ): Promise<RunCartographerResult> {
-  const parsed = runCartographerInputSchema.parse(data)
+  runCartographerInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
   const start = Date.now()
   const events: RunStepEvent[] = []
   const emit = (e: RunStepEventInput) => {
     events.push({ ...e, timestampMs: Date.now() - start } as RunStepEvent)
   }
 
-  return withStudent(parsed.studentId, async (sid) => {
+  return withStudent(studentId, async (ctx) => {
     // ── Read context ───────────────────────────────────────────────────────
-    const pages = listVipsPages(sid)
-    const timeline = VIPS_DIMENSIONS.flatMap((dim) =>
-      listVipsTimelineEntries(sid, dim, { includeForgotten: false }),
+    const pages = await listVipsPages(studentId, { ctx })
+    const timelineByDim = await Promise.all(
+      VIPS_DIMENSIONS.map((dim) =>
+        listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
+      ),
     )
-    const corpus = formatCorpusForCartographer(sid)
+    const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
+    const corpus = await formatCorpusForCartographer(studentId, ctx)
 
-    // ── Invoke Cartographer (real SDK or stub) ─────────────────────────────
+    // ── Invoke Cartographer (real SDK / managed / stub) ────────────────────
+    // Routing precedence mirrors `runAutoConnectorAfterMirror`:
+    //   1. `deps.runCartographer` (test injection — wins over both runtimes).
+    //   2. `USE_MANAGED_AGENTS=true` → Anthropic Managed Agents path.
+    //   3. Default → OpenAI Agents SDK via the v0.1 streaming path.
     emit({ type: 'agent_started', agent: 'cartographer' })
     let rawDraft: unknown
     try {
       rawDraft = deps.runCartographer
-        ? await deps.runCartographer({ studentId: sid, pages, timeline, corpus, emit })
-        : await runCartographerViaSdkStreamed({ studentId: sid, pages, timeline, corpus }, emit)
+        ? await deps.runCartographer({ studentId: studentId, pages, timeline, corpus, emit })
+        : isManagedAgentsEnabled()
+          ? await runCartographerViaManaged({
+              studentId: studentId,
+              ctx,
+              ...(deps.memoryTransport ? { memoryTransport: deps.memoryTransport } : {}),
+            })
+          : await runCartographerViaSdkStreamed(
+              { studentId: studentId, pages, timeline, corpus },
+              emit,
+            )
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       emit({ type: 'error', agent: 'cartographer', message: msg })
@@ -190,6 +219,22 @@ export async function runCartographerHandler(
     const keptPathways: CartographerPathwayDraft[] = []
 
     for (const [idx, pathway] of draft.pathways.entries()) {
+      // Schema now admits empty arrays for trait_combination + ecg_region_tags
+      // (Managed Agents output is structurally legal but sometimes incomplete).
+      // We treat empty as "no anchor" and drop with a warning so the reviewer
+      // sees the agent failed to cite anchors rather than a hard parse fail.
+      if (pathway.trait_combination.length === 0) {
+        warnings.push(
+          `pathway[${idx}] "${pathway.label}" dropped: trait_combination is empty`,
+        )
+        continue
+      }
+      if (pathway.ecg_region_tags.length === 0) {
+        warnings.push(
+          `pathway[${idx}] "${pathway.label}" dropped: ecg_region_tags is empty`,
+        )
+        continue
+      }
       const badClaim = pathway.trait_combination.find((c) => !validClaimIds.has(c.claim_id))
       if (badClaim) {
         warnings.push(
@@ -230,29 +275,33 @@ export async function runCartographerHandler(
     // `cartographer_outputs.pathways_json` stores the v0.2 lead-sheet shape;
     // the DB row type's `CartographerPathway` now matches that shape
     // exactly (Finding #8), so we pass `keptPathways` directly.
-    const row = insertCartographerOutput(sid, {
-      trajectory_text: draft.trajectory_paragraph,
-      pathways: keptPathways,
-      open_questions: draft.open_questions,
-      disclaimer: draft.disclaimer,
-      raw_output: {
-        trajectory_paragraph: draft.trajectory_paragraph,
+    const row = await insertCartographerOutput(
+      studentId,
+      {
+        trajectory_text: draft.trajectory_paragraph,
         pathways: keptPathways,
         open_questions: draft.open_questions,
         disclaimer: draft.disclaimer,
-        warnings,
+        raw_output: {
+          trajectory_paragraph: draft.trajectory_paragraph,
+          pathways: keptPathways,
+          open_questions: draft.open_questions,
+          disclaimer: draft.disclaimer,
+          warnings,
+        },
+        // U1's helper was updated by U11 to write the `agent_traces` row with
+        // `agent='cartographer'` when a trace is supplied. The widened CHECK
+        // from U10 makes this row legal at the schema level.
+        trace: {
+          totalDurationMs: Date.now() - start,
+          warnings,
+          pathways_in: draft.pathways.length,
+          pathways_out: keptPathways.length,
+          event_count: events.length,
+        },
       },
-      // U1's helper was updated by U11 to write the `agent_traces` row with
-      // `agent='cartographer'` when a trace is supplied. The widened CHECK
-      // from U10 makes this row legal at the schema level.
-      trace: {
-        totalDurationMs: Date.now() - start,
-        warnings,
-        pathways_in: draft.pathways.length,
-        pathways_out: keptPathways.length,
-        event_count: events.length,
-      },
-    })
+      { ctx },
+    )
 
     emit({
       type: 'agent_completed',
@@ -265,6 +314,34 @@ export async function runCartographerHandler(
       pathfinderOutputId: row.id,
       partial: false,
     })
+
+    // ── Cartographer memory appends (best-effort, non-blocking) ──
+    // Pedagogical state: snapshot the trajectory paragraph + open questions
+    // (compact form). Exploratory threads: snapshot each pathway's
+    // `exploration_prompt`. Both files accumulate across runs so the agent
+    // can read its own prior framings on the next session.
+    //
+    // Cartographer outputs are long-form synthesis — failure to mirror them
+    // into memory must NEVER unwind the persisted row, so each append is
+    // independently caught.
+    const pedagogicalSummary = formatPedagogicalState(draft, row.id)
+    const exploratorySummary = formatExploratoryThreads(keptPathways, row.id)
+    await Promise.all([
+      appendMemoryBestEffort(
+        studentId,
+        MEMORY_FILE_PATHS.pedagogicalState,
+        pedagogicalSummary,
+        `cartographer#${row.id}/pedagogical`,
+        deps.memoryTransport,
+      ),
+      appendMemoryBestEffort(
+        studentId,
+        MEMORY_FILE_PATHS.exploratoryThreads,
+        exploratorySummary,
+        `cartographer#${row.id}/exploratory`,
+        deps.memoryTransport,
+      ),
+    ])
 
     return {
       ok: true as const,
@@ -352,6 +429,65 @@ async function runCartographerViaSdkStreamed(
   }
   // biome-ignore lint/suspicious/noExplicitAny: SDK stream return shape.
   return (stream as any).finalOutput
+}
+
+/**
+ * Managed Agents path (plan §7.1: prompt-as-context, §8.3: long-running
+ * synthesis). `buildCartographerContext` pre-fetches the inlined taxonomies
+ * + the four VIPS pages + non-forgotten timeline + the FTS slice keyed by
+ * each VIPS page's `open_question`. `runManagedAgent` consumes the session
+ * event stream internally and returns the parsed `CartographerOutputSchema`
+ * payload.
+ *
+ * No intermediate step-events are emitted on this path. The current route
+ * (`run-cartographer.functions.ts`) is a regular `createServerFn` POST that
+ * accumulates events into the response — there is no SSE pipe to a browser,
+ * and the Anthropic SDK does not (yet — see plan §14.9) expose a
+ * Last-Event-ID cursor for client-side reconnect. The 800s overrun case is
+ * the sweep cron's job (plan §8.2, Step 8).
+ *
+ * Caller MUST be inside `withStudent(studentId, ...)`.
+ *
+ * Timeout: Cartographer is the longest-running agent in the v0.2 surface
+ * (plan §10 sets `maxDuration=800` on this route). The 120s default in
+ * `runManagedAgent` is for one-shot Mirror/Connector calls; we bump it to
+ * the route's wall-clock budget here so the runner does not give up before
+ * the platform does.
+ */
+async function runCartographerViaManaged(input: {
+  studentId: string
+  ctx: TenantContext
+  memoryTransport?: MemoryStoreTransport
+}): Promise<unknown> {
+  const binding = getManagedAgentBinding('cartographer')
+  // Reuse the outer `withStudent` transaction's pool checkout — nested
+  // envelopes deadlock the pool at DATABASE_POOL_MAX=5 with >=5 concurrent
+  // Cartographer runs.
+  const prompt = await buildCartographerContext(input.ctx)
+  // Memory store binding is best-effort — Cartographer's prompt already
+  // carries the full VIPS state, so missing `/pedagogical-state.md` carry-over
+  // degrades quality but does not break the run.
+  let memoryStoreId: string | null = null
+  try {
+    memoryStoreId = await getOrCreateMemoryStoreId(input.studentId, input.memoryTransport)
+  } catch (err) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn('[run-cartographer] memory store resolve failed; running without binding', {
+      studentId: input.studentId,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+  }
+  const result = await runManagedAgent({
+    agentId: binding.agentId,
+    ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
+    environmentId: binding.environmentId,
+    prompt,
+    outputSchema: CartographerOutputSchema,
+    sessionTitle: `cartographer:${input.studentId}`,
+    timeoutMs: 780_000,
+    ...(memoryStoreId !== null ? { memoryStoreId } : {}),
+  })
+  return result.output
 }
 
 /**
@@ -471,8 +607,8 @@ function safeStringify(value: unknown): string {
  * context; the corpus is supporting evidence the agent can quote from
  * via `search_past_mirrors` if needed.
  */
-function formatCorpusForCartographer(studentId: string): string {
-  const entries = listMirrorEntries(studentId, { limit: 200 })
+async function formatCorpusForCartographer(studentId: string, ctx: TenantContext): Promise<string> {
+  const entries = await listMirrorEntries(studentId, { limit: 200, ctx })
   if (entries.length === 0) return 'No prior reflections.'
   return entries
     .slice()
@@ -488,4 +624,71 @@ Transcript (student's own words):
 ${e.transcript}`,
     )
     .join('\n\n---\n\n')
+}
+
+/**
+ * `/pedagogical-state.md` payload — the trajectory paragraph plus open
+ * questions, tagged with the persisted output id so the agent can correlate
+ * against `cartographer_outputs` if it needs to dig deeper next session.
+ */
+function formatPedagogicalState(
+  draft: CartographerOutputDraft,
+  cartographerOutputId: number,
+): string {
+  const lines = [
+    `cartographer_output_id=${cartographerOutputId}`,
+    '',
+    'Trajectory:',
+    draft.trajectory_paragraph,
+  ]
+  if (draft.open_questions.length > 0) {
+    lines.push('', 'Open questions:')
+    for (const q of draft.open_questions) lines.push(`- ${q}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * `/exploratory-threads.md` payload — one bullet per kept pathway with the
+ * exploration prompt and its trait combination, so the agent can build on
+ * (or deliberately diverge from) prior threads.
+ */
+function formatExploratoryThreads(
+  pathways: CartographerPathwayDraft[],
+  cartographerOutputId: number,
+): string {
+  const lines = [`cartographer_output_id=${cartographerOutputId}`]
+  for (const p of pathways) {
+    const claims = p.trait_combination.map((t) => t.claim_id).join(', ')
+    lines.push('', `- ${p.label} [${claims}]`, `  ${p.exploration_prompt}`)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * Append to a memory file, swallowing all errors except `DIAGNOSTIC_LANGUAGE`
+ * (which is logged but still not propagated — the Cartographer row has
+ * already been persisted and the user is waiting on the response).
+ */
+async function appendMemoryBestEffort(
+  studentId: string,
+  filePath: (typeof MEMORY_FILE_PATHS)[keyof typeof MEMORY_FILE_PATHS],
+  content: string,
+  source: string,
+  transport: MemoryStoreTransport | undefined,
+): Promise<void> {
+  try {
+    await appendStudentMemory(studentId, filePath, appendIfNovel(content, { source }), transport)
+  } catch (err) {
+    const tag =
+      err instanceof MemoryWriteError && err.code === 'DIAGNOSTIC_LANGUAGE'
+        ? 'diagnostic-language gate'
+        : 'transport error'
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn(`[run-cartographer] ${filePath} append failed (${tag}); continuing`, {
+      studentId,
+      source,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+  }
 }

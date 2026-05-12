@@ -43,3 +43,4 @@ Thumbs.db
 
 # Test artifacts (kept in version control: test/ablation/reports/)
 coverage/
+.vercel

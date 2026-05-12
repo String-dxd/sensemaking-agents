@@ -3,7 +3,8 @@
  *
  * Orchestration (no LLM call in tests; deps stubs the agent):
  *   1. Read the student's existing VIPS pages + non-forgotten timeline
- *      entries via `withStudent`.
+ *      entries via `withStudent` (Postgres transaction with `app.student_id`
+ *      bound for RLS).
  *   2. Format the prompt context (new mirror entry + its context_type +
  *      page snapshots).
  *   3. Call the Connector (real or stubbed via `deps.runConnector`). Race
@@ -21,7 +22,18 @@
  */
 import { run } from '@openai/agents'
 import { ZodError } from 'zod'
+import { getManagedAgentBinding, isManagedAgentsEnabled } from '~/agents/config'
 import { createConnectorAgent } from '~/agents/connector'
+import { buildConnectorContext } from '~/agents/context'
+import {
+  appendIfNovel,
+  appendStudentMemory,
+  getOrCreateMemoryStoreId,
+  MEMORY_FILE_PATHS,
+  type MemoryStoreTransport,
+  MemoryWriteError,
+} from '~/agents/memory'
+import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
 import {
   type ConnectorDiffDraft,
   ConnectorDiffSchema,
@@ -35,9 +47,10 @@ import type {
 } from '~/agents/tools/schemas'
 import { verifyProposedDiff } from '~/agents/verifier'
 import { VIPS_DIMENSIONS as TAXONOMY_VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
+import { type TenantContext, withStudent } from '~/db/client'
 import {
   getMirrorEntry,
-  insertVipsProposedDiff,
+  insertVipsProposedDiffIfNoPending,
   listVipsPages,
   listVipsProposedDiffs,
   listVipsTimelineEntries,
@@ -45,7 +58,6 @@ import {
   type VipsProposedDiffRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
 
 /** 30s soft budget per plan Approach ("Wall-clock budget: 30s soft timeout"). */
 export const AUTO_CONNECTOR_TIMEOUT_MS = 30_000
@@ -117,6 +129,8 @@ export interface AutoConnectorDeps {
     mirrorEntry: VerifierMirrorEntry
     existingTimelineEntries: VerifierExistingTimelineEntry[]
   }) => VerifierResult
+  /** Override the Anthropic memory-store transport for the rejected-diff append. */
+  memoryTransport?: MemoryStoreTransport
 }
 
 export async function runAutoConnectorAfterMirror(
@@ -124,9 +138,9 @@ export async function runAutoConnectorAfterMirror(
   mirrorEntryId: number,
   deps: AutoConnectorDeps = {},
 ): Promise<AutoConnectorResult> {
-  return withStudent(studentId, async (sid) => {
+  return withStudent(studentId, async (ctx) => {
     // ── R30 pending-queue rule — check BEFORE invoking the agent. ──
-    const existingPending = listVipsProposedDiffs(sid, { status: 'pending' })
+    const existingPending = await listVipsProposedDiffs(studentId, { status: 'pending', ctx })
     if (existingPending.length > 0) {
       const prior = existingPending[0]
       return {
@@ -136,7 +150,7 @@ export async function runAutoConnectorAfterMirror(
       }
     }
 
-    const mirror = getMirrorEntry(sid, mirrorEntryId)
+    const mirror = await getMirrorEntry(studentId, mirrorEntryId, { ctx })
     if (!mirror) return { status: 'missing_mirror', staged_diff: null }
 
     const mirrorProjection: VerifierMirrorEntry = {
@@ -145,10 +159,13 @@ export async function runAutoConnectorAfterMirror(
       context_type: mirror.context_type,
     }
 
-    const pages = listVipsPages(sid)
-    const timeline = VIPS_DIMENSIONS.flatMap((dim) =>
-      listVipsTimelineEntries(sid, dim, { includeForgotten: false }),
+    const pages = await listVipsPages(studentId, { ctx })
+    const timelineByDim = await Promise.all(
+      VIPS_DIMENSIONS.map((dim) =>
+        listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
+      ),
     )
+    const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
 
     // ── Step 3: invoke Connector with a soft 30s timeout. ──
     // Finding #5: pass an AbortController.signal through to the SDK so a
@@ -158,26 +175,44 @@ export async function runAutoConnectorAfterMirror(
     // doesn't need the signal (its mocks resolve synchronously) but we
     // pass it anyway for symmetry; it can ignore it.
     const ac = new AbortController()
-    let rawDraft: unknown
-    try {
-      rawDraft = await raceWithTimeout(
-        deps.runConnector !== undefined
-          ? deps.runConnector({
-              studentId: sid,
-              mirrorEntry: mirrorProjection,
-              pages,
-              timeline,
+    // Routing precedence mirrors `runMirrorOnTranscript`:
+    //   1. `deps.runConnector` (test injection — wins over both runtimes).
+    //   2. `USE_MANAGED_AGENTS=true` → Anthropic Managed Agents path.
+    //   3. Default → OpenAI Agents SDK via `runConnectorViaSdk`.
+    //
+    // Hoist `deps.runConnector` into a local so TypeScript narrows it inside
+    // the closure (the bare `deps.runConnector` would widen back to
+    // `undefined` across the function boundary and require a non-null
+    // assertion — which biome flags as `noNonNullAssertion`).
+    const injectedRunner = deps.runConnector
+    const runner: () => Promise<unknown> = injectedRunner
+      ? () =>
+          injectedRunner({
+            studentId,
+            mirrorEntry: mirrorProjection,
+            pages,
+            timeline,
+          })
+      : isManagedAgentsEnabled()
+        ? () =>
+            runConnectorViaManaged({
+              studentId,
+              newReflectionId: mirror.id,
+              ctx,
+              signal: ac.signal,
+              ...(deps.memoryTransport ? { memoryTransport: deps.memoryTransport } : {}),
             })
-          : runConnectorViaSdk({
-              studentId: sid,
+        : () =>
+            runConnectorViaSdk({
+              studentId,
               mirrorEntry: mirrorProjection,
               pages,
               timeline,
               signal: ac.signal,
-            }),
-        AUTO_CONNECTOR_TIMEOUT_MS,
-        ac,
-      )
+            })
+    let rawDraft: unknown
+    try {
+      rawDraft = await raceWithTimeout(runner(), AUTO_CONNECTOR_TIMEOUT_MS, ac)
     } catch (err) {
       if (err instanceof AutoConnectorTimeoutError) {
         return { status: 'timeout', staged_diff: null }
@@ -205,6 +240,51 @@ export async function runAutoConnectorAfterMirror(
     const verifierResult =
       deps.verify !== undefined ? deps.verify(verifierInput) : verifyProposedDiff(verifierInput)
 
+    // ── Rejected-diff memory append (best-effort, non-blocking) ──
+    // The verifier surfaces `dropped` entries with a structural reason
+    // (`no_quote_match`, `unknown_reflection`) and `downgraded` entries with
+    // `partial_match: true`. Both indicate the Connector emitted something
+    // the verifier could not anchor — useful pattern signal for the next
+    // run. We snapshot a compact JSON record to `/rejected-diff-patterns.md`
+    // so the agent can read past rejections on its next session.
+    //
+    // Failure here must not block staging — the diff has already been
+    // verified and is about to be inserted. Log + move on (except for the
+    // diagnostic-language gate, which is a hard signal).
+    if (verifierResult.dropped.length + verifierResult.downgraded.length > 0) {
+      const summary = summarizeRejection({
+        mirrorEntryId: mirror.id,
+        dropped: verifierResult.dropped,
+        downgraded: verifierResult.downgraded,
+      })
+      try {
+        await appendStudentMemory(
+          studentId,
+          MEMORY_FILE_PATHS.rejectedDiffPatterns,
+          appendIfNovel(summary, { source: `connector#${mirror.id}` }),
+          deps.memoryTransport,
+        )
+      } catch (err) {
+        if (err instanceof MemoryWriteError && err.code === 'DIAGNOSTIC_LANGUAGE') {
+          // Rejection summary echoing a label means the Connector's draft
+          // already contained one — surface it so the verifier triage owner
+          // can adjust prompts. Do not block diff staging.
+          // eslint-disable-next-line no-console -- ops triage signal
+          console.warn(
+            '[auto-connector] rejected-diff memory append blocked by diagnostic-language gate; verifier dropped/downgraded contained a label',
+            { studentId, mirrorEntryId: mirror.id, summary },
+          )
+        } else {
+          // eslint-disable-next-line no-console -- ops triage signal
+          console.warn('[auto-connector] rejected-diff memory append failed; continuing', {
+            studentId,
+            mirrorEntryId: mirror.id,
+            error: err instanceof Error ? { name: err.name, message: err.message } : err,
+          })
+        }
+      }
+    }
+
     // ── Step 6: persist staged diff (status='pending'). ──
     // Payload carries BOTH the agent's full per-dimension diff (compiled-
     // truth + open_question) AND the verifier's admitted/downgraded/dropped
@@ -215,31 +295,30 @@ export async function runAutoConnectorAfterMirror(
       downgraded: verifierResult.downgraded,
       dropped: verifierResult.dropped,
     }
-    try {
-      const stagedRow = insertVipsProposedDiff(sid, {
+    // R30 (Finding #6): the partial-unique index
+    // `vips_proposed_diffs_pending_per_student` rejects a second pending
+    // row for the same student. `insertVipsProposedDiffIfNoPending` pushes
+    // the decision into Postgres via INSERT … ON CONFLICT … DO NOTHING, so
+    // the surrounding transaction stays live (a bare INSERT raising
+    // SQLSTATE `25P02` would abort the tx and break the recovery query).
+    // If a concurrent run raced past the same check above, we surface the
+    // existing pending row's id as the `queued` outcome.
+    const insertOutcome = await insertVipsProposedDiffIfNoPending(
+      studentId,
+      {
         mirror_entry_id: mirror.id,
         payload,
         verifier_result: verifierResult,
-      })
-      return { status: 'ok', staged_diff: stagedRow }
-    } catch (err) {
-      // R30 (Finding #6): the partial-unique index
-      // `vips_proposed_diffs_pending_per_student` rejects a second pending
-      // row for the same student. This closes the TOCTOU window between
-      // the listVipsProposedDiffs check at the top of this handler and
-      // the insert here — a concurrent call may have raced past the same
-      // check. Treat the constraint violation as a `queued` outcome:
-      // return the prior pending row's id so the UI can link to it.
-      if (isPendingPerStudentConstraintViolation(err)) {
-        const priorAfterRace = listVipsProposedDiffs(sid, { status: 'pending' })
-        const prior = priorAfterRace[0]
-        return {
-          status: 'queued' as const,
-          staged_diff: null,
-          ...(prior ? { pending_diff_id: prior.id } : {}),
-        }
-      }
-      throw err
+      },
+      { ctx },
+    )
+    if (insertOutcome.inserted) {
+      return { status: 'ok' as const, staged_diff: insertOutcome.row }
+    }
+    return {
+      status: 'queued' as const,
+      staged_diff: null,
+      pending_diff_id: insertOutcome.existing.id,
     }
   })
 }
@@ -263,6 +342,34 @@ function mapConnectorErrorToStatus(err: unknown): AutoConnectorResult {
       issues: err.issues,
     })
     return { status: 'schema_reject', staged_diff: null }
+  }
+
+  // Managed Agents path — `runManagedAgent` throws `ManagedAgentError` with
+  // a discrete `code`. Map them onto the existing AutoConnectorStatus enum
+  // so the U8 review surface keeps a single failure-mode contract regardless
+  // of which runtime produced the error.
+  if (err instanceof ManagedAgentError) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn(`[auto-connector] managed-agent ${err.code}`, { message: err.message })
+    switch (err.code) {
+      case 'PARSE_ERROR':
+        return { status: 'schema_reject', staged_diff: null }
+      case 'NO_API_KEY':
+        return { status: 'auth_error', staged_diff: null }
+      case 'STREAM_ERROR':
+      case 'TERMINATED':
+      case 'RETRIES_EXHAUSTED':
+      case 'NO_OUTPUT':
+      case 'REQUIRES_ACTION':
+        return { status: 'transport_error', staged_diff: null }
+      case 'TIMEOUT':
+        // The handler's own AbortController-based timeout wins first; this
+        // path is the runner's hard backstop. Surface as `timeout` so ops
+        // triage sees a consistent status across runtimes.
+        return { status: 'timeout', staged_diff: null }
+      default:
+        return { status: 'unknown', staged_diff: null }
+    }
   }
 
   // Duck-type the OpenAI SDK error shape (APIError carries a numeric `status`).
@@ -303,24 +410,6 @@ function mapConnectorErrorToStatus(err: unknown): AutoConnectorResult {
 }
 
 /**
- * Recognize the SQLITE_CONSTRAINT thrown when our partial unique index
- * `vips_proposed_diffs_pending_per_student` rejects a second pending row.
- * better-sqlite3 raises an error with `code === 'SQLITE_CONSTRAINT_UNIQUE'`
- * and a message that mentions the index name; we match on either to be
- * resilient across sqlite versions.
- */
-function isPendingPerStudentConstraintViolation(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false
-  const code = (err as { code?: unknown }).code
-  const message = (err as { message?: unknown }).message
-  const isUnique =
-    typeof code === 'string' &&
-    (code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT')
-  if (!isUnique) return false
-  return typeof message === 'string' && message.includes('vips_proposed_diffs_pending_per_student')
-}
-
-/**
  * Flatten the per-dimension diff into one `ProposedTimelineEntryDraft[]`
  * the verifier consumes. Each entry's `dimension` is set from the diff key
  * (the agent never emits it as a free-text field — the structural Zod
@@ -358,6 +447,31 @@ function toVerifierExisting(row: VipsTimelineEntryRow): VerifierExistingTimeline
     forgotten_at: row.forgotten_at,
     committed_at: row.committed_at,
   }
+}
+
+/**
+ * Render a compact one-paragraph summary of a verifier rejection for the
+ * `/rejected-diff-patterns.md` memory file. The shape is intentionally
+ * structural (`mirror_entry_id`, `dropped[]`, `downgraded[]`) so the agent
+ * can pattern-match without parsing prose. Verbatim quotes are truncated to
+ * 80 chars to keep the file lean over hundreds of runs.
+ */
+function summarizeRejection(input: {
+  mirrorEntryId: number
+  dropped: { entry: ProposedTimelineEntryDraft; reason: string }[]
+  downgraded: { canonical_claim_id: string; verbatim_quote: string; dimension: string }[]
+}): string {
+  const truncate = (s: string, n: number) => (s.length <= n ? s : `${s.slice(0, n - 1)}…`)
+  const droppedLines = input.dropped.map(
+    (d) =>
+      `- DROP (${d.reason}) ${d.entry.dimension}/${d.entry.canonical_claim_id}: "${truncate(d.entry.verbatim_quote, 80)}"`,
+  )
+  const downgradedLines = input.downgraded.map(
+    (d) =>
+      `- DOWNGRADE (partial_match) ${d.dimension}/${d.canonical_claim_id}: "${truncate(d.verbatim_quote, 80)}"`,
+  )
+  const lines = [`mirror_entry_id=${input.mirrorEntryId}`, ...droppedLines, ...downgradedLines]
+  return lines.join('\n')
 }
 
 class AutoConnectorTimeoutError extends Error {
@@ -404,6 +518,54 @@ async function runConnectorViaSdk(input: {
   // (Finding #5). Verified in node_modules/@openai/agents-core/dist/run.d.ts.
   const result = await run(agent, prompt, { signal: input.signal })
   return result.finalOutput
+}
+
+/**
+ * Managed Agents path (plan §7.1: prompt-as-context). Pre-fetches the
+ * inlined taxonomies + top-N FTS-matching past mirrors + VIPS pages via
+ * `buildConnectorContext`, then dispatches via `runManagedAgent` which
+ * parses the JSON output against `ConnectorDiffSchema`. Returns the parsed
+ * object so the caller's `ConnectorDiffSchema.safeParse` is a no-op
+ * second-check — keeping a single parse-error code path through the
+ * `schema_reject` bucket.
+ *
+ * `ctx` IS the outer `withStudent` transaction — `buildConnectorContext`
+ * reuses it for every internal query so we don't open nested pool
+ * checkouts. At `DATABASE_POOL_MAX=5` and ≥5 concurrent Connector runs the
+ * previous nested-envelope shape deadlocked the entire pool.
+ */
+async function runConnectorViaManaged(input: {
+  studentId: string
+  newReflectionId: number
+  ctx: TenantContext
+  signal?: AbortSignal
+  memoryTransport?: MemoryStoreTransport
+}): Promise<unknown> {
+  const binding = getManagedAgentBinding('connector')
+  const prompt = await buildConnectorContext(input.ctx, input.newReflectionId)
+  // Resolve memory store best-effort. Failure here doesn't block Connector;
+  // the agent simply runs without `/rejected-diff-patterns.md` carry-over.
+  let memoryStoreId: string | null = null
+  try {
+    memoryStoreId = await getOrCreateMemoryStoreId(input.studentId, input.memoryTransport)
+  } catch (err) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn('[auto-connector] memory store resolve failed; running without binding', {
+      studentId: input.studentId,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+  }
+  const result = await runManagedAgent({
+    agentId: binding.agentId,
+    ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
+    environmentId: binding.environmentId,
+    prompt,
+    outputSchema: ConnectorDiffSchema,
+    sessionTitle: `connector:${input.studentId}`,
+    ...(input.signal ? { signal: input.signal } : {}),
+    ...(memoryStoreId !== null ? { memoryStoreId } : {}),
+  })
+  return result.output
 }
 
 /**

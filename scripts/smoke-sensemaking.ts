@@ -2,10 +2,9 @@
 // @ts-nocheck — diagnostic script; works at runtime, generic Agent variance noisy under tsc.
 /**
  * Live smoke test for the v0.2 Cartographer Trajectory-page chain. Hits the
- * real OpenAI API. Use a separate DATABASE_PATH so it doesn't trample
- * `app.db`.
+ * real OpenAI API. Requires DATABASE_URL pointing at a Neon dev branch.
  *
- *   DATABASE_PATH=/tmp/smoke.db pnpm exec tsx scripts/smoke-sensemaking.ts
+ *   DATABASE_URL=postgres://... pnpm exec tsx scripts/smoke-sensemaking.ts
  *
  * v0.2 (U11): replaces the v0.1 Connector → Pathfinder smoke. The v0.2
  * surface is a single-agent Cartographer run that reads the four VIPS
@@ -32,7 +31,6 @@ import { lookupEcgTaxonomyTool } from '~/agents/tools/lookup-ecg-taxonomy'
 import { lookupVipsTaxonomyTool } from '~/agents/tools/lookup-vips-taxonomy'
 import { searchCorpusToolFor } from '~/agents/tools/search-corpus.server'
 import { selfCritiqueTool } from '~/agents/tools/self-critique'
-import { openDb } from '~/db/client'
 import {
   insertCartographerOutput,
   listMirrorEntries,
@@ -97,13 +95,12 @@ async function streamedRun(
 }
 
 async function main() {
-  const db = openDb()
-  const before = listMirrorEntries('demo').length
+  const before = (await listMirrorEntries('demo')).length
   if (before < 3) {
     console.log(`Seeding (current: ${before})...`)
-    seed({ db })
+    await seed()
   }
-  console.log(`Corpus size: ${listMirrorEntries('demo').length}`)
+  console.log(`Corpus size: ${(await listMirrorEntries('demo')).length}`)
   console.log('Starting Cartographer Trajectory-page generation...\n')
 
   const start = Date.now()
@@ -112,7 +109,7 @@ async function main() {
     events.push({ ...e, timestampMs: Date.now() - start } as RunStepEvent)
   }
 
-  const prompt = formatPromptContext()
+  const prompt = await formatPromptContext()
 
   emit({ type: 'agent_started', agent: 'cartographer' })
   let row: { id: number } | null = null
@@ -137,7 +134,7 @@ async function main() {
       emit,
     )
     const validated: CartographerOutputDraft = CartographerOutputSchema.parse(out)
-    row = insertCartographerOutput('demo', {
+    row = await insertCartographerOutput('demo', {
       trajectory_text: validated.trajectory_paragraph,
       pathways: validated.pathways as unknown as Parameters<
         typeof insertCartographerOutput
@@ -198,12 +195,13 @@ async function main() {
   }
 }
 
-function formatPromptContext(): string {
-  const pages = listVipsPages('demo')
-  const timeline = VIPS_DIMENSIONS.flatMap((dim) =>
-    listVipsTimelineEntries('demo', dim, { includeForgotten: false }),
+async function formatPromptContext(): Promise<string> {
+  const pages = await listVipsPages('demo')
+  const timelineByDim = await Promise.all(
+    VIPS_DIMENSIONS.map((dim) => listVipsTimelineEntries('demo', dim, { includeForgotten: false })),
   )
-  const entries = listMirrorEntries('demo', { limit: 200 })
+  const timeline = timelineByDim.flat()
+  const entries = await listMirrorEntries('demo', { limit: 200 })
 
   const pagesBlock = VIPS_DIMENSIONS.map((dim) => {
     const page = pages.find((p) => p.dimension === dim)

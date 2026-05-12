@@ -1,11 +1,10 @@
 import { z } from 'zod'
 import { MirrorEditableField } from '~/agents/schemas'
+import { requireCounselorContext } from '~/auth/identity'
 import { type MirrorEntryRow, updateMirrorEntryFields } from '~/db/queries'
 import { checkOutputForDiagnosticLanguage } from '~/lib/safety'
-import { withStudent } from '~/server/tenancy.server'
 
 export const editMirrorFieldInputSchema = z.object({
-  studentId: z.string().min(1),
   entryId: z.number().int().positive(),
   field: MirrorEditableField,
   value: z.string().min(1),
@@ -25,8 +24,13 @@ export class EditValidationError extends Error {
  * story_reframe). The un-edited Mirror agent output stored in
  * `raw_output_json` is left untouched so the ablation harness can still
  * inspect what the model produced before any human edits.
+ *
+ * Single-query handler — `updateMirrorEntryFields` opens its own
+ * `withStudent` envelope.
  */
-export function editMirrorFieldHandler(data: EditMirrorFieldInput): MirrorEntryRow | null {
+export async function editMirrorFieldHandler(
+  data: EditMirrorFieldInput,
+): Promise<MirrorEntryRow | null> {
   const parsed = editMirrorFieldInputSchema.parse(data)
   const safety = checkOutputForDiagnosticLanguage(parsed.value)
   if (!safety.ok) {
@@ -34,7 +38,8 @@ export function editMirrorFieldHandler(data: EditMirrorFieldInput): MirrorEntryR
       `Edit rejected — diagnostic language: ${safety.matches.map((m) => m.text).join('; ')}`,
     )
   }
-  return withStudent(parsed.studentId, (sid) =>
-    updateMirrorEntryFields(sid, parsed.entryId, { [parsed.field]: parsed.value }),
-  )
+  const { studentId } = await requireCounselorContext()
+  return updateMirrorEntryFields(studentId, parsed.entryId, {
+    [parsed.field]: parsed.value,
+  })
 }

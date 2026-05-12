@@ -16,7 +16,7 @@ import {
   LegacyPathfinderOutputSchema,
 } from '~/agents/schemas'
 import { insertConnectorOutput, insertPathfinderOutput } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
+import { withStudentLegacy } from '~/server/tenancy.server'
 
 export interface RunSensemakingStreamedDeps {
   /**
@@ -59,8 +59,8 @@ export async function runSensemakingStreamed(
     events.push({ ...e, timestampMs: Date.now() - start } as RunStepEvent)
   }
 
-  return withStudent(studentId, async (sid) => {
-    const corpus = formatCorpusForAgent(sid)
+  return withStudentLegacy(studentId, async (sid) => {
+    const corpus = await formatCorpusForAgent(sid)
 
     // ── Connector ────────────────────────────────────────────────────────
     emit({ type: 'agent_started', agent: 'connector' })
@@ -80,7 +80,7 @@ export async function runSensemakingStreamed(
             emit,
           )
       const validated = ConnectorOutputSchema.parse(connectorDraft)
-      const row = insertConnectorOutput(sid, {
+      const row = await insertConnectorOutput(sid, {
         patterns: validated.patterns,
         still_unclear: validated.still_unclear,
         trace: { agent: 'connector', events_captured: events.length },
@@ -125,7 +125,7 @@ export async function runSensemakingStreamed(
             emit,
           )
       const validated = LegacyPathfinderOutputSchema.parse(cartographerDraft)
-      const row = insertPathfinderOutput(sid, {
+      const row = await insertPathfinderOutput(sid, {
         trajectory: validated.trajectory,
         pathways: validated.pathways,
         disclaimer: validated.disclaimer,

@@ -4,13 +4,13 @@ import { TrajectoryPageView } from '~/components/TrajectoryPageView'
 import { Button } from '~/components/ui/button'
 import { loadTrajectory } from '~/server/load-trajectory.functions'
 
-const STUDENT_ID = 'demo'
+const STUDENT_ID = 'me'
 
 export const Route = createFileRoute('/library/trajectory')({
   loader: async ({ context }) => {
     const data = await context.queryClient.ensureQueryData({
       queryKey: ['trajectory', STUDENT_ID],
-      queryFn: () => loadTrajectory({ data: { studentId: STUDENT_ID } }),
+      queryFn: () => loadTrajectory({ data: {} }),
     })
     // R30 carry-forward: if F1's review queue has any pending diff, F2
     // (this route) defers to the review surface. U8 wires the dedicated
@@ -27,7 +27,7 @@ export const Route = createFileRoute('/library/trajectory')({
 function WikiTrajectoryPage() {
   const { data, isPending } = useQuery({
     queryKey: ['trajectory', STUDENT_ID],
-    queryFn: () => loadTrajectory({ data: { studentId: STUDENT_ID } }),
+    queryFn: () => loadTrajectory({ data: {} }),
   })
 
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>

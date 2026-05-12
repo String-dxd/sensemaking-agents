@@ -1,10 +1,9 @@
 import { z } from 'zod'
 import { runSensemakingStreamed } from '~/agents/handoff-chain-streamed'
 import type { RunSensemakingResult } from '~/agents/run-events'
+import { requireCounselorContext } from '~/auth/identity'
 
-export const runSensemakingInputSchema = z.object({
-  studentId: z.string().min(1),
-})
+export const runSensemakingInputSchema = z.object({})
 
 export type RunSensemakingInput = z.output<typeof runSensemakingInputSchema>
 
@@ -26,6 +25,7 @@ export type RunSensemakingInput = z.output<typeof runSensemakingInputSchema>
 export async function runSensemakingHandler(
   data: RunSensemakingInput,
 ): Promise<RunSensemakingResult> {
-  const parsed = runSensemakingInputSchema.parse(data)
-  return runSensemakingStreamed(parsed.studentId)
+  runSensemakingInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
+  return runSensemakingStreamed(studentId)
 }

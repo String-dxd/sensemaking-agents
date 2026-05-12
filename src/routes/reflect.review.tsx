@@ -17,13 +17,13 @@ import { PostMirrorReview } from '~/components/PostMirrorReview'
 import { Button } from '~/components/ui/button'
 import { loadPendingReview } from '~/server/load-pending-review.functions'
 
-const STUDENT_ID = 'demo'
+const STUDENT_ID = 'me'
 
 export const Route = createFileRoute('/reflect/review')({
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData({
       queryKey: ['pending-review', STUDENT_ID],
-      queryFn: () => loadPendingReview({ data: { studentId: STUDENT_ID } }),
+      queryFn: () => loadPendingReview({ data: {} }),
     })
   },
   component: ReviewPage,
@@ -33,7 +33,7 @@ function ReviewPage() {
   const navigate = useNavigate()
   const { data } = useSuspenseQuery({
     queryKey: ['pending-review', STUDENT_ID],
-    queryFn: () => loadPendingReview({ data: { studentId: STUDENT_ID } }),
+    queryFn: () => loadPendingReview({ data: {} }),
   })
 
   if (!data.diff) {

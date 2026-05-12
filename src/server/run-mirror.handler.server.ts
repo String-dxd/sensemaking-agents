@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { runMirrorOnTranscript } from '~/agents/mirror'
 import { MirrorOutputSchema } from '~/agents/schemas'
-import { withStudent } from '~/server/tenancy.server'
+import { requireCounselorContext } from '~/auth/identity'
+import { withStudentLegacy } from '~/server/tenancy.server'
 
 export const runMirrorInputSchema = z.object({
-  studentId: z.string().min(1),
   transcript: z.string().min(1),
 })
 
@@ -27,7 +27,8 @@ export class MirrorAgentError extends Error {
  */
 export async function runMirrorHandler(data: RunMirrorInput) {
   const parsed = runMirrorInputSchema.parse(data)
-  return withStudent(parsed.studentId, async (sid) => {
+  const { studentId } = await requireCounselorContext()
+  return withStudentLegacy(studentId, async (sid) => {
     try {
       const out = await runMirrorOnTranscript(sid, parsed.transcript)
       return { output: MirrorOutputSchema.parse(out) }

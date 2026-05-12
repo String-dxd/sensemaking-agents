@@ -1,19 +1,25 @@
 /**
- * v0.2 ablation rubric scaffolding (U13).
+ * v0.2 ablation rubric scaffolding (U13) — extended for the Managed-Agents
+ * migration (`plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`
+ * Step 1).
  *
- * Two ablations (R20), each scored on the same five dimensions:
- *   1. provenance          — does the agent reference prior reflections by content?
- *   2. specificity         — concrete signals vs. generic listening / advice?
- *   3. novelty             — does ON surface patterns OFF doesn't?
- *   4. anti-sycophancy     — does the agent avoid uncritical agreement?
- *   5. parallax_discipline — are single-context claims correctly capped at low
- *                            strength, and only multi-context claims admitted
- *                            at high? (New in v0.2 per plan A6 / U13.)
+ * Two distinct report formats:
  *
- * v0.2 bar: 1–2 humans score each dimension 0–3 (Likert). ON beats OFF by
- * ≥2 points across ≥3 dimensions to "pass." This module *does not*
- * auto-score quality — it produces a Markdown scaffold the human fills in.
- * Auto-scoring the five dimensions is a v1 concern.
+ *   1. **Human-Likert markdown** — `buildAblationReportMarkdown`. The original
+ *      five-dimension scoring scaffold (provenance, specificity, novelty,
+ *      anti-sycophancy, parallax_discipline). Still emitted alongside the
+ *      structured report so a human can hand-score on the cutover-gate
+ *      review (plan §9.3 step 3). Shape is unchanged so existing tests in
+ *      `test/ablation/*.test.ts` keep passing.
+ *
+ *   2. **Structured JSON** — `buildStructuredReport`. Per-fixture-row +
+ *      per-agent token counts, latency, verifier verdicts
+ *      (admitted/downgraded/dropped + reason buckets), claim-id frequency.
+ *      Written to `test/ablation/reports/<ts>-<runner>-<surface>[-student].json`.
+ *      Consumed by CI (`.github/workflows/ablation.yml`) to compute a
+ *      delta vs the last `main` JSON and post a PR comment.
+ *
+ * Notes on the Likert rubric (unchanged from v0.2 U13):
  *
  * ── Parallax discipline rubric (0–3 sub-checks, U13) ───────────────────────
  *
@@ -33,17 +39,6 @@
  *   3 — all single-context claims correctly capped at low; multi-context
  *       claims correctly admitted at medium/high based on the count and
  *       distinctness of supporting contexts.
- *
- * Sub-checks (the human scorer ticks each as a quick mechanical proxy):
- *   (a) every "high"-strength claim references ≥2 distinct context_type values
- *       across its supporting evidence;
- *   (b) every claim sourced from a single reflection (or a single context) is
- *       capped at "low";
- *   (c) "medium" claims sit in the gap — same context across multiple
- *       reflections, or two reflections in two contexts where the
- *       cross-context echo is light;
- *   (d) the Cartographer's trajectory paragraph does not promote any
- *       single-context claim to a "consistent" or "across-the-board" framing.
  */
 
 export const ABLATION_DIMENSIONS = [
@@ -56,8 +51,12 @@ export const ABLATION_DIMENSIONS = [
 
 export type AblationDimension = (typeof ABLATION_DIMENSIONS)[number]
 
+// ── Markdown (human-Likert) report — unchanged signature ──────────────────
+
 export interface AblationVariantOutput {
-  /** ON | OFF */
+  /** ON | OFF (legacy axis; the runner-comparison era uses 'on' for the live
+   *  runner output and 'off' for an n/a placeholder. Tests assert on the
+   *  scaffold structure, not on which runner is which side.) */
   variant: 'on' | 'off'
   /** Whatever the agent emitted, JSON-stringified for the report. */
   rawOutput: string
@@ -131,4 +130,272 @@ ${input.off.rawOutput}
 `
 
   return [header, dimsTable, verdict, onBlock, offBlock].join('\n')
+}
+
+// ── Structured JSON report (Step 1 of migration plan) ─────────────────────
+
+/**
+ * Per-agent run statistics. Captured at each individual `run()` call.
+ * `input_tokens`/`output_tokens` may be `null` when the runner backend
+ * does not surface usage stats (the OpenAI Agents SDK exposes them via
+ * `result.state.usage` but the field is not yet typed in the public
+ * surface; we capture defensively via `as any`).
+ */
+export interface AgentRunStats {
+  agent: 'mirror' | 'connector' | 'cartographer'
+  latency_ms: number
+  input_tokens: number | null
+  output_tokens: number | null
+  output_parsed: boolean
+  /** Set when output_parsed=false. Zod or transport error message. */
+  parse_error: string | null
+}
+
+/**
+ * Verifier verdict counters per-row. Sum over admitted, downgraded, and
+ * the two drop reasons. `aspirational` is the subset of admitted+downgraded
+ * that hit the parallax cap (R11). `claim_ids` is the set of
+ * `canonical_claim_id` values that survived the verifier — used downstream
+ * to compute claim-id frequency distribution.
+ */
+export interface VerifierVerdictCounters {
+  admitted: number
+  downgraded: number
+  dropped_no_quote_match: number
+  dropped_unknown_reflection: number
+  aspirational: number
+  claim_ids: string[]
+}
+
+export function zeroVerdictCounters(): VerifierVerdictCounters {
+  return {
+    admitted: 0,
+    downgraded: 0,
+    dropped_no_quote_match: 0,
+    dropped_unknown_reflection: 0,
+    aspirational: 0,
+    claim_ids: [],
+  }
+}
+
+/**
+ * Per-fixture-row trace. One row per reflection in scope. `mirror` is
+ * always populated for the `mirror` surface; `connector` and `verifier`
+ * are populated for the `sensemake` surface; `cartographer` is populated
+ * only when the sensemake run reached the cartographer pass (today, the
+ * ablation does not always invoke Cartographer per-row to keep cost
+ * bounded — `cartographer` may be null on rows that only ran Mirror+
+ * Connector). `error` is set when a row aborts before completion.
+ */
+export interface PerFixtureRow {
+  reflection_id: number | null
+  student_id: string
+  context_type: string
+  mirror: AgentRunStats | null
+  connector: AgentRunStats | null
+  cartographer: AgentRunStats | null
+  verifier: VerifierVerdictCounters | null
+  error: string | null
+}
+
+export interface AgentTotals {
+  calls: number
+  parsed_calls: number
+  total_input_tokens: number
+  total_output_tokens: number
+  latency_ms_p50: number
+  latency_ms_p95: number
+  latency_ms_max: number
+}
+
+export interface AblationStructuredReport {
+  runner: 'openai' | 'managed'
+  surface: 'mirror' | 'sensemake'
+  ran_at: string
+  /** Model id that Mirror/Connector/Cartographer ran against (env-resolved). */
+  model: string
+  /** Optional student scope; null = cross-student union. */
+  student_scope: string | null
+  corpus_path: string
+  /** Number of reflections actually exercised (after `--limit` is applied). */
+  rows_executed: number
+  rows: PerFixtureRow[]
+  totals: {
+    mirror: AgentTotals | null
+    connector: AgentTotals | null
+    cartographer: AgentTotals | null
+    /** Aggregated across every per-row verifier run (sensemake only). */
+    verifier: VerifierVerdictCounters | null
+  }
+  /** `canonical_claim_id` → admit count across all rows. Empty for mirror surface. */
+  claim_id_distribution: Record<string, number>
+  /** Free-text note — e.g., placeholder run because no API key. */
+  notes: string
+}
+
+/**
+ * Aggregate per-agent stats from a list of rows into a totals block. Returns
+ * null when no row carried that agent. Latency percentiles are nearest-rank
+ * (no interpolation) — fine for the small N (≤24) we run today.
+ */
+export function computeAgentTotals(
+  rows: PerFixtureRow[],
+  agent: 'mirror' | 'connector' | 'cartographer',
+): AgentTotals | null {
+  const stats = rows.map((r) => r[agent]).filter((s): s is AgentRunStats => s !== null)
+  if (stats.length === 0) return null
+  const latencies = stats.map((s) => s.latency_ms).sort((a, b) => a - b)
+  const nearestRank = (p: number): number => {
+    if (latencies.length === 0) return 0
+    const idx = Math.max(
+      0,
+      Math.min(latencies.length - 1, Math.ceil((p / 100) * latencies.length) - 1),
+    )
+    return latencies[idx] ?? 0
+  }
+  return {
+    calls: stats.length,
+    parsed_calls: stats.filter((s) => s.output_parsed).length,
+    total_input_tokens: stats.reduce((acc, s) => acc + (s.input_tokens ?? 0), 0),
+    total_output_tokens: stats.reduce((acc, s) => acc + (s.output_tokens ?? 0), 0),
+    latency_ms_p50: nearestRank(50),
+    latency_ms_p95: nearestRank(95),
+    latency_ms_max: latencies[latencies.length - 1] ?? 0,
+  }
+}
+
+export function aggregateVerifierCounters(rows: PerFixtureRow[]): VerifierVerdictCounters | null {
+  const verifiers = rows
+    .map((r) => r.verifier)
+    .filter((v): v is VerifierVerdictCounters => v !== null)
+  if (verifiers.length === 0) return null
+  const totals = zeroVerdictCounters()
+  for (const v of verifiers) {
+    totals.admitted += v.admitted
+    totals.downgraded += v.downgraded
+    totals.dropped_no_quote_match += v.dropped_no_quote_match
+    totals.dropped_unknown_reflection += v.dropped_unknown_reflection
+    totals.aspirational += v.aspirational
+    totals.claim_ids.push(...v.claim_ids)
+  }
+  // dedupe surfaced claim_ids on totals (the per-id distribution lives on the
+  // outer report; per-totals just lists which ids surfaced at all).
+  totals.claim_ids = [...new Set(totals.claim_ids)].sort()
+  return totals
+}
+
+export function buildClaimIdDistribution(rows: PerFixtureRow[]): Record<string, number> {
+  const dist: Record<string, number> = {}
+  for (const row of rows) {
+    if (row.verifier === null) continue
+    for (const id of row.verifier.claim_ids) {
+      dist[id] = (dist[id] ?? 0) + 1
+    }
+  }
+  return dist
+}
+
+export interface BuildStructuredReportInput {
+  runner: 'openai' | 'managed'
+  surface: 'mirror' | 'sensemake'
+  ran_at: string
+  model: string
+  student_scope: string | null
+  corpus_path: string
+  rows: PerFixtureRow[]
+  notes?: string
+}
+
+export function buildStructuredReport(input: BuildStructuredReportInput): AblationStructuredReport {
+  return {
+    runner: input.runner,
+    surface: input.surface,
+    ran_at: input.ran_at,
+    model: input.model,
+    student_scope: input.student_scope,
+    corpus_path: input.corpus_path,
+    rows_executed: input.rows.length,
+    rows: input.rows,
+    totals: {
+      mirror: computeAgentTotals(input.rows, 'mirror'),
+      connector: computeAgentTotals(input.rows, 'connector'),
+      cartographer: computeAgentTotals(input.rows, 'cartographer'),
+      verifier: aggregateVerifierCounters(input.rows),
+    },
+    claim_id_distribution: buildClaimIdDistribution(input.rows),
+    notes: input.notes ?? '',
+  }
+}
+
+/**
+ * Compute a markdown delta between two structured reports — used by the
+ * CI workflow to post a PR comment summarizing how the runner's behavior
+ * shifted vs the `main` baseline. Inputs may be the same or different
+ * runners; the typical use is `openai-main` vs `managed-pr` (the cutover
+ * gate axis from plan §9.3).
+ *
+ * Returns a short markdown summary. Verdict distribution delta is the
+ * cutover-gate's primary signal (must be within ±10% per plan §9.3 step 1
+ * for Mirror, +15% for Connector rejection rate per plan §9.3 step 2).
+ */
+export function buildDeltaMarkdown(
+  baseline: AblationStructuredReport,
+  candidate: AblationStructuredReport,
+): string {
+  const surface = baseline.surface
+  const lines: string[] = []
+  lines.push(`### Ablation delta — ${surface} surface`)
+  lines.push('')
+  lines.push(`- Baseline: \`${baseline.runner}\` @ \`${baseline.model}\` (${baseline.ran_at})`)
+  lines.push(`- Candidate: \`${candidate.runner}\` @ \`${candidate.model}\` (${candidate.ran_at})`)
+  lines.push(`- Rows executed: ${baseline.rows_executed} → ${candidate.rows_executed}`)
+  lines.push('')
+
+  if (baseline.totals.verifier && candidate.totals.verifier) {
+    const bv = baseline.totals.verifier
+    const cv = candidate.totals.verifier
+    const baseTotal =
+      bv.admitted + bv.downgraded + bv.dropped_no_quote_match + bv.dropped_unknown_reflection
+    const candTotal =
+      cv.admitted + cv.downgraded + cv.dropped_no_quote_match + cv.dropped_unknown_reflection
+    const pct = (n: number, total: number) =>
+      total === 0 ? '0%' : `${((n / total) * 100).toFixed(1)}%`
+    lines.push('| Verdict bucket | Baseline | Candidate | Δ |')
+    lines.push('|----------------|---------:|----------:|---:|')
+    lines.push(
+      `| admitted | ${pct(bv.admitted, baseTotal)} | ${pct(cv.admitted, candTotal)} | ${cv.admitted - bv.admitted} |`,
+    )
+    lines.push(
+      `| downgraded | ${pct(bv.downgraded, baseTotal)} | ${pct(cv.downgraded, candTotal)} | ${cv.downgraded - bv.downgraded} |`,
+    )
+    lines.push(
+      `| dropped_no_quote_match | ${pct(bv.dropped_no_quote_match, baseTotal)} | ${pct(cv.dropped_no_quote_match, candTotal)} | ${cv.dropped_no_quote_match - bv.dropped_no_quote_match} |`,
+    )
+    lines.push(
+      `| dropped_unknown_reflection | ${pct(bv.dropped_unknown_reflection, baseTotal)} | ${pct(cv.dropped_unknown_reflection, candTotal)} | ${cv.dropped_unknown_reflection - bv.dropped_unknown_reflection} |`,
+    )
+    lines.push(
+      `| aspirational | ${pct(bv.aspirational, baseTotal)} | ${pct(cv.aspirational, candTotal)} | ${cv.aspirational - bv.aspirational} |`,
+    )
+    lines.push('')
+  }
+
+  for (const agent of ['mirror', 'connector', 'cartographer'] as const) {
+    const bt = baseline.totals[agent]
+    const ct = candidate.totals[agent]
+    if (!bt || !ct) continue
+    lines.push(`#### ${agent}`)
+    lines.push(`- calls: ${bt.calls} → ${ct.calls}`)
+    lines.push(
+      `- input tokens: ${bt.total_input_tokens} → ${ct.total_input_tokens} (Δ ${ct.total_input_tokens - bt.total_input_tokens})`,
+    )
+    lines.push(
+      `- output tokens: ${bt.total_output_tokens} → ${ct.total_output_tokens} (Δ ${ct.total_output_tokens - bt.total_output_tokens})`,
+    )
+    lines.push(`- p50 latency: ${bt.latency_ms_p50}ms → ${ct.latency_ms_p50}ms`)
+    lines.push(`- p95 latency: ${bt.latency_ms_p95}ms → ${ct.latency_ms_p95}ms`)
+    lines.push('')
+  }
+
+  return lines.join('\n')
 }

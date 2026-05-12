@@ -85,7 +85,19 @@ export type ConnectorDimension = z.infer<typeof ConnectorDimensionSchema>
 export const ConnectorTimelineEntryDraftSchema = z.object({
   canonical_claim_id: z.string().min(1),
   verbatim_quote: z.string(),
-  reflection_id: z.number().int(),
+  // Robust reflection_id parsing for the Managed Agents path:
+  //   • `8` → 8           (well-formed integer)
+  //   • `"8"` → 8          (quoted integer — coerced)
+  //   • `"latest"`, NaN,
+  //     missing key → -1   (sentinel; verifier drops as unknown_reflection)
+  //
+  // The OpenAI Agents SDK enforced typed-output at the SDK boundary, so
+  // anomalies got retried inside the SDK. Managed Agents emits raw JSON,
+  // and the Connector sometimes hallucinates a placeholder string (e.g.
+  // "latest", "current") instead of citing a concrete mirror_entry id.
+  // Catching to -1 keeps the parse green while preserving the quality
+  // signal in `verifier.dropped_unknown_reflection`.
+  reflection_id: z.coerce.number().int().catch(-1),
   strength: VipsClaimStrengthSchema,
   parallax_tag: z.array(VipsContextTypeSchema),
 })
@@ -142,8 +154,17 @@ export type CartographerClaimRef = z.infer<typeof CartographerClaimRefSchema>
 
 export const CartographerPathwaySchema = z.object({
   label: z.string().min(1),
-  trait_combination: z.array(CartographerClaimRefSchema).min(1),
-  ecg_region_tags: z.array(z.string()).min(1),
+  // Schema accepts `[]`; the post-process validator in
+  // `run-cartographer.handler.server.ts` drops empty-trait pathways with a
+  // warning so the signal lands in `warnings[]` rather than as a hard parse
+  // failure. Same posture as Connector's `reflection_id` coercion — Managed
+  // Agents' output is structurally legal but sometimes incomplete, and we
+  // prefer per-pathway drops to whole-output rejection.
+  trait_combination: z.array(CartographerClaimRefSchema),
+  // Same posture for ecg_region_tags. The post-process validator drops
+  // pathways whose tags can't be resolved against the closed cluster set
+  // (or, after this change, whose tag list is empty).
+  ecg_region_tags: z.array(z.string()),
   risks_tradeoffs: z.string().min(1),
   exploration_prompt: z.string().min(1),
 })

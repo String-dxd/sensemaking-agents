@@ -10,7 +10,7 @@ import type { MirrorEditableField } from '~/db/queries'
 import { editMirrorField } from '~/server/edit-wiki.functions'
 import { loadWikiEntry } from '~/server/load-wiki.functions'
 
-const STUDENT_ID = 'demo'
+const STUDENT_ID = 'me'
 
 export const Route = createFileRoute('/library/$entryId')({
   loader: async ({ params }) => {
@@ -31,7 +31,7 @@ function WikiEntryPage() {
   const { entryId } = Route.useLoaderData()
   const { data, isPending } = useQuery({
     queryKey: ['wiki', STUDENT_ID, entryId],
-    queryFn: () => loadWikiEntry({ data: { studentId: STUDENT_ID, entryId } }),
+    queryFn: () => loadWikiEntry({ data: { entryId } }),
   })
 
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>
@@ -61,7 +61,7 @@ function WikiEntryPage() {
           value={data.entry[field]}
           label={FIELD_LABELS[field]}
           buildInput={(next) => ({
-            data: { studentId: STUDENT_ID, entryId: data.entry.id, field, value: next },
+            data: { entryId: data.entry.id, field, value: next },
           })}
           mutationFn={editMirrorField}
           invalidate={[

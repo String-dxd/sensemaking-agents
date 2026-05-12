@@ -1,14 +1,13 @@
 import { z } from 'zod'
+import { requireCounselorContext } from '~/auth/identity'
+import { withStudent } from '~/db/client'
 import {
   type CartographerOutputRow,
   latestCartographerOutput,
   listVipsProposedDiffs,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
 
-export const loadTrajectoryInputSchema = z.object({
-  studentId: z.string().min(1),
-})
+export const loadTrajectoryInputSchema = z.object({})
 export type LoadTrajectoryInput = z.output<typeof loadTrajectoryInputSchema>
 
 /**
@@ -27,12 +26,16 @@ export interface LoadTrajectoryResult {
   pending_diff_present: boolean
 }
 
-export function loadTrajectoryHandler(data: LoadTrajectoryInput): LoadTrajectoryResult {
-  const parsed = loadTrajectoryInputSchema.parse(data)
-  return withStudent(parsed.studentId, (sid) => {
-    const pending = listVipsProposedDiffs(sid, { status: 'pending' })
+export async function loadTrajectoryHandler(
+  data: LoadTrajectoryInput,
+): Promise<LoadTrajectoryResult> {
+  loadTrajectoryInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, async (ctx) => {
+    const pending = await listVipsProposedDiffs(studentId, { status: 'pending', ctx })
+    const trajectory = await latestCartographerOutput(studentId, { ctx })
     return {
-      trajectory: latestCartographerOutput(sid),
+      trajectory,
       pending_diff_present: pending.length > 0,
     }
   })

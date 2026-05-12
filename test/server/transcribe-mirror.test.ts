@@ -15,7 +15,6 @@ describe('transcribeMirrorHandler', () => {
     }
     const out = await transcribeMirrorHandler(
       {
-        studentId: 'demo',
         audioBase64: Buffer.from('not-actually-audio').toString('base64'),
         mimeType: 'audio/webm',
       },
@@ -30,7 +29,6 @@ describe('transcribeMirrorHandler', () => {
   it('rejects an empty audio blob with EMPTY_AUDIO', async () => {
     await expect(
       transcribeMirrorHandler({
-        studentId: 'demo',
         audioBase64: '',
         mimeType: 'audio/webm',
       }),
@@ -42,7 +40,6 @@ describe('transcribeMirrorHandler', () => {
     const huge = Buffer.alloc(26 * 1024 * 1024).toString('base64')
     await expect(
       transcribeMirrorHandler({
-        studentId: 'demo',
         audioBase64: huge,
         mimeType: 'audio/webm',
       }),
@@ -64,7 +61,6 @@ describe('transcribeMirrorHandler', () => {
     await expect(
       transcribeMirrorHandler(
         {
-          studentId: 'demo',
           audioBase64: Buffer.from('audio').toString('base64'),
           mimeType: 'audio/webm',
         },

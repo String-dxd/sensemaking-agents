@@ -6,15 +6,13 @@
  * the batch is fully resolved) flips the staging row's status to
  * `'confirmed'` + stamps `reviewed_at`.
  *
- * All DB writes are wrapped in one `better-sqlite3` transaction so the
- * timeline insert + page upsert + payload mutation + (possibly) status
- * flip succeed or fail atomically.
- *
- * Wrapped in `withStudent` so the diff lookup, timeline insert, and
- * page upsert all share the same tenancy boundary.
+ * All DB writes are wrapped in one Postgres transaction (via
+ * `withStudent` from `~/db/client`) so the timeline insert + page upsert
+ * + payload mutation + (possibly) status flip succeed or fail atomically.
  */
 import { z } from 'zod'
-import { openDb } from '~/db/client'
+import { requireCounselorContext } from '~/auth/identity'
+import { withStudent } from '~/db/client'
 import {
   getVipsProposedDiff,
   insertVipsTimelineEntry,
@@ -35,10 +33,8 @@ import {
   type ReviewableAnnotatedEntry,
   type ReviewPayload,
 } from '~/server/review-payload-shape'
-import { withStudent } from '~/server/tenancy.server'
 
 export const confirmDiffInputSchema = z.object({
-  studentId: z.string().min(1),
   diffId: z.number().int().positive(),
   /** Stable per-entry handle — see `buildReviewEntryId`. */
   entryId: z.string().min(1),
@@ -82,128 +78,126 @@ function checkCompiledTruthForDimension(dimension: string, text: string): Safety
   return checkOutputForDiagnosticLanguage(text)
 }
 
-export function confirmDiffHandler(data: ConfirmDiffInput): ConfirmDiffResult {
+export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<ConfirmDiffResult> {
   const parsed = confirmDiffInputSchema.parse(data)
-  return withStudent(parsed.studentId, (sid) => {
-    const db = openDb()
-    return db.transaction(() => {
-      const row = getVipsProposedDiff(sid, parsed.diffId, { ctx: { db } })
-      if (!row) throw new ConfirmDiffError(`Staged diff ${parsed.diffId} not found`)
-      if (row.status !== 'pending') {
-        throw new ConfirmDiffError(
-          `Staged diff ${parsed.diffId} is not pending (status=${row.status})`,
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, async (ctx) => {
+    const row = await getVipsProposedDiff(studentId, parsed.diffId, { ctx })
+    if (!row) throw new ConfirmDiffError(`Staged diff ${parsed.diffId} not found`)
+    if (row.status !== 'pending') {
+      throw new ConfirmDiffError(
+        `Staged diff ${parsed.diffId} is not pending (status=${row.status})`,
+      )
+    }
+
+    const payload = parseReviewPayload(row.payload)
+    const located = locateEntry(payload, parsed.entryId)
+    if (!located) {
+      throw new ConfirmDiffError(`Entry ${parsed.entryId} not found in diff ${parsed.diffId}`)
+    }
+    const { entry, list } = located
+    if (entry.resolved === 'confirmed') {
+      throw new ConfirmDiffError(`Entry ${parsed.entryId} is already confirmed`)
+    }
+    if (entry.resolved === 'forgotten') {
+      throw new ConfirmDiffError(`Entry ${parsed.entryId} was already forgotten`)
+    }
+
+    const dimension = entry.dimension
+    // First confirm in this dimension within this batch? If yes, upsert
+    // the dimension's vips_pages row with the agent's compiled-truth
+    // rewrite. We look at the snapshot BEFORE flipping `entry.resolved`
+    // because we want to detect the first confirm transition.
+    const isFirstConfirmInDimension = !payload[list].some(
+      (e) => e.dimension === dimension && e.resolved === 'confirmed',
+    )
+
+    // Insert into vips_timeline_entries. Verifier-owned annotations
+    // (reinforces_id, etc.) are carried from the staged entry; the
+    // canonical_claim_id / verbatim_quote / reflection_id came from
+    // the agent's draft and survived the verifier gate (admitted or
+    // downgraded).
+    await insertVipsTimelineEntry(
+      studentId,
+      {
+        dimension,
+        canonical_claim_id: entry.canonical_claim_id,
+        verbatim_quote: entry.verbatim_quote,
+        reflection_id: entry.reflection_id,
+        strength: entry.strength,
+        parallax_tag: entry.parallax_tag,
+        reinforces_id: entry.reinforces_id ?? null,
+      },
+      { ctx },
+    )
+
+    // Captured outside the `if` so we can attach it to the result.
+    let compiled_truth_safety_skip: ConfirmDiffResult['compiled_truth_safety_skip']
+
+    if (isFirstConfirmInDimension) {
+      // Design note (Known Residual #2): `compiled_truth_rewrite` is an
+      // agent-rewritten holistic summary of the dimension. The Connector
+      // prompt is responsible for grounding it in all non-forgotten
+      // timeline entries we hand it as context. R2's preservation rule
+      // is enforced by the append-only `vips_timeline_entries` table —
+      // forgetting one entry just flips a flag; the next Connector pass
+      // sees the surviving entries and rewrites compiled_truth from
+      // scratch. The compiled_truth string is therefore presentation;
+      // the timeline is canon.
+      const dimDiff = payload.diffs[dimension as keyof typeof payload.diffs]
+
+      // R28/R29 + U7 — per-dimension diagnostic-language guard on the
+      // compiled_truth_rewrite. Personality has always had a render-time
+      // guard (counsellor-brief-renderer); this gate adds the same check
+      // for Values/Interests/Skills using the base sweep, and runs the
+      // stricter rewrite-aware patterns for Personality.
+      //
+      // On flag: log + skip the page upsert. The timeline entry still
+      // commits (student speech is canonical, not the holistic summary)
+      // and the previously-committed compiled_truth — if any — stays in
+      // place. The next Connector pass will re-attempt with the new
+      // surviving entries; this prevents a one-bad-rewrite from
+      // overwriting an earlier clean summary.
+      const safety = checkCompiledTruthForDimension(dimension, dimDiff.compiled_truth_rewrite)
+      if (!safety.ok) {
+        // eslint-disable-next-line no-console -- structural log for ops
+        console.warn(
+          '[confirm-diff] compiled_truth_rewrite tripped diagnostic-language guard; ' +
+            `skipping vips_pages upsert. student=${studentId} dimension=${dimension} ` +
+            `matches=${JSON.stringify(safety.matches)}`,
+        )
+        compiled_truth_safety_skip = { dimension, matches: safety.matches }
+      } else {
+        await upsertVipsPage(
+          studentId,
+          {
+            dimension,
+            compiled_truth: dimDiff.compiled_truth_rewrite,
+            open_question: dimDiff.open_question,
+          },
+          { ctx },
         )
       }
+    }
 
-      const payload = parseReviewPayload(row.payload)
-      const located = locateEntry(payload, parsed.entryId)
-      if (!located) {
-        throw new ConfirmDiffError(`Entry ${parsed.entryId} not found in diff ${parsed.diffId}`)
-      }
-      const { entry, list } = located
-      if (entry.resolved === 'confirmed') {
-        throw new ConfirmDiffError(`Entry ${parsed.entryId} is already confirmed`)
-      }
-      if (entry.resolved === 'forgotten') {
-        throw new ConfirmDiffError(`Entry ${parsed.entryId} was already forgotten`)
-      }
+    // Mutate the in-payload resolution flag and persist it.
+    entry.resolved = 'confirmed'
+    const updated =
+      (await updateVipsProposedDiffPayload(studentId, parsed.diffId, payload, { ctx })) ?? row
 
-      const dimension = entry.dimension
-      // First confirm in this dimension within this batch? If yes, upsert
-      // the dimension's vips_pages row with the agent's compiled-truth
-      // rewrite. We look at the snapshot BEFORE flipping `entry.resolved`
-      // because we want to detect the first confirm transition.
-      const isFirstConfirmInDimension = !payload[list].some(
-        (e) => e.dimension === dimension && e.resolved === 'confirmed',
-      )
-
-      // Insert into vips_timeline_entries. Verifier-owned annotations
-      // (reinforces_id, etc.) are carried from the staged entry; the
-      // canonical_claim_id / verbatim_quote / reflection_id came from
-      // the agent's draft and survived the verifier gate (admitted or
-      // downgraded).
-      insertVipsTimelineEntry(
-        sid,
-        {
-          dimension,
-          canonical_claim_id: entry.canonical_claim_id,
-          verbatim_quote: entry.verbatim_quote,
-          reflection_id: entry.reflection_id,
-          strength: entry.strength,
-          parallax_tag: entry.parallax_tag,
-          reinforces_id: entry.reinforces_id ?? null,
-        },
-        { ctx: { db } },
-      )
-
-      // Captured outside the `if` so we can attach it to the result.
-      let compiled_truth_safety_skip: ConfirmDiffResult['compiled_truth_safety_skip']
-
-      if (isFirstConfirmInDimension) {
-        // Design note (Known Residual #2): `compiled_truth_rewrite` is an
-        // agent-rewritten holistic summary of the dimension. The Connector
-        // prompt is responsible for grounding it in all non-forgotten
-        // timeline entries we hand it as context. R2's preservation rule
-        // is enforced by the append-only `vips_timeline_entries` table —
-        // forgetting one entry just flips a flag; the next Connector pass
-        // sees the surviving entries and rewrites compiled_truth from
-        // scratch. The compiled_truth string is therefore presentation;
-        // the timeline is canon.
-        const dimDiff = payload.diffs[dimension as keyof typeof payload.diffs]
-
-        // R28/R29 + U7 — per-dimension diagnostic-language guard on the
-        // compiled_truth_rewrite. Personality has always had a render-time
-        // guard (counsellor-brief-renderer); this gate adds the same check
-        // for Values/Interests/Skills using the base sweep, and runs the
-        // stricter rewrite-aware patterns for Personality.
-        //
-        // On flag: log + skip the page upsert. The timeline entry still
-        // commits (student speech is canonical, not the holistic summary)
-        // and the previously-committed compiled_truth — if any — stays in
-        // place. The next Connector pass will re-attempt with the new
-        // surviving entries; this prevents a one-bad-rewrite from
-        // overwriting an earlier clean summary.
-        const safety = checkCompiledTruthForDimension(dimension, dimDiff.compiled_truth_rewrite)
-        if (!safety.ok) {
-          // eslint-disable-next-line no-console -- structural log for ops
-          console.warn(
-            '[confirm-diff] compiled_truth_rewrite tripped diagnostic-language guard; ' +
-              `skipping vips_pages upsert. student=${sid} dimension=${dimension} ` +
-              `matches=${JSON.stringify(safety.matches)}`,
-          )
-          compiled_truth_safety_skip = { dimension, matches: safety.matches }
-        } else {
-          upsertVipsPage(
-            sid,
-            {
-              dimension,
-              compiled_truth: dimDiff.compiled_truth_rewrite,
-              open_question: dimDiff.open_question,
-            },
-            { ctx: { db } },
-          )
-        }
-      }
-
-      // Mutate the in-payload resolution flag and persist it.
-      entry.resolved = 'confirmed'
-      const updated =
-        updateVipsProposedDiffPayload(sid, parsed.diffId, payload, { ctx: { db } }) ?? row
-
-      // If this was the last unresolved entry across all dimensions in
-      // the diff, flip the staging row's status to 'confirmed' and stamp
-      // reviewed_at. We treat any resolution outcome (including
-      // forget-only batches) as "confirmed" because the diff was
-      // *reviewed* — see forget-diff.handler.server.ts for the parallel
-      // rule.
-      if (allEntriesResolved(payload)) {
-        const finalRow = updateVipsProposedDiffStatus(sid, parsed.diffId, 'confirmed', {
-          ctx: { db },
-        })
-        return { diff: finalRow ?? updated, compiled_truth_safety_skip }
-      }
-      return { diff: updated, compiled_truth_safety_skip }
-    })()
+    // If this was the last unresolved entry across all dimensions in
+    // the diff, flip the staging row's status to 'confirmed' and stamp
+    // reviewed_at. We treat any resolution outcome (including
+    // forget-only batches) as "confirmed" because the diff was
+    // *reviewed* — see forget-diff.handler.server.ts for the parallel
+    // rule.
+    if (allEntriesResolved(payload)) {
+      const finalRow = await updateVipsProposedDiffStatus(studentId, parsed.diffId, 'confirmed', {
+        ctx,
+      })
+      return { diff: finalRow ?? updated, compiled_truth_safety_skip }
+    }
+    return { diff: updated, compiled_truth_safety_skip }
   })
 }
 

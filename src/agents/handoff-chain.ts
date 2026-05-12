@@ -14,7 +14,7 @@ import {
   listMirrorEntries,
   type PathfinderOutputRow,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
+import { withStudentLegacy } from '~/server/tenancy.server'
 
 export interface RunSenseMakingResult {
   connector: ConnectorOutputRow
@@ -58,8 +58,8 @@ export async function runSenseMakingForStudent(
   studentId: string,
   deps: RunSenseMakingDeps = {},
 ): Promise<RunSenseMakingResult> {
-  return withStudent(studentId, async (sid) => {
-    const corpus = formatCorpusForAgent(sid)
+  return withStudentLegacy(studentId, async (sid) => {
+    const corpus = await formatCorpusForAgent(sid)
 
     const connectorDraft =
       deps.runConnector !== undefined
@@ -67,7 +67,7 @@ export async function runSenseMakingForStudent(
         : await runConnectorViaSdk({ studentId: sid, corpus })
 
     const validatedConnector = ConnectorOutputSchema.parse(connectorDraft)
-    const connectorRow = insertConnectorOutput(sid, {
+    const connectorRow = await insertConnectorOutput(sid, {
       patterns: validatedConnector.patterns,
       still_unclear: validatedConnector.still_unclear,
       trace: { agent: 'connector' },
@@ -81,7 +81,7 @@ export async function runSenseMakingForStudent(
           ? await deps.runCartographer({ studentId: sid, connector: validatedConnector })
           : await runCartographerViaSdk({ studentId: sid, connector: validatedConnector })
       const validatedCartographer = LegacyPathfinderOutputSchema.parse(cartographerDraft)
-      pathfinderRow = insertPathfinderOutput(sid, {
+      pathfinderRow = await insertPathfinderOutput(sid, {
         trajectory: validatedCartographer.trajectory,
         pathways: validatedCartographer.pathways,
         disclaimer: validatedCartographer.disclaimer,
@@ -108,8 +108,8 @@ export async function runSenseMakingForStudent(
  * inferred_meaning, story_reframe) plus the original transcript so agents
  * can ground patterns in either the student's words or Mirror's framing.
  */
-export function formatCorpusForAgent(studentId: string): string {
-  const entries = listMirrorEntries(studentId, { limit: 200 })
+export async function formatCorpusForAgent(studentId: string): Promise<string> {
+  const entries = await listMirrorEntries(studentId, { limit: 200 })
   if (entries.length === 0) return 'No prior reflections.'
   return entries
     .slice()

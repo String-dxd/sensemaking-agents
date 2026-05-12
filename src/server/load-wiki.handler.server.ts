@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { requireCounselorContext } from '~/auth/identity'
+import { withStudent } from '~/db/client'
 import {
   type ConnectorOutputRow,
   getMirrorEntry,
@@ -8,14 +10,10 @@ import {
   type MirrorEntryRow,
   type PathfinderOutputRow,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
 
-export const loadWikiInputSchema = z.object({
-  studentId: z.string().min(1),
-})
+export const loadWikiInputSchema = z.object({})
 
 export const loadWikiEntryInputSchema = z.object({
-  studentId: z.string().min(1),
   entryId: z.number().int().positive(),
 })
 
@@ -34,24 +32,28 @@ export interface WikiEntryDetail {
   pathfinder: PathfinderOutputRow | null
 }
 
-export function loadWikiHandler(data: LoadWikiInput): WikiSnapshot {
-  const parsed = loadWikiInputSchema.parse(data)
-  return withStudent(parsed.studentId, (sid) => ({
-    entries: listMirrorEntries(sid),
-    connector: latestConnectorOutput(sid),
-    pathfinder: latestPathfinderOutput(sid),
+export async function loadWikiHandler(data: LoadWikiInput): Promise<WikiSnapshot> {
+  loadWikiInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, async (ctx) => ({
+    entries: await listMirrorEntries(studentId, { ctx }),
+    connector: await latestConnectorOutput(studentId, { ctx }),
+    pathfinder: await latestPathfinderOutput(studentId, { ctx }),
   }))
 }
 
-export function loadWikiEntryHandler(data: LoadWikiEntryInput): WikiEntryDetail | null {
+export async function loadWikiEntryHandler(
+  data: LoadWikiEntryInput,
+): Promise<WikiEntryDetail | null> {
   const parsed = loadWikiEntryInputSchema.parse(data)
-  return withStudent(parsed.studentId, (sid) => {
-    const entry = getMirrorEntry(sid, parsed.entryId)
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, async (ctx) => {
+    const entry = await getMirrorEntry(studentId, parsed.entryId, { ctx })
     if (!entry) return null
     return {
       entry,
-      connector: latestConnectorOutput(sid),
-      pathfinder: latestPathfinderOutput(sid),
+      connector: await latestConnectorOutput(studentId, { ctx }),
+      pathfinder: await latestPathfinderOutput(studentId, { ctx }),
     }
   })
 }

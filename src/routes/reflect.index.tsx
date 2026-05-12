@@ -15,8 +15,6 @@ function ReflectPage() {
         <p className="max-w-prose text-sm text-muted-foreground">
           Self-directed reflection. Look into the mirror. Talk to yourself for as long as you want
           (or up to ~90 seconds). When you stop, Mirror reflects back what it heard in three parts.
-          v0.1 has no auth, so every session writes to{' '}
-          <code className="text-foreground">student_id = 'demo'</code>.
         </p>
       </header>
       <Card>
@@ -29,7 +27,6 @@ function ReflectPage() {
         </CardHeader>
         <CardContent>
           <MirrorSession
-            studentId="demo"
             onPersisted={(_result) => {
               // U8: after every persistMirror, route to the post-Mirror
               // review surface. When `_result.pendingQueued: true` (R30),

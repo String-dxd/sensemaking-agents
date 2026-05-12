@@ -1,0 +1,47 @@
+{
+  "student_id": "demo-d",
+  "label": "demo-d",
+  "ran_at": "2026-05-12T13:54:55.567Z",
+  "session_id": "sesn_016XonLnHk6zrkcdwk3GVPYV",
+  "agent": {
+    "id": "agent_014PtR7Gc2jTh7V8KvERrppb",
+    "version": 1
+  },
+  "usage": {
+    "inputTokens": 3,
+    "outputTokens": 1280,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 4951
+  },
+  "latency_ms": 33383,
+  "output": {
+    "trajectory_paragraph": "Your four VIPS pages — Values, Interests, Personality, and Skills — are currently empty: no timeline entries, no compiled-truth claims, and no recent reflections have been recorded yet. There is no pattern to synthesise and no tension to surface. What this means in practice is that the territory ahead of you is genuinely open, which is not a problem to fix but a starting condition to name honestly. Any pathways sketched below are placeholder scaffolding only — they carry no evidential weight from your own story and exist solely to show you the shape of the tool. Until you have logged even a handful of reflections, treat everything here as an empty map grid waiting for your ink, not as directions worth following.",
+    "pathways": [
+      {
+        "label": "Placeholder A — awaiting your first reflection",
+        "trait_combination": [],
+        "ecg_region_tags": [
+          "cluster.engineering"
+        ],
+        "risks_tradeoffs": "Because no Values, Interests, Personality, or Skills entries exist yet, this pathway cannot be grounded in anything you have actually said or done. Assigning it real tradeoffs — such as whether a JC science block or a poly engineering diploma fits your pace of learning, or whether hands-on workshop time matters more to you than early theoretical depth — would be premature. Log a few reflections first, then return here for a trajectory that reflects your actual evidence rather than a generic template.",
+        "exploration_prompt": "What is one activity — in school, at home, or in a CCA — that you found yourself doing without being told to, and what did you enjoy or dislike about it?"
+      },
+      {
+        "label": "Placeholder B — awaiting your first reflection",
+        "trait_combination": [],
+        "ecg_region_tags": [
+          "cluster.public-service"
+        ],
+        "risks_tradeoffs": "With no timeline entries to cite, this placeholder cannot tell you anything real about whether a public-service or policy-facing direction fits you. The tradeoffs that matter in SG — arts-humanities subject block versus science block at JC, the slower salary curve of civil service versus private sector, the difference between policy work and frontline community roles — all depend on values and interests evidence you have not yet recorded. A single honest reflection about a time you cared about a community problem would already sharpen this considerably.",
+        "exploration_prompt": "Think of a problem in your school, neighbourhood, or country that bothers you — what would need to change, and do you want to be the one changing it or the one studying why it exists?"
+      }
+    ],
+    "open_questions": [
+      "What activities or subjects have pulled your attention this year, even briefly — and have you written any of them down?",
+      "Are there values (security, learning, contribution, independence) that your family or your own instincts seem to treat as non-negotiable?",
+      "Do you tend to feel energised or drained after group work, and has that pattern shown up consistently enough to count as a signal?",
+      "What is a skill others have named in you — in a group project, a CCA, or a family context — that you have not yet claimed for yourself?"
+    ],
+    "disclaimer": "These are placeholder pathways the tool's structure points toward in the absence of any student evidence — not directions you should follow, and not a reflection of who you are or what you should become."
+  }
+}
