@@ -210,9 +210,18 @@ async function provisionEnvironment(
       entries: envEntries,
     }
   }
+  // SDK shape change (anthropic-beta managed-agents-2026-04-01 onwards):
+  // `networking` is no longer a top-level param. It now lives inside `config`,
+  // where `config.type='cloud'` selects the cloud-runtime variant and
+  // `networking.type='unrestricted'` matches the prior `networking: 'cloud'`
+  // posture (egress open; restrict later via BetaLimitedNetworkParams if a
+  // tighter policy is needed).
   const raw = await beta.environments.create({
     name: ENVIRONMENT_NAME,
-    networking: 'cloud',
+    config: {
+      type: 'cloud',
+      networking: { type: 'unrestricted' },
+    },
   })
   const id =
     pickField(raw, 'id', 'environment_id') ?? throwShape('environment.create returned no id', raw)
@@ -245,13 +254,23 @@ async function provisionAgent(
       entries: envEntries,
     }
   }
+  // SDK shape change (anthropic-beta managed-agents-2026-04-01 onwards):
+  //   • `environment_id` is no longer accepted on agent create. The
+  //     environment is now bound at SESSION creation time (and via
+  //     `resources[]` for memory stores), not at agent definition time.
+  //     `runManagedAgent` already passes `environment_id` to
+  //     `beta.sessions.create`, so the runtime wiring is unchanged.
+  //   • `max_tokens` is no longer accepted on agent create. Per-call
+  //     output limits move to session/message time; we'll add them there
+  //     if the unbounded default surfaces a real cost ceiling concern.
+  // `spec.maxTokens` is retained on the AgentSpec for documentation —
+  // if Anthropic re-introduces per-agent token caps, the values are here.
   const raw = await beta.agents.create({
     name: spec.name,
     model: spec.model,
-    max_tokens: spec.maxTokens,
     system: spec.systemPrompt,
-    environment_id: environmentId,
   })
+  void environmentId // suppress unused-parameter signal; caller still threads it
   const id =
     pickField(raw, 'id', 'agent_id') ??
     throwShape(`agents.create(${spec.name}) returned no id`, raw)

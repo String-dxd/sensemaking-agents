@@ -1,0 +1,615 @@
+{
+  "runner": "managed",
+  "surface": "sensemake",
+  "ran_at": "2026-05-12T13:29:25.758Z",
+  "model": "agent_01RAZPy7HzkWo3h8Mch4D55F:v1",
+  "student_scope": null,
+  "corpus_path": "test/ablation/fixtures/seed-multistudent.json",
+  "rows_executed": 32,
+  "rows": [
+    {
+      "reflection_id": null,
+      "student_id": "demo-a",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13175,
+        "input_tokens": 1552,
+        "output_tokens": 337,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-a",
+      "context_type": "peer",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13089,
+        "input_tokens": 1526,
+        "output_tokens": 312,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-a",
+      "context_type": "civic",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13196,
+        "input_tokens": 1529,
+        "output_tokens": 286,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-a",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13456,
+        "input_tokens": 1511,
+        "output_tokens": 221,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-a",
+      "context_type": "peer",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13290,
+        "input_tokens": 1499,
+        "output_tokens": 376,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-a",
+      "context_type": "family",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13069,
+        "input_tokens": 1524,
+        "output_tokens": 276,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-a",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13205,
+        "input_tokens": 1512,
+        "output_tokens": 307,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-a",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13206,
+        "input_tokens": 1496,
+        "output_tokens": 322,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-b",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 8488,
+        "input_tokens": 1494,
+        "output_tokens": 214,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-b",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13189,
+        "input_tokens": 1502,
+        "output_tokens": 256,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-b",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13147,
+        "input_tokens": 1487,
+        "output_tokens": 386,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-b",
+      "context_type": "family",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13103,
+        "input_tokens": 1503,
+        "output_tokens": 260,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-b",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13267,
+        "input_tokens": 1523,
+        "output_tokens": 279,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-b",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13209,
+        "input_tokens": 1506,
+        "output_tokens": 210,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-b",
+      "context_type": "peer",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13079,
+        "input_tokens": 1517,
+        "output_tokens": 281,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-b",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13138,
+        "input_tokens": 1500,
+        "output_tokens": 279,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-c",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13135,
+        "input_tokens": 1495,
+        "output_tokens": 241,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-c",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 8502,
+        "input_tokens": 1497,
+        "output_tokens": 247,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-c",
+      "context_type": "family",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13197,
+        "input_tokens": 1519,
+        "output_tokens": 279,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-c",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13140,
+        "input_tokens": 1507,
+        "output_tokens": 293,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-c",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13259,
+        "input_tokens": 1489,
+        "output_tokens": 210,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-c",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13122,
+        "input_tokens": 1512,
+        "output_tokens": 304,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-c",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13195,
+        "input_tokens": 1521,
+        "output_tokens": 316,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-c",
+      "context_type": "family",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13258,
+        "input_tokens": 1503,
+        "output_tokens": 376,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-c",
+      "context_type": "peer",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13007,
+        "input_tokens": 1501,
+        "output_tokens": 251,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-d",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13286,
+        "input_tokens": 1526,
+        "output_tokens": 316,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-d",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13252,
+        "input_tokens": 1508,
+        "output_tokens": 315,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-d",
+      "context_type": "peer",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13143,
+        "input_tokens": 1521,
+        "output_tokens": 244,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-d",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13188,
+        "input_tokens": 1492,
+        "output_tokens": 333,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-d",
+      "context_type": "school",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13062,
+        "input_tokens": 1508,
+        "output_tokens": 291,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-d",
+      "context_type": "family",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13728,
+        "input_tokens": 1523,
+        "output_tokens": 372,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": null,
+      "cartographer": null,
+      "verifier": null,
+      "error": null
+    },
+    {
+      "reflection_id": null,
+      "student_id": "demo-d",
+      "context_type": "hobby",
+      "mirror": {
+        "agent": "mirror",
+        "latency_ms": 13562,
+        "input_tokens": 1507,
+        "output_tokens": 338,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "connector": {
+        "agent": "connector",
+        "latency_ms": 150212,
+        "input_tokens": 36,
+        "output_tokens": 15353,
+        "output_parsed": true,
+        "parse_error": null
+      },
+      "cartographer": null,
+      "verifier": {
+        "admitted": 13,
+        "downgraded": 0,
+        "dropped_no_quote_match": 1,
+        "dropped_unknown_reflection": 0,
+        "aspirational": 5,
+        "claim_ids": [
+          "interests.social",
+          "skills.interpersonal",
+          "values.contribution",
+          "values.relationships"
+        ]
+      },
+      "error": null
+    }
+  ],
+  "totals": {
+    "mirror": {
+      "calls": 32,
+      "parsed_calls": 32,
+      "total_input_tokens": 48310,
+      "total_output_tokens": 9328,
+      "latency_ms_p50": 13188,
+      "latency_ms_p95": 13562,
+      "latency_ms_max": 13728
+    },
+    "connector": {
+      "calls": 1,
+      "parsed_calls": 1,
+      "total_input_tokens": 36,
+      "total_output_tokens": 15353,
+      "latency_ms_p50": 150212,
+      "latency_ms_p95": 150212,
+      "latency_ms_max": 150212
+    },
+    "cartographer": null,
+    "verifier": {
+      "admitted": 13,
+      "downgraded": 0,
+      "dropped_no_quote_match": 1,
+      "dropped_unknown_reflection": 0,
+      "aspirational": 5,
+      "claim_ids": [
+        "interests.social",
+        "skills.interpersonal",
+        "values.contribution",
+        "values.relationships"
+      ]
+    }
+  },
+  "claim_id_distribution": {
+    "interests.social": 1,
+    "skills.interpersonal": 1,
+    "values.contribution": 1,
+    "values.relationships": 1
+  },
+  "notes": "Live run via runner=`managed` against agent_01RAZPy7HzkWo3h8Mch4D55F:v1 (Mirror) / agent_016ry7E3JmHcMS9qbYuockvu:v1 (Connector). Cartographer skipped — see plan §9.3 step 3 for the manual review surface."
+}

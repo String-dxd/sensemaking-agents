@@ -139,7 +139,12 @@ export const ProposedTimelineEntryDraftSchema = z.object({
   dimension: z.string().min(1),
   canonical_claim_id: z.string().min(1),
   verbatim_quote: z.string().min(1),
-  reflection_id: z.number().int(),
+  // Mirrors the Connector emit schema in `src/agents/schemas.ts`. Coerces
+  // string integers and catches uncoercible values (placeholders, NaN,
+  // missing) to a -1 sentinel. The verifier compares this to `mirror.id`
+  // and drops mismatches as `unknown_reflection`, so the signal lands in
+  // the verifier counters rather than as a hard parse failure.
+  reflection_id: z.coerce.number().int().catch(-1),
   strength: VipsClaimStrengthSchema,
   parallax_tag: z.array(VipsContextTypeSchema),
 })

@@ -179,9 +179,15 @@ export async function runAutoConnectorAfterMirror(
     //   1. `deps.runConnector` (test injection — wins over both runtimes).
     //   2. `USE_MANAGED_AGENTS=true` → Anthropic Managed Agents path.
     //   3. Default → OpenAI Agents SDK via `runConnectorViaSdk`.
-    const runner: () => Promise<unknown> = deps.runConnector
+    //
+    // Hoist `deps.runConnector` into a local so TypeScript narrows it inside
+    // the closure (the bare `deps.runConnector` would widen back to
+    // `undefined` across the function boundary and require a non-null
+    // assertion — which biome flags as `noNonNullAssertion`).
+    const injectedRunner = deps.runConnector
+    const runner: () => Promise<unknown> = injectedRunner
       ? () =>
-          deps.runConnector!({
+          injectedRunner({
             studentId,
             mirrorEntry: mirrorProjection,
             pages,

@@ -85,7 +85,19 @@ export type ConnectorDimension = z.infer<typeof ConnectorDimensionSchema>
 export const ConnectorTimelineEntryDraftSchema = z.object({
   canonical_claim_id: z.string().min(1),
   verbatim_quote: z.string(),
-  reflection_id: z.number().int(),
+  // Robust reflection_id parsing for the Managed Agents path:
+  //   • `8` → 8           (well-formed integer)
+  //   • `"8"` → 8          (quoted integer — coerced)
+  //   • `"latest"`, NaN,
+  //     missing key → -1   (sentinel; verifier drops as unknown_reflection)
+  //
+  // The OpenAI Agents SDK enforced typed-output at the SDK boundary, so
+  // anomalies got retried inside the SDK. Managed Agents emits raw JSON,
+  // and the Connector sometimes hallucinates a placeholder string (e.g.
+  // "latest", "current") instead of citing a concrete mirror_entry id.
+  // Catching to -1 keeps the parse green while preserving the quality
+  // signal in `verifier.dropped_unknown_reflection`.
+  reflection_id: z.coerce.number().int().catch(-1),
   strength: VipsClaimStrengthSchema,
   parallax_tag: z.array(VipsContextTypeSchema),
 })

@@ -435,11 +435,19 @@ async function runConnectorManagedPerStudent(studentIds: string[]): Promise<{
   let aggOutput = 0
   let rawSampleOutput: string | null = null
   const parseErrors: string[] = []
+  console.log(`ablate: starting connector loop — ${studentIds.length} student(s)`)
+  let connectorIdx = 0
   for (const sid of studentIds) {
+    connectorIdx++
+    const callStart = Date.now()
     const entries = await listMirrorEntries(sid, { limit: 1 })
     const latest = entries[0]
     if (!latest) {
       parseErrors.push(`${sid}: no seeded mirror entries`)
+      console.log(
+        `ablate: [connector ${connectorIdx}/${studentIds.length}] ${sid} ` +
+          `(skipped — no seeded mirror entries)`,
+      )
       continue
     }
     try {
@@ -456,10 +464,18 @@ async function runConnectorManagedPerStudent(studentIds: string[]): Promise<{
       aggOutput += result.usage.outputTokens
       draftsByStudent.set(sid, result.output)
       if (rawSampleOutput === null) rawSampleOutput = result.rawText
+      console.log(
+        `ablate: [connector ${connectorIdx}/${studentIds.length}] ${sid} ` +
+          `(${Date.now() - callStart}ms, ok)`,
+      )
     } catch (err) {
       const code = err instanceof ManagedAgentError ? `${err.code}` : 'UNKNOWN'
       const message = err instanceof Error ? err.message : String(err)
       parseErrors.push(`${sid}: [${code}] ${message}`)
+      console.log(
+        `ablate: [connector ${connectorIdx}/${studentIds.length}] ${sid} ` +
+          `(${Date.now() - callStart}ms, ERR [${code}] ${message.slice(0, 60)})`,
+      )
     }
   }
 
@@ -628,12 +644,22 @@ async function main() {
   // (informational; the structured JSON carries the per-row detail).
   let sampleMirrorOutput: string | null = null
 
+  console.log(
+    `ablate: starting mirror loop — ${reflections.length} reflection(s), runner=${args.runner}, surface=${surface}`,
+  )
+  let mirrorIdx = 0
   for (const reflection of reflections) {
+    mirrorIdx++
     const { stats, rawOutput } =
       args.runner === 'managed'
         ? await runMirrorManagedForRow(reflection)
         : await runMirrorForRow(reflection)
     if (sampleMirrorOutput === null && rawOutput !== null) sampleMirrorOutput = rawOutput
+    const tag = stats.parse_error ? `ERR ${stats.parse_error.slice(0, 60)}` : 'ok'
+    console.log(
+      `ablate: [mirror ${mirrorIdx}/${reflections.length}] ${reflection.student_id} ` +
+        `(${stats.latency_ms}ms, ${tag})`,
+    )
     rows.push({
       reflection_id: null,
       student_id: reflection.student_id,
