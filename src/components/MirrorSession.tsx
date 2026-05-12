@@ -1,9 +1,46 @@
-import { useEffect, useReducer, useRef } from 'react'
-import { type ContextType, ContextTypePicker } from '~/components/ContextTypePicker'
+/**
+ * Voice-mode session controller. Audio-only — the camera and any
+ * <video> element from the v0.1 webcam-as-mirror ritual are retired. The
+ * world stage stays visible as the ambient surface while the student
+ * talks; the volume-reactive halo lives on the Voice/Stop button itself.
+ *
+ * Linear chain on Stop: transcribing → reflecting → persisting → done →
+ * navigate to /reflect/review. No post-Stop context picker — `context_type`
+ * defaults to the last-used value from localStorage (matching the
+ * ContextTypePicker fallback). Phase B revisits whether `context_type`
+ * survives at all once `mood` + `inferred_emotion` land.
+ *
+ * `state.mood` lives in local React state only this plan — Phase A does
+ * NOT modify the persistMirror data contract. Phase B (after the
+ * Managed Agents migration) wires `state.mood` and Mirror's emitted
+ * `inferred_emotion` into the DB through the new Drizzle layer.
+ */
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
+import type { ContextType } from '~/components/ContextTypePicker'
 import { Button } from '~/components/ui/button'
 import { persistMirror } from '~/server/persist-mirror.functions'
 import { runMirror } from '~/server/run-mirror.functions'
 import { transcribeMirror } from '~/server/transcribe-mirror.functions'
+
+/**
+ * Placeholder Mood type held in local state. U6 replaces the inline
+ * literal union with the canonical `MoodSchema` enum exported from
+ * `~/agents/tools/schemas`. Kept inline here so U5 compiles without
+ * waiting on U6's schema export.
+ */
+export type Mood =
+  | 'joy'
+  | 'sadness'
+  | 'anger'
+  | 'fear'
+  | 'disgust'
+  | 'anxiety'
+  | 'envy'
+  | 'embarrassed'
+  | 'ennui'
+
+const CONTEXT_LAST_USED_KEY = 'sensemaking.context_type.last_used'
+const CONTEXT_TYPES = ['school', 'family', 'peer', 'hobby', 'civic'] as const
 
 /** 90-second soft time-box; Stop is always available. */
 const SOFT_TIMEBOX_MS = 90_000
@@ -14,10 +51,9 @@ const SILENCE_RMS_THRESHOLD = 0.012
 
 type Phase =
   | 'idle'
-  | 'permission-pending'
+  | 'requesting-mic'
   | 'recording'
   | 'transcribing'
-  | 'picking-context'
   | 'reflecting'
   | 'persisting'
   | 'done'
@@ -27,29 +63,33 @@ interface State {
   phase: Phase
   showSoftPrompt: boolean
   elapsedMs: number
-  /** Smoothed amplitude for the volume ring [0..1]. */
+  /** Smoothed amplitude for the volume halo [0..1]. */
   amplitude: number
   errorMessage: string | null
   /**
-   * U7: held between `transcribing` → `picking-context` → `reflecting`. If the
-   * user navigates away during `picking-context`, the transcript is discarded
-   * with the component unmount and no `persistMirror` is invoked.
+   * Held between `transcribing` → `reflecting` so the post-Stop chain has
+   * the transcript even if React re-renders interleave.
    */
   pendingTranscript: string | null
+  /**
+   * User-tagged emotion. Optional, never blocking. Phase A: stays local;
+   * not forwarded to persistMirror. Phase B adds the column + wiring.
+   */
+  mood: Mood | null
 }
 
 type Action =
-  | { type: 'request-permissions' }
+  | { type: 'request-mic' }
   | { type: 'permissions-granted' }
   | { type: 'permission-error'; message: string }
   | { type: 'tick'; elapsedMs: number; amplitude: number }
   | { type: 'opening-silence' }
   | { type: 'stop-pressed' }
-  | { type: 'transcribing' }
-  | { type: 'picking-context'; transcript: string }
+  | { type: 'transcribing'; transcript: string }
   | { type: 'reflecting' }
   | { type: 'persisting' }
   | { type: 'done' }
+  | { type: 'mood-tagged'; mood: Mood }
   | { type: 'fail'; message: string }
   | { type: 'reset' }
 
@@ -60,12 +100,13 @@ const initialState: State = {
   amplitude: 0,
   errorMessage: null,
   pendingTranscript: null,
+  mood: null,
 }
 
 function reduce(state: State, action: Action): State {
   switch (action.type) {
-    case 'request-permissions':
-      return { ...state, phase: 'permission-pending', errorMessage: null }
+    case 'request-mic':
+      return state.phase === 'idle' ? { ...state, phase: 'requesting-mic' } : state
     case 'permissions-granted':
       return { ...state, phase: 'recording', errorMessage: null }
     case 'permission-error':
@@ -77,15 +118,15 @@ function reduce(state: State, action: Action): State {
     case 'stop-pressed':
       return state.phase === 'recording' ? { ...state, phase: 'transcribing' } : state
     case 'transcribing':
-      return { ...state, phase: 'transcribing' }
-    case 'picking-context':
-      return { ...state, phase: 'picking-context', pendingTranscript: action.transcript }
+      return { ...state, phase: 'transcribing', pendingTranscript: action.transcript }
     case 'reflecting':
       return { ...state, phase: 'reflecting' }
     case 'persisting':
       return { ...state, phase: 'persisting' }
     case 'done':
       return { ...state, phase: 'done' }
+    case 'mood-tagged':
+      return state.phase === 'recording' ? { ...state, mood: action.mood } : state
     case 'fail':
       return { ...state, phase: 'error', errorMessage: action.message }
     case 'reset':
@@ -95,10 +136,6 @@ function reduce(state: State, action: Action): State {
 
 export interface MirrorSessionResult {
   entryId: number
-  /** U7 auto-Connector outcome. Callers route on this to /reflect/review.
-   * Finding #7 split the previous catch-all `schema_reject` into discrete
-   * failure buckets — add the new strings so the consumer can render a
-   * specific error toast per cause. */
   autoConnectorStatus:
     | 'ok'
     | 'queued'
@@ -108,35 +145,65 @@ export interface MirrorSessionResult {
     | 'auth_error'
     | 'unknown'
     | 'missing_mirror'
-  /** R30: true iff a prior pending diff caused this run to be queued. */
   pendingQueued: boolean
 }
 
-export interface MirrorSessionProps {
-  /**
-   * Called after `persistMirror` succeeds. The callback receives the
-   * mirror-entry id, the auto-Connector status, and the R30 queued flag
-   * so the consumer can decide where to route. In U8 the consumer in
-   * `routes/reflect.tsx` always routes to `/reflect/review` — that
-   * route's loader surfaces the prior pending diff when `pendingQueued`
-   * is true, or the newly-staged diff when the chain returned `ok`.
-   */
+export interface MirrorSessionOptions {
+  studentId: string
+  /** Called after `persistMirror` succeeds; parent routes from here. */
   onPersisted?: (result: MirrorSessionResult) => void
 }
 
-/**
- * Quiet-mirror reflection ritual. Webcam feed is the mirror surface
- * (visual-only, locally rendered, horizontally flipped). Audio is
- * captured via MediaRecorder and transcribed by Whisper after Stop.
- *
- * No AI voice during the session. The only in-session prompt is a
- * single soft text line shown once if the student stays silent for
- * the first ~3 seconds.
- */
-export function MirrorSession({ onPersisted }: MirrorSessionProps) {
-  const [state, dispatch] = useReducer(reduce, initialState)
+export interface MirrorSessionApi {
+  phase: Phase
+  mood: Mood | null
+  amplitude: number
+  showSoftPrompt: boolean
+  remainingSec: number
+  errorMessage: string | null
+  /** True for any non-idle, non-error, non-done phase — sheets/library nav must lock here. */
+  voiceModeActive: boolean
+  /** Toggles the recorder: start when idle, stop when recording. Idempotent elsewhere. */
+  handleVoicePress: () => void
+  /** Sets `state.mood` (only effective during `recording`). */
+  handleMoodTagged: (mood: Mood) => void
+  /** Resets the state machine after an error. */
+  handleReset: () => void
+}
 
-  const videoRef = useRef<HTMLVideoElement | null>(null)
+function readDefaultContextType(): ContextType {
+  if (typeof window === 'undefined') return 'school'
+  try {
+    const raw = window.localStorage.getItem(CONTEXT_LAST_USED_KEY)
+    if (raw && (CONTEXT_TYPES as readonly string[]).includes(raw)) return raw as ContextType
+  } catch {
+    /* localStorage unavailable */
+  }
+  return 'school'
+}
+
+/**
+ * Hook-based session controller. Returns the state machine plus the
+ * handlers used by `LandingPage` to wire the Voice button + chip overlay.
+ */
+export function useMirrorSession({
+  studentId,
+  onPersisted,
+}: MirrorSessionOptions): MirrorSessionApi {
+  const [state, dispatch] = useReducer(reduce, initialState, (init) => {
+    if (
+      typeof window !== 'undefined' &&
+      typeof (import.meta as { env?: { DEV?: boolean } }).env?.DEV !== 'undefined' &&
+      (import.meta as { env?: { DEV?: boolean } }).env?.DEV
+    ) {
+      const injected = new URLSearchParams(window.location.search).get('inject')
+      if (injected && injected.trim().length > 0) {
+        return { ...init, phase: 'transcribing', pendingTranscript: injected.trim() }
+      }
+    }
+    return init
+  })
+
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -150,95 +217,118 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
     resolve: (blob: Blob) => void
     reject: (err: Error) => void
   } | null>(null)
-  const mountedRef = useRef(true)
 
-  // Dev-only seam: ?inject=<transcript> skips media acquisition entirely so
-  // headless/automation smoke tests (and humans without a working mic) can
-  // drive the rest of the F1 pipeline. Dead-stripped from production builds
-  // via `import.meta.env.DEV`.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only effect; cleanup closes over refs that are stable for the lifetime of the component
-  useEffect(() => {
-    mountedRef.current = true
-    if (import.meta.env.DEV && typeof window !== 'undefined') {
-      const injected = new URLSearchParams(window.location.search).get('inject')
-      if (injected && injected.trim().length > 0) {
-        dispatch({ type: 'picking-context', transcript: injected.trim() })
+  const cleanup = useCallback(() => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
+    }
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      try {
+        recorderRef.current.stop()
+      } catch {
+        /* noop */
       }
     }
-    return () => {
-      mountedRef.current = false
-      cleanup()
+    if (audioCtxRef.current) {
+      void audioCtxRef.current.close().catch(() => undefined)
+      audioCtxRef.current = null
+    }
+    if (streamRef.current) {
+      stopStream(streamRef.current)
+      streamRef.current = null
     }
   }, [])
 
-  async function acquire() {
-    if (typeof window === 'undefined') return
-    console.info('[MirrorSession] acquire() start', {
-      isSecureContext: window.isSecureContext,
-      protocol: window.location.protocol,
-      host: window.location.host,
-      hasMediaDevices: !!navigator.mediaDevices,
-      hasGetUserMedia: !!navigator.mediaDevices?.getUserMedia,
-    })
-    if (!window.isSecureContext) {
-      dispatch({
-        type: 'permission-error',
-        message: `This page is not in a secure context (${window.location.protocol}//${window.location.host}). Browsers block camera + microphone outside of https: or http://localhost. Open the app at http://localhost:3000 (not an IP, not a LAN hostname) or over https://.`,
-      })
-      return
-    }
-    if (!navigator.mediaDevices?.getUserMedia) {
-      dispatch({
-        type: 'permission-error',
-        message: 'This browser does not expose navigator.mediaDevices.getUserMedia. Try a current Chrome, Edge, Firefox, or Safari.',
-      })
-      return
-    }
-    // Preflight: if the site is already permanently blocked, getUserMedia will
-    // reject quickly with NotAllowedError but Chrome may also surface no prompt
-    // at all — query the Permissions API first so we can short-circuit with
-    // recovery instructions instead of leaving the user staring at a spinner.
-    try {
-      const perms = navigator.permissions as Permissions | undefined
-      if (perms?.query) {
-        const [cam, mic] = await Promise.all([
-          perms.query({ name: 'camera' as PermissionName }).catch(() => null),
-          perms.query({ name: 'microphone' as PermissionName }).catch(() => null),
-        ])
-        console.info('[MirrorSession] permission states', {
-          camera: cam?.state,
-          microphone: mic?.state,
-        })
-        if (cam?.state === 'denied' || mic?.state === 'denied') {
-          dispatch({
-            type: 'permission-error',
-            message: blockedSitePermissionMessage(cam?.state, mic?.state),
-          })
-          return
+  // Clean up on unmount only — we don't auto-acquire on mount anymore.
+  useEffect(() => {
+    return cleanup
+  }, [cleanup])
+
+  const startVolumeLoop = useCallback(() => {
+    const analyser = analyserRef.current
+    if (!analyser) return
+    const buf = new Float32Array(analyser.fftSize)
+    const tick = () => {
+      analyser.getFloatTimeDomainData(buf)
+      let sum = 0
+      for (let i = 0; i < buf.length; i++) {
+        const v = buf[i] ?? 0
+        sum += v * v
+      }
+      const rms = Math.sqrt(sum / buf.length)
+      const startedAt = startedAtRef.current ?? performance.now()
+      const elapsedMs = performance.now() - startedAt
+      const target = Math.min(1, rms * 12)
+      const prev = analyser as unknown as { _prevAmp?: number }
+      const next = (prev._prevAmp ?? 0) * 0.85 + target * 0.15
+      prev._prevAmp = next
+
+      if (rms < SILENCE_RMS_THRESHOLD) {
+        if (silentSinceRef.current == null) silentSinceRef.current = performance.now()
+        const silentFor = performance.now() - silentSinceRef.current
+        if (
+          !softPromptFiredRef.current &&
+          elapsedMs >= 0 &&
+          silentFor >= OPENING_SILENCE_MS &&
+          elapsedMs <= OPENING_SILENCE_MS + 1500
+        ) {
+          softPromptFiredRef.current = true
+          dispatch({ type: 'opening-silence' })
         }
-      }
-    } catch (err) {
-      console.warn('[MirrorSession] permission preflight failed (continuing)', err)
-    }
-    try {
-      console.info('[MirrorSession] calling getUserMedia…')
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: { width: { ideal: 720 }, height: { ideal: 720 } },
-      })
-      console.info('[MirrorSession] getUserMedia resolved', {
-        tracks: stream.getTracks().map((t) => `${t.kind}:${t.label}`),
-      })
-      if (!mountedRef.current) {
-        stopStream(stream)
-        return
-      }
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
+      } else {
+        silentSinceRef.current = null
       }
 
-      // Audio context + analyser for the volume ring + silence detection.
+      dispatch({ type: 'tick', elapsedMs, amplitude: next })
+
+      if (elapsedMs >= SOFT_TIMEBOX_MS && recorderRef.current?.state === 'recording') {
+        void handleStopInternal()
+        return
+      }
+
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+    // handleStopInternal is closed over below; this loop runs only when
+    // recording is live so the forward reference is safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const acquireMic = useCallback(async () => {
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      dispatch({
+        type: 'permission-error',
+        message: `This page is not in a secure context (${window.location.protocol}//${window.location.host}). Browsers block microphone access outside of https: or http://localhost. Open the app at http://localhost:3000 (not an IP, not a LAN hostname) or over https://.`,
+      })
+      return
+    }
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+      dispatch({
+        type: 'permission-error',
+        message:
+          'This browser does not expose navigator.mediaDevices.getUserMedia. Try a current Chrome, Edge, Firefox, or Safari.',
+      })
+      return
+    }
+    dispatch({ type: 'request-mic' })
+    try {
+      const perms = navigator.permissions as Permissions | undefined
+      const mic = await perms?.query?.({ name: 'microphone' as PermissionName }).catch(() => null)
+      if (mic?.state === 'denied') {
+        dispatch({
+          type: 'permission-error',
+          message: blockedMicPermissionMessage(),
+        })
+        return
+      }
+    } catch (err) {
+      console.warn('[MirrorSession] microphone permission preflight failed (continuing)', err)
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+
       const ctx = new AudioContext()
       audioCtxRef.current = ctx
       const source = ctx.createMediaStreamSource(stream)
@@ -247,10 +337,8 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
       source.connect(analyser)
       analyserRef.current = analyser
 
-      // Recorder for audio only — video is render-only.
-      const audioOnlyStream = new MediaStream(stream.getAudioTracks())
       const mimeType = pickMimeType()
-      const recorder = new MediaRecorder(audioOnlyStream, mimeType ? { mimeType } : undefined)
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
       recorderRef.current = recorder
       chunksRef.current = []
       recorder.ondataavailable = (ev) => {
@@ -274,95 +362,66 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
       startedAtRef.current = performance.now()
       silentSinceRef.current = startedAtRef.current
       dispatch({ type: 'permissions-granted' })
-
       startVolumeLoop()
     } catch (err) {
-      dispatch({ type: 'permission-error', message: friendlyMediaError(err) })
+      dispatch({ type: 'permission-error', message: friendlyMicError(err) })
     }
-  }
+  }, [startVolumeLoop])
 
-  function startVolumeLoop() {
-    const analyser = analyserRef.current
-    if (!analyser) return
-    const buf = new Float32Array(analyser.fftSize)
-    const tick = () => {
-      analyser.getFloatTimeDomainData(buf)
-      let sum = 0
-      for (let i = 0; i < buf.length; i++) {
-        const v = buf[i] ?? 0
-        sum += v * v
-      }
-      const rms = Math.sqrt(sum / buf.length)
-      const startedAt = startedAtRef.current ?? performance.now()
-      const elapsedMs = performance.now() - startedAt
-
-      // Smooth the amplitude — no jitter.
-      const target = Math.min(1, rms * 12)
-      // exponential moving average; alpha ~0.15
-      const prev = analyser as unknown as { _prevAmp?: number }
-      const next = (prev._prevAmp ?? 0) * 0.85 + target * 0.15
-      prev._prevAmp = next
-
-      // Silence accounting.
-      if (rms < SILENCE_RMS_THRESHOLD) {
-        if (silentSinceRef.current == null) silentSinceRef.current = performance.now()
-        const silentFor = performance.now() - silentSinceRef.current
-        if (
-          !softPromptFiredRef.current &&
-          elapsedMs >= 0 &&
-          silentFor >= OPENING_SILENCE_MS &&
-          elapsedMs <= OPENING_SILENCE_MS + 1500
-        ) {
-          softPromptFiredRef.current = true
-          dispatch({ type: 'opening-silence' })
-        }
-      } else {
-        silentSinceRef.current = null
-      }
-
-      dispatch({ type: 'tick', elapsedMs, amplitude: next })
-
-      if (elapsedMs >= SOFT_TIMEBOX_MS && recorderRef.current?.state === 'recording') {
-        // Auto-stop at the soft time-box.
-        void handleStop()
-        return
-      }
-
-      rafRef.current = requestAnimationFrame(tick)
+  const stopRecorder = useCallback((): Promise<Blob> => {
+    const recorder = recorderRef.current
+    if (!recorder || recorder.state === 'inactive') {
+      return Promise.resolve(new Blob([], { type: 'audio/webm' }))
     }
-    rafRef.current = requestAnimationFrame(tick)
-  }
-
-  function handleStart() {
-    if (state.phase !== 'idle') return
-    dispatch({ type: 'request-permissions' })
-    void acquire()
-  }
-
-  function cleanup() {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current)
-      rafRef.current = null
-    }
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+    return new Promise<Blob>((resolve, reject) => {
+      stopPromiseRef.current = { resolve, reject }
       try {
-        recorderRef.current.stop()
-      } catch {
-        // noop
+        recorder.stop()
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error(String(err)))
       }
-    }
-    if (audioCtxRef.current) {
-      void audioCtxRef.current.close().catch(() => undefined)
-      audioCtxRef.current = null
-    }
-    if (streamRef.current) {
-      stopStream(streamRef.current)
-      streamRef.current = null
-    }
-  }
+    })
+  }, [])
 
-  async function handleStop() {
-    if (state.phase !== 'recording' && state.phase !== 'permission-pending') return
+  const runPostStopChain = useCallback(
+    async (transcript: string) => {
+      try {
+        dispatch({ type: 'reflecting' })
+        const { output } = await runMirror({ data: { studentId, transcript } })
+
+        dispatch({ type: 'persisting' })
+        const contextType: ContextType = readDefaultContextType()
+        const result = await persistMirror({
+          data: {
+            studentId,
+            entry: {
+              transcript,
+              validation: output.validation,
+              inferred_meaning: output.inferred_meaning,
+              story_reframe: output.story_reframe,
+            },
+            context_type: contextType,
+            raw_output: output,
+            trace: { capturedDurationMs: state.elapsedMs },
+          },
+        })
+
+        dispatch({ type: 'done' })
+        onPersisted?.({
+          entryId: result.mirror_entry.id,
+          autoConnectorStatus: result.auto_connector_status,
+          pendingQueued: result.pending_queued,
+        })
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
+        dispatch({ type: 'fail', message })
+      }
+    },
+    [studentId, onPersisted, state.elapsedMs],
+  )
+
+  const handleStopInternal = useCallback(async () => {
     if (rafRef.current != null) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
@@ -377,267 +436,196 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
       })
       return
     }
-
     try {
-      dispatch({ type: 'transcribing' })
       const audioBase64 = await blobToBase64(blob)
       const { transcript } = await transcribeMirror({
-        data: { audioBase64, mimeType: blob.type || 'audio/webm' },
+        data: { studentId, audioBase64, mimeType: blob.type || 'audio/webm' },
       })
       if (!transcript || transcript.trim().length === 0) {
         dispatch({ type: 'fail', message: 'Transcription came back empty. Try again?' })
         return
       }
-
-      // U7: pause at `picking-context` for the student to pick the VIPS
-      // parallax context_type. The chain resumes in `handleContextChosen`.
-      dispatch({ type: 'picking-context', transcript })
+      dispatch({ type: 'transcribing', transcript })
+      cleanup()
+      await runPostStopChain(transcript)
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
       dispatch({ type: 'fail', message })
-    } finally {
-      // Release media stream regardless of branch — recorder is already stopped.
-      // The Mirror agent + persistMirror run server-side after the picker
-      // selection; no audio is needed beyond this point.
       cleanup()
     }
-  }
+  }, [stopRecorder, studentId, runPostStopChain, cleanup])
 
-  async function handleContextChosen(contextType: ContextType) {
-    const transcript = state.pendingTranscript
-    if (!transcript) {
-      dispatch({ type: 'fail', message: 'Lost the transcript before context was chosen.' })
+  // Drive the dev `?inject=` short-circuit through the post-Stop chain.
+  useEffect(() => {
+    if (state.phase === 'transcribing' && state.pendingTranscript && rafRef.current == null) {
+      // No active recorder when we entered via ?inject — run the chain.
+      if (!recorderRef.current) {
+        void runPostStopChain(state.pendingTranscript)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const handleVoicePress = useCallback(() => {
+    if (state.phase === 'idle') {
+      void acquireMic()
       return
     }
-    try {
-      dispatch({ type: 'reflecting' })
-      const { output } = await runMirror({ data: { transcript } })
-
-      dispatch({ type: 'persisting' })
-      const result = await persistMirror({
-        data: {
-          entry: {
-            transcript,
-            validation: output.validation,
-            inferred_meaning: output.inferred_meaning,
-            story_reframe: output.story_reframe,
-          },
-          context_type: contextType,
-          raw_output: output,
-          trace: { capturedDurationMs: state.elapsedMs },
-        },
-      })
-
-      dispatch({ type: 'done' })
-      onPersisted?.({
-        entryId: result.mirror_entry.id,
-        autoConnectorStatus: result.auto_connector_status,
-        pendingQueued: result.pending_queued,
-      })
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
-      dispatch({ type: 'fail', message })
+    if (state.phase === 'recording') {
+      void handleStopInternal()
     }
+    // Other phases: no-op (handler is idempotent).
+  }, [state.phase, acquireMic, handleStopInternal])
+
+  const handleMoodTagged = useCallback((mood: Mood) => {
+    dispatch({ type: 'mood-tagged', mood })
+  }, [])
+
+  const handleReset = useCallback(() => {
+    cleanup()
+    dispatch({ type: 'reset' })
+  }, [cleanup])
+
+  const remainingSec = useMemo(
+    () => Math.max(0, Math.ceil((SOFT_TIMEBOX_MS - state.elapsedMs) / 1000)),
+    [state.elapsedMs],
+  )
+
+  const voiceModeActive =
+    state.phase === 'requesting-mic' ||
+    state.phase === 'recording' ||
+    state.phase === 'transcribing' ||
+    state.phase === 'reflecting' ||
+    state.phase === 'persisting'
+
+  return {
+    phase: state.phase,
+    mood: state.mood,
+    amplitude: state.amplitude,
+    showSoftPrompt: state.showSoftPrompt,
+    remainingSec,
+    errorMessage: state.errorMessage,
+    voiceModeActive,
+    handleVoicePress,
+    handleMoodTagged,
+    handleReset,
   }
+}
 
-  function stopRecorder(): Promise<Blob> {
-    const recorder = recorderRef.current
-    if (!recorder || recorder.state === 'inactive') {
-      return Promise.resolve(new Blob([], { type: 'audio/webm' }))
-    }
-    return new Promise<Blob>((resolve, reject) => {
-      stopPromiseRef.current = { resolve, reject }
-      try {
-        recorder.stop()
-      } catch (err) {
-        reject(err instanceof Error ? err : new Error(String(err)))
-      }
-    })
-  }
+export interface MirrorSessionErrorPanelProps {
+  message: string
+  onRetry: () => void
+}
 
-  // ── Render ──────────────────────────────────────────────────────────────
-  const remainingMs = Math.max(0, SOFT_TIMEBOX_MS - state.elapsedMs)
-  const remainingSec = Math.ceil(remainingMs / 1000)
-  const ringScale = 1 + state.amplitude * 0.18
-
-  if (state.phase === 'error') {
-    return (
-      <div className="flex flex-col gap-4 rounded-lg border border-warning/40 bg-warning/10 p-6 text-sm">
-        <p className="font-medium">Couldn’t start the mirror.</p>
-        <p className="text-muted-foreground">{state.errorMessage}</p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            cleanup()
-            dispatch({ type: 'reset' })
-          }}
-        >
-          Try again
-        </Button>
-      </div>
-    )
-  }
-
+/** Inline error panel used when the mic flow or chain fails. */
+export function MirrorSessionErrorPanel({ message, onRetry }: MirrorSessionErrorPanelProps) {
   return (
-    <div className="flex flex-col items-center gap-6">
-      <div
-        className="relative aspect-square w-full max-w-md overflow-hidden rounded-2xl"
-        data-testid="mirror-frame"
-      >
-        {/* Volume-reactive ring */}
-        <div
-          className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-accent/40 transition-transform duration-100 ease-out"
-          style={{ transform: `scale(${ringScale})` }}
-          aria-hidden
-        />
-        <video
-          ref={videoRef}
-          className="h-full w-full object-cover"
-          // The mirror metaphor — the student sees themselves the way a real mirror would show them.
-          style={{ transform: 'scaleX(-1)' }}
-          autoPlay
-          muted
-          playsInline
-        />
-        {state.showSoftPrompt && state.phase === 'recording' ? (
-          <div
-            className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-foreground/85 px-4 py-2 text-xs text-background shadow-lg"
-            data-testid="soft-prompt"
-          >
-            Just talk to yourself, naturally.
-          </div>
-        ) : null}
-      </div>
-
-      <div className="flex w-full max-w-md flex-col items-center gap-3">
-        <PhaseLabel phase={state.phase} remainingSec={remainingSec} />
-        {state.phase === 'picking-context' && state.pendingTranscript ? (
-          <div className="flex w-full flex-col gap-3" data-testid="picking-context-block">
-            <div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Here’s what I heard: </span>
-              {state.pendingTranscript}
-            </div>
-            <ContextTypePicker onSelect={(value) => void handleContextChosen(value)} />
-          </div>
-        ) : null}
-        <div className="flex items-center gap-3">
-          {state.phase === 'idle' ? (
-            <Button size="sm" onClick={handleStart} data-testid="start-button">
-              Start mirror
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleStop()}
-              disabled={state.phase !== 'recording'}
-              data-testid="stop-button"
-            >
-              Stop and reflect
-            </Button>
-          )}
-        </div>
-        {state.errorMessage ? (
-          <p className="text-xs text-warning" role="alert">
-            {state.errorMessage}
-          </p>
-        ) : null}
-      </div>
+    <div
+      className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm"
+      data-testid="voice-error-panel"
+      role="alert"
+    >
+      <p className="font-medium">Couldn’t start the mirror.</p>
+      <p className="text-muted-foreground">{message}</p>
+      <Button variant="outline" size="sm" onClick={onRetry}>
+        Try again
+      </Button>
     </div>
   )
 }
 
-function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: number }) {
+export interface VoicePhaseOverlayProps {
+  phase: Phase
+  remainingSec: number
+  showSoftPrompt: boolean
+}
+
+/** Thin centered overlay rendered above the world stage during the chain. */
+export function VoicePhaseOverlay({ phase, remainingSec, showSoftPrompt }: VoicePhaseOverlayProps) {
   if (phase === 'recording') {
     return (
-      <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        listening · {remainingSec}s remaining (or stop whenever)
-      </p>
+      <div
+        className="pointer-events-none absolute bottom-24 left-1/2 -translate-x-1/2"
+        data-testid="voice-phase-overlay"
+      >
+        <p className="rounded-full bg-background/60 px-3 py-1 text-xs text-muted-foreground">
+          listening · {remainingSec}s remaining (or stop whenever)
+        </p>
+        {showSoftPrompt ? (
+          <p
+            className="mt-2 rounded-full bg-foreground/85 px-4 py-2 text-center text-xs text-background shadow-lg"
+            data-testid="soft-prompt"
+          >
+            Just talk to yourself, naturally.
+          </p>
+        ) : null}
+      </div>
     )
   }
-  if (phase === 'transcribing')
+  if (
+    phase === 'transcribing' ||
+    phase === 'reflecting' ||
+    phase === 'persisting' ||
+    phase === 'done'
+  ) {
     return (
-      <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        transcribing what you said…
-      </p>
+      <div
+        className="pointer-events-none absolute inset-x-0 bottom-24 mx-auto w-fit max-w-sm rounded-lg border border-border bg-background/80 px-4 py-2 shadow-lg"
+        data-testid="voice-phase-overlay"
+      >
+        <p className="text-center text-xs text-muted-foreground" data-testid="phase-label">
+          {phaseCopy(phase)}
+        </p>
+      </div>
     )
-  if (phase === 'picking-context')
-    return (
-      <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        what was this about?
-      </p>
-    )
-  if (phase === 'reflecting')
-    return (
-      <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        Mirror is reflecting back…
-      </p>
-    )
-  if (phase === 'persisting')
-    return (
-      <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        saving to your library…
-      </p>
-    )
-  if (phase === 'done')
-    return (
-      <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        done. Opening your reflection.
-      </p>
-    )
-  if (phase === 'permission-pending')
-    return (
-      <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        granting camera + microphone…
-      </p>
-    )
-  if (phase === 'idle')
-    return (
-      <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        click start when you’re ready — your browser will ask for camera + mic access.
-      </p>
-    )
+  }
   return null
 }
 
-function blockedSitePermissionMessage(
-  cam: PermissionState | undefined,
-  mic: PermissionState | undefined,
-): string {
-  const blocked: string[] = []
-  if (cam === 'denied') blocked.push('Camera')
-  if (mic === 'denied') blocked.push('Microphone')
-  const subject = blocked.length === 2 ? 'Camera and microphone' : (blocked[0] ?? 'Permission')
+function phaseCopy(phase: Phase): string {
+  switch (phase) {
+    case 'transcribing':
+      return 'transcribing what you said…'
+    case 'reflecting':
+      return 'Mirror is reflecting back…'
+    case 'persisting':
+      return 'saving to your library…'
+    case 'done':
+      return 'done. Opening your reflection.'
+    default:
+      return ''
+  }
+}
+
+function blockedMicPermissionMessage(): string {
   return [
-    `${subject} access is blocked for this site, so the browser will not show a prompt.`,
-    'Click the lock or site-info icon in the address bar, set Camera and Microphone to Allow for this site, then reload the page.',
-    'On macOS, also confirm the browser itself is allowed in System Settings → Privacy & Security → Camera (and Microphone).',
+    'Microphone access is blocked for this site, so the browser will not show a prompt.',
+    'Click the lock or site-info icon in the address bar, set Microphone to Allow for this site, then reload the page.',
+    'On macOS, also confirm the browser itself is allowed in System Settings -> Privacy & Security -> Microphone.',
   ].join(' ')
 }
 
-function friendlyMediaError(err: unknown): string {
+function friendlyMicError(err: unknown): string {
   const name = err instanceof Error ? err.name : ''
   const raw = err instanceof Error ? err.message : String(err ?? 'unknown error')
   if (name === 'NotAllowedError' || /permission denied|not allowed/i.test(raw)) {
     return [
-      'Camera + microphone access was denied without a prompt.',
-      'On macOS: open System Settings → Privacy & Security → Camera, make sure your browser is enabled. Repeat for Microphone. Quit and re-open the browser, then refresh.',
-      'If the browser already asked once and you said No, click the lock/site-info icon in the address bar and re-allow Camera + Microphone for localhost.',
+      'Microphone access was denied without a prompt.',
+      'On macOS: open System Settings → Privacy & Security → Microphone, make sure your browser is enabled. Quit and re-open the browser, then refresh.',
+      'If the browser already asked once and you said No, click the lock/site-info icon in the address bar and re-allow Microphone for localhost.',
     ].join(' ')
   }
   if (name === 'NotFoundError') {
-    return 'No camera or microphone was found on this device.'
+    return 'No microphone was found on this device.'
   }
   if (name === 'NotReadableError') {
-    return 'Camera or microphone is in use by another app. Close the other app and try again.'
+    return 'Microphone is in use by another app. Close the other app and try again.'
   }
   if (name === 'SecurityError') {
     return 'Browser blocked the request because the page is not in a secure context. Try http://localhost:3000 specifically (not 127.0.0.1).'
   }
-  return `Could not acquire camera or microphone: ${raw}`
+  return `Could not acquire microphone: ${raw}`
 }
 
 function pickMimeType(): string | undefined {
@@ -654,7 +642,7 @@ function stopStream(stream: MediaStream) {
     try {
       t.stop()
     } catch {
-      // noop
+      /* noop */
     }
   }
 }
@@ -667,6 +655,5 @@ async function blobToBase64(blob: Blob): Promise<string> {
   for (let i = 0; i < bytes.length; i += chunkSize) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
   }
-  // browser's btoa works on binary strings
   return btoa(binary)
 }

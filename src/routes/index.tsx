@@ -1,10 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useId, useState } from 'react'
 import { BottomSheet } from '~/components/BottomSheet'
+import {
+  MirrorSessionErrorPanel,
+  useMirrorSession,
+  VoicePhaseOverlay,
+} from '~/components/MirrorSession'
 import { SheetEntryRail, type SheetKey } from '~/components/SheetEntryRail'
 import { TrajectorySheetView } from '~/components/TrajectorySheetView'
 import { VipsPageView } from '~/components/VipsPageView'
+import { VoiceButton, type VoiceButtonPhase } from '~/components/VoiceButton'
 import { WorldHud } from '~/components/WorldHud'
 import { WorldStage } from '~/components/WorldStage'
 import type { VipsDimension } from '~/data/vips-taxonomy'
@@ -36,24 +42,64 @@ export const Route = createFileRoute('/')({
   component: LandingPage,
 })
 
+function landingPhaseToVoiceButton(phase: ReturnType<typeof useMirrorSession>['phase']): VoiceButtonPhase {
+  if (phase === 'idle') return 'idle'
+  if (phase === 'recording') return 'recording'
+  if (phase === 'error' || phase === 'done') return 'idle'
+  return 'working'
+}
+
 function LandingPage() {
+  const navigate = useNavigate()
   const [openSheet, setOpenSheet] = useState<SheetKey | null>(null)
   const sheetPanelId = useId()
+  const session = useMirrorSession({
+    studentId: STUDENT_ID,
+    onPersisted: () => {
+      void navigate({ to: '/reflect/review' })
+    },
+  })
+
+  // Voice mode locks library navigation and sheet interaction.
+  const voiceModeActive = session.voiceModeActive
+  if (voiceModeActive && openSheet !== null) setOpenSheet(null)
+
+  const voiceSlot = (
+    <VoiceButton
+      phase={landingPhaseToVoiceButton(session.phase)}
+      amplitude={session.amplitude}
+      onPress={session.handleVoicePress}
+    />
+  )
 
   return (
     <section className="flex flex-col items-center gap-4 py-2">
       <div className="relative w-full">
         <WorldStage>
-          <WorldHud />
+          <WorldHud voiceModeActive={voiceModeActive} voiceSlot={voiceSlot} />
+          <VoicePhaseOverlay
+            phase={session.phase}
+            remainingSec={session.remainingSec}
+            showSoftPrompt={session.showSoftPrompt}
+          />
         </WorldStage>
+        {session.phase === 'error' && session.errorMessage ? (
+          <div className="absolute inset-x-4 bottom-4">
+            <MirrorSessionErrorPanel
+              message={session.errorMessage}
+              onRetry={session.handleReset}
+            />
+          </div>
+        ) : null}
       </div>
       <SheetEntryRail
         openSheet={openSheet}
         onOpenSheet={setOpenSheet}
         sheetPanelId={sheetPanelId}
+        disabled={voiceModeActive}
       />
       <BottomSheet
-        open={openSheet !== null}
+        open={openSheet !== null && !voiceModeActive}
         onOpenChange={(open) => {
           if (!open) setOpenSheet(null)
         }}
@@ -118,3 +164,4 @@ function VipsDimensionSheetContent({ dimension }: { dimension: VipsDimension }) 
     </div>
   )
 }
+
