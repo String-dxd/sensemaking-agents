@@ -16,28 +16,14 @@
  * `inferred_emotion` into the DB through the new Drizzle layer.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
+import type { Mood } from '~/agents/tools/schemas'
 import type { ContextType } from '~/components/ContextTypePicker'
 import { Button } from '~/components/ui/button'
 import { persistMirror } from '~/server/persist-mirror.functions'
 import { runMirror } from '~/server/run-mirror.functions'
 import { transcribeMirror } from '~/server/transcribe-mirror.functions'
 
-/**
- * Placeholder Mood type held in local state. U6 replaces the inline
- * literal union with the canonical `MoodSchema` enum exported from
- * `~/agents/tools/schemas`. Kept inline here so U5 compiles without
- * waiting on U6's schema export.
- */
-export type Mood =
-  | 'joy'
-  | 'sadness'
-  | 'anger'
-  | 'fear'
-  | 'disgust'
-  | 'anxiety'
-  | 'envy'
-  | 'embarrassed'
-  | 'ennui'
+export type { Mood }
 
 const CONTEXT_LAST_USED_KEY = 'sensemaking.context_type.last_used'
 const CONTEXT_TYPES = ['school', 'family', 'peer', 'hobby', 'civic'] as const

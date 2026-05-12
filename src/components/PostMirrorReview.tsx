@@ -16,7 +16,13 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useMemo } from 'react'
-import type { VerifierAnnotatedEntry, VerifierDroppedEntry } from '~/agents/tools/schemas'
+import type {
+  Mood,
+  VerifierAnnotatedEntry,
+  VerifierDroppedEntry,
+} from '~/agents/tools/schemas'
+import { MoodSchema } from '~/agents/tools/schemas'
+import { EmotionChip, EmotionConnector } from '~/components/EmotionChip'
 import { Button } from '~/components/ui/button'
 import type { VipsProposedDiffRow } from '~/db/queries'
 import { confirmDiff } from '~/server/confirm-diff.functions'
@@ -54,6 +60,8 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
     [reviewables],
   )
   const allResolved = reviewables.length === 0 || pendingEntries.length === 0
+  const inferredEmotion = readInferredEmotion(diff)
+  const userMood = readUserMood(diff)
 
   // Bulk confirm — fires sequentially because each `confirmDiff` mutates the
   // same staged row's `payload_json` inside a transaction. Concurrent confirms
@@ -79,6 +87,20 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
           what doesn’t. Forgotten entries never reach your library.
         </p>
       </header>
+
+      <section
+        className="flex flex-wrap items-center gap-3 rounded-lg border border-border/40 bg-muted/10 p-3"
+        data-testid="what-mirror-sensed"
+        aria-label="What Mirror sensed"
+      >
+        <EmotionChip mood={inferredEmotion} variant="inferred" />
+        {userMood ? (
+          <>
+            <EmotionConnector inferred={inferredEmotion} user={userMood} />
+            <EmotionChip mood={userMood} variant="user" />
+          </>
+        ) : null}
+      </section>
 
       <div className="flex flex-col gap-8">
         {DIMENSIONS.map((dim) => (
@@ -321,6 +343,25 @@ function VerdictBadge({ verdict }: { verdict: Verdict }): ReactNode {
       partial match
     </span>
   )
+}
+
+/**
+ * Phase A — reads `inferred_emotion` and `mood` off the staged diff if
+ * the columns happen to be present (e.g., a test stubs them in), and
+ * falls back to a hard-coded `'joy'` for inferred + `null` for user
+ * otherwise. Phase B drops both fallbacks once the Drizzle migration
+ * lands and the field is non-null on every persisted entry.
+ */
+function readInferredEmotion(diff: VipsProposedDiffRow): Mood {
+  const raw = (diff as unknown as { inferred_emotion?: unknown }).inferred_emotion
+  const parsed = MoodSchema.safeParse(raw)
+  return parsed.success ? parsed.data : 'joy'
+}
+
+function readUserMood(diff: VipsProposedDiffRow): Mood | null {
+  const raw = (diff as unknown as { mood?: unknown }).mood
+  const parsed = MoodSchema.safeParse(raw)
+  return parsed.success ? parsed.data : null
 }
 
 function DroppedSection({ dropped }: { dropped: VerifierDroppedEntry[] }) {
