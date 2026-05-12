@@ -75,6 +75,7 @@ type Action =
   | { type: 'done' }
   | { type: 'mood-tagged'; mood: Mood }
   | { type: 'fail'; message: string }
+  | { type: 'retry-chain' }
   | { type: 'reset' }
 
 const initialState: State = {
@@ -116,7 +117,17 @@ function reduce(state: State, action: Action): State {
     case 'mood-tagged':
       return state.phase === 'recording' ? { ...state, mood: action.mood } : state
     case 'fail':
+      // Preserve `pendingTranscript` on fail so the user can retry the
+      // post-Stop chain without re-recording. Reset to initialState only via
+      // explicit `'reset'` (the "Start over" affordance).
       return { ...state, phase: 'error', errorMessage: action.message }
+    case 'retry-chain':
+      // Re-enter the post-Stop chain at the reflect step. Only valid from
+      // 'error' with a held transcript — caller checks `pendingTranscript`
+      // before dispatching.
+      return state.phase === 'error' && state.pendingTranscript
+        ? { ...state, phase: 'reflecting', errorMessage: null }
+        : state
     case 'reset':
       return initialState
   }
@@ -151,10 +162,22 @@ export interface MirrorSessionApi {
   errorMessage: string | null
   /** True for any non-idle, non-error, non-done phase — sheets/library nav must lock here. */
   voiceModeActive: boolean
+  /**
+   * True when the post-Stop chain failed (reflect or persist) AFTER transcribe
+   * succeeded. The held transcript is what `handleRetryChain` replays, so the
+   * Retry button on the error panel is only meaningful in this state.
+   */
+  canRetryChain: boolean
   /** Toggles the recorder: start when idle, stop when recording. Idempotent elsewhere. */
   handleVoicePress: () => void
   /** Sets `state.mood` (only effective during `recording`). */
   handleMoodTagged: (mood: Mood) => void
+  /**
+   * Re-enters runPostStopChain using the held `pendingTranscript`, so a
+   * transient failure during reflect/persist doesn't force the user to
+   * re-record. No-op unless `canRetryChain` is true.
+   */
+  handleRetryChain: () => void
   /** Resets the state machine after an error. */
   handleReset: () => void
 }
@@ -475,6 +498,16 @@ export function useMirrorSession({
     dispatch({ type: 'reset' })
   }, [cleanup])
 
+  const handleRetryChain = useCallback(() => {
+    // Only meaningful when the chain failed AFTER transcribe succeeded —
+    // i.e., `pendingTranscript` is held. The reducer also guards this so
+    // a stray call from any other phase is a no-op.
+    if (state.phase !== 'error' || !state.pendingTranscript) return
+    const transcript = state.pendingTranscript
+    dispatch({ type: 'retry-chain' })
+    void runPostStopChain(transcript)
+  }, [state.phase, state.pendingTranscript, runPostStopChain])
+
   const remainingSec = useMemo(
     () => Math.max(0, Math.ceil((SOFT_TIMEBOX_MS - state.elapsedMs) / 1000)),
     [state.elapsedMs],
@@ -495,30 +528,59 @@ export function useMirrorSession({
     remainingSec,
     errorMessage: state.errorMessage,
     voiceModeActive,
+    canRetryChain: state.phase === 'error' && state.pendingTranscript != null,
     handleVoicePress,
     handleMoodTagged,
+    handleRetryChain,
     handleReset,
   }
 }
 
 export interface MirrorSessionErrorPanelProps {
   message: string
-  onRetry: () => void
+  /**
+   * Reset the state machine to `idle`. Discards any held transcript — use as
+   * the "start over" affordance.
+   */
+  onReset: () => void
+  /**
+   * Replay the post-Stop chain using the held transcript. Only render this
+   * affordance when the host's `canRetryChain` is true, i.e., transcribe
+   * succeeded and the failure happened during reflect/persist. Without it,
+   * a transient network blip forces the user to re-record.
+   */
+  onRetryChain?: () => void
 }
 
 /** Inline error panel used when the mic flow or chain fails. */
-export function MirrorSessionErrorPanel({ message, onRetry }: MirrorSessionErrorPanelProps) {
+export function MirrorSessionErrorPanel({
+  message,
+  onReset,
+  onRetryChain,
+}: MirrorSessionErrorPanelProps) {
   return (
     <div
       className="flex flex-col gap-3 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm"
       data-testid="voice-error-panel"
       role="alert"
     >
-      <p className="font-medium">Couldn’t start the mirror.</p>
+      <p className="font-medium">Couldn’t finish the mirror.</p>
       <p className="text-muted-foreground">{message}</p>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        Try again
-      </Button>
+      <div className="flex items-center gap-2">
+        {onRetryChain ? (
+          <Button
+            variant="accent"
+            size="sm"
+            onClick={onRetryChain}
+            data-testid="voice-error-retry-chain"
+          >
+            Retry
+          </Button>
+        ) : null}
+        <Button variant="outline" size="sm" onClick={onReset} data-testid="voice-error-start-over">
+          {onRetryChain ? 'Start over' : 'Try again'}
+        </Button>
+      </div>
     </div>
   )
 }

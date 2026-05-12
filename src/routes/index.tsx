@@ -1,7 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useEffect, useId, useState } from 'react'
+import type { Mood } from '~/agents/tools/schemas'
 import { BottomSheet } from '~/components/BottomSheet'
+import { EmotionChip } from '~/components/EmotionChip'
+import { EmotionPicker } from '~/components/EmotionPicker'
 import {
   MirrorSessionErrorPanel,
   useMirrorSession,
@@ -40,7 +43,40 @@ export const Route = createFileRoute('/')({
     })
   },
   component: LandingPage,
+  errorComponent: LandingErrorFallback,
 })
+
+/**
+ * Loader-level fallback. A cold-start DB blip or a flaky `loadPendingReview`
+ * call shouldn't take the whole home page offline — the queryClient already
+ * retries once (see src/router.tsx) and this fallback handles the case where
+ * the retry also fails. Recording stays reachable because the Voice button
+ * doesn't depend on the loader's pre-fetched library data.
+ */
+function LandingErrorFallback({ reset }: { reset: () => void }) {
+  return (
+    <section
+      className="flex flex-col items-center gap-4 py-8 text-center"
+      data-testid="landing-error"
+    >
+      <h1 className="text-xl font-semibold tracking-tight">
+        Couldn’t load your library right now.
+      </h1>
+      <p className="max-w-prose text-sm text-muted-foreground">
+        That’s usually a transient hiccup. You can retry, or head straight into recording — your
+        library will be there when it comes back.
+      </p>
+      <button
+        type="button"
+        onClick={reset}
+        className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+        data-testid="landing-error-retry"
+      >
+        Try again
+      </button>
+    </section>
+  )
+}
 
 function landingPhaseToVoiceButton(
   phase: ReturnType<typeof useMirrorSession>['phase'],
@@ -95,10 +131,17 @@ function LandingPage() {
             remainingSec={session.remainingSec}
             showSoftPrompt={session.showSoftPrompt}
           />
+          {session.phase === 'recording' ? (
+            <MoodTagOverlay mood={session.mood} onMoodTagged={session.handleMoodTagged} />
+          ) : null}
         </WorldStage>
         {session.phase === 'error' && session.errorMessage ? (
           <div className="absolute inset-x-4 bottom-4">
-            <MirrorSessionErrorPanel message={session.errorMessage} onRetry={session.handleReset} />
+            <MirrorSessionErrorPanel
+              message={session.errorMessage}
+              onReset={session.handleReset}
+              onRetryChain={session.canRetryChain ? session.handleRetryChain : undefined}
+            />
           </div>
         ) : null}
       </div>
@@ -118,6 +161,56 @@ function LandingPage() {
         {openSheet !== null ? <SheetContent openSheet={openSheet} /> : null}
       </BottomSheet>
     </section>
+  )
+}
+
+/**
+ * Mood-tag affordance shown during the `recording` phase. Floats bottom-
+ * right of the world stage; tap opens an EmotionPicker overlay (Base UI
+ * Dialog, owns focus + Escape + scroll lock). Selecting a tile calls
+ * `handleMoodTagged` and auto-dismisses the picker.
+ *
+ * Non-blocking by design — the user can record without ever interacting
+ * with this. Phase A keeps the tagged mood in MirrorSession's local state
+ * only; Phase B wires it through `persistMirror`.
+ */
+function MoodTagOverlay({
+  mood,
+  onMoodTagged,
+}: {
+  mood: Mood | null
+  onMoodTagged: (mood: Mood) => void
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  return (
+    <div
+      className="pointer-events-auto absolute bottom-6 right-6 z-10"
+      data-testid="mood-tag-overlay"
+    >
+      {mood ? (
+        <EmotionChip mood={mood} variant="user" asButton onClick={() => setPickerOpen(true)} />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          data-testid="mood-tag-trigger"
+          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/80 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm hover:bg-muted"
+        >
+          feeling?
+        </button>
+      )}
+      {pickerOpen ? (
+        <EmotionPicker
+          layout="overlay"
+          defaultValue={mood ?? undefined}
+          onSelect={(next) => {
+            onMoodTagged(next)
+            setPickerOpen(false)
+          }}
+          onDismiss={() => setPickerOpen(false)}
+        />
+      ) : null}
+    </div>
   )
 }
 
