@@ -1,19 +1,19 @@
-# Env setup — Step 11 cutover gate
+# Env setup
 
-Single-source guide for filling in `.env.local` so you can run the Step 11
-ablation gate (`pnpm ablate:mirror --runner=managed` and
-`pnpm ablate:sensemake --runner=managed`) end-to-end.
+Single-source guide for filling in `.env.local` so you can run the app
+and the ablation harness (`pnpm ablate:mirror`, `pnpm ablate:sensemake`)
+end-to-end against the managed-agents runtime.
 
 ## Quick start
 
 1. Copy the template at the bottom of this doc into `.env.local` at the repo root.
-2. Walk through the five sections below in order — Anthropic → Postgres →
-   Managed Agents → OpenAI → flag.
-3. Run `pnpm db:migrate` once to apply the Step 10 migration baseline.
+2. Walk through the four sections below in order — Anthropic → Postgres →
+   Managed Agents → OpenAI (STT).
+3. Run `pnpm db:migrate` once to apply migrations.
 4. Run `pnpm provision:managed-agents` once to create the four agents +
    environment in Anthropic.
-5. Smoke-test: `pnpm smoke:managed-mirror`. If that prints a parsed Mirror
-   output, the wiring is healthy and you're ready for Step 11.
+5. Smoke-test: `pnpm smoke:managed-mirror`. A parsed Mirror output means
+   the wiring is healthy.
 
 ---
 
@@ -104,39 +104,22 @@ MANAGED_AGENT_CARTOGRAPHER_VERSION=1
 
 ## Section 4 — OpenAI (`OPENAI_API_KEY`)
 
-**Required for Step 11** even though Step 11 is testing the *managed*
-path. Reasons:
-
-- The ablation harness compares `--runner=managed` against `--runner=openai`
-  for the baseline.
-- `gpt-4o-mini-transcribe` is still used for STT (stays after cutover).
+Only `gpt-4o-mini-transcribe` (STT) still uses the OpenAI key; the agent
+runtime is fully managed now.
 
 1. <https://platform.openai.com> → **API Keys → Create new secret key.**
 2. Paste as `OPENAI_API_KEY=sk-proj-...`.
 
 ---
 
-## Section 5 — Routing flag (`USE_MANAGED_AGENTS`)
-
-```
-USE_MANAGED_AGENTS=false
-```
-
-Keep `false` through Step 11. The ablation CLI flips runners explicitly
-via `--runner=managed`, so this flag's only job during the gate is to keep
-the *app* on the OpenAI path. Step 12 flips it to `true`.
-
----
-
-## Skip these for Step 11
+## Skip these
 
 | Var | Why skip |
 |---|---|
-| `WORKOS_*` | Step 11 doesn't hit HTTP/auth |
+| `WORKOS_*` | Local dev doesn't hit HTTP/auth |
 | `DEV_BYPASS_AUTH` | Same |
 | `CRON_SECRET` | Nightly sweep cron not deployed yet |
-| `AGENT_MODEL` | Override only — defaults are fine |
-| `ANTHROPIC_SELF_CRITIQUE_MODEL` | Same |
+| `ANTHROPIC_SELF_CRITIQUE_MODEL` | Override only — default is fine |
 | `DATABASE_POOL_MAX` | Default of 5 is fine for solo dev |
 
 ---
@@ -157,7 +140,7 @@ pnpm smoke:managed-mirror
 pnpm smoke:managed-connector
 ```
 
-If any of those fail, fix that var before proceeding to Step 11.
+If any of those fail, fix that var before running the ablation harness.
 
 ---
 
@@ -184,11 +167,8 @@ MANAGED_AGENT_CONNECTOR_VERSION=1
 MANAGED_AGENT_CARTOGRAPHER_ID=agent_REPLACE_ME
 MANAGED_AGENT_CARTOGRAPHER_VERSION=1
 
-# Section 4 — OpenAI
+# Section 4 — OpenAI (STT only)
 OPENAI_API_KEY=sk-proj-REPLACE_ME
-
-# Section 5 — Routing flag (keep false through Step 11)
-USE_MANAGED_AGENTS=false
 
 # ── END .env.local template ──
 ```
