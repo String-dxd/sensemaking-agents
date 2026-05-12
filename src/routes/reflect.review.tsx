@@ -11,7 +11,7 @@
  * `pending_queued: true`, the loader still resolves to the prior
  * pending diff — which is exactly what the student should see first.
  */
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { PostMirrorReview } from '~/components/PostMirrorReview'
 import { Button } from '~/components/ui/button'
@@ -31,6 +31,7 @@ export const Route = createFileRoute('/reflect/review')({
 
 function ReviewPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data } = useSuspenseQuery({
     queryKey: ['pending-review', STUDENT_ID],
     queryFn: () => loadPendingReview({ data: {} }),
@@ -57,6 +58,10 @@ function ReviewPage() {
       studentId={STUDENT_ID}
       diff={data.diff}
       onDone={() => {
+        // After review completion the pending-review cache holds a now-stale
+        // diff. Invalidate so the next visit to / or this route refetches
+        // and reflects the resolved state instead of redirecting back here.
+        void queryClient.invalidateQueries({ queryKey: ['pending-review', STUDENT_ID] })
         void navigate({ to: '/library' })
       }}
     />

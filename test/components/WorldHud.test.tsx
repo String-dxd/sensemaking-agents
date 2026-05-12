@@ -51,9 +51,21 @@ describe('WorldHud', () => {
     render(<WorldHud voiceModeActive />)
     const link = screen.getByTestId('library-button')
     expect(link).toHaveAttribute('aria-disabled', 'true')
-    // Defensive: click is intercepted.
-    await userEvent.click(link)
-    // No assertion needed beyond not throwing — preventDefault was applied.
+    // Capture the click event at the document level so we can assert that
+    // WorldHud's onClick called preventDefault — otherwise this test would
+    // have asserted nothing about the click-blocking behavior.
+    let captured: MouseEvent | null = null
+    const handler = (e: Event) => {
+      captured = e as MouseEvent
+    }
+    document.addEventListener('click', handler, true)
+    try {
+      await userEvent.click(link)
+    } finally {
+      document.removeEventListener('click', handler, true)
+    }
+    expect(captured).not.toBeNull()
+    expect((captured as unknown as MouseEvent).defaultPrevented).toBe(true)
   })
 
   it('does not render a chat input or "Only you" indicator', () => {

@@ -19,14 +19,12 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import type { Mood } from '~/agents/tools/schemas'
 import type { ContextType } from '~/components/ContextTypePicker'
 import { Button } from '~/components/ui/button'
+import { readLastUsedContextType } from '~/lib/context-type-storage'
 import { persistMirror } from '~/server/persist-mirror.functions'
 import { runMirror } from '~/server/run-mirror.functions'
 import { transcribeMirror } from '~/server/transcribe-mirror.functions'
 
 export type { Mood }
-
-const CONTEXT_LAST_USED_KEY = 'sensemaking.context_type.last_used'
-const CONTEXT_TYPES = ['school', 'family', 'peer', 'hobby', 'civic'] as const
 
 /** 90-second soft time-box; Stop is always available. */
 const SOFT_TIMEBOX_MS = 90_000
@@ -100,7 +98,11 @@ function reduce(state: State, action: Action): State {
     case 'tick':
       return { ...state, elapsedMs: action.elapsedMs, amplitude: action.amplitude }
     case 'opening-silence':
-      return { ...state, showSoftPrompt: true }
+      // Guard against late rAF ticks: requestAnimationFrame can fire the
+      // currently-scheduled callback once after cancelAnimationFrame, so the
+      // tick can land after stop-pressed has flipped the phase. Without this
+      // guard, the soft-prompt bubble would briefly flash during transcribing.
+      return state.phase === 'recording' ? { ...state, showSoftPrompt: true } : state
     case 'stop-pressed':
       return state.phase === 'recording' ? { ...state, phase: 'transcribing' } : state
     case 'transcribing':
@@ -157,17 +159,6 @@ export interface MirrorSessionApi {
   handleReset: () => void
 }
 
-function readDefaultContextType(): ContextType {
-  if (typeof window === 'undefined') return 'school'
-  try {
-    const raw = window.localStorage.getItem(CONTEXT_LAST_USED_KEY)
-    if (raw && (CONTEXT_TYPES as readonly string[]).includes(raw)) return raw as ContextType
-  } catch {
-    /* localStorage unavailable */
-  }
-  return 'school'
-}
-
 /**
  * Hook-based session controller. Returns the state machine plus the
  * handlers used by `LandingPage` to wire the Voice button + chip overlay.
@@ -177,11 +168,7 @@ export function useMirrorSession({
   onPersisted,
 }: MirrorSessionOptions): MirrorSessionApi {
   const [state, dispatch] = useReducer(reduce, initialState, (init: State): State => {
-    if (
-      typeof window !== 'undefined' &&
-      typeof (import.meta as { env?: { DEV?: boolean } }).env?.DEV !== 'undefined' &&
-      (import.meta as { env?: { DEV?: boolean } }).env?.DEV
-    ) {
+    if (typeof window !== 'undefined' && import.meta.env.DEV) {
       const injected = new URLSearchParams(window.location.search).get('inject')
       if (injected && injected.trim().length > 0) {
         return {
@@ -207,6 +194,20 @@ export function useMirrorSession({
     resolve: (blob: Blob) => void
     reject: (err: Error) => void
   } | null>(null)
+  // Smoothed amplitude is read+written every animation frame; keeping it on a
+  // ref avoids the `(analyser as unknown as { _prevAmp })` cast that previously
+  // stashed component state on the DOM node.
+  const prevAmpRef = useRef(0)
+  // elapsedMs lives in both state (drives the remainingSec memo + halo) and a
+  // ref (read by runPostStopChain's trace at Stop time). Reading the trace
+  // from the ref instead of state lets us drop `state.elapsedMs` from the
+  // post-stop callback's deps and stop rebuilding the handler chain every
+  // animation frame during recording.
+  const elapsedMsRef = useRef(0)
+  // Tracks whether the hook is still mounted so async chain steps (transcribe
+  // → reflect → persist) can skip dispatch + onPersisted on a torn-down
+  // reducer instead of crashing on a stale closure.
+  const mountedRef = useRef(true)
 
   const cleanup = useCallback(() => {
     if (rafRef.current != null) {
@@ -231,8 +232,14 @@ export function useMirrorSession({
   }, [])
 
   // Clean up on unmount only — we don't auto-acquire on mount anymore.
+  // mountedRef gates async chain steps so they don't dispatch on a torn-down
+  // reducer or navigate after the user has already left the route.
   useEffect(() => {
-    return cleanup
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      cleanup()
+    }
   }, [cleanup])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: handleStopInternal is defined below and closes over stable refs; the loop only fires during recording
@@ -250,10 +257,10 @@ export function useMirrorSession({
       const rms = Math.sqrt(sum / buf.length)
       const startedAt = startedAtRef.current ?? performance.now()
       const elapsedMs = performance.now() - startedAt
+      elapsedMsRef.current = elapsedMs
       const target = Math.min(1, rms * 12)
-      const prev = analyser as unknown as { _prevAmp?: number }
-      const next = (prev._prevAmp ?? 0) * 0.85 + target * 0.15
-      prev._prevAmp = next
+      const next = prevAmpRef.current * 0.85 + target * 0.15
+      prevAmpRef.current = next
 
       if (rms < SILENCE_RMS_THRESHOLD) {
         if (silentSinceRef.current == null) silentSinceRef.current = performance.now()
@@ -322,8 +329,14 @@ export function useMirrorSession({
         stopPromiseRef.current = null
       }
       recorder.onerror = (ev) => {
-        const message =
-          (ev as unknown as { error?: { message?: string } })?.error?.message ?? 'Recorder error.'
+        // Mid-recording errors (mic revoked, hardware unplugged) fire without
+        // a pending stop promise — dispatch a 'fail' directly so the user sees
+        // an error panel instead of waiting for a Stop that may never come.
+        // `MediaRecorderErrorEvent` is defined by the spec but not always in
+        // the bundled lib.dom; narrow to the documented shape locally.
+        const err = (ev as Event & { error?: DOMException }).error
+        const message = err?.message ?? 'Recorder error.'
+        if (mountedRef.current) dispatch({ type: 'fail', message })
         stopPromiseRef.current?.reject(new Error(message))
         stopPromiseRef.current = null
       }
@@ -356,11 +369,12 @@ export function useMirrorSession({
   const runPostStopChain = useCallback(
     async (transcript: string) => {
       try {
-        dispatch({ type: 'reflecting' })
+        if (mountedRef.current) dispatch({ type: 'reflecting' })
         const { output } = await runMirror({ data: { studentId, transcript } })
+        if (!mountedRef.current) return
 
         dispatch({ type: 'persisting' })
-        const contextType: ContextType = readDefaultContextType()
+        const contextType: ContextType = readLastUsedContextType()
         const result = await persistMirror({
           data: {
             studentId,
@@ -372,9 +386,13 @@ export function useMirrorSession({
             },
             context_type: contextType,
             raw_output: output,
-            trace: { capturedDurationMs: state.elapsedMs },
+            // Read elapsed from the ref rather than state.elapsedMs so this
+            // callback doesn't reidentify every animation frame and cascade
+            // through handleStopInternal / handleVoicePress's useCallback chain.
+            trace: { capturedDurationMs: elapsedMsRef.current },
           },
         })
+        if (!mountedRef.current) return
 
         dispatch({ type: 'done' })
         onPersisted?.({
@@ -383,12 +401,13 @@ export function useMirrorSession({
           pendingQueued: result.pending_queued,
         })
       } catch (err) {
+        if (!mountedRef.current) return
         const message =
           err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
         dispatch({ type: 'fail', message })
       }
     },
-    [studentId, onPersisted, state.elapsedMs],
+    [studentId, onPersisted],
   )
 
   const handleStopInternal = useCallback(async () => {
