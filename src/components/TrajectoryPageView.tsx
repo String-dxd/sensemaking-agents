@@ -1,5 +1,6 @@
 import type { CartographerPathwayDraft } from '~/agents/schemas'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
+import type { VipsDimension } from '~/data/vips-taxonomy'
 
 /**
  * v0.2 (U11) — Trajectory page view. Renders the Cartographer's
@@ -162,7 +163,7 @@ function TraitChip({
   timelineEntryId,
 }: {
   claimId: string
-  dimension: 'values' | 'interests' | 'personality' | 'skills'
+  dimension: VipsDimension
   timelineEntryId?: number
 }) {
   // Per the plan, trait_combination chips link back to the source VIPS

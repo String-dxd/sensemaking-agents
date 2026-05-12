@@ -16,21 +16,14 @@ import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound, redirect } from '@tanstack/react-router'
 import { Button } from '~/components/ui/button'
 import { VipsPageView } from '~/components/VipsPageView'
-import type { VipsDimension } from '~/data/vips-taxonomy'
+import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import { loadPendingReview } from '~/server/load-pending-review.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 
 const STUDENT_ID = 'me'
 
-const VALID_DIMENSIONS: readonly VipsDimension[] = [
-  'values',
-  'interests',
-  'personality',
-  'skills',
-] as const
-
 function isVipsDimension(s: string): s is VipsDimension {
-  return (VALID_DIMENSIONS as readonly string[]).includes(s)
+  return (VIPS_DIMENSIONS as readonly string[]).includes(s)
 }
 
 export const Route = createFileRoute('/library/$dimension')({
@@ -78,7 +71,7 @@ function WikiDimensionPage() {
     return (
       <section className="flex flex-col gap-4 py-8">
         <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-          ← Wiki
+          ← Library
         </Link>
         <p className="text-sm">No page for this dimension yet.</p>
       </section>
@@ -88,7 +81,7 @@ function WikiDimensionPage() {
   return (
     <section className="flex flex-col gap-4 py-2">
       <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-        ← Wiki
+        ← Library
       </Link>
       <VipsPageView studentId={STUDENT_ID} dimension={dimension} page={page} timeline={timeline} />
       <div>

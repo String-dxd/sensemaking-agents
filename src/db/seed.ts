@@ -12,16 +12,14 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { sql } from 'drizzle-orm'
-
+import type { VipsContextType } from '~/agents/tools/schemas'
 import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
 import { withStudent } from './client'
 import { upsertVipsPage } from './queries'
 import { mirrorEntries } from './schema'
 
-export type SeedContextType = 'school' | 'family' | 'peer' | 'hobby' | 'civic'
-
 export interface SeedReflectionFixture {
-  context_type: SeedContextType
+  context_type: VipsContextType
   transcript: string
   created_at: string
 }
