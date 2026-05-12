@@ -21,7 +21,10 @@
  */
 import { run } from '@openai/agents'
 import { ZodError } from 'zod'
+import { getManagedAgentBinding, isManagedAgentsEnabled } from '~/agents/config'
 import { createConnectorAgent } from '~/agents/connector'
+import { buildConnectorContext } from '~/agents/context'
+import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
 import {
   type ConnectorDiffDraft,
   ConnectorDiffSchema,
@@ -158,26 +161,36 @@ export async function runAutoConnectorAfterMirror(
     // doesn't need the signal (its mocks resolve synchronously) but we
     // pass it anyway for symmetry; it can ignore it.
     const ac = new AbortController()
-    let rawDraft: unknown
-    try {
-      rawDraft = await raceWithTimeout(
-        deps.runConnector !== undefined
-          ? deps.runConnector({
+    // Routing precedence mirrors `runMirrorOnTranscript`:
+    //   1. `deps.runConnector` (test injection — wins over both runtimes).
+    //   2. `USE_MANAGED_AGENTS=true` → Anthropic Managed Agents path.
+    //   3. Default → OpenAI Agents SDK via `runConnectorViaSdk`.
+    const runner: () => Promise<unknown> = deps.runConnector
+      ? () =>
+          deps.runConnector!({
+            studentId: sid,
+            mirrorEntry: mirrorProjection,
+            pages,
+            timeline,
+          })
+      : isManagedAgentsEnabled()
+        ? () =>
+            runConnectorViaManaged({
               studentId: sid,
-              mirrorEntry: mirrorProjection,
-              pages,
-              timeline,
+              newReflectionId: mirror.id,
+              signal: ac.signal,
             })
-          : runConnectorViaSdk({
+        : () =>
+            runConnectorViaSdk({
               studentId: sid,
               mirrorEntry: mirrorProjection,
               pages,
               timeline,
               signal: ac.signal,
-            }),
-        AUTO_CONNECTOR_TIMEOUT_MS,
-        ac,
-      )
+            })
+    let rawDraft: unknown
+    try {
+      rawDraft = await raceWithTimeout(runner(), AUTO_CONNECTOR_TIMEOUT_MS, ac)
     } catch (err) {
       if (err instanceof AutoConnectorTimeoutError) {
         return { status: 'timeout', staged_diff: null }
@@ -263,6 +276,34 @@ function mapConnectorErrorToStatus(err: unknown): AutoConnectorResult {
       issues: err.issues,
     })
     return { status: 'schema_reject', staged_diff: null }
+  }
+
+  // Managed Agents path — `runManagedAgent` throws `ManagedAgentError` with
+  // a discrete `code`. Map them onto the existing AutoConnectorStatus enum
+  // so the U8 review surface keeps a single failure-mode contract regardless
+  // of which runtime produced the error.
+  if (err instanceof ManagedAgentError) {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.warn(`[auto-connector] managed-agent ${err.code}`, { message: err.message })
+    switch (err.code) {
+      case 'PARSE_ERROR':
+        return { status: 'schema_reject', staged_diff: null }
+      case 'NO_API_KEY':
+        return { status: 'auth_error', staged_diff: null }
+      case 'STREAM_ERROR':
+      case 'TERMINATED':
+      case 'RETRIES_EXHAUSTED':
+      case 'NO_OUTPUT':
+      case 'REQUIRES_ACTION':
+        return { status: 'transport_error', staged_diff: null }
+      case 'TIMEOUT':
+        // The handler's own AbortController-based timeout wins first; this
+        // path is the runner's hard backstop. Surface as `timeout` so ops
+        // triage sees a consistent status across runtimes.
+        return { status: 'timeout', staged_diff: null }
+      default:
+        return { status: 'unknown', staged_diff: null }
+    }
   }
 
   // Duck-type the OpenAI SDK error shape (APIError carries a numeric `status`).
@@ -404,6 +445,37 @@ async function runConnectorViaSdk(input: {
   // (Finding #5). Verified in node_modules/@openai/agents-core/dist/run.d.ts.
   const result = await run(agent, prompt, { signal: input.signal })
   return result.finalOutput
+}
+
+/**
+ * Managed Agents path (plan §7.1: prompt-as-context). Pre-fetches the
+ * inlined taxonomies + top-N FTS-matching past mirrors + VIPS pages via
+ * `buildConnectorContext`, then dispatches via `runManagedAgent` which
+ * parses the JSON output against `ConnectorDiffSchema`. Returns the parsed
+ * object so the caller's `ConnectorDiffSchema.safeParse` is a no-op
+ * second-check — keeping a single parse-error code path through the
+ * `schema_reject` bucket.
+ *
+ * Caller MUST be inside `withStudent(studentId, ...)` so the underlying
+ * queries are tenant-scoped.
+ */
+async function runConnectorViaManaged(input: {
+  studentId: string
+  newReflectionId: number
+  signal?: AbortSignal
+}): Promise<unknown> {
+  const binding = getManagedAgentBinding('connector')
+  const prompt = buildConnectorContext(input.studentId, input.newReflectionId)
+  const result = await runManagedAgent({
+    agentId: binding.agentId,
+    ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
+    environmentId: binding.environmentId,
+    prompt,
+    outputSchema: ConnectorDiffSchema,
+    sessionTitle: `connector:${input.studentId}`,
+    ...(input.signal ? { signal: input.signal } : {}),
+  })
+  return result.output
 }
 
 /**

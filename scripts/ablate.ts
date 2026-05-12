@@ -108,15 +108,10 @@ if (args.model !== undefined) {
   process.env.AGENT_MODEL = args.model
 }
 
-// ── Managed runner — Mirror wired in Step 6; sensemake (Connector+Cartographer)
-// still pending Steps 8/9. Keep the surface-specific guard close to the
-// downstream code paths so the rest of the script stays linear.
-if (args.runner === 'managed' && args.surface === 'sensemake') {
-  console.error(
-    '--runner=managed --surface=sensemake: Connector + Cartographer wire up in Steps 8/9 of plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md. Use --surface=mirror today.',
-  )
-  process.exit(2)
-}
+// ── Managed runner — Mirror is wired in Step 6, Connector in Step 8.
+// Cartographer (the rest of sensemake) is still pending Step 9; we only
+// run Mirror + Connector under `--runner=managed --surface=sensemake`
+// today, matching what the prod `auto-connector.handler.server.ts` does.
 
 // Lazy-load anything that reads AGENT_MODEL via `src/agents/config.ts`.
 const [
@@ -131,6 +126,7 @@ const [
   queriesMod,
   seedMod,
   verifierMod,
+  contextMod,
 ] = await Promise.all([
   import('~/agents/schemas'),
   import('~/agents/config'),
@@ -143,6 +139,7 @@ const [
   import('~/db/queries'),
   import('~/db/seed'),
   import('~/agents/verifier'),
+  import('~/agents/context'),
 ])
 const { MirrorOutputSchema, ConnectorDiffSchema } = schemasMod
 type ConnectorDiffDraft = (typeof schemasMod)['ConnectorDiffSchema']['_output']
@@ -156,6 +153,7 @@ const { openDb } = dbClientMod
 const { listMirrorEntries } = queriesMod
 const { seed, loadSeedCorpus } = seedMod
 const { verifyProposedDiff } = verifierMod
+const { buildConnectorContext } = contextMod
 
 function resolveStudentIds(studentFlag: string | undefined): string[] {
   const corpus = loadSeedCorpus()
@@ -375,6 +373,106 @@ interface ConnectorRunResult {
   rawOutput: string | null
 }
 
+/**
+ * Managed-runner Connector pass. Mirrors `runAutoConnectorAfterMirror`'s
+ * shape: one `buildConnectorContext` + `runManagedAgent` invocation per
+ * student in scope, against THAT student's most recent seeded reflection.
+ * We pick the first student's draft as the "sample" the markdown report
+ * surfaces; the per-student drafts are returned so the verifier counters
+ * cover the full scope.
+ *
+ * The whole-corpus shape `runConnectorWholeCorpus` uses is OpenAI-runtime-
+ * specific (v0.1 chain heritage). For the managed path we honor prod's
+ * per-reflection contract — Connector never sees a multi-student blob in
+ * production.
+ */
+async function runConnectorManagedPerStudent(
+  studentIds: string[],
+): Promise<{
+  stats: AgentRunStats
+  draftsByStudent: Map<string, ConnectorDiffDraft>
+  rawSampleOutput: string | null
+}> {
+  const startedAt = Date.now()
+  const draftsByStudent = new Map<string, ConnectorDiffDraft>()
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return {
+      stats: {
+        agent: 'connector',
+        latency_ms: 0,
+        input_tokens: null,
+        output_tokens: null,
+        output_parsed: false,
+        parse_error: 'no-api-key',
+      },
+      draftsByStudent,
+      rawSampleOutput: null,
+    }
+  }
+  let binding: ReturnType<typeof getManagedAgentBinding>
+  try {
+    binding = getManagedAgentBinding('connector')
+  } catch (err) {
+    return {
+      stats: {
+        agent: 'connector',
+        latency_ms: 0,
+        input_tokens: null,
+        output_tokens: null,
+        output_parsed: false,
+        parse_error: err instanceof Error ? err.message : String(err),
+      },
+      draftsByStudent,
+      rawSampleOutput: null,
+    }
+  }
+
+  let aggInput = 0
+  let aggOutput = 0
+  let rawSampleOutput: string | null = null
+  const parseErrors: string[] = []
+  for (const sid of studentIds) {
+    const entries = listMirrorEntries(sid, { limit: 1 })
+    const latest = entries[0]
+    if (!latest) {
+      parseErrors.push(`${sid}: no seeded mirror entries`)
+      continue
+    }
+    try {
+      const prompt = buildConnectorContext(sid, latest.id)
+      const result = await runManagedAgent({
+        agentId: binding.agentId,
+        ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
+        environmentId: binding.environmentId,
+        prompt,
+        outputSchema: ConnectorDiffSchema,
+        sessionTitle: `ablate:connector:${sid}`,
+      })
+      aggInput += result.usage.inputTokens
+      aggOutput += result.usage.outputTokens
+      draftsByStudent.set(sid, result.output)
+      if (rawSampleOutput === null) rawSampleOutput = result.rawText
+    } catch (err) {
+      const code = err instanceof ManagedAgentError ? `${err.code}` : 'UNKNOWN'
+      const message = err instanceof Error ? err.message : String(err)
+      parseErrors.push(`${sid}: [${code}] ${message}`)
+    }
+  }
+
+  return {
+    stats: {
+      agent: 'connector',
+      latency_ms: Date.now() - startedAt,
+      input_tokens: aggInput,
+      output_tokens: aggOutput,
+      output_parsed: parseErrors.length === 0 && draftsByStudent.size > 0,
+      parse_error: parseErrors.length === 0 ? null : parseErrors.join(' | '),
+    },
+    draftsByStudent,
+    rawSampleOutput,
+  }
+}
+
 async function runConnectorWholeCorpus(
   studentIds: string[],
   corpus: string,
@@ -545,18 +643,40 @@ async function main() {
     })
   }
 
-  // ── one whole-corpus Connector + Verifier pass for sensemake ──
+  // ── Connector + Verifier pass for sensemake ──
+  // OpenAI runner: one whole-corpus Connector call (v0.1 chain heritage).
+  // Managed runner: one Connector call per student against their latest
+  // reflection (matches prod's `auto-connector.handler.server.ts`).
   let connectorStats: AgentRunStats | null = null
   let aggregateVerifier: VerifierVerdictCounters | null = null
   let sampleConnectorOutput: string | null = null
 
   if (surface === 'sensemake') {
-    const corpusBlock = formatConnectorCorpus(studentIds)
-    const cr = await runConnectorWholeCorpus(studentIds, corpusBlock)
-    connectorStats = cr.stats
-    sampleConnectorOutput = cr.rawOutput
-    if (cr.draft) {
-      aggregateVerifier = verifyConnectorDraft(studentIds, reflections, cr.draft)
+    if (runner === 'managed') {
+      const cr = await runConnectorManagedPerStudent(studentIds)
+      connectorStats = cr.stats
+      sampleConnectorOutput = cr.rawSampleOutput
+      if (cr.draftsByStudent.size > 0) {
+        aggregateVerifier = zeroVerdictCounters()
+        for (const [sid, draft] of cr.draftsByStudent) {
+          const partial = verifyConnectorDraft([sid], reflections, draft)
+          aggregateVerifier.admitted += partial.admitted
+          aggregateVerifier.downgraded += partial.downgraded
+          aggregateVerifier.dropped_no_quote_match += partial.dropped_no_quote_match
+          aggregateVerifier.dropped_unknown_reflection += partial.dropped_unknown_reflection
+          aggregateVerifier.aspirational += partial.aspirational
+          aggregateVerifier.claim_ids.push(...partial.claim_ids)
+        }
+        aggregateVerifier.claim_ids = [...new Set(aggregateVerifier.claim_ids)].sort()
+      }
+    } else {
+      const corpusBlock = formatConnectorCorpus(studentIds)
+      const cr = await runConnectorWholeCorpus(studentIds, corpusBlock)
+      connectorStats = cr.stats
+      sampleConnectorOutput = cr.rawOutput
+      if (cr.draft) {
+        aggregateVerifier = verifyConnectorDraft(studentIds, reflections, cr.draft)
+      }
     }
   }
 
@@ -589,21 +709,25 @@ async function main() {
   // Note + report-model identity differ per runner. For the managed runner
   // the runtime model is pinned by the agent version on Anthropic's side, so
   // the report records the agent id/version rather than a local model id.
-  const managedMirrorIdentity =
-    runner === 'managed'
-      ? (() => {
-          try {
-            const b = getManagedAgentBinding('mirror')
-            return b.agentVersion !== undefined ? `${b.agentId}:v${b.agentVersion}` : b.agentId
-          } catch {
-            return 'managed-mirror:unprovisioned'
-          }
-        })()
-      : null
+  function managedIdentity(name: 'mirror' | 'connector'): string {
+    try {
+      const b = getManagedAgentBinding(name)
+      return b.agentVersion !== undefined ? `${b.agentId}:v${b.agentVersion}` : b.agentId
+    } catch {
+      return `managed-${name}:unprovisioned`
+    }
+  }
+  const managedMirrorIdentity = runner === 'managed' ? managedIdentity('mirror') : null
+  const managedConnectorIdentity =
+    runner === 'managed' && surface === 'sensemake' ? managedIdentity('connector') : null
   const requiredKey = runner === 'managed' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
   const hasKey = process.env[requiredKey] !== undefined && process.env[requiredKey] !== ''
   const liveModelLabel =
-    runner === 'managed' ? (managedMirrorIdentity ?? 'managed') : `${MIRROR_MODEL} (Mirror) / ${CONNECTOR_MODEL} (Connector)`
+    runner === 'managed'
+      ? surface === 'sensemake'
+        ? `${managedMirrorIdentity ?? 'managed'} (Mirror) / ${managedConnectorIdentity ?? 'managed'} (Connector)`
+        : (managedMirrorIdentity ?? 'managed')
+      : `${MIRROR_MODEL} (Mirror) / ${CONNECTOR_MODEL} (Connector)`
   const structuredNote = hasKey
     ? `Live run via runner=\`${runner}\` against ${liveModelLabel}. Cartographer skipped — see plan §9.3 step 3 for the manual review surface.`
     : `Placeholder run — ${requiredKey} not set; every row carries error="no-api-key". Set the key to populate real metrics.`

@@ -18,7 +18,8 @@
     "ablate:sensemake": "tsx scripts/ablate.ts --surface=sensemake",
     "ablate:delta": "tsx scripts/ablate-delta.ts",
     "provision:managed-agents": "tsx scripts/managed-agents/provision.ts",
-    "smoke:managed-mirror": "tsx scripts/managed-agents/smoke-mirror.ts"
+    "smoke:managed-mirror": "tsx scripts/managed-agents/smoke-mirror.ts",
+    "smoke:managed-connector": "tsx scripts/managed-agents/smoke-connector.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
