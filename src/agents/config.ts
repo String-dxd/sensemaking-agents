@@ -1,54 +1,9 @@
 /**
- * Centralized model + feature-flag config for the sensemaking agents.
- *
- * Two coexisting runtimes during the managed-agents migration
- * (`plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`):
- *
- *   - **OpenAI runner (legacy).** Per-agent model id read from
- *     `process.env.AGENT_MODEL` at module-load, with a `'gpt-5.5'` default.
- *     The ablate script's `--model=<id>` flag is the canonical A/B seam — it
- *     parses argv and sets `process.env.AGENT_MODEL` before any agent
- *     factory import. The four per-agent constants stay in lockstep on
- *     purpose; v0.3 may want to fork Mirror onto a cheaper model.
- *     `||` (not `??`) is intentional — an empty-string `AGENT_MODEL=` is
- *     treated as unset and falls through to the default.
- *
- *   - **Managed Agents runner (Step 6+).** Per-agent ids/versions live in
- *     `.env` (or Vercel env vars), populated by
- *     `scripts/managed-agents/provision.ts`. The runtime model is pinned by
- *     the agent version on Anthropic's side; we never override it from
- *     this process. The accessors below read `process.env` at call time so
- *     that test setup (and the ablate script's argv parsing) sees the
- *     latest values.
- *
- * Note: `CARTOGRAPHER_MODEL` is the v0.2 name for the Pathfinder/Cartographer
- * role. As of U10, `src/agents/cartographer.ts` imports it; the legacy
- * `pathfinder.ts` was renamed to `cartographer.ts` and the const name now
- * matches the agent.
+ * Managed Agents — env-var accessors for the four agent bindings provisioned
+ * by `scripts/managed-agents/provision.ts`. Agent versions pin the runtime
+ * model on Anthropic's side; this process never overrides it. Accessors
+ * read `process.env` at call time so test setup sees the latest values.
  */
-
-// ── OpenAI runner — legacy per-agent model ids (cutover via USE_MANAGED_AGENTS) ──
-
-export const MIRROR_MODEL = process.env.AGENT_MODEL || 'gpt-5.5'
-export const CONNECTOR_MODEL = process.env.AGENT_MODEL || 'gpt-5.5'
-export const CARTOGRAPHER_MODEL = process.env.AGENT_MODEL || 'gpt-5.5'
-export const SELF_CRITIQUE_MODEL = process.env.AGENT_MODEL || 'gpt-5.5'
-
-// ── Managed Agents — runtime feature flag + env-var accessors ──
-
-/**
- * Routes Mirror/Connector/Cartographer through `src/agents/runner.ts` (the
- * Managed Agents path) instead of the `@openai/agents` runtime. Evaluated
- * at call time so a single process can flip between the two runtimes
- * across tests and ablation runs.
- *
- * Accepted truthy values: `1`, `true`, `yes`. Anything else (including
- * unset, empty string, `0`, `false`) is false.
- */
-export function isManagedAgentsEnabled(): boolean {
-  const raw = (process.env.USE_MANAGED_AGENTS ?? '').toLowerCase()
-  return raw === '1' || raw === 'true' || raw === 'yes'
-}
 
 export type ManagedAgentName = 'mirror' | 'connector' | 'cartographer' | 'self_critique'
 

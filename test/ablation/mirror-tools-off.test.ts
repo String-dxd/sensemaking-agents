@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { SEARCH_PAST_MIRRORS_NAME } from '~/agents/tools/search-corpus'
 import { ABLATION_DIMENSIONS, buildAblationReportMarkdown } from './score'
 
 /**
@@ -19,10 +18,6 @@ import { ABLATION_DIMENSIONS, buildAblationReportMarkdown } from './score'
  */
 
 describe('Mirror tools-off ablation (R20 surface 1)', () => {
-  it('Mirror exposes exactly one tool — toggling that one tool is the ablation surface', () => {
-    expect(SEARCH_PAST_MIRRORS_NAME).toBe('search_past_mirrors')
-  })
-
   it('builds a report scaffold with all five dimensions and an overall-verdict block', () => {
     const md = buildAblationReportMarkdown({
       surface: 'mirror',

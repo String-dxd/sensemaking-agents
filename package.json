@@ -19,7 +19,6 @@
     "db:studio": "drizzle-kit studio --config=src/db/drizzle.config.ts",
     "ablate:mirror": "tsx scripts/ablate.ts --surface=mirror",
     "ablate:sensemake": "tsx scripts/ablate.ts --surface=sensemake",
-    "ablate:delta": "tsx scripts/ablate-delta.ts",
     "provision:managed-agents": "tsx scripts/managed-agents/provision.ts",
     "smoke:managed-mirror": "tsx scripts/managed-agents/smoke-mirror.ts",
     "smoke:managed-connector": "tsx scripts/managed-agents/smoke-connector.ts",
@@ -28,7 +27,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
-    "@openai/agents": "^0.11.0",
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-router": "1.169.2",
     "@tanstack/react-start": "1.167.65",

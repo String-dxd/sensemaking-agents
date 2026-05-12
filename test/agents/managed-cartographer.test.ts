@@ -4,7 +4,7 @@
 // the Drizzle/Postgres surface (or mocked queries.ts).
 // TODO(reza-step2-followup): rewrite against new TenantContext + Drizzle.
 /**
- * Step 9 — Cartographer on Managed Agents (behind `USE_MANAGED_AGENTS`).
+ * Cartographer on Managed Agents.
  *
  * Three surfaces under test:
  *
@@ -15,10 +15,10 @@
  *   2. `buildCartographerContext` — DB integration. Validates the pre-fetch
  *      pulls pages, timeline, and the unioned-FTS-by-open-question corpus
  *      slice under `withStudent` tenancy.
- *   3. `runCartographerHandler` flag routing — `USE_MANAGED_AGENTS=true`
- *      dispatches through a mocked `runManagedAgent` with a binding pulled
- *      from `MANAGED_AGENT_CARTOGRAPHER_*`. `deps.runCartographer` still
- *      wins. Schema parse + post-process validator still run.
+ *   3. `runCartographerHandler` dispatch — invokes a mocked
+ *      `runManagedAgent` with a binding pulled from
+ *      `MANAGED_AGENT_CARTOGRAPHER_*`. `deps.runCartographer` wins as a
+ *      test seam. Schema parse + post-process validator still run.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -240,13 +240,12 @@ vi.mock('~/agents/runner', async (importOriginal) => {
   }
 })
 
-describe.skipIf(!process.env.DATABASE_URL)('Step 9 runCartographerHandler — flag routing', () => {
+describe.skipIf(!process.env.DATABASE_URL)('runCartographerHandler — managed dispatch', () => {
   const SAVED_ENV = { ...process.env }
 
   beforeEach(async () => {
     setDbForTests(openInMemoryDb())
     seed()
-    delete process.env.USE_MANAGED_AGENTS
     delete process.env.MANAGED_AGENT_CARTOGRAPHER_ID
     delete process.env.MANAGED_AGENT_CARTOGRAPHER_VERSION
     delete process.env.MANAGED_AGENT_ENV_ID
@@ -308,8 +307,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Step 9 runCartographerHandler — fl
     }
   }
 
-  it('routes to runManagedAgent when USE_MANAGED_AGENTS=true, forwarding the buildCartographerContext prompt', async () => {
-    process.env.USE_MANAGED_AGENTS = 'true'
+  it('dispatches to runManagedAgent, forwarding the buildCartographerContext prompt', async () => {
     process.env.MANAGED_AGENT_CARTOGRAPHER_ID = 'agt_carto_abc'
     process.env.MANAGED_AGENT_CARTOGRAPHER_VERSION = '4'
     process.env.MANAGED_AGENT_ENV_ID = 'env_x'
@@ -347,8 +345,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Step 9 runCartographerHandler — fl
     expect(call?.timeoutMs).toBeGreaterThan(120_000)
   })
 
-  it('deps.runCartographer wins over USE_MANAGED_AGENTS=true (test injection takes priority)', async () => {
-    process.env.USE_MANAGED_AGENTS = 'true'
+  it('deps.runCartographer takes priority over the managed runner', async () => {
     process.env.MANAGED_AGENT_CARTOGRAPHER_ID = 'agt_carto_abc'
     process.env.MANAGED_AGENT_ENV_ID = 'env_x'
 
@@ -368,8 +365,7 @@ describe.skipIf(!process.env.DATABASE_URL)('Step 9 runCartographerHandler — fl
     expect(vi.mocked(runManagedAgent)).not.toHaveBeenCalled()
   })
 
-  it('USE_MANAGED_AGENTS=true without a binding surfaces as agent_error (handler catches the throw)', async () => {
-    process.env.USE_MANAGED_AGENTS = 'true'
+  it('missing cartographer binding surfaces as agent_error (handler catches the throw)', async () => {
     // Intentionally do NOT set MANAGED_AGENT_CARTOGRAPHER_ID.
 
     const { runCartographerHandler } = await import('~/server/run-cartographer.handler.server')
@@ -383,7 +379,6 @@ describe.skipIf(!process.env.DATABASE_URL)('Step 9 runCartographerHandler — fl
   })
 
   it('maps a ManagedAgentError(PARSE_ERROR) through the agent_error path', async () => {
-    process.env.USE_MANAGED_AGENTS = 'true'
     process.env.MANAGED_AGENT_CARTOGRAPHER_ID = 'agt_carto_abc'
     process.env.MANAGED_AGENT_ENV_ID = 'env_x'
 
@@ -398,17 +393,4 @@ describe.skipIf(!process.env.DATABASE_URL)('Step 9 runCartographerHandler — fl
     expect(result.status).toBe('agent_error')
   })
 
-  it('keeps the legacy OpenAI path when USE_MANAGED_AGENTS is unset (deps.runCartographer exercises the non-managed branch end-to-end)', async () => {
-    delete process.env.USE_MANAGED_AGENTS
-    const { runManagedAgent } = await import('~/agents/runner')
-    const { runCartographerHandler } = await import('~/server/run-cartographer.handler.server')
-
-    seedClaims()
-    const stub = vi.fn().mockResolvedValue(happyDraft())
-    const result = await runCartographerHandler({ studentId: STUDENT }, { runCartographer: stub })
-
-    expect(result.ok).toBe(true)
-    expect(stub).toHaveBeenCalledOnce()
-    expect(vi.mocked(runManagedAgent)).not.toHaveBeenCalled()
-  })
 })
