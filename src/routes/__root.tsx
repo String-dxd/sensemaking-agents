@@ -6,6 +6,7 @@ import {
   Link,
   Outlet,
   Scripts,
+  useRouterState,
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { queryClient } from '~/router'
@@ -32,38 +33,35 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootComponent() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const isWorld = pathname === '/'
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
         <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-8">
-          <header className="flex items-center justify-between">
-            <Link to="/" className="text-sm font-semibold tracking-tight">
-              sensemaking · v0.1
-            </Link>
-            <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-              <Link
-                to="/reflect"
-                className="hover:text-foreground"
-                activeProps={{ className: 'text-foreground' }}
-              >
-                reflect
+          {isWorld ? null : (
+            <header className="flex items-center justify-between">
+              <Link to="/" className="text-sm font-semibold tracking-tight">
+                sensemaking · v0.1
               </Link>
-              <Link
-                to="/library"
-                className="hover:text-foreground"
-                activeProps={{ className: 'text-foreground' }}
-              >
-                library
-              </Link>
-              <Link
-                to="/reflect/review"
-                className="text-xs hover:text-foreground"
-                activeProps={{ className: 'text-foreground' }}
-              >
-                review
-              </Link>
-            </nav>
-          </header>
+              <nav className="flex items-center gap-4 text-sm text-muted-foreground">
+                <Link
+                  to="/library"
+                  className="hover:text-foreground"
+                  activeProps={{ className: 'text-foreground' }}
+                >
+                  library
+                </Link>
+                <Link
+                  to="/reflect/review"
+                  className="text-xs hover:text-foreground"
+                  activeProps={{ className: 'text-foreground' }}
+                >
+                  review
+                </Link>
+              </nav>
+            </header>
+          )}
           <main className="flex-1">
             <Outlet />
           </main>
