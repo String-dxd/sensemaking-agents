@@ -10,6 +10,7 @@
  */
 
 import type { Mood } from '~/agents/tools/schemas'
+import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { cn } from '~/lib/utils'
 
@@ -46,14 +47,11 @@ export interface EmotionChipProps {
 
 export function EmotionChip({ mood, variant, onClick, asButton = false }: EmotionChipProps) {
   const eyebrow = variant === 'inferred' ? 'Mirror sensed' : 'You felt'
-  const palette =
-    variant === 'inferred'
-      ? 'bg-muted text-muted-foreground'
-      : 'bg-accent/15 text-accent border border-accent/30'
+  const badgeVariant = variant === 'inferred' ? 'secondary' : 'accent'
 
   const content = (
     <>
-      <span className="text-[10px] font-medium uppercase tracking-wide">{eyebrow}</span>
+      <span className="text-[10px] font-medium uppercase tracking-wide opacity-80">{eyebrow}</span>
       <span className="text-sm font-medium">{MOOD_LABEL[mood]}</span>
     </>
   )
@@ -67,7 +65,7 @@ export function EmotionChip({ mood, variant, onClick, asButton = false }: Emotio
         onClick={onClick}
         data-testid={`emotion-chip-${variant}`}
         data-mood={mood}
-        className={cn('inline-flex h-auto items-center gap-2 rounded-full px-3 py-1.5', palette)}
+        className={cn('inline-flex h-auto items-center gap-2 rounded-full px-3 py-1.5')}
       >
         {content}
       </Button>
@@ -75,13 +73,14 @@ export function EmotionChip({ mood, variant, onClick, asButton = false }: Emotio
   }
 
   return (
-    <span
-      className={cn('inline-flex items-center gap-2 rounded-full px-3 py-1.5', palette)}
+    <Badge
+      variant={badgeVariant}
+      className="px-3 py-1.5"
       data-testid={`emotion-chip-${variant}`}
       data-mood={mood}
     >
       {content}
-    </span>
+    </Badge>
   )
 }
 
