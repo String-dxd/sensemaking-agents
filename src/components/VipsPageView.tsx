@@ -18,9 +18,11 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
+import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import type { VipsDimension } from '~/data/vips-taxonomy'
 import type { VipsPageRow, VipsTimelineEntryRow } from '~/db/queries'
+import { cn } from '~/lib/utils'
 import { forgetTimelineEntry } from '~/server/forget-timeline-entry.functions'
 
 const DIMENSION_LABEL: Record<VipsDimension, string> = {
@@ -136,13 +138,15 @@ function TimelineEntryRow({ studentId, entry }: TimelineEntryRowProps) {
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
         <StrengthBadge strength={entry.strength} />
         {entry.parallax_tag.map((tag) => (
-          <span
+          <Badge
             key={tag}
-            className="rounded bg-muted px-1.5 py-0.5"
+            variant="secondary"
+            size="sm"
+            radius="sm"
             data-testid={`parallax-chip-${tag}`}
           >
             #{tag}
-          </span>
+          </Badge>
         ))}
         {entry.reflection_id != null ? (
           // Plain `<a>` rather than TanStack `<Link>` because `/library/$entryId`
@@ -220,11 +224,11 @@ function StrengthBadge({ strength }: { strength: 'low' | 'medium' | 'high' }) {
         ? 'bg-muted text-foreground'
         : 'bg-muted/40 text-muted-foreground'
   return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${cls}`}
+    <Badge
       data-testid={`strength-${strength}`}
+      className={cn('px-2 text-[10px] font-semibold uppercase tracking-wide', cls)}
     >
       {strength}
-    </span>
+    </Badge>
   )
 }

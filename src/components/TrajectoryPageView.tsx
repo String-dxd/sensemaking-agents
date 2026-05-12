@@ -1,6 +1,8 @@
 import type { CartographerPathwayDraft } from '~/agents/schemas'
+import { Badge, badgeVariants } from '~/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 import type { VipsDimension } from '~/data/vips-taxonomy'
+import { cn } from '~/lib/utils'
 
 /**
  * v0.2 (U11) — Trajectory page view. Renders the Cartographer's
@@ -125,14 +127,12 @@ function PathwayCard({ pathway }: { pathway: CartographerPathwayDraft }) {
 
         <div className="flex flex-col gap-1.5">
           <p className="text-xs uppercase tracking-wider text-muted-foreground">ECG region tags</p>
-          <ul className="flex flex-wrap gap-1.5 text-[11px]" data-testid="ecg-region-tag-chips">
+          <ul className="flex flex-wrap gap-1.5" data-testid="ecg-region-tag-chips">
             {pathway.ecg_region_tags.map((id) => (
-              <li
-                key={id}
-                className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground"
-                data-testid={`ecg-tag-${id}`}
-              >
-                {id}
+              <li key={id}>
+                <Badge variant="secondary" size="sm" radius="sm" data-testid={`ecg-tag-${id}`}>
+                  {id}
+                </Badge>
               </li>
             ))}
           </ul>
@@ -181,7 +181,10 @@ function TraitChip({
       data-testid={`trait-chip-${claimId}`}
       data-dimension={dimension}
       data-timeline-entry-id={timelineEntryId ?? ''}
-      className="rounded bg-muted px-1.5 py-0.5 text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+      className={cn(
+        badgeVariants({ variant: 'secondary', size: 'sm', radius: 'sm' }),
+        'hover:bg-muted/80 hover:text-foreground',
+      )}
     >
       {claimId}
     </a>

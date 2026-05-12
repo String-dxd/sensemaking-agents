@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router'
+import { Badge } from '~/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import type { MirrorEntryRow } from '~/db/queries'
 
@@ -39,10 +40,12 @@ export function WikiEntryCard({ entry }: WikiEntryCardProps) {
           />
         </div>
         {entry.tags.length > 0 ? (
-          <ul className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+          <ul className="flex flex-wrap gap-1.5">
             {entry.tags.map((t) => (
-              <li key={t} className="rounded bg-muted px-1.5 py-0.5">
-                #{t}
+              <li key={t}>
+                <Badge variant="secondary" size="sm" radius="sm">
+                  #{t}
+                </Badge>
               </li>
             ))}
           </ul>
