@@ -1,11 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  EmotionChip,
-  EmotionConnector,
-  emotionConnectorVerdict,
-} from '~/components/EmotionChip'
+import { EmotionChip, EmotionConnector, emotionConnectorVerdict } from '~/components/EmotionChip'
 
 describe('EmotionChip', () => {
   it('renders the inferred variant with "Mirror sensed" eyebrow', () => {

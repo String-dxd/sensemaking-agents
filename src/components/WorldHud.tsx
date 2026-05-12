@@ -1,6 +1,6 @@
-import { Library as LibraryIcon, Mic } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
-import type { ReactNode } from 'react'
+import { Library as LibraryIcon, Mic } from 'lucide-react'
+import type { MouseEvent, ReactNode } from 'react'
 import { Button } from '~/components/ui/button'
 import { cn } from '~/lib/utils'
 
@@ -56,7 +56,9 @@ export function WorldHud({ voiceModeActive = false, onVoicePressed, voiceSlot }:
             to="/library"
             aria-label="Library"
             aria-disabled={voiceModeActive || undefined}
-            onClick={voiceModeActive ? (e) => e.preventDefault() : undefined}
+            onClick={
+              voiceModeActive ? (e: MouseEvent<HTMLAnchorElement>) => e.preventDefault() : undefined
+            }
             data-testid="library-button"
             className={cn(
               'pointer-events-auto inline-flex items-center gap-2 rounded-full border border-border bg-background/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm hover:bg-muted',

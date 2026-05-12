@@ -176,7 +176,7 @@ export function useMirrorSession({
   studentId,
   onPersisted,
 }: MirrorSessionOptions): MirrorSessionApi {
-  const [state, dispatch] = useReducer(reduce, initialState, (init) => {
+  const [state, dispatch] = useReducer(reduce, initialState, (init: State): State => {
     if (
       typeof window !== 'undefined' &&
       typeof (import.meta as { env?: { DEV?: boolean } }).env?.DEV !== 'undefined' &&
@@ -184,7 +184,11 @@ export function useMirrorSession({
     ) {
       const injected = new URLSearchParams(window.location.search).get('inject')
       if (injected && injected.trim().length > 0) {
-        return { ...init, phase: 'transcribing', pendingTranscript: injected.trim() }
+        return {
+          ...init,
+          phase: 'transcribing' as Phase,
+          pendingTranscript: injected.trim(),
+        }
       }
     }
     return init
@@ -231,6 +235,7 @@ export function useMirrorSession({
     return cleanup
   }, [cleanup])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: handleStopInternal is defined below and closes over stable refs; the loop only fires during recording
   const startVolumeLoop = useCallback(() => {
     const analyser = analyserRef.current
     if (!analyser) return
@@ -442,7 +447,7 @@ export function useMirrorSession({
     }
   }, [stopRecorder, studentId, runPostStopChain, cleanup])
 
-  // Drive the dev `?inject=` short-circuit through the post-Stop chain.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — drives the dev `?inject=` short-circuit straight into the post-Stop chain
   useEffect(() => {
     if (state.phase === 'transcribing' && state.pendingTranscript && rafRef.current == null) {
       // No active recorder when we entered via ?inject — run the chain.
@@ -450,7 +455,6 @@ export function useMirrorSession({
         void runPostStopChain(state.pendingTranscript)
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleVoicePress = useCallback(() => {

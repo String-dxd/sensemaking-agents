@@ -42,7 +42,9 @@ export const Route = createFileRoute('/')({
   component: LandingPage,
 })
 
-function landingPhaseToVoiceButton(phase: ReturnType<typeof useMirrorSession>['phase']): VoiceButtonPhase {
+function landingPhaseToVoiceButton(
+  phase: ReturnType<typeof useMirrorSession>['phase'],
+): VoiceButtonPhase {
   if (phase === 'idle') return 'idle'
   if (phase === 'recording') return 'recording'
   if (phase === 'error' || phase === 'done') return 'idle'
@@ -85,10 +87,7 @@ function LandingPage() {
         </WorldStage>
         {session.phase === 'error' && session.errorMessage ? (
           <div className="absolute inset-x-4 bottom-4">
-            <MirrorSessionErrorPanel
-              message={session.errorMessage}
-              onRetry={session.handleReset}
-            />
+            <MirrorSessionErrorPanel message={session.errorMessage} onRetry={session.handleReset} />
           </div>
         ) : null}
       </div>
@@ -155,13 +154,7 @@ function VipsDimensionSheetContent({ dimension }: { dimension: VipsDimension }) 
 
   return (
     <div data-testid={`vips-card-${dimension}`}>
-      <VipsPageView
-        studentId={STUDENT_ID}
-        dimension={dimension}
-        page={page}
-        timeline={timeline}
-      />
+      <VipsPageView studentId={STUDENT_ID} dimension={dimension} page={page} timeline={timeline} />
     </div>
   )
 }
-

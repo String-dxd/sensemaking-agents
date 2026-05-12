@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { X } from 'lucide-react'
+import { type ReactNode, useEffect, useId, useRef } from 'react'
 import { cn } from '~/lib/utils'
 
 const TRANSITION_MS = 200
@@ -52,10 +52,7 @@ export function BottomSheet({
       data-testid="bottom-sheet"
       data-state={open ? 'open' : 'closed'}
       aria-hidden={!open}
-      className={cn(
-        'pointer-events-none fixed inset-0 z-40',
-        open ? 'pointer-events-auto' : null,
-      )}
+      className={cn('pointer-events-none fixed inset-0 z-40', open ? 'pointer-events-auto' : null)}
     >
       <button
         type="button"

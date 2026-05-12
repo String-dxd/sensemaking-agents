@@ -4,7 +4,11 @@ import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: ({ to, children, ...props }: { to: string; children?: ReactNode } & Record<string, unknown>) => (
+  Link: ({
+    to,
+    children,
+    ...props
+  }: { to: string; children?: ReactNode } & Record<string, unknown>) => (
     <a href={to} {...(props as Record<string, unknown>)}>
       {children}
     </a>

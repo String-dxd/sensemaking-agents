@@ -38,10 +38,7 @@ export function TrajectorySheetView({ studentId }: TrajectorySheetViewProps) {
           Run sense-making to see your trajectory.
         </p>
       ) : (
-        <p
-          className="max-w-prose text-sm leading-relaxed"
-          data-testid="trajectory-sheet-paragraph"
-        >
+        <p className="max-w-prose text-sm leading-relaxed" data-testid="trajectory-sheet-paragraph">
           {data.trajectory.trajectory_text}
         </p>
       )}
