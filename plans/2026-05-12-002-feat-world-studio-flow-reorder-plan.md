@@ -21,6 +21,63 @@ Goal of this plan is **structural** — get the flow and layout right with place
 
 ---
 
+## 1a. Coordination with the Managed Agents migration
+
+A parallel plan is in flight: **`plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`** (branch `feat/managed-agents-migration`). It's a **single-cutover migration** that flips all four agents from `@openai/agents` + SQLite (`better-sqlite3`) to **Claude Managed Agents** + **Neon Postgres** + **Drizzle Kit**, with auth (WorkOS), all in PR 1; cleanup of the OpenAI path in PR 2. That plan declares **`No semantic agent changes`** and **`No data migration script`** in its non-goals — it preserves Mirror's current output (`{validation, inferred_meaning, story_reframe}`) and drops `app.db` rather than migrating it.
+
+This plan (World Studio) intersects with managed-agents on five surfaces:
+
+| Surface | Managed Agents does | World Studio does | Sequencing rule |
+|---|---|---|---|
+| `src/agents/mirror.ts` (+ prompt file) | Repoints Mirror to the Managed Agents API; the canonical prompt + output schema may now live in the Anthropic config rather than in code | Adds `inferred_emotion` to Mirror's output schema + one paragraph to the system prompt | **POST-MERGE only.** This is a semantic agent change that managed-agents' non-goals forbid in the cutover. Land after PR 1 stabilizes. |
+| `src/db/*` (schema + client + queries) | Replaces SQLite with Neon Postgres + Drizzle migrations; the `SCHEMA_VERSION` mechanism in `src/db/client.ts` does not survive | Was specced as a `SCHEMA_VERSION` bump (4 → 5) + raw `ALTER TABLE` / `CHECK`-enum SQL in `schema.sql` | **POST-MERGE.** The SQLite mechanism is gone after managed-agents. Re-spec the `mood` + `inferred_emotion` columns as **Drizzle migration files** against the Postgres dialect. Add the `CHECK` constraint as a Drizzle table-level check, not raw SQL. |
+| `src/server/persist-mirror.functions.ts` | Rewired to call the new agent runner shape | Adds `mood` + `inferred_emotion` to the persist call's data contract | **POST-MERGE.** Re-apply the new params on top of whatever signature the runner refactor leaves behind. |
+| `src/routes/reflect.index.tsx`, `src/routes/reflect.tsx` | Likely unchanged (managed-agents non-goals call out `src/routes/reflect.review.tsx` as preserved, but don't claim the same for the index or layout) | Deletes both files | **PARALLEL-SAFE** — confirm at rebase, but no expected collision. |
+| `src/components/MirrorSession.tsx` | Likely unchanged in PR 1 (the cutover is server-side; client UI is unchanged) | Removes camera, rewrites the reducer for voice mode | **PARALLEL-SAFE** — pure client refactor, no managed-agents intersection. |
+
+**Per-unit parallel-safety** is also labeled inline at the top of each U-N section under "**Parallel-safety:**". Summary:
+
+- **U1 WorldStage** — PARALLEL-SAFE (new file)
+- **U2 BottomSheet** — PARALLEL-SAFE (new file)
+- **U3 World view + Voice button + Library button + sheets** — PARALLEL-SAFE
+- **U4 VIPS dimension pages** — PARALLEL-SAFE (no-op this plan)
+- **U5 Voice mode on `/`** — PARALLEL-SAFE for the client refactor (`MirrorSession.tsx`, `VoiceButton.tsx`, route deletions); the `state.mood` → `persistMirror` data contract becomes POST-MERGE
+- **U6 EmotionPicker + Mirror `inferred_emotion` + review render** — PARALLEL-SAFE for `EmotionPicker.tsx` + `EmotionChip.tsx` + `PostMirrorReview.tsx` UI work (mock the fields locally); the Mirror agent extension + Drizzle migration + persistMirror server fn wiring are POST-MERGE
+- **U7 Strip top nav + smoke** — PARALLEL-SAFE (touches `__root.tsx` only)
+
+**Recommended execution order** for the `world-studio` branch:
+
+1. **Phase A (now, parallel with managed-agents)** — Execute U1, U2, U3, U4, U7, plus the client-only parts of U5 and U6. UI components ship with **mocked** `mood` state and **mocked** `inferred_emotion` field on the staged review entry; no `persistMirror` extension; no schema changes. The user can run the full UI demo end-to-end with hard-coded sample data.
+2. **Phase B (after managed-agents PR 1 merges to `main`)** — Rebase `world-studio` onto `main`, then land the POST-MERGE pieces in a single follow-up PR: Mirror's `inferred_emotion` output field (in the new Managed Agents config), Drizzle migration for the two columns, persistMirror server fn extension, replace the mocked UI fields with the real ones.
+
+**Rebase strategy:** when managed-agents PR 1 merges, run `git rebase main` on `world-studio`. Expected conflicts are in `src/agents/`, `src/db/`, `src/server/persist-mirror.functions.ts`. Drop the SQLite-specific schema mechanics entirely (the `SCHEMA_VERSION` bump, raw `ALTER TABLE`, `_meta` literal updates — all gone); re-author the column additions as a Drizzle migration in whatever migrations directory the new layout uses.
+
+**If you'd rather sequence than parallel** (cleanest path), pause `world-studio` execution at the end of Phase A and resume after managed-agents PR 1 lands. Phase A is ~5 units of UI scaffolding; that gets most of the visual restructure done without touching agent or DB territory at all.
+
+**Mock contracts for Phase A** (so the UI work has something to render against):
+
+```ts
+// Use these locally in MirrorSession / PostMirrorReview / EmotionChip
+// during Phase A. Replace with the real schema + persistMirror shape
+// in Phase B.
+
+type Mood = 'joy' | 'sadness' | 'anger' | 'fear' | 'disgust'
+          | 'anxiety' | 'envy' | 'embarrassed' | 'ennui'
+
+// MirrorSession local state during voice mode:
+const [mood, setMood] = useState<Mood | null>(null)
+
+// PostMirrorReview prop (mocked when reading staged entry):
+type StagedEntryView = VipsProposedDiffRow & {
+  mood: Mood | null            // mocked as null until Phase B
+  inferred_emotion: Mood       // mocked as 'joy' until Phase B
+}
+```
+
+The Phase A tests should assert the UI behavior against these mocked fields — the assertions stay valid once Phase B wires the real columns.
+
+---
+
 ## 2. Non-goals (explicit)
 
 - **Not** implementing the real threejs scene — `WorldStage` ships as a static placeholder (gradient sky + simple SVG island silhouette) with a clear extension seam.
@@ -125,6 +182,8 @@ The original product framing (Quiet Mirror Pivot, per README.md) was a deliberat
 
 ### U1. WorldStage placeholder component
 
+**Parallel-safety:** PARALLEL-SAFE — new file under `src/components/`; no overlap with managed-agents.
+
 **Goal:** Introduce the world-stage shell so every downstream surface has a stable mount point. The placeholder ships as a static visual; the real threejs scene replaces this internal in a later plan without changing the component's external API.
 
 **Dependencies:** none.
@@ -154,6 +213,8 @@ The original product framing (Quiet Mirror Pivot, per README.md) was a deliberat
 ---
 
 ### U2. BottomSheet primitive
+
+**Parallel-safety:** PARALLEL-SAFE — new file under `src/components/`; no overlap.
 
 **Goal:** A minimal drawer primitive that can host VIPS-dimension content or the Trajectory page on top of the world view. No gestures, no physics — visibility is driven by a controlled `open` prop.
 
@@ -188,6 +249,8 @@ The original product framing (Quiet Mirror Pivot, per README.md) was a deliberat
 ---
 
 ### U3. Replace `/` landing with WorldStage + Voice button + sheets
+
+**Parallel-safety:** PARALLEL-SAFE — touches `src/routes/index.tsx`, new component files, and reads from existing `loadPendingReview` / `loadVipsPages` server fns. None of these files are in managed-agents' scope.
 
 **Goal:** Rewire the landing route to render the world stage + a Voice button (primary action) + bottom-sheet entries for the 4 VIPS dimensions and Trajectory. Replaces the current text + two buttons (`Start a reflection` / `Open library`). Voice mode itself (the recorder state machine) lives in U5 and mounts in place on `/` — there is no navigate during recording.
 
@@ -249,6 +312,8 @@ The original product framing (Quiet Mirror Pivot, per README.md) was a deliberat
 
 ### U4. VIPS dimension pages — no changes this plan
 
+**Parallel-safety:** PARALLEL-SAFE (trivially — no files modified).
+
 **Goal:** Keep the existing `VipsPageView` render exactly as it is today. The sheets (U3) render `VipsPageView` directly with no reskin; the route at `/library/$dimension` is unchanged.
 
 The earlier draft of this plan proposed an eyebrow / title / subtitle / `top` / `stable` / `newest` bucket restructure (matching the screenshots' Skills and Personality sheet headers). That restructure is **dropped from this plan** at user direction — keep the current VIPS UI model. Bucketing logic, per-dimension labels, lookup tables, eyebrow/subtitle copy, and the `vips-buckets.ts` library file are not built this plan.
@@ -270,6 +335,8 @@ If a future plan revisits the dimension-page layout, it can introduce buckets th
 ---
 
 ### U5. Voice mode on `/` — audio-only, in place, no camera
+
+**Parallel-safety:** **MIXED** — the client refactor is PARALLEL-SAFE (`MirrorSession.tsx`, the new `VoiceButton.tsx`, deletion of `src/routes/reflect.tsx` + `reflect.index.tsx`). The wiring of `state.mood` into the `persistMirror` server-fn data contract is **POST-MERGE** because managed-agents rewrites `persist-mirror.functions.ts` for the new runner. During Phase A, keep `state.mood` in local React state and **do not** forward it to `persistMirror`; assert in tests with a mock. Phase B re-applies the param on top of whatever signature managed-agents leaves behind.
 
 **Goal:** Reshape the Mirror session from a separate `/reflect` page with auto-camera-on-mount into in-place voice mode on `/`. **No camera**, no video element, no flipped mirror frame — audio capture only. The world stage stays visible while the user talks. On Stop, the chain runs straight through transcribe → Mirror → persist → navigate to `/reflect/review`.
 
@@ -333,6 +400,8 @@ If a future plan revisits the dimension-page layout, it can introduce buckets th
 
 ### U6. EmotionPicker + Mirror `inferred_emotion` + review render
 
+**Parallel-safety:** **MIXED** — Phase A (PARALLEL-SAFE): build `EmotionPicker.tsx`, `EmotionChip.tsx`, and the new "what Mirror sensed" block in `PostMirrorReview.tsx` against a **mocked** `inferred_emotion` field (and the optional user `mood`). The UI is rendered, tests pass, demo flow shows the chips with hard-coded values. Phase B (POST-MERGE): land the Mirror agent extension (in the Managed Agents config, not in code), the Drizzle migration for the two `mirror_entries` columns, and the `persistMirror` server-fn extension. **Drop the SQLite schema mechanics entirely** — see §1a; the `SCHEMA_VERSION` bump, raw `ALTER TABLE`, and `_meta` literal updates are obsolete after managed-agents replaces the DB layer.
+
 **Goal:** Three coordinated additions that together replace the blocking 9-emotion picker with a quieter, inference-led approach:
 1. A reusable `EmotionPicker` component (used by U5 as an in-session overlay; tile entrance storyboard in §10b).
 2. **Mirror agent extension** — Mirror now emits a 4th output field, `inferred_emotion` (closed enum), alongside `validation` / `inferred_meaning` / `story_reframe`.
@@ -346,18 +415,29 @@ If a future plan revisits the dimension-page layout, it can introduce buckets th
 - `test/components/EmotionPicker.test.tsx` (new)
 - `src/components/EmotionChip.tsx` (new — small read-only chip used in two places: (a) the in-session affordance during recording in U5, (b) the PostMirrorReview read-out of `inferred_emotion` and optional user `mood`)
 - `test/components/EmotionChip.test.tsx` (new)
-- `src/agents/mirror.ts` (modify — extend Mirror's output schema with `inferred_emotion: MoodSchema`; update the system prompt with one paragraph instructing Mirror to infer emotion from the transcript, picking the closest of the 9 placeholder labels, with a "if you cannot tell, pick the closest neighbor" fallback so the field is always populated)
-- `src/agents/tools/schemas.ts` (modify — add `MoodSchema` enum; extend `MirrorAgentOutputSchema` with `inferred_emotion: MoodSchema`; do **not** touch `VipsContextTypeSchema`)
-- `src/db/queries.ts` (modify — extend `MirrorEntryInput` and `MirrorEntryRow` with `mood?: Mood | null` and `inferred_emotion: Mood`; extend insert + select statements)
-- `src/db/schema.sql` (modify — add `mood` AND `inferred_emotion` columns to `mirror_entries`, each with the same CHECK enum)
-- `src/db/client.ts` (modify — bump `SCHEMA_VERSION` from `'4'` to `'5'`; update the `_meta` insert in `schema.sql` to match)
-- `src/db/seed.ts` (modify — seed sets `inferred_emotion` to a plausible default per entry; leaves `mood` null since seeded entries pre-date the user-tag feature)
-- `src/server/persist-mirror.functions.ts` (modify — accept optional `mood` and required `inferred_emotion` in the input; forward both to the queries layer)
-- `src/server/run-mirror.functions.ts` (modify — wire the Mirror output's `inferred_emotion` through to the persist call site in U5's `MirrorSession`)
-- `test/server/persist-mirror-v0.2.test.ts` (modify — assert both fields round-trip)
-- `src/components/PostMirrorReview.tsx` (modify — add a new "what Mirror sensed" block rendering the `inferred_emotion` chip; when the entry's `mood` is also set, render a second smaller "what you said you felt" chip next to it with a one-line connector — same / aligned / different)
-- `test/components/PostMirrorReview.test.tsx` (modify or create — assert the new block renders correctly in all three cases: inferred only, both with same value, both with different values)
-- `test/agents/mirror.test.ts` (modify — assert Mirror returns a valid `inferred_emotion` from the closed enum on every test fixture)
+**Phase A files** (ship in `world-studio` branch before managed-agents merges — UI only, mocked schema):
+- `src/components/EmotionPicker.tsx` (new)
+- `test/components/EmotionPicker.test.tsx` (new)
+- `src/components/EmotionChip.tsx` (new)
+- `test/components/EmotionChip.test.tsx` (new)
+- `src/components/PostMirrorReview.tsx` (modify — add the "what Mirror sensed" block; read the `inferred_emotion` field from the entry view-model with a fallback to a hard-coded `'joy'` when the field isn't present yet, so Phase A renders cleanly against the existing schema)
+- `test/components/PostMirrorReview.test.tsx` (modify or create — assert the new block renders in all three connector cases: inferred-only, both-same, both-different. Tests stand up sample staged entries with the mocked `inferred_emotion` / `mood` fields directly, not via `persistMirror`)
+- `src/agents/tools/schemas.ts` (**type-only add** — export `MoodSchema = z.enum([...])` so the UI components have a single source of truth for the 9 labels. Do **not** extend `MirrorAgentOutputSchema` in Phase A — that's the semantic agent change that has to wait.)
+
+**Phase B files** (after managed-agents PR 1 merges to `main` and `world-studio` rebases onto it):
+- **Drizzle migration** (new file under whatever migrations dir the new DB layer uses — `src/db/migrations/` or similar) that adds two columns to `mirror_entries`:
+  ```ts
+  // Drizzle dialect — Postgres
+  mood: text('mood'),                                   // NULLABLE
+  inferred_emotion: text('inferred_emotion').notNull().default('joy'),
+  ```
+  Plus a Postgres-level CHECK constraint expressed via Drizzle's `check()` helper (or a raw SQL companion migration if the constraint shape isn't natively expressible) restricting each column to the 9-emotion enum. The `DEFAULT 'joy'` is enum-conformant filler for any row that pre-dates Mirror's inference output; the Phase B follow-up can backfill seeded rows with real inferences if useful.
+- **Mirror agent extension** — in whatever location the new Managed Agents config lives (per managed-agents §3 / §7, the canonical prompt + output schema may now be pinned in the Anthropic Managed Agents console rather than in `src/agents/mirror.ts`). Extend Mirror's output schema with `inferred_emotion: MoodSchema` and append one paragraph to the system prompt: *"You also return an `inferred_emotion` from this closed list: `joy / sadness / anger / fear / disgust / anxiety / envy / embarrassed / ennui`. Pick the single closest match for the dominant emotional tone of the transcript. If the transcript is too short or neutral to tell, pick the closest neighbor rather than refusing — this field is always required."*
+- `src/server/persist-mirror.functions.ts` (modify on top of managed-agents' runner refactor — accept optional `mood` and required `inferred_emotion` in the input; forward both to the DB layer through whatever query API the Drizzle migration exposes)
+- `src/server/run-mirror.functions.ts` (modify — pass Mirror's `inferred_emotion` output through to the persist call site in `MirrorSession`)
+- `src/components/MirrorSession.tsx` (modify — replace the Phase A mock with the real persist call that forwards `state.mood` and `inferred_emotion`)
+- `src/components/PostMirrorReview.tsx` (modify — remove the Phase A `'joy'` fallback; the field is now non-null from the DB)
+- Tests against the now-real Drizzle migration + `persistMirror` round-trip + Mirror fixture coverage of `inferred_emotion`.
 
 **Approach:**
 - **`MoodSchema`**: `z.enum(['joy', 'sadness', 'anger', 'fear', 'disgust', 'anxiety', 'envy', 'embarrassed', 'ennui'])`. Placeholder labels matching the screenshot — final taxonomy is a separate plan. Both `mood` and `inferred_emotion` use this same enum so they're directly comparable.
@@ -370,16 +450,8 @@ If a future plan revisits the dimension-page layout, it can introduce buckets th
   - `variant="user"` — accent background, "You felt: " prefix
   - When both render in PostMirrorReview side-by-side, they share a one-line connector that reads `same`, `aligned (within neighbor groups)`, or `different` based on a simple equality + neighbor-group lookup defined alongside the component.
 - **Mirror agent prompt extension.** One paragraph appended to the existing system prompt — keep it short, in the existing voice of the prompt: "You also return an `inferred_emotion` from this closed list: `joy / sadness / anger / fear / disgust / anxiety / envy / embarrassed / ennui`. Pick the single closest match for the dominant emotional tone of the transcript. If the transcript is too short or neutral to tell, pick the closest neighbor rather than refusing — this field is always required."
-- **Schema** (version-gated drop-and-recreate, as already specced for U5):
-  - Add to `mirror_entries`:
-    ```sql
-    mood TEXT NULL CHECK (mood IN ('joy','sadness','anger','fear','disgust','anxiety','envy','embarrassed','ennui')),
-    inferred_emotion TEXT NOT NULL DEFAULT 'joy' CHECK (inferred_emotion IN ('joy','sadness','anger','fear','disgust','anxiety','envy','embarrassed','ennui')),
-    ```
-    `inferred_emotion` is `NOT NULL` with a `DEFAULT 'joy'` so legacy / seeded rows have a valid value without forcing a migration backfill. The default doesn't reflect a real inference — it's just enum-conformant filler — and a follow-up plan can backfill seeded rows with real Mirror inferences if useful.
-  - Bump `SCHEMA_VERSION` to `'5'` in `src/db/client.ts` and update the `_meta` literal in `schema.sql`.
-  - This wipes existing local `mirror_entries` rows on next boot — every dev who pulls re-seeds.
-- **`persistMirror`** server fn accepts an optional `mood` (defaults to NULL) and a required `inferred_emotion` (passed through from Mirror's output). The queries layer writes both.
+- **Schema** — handled in Phase B as a Drizzle migration (see the Phase B file list above). The SQLite `SCHEMA_VERSION` mechanism, raw `ALTER TABLE`, and `_meta` literal updates from earlier drafts of this plan are **dropped** — managed-agents replaces the entire SQLite layer with Postgres + Drizzle, so those mechanics are obsolete by the time U6 Phase B executes. The constraint shape (closed enum on both columns, `inferred_emotion` `NOT NULL DEFAULT 'joy'` as enum-conformant filler) carries forward into the Drizzle migration unchanged.
+- **`persistMirror`** server fn accepts an optional `mood` (defaults to NULL) and a required `inferred_emotion` — added in Phase B on top of whatever signature managed-agents leaves the function with after its runner refactor. In Phase A, **do not** modify `persistMirror`; the staged entries written by the existing persist call simply don't carry the new fields, and `PostMirrorReview` falls back to the hard-coded `'joy'` placeholder for `inferred_emotion`.
 - **`PostMirrorReview` render.** Above the existing dimension-group blocks, add a new "what Mirror sensed" section: chip rendering the `inferred_emotion`, plus the user's `mood` chip alongside when set, with the connector line. This is read-only context — it does NOT gate the existing confirm/forget actions.
 - **Do not** wire either `mood` or `inferred_emotion` into the Connector input or VIPS parallax tagging in this plan. They're persisted and surfaced in review; downstream agent integration is a follow-up plan.
 
@@ -400,6 +472,8 @@ If a future plan revisits the dimension-page layout, it can introduce buckets th
 ---
 
 ### U7. Strip top nav on world view + remove `/reflect` link + smoke pass
+
+**Parallel-safety:** PARALLEL-SAFE — touches `src/routes/__root.tsx` only; managed-agents doesn't modify root layout.
 
 **Goal:** Adjust the root layout: no top nav on `/` (world stage is the full surface); on other routes, keep the nav but **remove the `/reflect` link** since the route is deleted in U5.
 
