@@ -1,7 +1,8 @@
+import { Radio } from '@base-ui-components/react/radio'
 import { GraduationCap, Heart, Mic, Sparkles, Users } from 'lucide-react'
 import { useState } from 'react'
 import { type VipsContextType, VipsContextTypeSchema } from '~/agents/tools/schemas'
-import { Button } from '~/components/ui/button'
+import { RadioGroup } from '~/components/ui/radio-group'
 import { cn } from '~/lib/utils'
 
 const CONTEXT_TYPES = VipsContextTypeSchema.options
@@ -45,9 +46,10 @@ export interface ContextTypePickerProps {
 }
 
 /**
- * U7 — Context-type picker. Five large-tap buttons covering the closed
- * VIPS parallax vocabulary. One tap fires `onSelect(value)`; the parent is
- * responsible for transitioning the MirrorSession state machine.
+ * U7 — Context-type picker. Five large-tap tiles covering the closed
+ * VIPS parallax vocabulary. Built on Base UI RadioGroup so roving focus
+ * + arrow-key + Home/End navigation + aria-checked semantics come from
+ * the primitive.
  *
  * Persistence: the last-used value is mirrored to `localStorage` so the
  * next session pre-highlights it. First use defaults to `school`.
@@ -55,52 +57,51 @@ export interface ContextTypePickerProps {
 export function ContextTypePicker({ onSelect, defaultValue }: ContextTypePickerProps) {
   const [selected, setSelected] = useState<ContextType>(() => defaultValue ?? readLastUsed())
 
-  function handleSelect(value: ContextType) {
-    setSelected(value)
+  function handleChange(value: unknown) {
+    const next = value as ContextType
+    setSelected(next)
     if (typeof window !== 'undefined') {
       try {
-        window.localStorage.setItem(LOCAL_STORAGE_KEY, value)
+        window.localStorage.setItem(LOCAL_STORAGE_KEY, next)
       } catch {
         // best-effort
       }
     }
-    onSelect(value)
+    onSelect(next)
   }
 
   return (
-    <div
-      className="flex flex-col gap-3"
-      data-testid="context-type-picker"
-      role="radiogroup"
-      aria-label="What was this about?"
-    >
-      <p className="text-sm text-muted-foreground">What was this about?</p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+    <div className="flex flex-col gap-3" data-testid="context-type-picker">
+      <p className="text-sm text-muted-foreground" id="context-type-picker-label">
+        What was this about?
+      </p>
+      <RadioGroup
+        aria-labelledby="context-type-picker-label"
+        value={selected}
+        onValueChange={handleChange}
+        className="grid grid-cols-2 gap-2 sm:grid-cols-5"
+      >
         {OPTIONS.map(({ value, label, hint, Icon }) => {
           const isSelected = selected === value
           return (
-            <Button
+            <Radio.Root
               key={value}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              variant={isSelected ? 'accent' : 'outline'}
-              size="lg"
-              onClick={() => handleSelect(value)}
+              value={value}
               data-testid={`context-option-${value}`}
               data-selected={isSelected ? 'true' : 'false'}
               className={cn(
-                'flex h-auto flex-col items-center justify-center gap-1 px-2 py-3',
-                isSelected ? 'ring-2 ring-accent' : null,
+                'flex h-auto cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-border bg-background px-2 py-3 transition-colors',
+                'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                'data-[checked]:bg-accent data-[checked]:text-accent-foreground data-[checked]:ring-2 data-[checked]:ring-accent',
               )}
             >
               <Icon aria-hidden className="h-5 w-5" />
               <span className="text-sm font-medium">{label}</span>
-              <span className="text-[10px] text-muted-foreground">{hint}</span>
-            </Button>
+              <span className="text-[10px] opacity-70">{hint}</span>
+            </Radio.Root>
           )
         })}
-      </div>
+      </RadioGroup>
     </div>
   )
 }

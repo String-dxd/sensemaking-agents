@@ -5,16 +5,14 @@
  *  - `overlay` — compact mode anchored to a popover/chip; renders a
  *    semi-transparent backdrop and a small floating card.
  *
- * The 9 labels match the screenshot intent (Joy / Sadness / Anger /
- * Fear / Disgust / Anxiety / Envy / Embarrassed / Ennui) and are pinned
- * to the canonical `MoodSchema` enum. Shape↔emotion pairing is fixed in
- * `TILES` and lives in this file as a design specification; polish
- * swaps the shape primitives for final illustrations without changing
- * the data structure (§10b of the plan).
+ * Tile selection + roving focus + arrow-key + Home/End navigation +
+ * aria-checked semantics live in Base UI's RadioGroup primitive — the
+ * picker is just a styled wrapper around `<RadioGroup>` + `<Radio.Root>`.
  */
-import { useEffect, useRef, useState } from 'react'
+import { Radio } from '@base-ui-components/react/radio'
+import { useEffect, useState } from 'react'
 import { type Mood, MoodSchema } from '~/agents/tools/schemas'
-import { Button } from '~/components/ui/button'
+import { RadioGroup } from '~/components/ui/radio-group'
 import { cn } from '~/lib/utils'
 
 const LOCAL_STORAGE_KEY = 'sensemaking.mood.last_used'
@@ -77,9 +75,7 @@ export function EmotionPicker({
   onDismiss,
 }: EmotionPickerProps) {
   const [selected, setSelected] = useState<Mood>(() => defaultValue ?? readLastUsed())
-  const containerRef = useRef<HTMLDivElement | null>(null)
 
-  // Escape closes the overlay variant.
   useEffect(() => {
     if (layout !== 'overlay' || !onDismiss) return
     const onKey = (e: KeyboardEvent) => {
@@ -89,82 +85,47 @@ export function EmotionPicker({
     return () => window.removeEventListener('keydown', onKey)
   }, [layout, onDismiss])
 
-  function handleSelect(value: Mood) {
-    setSelected(value)
+  function handleChange(value: unknown) {
+    const next = value as Mood
+    setSelected(next)
     if (typeof window !== 'undefined') {
       try {
-        window.localStorage.setItem(LOCAL_STORAGE_KEY, value)
+        window.localStorage.setItem(LOCAL_STORAGE_KEY, next)
       } catch {
         /* best-effort */
       }
     }
-    onSelect(value)
-  }
-
-  function handleKey(e: React.KeyboardEvent<HTMLButtonElement>, index: number) {
-    const cols = 3
-    const total = TILES.length
-    let next = index
-    switch (e.key) {
-      case 'ArrowRight':
-        next = (index + 1) % total
-        break
-      case 'ArrowLeft':
-        next = (index - 1 + total) % total
-        break
-      case 'ArrowDown':
-        next = (index + cols) % total
-        break
-      case 'ArrowUp':
-        next = (index - cols + total) % total
-        break
-      case 'Home':
-        next = 0
-        break
-      case 'End':
-        next = total - 1
-        break
-      default:
-        return
-    }
-    e.preventDefault()
-    const tiles = containerRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
-    tiles?.[next]?.focus()
+    onSelect(next)
   }
 
   const grid = (
-    <div
-      ref={containerRef}
-      role="radiogroup"
+    <RadioGroup
       aria-label="Who's at the console?"
       data-testid="emotion-picker"
+      value={selected}
+      onValueChange={handleChange}
       className="grid grid-cols-3 gap-3"
     >
-      {TILES.map((tile, idx) => {
+      {TILES.map((tile) => {
         const isSelected = selected === tile.value
         return (
-          <Button
+          <Radio.Root
             key={tile.value}
-            type="button"
-            role="radio"
-            aria-checked={isSelected}
-            variant="outline"
-            tabIndex={isSelected ? 0 : -1}
-            onClick={() => handleSelect(tile.value)}
-            onKeyDown={(e) => handleKey(e, idx)}
+            value={tile.value}
             data-testid={`emotion-tile-${tile.value}`}
             data-selected={isSelected ? 'true' : 'false'}
             className={cn(
-              'flex aspect-square h-auto flex-col items-center justify-center gap-2 rounded-2xl p-3',
-              isSelected ? 'ring-2 ring-accent' : null,
+              'flex aspect-square h-auto cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-background p-3 transition-colors',
+              'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              'data-[checked]:ring-2 data-[checked]:ring-accent',
             )}
           >
             <MoodShape shape={tile.shape} />
             <span className="text-xs font-medium">{tile.label}</span>
-          </Button>
+          </Radio.Root>
         )
       })}
-    </div>
+    </RadioGroup>
   )
 
   if (layout === 'overlay') {
