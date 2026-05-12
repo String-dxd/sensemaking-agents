@@ -22,7 +22,9 @@
     "ablate:delta": "tsx scripts/ablate-delta.ts",
     "provision:managed-agents": "tsx scripts/managed-agents/provision.ts",
     "smoke:managed-mirror": "tsx scripts/managed-agents/smoke-mirror.ts",
-    "smoke:managed-connector": "tsx scripts/managed-agents/smoke-connector.ts"
+    "smoke:managed-connector": "tsx scripts/managed-agents/smoke-connector.ts",
+    "smoke:managed-cartographer": "tsx scripts/managed-agents/smoke-cartographer.ts",
+    "rubric:managed-cartographer": "tsx scripts/managed-agents/cartographer-rubric-batch.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
