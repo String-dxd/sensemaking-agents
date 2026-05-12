@@ -119,6 +119,42 @@ function makeWrapper() {
 }
 
 describe('PostMirrorReview', () => {
+  it('renders the "what Mirror sensed" block with a joy fallback when inferred_emotion is absent', () => {
+    const diff = makeDiff()
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+    expect(screen.getByTestId('what-mirror-sensed')).toBeInTheDocument()
+    const inferredChip = screen.getByTestId('emotion-chip-inferred')
+    expect(inferredChip).toHaveAttribute('data-mood', 'joy')
+    // No user chip when mood is absent.
+    expect(screen.queryByTestId('emotion-chip-user')).toBeNull()
+    expect(screen.queryByTestId('emotion-connector')).toBeNull()
+  })
+
+  it('renders the inferred chip from the staged diff when inferred_emotion is present', () => {
+    const diff = makeDiff()
+    ;(diff as unknown as { inferred_emotion: string }).inferred_emotion = 'sadness'
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+    expect(screen.getByTestId('emotion-chip-inferred')).toHaveAttribute('data-mood', 'sadness')
+  })
+
+  it('renders the user chip + connector when both mood and inferred_emotion are present (aligned case)', () => {
+    const diff = makeDiff()
+    ;(diff as unknown as { inferred_emotion: string; mood: string }).inferred_emotion = 'sadness'
+    ;(diff as unknown as { mood: string }).mood = 'ennui'
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+    expect(screen.getByTestId('emotion-chip-inferred')).toHaveAttribute('data-mood', 'sadness')
+    expect(screen.getByTestId('emotion-chip-user')).toHaveAttribute('data-mood', 'ennui')
+    expect(screen.getByTestId('emotion-connector')).toHaveAttribute('data-verdict', 'aligned')
+  })
+
+  it('connector reports "same" when both fields are equal', () => {
+    const diff = makeDiff()
+    ;(diff as unknown as { inferred_emotion: string; mood: string }).inferred_emotion = 'joy'
+    ;(diff as unknown as { mood: string }).mood = 'joy'
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+    expect(screen.getByTestId('emotion-connector')).toHaveAttribute('data-verdict', 'same')
+  })
+
   it('renders one DimensionGroup per VIPS dimension with entries and shows the compiled-truth preview', () => {
     const diff = makeDiff()
     render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
