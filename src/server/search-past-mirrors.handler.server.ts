@@ -10,9 +10,9 @@ export const searchPastMirrorsInputSchema = z.object({
 
 export type SearchPastMirrorsServerInput = z.output<typeof searchPastMirrorsInputSchema>
 
-export function searchPastMirrorsHandler(data: SearchPastMirrorsServerInput) {
+export async function searchPastMirrorsHandler(data: SearchPastMirrorsServerInput) {
   const parsed = searchPastMirrorsInputSchema.parse(data)
-  return withStudent(parsed.studentId, (sid) =>
+  return withStudent(parsed.studentId, async (sid) =>
     executeSearchPastMirrors(sid, { query: parsed.query, limit: parsed.limit }),
   )
 }

@@ -27,7 +27,6 @@ import { getManagedAgentBinding } from '~/agents/config'
 import { buildCartographerContext } from '~/agents/context'
 import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
 import { CartographerOutputSchema } from '~/agents/schemas'
-import { openDb } from '~/db/client'
 import { listVipsPages } from '~/db/queries'
 import { loadSeedCorpus, seed } from '~/db/seed'
 
@@ -64,10 +63,10 @@ async function main(): Promise<void> {
   const studentId = pickStudent(args.student)
 
   // Seed in-process so `buildCartographerContext` has pages + timeline + corpus.
-  openDb()
-  seed()
+  // TODO(reza-step2-followup): seed() is rewritten for Postgres in Step 3.
+  await seed()
 
-  const pages = listVipsPages(studentId)
+  const pages = await listVipsPages(studentId)
   if (pages.length === 0) {
     process.stderr.write(
       `smoke-cartographer: no VIPS pages seeded for student ${studentId}. ` +
@@ -93,7 +92,7 @@ async function main(): Promise<void> {
       `agent=${binding.agentId} (${versionLabel}) env=${binding.environmentId}\n`,
   )
 
-  const prompt = buildCartographerContext(studentId)
+  const prompt = await buildCartographerContext(studentId)
   process.stdout.write(`smoke-cartographer: prompt length = ${prompt.length} chars\n`)
 
   const startedAt = Date.now()

@@ -3,7 +3,8 @@
  *
  * Orchestration (no LLM call in tests; deps stubs the agent):
  *   1. Read the student's existing VIPS pages + non-forgotten timeline
- *      entries via `withStudent`.
+ *      entries via `withStudent` (Postgres transaction with `app.student_id`
+ *      bound for RLS).
  *   2. Format the prompt context (new mirror entry + its context_type +
  *      page snapshots).
  *   3. Call the Connector (real or stubbed via `deps.runConnector`). Race
@@ -38,6 +39,7 @@ import type {
 } from '~/agents/tools/schemas'
 import { verifyProposedDiff } from '~/agents/verifier'
 import { VIPS_DIMENSIONS as TAXONOMY_VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
+import { type TenantContext, withStudent } from '~/db/client'
 import {
   getMirrorEntry,
   insertVipsProposedDiff,
@@ -48,7 +50,6 @@ import {
   type VipsProposedDiffRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
 
 /** 30s soft budget per plan Approach ("Wall-clock budget: 30s soft timeout"). */
 export const AUTO_CONNECTOR_TIMEOUT_MS = 30_000
@@ -127,9 +128,9 @@ export async function runAutoConnectorAfterMirror(
   mirrorEntryId: number,
   deps: AutoConnectorDeps = {},
 ): Promise<AutoConnectorResult> {
-  return withStudent(studentId, async (sid) => {
+  return withStudent(studentId, async (ctx) => {
     // ── R30 pending-queue rule — check BEFORE invoking the agent. ──
-    const existingPending = listVipsProposedDiffs(sid, { status: 'pending' })
+    const existingPending = await listVipsProposedDiffs(studentId, { status: 'pending', ctx })
     if (existingPending.length > 0) {
       const prior = existingPending[0]
       return {
@@ -139,7 +140,7 @@ export async function runAutoConnectorAfterMirror(
       }
     }
 
-    const mirror = getMirrorEntry(sid, mirrorEntryId)
+    const mirror = await getMirrorEntry(studentId, mirrorEntryId, { ctx })
     if (!mirror) return { status: 'missing_mirror', staged_diff: null }
 
     const mirrorProjection: VerifierMirrorEntry = {
@@ -148,10 +149,13 @@ export async function runAutoConnectorAfterMirror(
       context_type: mirror.context_type,
     }
 
-    const pages = listVipsPages(sid)
-    const timeline = VIPS_DIMENSIONS.flatMap((dim) =>
-      listVipsTimelineEntries(sid, dim, { includeForgotten: false }),
+    const pages = await listVipsPages(studentId, { ctx })
+    const timelineByDim = await Promise.all(
+      VIPS_DIMENSIONS.map((dim) =>
+        listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
+      ),
     )
+    const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
 
     // ── Step 3: invoke Connector with a soft 30s timeout. ──
     // Finding #5: pass an AbortController.signal through to the SDK so a
@@ -168,7 +172,7 @@ export async function runAutoConnectorAfterMirror(
     const runner: () => Promise<unknown> = deps.runConnector
       ? () =>
           deps.runConnector!({
-            studentId: sid,
+            studentId,
             mirrorEntry: mirrorProjection,
             pages,
             timeline,
@@ -176,13 +180,14 @@ export async function runAutoConnectorAfterMirror(
       : isManagedAgentsEnabled()
         ? () =>
             runConnectorViaManaged({
-              studentId: sid,
+              studentId,
               newReflectionId: mirror.id,
+              ctx,
               signal: ac.signal,
             })
         : () =>
             runConnectorViaSdk({
-              studentId: sid,
+              studentId,
               mirrorEntry: mirrorProjection,
               pages,
               timeline,
@@ -229,11 +234,15 @@ export async function runAutoConnectorAfterMirror(
       dropped: verifierResult.dropped,
     }
     try {
-      const stagedRow = insertVipsProposedDiff(sid, {
-        mirror_entry_id: mirror.id,
-        payload,
-        verifier_result: verifierResult,
-      })
+      const stagedRow = await insertVipsProposedDiff(
+        studentId,
+        {
+          mirror_entry_id: mirror.id,
+          payload,
+          verifier_result: verifierResult,
+        },
+        { ctx },
+      )
       return { status: 'ok', staged_diff: stagedRow }
     } catch (err) {
       // R30 (Finding #6): the partial-unique index
@@ -244,7 +253,10 @@ export async function runAutoConnectorAfterMirror(
       // check. Treat the constraint violation as a `queued` outcome:
       // return the prior pending row's id so the UI can link to it.
       if (isPendingPerStudentConstraintViolation(err)) {
-        const priorAfterRace = listVipsProposedDiffs(sid, { status: 'pending' })
+        const priorAfterRace = await listVipsProposedDiffs(studentId, {
+          status: 'pending',
+          ctx,
+        })
         const prior = priorAfterRace[0]
         return {
           status: 'queued' as const,
@@ -344,20 +356,17 @@ function mapConnectorErrorToStatus(err: unknown): AutoConnectorResult {
 }
 
 /**
- * Recognize the SQLITE_CONSTRAINT thrown when our partial unique index
- * `vips_proposed_diffs_pending_per_student` rejects a second pending row.
- * better-sqlite3 raises an error with `code === 'SQLITE_CONSTRAINT_UNIQUE'`
- * and a message that mentions the index name; we match on either to be
- * resilient across sqlite versions.
+ * Recognize the unique-constraint violation thrown when our partial unique
+ * index `vips_proposed_diffs_pending_per_student` rejects a second pending
+ * row. We match the index name in the error message; the underlying driver
+ * (sqlite or postgres) chooses the SQLSTATE / code, but both surface the
+ * constraint name in their message string. TODO(reza-step2-followup): once
+ * Postgres is the only target, narrow this to SQLSTATE `23505` + the index
+ * name for a tighter check.
  */
 function isPendingPerStudentConstraintViolation(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false
-  const code = (err as { code?: unknown }).code
   const message = (err as { message?: unknown }).message
-  const isUnique =
-    typeof code === 'string' &&
-    (code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT')
-  if (!isUnique) return false
   return typeof message === 'string' && message.includes('vips_proposed_diffs_pending_per_student')
 }
 
@@ -456,16 +465,19 @@ async function runConnectorViaSdk(input: {
  * second-check — keeping a single parse-error code path through the
  * `schema_reject` bucket.
  *
- * Caller MUST be inside `withStudent(studentId, ...)` so the underlying
- * queries are tenant-scoped.
+ * The outer `withStudent` transaction is reused via `ctx` so the pre-fetch
+ * queries inside `buildConnectorContext` see the same tenancy GUC. Once
+ * `buildConnectorContext` is updated to thread `ctx`, the call below should
+ * pass it in; for now the helper opens its own transaction per query.
  */
 async function runConnectorViaManaged(input: {
   studentId: string
   newReflectionId: number
+  ctx: TenantContext
   signal?: AbortSignal
 }): Promise<unknown> {
   const binding = getManagedAgentBinding('connector')
-  const prompt = buildConnectorContext(input.studentId, input.newReflectionId)
+  const prompt = await buildConnectorContext(input.studentId, input.newReflectionId)
   const result = await runManagedAgent({
     agentId: binding.agentId,
     ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),

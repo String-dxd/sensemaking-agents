@@ -122,7 +122,6 @@ const [
   corpusToolMod,
   selfCritiqueMod,
   runnerMod,
-  dbClientMod,
   queriesMod,
   seedMod,
   verifierMod,
@@ -135,7 +134,6 @@ const [
   import('~/agents/tools/search-corpus.server'),
   import('~/agents/tools/self-critique'),
   import('~/agents/runner'),
-  import('~/db/client'),
   import('~/db/queries'),
   import('~/db/seed'),
   import('~/agents/verifier'),
@@ -149,7 +147,6 @@ const { lookupEcgTaxonomyTool } = ecgToolMod
 const { lookupVipsTaxonomyTool } = vipsToolMod
 const { searchCorpusToolFor } = corpusToolMod
 const { selfCritiqueTool } = selfCritiqueMod
-const { openDb } = dbClientMod
 const { listMirrorEntries } = queriesMod
 const { seed, loadSeedCorpus } = seedMod
 const { verifyProposedDiff } = verifierMod
@@ -175,7 +172,10 @@ interface ReflectionWithMeta {
   created_at: string
 }
 
-function loadReflectionsInScope(studentIds: string[], limit: number | undefined): ReflectionWithMeta[] {
+function loadReflectionsInScope(
+  studentIds: string[],
+  limit: number | undefined,
+): ReflectionWithMeta[] {
   const corpus = loadSeedCorpus()
   const flat: ReflectionWithMeta[] = []
   for (const s of corpus.students) {
@@ -198,21 +198,25 @@ function loadReflectionsInScope(studentIds: string[], limit: number | undefined)
  * `src/agents/handoff-chain.ts` but reads from the DB after seed so it
  * sees the persisted (Mirror-reframed) entries.
  */
-function formatConnectorCorpus(studentIds: string[]): string {
-  openDb()
-  seed()
-  const blocks = studentIds.map((sid) => {
-    const entries = listMirrorEntries(sid, { limit: 200 })
-    const body = entries
-      .slice()
-      .reverse()
-      .map(
-        (e) =>
-          `# Reflection #${e.id} — ${e.created_at}\n\nStory: ${e.story_reframe}\n\nValidation: ${e.validation}\nInferred meaning: ${e.inferred_meaning}\n\nTranscript: ${e.transcript}`,
-      )
-      .join('\n\n---\n\n')
-    return studentIds.length === 1 ? body : `## Student ${sid}\n\n${body}`
-  })
+async function formatConnectorCorpus(studentIds: string[]): Promise<string> {
+  // TODO(reza-step2-followup): seed() will be rewritten in Step 3 to target
+  // Postgres; for now we await it for compile-time correctness. The runtime
+  // path will only function once Step 3 lands.
+  await seed()
+  const blocks = await Promise.all(
+    studentIds.map(async (sid) => {
+      const entries = await listMirrorEntries(sid, { limit: 200 })
+      const body = entries
+        .slice()
+        .reverse()
+        .map(
+          (e) =>
+            `# Reflection #${e.id} — ${e.created_at}\n\nStory: ${e.story_reframe}\n\nValidation: ${e.validation}\nInferred meaning: ${e.inferred_meaning}\n\nTranscript: ${e.transcript}`,
+        )
+        .join('\n\n---\n\n')
+      return studentIds.length === 1 ? body : `## Student ${sid}\n\n${body}`
+    }),
+  )
   return blocks.join('\n\n===\n\n')
 }
 
@@ -231,9 +235,11 @@ interface RunStatsExtract {
  */
 function extractUsage(result: unknown, startedAt: number): RunStatsExtract {
   const latencyMs = Date.now() - startedAt
-  const state = (result as {
-    state?: { context?: { usage?: { inputTokens?: number; outputTokens?: number } } }
-  }).state
+  const state = (
+    result as {
+      state?: { context?: { usage?: { inputTokens?: number; outputTokens?: number } } }
+    }
+  ).state
   const usage = state?.context?.usage
   return {
     inputTokens: typeof usage?.inputTokens === 'number' ? usage.inputTokens : null,
@@ -386,9 +392,7 @@ interface ConnectorRunResult {
  * per-reflection contract — Connector never sees a multi-student blob in
  * production.
  */
-async function runConnectorManagedPerStudent(
-  studentIds: string[],
-): Promise<{
+async function runConnectorManagedPerStudent(studentIds: string[]): Promise<{
   stats: AgentRunStats
   draftsByStudent: Map<string, ConnectorDiffDraft>
   rawSampleOutput: string | null
@@ -432,14 +436,14 @@ async function runConnectorManagedPerStudent(
   let rawSampleOutput: string | null = null
   const parseErrors: string[] = []
   for (const sid of studentIds) {
-    const entries = listMirrorEntries(sid, { limit: 1 })
+    const entries = await listMirrorEntries(sid, { limit: 1 })
     const latest = entries[0]
     if (!latest) {
       parseErrors.push(`${sid}: no seeded mirror entries`)
       continue
     }
     try {
-      const prompt = buildConnectorContext(sid, latest.id)
+      const prompt = await buildConnectorContext(sid, latest.id)
       const result = await runManagedAgent({
         agentId: binding.agentId,
         ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
@@ -549,18 +553,18 @@ async function runConnectorWholeCorpus(
  * Returns the aggregate counters AND a list of canonical_claim_id values
  * that landed in admitted (used downstream for claim_id_distribution).
  */
-function verifyConnectorDraft(
+async function verifyConnectorDraft(
   studentIds: string[],
   reflections: ReflectionWithMeta[],
   draft: ConnectorDiffDraft,
-): VerifierVerdictCounters {
+): Promise<VerifierVerdictCounters> {
   const counters = zeroVerdictCounters()
   for (const sid of studentIds) {
     const studentRows = reflections.filter((r) => r.student_id === sid)
     if (studentRows.length === 0) continue
     // Most recent reflection's id (DB-side after seed; we pull from listMirrorEntries
     // for the true id, since the verifier checks `reflection_id` equality).
-    const dbEntries = listMirrorEntries(sid, { limit: 1 })
+    const dbEntries = await listMirrorEntries(sid, { limit: 1 })
     const mirrorEntry = dbEntries[0]
     if (!mirrorEntry) continue
     // Flatten ConnectorDiff per-dimension entries into a single list with
@@ -614,9 +618,9 @@ async function main() {
   const { surface, runner, student, limit } = args
   const studentIds = resolveStudentIds(student)
   // Seed once so per-row Mirror calls can use search_past_mirrors against
-  // a populated DB.
-  openDb()
-  seed()
+  // a populated DB. TODO(reza-step2-followup): seed() will be rewritten in
+  // Step 3 to target Postgres; awaited here for compile-time correctness.
+  await seed()
   const reflections = loadReflectionsInScope(studentIds, limit)
 
   // ── per-row Mirror loop ──
@@ -659,7 +663,7 @@ async function main() {
       if (cr.draftsByStudent.size > 0) {
         aggregateVerifier = zeroVerdictCounters()
         for (const [sid, draft] of cr.draftsByStudent) {
-          const partial = verifyConnectorDraft([sid], reflections, draft)
+          const partial = await verifyConnectorDraft([sid], reflections, draft)
           aggregateVerifier.admitted += partial.admitted
           aggregateVerifier.downgraded += partial.downgraded
           aggregateVerifier.dropped_no_quote_match += partial.dropped_no_quote_match
@@ -670,12 +674,12 @@ async function main() {
         aggregateVerifier.claim_ids = [...new Set(aggregateVerifier.claim_ids)].sort()
       }
     } else {
-      const corpusBlock = formatConnectorCorpus(studentIds)
+      const corpusBlock = await formatConnectorCorpus(studentIds)
       const cr = await runConnectorWholeCorpus(studentIds, corpusBlock)
       connectorStats = cr.stats
       sampleConnectorOutput = cr.rawOutput
       if (cr.draft) {
-        aggregateVerifier = verifyConnectorDraft(studentIds, reflections, cr.draft)
+        aggregateVerifier = await verifyConnectorDraft(studentIds, reflections, cr.draft)
       }
     }
   }
@@ -749,8 +753,8 @@ async function main() {
     : `Cross-student union over: ${studentIds.map((s) => `\`${s}\``).join(', ')}.`
   const onBlock =
     surface === 'mirror'
-      ? sampleMirrorOutput ?? '{"placeholder":true,"reason":"no rows ran"}'
-      : sampleConnectorOutput ?? '{"placeholder":true,"reason":"no Connector pass"}'
+      ? (sampleMirrorOutput ?? '{"placeholder":true,"reason":"no rows ran"}')
+      : (sampleConnectorOutput ?? '{"placeholder":true,"reason":"no Connector pass"}')
   writeFileSync(
     mdPath,
     buildAblationReportMarkdown({

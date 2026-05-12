@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { withStudent } from '~/db/client'
 import {
   type ConnectorOutputRow,
   getMirrorEntry,
@@ -8,7 +9,6 @@ import {
   type MirrorEntryRow,
   type PathfinderOutputRow,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
 
 export const loadWikiInputSchema = z.object({
   studentId: z.string().min(1),
@@ -34,24 +34,26 @@ export interface WikiEntryDetail {
   pathfinder: PathfinderOutputRow | null
 }
 
-export function loadWikiHandler(data: LoadWikiInput): WikiSnapshot {
+export async function loadWikiHandler(data: LoadWikiInput): Promise<WikiSnapshot> {
   const parsed = loadWikiInputSchema.parse(data)
-  return withStudent(parsed.studentId, (sid) => ({
-    entries: listMirrorEntries(sid),
-    connector: latestConnectorOutput(sid),
-    pathfinder: latestPathfinderOutput(sid),
+  return withStudent(parsed.studentId, async (ctx) => ({
+    entries: await listMirrorEntries(parsed.studentId, { ctx }),
+    connector: await latestConnectorOutput(parsed.studentId, { ctx }),
+    pathfinder: await latestPathfinderOutput(parsed.studentId, { ctx }),
   }))
 }
 
-export function loadWikiEntryHandler(data: LoadWikiEntryInput): WikiEntryDetail | null {
+export async function loadWikiEntryHandler(
+  data: LoadWikiEntryInput,
+): Promise<WikiEntryDetail | null> {
   const parsed = loadWikiEntryInputSchema.parse(data)
-  return withStudent(parsed.studentId, (sid) => {
-    const entry = getMirrorEntry(sid, parsed.entryId)
+  return withStudent(parsed.studentId, async (ctx) => {
+    const entry = await getMirrorEntry(parsed.studentId, parsed.entryId, { ctx })
     if (!entry) return null
     return {
       entry,
-      connector: latestConnectorOutput(sid),
-      pathfinder: latestPathfinderOutput(sid),
+      connector: await latestConnectorOutput(parsed.studentId, { ctx }),
+      pathfinder: await latestPathfinderOutput(parsed.studentId, { ctx }),
     }
   })
 }

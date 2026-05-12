@@ -3,7 +3,7 @@
  *
  * The student or operator presses Run sense-making on `/wiki`; this handler:
  *   1. Reads the student's VIPS pages + non-forgotten timeline + corpus
- *      (mirror entries) under `withStudent`.
+ *      (mirror entries) under `withStudent` (one Postgres transaction).
  *   2. Streams the Cartographer SDK run (single-agent — no handoff) and
  *      maps SDK events to our step-event union via the defensive mapper
  *      from `handoff-chain-streamed.ts`.
@@ -44,6 +44,7 @@ import {
 } from '~/agents/schemas'
 import { ECG_TAXONOMY } from '~/data/ecg-taxonomy'
 import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
+import { type TenantContext, withStudent } from '~/db/client'
 import {
   insertCartographerOutput,
   listMirrorEntries,
@@ -52,7 +53,6 @@ import {
   type VipsPageRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
 
 export const runCartographerInputSchema = z.object({
   studentId: z.string().min(1),
@@ -129,13 +129,16 @@ export async function runCartographerHandler(
     events.push({ ...e, timestampMs: Date.now() - start } as RunStepEvent)
   }
 
-  return withStudent(parsed.studentId, async (sid) => {
+  return withStudent(parsed.studentId, async (ctx) => {
     // ── Read context ───────────────────────────────────────────────────────
-    const pages = listVipsPages(sid)
-    const timeline = VIPS_DIMENSIONS.flatMap((dim) =>
-      listVipsTimelineEntries(sid, dim, { includeForgotten: false }),
+    const pages = await listVipsPages(parsed.studentId, { ctx })
+    const timelineByDim = await Promise.all(
+      VIPS_DIMENSIONS.map((dim) =>
+        listVipsTimelineEntries(parsed.studentId, dim, { includeForgotten: false, ctx }),
+      ),
     )
-    const corpus = formatCorpusForCartographer(sid)
+    const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
+    const corpus = await formatCorpusForCartographer(parsed.studentId, ctx)
 
     // ── Invoke Cartographer (real SDK / managed / stub) ────────────────────
     // Routing precedence mirrors `runAutoConnectorAfterMirror`:
@@ -146,10 +149,13 @@ export async function runCartographerHandler(
     let rawDraft: unknown
     try {
       rawDraft = deps.runCartographer
-        ? await deps.runCartographer({ studentId: sid, pages, timeline, corpus, emit })
+        ? await deps.runCartographer({ studentId: parsed.studentId, pages, timeline, corpus, emit })
         : isManagedAgentsEnabled()
-          ? await runCartographerViaManaged({ studentId: sid })
-          : await runCartographerViaSdkStreamed({ studentId: sid, pages, timeline, corpus }, emit)
+          ? await runCartographerViaManaged({ studentId: parsed.studentId })
+          : await runCartographerViaSdkStreamed(
+              { studentId: parsed.studentId, pages, timeline, corpus },
+              emit,
+            )
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       emit({ type: 'error', agent: 'cartographer', message: msg })
@@ -239,29 +245,33 @@ export async function runCartographerHandler(
     // `cartographer_outputs.pathways_json` stores the v0.2 lead-sheet shape;
     // the DB row type's `CartographerPathway` now matches that shape
     // exactly (Finding #8), so we pass `keptPathways` directly.
-    const row = insertCartographerOutput(sid, {
-      trajectory_text: draft.trajectory_paragraph,
-      pathways: keptPathways,
-      open_questions: draft.open_questions,
-      disclaimer: draft.disclaimer,
-      raw_output: {
-        trajectory_paragraph: draft.trajectory_paragraph,
+    const row = await insertCartographerOutput(
+      parsed.studentId,
+      {
+        trajectory_text: draft.trajectory_paragraph,
         pathways: keptPathways,
         open_questions: draft.open_questions,
         disclaimer: draft.disclaimer,
-        warnings,
+        raw_output: {
+          trajectory_paragraph: draft.trajectory_paragraph,
+          pathways: keptPathways,
+          open_questions: draft.open_questions,
+          disclaimer: draft.disclaimer,
+          warnings,
+        },
+        // U1's helper was updated by U11 to write the `agent_traces` row with
+        // `agent='cartographer'` when a trace is supplied. The widened CHECK
+        // from U10 makes this row legal at the schema level.
+        trace: {
+          totalDurationMs: Date.now() - start,
+          warnings,
+          pathways_in: draft.pathways.length,
+          pathways_out: keptPathways.length,
+          event_count: events.length,
+        },
       },
-      // U1's helper was updated by U11 to write the `agent_traces` row with
-      // `agent='cartographer'` when a trace is supplied. The widened CHECK
-      // from U10 makes this row legal at the schema level.
-      trace: {
-        totalDurationMs: Date.now() - start,
-        warnings,
-        pathways_in: draft.pathways.length,
-        pathways_out: keptPathways.length,
-        event_count: events.length,
-      },
-    })
+      { ctx },
+    )
 
     emit({
       type: 'agent_completed',
@@ -388,7 +398,7 @@ async function runCartographerViaSdkStreamed(
  */
 async function runCartographerViaManaged(input: { studentId: string }): Promise<unknown> {
   const binding = getManagedAgentBinding('cartographer')
-  const prompt = buildCartographerContext(input.studentId)
+  const prompt = await buildCartographerContext(input.studentId)
   const result = await runManagedAgent({
     agentId: binding.agentId,
     ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
@@ -518,8 +528,8 @@ function safeStringify(value: unknown): string {
  * context; the corpus is supporting evidence the agent can quote from
  * via `search_past_mirrors` if needed.
  */
-function formatCorpusForCartographer(studentId: string): string {
-  const entries = listMirrorEntries(studentId, { limit: 200 })
+async function formatCorpusForCartographer(studentId: string, ctx: TenantContext): Promise<string> {
+  const entries = await listMirrorEntries(studentId, { limit: 200, ctx })
   if (entries.length === 0) return 'No prior reflections.'
   return entries
     .slice()

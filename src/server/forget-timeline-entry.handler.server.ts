@@ -5,7 +5,8 @@
  *
  * Delegates to `forgetVipsTimelineEntry` (U1) which atomically:
  *   - stamps `forgotten_at = current_timestamp`
- *   - DELETEs from the FTS5 mirror so future hybrid retrieval skips it (R19)
+ *   - excludes the row from future FTS retrieval via the `forgotten_at IS NULL`
+ *     predicate (the tsvector column persists; the search predicate gates it)
  *   - bumps `vips_forget_count.count` for the dimension (R20: recorded,
  *     not surfaced — see `load-vips-pages.handler.server.ts` for the
  *     response-shape boundary)
@@ -15,12 +16,12 @@
  * the dimension-scoped page query without an extra round-trip to learn
  * which dimension the entry belonged to.
  *
- * Wrapped in `withStudent`.
+ * Single-query handler — `forgetVipsTimelineEntry` opens its own
+ * `withStudent` envelope.
  */
 import { z } from 'zod'
 import type { VipsDimension } from '~/data/vips-taxonomy'
 import { forgetVipsTimelineEntry } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
 
 export const forgetTimelineEntryInputSchema = z.object({
   studentId: z.string().min(1),
@@ -45,32 +46,30 @@ export interface ForgetTimelineEntryResult {
   forgotten_at: string
 }
 
-export function forgetTimelineEntryHandler(
+export async function forgetTimelineEntryHandler(
   data: ForgetTimelineEntryInput,
-): ForgetTimelineEntryResult {
+): Promise<ForgetTimelineEntryResult> {
   const parsed = forgetTimelineEntryInputSchema.parse(data)
-  return withStudent(parsed.studentId, (sid) => {
-    const row = forgetVipsTimelineEntry(sid, parsed.entryId)
-    // Cross-student isolation: `forgetVipsTimelineEntry` returns null when
-    // the row doesn't belong to this student. Surface that as an error so
-    // the client gets a deterministic failure instead of a silent no-op.
-    if (!row) {
-      throw new ForgetTimelineEntryError(
-        `Timeline entry ${parsed.entryId} not found for student ${sid}`,
-      )
-    }
-    if (!row.forgotten_at) {
-      // Defensive: the helper should have stamped forgotten_at within the
-      // same transaction. If it returned a row without it, something is
-      // off — fail loud rather than lying to the client.
-      throw new ForgetTimelineEntryError(
-        `Timeline entry ${parsed.entryId} did not record forgotten_at`,
-      )
-    }
-    return {
-      entry_id: parsed.entryId,
-      dimension: row.dimension as VipsDimension,
-      forgotten_at: row.forgotten_at,
-    }
-  })
+  const row = await forgetVipsTimelineEntry(parsed.studentId, parsed.entryId)
+  // Cross-student isolation: `forgetVipsTimelineEntry` returns null when
+  // the row doesn't belong to this student. Surface that as an error so
+  // the client gets a deterministic failure instead of a silent no-op.
+  if (!row) {
+    throw new ForgetTimelineEntryError(
+      `Timeline entry ${parsed.entryId} not found for student ${parsed.studentId}`,
+    )
+  }
+  if (!row.forgotten_at) {
+    // Defensive: the helper should have stamped forgotten_at within the
+    // same transaction. If it returned a row without it, something is
+    // off — fail loud rather than lying to the client.
+    throw new ForgetTimelineEntryError(
+      `Timeline entry ${parsed.entryId} did not record forgotten_at`,
+    )
+  }
+  return {
+    entry_id: parsed.entryId,
+    dimension: row.dimension as VipsDimension,
+    forgotten_at: row.forgotten_at,
+  }
 }

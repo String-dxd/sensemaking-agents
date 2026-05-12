@@ -28,7 +28,6 @@ import { getManagedAgentBinding } from '~/agents/config'
 import { buildConnectorContext } from '~/agents/context'
 import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
 import { ConnectorDiffSchema } from '~/agents/schemas'
-import { openDb } from '~/db/client'
 import { listMirrorEntries } from '~/db/queries'
 import { loadSeedCorpus, seed } from '~/db/seed'
 
@@ -42,7 +41,9 @@ function pickStudent(filter: string | undefined): string {
   const known = corpus.students.map((s) => s.student_id)
   if (filter !== undefined) {
     if (!known.includes(filter)) {
-      throw new Error(`smoke-connector: --student=${filter} not in fixture (known: ${known.join(', ')}).`)
+      throw new Error(
+        `smoke-connector: --student=${filter} not in fixture (known: ${known.join(', ')}).`,
+      )
     }
     return filter
   }
@@ -63,9 +64,9 @@ async function main(): Promise<void> {
   const studentId = pickStudent(args.student)
 
   // Seed in-process so `buildConnectorContext` has rows to FTS-match against.
-  openDb()
-  seed()
-  const entries = listMirrorEntries(studentId, { limit: 1 })
+  // TODO(reza-step2-followup): seed() is rewritten for Postgres in Step 3.
+  await seed()
+  const entries = await listMirrorEntries(studentId, { limit: 1 })
   const newest = entries[0]
   if (!newest) {
     process.stderr.write(`smoke-connector: no mirror entries seeded for student ${studentId}.\n`)
@@ -89,7 +90,7 @@ async function main(): Promise<void> {
       `agent=${binding.agentId} (${versionLabel}) env=${binding.environmentId}\n`,
   )
 
-  const prompt = buildConnectorContext(studentId, newest.id)
+  const prompt = await buildConnectorContext(studentId, newest.id)
   process.stdout.write(`smoke-connector: prompt length = ${prompt.length} chars\n`)
 
   const startedAt = Date.now()

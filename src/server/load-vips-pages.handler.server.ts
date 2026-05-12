@@ -3,7 +3,8 @@
  * student. Powers both the `/wiki` overview (4-card grid + run-sensemaking
  * gate logic) and `/library/$dimension` (per-dimension page body).
  *
- * Wrapped in `withStudent` so all reads are tenant-scoped.
+ * Wrapped in `withStudent` (from `~/db/client`) so every read shares one
+ * Postgres transaction with `app.student_id` bound for RLS.
  *
  * R20 boundary: the response intentionally does NOT include
  * `vips_forget_count`. The counter is incremented server-side by
@@ -12,13 +13,13 @@
  */
 import { z } from 'zod'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
+import { withStudent } from '~/db/client'
 import {
   listVipsPages,
   listVipsTimelineEntries,
   type VipsPageRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
 
 export const loadVipsPagesInputSchema = z.object({
   studentId: z.string().min(1),
@@ -46,10 +47,10 @@ export interface LoadVipsPagesResult {
   total_claim_count: number
 }
 
-export function loadVipsPagesHandler(data: LoadVipsPagesInput): LoadVipsPagesResult {
+export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<LoadVipsPagesResult> {
   const parsed = loadVipsPagesInputSchema.parse(data)
-  return withStudent(parsed.studentId, (sid) => {
-    const rawPages = listVipsPages(sid)
+  return withStudent(parsed.studentId, async (ctx) => {
+    const rawPages = await listVipsPages(parsed.studentId, { ctx })
     const pagesByDimension = new Map<string, VipsPageRow>(rawPages.map((p) => [p.dimension, p]))
 
     // Render the four dimensions in canonical order. A dimension without an
@@ -61,7 +62,7 @@ export function loadVipsPagesHandler(data: LoadVipsPagesInput): LoadVipsPagesRes
     const pages: VipsPageRow[] = VIPS_DIMENSIONS.map(
       (dim): VipsPageRow =>
         pagesByDimension.get(dim) ?? {
-          student_id: sid,
+          student_id: parsed.studentId,
           dimension: dim,
           compiled_truth: '',
           open_question: '',
@@ -77,7 +78,7 @@ export function loadVipsPagesHandler(data: LoadVipsPagesInput): LoadVipsPagesRes
       // is the R19 "forgotten entries excluded from sense-making context"
       // boundary on the read side. The compatible call site for an admin
       // view would pass `{includeForgotten: true}`; we never do that here.
-      const entries = listVipsTimelineEntries(sid, dim)
+      const entries = await listVipsTimelineEntries(parsed.studentId, dim, { ctx })
       timeline_by_dimension[dim] = entries
       claim_count_by_dimension[dim] = entries.length
       total += entries.length

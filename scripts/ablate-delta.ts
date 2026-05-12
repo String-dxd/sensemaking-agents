@@ -14,10 +14,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import {
-  type AblationStructuredReport,
-  buildDeltaMarkdown,
-} from '../test/ablation/score'
+import { type AblationStructuredReport, buildDeltaMarkdown } from '../test/ablation/score'
 
 function parseArgs(argv: string[]): { baseline: string; candidate: string; out: string | null } {
   if (argv.length < 2) {

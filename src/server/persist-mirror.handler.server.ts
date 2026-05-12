@@ -9,7 +9,6 @@ import {
   type AutoConnectorStatus,
   runAutoConnectorAfterMirror,
 } from '~/server/auto-connector.handler.server'
-import { withStudent } from '~/server/tenancy.server'
 
 export const persistMirrorInputSchema = z.object({
   studentId: z.string().min(1),
@@ -63,21 +62,22 @@ export async function persistMirrorHandler(
   })
   if (!safety.ok) throw new DiagnosticLanguageError(safety.matches)
 
-  const mirrorEntry = withStudent(parsed.studentId, (sid) =>
-    insertMirrorEntry(sid, {
-      transcript: parsed.entry.transcript,
+  // Single-call: insertMirrorEntry opens its own withStudent envelope so we
+  // don't need to wrap. The auto-connector chain below opens a separate
+  // transaction of its own.
+  const mirrorEntry = await insertMirrorEntry(parsed.studentId, {
+    transcript: parsed.entry.transcript,
+    validation: parsed.entry.validation,
+    inferred_meaning: parsed.entry.inferred_meaning,
+    story_reframe: parsed.entry.story_reframe,
+    context_type: parsed.context_type,
+    raw_output: parsed.raw_output ?? {
       validation: parsed.entry.validation,
       inferred_meaning: parsed.entry.inferred_meaning,
       story_reframe: parsed.entry.story_reframe,
-      context_type: parsed.context_type,
-      raw_output: parsed.raw_output ?? {
-        validation: parsed.entry.validation,
-        inferred_meaning: parsed.entry.inferred_meaning,
-        story_reframe: parsed.entry.story_reframe,
-      },
-      trace: parsed.trace,
-    }),
-  )
+    },
+    trace: parsed.trace,
+  })
 
   // ── Auto-Connector chain (in-process, same round trip per plan Approach) ──
   const autoResult = await runAutoConnectorAfterMirror(

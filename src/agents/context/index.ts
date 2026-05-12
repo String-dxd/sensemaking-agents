@@ -72,24 +72,31 @@ export interface ConnectorContextPayload {
  *     `lookup_ecg_taxonomy` — the closed vocabularies are small enough to
  *     pack into every prompt and benefit from prompt-cache hits).
  */
-export function buildConnectorContext(studentId: string, newReflectionId: number): string {
-  const mirror = getMirrorEntry(studentId, newReflectionId)
+export async function buildConnectorContext(
+  studentId: string,
+  newReflectionId: number,
+): Promise<string> {
+  const mirror = await getMirrorEntry(studentId, newReflectionId)
   if (!mirror) {
     throw new Error(
       `buildConnectorContext: mirror entry ${newReflectionId} is not visible under student ${studentId}.`,
     )
   }
 
-  const pastMirrors = searchMirrors(studentId, mirror.story_reframe, {
+  const pastMirrorsRaw = await searchMirrors(studentId, mirror.story_reframe, {
     limit: CONNECTOR_FTS_LIMIT + 1,
   })
+  const pastMirrors = pastMirrorsRaw
     .filter((row) => row.id !== newReflectionId)
     .slice(0, CONNECTOR_FTS_LIMIT)
 
-  const pages = listVipsPages(studentId)
-  const timeline = VIPS_DIMENSIONS.flatMap((dim) =>
-    listVipsTimelineEntries(studentId, dim, { includeForgotten: false }),
+  const pages = await listVipsPages(studentId)
+  const timelineByDim = await Promise.all(
+    VIPS_DIMENSIONS.map((dim) =>
+      listVipsTimelineEntries(studentId, dim, { includeForgotten: false }),
+    ),
   )
+  const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
 
   return formatConnectorContext({
     mirror: {
@@ -146,18 +153,21 @@ export interface CartographerContextPayload {
  * open_question is empty, the FTS list is empty and the agent still has the
  * inlined taxonomies + the pages + timeline to work from.
  */
-export function buildCartographerContext(studentId: string): string {
-  const pages = listVipsPages(studentId)
-  const timeline = VIPS_DIMENSIONS.flatMap((dim) =>
-    listVipsTimelineEntries(studentId, dim, { includeForgotten: false }),
+export async function buildCartographerContext(studentId: string): Promise<string> {
+  const pages = await listVipsPages(studentId)
+  const timelineByDim = await Promise.all(
+    VIPS_DIMENSIONS.map((dim) =>
+      listVipsTimelineEntries(studentId, dim, { includeForgotten: false }),
+    ),
   )
+  const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
 
   const queries = pages.map((p) => p.open_question.trim()).filter((q) => q.length > 0)
 
   const seen = new Map<number, MirrorSearchResult>()
   for (const query of queries) {
     // Pull a bit more than the cap per-query; the union+dedup may overshoot.
-    const matches = searchMirrors(studentId, query, { limit: CARTOGRAPHER_FTS_LIMIT })
+    const matches = await searchMirrors(studentId, query, { limit: CARTOGRAPHER_FTS_LIMIT })
     for (const row of matches) {
       if (!seen.has(row.id)) seen.set(row.id, row)
     }

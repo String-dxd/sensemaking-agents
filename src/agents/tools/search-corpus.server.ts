@@ -1,5 +1,4 @@
 import { tool } from '@openai/agents'
-import type { Database as DatabaseInstance } from 'better-sqlite3'
 import {
   type SearchPastMirrorsInput,
   SearchPastMirrorsInputSchema,
@@ -10,23 +9,28 @@ import {
   SEARCH_PAST_MIRRORS_DESCRIPTION,
   SEARCH_PAST_MIRRORS_NAME,
 } from '~/agents/tools/search-corpus'
+import type { TenantContext } from '~/db/client'
 import { searchMirrors } from '~/db/queries'
 
 /**
- * Server-only execution of the `search_past_mirrors` tool. Hits sqlite via
+ * Server-only execution of the `search_past_mirrors` tool. Hits the DB via
  * the `searchMirrors` helper, which is itself gated by `withStudent` at the
  * call site. Browser code never imports this; it goes through a
- * TanStack server fn or the SDK Tool registration in U6.
+ * TanStack server fn or the SDK Tool registration.
+ *
+ * Async after the Drizzle/Postgres port: callers must await the returned
+ * promise. An optional `opts.ctx` lets a caller share its tenant
+ * transaction; when omitted, `searchMirrors` opens its own `withStudent`.
  */
-export function executeSearchPastMirrors(
+export async function executeSearchPastMirrors(
   studentId: string,
   rawInput: unknown,
-  opts: { db?: DatabaseInstance } = {},
-): SearchPastMirrorsOutput {
+  opts: { ctx?: TenantContext } = {},
+): Promise<SearchPastMirrorsOutput> {
   const input = SearchPastMirrorsInputSchema.parse(rawInput)
-  const results = searchMirrors(studentId, input.query, {
+  const results = await searchMirrors(studentId, input.query, {
     limit: input.limit,
-    ctx: opts.db ? { db: opts.db } : undefined,
+    ...(opts.ctx ? { ctx: opts.ctx } : {}),
   })
   return SearchPastMirrorsOutputSchema.parse({ results })
 }
@@ -37,13 +41,13 @@ export function executeSearchPastMirrors(
  * to a single `withStudent` boundary. Mirror does not use this — Mirror
  * uses the realtime tool config from `search-corpus.ts`.
  */
-export function searchCorpusToolFor(studentId: string, opts: { db?: DatabaseInstance } = {}) {
+export function searchCorpusToolFor(studentId: string, opts: { ctx?: TenantContext } = {}) {
   return tool({
     name: SEARCH_PAST_MIRRORS_NAME,
     description: SEARCH_PAST_MIRRORS_DESCRIPTION,
     parameters: SearchPastMirrorsInputSchema,
     execute: async (input: SearchPastMirrorsInput) => {
-      const out = executeSearchPastMirrors(studentId, input, opts)
+      const out = await executeSearchPastMirrors(studentId, input, opts)
       return JSON.stringify(out)
     },
   })
