@@ -373,9 +373,16 @@ export function formatCartographerPromptContext(input: {
   corpus: string
 }): string {
   const { studentId, pages, timeline, corpus } = input
+  const pageByDim = new Map(pages.map((p) => [p.dimension, p]))
+  const entriesByDim = new Map<string, VipsTimelineEntryRow[]>()
+  for (const e of timeline) {
+    const bucket = entriesByDim.get(e.dimension) ?? []
+    bucket.push(e)
+    entriesByDim.set(e.dimension, bucket)
+  }
   const pagesBlock = VIPS_DIMENSIONS.map((dim) => {
-    const page = pages.find((p) => p.dimension === dim)
-    const entriesForDim = timeline.filter((e) => e.dimension === dim)
+    const page = pageByDim.get(dim)
+    const entriesForDim = entriesByDim.get(dim) ?? []
     return [
       `## ${dim.toUpperCase()}`,
       page

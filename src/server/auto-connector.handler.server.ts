@@ -140,13 +140,17 @@ export async function runAutoConnectorAfterMirror(
 ): Promise<AutoConnectorResult> {
   return withStudent(studentId, async (ctx) => {
     // ── R30 pending-queue rule — check BEFORE invoking the agent. ──
+    // Avoid `existingPending.length > 0` followed by `existingPending[0]`;
+    // a single truthy check on the first element is cheaper and reads the
+    // intent more directly (perf refactor from world-studio carried
+    // forward onto the new async/ctx signature).
     const existingPending = await listVipsProposedDiffs(studentId, { status: 'pending', ctx })
-    if (existingPending.length > 0) {
-      const prior = existingPending[0]
+    const prior = existingPending[0]
+    if (prior) {
       return {
-        status: 'queued' as const,
+        status: 'queued',
         staged_diff: null,
-        ...(prior ? { pending_diff_id: prior.id } : {}),
+        pending_diff_id: prior.id,
       }
     }
 
@@ -303,12 +307,6 @@ export async function runAutoConnectorAfterMirror(
     // SQLSTATE `25P02` would abort the tx and break the recovery query).
     // If a concurrent run raced past the same check above, we surface the
     // existing pending row's id as the `queued` outcome.
-    const insertOutcome = await insertVipsProposedDiffIfNoPending(
-      studentId,
-      {
-        mirror_entry_id: mirror.id,
-        payload,
-        verifier_result: verifierResult,
       },
       { ctx },
     )
@@ -585,9 +583,17 @@ export function formatConnectorPromptContext(input: {
 }): string {
   const { mirrorEntry, pages, timeline } = input
 
+  const pageByDim = new Map(pages.map((p) => [p.dimension, p]))
+  const entriesByDim = new Map<string, VipsTimelineEntryRow[]>()
+  for (const e of timeline) {
+    const bucket = entriesByDim.get(e.dimension) ?? []
+    bucket.push(e)
+    entriesByDim.set(e.dimension, bucket)
+  }
+
   const pagesBlock = VIPS_DIMENSIONS.map((dim) => {
-    const page = pages.find((p) => p.dimension === dim)
-    const entriesForDim = timeline.filter((e) => e.dimension === dim)
+    const page = pageByDim.get(dim)
+    const entriesForDim = entriesByDim.get(dim) ?? []
     return [
       `## ${dim.toUpperCase()}`,
       page
