@@ -52,7 +52,7 @@ function WikiEntryPage() {
   return (
     <section className="flex flex-col gap-6 py-6">
       <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-        ← Wiki
+        ← Library
       </Link>
       <WikiEntryCard entry={data.entry} />
       {fields.map((field) => (

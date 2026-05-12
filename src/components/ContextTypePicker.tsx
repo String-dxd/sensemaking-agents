@@ -1,11 +1,11 @@
 import { GraduationCap, Heart, Mic, Sparkles, Users } from 'lucide-react'
 import { useState } from 'react'
+import { type VipsContextType, VipsContextTypeSchema } from '~/agents/tools/schemas'
 import { Button } from '~/components/ui/button'
 import { cn } from '~/lib/utils'
 
-/** Closed VIPS parallax context vocabulary (R4 / A9). */
-export const CONTEXT_TYPES = ['school', 'family', 'peer', 'hobby', 'civic'] as const
-export type ContextType = (typeof CONTEXT_TYPES)[number]
+const CONTEXT_TYPES = VipsContextTypeSchema.options
+export type ContextType = VipsContextType
 
 const LOCAL_STORAGE_KEY = 'sensemaking.context_type.last_used'
 
