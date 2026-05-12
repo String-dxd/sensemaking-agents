@@ -14,25 +14,16 @@ export interface WorldHudProps {
 }
 
 /**
- * HUD layer rendered on top of WorldStage. Studio pill top-right, Voice
- * button bottom-center (placeholder this plan — U5 replaces with the
- * dedicated VoiceButton component), Library button bottom-right.
+ * HUD layer rendered on top of WorldStage. Voice button bottom-center
+ * (placeholder this plan — U5 replaces with the dedicated VoiceButton
+ * component), Library button bottom-right.
  *
- * The chat input bar and "Only you" indicator were dropped during plan
- * review and are intentionally absent.
+ * The chat input bar, Studio pill, and "Only you" indicator were dropped
+ * and are intentionally absent.
  */
 export function WorldHud({ voiceModeActive = false, onVoicePressed, voiceSlot }: WorldHudProps) {
   return (
     <div className="pointer-events-none absolute inset-0 flex flex-col">
-      <div className="flex justify-end p-4">
-        <span
-          data-testid="studio-pill"
-          data-placeholder="true"
-          className="pointer-events-auto rounded-full border border-dashed border-border bg-background/70 px-3 py-1 text-xs text-muted-foreground"
-        >
-          Studio
-        </span>
-      </div>
       <div className="mt-auto flex items-end justify-between gap-3 p-4">
         <div className="flex-1" />
         <div className="pointer-events-auto flex items-center justify-center">

@@ -18,11 +18,9 @@ vi.mock('@tanstack/react-router', () => ({
 import { WorldHud } from '~/components/WorldHud'
 
 describe('WorldHud', () => {
-  it('renders the studio pill with data-placeholder="true"', () => {
+  it('does not render the studio pill (removed)', () => {
     render(<WorldHud />)
-    const pill = screen.getByTestId('studio-pill')
-    expect(pill).toBeInTheDocument()
-    expect(pill).toHaveAttribute('data-placeholder', 'true')
+    expect(screen.queryByTestId('studio-pill')).toBeNull()
   })
 
   it('renders the voice button placeholder', () => {
