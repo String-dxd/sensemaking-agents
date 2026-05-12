@@ -28,11 +28,7 @@ import {
   updateVipsProposedDiffStatus,
   type VipsProposedDiffRow,
 } from '~/db/queries'
-import {
-  allEntriesResolved,
-  locateEntry,
-  parseReviewPayload,
-} from '~/server/review-payload-shape'
+import { allEntriesResolved, locateEntry, parseReviewPayload } from '~/server/review-payload-shape'
 
 export const forgetDiffInputSchema = z.object({
   diffId: z.number().int().positive(),

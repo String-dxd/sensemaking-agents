@@ -95,7 +95,7 @@ export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<Confir
     if (!located) {
       throw new ConfirmDiffError(`Entry ${parsed.entryId} not found in diff ${parsed.diffId}`)
     }
-    const { entry, list } = located
+    const { entry } = located
     if (entry.resolved === 'confirmed') {
       throw new ConfirmDiffError(`Entry ${parsed.entryId} is already confirmed`)
     }
