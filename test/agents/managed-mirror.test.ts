@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { runMirrorOnTranscript } from '~/agents/mirror'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   ManagedAgentError,
   type ManagedAgentRunnerEvent,
@@ -9,16 +8,12 @@ import {
 import { MirrorOutputSchema } from '~/agents/schemas'
 
 /**
- * U6 — Mirror on Managed Agents (behind `USE_MANAGED_AGENTS`). Two surfaces
- * under test:
+ * Mirror on Managed Agents. Two surfaces under test:
  *
  *   1. `runManagedAgent` runner — happy + failure paths driven by a fake
  *      `ManagedAgentTransport`. Validates the stream-event protocol the
  *      runner expects from `client.beta.sessions.*`.
- *   2. `runMirrorOnTranscript` flag routing — `USE_MANAGED_AGENTS=true`
- *      dispatches via `runManagedAgent` with the provisioned Mirror agent
- *      binding; `USE_MANAGED_AGENTS=false` keeps the legacy OpenAI path.
- *      The test injection seam (`deps.runMirror`) wins over both runtimes.
+ *   2. `getManagedAgentBinding` env-var contract.
  */
 
 const VALID_MIRROR_JSON = JSON.stringify({
@@ -300,72 +295,7 @@ describe('U6 runManagedAgent — failure modes', () => {
   })
 })
 
-describe('U6 runMirrorOnTranscript flag routing', () => {
-  const SAVED_ENV = { ...process.env }
-
-  beforeEach(() => {
-    delete process.env.USE_MANAGED_AGENTS
-    delete process.env.MANAGED_AGENT_MIRROR_ID
-    delete process.env.MANAGED_AGENT_MIRROR_VERSION
-    delete process.env.MANAGED_AGENT_ENV_ID
-  })
-  afterEach(() => {
-    for (const k of Object.keys(process.env)) {
-      if (!(k in SAVED_ENV)) delete process.env[k]
-    }
-    for (const [k, v] of Object.entries(SAVED_ENV)) {
-      if (v !== undefined) process.env[k] = v
-    }
-  })
-
-  it('deps.runMirror wins even when USE_MANAGED_AGENTS=true (test injection takes priority)', async () => {
-    process.env.USE_MANAGED_AGENTS = 'true'
-    process.env.MANAGED_AGENT_MIRROR_ID = 'agt_mirror'
-    process.env.MANAGED_AGENT_ENV_ID = 'env_x'
-    const stub = vi.fn().mockResolvedValue({
-      validation: 'v',
-      inferred_meaning: 'i',
-      story_reframe: 's',
-    })
-    const out = await runMirrorOnTranscript('demo', 't', { runMirror: stub })
-    expect(stub).toHaveBeenCalledOnce()
-    expect(MirrorOutputSchema.parse(out)).toBeDefined()
-  })
-
-  it('USE_MANAGED_AGENTS=true without a binding throws a clear config-time error', async () => {
-    process.env.USE_MANAGED_AGENTS = 'true'
-    // Intentionally do NOT set MANAGED_AGENT_MIRROR_ID — simulate unprovisioned env.
-    await expect(runMirrorOnTranscript('demo', 'transcript text')).rejects.toThrow(
-      /MANAGED_AGENT_MIRROR_ID is not set/,
-    )
-  })
-
-  it('isManagedAgentsEnabled returns false for unset / 0 / "false" / empty', async () => {
-    const { isManagedAgentsEnabled } = await import('~/agents/config')
-    delete process.env.USE_MANAGED_AGENTS
-    expect(isManagedAgentsEnabled()).toBe(false)
-    process.env.USE_MANAGED_AGENTS = ''
-    expect(isManagedAgentsEnabled()).toBe(false)
-    process.env.USE_MANAGED_AGENTS = '0'
-    expect(isManagedAgentsEnabled()).toBe(false)
-    process.env.USE_MANAGED_AGENTS = 'false'
-    expect(isManagedAgentsEnabled()).toBe(false)
-  })
-
-  it('isManagedAgentsEnabled returns true for 1 / true / yes (case-insensitive)', async () => {
-    const { isManagedAgentsEnabled } = await import('~/agents/config')
-    process.env.USE_MANAGED_AGENTS = '1'
-    expect(isManagedAgentsEnabled()).toBe(true)
-    process.env.USE_MANAGED_AGENTS = 'true'
-    expect(isManagedAgentsEnabled()).toBe(true)
-    process.env.USE_MANAGED_AGENTS = 'TRUE'
-    expect(isManagedAgentsEnabled()).toBe(true)
-    process.env.USE_MANAGED_AGENTS = 'yes'
-    expect(isManagedAgentsEnabled()).toBe(true)
-  })
-})
-
-describe('U6 getManagedAgentBinding', () => {
+describe('getManagedAgentBinding', () => {
   const SAVED_ENV = { ...process.env }
   beforeEach(() => {
     delete process.env.MANAGED_AGENT_MIRROR_ID

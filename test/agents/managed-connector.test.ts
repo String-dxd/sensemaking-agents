@@ -4,7 +4,7 @@
 // the Drizzle/Postgres surface (or mocked queries.ts).
 // TODO(reza-step2-followup): rewrite against new TenantContext + Drizzle.
 /**
- * Step 8 — Connector on Managed Agents (behind `USE_MANAGED_AGENTS`).
+ * Connector on Managed Agents.
  *
  * Three surfaces under test:
  *
@@ -15,11 +15,10 @@
  *   2. `buildConnectorContext` — DB integration. Validates the pre-fetch
  *      pulls the right new reflection, FTS-matching past mirrors, and
  *      VIPS pages under `withStudent` tenancy.
- *   3. `runAutoConnectorAfterMirror` flag routing — `USE_MANAGED_AGENTS=true`
- *      dispatches through a mocked `runManagedAgent` with a binding pulled
- *      from `MANAGED_AGENT_CONNECTOR_*`. `deps.runConnector` still wins.
- *      ManagedAgentError variants map onto the existing AutoConnectorStatus
- *      enum so ops triage stays consistent across runtimes.
+ *   3. `runAutoConnectorAfterMirror` dispatch — invokes a mocked
+ *      `runManagedAgent` with a binding pulled from `MANAGED_AGENT_CONNECTOR_*`.
+ *      `deps.runConnector` wins as a test seam. ManagedAgentError variants
+ *      map onto the AutoConnectorStatus enum.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -264,14 +263,13 @@ vi.mock('~/agents/runner', async (importOriginal) => {
 })
 
 describe.skipIf(!process.env.DATABASE_URL)(
-  'Step 8 runAutoConnectorAfterMirror — flag routing',
+  'runAutoConnectorAfterMirror — managed runner dispatch',
   () => {
     const SAVED_ENV = { ...process.env }
 
     beforeEach(async () => {
       setDbForTests(openInMemoryDb())
       seed()
-      delete process.env.USE_MANAGED_AGENTS
       delete process.env.MANAGED_AGENT_CONNECTOR_ID
       delete process.env.MANAGED_AGENT_CONNECTOR_VERSION
       delete process.env.MANAGED_AGENT_ENV_ID
@@ -327,8 +325,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       }
     }
 
-    it('routes to runManagedAgent when USE_MANAGED_AGENTS=true, forwarding the buildConnectorContext prompt', async () => {
-      process.env.USE_MANAGED_AGENTS = 'true'
+    it('dispatches to runManagedAgent, forwarding the buildConnectorContext prompt', async () => {
       process.env.MANAGED_AGENT_CONNECTOR_ID = 'agt_connector_abc'
       process.env.MANAGED_AGENT_CONNECTOR_VERSION = '3'
       process.env.MANAGED_AGENT_ENV_ID = 'env_x'
@@ -362,8 +359,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(call?.prompt).toContain(`# New Mirror reflection #${mirror.id} (context_type=school)`)
     })
 
-    it('deps.runConnector wins over USE_MANAGED_AGENTS=true (test injection takes priority)', async () => {
-      process.env.USE_MANAGED_AGENTS = 'true'
+    it('deps.runConnector takes priority over the managed runner', async () => {
       process.env.MANAGED_AGENT_CONNECTOR_ID = 'agt_connector_abc'
       process.env.MANAGED_AGENT_ENV_ID = 'env_x'
 
@@ -382,8 +378,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(vi.mocked(runManagedAgent)).not.toHaveBeenCalled()
     })
 
-    it('USE_MANAGED_AGENTS=true without a binding surfaces as `unknown` (Error has no recognized status field)', async () => {
-      process.env.USE_MANAGED_AGENTS = 'true'
+    it('missing connector binding surfaces as `unknown` (Error has no recognized status field)', async () => {
       // Intentionally do NOT set MANAGED_AGENT_CONNECTOR_ID.
 
       const { runAutoConnectorAfterMirror } = await import('~/server/auto-connector.handler.server')
@@ -395,7 +390,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
     })
 
     it('maps ManagedAgentError(PARSE_ERROR) to schema_reject', async () => {
-      process.env.USE_MANAGED_AGENTS = 'true'
       process.env.MANAGED_AGENT_CONNECTOR_ID = 'agt_connector_abc'
       process.env.MANAGED_AGENT_ENV_ID = 'env_x'
 
@@ -411,7 +405,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
     })
 
     it('maps ManagedAgentError(NO_API_KEY) to auth_error', async () => {
-      process.env.USE_MANAGED_AGENTS = 'true'
       process.env.MANAGED_AGENT_CONNECTOR_ID = 'agt_connector_abc'
       process.env.MANAGED_AGENT_ENV_ID = 'env_x'
 
@@ -427,7 +420,6 @@ describe.skipIf(!process.env.DATABASE_URL)(
     })
 
     it('maps ManagedAgentError(STREAM_ERROR) to transport_error', async () => {
-      process.env.USE_MANAGED_AGENTS = 'true'
       process.env.MANAGED_AGENT_CONNECTOR_ID = 'agt_connector_abc'
       process.env.MANAGED_AGENT_ENV_ID = 'env_x'
 
@@ -442,18 +434,5 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(result.status).toBe('transport_error')
     })
 
-    it('keeps the legacy OpenAI path when USE_MANAGED_AGENTS is unset (deps.runConnector exercises the non-managed branch end-to-end)', async () => {
-      delete process.env.USE_MANAGED_AGENTS
-      const { runManagedAgent } = await import('~/agents/runner')
-      const { runAutoConnectorAfterMirror } = await import('~/server/auto-connector.handler.server')
-
-      const mirror = seedFreshMirror()
-      const stub = vi.fn().mockResolvedValue(happyDraft(mirror.id))
-      const result = await runAutoConnectorAfterMirror(STUDENT, mirror.id, { runConnector: stub })
-
-      expect(result.status).toBe('ok')
-      expect(stub).toHaveBeenCalledOnce()
-      expect(vi.mocked(runManagedAgent)).not.toHaveBeenCalled()
-    })
   },
 )

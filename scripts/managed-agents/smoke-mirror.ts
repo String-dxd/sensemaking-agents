@@ -6,8 +6,7 @@
  * Runs ONE end-to-end Managed Agents Mirror call against a fixture
  * transcript and prints the parsed JSON to stdout. Intended as the manual
  * one-shot the dev runs after `pnpm provision:managed-agents` to confirm
- * the runner wiring is sound before touching the ablate harness or the
- * `USE_MANAGED_AGENTS` flag.
+ * the runner wiring is sound before touching the ablate harness.
  *
  * Env required:
  *   - `ANTHROPIC_API_KEY` (managed-agents-2026-04-01 beta access)

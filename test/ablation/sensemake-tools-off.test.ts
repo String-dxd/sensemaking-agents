@@ -1,7 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { LOOKUP_ECG_TAXONOMY_NAME } from '~/agents/tools/lookup-ecg-taxonomy'
-import { SEARCH_PAST_MIRRORS_NAME } from '~/agents/tools/search-corpus'
-import { SELF_CRITIQUE_NAME } from '~/agents/tools/self-critique'
 import { ABLATION_DIMENSIONS, buildAblationReportMarkdown } from './score'
 
 /**
@@ -16,19 +13,7 @@ import { ABLATION_DIMENSIONS, buildAblationReportMarkdown } from './score'
  * trigger button, not a cron pass.)
  */
 
-const SENSEMAKE_SURFACE_TOOLS = [
-  SEARCH_PAST_MIRRORS_NAME,
-  LOOKUP_ECG_TAXONOMY_NAME,
-  SELF_CRITIQUE_NAME,
-] as const
-
 describe('Sense-making tools-off ablation (R20 surface 2)', () => {
-  it('the sense-making surface is exactly the three named tools', () => {
-    expect(new Set(SENSEMAKE_SURFACE_TOOLS)).toEqual(
-      new Set(['search_past_mirrors', 'lookup_ecg_taxonomy', 'self_critique']),
-    )
-  })
-
   it('builds a per-surface report with the five-dimension scaffold (v0.2 / U13)', () => {
     const md = buildAblationReportMarkdown({
       surface: 'sensemake',

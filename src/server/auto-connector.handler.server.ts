@@ -20,10 +20,8 @@
  * this chain. On every failure mode the staged-diff row is simply omitted;
  * the mirror entry is intact.
  */
-import { run } from '@openai/agents'
 import { ZodError } from 'zod'
-import { getManagedAgentBinding, isManagedAgentsEnabled } from '~/agents/config'
-import { createConnectorAgent } from '~/agents/connector'
+import { getManagedAgentBinding } from '~/agents/config'
 import { buildConnectorContext } from '~/agents/context'
 import {
   appendIfNovel,
@@ -110,9 +108,8 @@ export interface AutoConnectorResult {
 
 export interface AutoConnectorDeps {
   /**
-   * Test seam: bypass the SDK and return a pre-baked Connector draft. When
-   * omitted, the handler invokes the real `createConnectorAgent` via
-   * `@openai/agents`' `run`.
+   * Test seam: bypass the agent runner and return a pre-baked Connector
+   * draft. When omitted, the handler dispatches via `runManagedAgent`.
    */
   runConnector?: (input: {
     studentId: string
@@ -168,18 +165,10 @@ export async function runAutoConnectorAfterMirror(
     const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
 
     // ── Step 3: invoke Connector with a soft 30s timeout. ──
-    // Finding #5: pass an AbortController.signal through to the SDK so a
-    // timeout actually CANCELS the underlying request — previously the
-    // Promise.race only rejected the wrapper while the SDK call kept
-    // burning tokens in the background. Test-seam `deps.runConnector`
-    // doesn't need the signal (its mocks resolve synchronously) but we
-    // pass it anyway for symmetry; it can ignore it.
+    // Pass an AbortController.signal through so a timeout actually CANCELS
+    // the underlying request (Finding #5). Test-seam `deps.runConnector`
+    // doesn't need the signal (its mocks resolve synchronously).
     const ac = new AbortController()
-    // Routing precedence mirrors `runMirrorOnTranscript`:
-    //   1. `deps.runConnector` (test injection — wins over both runtimes).
-    //   2. `USE_MANAGED_AGENTS=true` → Anthropic Managed Agents path.
-    //   3. Default → OpenAI Agents SDK via `runConnectorViaSdk`.
-    //
     // Hoist `deps.runConnector` into a local so TypeScript narrows it inside
     // the closure (the bare `deps.runConnector` would widen back to
     // `undefined` across the function boundary and require a non-null
@@ -193,23 +182,14 @@ export async function runAutoConnectorAfterMirror(
             pages,
             timeline,
           })
-      : isManagedAgentsEnabled()
-        ? () =>
-            runConnectorViaManaged({
-              studentId,
-              newReflectionId: mirror.id,
-              ctx,
-              signal: ac.signal,
-              ...(deps.memoryTransport ? { memoryTransport: deps.memoryTransport } : {}),
-            })
-        : () =>
-            runConnectorViaSdk({
-              studentId,
-              mirrorEntry: mirrorProjection,
-              pages,
-              timeline,
-              signal: ac.signal,
-            })
+      : () =>
+          runConnectorViaManaged({
+            studentId,
+            newReflectionId: mirror.id,
+            ctx,
+            signal: ac.signal,
+            ...(deps.memoryTransport ? { memoryTransport: deps.memoryTransport } : {}),
+          })
     let rawDraft: unknown
     try {
       rawDraft = await raceWithTimeout(runner(), AUTO_CONNECTOR_TIMEOUT_MS, ac)
@@ -504,22 +484,6 @@ function raceWithTimeout<T>(p: Promise<T>, ms: number, ac?: AbortController): Pr
   })
 }
 
-async function runConnectorViaSdk(input: {
-  studentId: string
-  mirrorEntry: VerifierMirrorEntry
-  pages: VipsPageRow[]
-  timeline: VipsTimelineEntryRow[]
-  signal?: AbortSignal
-}): Promise<unknown> {
-  const agent = createConnectorAgent({ studentId: input.studentId })
-  const prompt = formatConnectorPromptContext(input)
-  // The `@openai/agents` `run()` SharedRunOptions accepts `signal`; we pass
-  // it so the auto-connector timeout actually cancels the in-flight call
-  // (Finding #5). Verified in node_modules/@openai/agents-core/dist/run.d.ts.
-  const result = await run(agent, prompt, { signal: input.signal })
-  return result.finalOutput
-}
-
 /**
  * Managed Agents path (plan §7.1: prompt-as-context). Pre-fetches the
  * inlined taxonomies + top-N FTS-matching past mirrors + VIPS pages via
@@ -568,50 +532,3 @@ async function runConnectorViaManaged(input: {
   return result.output
 }
 
-/**
- * Format the prompt context the Connector receives alongside its system
- * prompt. Includes the new mirror reflection, its context_type, the four
- * VIPS pages' current state, and the non-forgotten timeline (grouped by
- * dimension). The Connector's prompt body covers the rest.
- *
- * Exported for direct unit testing in case the format needs to be diffed
- * against a snapshot fixture; the auto-connector tests stub `runConnector`
- * so they don't exercise this path.
- */
-export function formatConnectorPromptContext(input: {
-  mirrorEntry: VerifierMirrorEntry
-  pages: VipsPageRow[]
-  timeline: VipsTimelineEntryRow[]
-}): string {
-  const { mirrorEntry, pages, timeline } = input
-
-  const pagesBlock = VIPS_DIMENSIONS.map((dim) => {
-    const page = pages.find((p) => p.dimension === dim)
-    const entriesForDim = timeline.filter((e) => e.dimension === dim)
-    return [
-      `## ${dim.toUpperCase()}`,
-      page
-        ? `Compiled truth: ${page.compiled_truth}\nOpen question: ${page.open_question}`
-        : 'Compiled truth: (empty)\nOpen question: (empty)',
-      entriesForDim.length === 0
-        ? 'Existing timeline entries: (none)'
-        : `Existing timeline entries:\n${entriesForDim
-            .map(
-              (e) =>
-                `- [${e.canonical_claim_id}] (${e.strength}, parallax=${JSON.stringify(e.parallax_tag)}) "${e.verbatim_quote}"`,
-            )
-            .join('\n')}`,
-    ].join('\n')
-  }).join('\n\n')
-
-  return `# New Mirror reflection #${mirrorEntry.id} (context_type=${mirrorEntry.context_type})
-
-Transcript:
-${mirrorEntry.transcript}
-
-# Current VIPS pages
-
-${pagesBlock}
-
-Produce a ConnectorDiffSchema-shaped proposal. Cite verbatim quotes from the transcript above only.`
-}
