@@ -40,7 +40,11 @@ export function ConfirmDialog({
     <AlertDialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen) onCancel()
+        // Only treat close transitions as cancel when the parent still
+        // thinks the dialog is open. Without this guard, Base UI fires
+        // `onOpenChange(false)` after `onConfirm` flips `open` to false,
+        // which would re-enter `onCancel` and double-fire the mutation.
+        if (!nextOpen && open) onCancel()
       }}
     >
       <AlertDialogContent data-testid="confirm-dialog">

@@ -86,7 +86,11 @@ export function EmotionPicker({
   }, [layout, onDismiss])
 
   function handleChange(value: unknown) {
-    const next = value as Mood
+    // Base UI's `RadioGroup.onValueChange` types the payload as `unknown`.
+    // Narrow against the canonical enum before committing.
+    const parsed = MoodSchema.safeParse(value)
+    if (!parsed.success) return
+    const next = parsed.data
     setSelected(next)
     if (typeof window !== 'undefined') {
       try {
