@@ -287,6 +287,12 @@ export async function runAutoConnectorAfterMirror(
     // SQLSTATE `25P02` would abort the tx and break the recovery query).
     // If a concurrent run raced past the same check above, we surface the
     // existing pending row's id as the `queued` outcome.
+    const insertOutcome = await insertVipsProposedDiffIfNoPending(
+      studentId,
+      {
+        mirror_entry_id: mirror.id,
+        payload,
+        verifier_result: verifierResult,
       },
       { ctx },
     )

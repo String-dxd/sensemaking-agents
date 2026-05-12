@@ -20,18 +20,14 @@
       {
         "label": "Placeholder A — awaiting your first reflection",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.engineering"
-        ],
+        "ecg_region_tags": ["cluster.engineering"],
         "risks_tradeoffs": "Because no Values, Interests, Personality, or Skills entries exist yet, this pathway cannot be grounded in anything you have actually said or done. Assigning it real tradeoffs — such as whether a JC science block or a poly engineering diploma fits your pace of learning, or whether hands-on workshop time matters more to you than early theoretical depth — would be premature. Log a few reflections first, then return here for a trajectory that reflects your actual evidence rather than a generic template.",
         "exploration_prompt": "What is one activity — in school, at home, or in a CCA — that you found yourself doing without being told to, and what did you enjoy or dislike about it?"
       },
       {
         "label": "Placeholder B — awaiting your first reflection",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.public-service"
-        ],
+        "ecg_region_tags": ["cluster.public-service"],
         "risks_tradeoffs": "With no timeline entries to cite, this placeholder cannot tell you anything real about whether a public-service or policy-facing direction fits you. The tradeoffs that matter in SG — arts-humanities subject block versus science block at JC, the slower salary curve of civil service versus private sector, the difference between policy work and frontline community roles — all depend on values and interests evidence you have not yet recorded. A single honest reflection about a time you cared about a community problem would already sharpen this considerably.",
         "exploration_prompt": "Think of a problem in your school, neighbourhood, or country that bothers you — what would need to change, and do you want to be the one changing it or the one studying why it exists?"
       }

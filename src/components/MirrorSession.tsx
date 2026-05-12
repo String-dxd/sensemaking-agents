@@ -414,14 +414,15 @@ export function useMirrorSession({
     async (transcript: string) => {
       try {
         if (mountedRef.current) dispatch({ type: 'reflecting' })
-        const { output } = await runMirror({ data: { studentId, transcript } })
+        // studentId no longer travels in the data payload — managed-agents
+        // resolves it server-side via `requireCounselorContext()` (WorkOS).
+        const { output } = await runMirror({ data: { transcript } })
         if (!mountedRef.current) return
 
         dispatch({ type: 'persisting' })
         const contextType: ContextType = readLastUsedContextType()
         const result = await persistMirror({
           data: {
-            studentId,
             entry: {
               transcript,
               validation: output.validation,
@@ -472,7 +473,7 @@ export function useMirrorSession({
     try {
       const audioBase64 = await blobToBase64(blob)
       const { transcript } = await transcribeMirror({
-        data: { studentId, audioBase64, mimeType: blob.type || 'audio/webm' },
+        data: { audioBase64, mimeType: blob.type || 'audio/webm' },
       })
       if (!transcript || transcript.trim().length === 0) {
         dispatch({ type: 'fail', message: 'Transcription came back empty. Try again?' })

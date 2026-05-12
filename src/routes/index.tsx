@@ -32,14 +32,14 @@ export const Route = createFileRoute('/')({
   loader: async ({ context }) => {
     const pending = await context.queryClient.ensureQueryData({
       queryKey: ['pending-review', STUDENT_ID],
-      queryFn: () => loadPendingReview({ data: { studentId: STUDENT_ID } }),
+      queryFn: () => loadPendingReview({ data: {} }),
     })
     if (pending.diff) {
       throw redirect({ to: '/reflect/review' })
     }
     await context.queryClient.ensureQueryData({
       queryKey: ['vips-pages', STUDENT_ID],
-      queryFn: () => loadVipsPages({ data: { studentId: STUDENT_ID } }),
+      queryFn: () => loadVipsPages({ data: {} }),
     })
   },
   component: LandingPage,
@@ -225,7 +225,7 @@ function SheetContent({ openSheet }: { openSheet: SheetKey }) {
 function VipsDimensionSheetContent({ dimension }: { dimension: VipsDimension }) {
   const { data, isPending, isError } = useQuery({
     queryKey: ['vips-pages', STUDENT_ID],
-    queryFn: () => loadVipsPages({ data: { studentId: STUDENT_ID } }),
+    queryFn: () => loadVipsPages({ data: {} }),
   })
 
   if (isPending) {

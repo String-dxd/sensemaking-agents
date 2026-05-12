@@ -15,7 +15,9 @@ export interface TrajectorySheetViewProps {
 export function TrajectorySheetView({ studentId }: TrajectorySheetViewProps) {
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['trajectory', studentId],
-    queryFn: () => loadTrajectory({ data: { studentId } }),
+    // studentId is server-resolved via WorkOS post managed-agents migration;
+    // it stays as a queryKey member so per-student caching still works.
+    queryFn: () => loadTrajectory({ data: {} }),
   })
 
   return (
