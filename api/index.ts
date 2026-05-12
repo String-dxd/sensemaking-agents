@@ -15,6 +15,22 @@
 import server from '../dist/server/server.js'
 
 export default async function handler(request: Request): Promise<Response> {
+  // Vercel's Node runtime hands the function a Request whose `.url` is the
+  // path only (e.g. `/`), but TanStack Start's H3-derived handler expects
+  // an absolute URL. Reconstruct one from `host` / `x-forwarded-*` headers.
+  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host')
+  if (host !== null && !/^https?:\/\//i.test(request.url)) {
+    const proto = request.headers.get('x-forwarded-proto') ?? 'https'
+    const absolute = `${proto}://${host}${request.url}`
+    const body =
+      request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer()
+    request = new Request(absolute, {
+      method: request.method,
+      headers: request.headers,
+      ...(body !== undefined ? { body } : {}),
+      redirect: 'manual',
+    })
+  }
   // biome-ignore lint/suspicious/noExplicitAny: third-party fetch handler shape
   return (server as any).fetch(request)
 }
