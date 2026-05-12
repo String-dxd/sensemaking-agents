@@ -57,6 +57,10 @@ export function EmotionChip({ mood, variant, onClick, asButton = false }: Emotio
   )
 
   if (asButton) {
+    const palette =
+      variant === 'inferred'
+        ? 'bg-muted text-muted-foreground'
+        : 'bg-accent/15 text-accent border border-accent/30'
     return (
       <Button
         type="button"
@@ -65,7 +69,7 @@ export function EmotionChip({ mood, variant, onClick, asButton = false }: Emotio
         onClick={onClick}
         data-testid={`emotion-chip-${variant}`}
         data-mood={mood}
-        className={cn('inline-flex h-auto items-center gap-2 rounded-full px-3 py-1.5')}
+        className={cn('inline-flex h-auto items-center gap-2 rounded-full px-3 py-1.5', palette)}
       >
         {content}
       </Button>
