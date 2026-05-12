@@ -58,7 +58,11 @@ export function ContextTypePicker({ onSelect, defaultValue }: ContextTypePickerP
   const [selected, setSelected] = useState<ContextType>(() => defaultValue ?? readLastUsed())
 
   function handleChange(value: unknown) {
-    const next = value as ContextType
+    // Base UI's `RadioGroup.onValueChange` types the payload as `unknown`.
+    // Narrow against the canonical enum before committing.
+    const parsed = VipsContextTypeSchema.safeParse(value)
+    if (!parsed.success) return
+    const next = parsed.data
     setSelected(next)
     if (typeof window !== 'undefined') {
       try {
