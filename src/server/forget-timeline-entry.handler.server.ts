@@ -20,11 +20,11 @@
  * `withStudent` envelope.
  */
 import { z } from 'zod'
+import { requireCounselorContext } from '~/auth/identity'
 import type { VipsDimension } from '~/data/vips-taxonomy'
 import { forgetVipsTimelineEntry } from '~/db/queries'
 
 export const forgetTimelineEntryInputSchema = z.object({
-  studentId: z.string().min(1),
   entryId: z.number().int().positive(),
 })
 
@@ -50,13 +50,14 @@ export async function forgetTimelineEntryHandler(
   data: ForgetTimelineEntryInput,
 ): Promise<ForgetTimelineEntryResult> {
   const parsed = forgetTimelineEntryInputSchema.parse(data)
-  const row = await forgetVipsTimelineEntry(parsed.studentId, parsed.entryId)
+  const { studentId } = await requireCounselorContext()
+  const row = await forgetVipsTimelineEntry(studentId, parsed.entryId)
   // Cross-student isolation: `forgetVipsTimelineEntry` returns null when
   // the row doesn't belong to this student. Surface that as an error so
   // the client gets a deterministic failure instead of a silent no-op.
   if (!row) {
     throw new ForgetTimelineEntryError(
-      `Timeline entry ${parsed.entryId} not found for student ${parsed.studentId}`,
+      `Timeline entry ${parsed.entryId} not found for student ${studentId}`,
     )
   }
   if (!row.forgotten_at) {

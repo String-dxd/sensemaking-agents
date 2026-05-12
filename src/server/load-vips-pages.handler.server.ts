@@ -12,6 +12,7 @@
  * and clients learn about it through neither this fn nor the library UI.
  */
 import { z } from 'zod'
+import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import { withStudent } from '~/db/client'
 import {
@@ -21,9 +22,7 @@ import {
   type VipsTimelineEntryRow,
 } from '~/db/queries'
 
-export const loadVipsPagesInputSchema = z.object({
-  studentId: z.string().min(1),
-})
+export const loadVipsPagesInputSchema = z.object({})
 
 export type LoadVipsPagesInput = z.output<typeof loadVipsPagesInputSchema>
 
@@ -48,9 +47,10 @@ export interface LoadVipsPagesResult {
 }
 
 export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<LoadVipsPagesResult> {
-  const parsed = loadVipsPagesInputSchema.parse(data)
-  return withStudent(parsed.studentId, async (ctx) => {
-    const rawPages = await listVipsPages(parsed.studentId, { ctx })
+  loadVipsPagesInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, async (ctx) => {
+    const rawPages = await listVipsPages(studentId, { ctx })
     const pagesByDimension = new Map<string, VipsPageRow>(rawPages.map((p) => [p.dimension, p]))
 
     // Render the four dimensions in canonical order. A dimension without an
@@ -62,7 +62,7 @@ export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<Lo
     const pages: VipsPageRow[] = VIPS_DIMENSIONS.map(
       (dim): VipsPageRow =>
         pagesByDimension.get(dim) ?? {
-          student_id: parsed.studentId,
+          student_id: studentId,
           dimension: dim,
           compiled_truth: '',
           open_question: '',
@@ -78,7 +78,7 @@ export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<Lo
       // is the R19 "forgotten entries excluded from sense-making context"
       // boundary on the read side. The compatible call site for an admin
       // view would pass `{includeForgotten: true}`; we never do that here.
-      const entries = await listVipsTimelineEntries(parsed.studentId, dim, { ctx })
+      const entries = await listVipsTimelineEntries(studentId, dim, { ctx })
       timeline_by_dimension[dim] = entries
       claim_count_by_dimension[dim] = entries.length
       total += entries.length

@@ -161,6 +161,25 @@ export async function assertCounselorHasStudent(
 }
 
 /**
+ * Look up the lowest-id studentId attached to the given counselor.
+ * Returns `null` if the counselor has no rows in `counselor_students`.
+ *
+ * v0.2 uses this as the source of `activeStudentId` (deterministic; the
+ * multi-student counselor picker is a follow-up PR per plan §16). Runs
+ * outside `withStudent` because `counselor_students` has no RLS.
+ */
+export async function findFirstAttachedStudent(counselorId: string): Promise<string | null> {
+  const db = getDb()
+  const rows = await db.execute<{ student_id: string }>(
+    sql`select student_id from counselor_students
+        where counselor_id = ${counselorId}
+        order by student_id asc
+        limit 1`,
+  )
+  return rows.rows[0]?.student_id ?? null
+}
+
+/**
  * Insert the four demo students for a newly-signed-in counselor. Idempotent.
  * Called from src/auth/middleware.ts on first sign-in.
  */

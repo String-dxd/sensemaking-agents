@@ -110,7 +110,6 @@ export interface MirrorSessionResult {
 }
 
 export interface MirrorSessionProps {
-  studentId: string
   /**
    * Called after `persistMirror` succeeds. The callback receives the
    * mirror-entry id, the auto-Connector status, and the R30 queued flag
@@ -131,7 +130,7 @@ export interface MirrorSessionProps {
  * single soft text line shown once if the student stays silent for
  * the first ~3 seconds.
  */
-export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
+export function MirrorSession({ onPersisted }: MirrorSessionProps) {
   const [state, dispatch] = useReducer(reduce, initialState)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -336,7 +335,7 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
       dispatch({ type: 'transcribing' })
       const audioBase64 = await blobToBase64(blob)
       const { transcript } = await transcribeMirror({
-        data: { studentId, audioBase64, mimeType: blob.type || 'audio/webm' },
+        data: { audioBase64, mimeType: blob.type || 'audio/webm' },
       })
       if (!transcript || transcript.trim().length === 0) {
         dispatch({ type: 'fail', message: 'Transcription came back empty. Try again?' })
@@ -366,12 +365,11 @@ export function MirrorSession({ studentId, onPersisted }: MirrorSessionProps) {
     }
     try {
       dispatch({ type: 'reflecting' })
-      const { output } = await runMirror({ data: { studentId, transcript } })
+      const { output } = await runMirror({ data: { transcript } })
 
       dispatch({ type: 'persisting' })
       const result = await persistMirror({
         data: {
-          studentId,
           entry: {
             transcript,
             validation: output.validation,

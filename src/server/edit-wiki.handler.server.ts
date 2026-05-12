@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { MirrorEditableField } from '~/agents/schemas'
+import { requireCounselorContext } from '~/auth/identity'
 import { type MirrorEntryRow, updateMirrorEntryFields } from '~/db/queries'
 import { checkOutputForDiagnosticLanguage } from '~/lib/safety'
 
 export const editMirrorFieldInputSchema = z.object({
-  studentId: z.string().min(1),
   entryId: z.number().int().positive(),
   field: MirrorEditableField,
   value: z.string().min(1),
@@ -38,7 +38,8 @@ export async function editMirrorFieldHandler(
       `Edit rejected — diagnostic language: ${safety.matches.map((m) => m.text).join('; ')}`,
     )
   }
-  return updateMirrorEntryFields(parsed.studentId, parsed.entryId, {
+  const { studentId } = await requireCounselorContext()
+  return updateMirrorEntryFields(studentId, parsed.entryId, {
     [parsed.field]: parsed.value,
   })
 }

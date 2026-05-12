@@ -176,7 +176,7 @@ describe('PostMirrorReview', () => {
 
     await waitFor(() => expect(confirmMock).toHaveBeenCalledTimes(1))
     expect(confirmMock).toHaveBeenCalledWith({
-      data: { studentId: 'demo', diffId: 1, entryId: expectedEntryId },
+      data: { diffId: 1, entryId: expectedEntryId },
     })
   })
 
@@ -194,7 +194,7 @@ describe('PostMirrorReview', () => {
 
     await waitFor(() => expect(forgetMock).toHaveBeenCalledTimes(1))
     expect(forgetMock).toHaveBeenCalledWith({
-      data: { studentId: 'demo', diffId: 1, entryId: expectedEntryId },
+      data: { diffId: 1, entryId: expectedEntryId },
     })
   })
 
@@ -248,10 +248,10 @@ describe('PostMirrorReview', () => {
 
     await waitFor(() => expect(confirmMock).toHaveBeenCalledTimes(2))
     expect(confirmMock).toHaveBeenNthCalledWith(1, {
-      data: { studentId: 'demo', diffId: 1, entryId: buildReviewEntryId(a) },
+      data: { diffId: 1, entryId: buildReviewEntryId(a) },
     })
     expect(confirmMock).toHaveBeenNthCalledWith(2, {
-      data: { studentId: 'demo', diffId: 1, entryId: buildReviewEntryId(b) },
+      data: { diffId: 1, entryId: buildReviewEntryId(b) },
     })
   })
 

@@ -63,7 +63,7 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
     mutationFn: async () => {
       for (const entry of pendingEntries) {
         await confirmDiff({
-          data: { studentId, diffId: diff.id, entryId: buildReviewEntryId(entry) },
+          data: { diffId: diff.id, entryId: buildReviewEntryId(entry) },
         })
       }
     },
@@ -214,12 +214,12 @@ function EntryRow({ entry, diffId, studentId, disableActions }: EntryRowProps) {
   const invalidate = () => qc.invalidateQueries({ queryKey: ['pending-review', studentId] })
 
   const confirmMutation = useMutation({
-    mutationFn: () => confirmDiff({ data: { studentId, diffId, entryId } }),
+    mutationFn: () => confirmDiff({ data: { diffId, entryId } }),
     onSuccess: invalidate,
   })
 
   const forgetMutation = useMutation({
-    mutationFn: () => forgetDiff({ data: { studentId, diffId, entryId } }),
+    mutationFn: () => forgetDiff({ data: { diffId, entryId } }),
     onSuccess: invalidate,
   })
 

@@ -7,11 +7,10 @@
  * `withStudent` envelope when no `ctx` is supplied.
  */
 import { z } from 'zod'
+import { requireCounselorContext } from '~/auth/identity'
 import { listVipsProposedDiffs, type VipsProposedDiffRow } from '~/db/queries'
 
-export const loadPendingReviewInputSchema = z.object({
-  studentId: z.string().min(1),
-})
+export const loadPendingReviewInputSchema = z.object({})
 
 export type LoadPendingReviewInput = z.output<typeof loadPendingReviewInputSchema>
 
@@ -29,12 +28,13 @@ export class LoadPendingReviewError extends Error {
 export async function loadPendingReviewHandler(
   data: LoadPendingReviewInput,
 ): Promise<LoadPendingReviewResult> {
-  const parsed = loadPendingReviewInputSchema.parse(data)
+  loadPendingReviewInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
   // listVipsProposedDiffs orders by created_at DESC — first row is the
   // most recent pending diff. R30 / AE8: there can be at most one
   // pending diff per student because the auto-Connector handler queues
   // new runs when a prior pending row exists, but we still defensively
   // grab the most-recent in case of historical drift.
-  const pending = await listVipsProposedDiffs(parsed.studentId, { status: 'pending' })
+  const pending = await listVipsProposedDiffs(studentId, { status: 'pending' })
   return { diff: pending[0] ?? null }
 }

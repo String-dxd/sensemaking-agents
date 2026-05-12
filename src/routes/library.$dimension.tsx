@@ -20,7 +20,7 @@ import type { VipsDimension } from '~/data/vips-taxonomy'
 import { loadPendingReview } from '~/server/load-pending-review.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 
-const STUDENT_ID = 'demo'
+const STUDENT_ID = 'me'
 
 const VALID_DIMENSIONS: readonly VipsDimension[] = [
   'values',
@@ -43,7 +43,7 @@ export const Route = createFileRoute('/library/$dimension')({
     // doesn't depend on the library query shape.
     const pending = await context.queryClient.ensureQueryData({
       queryKey: ['pending-review', STUDENT_ID],
-      queryFn: () => loadPendingReview({ data: { studentId: STUDENT_ID } }),
+      queryFn: () => loadPendingReview({ data: {} }),
     })
     if (pending.diff) {
       throw redirect({ to: '/reflect/review' })
@@ -51,7 +51,7 @@ export const Route = createFileRoute('/library/$dimension')({
 
     await context.queryClient.ensureQueryData({
       queryKey: ['vips-pages', STUDENT_ID],
-      queryFn: () => loadVipsPages({ data: { studentId: STUDENT_ID } }),
+      queryFn: () => loadVipsPages({ data: {} }),
     })
 
     return { dimension }
@@ -63,7 +63,7 @@ function WikiDimensionPage() {
   const { dimension } = Route.useLoaderData()
   const { data, isPending } = useQuery({
     queryKey: ['vips-pages', STUDENT_ID],
-    queryFn: () => loadVipsPages({ data: { studentId: STUDENT_ID } }),
+    queryFn: () => loadVipsPages({ data: {} }),
   })
 
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>

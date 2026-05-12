@@ -42,6 +42,7 @@ import {
   CartographerOutputSchema,
   type CartographerPathwayDraft,
 } from '~/agents/schemas'
+import { requireCounselorContext } from '~/auth/identity'
 import { ECG_TAXONOMY } from '~/data/ecg-taxonomy'
 import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
 import { type TenantContext, withStudent } from '~/db/client'
@@ -54,9 +55,7 @@ import {
   type VipsTimelineEntryRow,
 } from '~/db/queries'
 
-export const runCartographerInputSchema = z.object({
-  studentId: z.string().min(1),
-})
+export const runCartographerInputSchema = z.object({})
 export type RunCartographerInput = z.output<typeof runCartographerInputSchema>
 
 export type RunCartographerStatus = 'ok' | 'schema_reject' | 'no_valid_pathways' | 'agent_error'
@@ -122,23 +121,24 @@ export async function runCartographerHandler(
   data: RunCartographerInput,
   deps: RunCartographerDeps = {},
 ): Promise<RunCartographerResult> {
-  const parsed = runCartographerInputSchema.parse(data)
+  runCartographerInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
   const start = Date.now()
   const events: RunStepEvent[] = []
   const emit = (e: RunStepEventInput) => {
     events.push({ ...e, timestampMs: Date.now() - start } as RunStepEvent)
   }
 
-  return withStudent(parsed.studentId, async (ctx) => {
+  return withStudent(studentId, async (ctx) => {
     // ── Read context ───────────────────────────────────────────────────────
-    const pages = await listVipsPages(parsed.studentId, { ctx })
+    const pages = await listVipsPages(studentId, { ctx })
     const timelineByDim = await Promise.all(
       VIPS_DIMENSIONS.map((dim) =>
-        listVipsTimelineEntries(parsed.studentId, dim, { includeForgotten: false, ctx }),
+        listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
       ),
     )
     const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
-    const corpus = await formatCorpusForCartographer(parsed.studentId, ctx)
+    const corpus = await formatCorpusForCartographer(studentId, ctx)
 
     // ── Invoke Cartographer (real SDK / managed / stub) ────────────────────
     // Routing precedence mirrors `runAutoConnectorAfterMirror`:
@@ -149,11 +149,11 @@ export async function runCartographerHandler(
     let rawDraft: unknown
     try {
       rawDraft = deps.runCartographer
-        ? await deps.runCartographer({ studentId: parsed.studentId, pages, timeline, corpus, emit })
+        ? await deps.runCartographer({ studentId: studentId, pages, timeline, corpus, emit })
         : isManagedAgentsEnabled()
-          ? await runCartographerViaManaged({ studentId: parsed.studentId, ctx })
+          ? await runCartographerViaManaged({ studentId: studentId, ctx })
           : await runCartographerViaSdkStreamed(
-              { studentId: parsed.studentId, pages, timeline, corpus },
+              { studentId: studentId, pages, timeline, corpus },
               emit,
             )
     } catch (err) {
@@ -246,7 +246,7 @@ export async function runCartographerHandler(
     // the DB row type's `CartographerPathway` now matches that shape
     // exactly (Finding #8), so we pass `keptPathways` directly.
     const row = await insertCartographerOutput(
-      parsed.studentId,
+      studentId,
       {
         trajectory_text: draft.trajectory_paragraph,
         pathways: keptPathways,

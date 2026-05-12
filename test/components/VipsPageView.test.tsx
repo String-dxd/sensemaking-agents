@@ -112,7 +112,7 @@ describe('VipsPageView', () => {
     await userEvent.click(screen.getByTestId('forget-confirm-42'))
 
     await waitFor(() => expect(forgetMock).toHaveBeenCalledTimes(1))
-    expect(forgetMock).toHaveBeenCalledWith({ data: { studentId: 'demo', entryId: 42 } })
+    expect(forgetMock).toHaveBeenCalledWith({ data: { entryId: 42 } })
   })
 
   it('cancel inline confirm hides it without firing the mutation', async () => {

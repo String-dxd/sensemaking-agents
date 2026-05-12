@@ -23,6 +23,7 @@
  */
 import { z } from 'zod'
 import type { CartographerOutputDraft } from '~/agents/schemas'
+import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import { withStudent } from '~/db/client'
 import {
@@ -34,9 +35,7 @@ import {
 } from '~/db/queries'
 import { renderCounsellorBrief } from '~/lib/counsellor-brief-renderer'
 
-export const counsellorBriefInputSchema = z.object({
-  studentId: z.string().min(1),
-})
+export const counsellorBriefInputSchema = z.object({})
 export type CounsellorBriefInput = z.output<typeof counsellorBriefInputSchema>
 
 export interface CounsellorBriefResult {
@@ -53,9 +52,10 @@ export class CounsellorBriefError extends Error {
 export async function counsellorBriefHandler(
   data: CounsellorBriefInput,
 ): Promise<CounsellorBriefResult> {
-  const parsed = counsellorBriefInputSchema.parse(data)
-  return withStudent(parsed.studentId, async (ctx) => {
-    const rawPages = await listVipsPages(parsed.studentId, { ctx })
+  counsellorBriefInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, async (ctx) => {
+    const rawPages = await listVipsPages(studentId, { ctx })
     const pagesByDimension = new Map<string, VipsPageRow>(rawPages.map((p) => [p.dimension, p]))
 
     // Render four pages in canonical order — a missing dimension becomes a
@@ -65,7 +65,7 @@ export async function counsellorBriefHandler(
     const pages: VipsPageRow[] = VIPS_DIMENSIONS.map(
       (dim): VipsPageRow =>
         pagesByDimension.get(dim) ?? {
-          student_id: parsed.studentId,
+          student_id: studentId,
           dimension: dim,
           compiled_truth: '',
           open_question: '',
@@ -77,10 +77,10 @@ export async function counsellorBriefHandler(
     // excludes forgotten by default; no `includeForgotten: true` here).
     const timelineByDimension = {} as Record<VipsDimension, VipsTimelineEntryRow[]>
     for (const dim of VIPS_DIMENSIONS) {
-      timelineByDimension[dim] = await listVipsTimelineEntries(parsed.studentId, dim, { ctx })
+      timelineByDimension[dim] = await listVipsTimelineEntries(studentId, dim, { ctx })
     }
 
-    const cartographerRow = await latestCartographerOutput(parsed.studentId, { ctx })
+    const cartographerRow = await latestCartographerOutput(studentId, { ctx })
     const trajectory: CartographerOutputDraft | null = cartographerRow
       ? {
           // The DB row's `CartographerPathway` shape now mirrors the v0.2
@@ -93,7 +93,7 @@ export async function counsellorBriefHandler(
       : null
 
     const markdown = renderCounsellorBrief({
-      studentId: parsed.studentId,
+      studentId: studentId,
       pages,
       timelineByDimension,
       trajectory,

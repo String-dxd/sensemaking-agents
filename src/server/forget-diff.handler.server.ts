@@ -20,6 +20,7 @@
  * payload/status updates share one Postgres transaction.
  */
 import { z } from 'zod'
+import { requireCounselorContext } from '~/auth/identity'
 import { withStudent } from '~/db/client'
 import {
   getVipsProposedDiff,
@@ -36,7 +37,6 @@ import {
 } from '~/server/review-payload-shape'
 
 export const forgetDiffInputSchema = z.object({
-  studentId: z.string().min(1),
   diffId: z.number().int().positive(),
   entryId: z.string().min(1),
 })
@@ -56,8 +56,9 @@ export interface ForgetDiffResult {
 
 export async function forgetDiffHandler(data: ForgetDiffInput): Promise<ForgetDiffResult> {
   const parsed = forgetDiffInputSchema.parse(data)
-  return withStudent(parsed.studentId, async (ctx) => {
-    const row = await getVipsProposedDiff(parsed.studentId, parsed.diffId, { ctx })
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, async (ctx) => {
+    const row = await getVipsProposedDiff(studentId, parsed.diffId, { ctx })
     if (!row) throw new ForgetDiffError(`Staged diff ${parsed.diffId} not found`)
     if (row.status !== 'pending') {
       throw new ForgetDiffError(
@@ -84,19 +85,15 @@ export async function forgetDiffHandler(data: ForgetDiffInput): Promise<ForgetDi
     // We deliberately do NOT call `forgetVipsTimelineEntry` here.
     entry.resolved = 'forgotten'
     const updated =
-      (await updateVipsProposedDiffPayload(parsed.studentId, parsed.diffId, payload, { ctx })) ??
-      row
+      (await updateVipsProposedDiffPayload(studentId, parsed.diffId, payload, { ctx })) ?? row
 
     // Last-entry finalization: see file-top docstring. Status flips to
     // 'confirmed' (the "reviewed" marker) regardless of whether all
     // entries were confirmed, all forgotten, or a mix.
     if (allEntriesResolved(payload)) {
-      const finalRow = await updateVipsProposedDiffStatus(
-        parsed.studentId,
-        parsed.diffId,
-        'confirmed',
-        { ctx },
-      )
+      const finalRow = await updateVipsProposedDiffStatus(studentId, parsed.diffId, 'confirmed', {
+        ctx,
+      })
       return { diff: finalRow ?? updated }
     }
     return { diff: updated }

@@ -11,6 +11,7 @@
  * + payload mutation + (possibly) status flip succeed or fail atomically.
  */
 import { z } from 'zod'
+import { requireCounselorContext } from '~/auth/identity'
 import { withStudent } from '~/db/client'
 import {
   getVipsProposedDiff,
@@ -34,7 +35,6 @@ import {
 } from '~/server/review-payload-shape'
 
 export const confirmDiffInputSchema = z.object({
-  studentId: z.string().min(1),
   diffId: z.number().int().positive(),
   /** Stable per-entry handle — see `buildReviewEntryId`. */
   entryId: z.string().min(1),
@@ -80,8 +80,9 @@ function checkCompiledTruthForDimension(dimension: string, text: string): Safety
 
 export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<ConfirmDiffResult> {
   const parsed = confirmDiffInputSchema.parse(data)
-  return withStudent(parsed.studentId, async (ctx) => {
-    const row = await getVipsProposedDiff(parsed.studentId, parsed.diffId, { ctx })
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, async (ctx) => {
+    const row = await getVipsProposedDiff(studentId, parsed.diffId, { ctx })
     if (!row) throw new ConfirmDiffError(`Staged diff ${parsed.diffId} not found`)
     if (row.status !== 'pending') {
       throw new ConfirmDiffError(
@@ -117,7 +118,7 @@ export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<Confir
     // the agent's draft and survived the verifier gate (admitted or
     // downgraded).
     await insertVipsTimelineEntry(
-      parsed.studentId,
+      studentId,
       {
         dimension,
         canonical_claim_id: entry.canonical_claim_id,
@@ -162,13 +163,13 @@ export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<Confir
         // eslint-disable-next-line no-console -- structural log for ops
         console.warn(
           '[confirm-diff] compiled_truth_rewrite tripped diagnostic-language guard; ' +
-            `skipping vips_pages upsert. student=${parsed.studentId} dimension=${dimension} ` +
+            `skipping vips_pages upsert. student=${studentId} dimension=${dimension} ` +
             `matches=${JSON.stringify(safety.matches)}`,
         )
         compiled_truth_safety_skip = { dimension, matches: safety.matches }
       } else {
         await upsertVipsPage(
-          parsed.studentId,
+          studentId,
           {
             dimension,
             compiled_truth: dimDiff.compiled_truth_rewrite,
@@ -182,8 +183,7 @@ export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<Confir
     // Mutate the in-payload resolution flag and persist it.
     entry.resolved = 'confirmed'
     const updated =
-      (await updateVipsProposedDiffPayload(parsed.studentId, parsed.diffId, payload, { ctx })) ??
-      row
+      (await updateVipsProposedDiffPayload(studentId, parsed.diffId, payload, { ctx })) ?? row
 
     // If this was the last unresolved entry across all dimensions in
     // the diff, flip the staging row's status to 'confirmed' and stamp
@@ -192,12 +192,9 @@ export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<Confir
     // *reviewed* — see forget-diff.handler.server.ts for the parallel
     // rule.
     if (allEntriesResolved(payload)) {
-      const finalRow = await updateVipsProposedDiffStatus(
-        parsed.studentId,
-        parsed.diffId,
-        'confirmed',
-        { ctx },
-      )
+      const finalRow = await updateVipsProposedDiffStatus(studentId, parsed.diffId, 'confirmed', {
+        ctx,
+      })
       return { diff: finalRow ?? updated, compiled_truth_safety_skip }
     }
     return { diff: updated, compiled_truth_safety_skip }

@@ -113,7 +113,7 @@ function TimelineEntryRow({ studentId, entry }: TimelineEntryRowProps) {
   const [confirming, setConfirming] = useState(false)
 
   const forget = useMutation({
-    mutationFn: () => forgetTimelineEntry({ data: { studentId, entryId: entry.id } }),
+    mutationFn: () => forgetTimelineEntry({ data: { entryId: entry.id } }),
     onSuccess: (result) => {
       // Invalidate both the overview's umbrella key and the dimension-scoped
       // page key so a forget on `/library/$dimension` immediately removes the

@@ -13,7 +13,6 @@ import { z } from 'zod'
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
 export const transcribeMirrorInputSchema = z.object({
-  studentId: z.string().min(1),
   audioBase64: z.string().min(1),
   mimeType: z.string().min(1),
 })

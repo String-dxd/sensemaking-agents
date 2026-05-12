@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { MirrorEntrySchema } from '~/agents/schemas'
 import { VipsContextTypeSchema } from '~/agents/tools/schemas'
+import { requireCounselorContext } from '~/auth/identity'
 import type { VipsProposedDiffRow } from '~/db/queries'
 import { insertMirrorEntry, type MirrorEntryRow } from '~/db/queries'
 import { checkPayloadForDiagnosticLanguage } from '~/lib/safety'
@@ -11,7 +12,6 @@ import {
 } from '~/server/auto-connector.handler.server'
 
 export const persistMirrorInputSchema = z.object({
-  studentId: z.string().min(1),
   entry: MirrorEntrySchema,
   /** U7: closed VIPS parallax context chosen by the student at Stop time. */
   context_type: VipsContextTypeSchema,
@@ -53,6 +53,7 @@ export async function persistMirrorHandler(
   deps: PersistMirrorDeps = {},
 ): Promise<PersistMirrorResult> {
   const parsed = persistMirrorInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
 
   // Safety gate: reject diagnostic language at persistence time.
   const safety = checkPayloadForDiagnosticLanguage({
@@ -65,7 +66,7 @@ export async function persistMirrorHandler(
   // Single-call: insertMirrorEntry opens its own withStudent envelope so we
   // don't need to wrap. The auto-connector chain below opens a separate
   // transaction of its own.
-  const mirrorEntry = await insertMirrorEntry(parsed.studentId, {
+  const mirrorEntry = await insertMirrorEntry(studentId, {
     transcript: parsed.entry.transcript,
     validation: parsed.entry.validation,
     inferred_meaning: parsed.entry.inferred_meaning,
@@ -81,7 +82,7 @@ export async function persistMirrorHandler(
 
   // ── Auto-Connector chain (in-process, same round trip per plan Approach) ──
   const autoResult = await runAutoConnectorAfterMirror(
-    parsed.studentId,
+    studentId,
     mirrorEntry.id,
     deps.autoConnector,
   )

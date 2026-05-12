@@ -34,7 +34,7 @@ import { loadPendingReview } from '~/server/load-pending-review.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 import { runCartographer } from '~/server/run-cartographer.functions'
 
-const STUDENT_ID = 'demo'
+const STUDENT_ID = 'me'
 const WEAK_CORPUS_THRESHOLD = 3
 
 const DIMENSION_LABEL: Record<VipsDimension, string> = {
@@ -55,14 +55,14 @@ export const Route = createFileRoute('/library/')({
   loader: async ({ context }) => {
     const pending = await context.queryClient.ensureQueryData({
       queryKey: ['pending-review', STUDENT_ID],
-      queryFn: () => loadPendingReview({ data: { studentId: STUDENT_ID } }),
+      queryFn: () => loadPendingReview({ data: {} }),
     })
     if (pending.diff) {
       throw redirect({ to: '/reflect/review' })
     }
     await context.queryClient.ensureQueryData({
       queryKey: ['vips-pages', STUDENT_ID],
-      queryFn: () => loadVipsPages({ data: { studentId: STUDENT_ID } }),
+      queryFn: () => loadVipsPages({ data: {} }),
     })
   },
   component: LibraryIndexPage,
@@ -75,11 +75,11 @@ function LibraryIndexPage() {
 
   const { data, isPending } = useQuery({
     queryKey: ['vips-pages', STUDENT_ID],
-    queryFn: () => loadVipsPages({ data: { studentId: STUDENT_ID } }),
+    queryFn: () => loadVipsPages({ data: {} }),
   })
 
   const sensemake = useMutation({
-    mutationFn: () => runCartographer({ data: { studentId: STUDENT_ID } }),
+    mutationFn: () => runCartographer({ data: {} }),
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['vips-pages', STUDENT_ID] })
       qc.invalidateQueries({ queryKey: ['trajectory', STUDENT_ID] })
@@ -250,7 +250,7 @@ function LibraryIndexPage() {
  */
 function ExportCounsellorBriefLink({ studentId }: { studentId: string }) {
   const exportBrief = useMutation({
-    mutationFn: () => counsellorBrief({ data: { studentId } }),
+    mutationFn: () => counsellorBrief({ data: {} }),
     onSuccess: (result) => {
       const today = new Date().toISOString().slice(0, 10)
       const blob = new Blob([result.markdown], { type: 'text/markdown' })
