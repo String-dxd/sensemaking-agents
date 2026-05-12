@@ -126,6 +126,7 @@ const [
   seedMod,
   verifierMod,
   contextMod,
+  clientMod,
 ] = await Promise.all([
   import('~/agents/schemas'),
   import('~/agents/config'),
@@ -138,6 +139,7 @@ const [
   import('~/db/seed'),
   import('~/agents/verifier'),
   import('~/agents/context'),
+  import('~/db/client'),
 ])
 const { MirrorOutputSchema, ConnectorDiffSchema } = schemasMod
 type ConnectorDiffDraft = (typeof schemasMod)['ConnectorDiffSchema']['_output']
@@ -151,6 +153,7 @@ const { listMirrorEntries } = queriesMod
 const { seed, loadSeedCorpus } = seedMod
 const { verifyProposedDiff } = verifierMod
 const { buildConnectorContext } = contextMod
+const { withStudent: withStudentDb } = clientMod
 
 function resolveStudentIds(studentFlag: string | undefined): string[] {
   const corpus = loadSeedCorpus()
@@ -443,7 +446,7 @@ async function runConnectorManagedPerStudent(studentIds: string[]): Promise<{
       continue
     }
     try {
-      const prompt = await buildConnectorContext(sid, latest.id)
+      const prompt = await withStudentDb(sid, (ctx) => buildConnectorContext(ctx, latest.id))
       const result = await runManagedAgent({
         agentId: binding.agentId,
         ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),

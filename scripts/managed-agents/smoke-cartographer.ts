@@ -27,6 +27,7 @@ import { getManagedAgentBinding } from '~/agents/config'
 import { buildCartographerContext } from '~/agents/context'
 import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
 import { CartographerOutputSchema } from '~/agents/schemas'
+import { withStudent } from '~/db/client'
 import { listVipsPages } from '~/db/queries'
 import { loadSeedCorpus, seed } from '~/db/seed'
 
@@ -92,7 +93,9 @@ async function main(): Promise<void> {
       `agent=${binding.agentId} (${versionLabel}) env=${binding.environmentId}\n`,
   )
 
-  const prompt = await buildCartographerContext(studentId)
+  // buildCartographerContext requires a TenantContext; open one and pull the
+  // prompt out of the transaction (read-only — discarded on commit).
+  const prompt = await withStudent(studentId, (ctx) => buildCartographerContext(ctx))
   process.stdout.write(`smoke-cartographer: prompt length = ${prompt.length} chars\n`)
 
   const startedAt = Date.now()

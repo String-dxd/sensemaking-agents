@@ -442,10 +442,10 @@ async function runConnectorViaSdk(input: {
  * second-check — keeping a single parse-error code path through the
  * `schema_reject` bucket.
  *
- * The outer `withStudent` transaction is reused via `ctx` so the pre-fetch
- * queries inside `buildConnectorContext` see the same tenancy GUC. Once
- * `buildConnectorContext` is updated to thread `ctx`, the call below should
- * pass it in; for now the helper opens its own transaction per query.
+ * `ctx` IS the outer `withStudent` transaction — `buildConnectorContext`
+ * reuses it for every internal query so we don't open nested pool
+ * checkouts. At `DATABASE_POOL_MAX=5` and ≥5 concurrent Connector runs the
+ * previous nested-envelope shape deadlocked the entire pool.
  */
 async function runConnectorViaManaged(input: {
   studentId: string
@@ -454,7 +454,7 @@ async function runConnectorViaManaged(input: {
   signal?: AbortSignal
 }): Promise<unknown> {
   const binding = getManagedAgentBinding('connector')
-  const prompt = await buildConnectorContext(input.studentId, input.newReflectionId)
+  const prompt = await buildConnectorContext(input.ctx, input.newReflectionId)
   const result = await runManagedAgent({
     agentId: binding.agentId,
     ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),

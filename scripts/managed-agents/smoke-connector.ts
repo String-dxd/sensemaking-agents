@@ -28,6 +28,7 @@ import { getManagedAgentBinding } from '~/agents/config'
 import { buildConnectorContext } from '~/agents/context'
 import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
 import { ConnectorDiffSchema } from '~/agents/schemas'
+import { withStudent } from '~/db/client'
 import { listMirrorEntries } from '~/db/queries'
 import { loadSeedCorpus, seed } from '~/db/seed'
 
@@ -90,7 +91,9 @@ async function main(): Promise<void> {
       `agent=${binding.agentId} (${versionLabel}) env=${binding.environmentId}\n`,
   )
 
-  const prompt = await buildConnectorContext(studentId, newest.id)
+  // buildConnectorContext requires a TenantContext; open one and pull the
+  // prompt out of the transaction (read-only — discarded on commit).
+  const prompt = await withStudent(studentId, (ctx) => buildConnectorContext(ctx, newest.id))
   process.stdout.write(`smoke-connector: prompt length = ${prompt.length} chars\n`)
 
   const startedAt = Date.now()

@@ -151,7 +151,7 @@ export async function runCartographerHandler(
       rawDraft = deps.runCartographer
         ? await deps.runCartographer({ studentId: parsed.studentId, pages, timeline, corpus, emit })
         : isManagedAgentsEnabled()
-          ? await runCartographerViaManaged({ studentId: parsed.studentId })
+          ? await runCartographerViaManaged({ studentId: parsed.studentId, ctx })
           : await runCartographerViaSdkStreamed(
               { studentId: parsed.studentId, pages, timeline, corpus },
               emit,
@@ -396,9 +396,15 @@ async function runCartographerViaSdkStreamed(
  * the route's wall-clock budget here so the runner does not give up before
  * the platform does.
  */
-async function runCartographerViaManaged(input: { studentId: string }): Promise<unknown> {
+async function runCartographerViaManaged(input: {
+  studentId: string
+  ctx: TenantContext
+}): Promise<unknown> {
   const binding = getManagedAgentBinding('cartographer')
-  const prompt = await buildCartographerContext(input.studentId)
+  // Reuse the outer `withStudent` transaction's pool checkout — nested
+  // envelopes deadlock the pool at DATABASE_POOL_MAX=5 with >=5 concurrent
+  // Cartographer runs.
+  const prompt = await buildCartographerContext(input.ctx)
   const result = await runManagedAgent({
     agentId: binding.agentId,
     ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),

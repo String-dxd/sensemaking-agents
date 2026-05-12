@@ -11,6 +11,13 @@
  * each VIPS page's `open_question`, deduped, because Cartographer's
  * long-horizon synthesis needs wider recall than Connector's per-reflection
  * diff.
+ *
+ * Both builders REQUIRE a TenantContext (the caller's outer `withStudent`
+ * transaction). The inner queries reuse `ctx.db` so they participate in the
+ * same RLS-bound transaction instead of opening a fresh `withStudent`
+ * envelope per call — opening N child envelopes from inside an outer one
+ * checks out N+1 pool connections, which at `DATABASE_POOL_MAX=5` and ≥5
+ * concurrent runs deadlocks every request waiting on the pool.
  */
 import { ECG_TAXONOMY, type EcgTaxonomyEntry } from '~/data/ecg-taxonomy'
 import {
@@ -19,6 +26,7 @@ import {
   type VipsDimension,
   type VipsTaxonomyEntry,
 } from '~/data/vips-taxonomy'
+import type { TenantContext } from '~/db/client'
 import {
   getMirrorEntry,
   listVipsPages,
@@ -57,9 +65,9 @@ export interface ConnectorContextPayload {
  * Pre-fetch every piece of context Connector's Managed Agents invocation
  * needs, then format it as a single user-message string.
  *
- * Caller must be inside a `withStudent` envelope so the underlying queries
- * are tenant-scoped (today via the application-level helper, post-Step 2
- * via Postgres RLS).
+ * Caller MUST be inside a `withStudent` envelope and pass `ctx` so the
+ * underlying queries are tenant-scoped (RLS) AND reuse the outer
+ * transaction's pool checkout (no nested checkouts → no pool starvation).
  *
  * The format is content-equivalent to `formatConnectorPromptContext` in
  * `src/server/auto-connector.handler.server.ts` (the legacy OpenAI path),
@@ -73,10 +81,11 @@ export interface ConnectorContextPayload {
  *     pack into every prompt and benefit from prompt-cache hits).
  */
 export async function buildConnectorContext(
-  studentId: string,
+  ctx: TenantContext,
   newReflectionId: number,
 ): Promise<string> {
-  const mirror = await getMirrorEntry(studentId, newReflectionId)
+  const { studentId } = ctx
+  const mirror = await getMirrorEntry(studentId, newReflectionId, { ctx })
   if (!mirror) {
     throw new Error(
       `buildConnectorContext: mirror entry ${newReflectionId} is not visible under student ${studentId}.`,
@@ -85,15 +94,16 @@ export async function buildConnectorContext(
 
   const pastMirrorsRaw = await searchMirrors(studentId, mirror.story_reframe, {
     limit: CONNECTOR_FTS_LIMIT + 1,
+    ctx,
   })
   const pastMirrors = pastMirrorsRaw
     .filter((row) => row.id !== newReflectionId)
     .slice(0, CONNECTOR_FTS_LIMIT)
 
-  const pages = await listVipsPages(studentId)
+  const pages = await listVipsPages(studentId, { ctx })
   const timelineByDim = await Promise.all(
     VIPS_DIMENSIONS.map((dim) =>
-      listVipsTimelineEntries(studentId, dim, { includeForgotten: false }),
+      listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
     ),
   )
   const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
@@ -141,9 +151,9 @@ export interface CartographerContextPayload {
  * Pre-fetch every piece of context Cartographer's Managed Agents invocation
  * needs, then format it as a single user-message string.
  *
- * Caller must be inside a `withStudent` envelope so the underlying queries
- * are tenant-scoped (today via the application-level helper, post-Step 2
- * via Postgres RLS).
+ * Caller MUST be inside a `withStudent` envelope and pass `ctx` so the
+ * underlying queries are tenant-scoped (RLS) AND reuse the outer
+ * transaction's pool checkout (no nested checkouts → no pool starvation).
  *
  * The corpus selection compensates for the loss of dynamic agent-side search
  * (`search_past_mirrors` is no longer bound as a tool — plan §7.1). Cartographer
@@ -153,11 +163,12 @@ export interface CartographerContextPayload {
  * open_question is empty, the FTS list is empty and the agent still has the
  * inlined taxonomies + the pages + timeline to work from.
  */
-export async function buildCartographerContext(studentId: string): Promise<string> {
-  const pages = await listVipsPages(studentId)
+export async function buildCartographerContext(ctx: TenantContext): Promise<string> {
+  const { studentId } = ctx
+  const pages = await listVipsPages(studentId, { ctx })
   const timelineByDim = await Promise.all(
     VIPS_DIMENSIONS.map((dim) =>
-      listVipsTimelineEntries(studentId, dim, { includeForgotten: false }),
+      listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
     ),
   )
   const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
@@ -167,7 +178,10 @@ export async function buildCartographerContext(studentId: string): Promise<strin
   const seen = new Map<number, MirrorSearchResult>()
   for (const query of queries) {
     // Pull a bit more than the cap per-query; the union+dedup may overshoot.
-    const matches = await searchMirrors(studentId, query, { limit: CARTOGRAPHER_FTS_LIMIT })
+    const matches = await searchMirrors(studentId, query, {
+      limit: CARTOGRAPHER_FTS_LIMIT,
+      ctx,
+    })
     for (const row of matches) {
       if (!seen.has(row.id)) seen.set(row.id, row)
     }
