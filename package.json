@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "seed": "tsx src/db/seed.ts",
     "ablate:mirror": "tsx scripts/ablate.ts --surface=mirror",
-    "ablate:sensemake": "tsx scripts/ablate.ts --surface=sensemake"
+    "ablate:sensemake": "tsx scripts/ablate.ts --surface=sensemake",
+    "ablate:delta": "tsx scripts/ablate-delta.ts"
   },
   "dependencies": {
     "@openai/agents": "^0.11.0",
