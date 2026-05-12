@@ -75,10 +75,10 @@ function tokenize(s: string): string[] {
  */
 function longestContiguousTokenRatio(quoteTokens: string[], transcriptTokens: string[]): number {
   if (quoteTokens.length === 0) return 0
+  const transcriptStr = transcriptTokens.join(' ')
   for (let windowSize = quoteTokens.length; windowSize > 0; windowSize -= 1) {
     for (let start = 0; start + windowSize <= quoteTokens.length; start += 1) {
       const window = quoteTokens.slice(start, start + windowSize).join(' ')
-      const transcriptStr = transcriptTokens.join(' ')
       // Match on token boundaries — `\bword\b` would mishandle the
       // contractions we already stripped via punctuation removal; joining
       // with single spaces and checking includes is safe because both
@@ -121,6 +121,8 @@ export function verifyProposedDiff(input: VerifyInput): VerifierResult {
   const dropped: VerifierDroppedEntry[] = []
 
   const nonForgotten = existingTimelineEntries.filter((e) => e.forgotten_at === null)
+  const normTranscript = normalize(mirrorEntry.transcript)
+  const transcriptTokens = tokenize(normTranscript)
 
   for (const entry of diff.timeline_entries) {
     // ── error path: cited reflection_id must match the mirror entry ──
@@ -131,17 +133,12 @@ export function verifyProposedDiff(input: VerifyInput): VerifierResult {
 
     // ── phase 1: quote match (R10) ──
     const normQuote = normalize(entry.verbatim_quote)
-    const normTranscript = normalize(mirrorEntry.transcript)
 
     let partialMatch = false
     let effectiveStrength = entry.strength
 
-    if (normTranscript.includes(normQuote)) {
-      // Full match — admit at proposed strength.
-      partialMatch = false
-    } else {
+    if (!normTranscript.includes(normQuote)) {
       const quoteTokens = tokenize(normQuote)
-      const transcriptTokens = tokenize(normTranscript)
       const ratio = longestContiguousTokenRatio(quoteTokens, transcriptTokens)
       if (ratio >= PARTIAL_MATCH_THRESHOLD) {
         partialMatch = true

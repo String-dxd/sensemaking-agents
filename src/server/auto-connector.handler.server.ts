@@ -137,13 +137,17 @@ export async function runAutoConnectorAfterMirror(
 ): Promise<AutoConnectorResult> {
   return withStudent(studentId, async (ctx) => {
     // ── R30 pending-queue rule — check BEFORE invoking the agent. ──
+    // Avoid `existingPending.length > 0` followed by `existingPending[0]`;
+    // a single truthy check on the first element is cheaper and reads the
+    // intent more directly (perf refactor from world-studio carried
+    // forward onto the new async/ctx signature).
     const existingPending = await listVipsProposedDiffs(studentId, { status: 'pending', ctx })
-    if (existingPending.length > 0) {
-      const prior = existingPending[0]
+    const prior = existingPending[0]
+    if (prior) {
       return {
-        status: 'queued' as const,
+        status: 'queued',
         staged_diff: null,
-        ...(prior ? { pending_diff_id: prior.id } : {}),
+        pending_diff_id: prior.id,
       }
     }
 
@@ -283,12 +287,6 @@ export async function runAutoConnectorAfterMirror(
     // SQLSTATE `25P02` would abort the tx and break the recovery query).
     // If a concurrent run raced past the same check above, we surface the
     // existing pending row's id as the `queued` outcome.
-    const insertOutcome = await insertVipsProposedDiffIfNoPending(
-      studentId,
-      {
-        mirror_entry_id: mirror.id,
-        payload,
-        verifier_result: verifierResult,
       },
       { ctx },
     )
@@ -531,4 +529,3 @@ async function runConnectorViaManaged(input: {
   })
   return result.output
 }
-
