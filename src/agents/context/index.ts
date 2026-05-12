@@ -1,12 +1,16 @@
 /**
  * Pre-fetch + formatting helpers for the Managed Agents path (plan §7.1,
- * Step 8). The Managed runtime is intentionally tool-less ("prompt-as-context,
- * not agent-as-runtime") — the server pre-decides what to look up, packs the
- * formatted context into the user message, and lets the agent emit one
- * structured diff.
+ * Steps 8 + 9). The Managed runtime is intentionally tool-less
+ * ("prompt-as-context, not agent-as-runtime") — the server pre-decides what
+ * to look up, packs the formatted context into the user message, and lets
+ * the agent emit one structured output.
  *
- * Right now this exports `buildConnectorContext`; Cartographer's variant
- * lands in Step 9.
+ * Connector (Step 8) and Cartographer (Step 9) share the same inlined-
+ * taxonomy + FTS-corpus + VIPS-state shape. Cartographer's pre-fetch is
+ * broader: the FTS query expands beyond the new reflection to also cover
+ * each VIPS page's `open_question`, deduped, because Cartographer's
+ * long-horizon synthesis needs wider recall than Connector's per-reflection
+ * diff.
  */
 import { ECG_TAXONOMY, type EcgTaxonomyEntry } from '~/data/ecg-taxonomy'
 import {
@@ -27,6 +31,15 @@ import {
 
 /** Top-N FTS-matching past mirrors packed into Connector's prompt context. */
 export const CONNECTOR_FTS_LIMIT = 5
+
+/**
+ * Top-N FTS-matching past mirrors packed into Cartographer's prompt context.
+ * Cartographer runs FTS against the new reflection's content AND each VIPS
+ * page's `open_question`; the unioned, deduped result is capped at this
+ * limit. Larger than Connector's limit because Cartographer's job is
+ * long-horizon synthesis, not per-reflection diff (plan §7.1).
+ */
+export const CARTOGRAPHER_FTS_LIMIT = 12
 
 export interface ConnectorContextPayload {
   mirror: {
@@ -104,7 +117,75 @@ export function formatConnectorContext(input: ConnectorContextPayload): string {
     formatNewReflectionBlock(input.mirror),
     formatRecentReflectionsBlock(input.pastMirrors),
     formatVipsPagesBlock(input.pages, input.timeline),
-    TASK_FOOTER,
+    CONNECTOR_TASK_FOOTER,
+  ].join('\n\n')
+}
+
+// ── Cartographer ─────────────────────────────────────────────────────────
+
+export interface CartographerContextPayload {
+  studentId: string
+  pages: VipsPageRow[]
+  timeline: VipsTimelineEntryRow[]
+  pastMirrors: MirrorSearchResult[]
+}
+
+/**
+ * Pre-fetch every piece of context Cartographer's Managed Agents invocation
+ * needs, then format it as a single user-message string.
+ *
+ * Caller must be inside a `withStudent` envelope so the underlying queries
+ * are tenant-scoped (today via the application-level helper, post-Step 2
+ * via Postgres RLS).
+ *
+ * The corpus selection compensates for the loss of dynamic agent-side search
+ * (`search_past_mirrors` is no longer bound as a tool — plan §7.1). Cartographer
+ * runs FTS against each VIPS page's `open_question` text, unions the results,
+ * dedups by mirror id, and caps at `CARTOGRAPHER_FTS_LIMIT`. Pages with empty
+ * `open_question` are skipped (no useful FTS signal). If every page's
+ * open_question is empty, the FTS list is empty and the agent still has the
+ * inlined taxonomies + the pages + timeline to work from.
+ */
+export function buildCartographerContext(studentId: string): string {
+  const pages = listVipsPages(studentId)
+  const timeline = VIPS_DIMENSIONS.flatMap((dim) =>
+    listVipsTimelineEntries(studentId, dim, { includeForgotten: false }),
+  )
+
+  const queries = pages.map((p) => p.open_question.trim()).filter((q) => q.length > 0)
+
+  const seen = new Map<number, MirrorSearchResult>()
+  for (const query of queries) {
+    // Pull a bit more than the cap per-query; the union+dedup may overshoot.
+    const matches = searchMirrors(studentId, query, { limit: CARTOGRAPHER_FTS_LIMIT })
+    for (const row of matches) {
+      if (!seen.has(row.id)) seen.set(row.id, row)
+    }
+  }
+
+  const pastMirrors = Array.from(seen.values())
+    .sort((a, b) => a.score - b.score) // searchMirrors returns ascending bm25 (more-negative = better)
+    .slice(0, CARTOGRAPHER_FTS_LIMIT)
+
+  return formatCartographerContext({ studentId, pages, timeline, pastMirrors })
+}
+
+/**
+ * Pure formatter — exported so unit tests can pin the layout against a
+ * snapshot without touching the DB. Same cache-friendly inlined-taxonomy
+ * prefix as Connector; per-request suffix carries Cartographer's pages +
+ * recent-FTS + timeline + task footer.
+ */
+export function formatCartographerContext(input: CartographerContextPayload): string {
+  return [
+    formatVipsTaxonomyBlock(),
+    formatEcgTaxonomyBlock(),
+    `# Trajectory pass for student ${input.studentId}`,
+    formatVipsPagesBlock(input.pages, input.timeline),
+    formatRecentReflectionsBlock(input.pastMirrors, {
+      heading: `# Recent reflections (FTS top ${CARTOGRAPHER_FTS_LIMIT} over past mirrors, queried by VIPS open questions)`,
+    }),
+    CARTOGRAPHER_TASK_FOOTER,
   ].join('\n\n')
 }
 
@@ -166,16 +247,20 @@ function formatNewReflectionBlock(mirror: ConnectorContextPayload['mirror']): st
   ].join('\n')
 }
 
-function formatRecentReflectionsBlock(pastMirrors: MirrorSearchResult[]): string {
+function formatRecentReflectionsBlock(
+  pastMirrors: MirrorSearchResult[],
+  options: { heading?: string } = {},
+): string {
+  const heading = options.heading ?? '# Recent reflections (FTS top 5 over past mirrors)'
   if (pastMirrors.length === 0) {
-    return '# Recent reflections (FTS top 5 over past mirrors)\n\n(none)'
+    return `${heading}\n\n(none)`
   }
   const lines = pastMirrors.map((row) => {
     const excerpt =
       row.story_reframe.length > 280 ? `${row.story_reframe.slice(0, 280)}…` : row.story_reframe
     return `- [#${row.id}, score=${row.score.toFixed(3)}, ${row.created_at}]: ${excerpt}`
   })
-  return `# Recent reflections (FTS top 5 over past mirrors)\n\n${lines.join('\n')}`
+  return `${heading}\n\n${lines.join('\n')}`
 }
 
 function formatVipsPagesBlock(pages: VipsPageRow[], timeline: VipsTimelineEntryRow[]): string {
@@ -201,5 +286,8 @@ function formatVipsPagesBlock(pages: VipsPageRow[], timeline: VipsTimelineEntryR
   return `# Current VIPS pages\n\n${dimBlocks}`
 }
 
-const TASK_FOOTER =
+const CONNECTOR_TASK_FOOTER =
   '# Task\n\nProduce a ConnectorDiffSchema-shaped proposal. Cite verbatim quotes from the transcript above only. Do NOT emit `reinforces_id`, `partial_match`, `aspirational`, or `parallax_cap_reason` — those are computed by the verifier post-hoc.'
+
+const CARTOGRAPHER_TASK_FOOTER =
+  '# Task\n\nProduce a CartographerOutputSchema-shaped Trajectory page. `trait_combination[].claim_id` MUST appear as a `canonical_claim_id` on one of the current timeline entries above. `ecg_region_tags[]` MUST be cluster-level IDs (`cluster.*`) from the inlined ECG taxonomy. Return 2–5 pathways.'

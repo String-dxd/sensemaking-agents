@@ -28,12 +28,15 @@
 import { run } from '@openai/agents'
 import { z } from 'zod'
 import { buildCartographerAgent } from '~/agents/cartographer'
+import { getManagedAgentBinding, isManagedAgentsEnabled } from '~/agents/config'
+import { buildCartographerContext } from '~/agents/context'
 import {
   type AgentName,
   type RunStepEvent,
   type RunStepEventInput,
   truncate,
 } from '~/agents/run-events'
+import { runManagedAgent } from '~/agents/runner'
 import {
   type CartographerOutputDraft,
   CartographerOutputSchema,
@@ -134,13 +137,19 @@ export async function runCartographerHandler(
     )
     const corpus = formatCorpusForCartographer(sid)
 
-    // ── Invoke Cartographer (real SDK or stub) ─────────────────────────────
+    // ── Invoke Cartographer (real SDK / managed / stub) ────────────────────
+    // Routing precedence mirrors `runAutoConnectorAfterMirror`:
+    //   1. `deps.runCartographer` (test injection — wins over both runtimes).
+    //   2. `USE_MANAGED_AGENTS=true` → Anthropic Managed Agents path.
+    //   3. Default → OpenAI Agents SDK via the v0.1 streaming path.
     emit({ type: 'agent_started', agent: 'cartographer' })
     let rawDraft: unknown
     try {
       rawDraft = deps.runCartographer
         ? await deps.runCartographer({ studentId: sid, pages, timeline, corpus, emit })
-        : await runCartographerViaSdkStreamed({ studentId: sid, pages, timeline, corpus }, emit)
+        : isManagedAgentsEnabled()
+          ? await runCartographerViaManaged({ studentId: sid })
+          : await runCartographerViaSdkStreamed({ studentId: sid, pages, timeline, corpus }, emit)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       emit({ type: 'error', agent: 'cartographer', message: msg })
@@ -352,6 +361,44 @@ async function runCartographerViaSdkStreamed(
   }
   // biome-ignore lint/suspicious/noExplicitAny: SDK stream return shape.
   return (stream as any).finalOutput
+}
+
+/**
+ * Managed Agents path (plan §7.1: prompt-as-context, §8.3: long-running
+ * synthesis). `buildCartographerContext` pre-fetches the inlined taxonomies
+ * + the four VIPS pages + non-forgotten timeline + the FTS slice keyed by
+ * each VIPS page's `open_question`. `runManagedAgent` consumes the session
+ * event stream internally and returns the parsed `CartographerOutputSchema`
+ * payload.
+ *
+ * No intermediate step-events are emitted on this path. The current route
+ * (`run-cartographer.functions.ts`) is a regular `createServerFn` POST that
+ * accumulates events into the response — there is no SSE pipe to a browser,
+ * and the Anthropic SDK does not (yet — see plan §14.9) expose a
+ * Last-Event-ID cursor for client-side reconnect. The 800s overrun case is
+ * the sweep cron's job (plan §8.2, Step 8).
+ *
+ * Caller MUST be inside `withStudent(studentId, ...)`.
+ *
+ * Timeout: Cartographer is the longest-running agent in the v0.2 surface
+ * (plan §10 sets `maxDuration=800` on this route). The 120s default in
+ * `runManagedAgent` is for one-shot Mirror/Connector calls; we bump it to
+ * the route's wall-clock budget here so the runner does not give up before
+ * the platform does.
+ */
+async function runCartographerViaManaged(input: { studentId: string }): Promise<unknown> {
+  const binding = getManagedAgentBinding('cartographer')
+  const prompt = buildCartographerContext(input.studentId)
+  const result = await runManagedAgent({
+    agentId: binding.agentId,
+    ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
+    environmentId: binding.environmentId,
+    prompt,
+    outputSchema: CartographerOutputSchema,
+    sessionTitle: `cartographer:${input.studentId}`,
+    timeoutMs: 780_000,
+  })
+  return result.output
 }
 
 /**
