@@ -16,7 +16,7 @@ import {
   LegacyPathfinderOutputSchema,
 } from '~/agents/schemas'
 import { insertConnectorOutput, insertPathfinderOutput } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
+import { withStudentLegacy } from '~/server/tenancy.server'
 
 export interface RunSensemakingStreamedDeps {
   /**
@@ -59,7 +59,7 @@ export async function runSensemakingStreamed(
     events.push({ ...e, timestampMs: Date.now() - start } as RunStepEvent)
   }
 
-  return withStudent(studentId, async (sid) => {
+  return withStudentLegacy(studentId, async (sid) => {
     const corpus = await formatCorpusForAgent(sid)
 
     // ── Connector ────────────────────────────────────────────────────────

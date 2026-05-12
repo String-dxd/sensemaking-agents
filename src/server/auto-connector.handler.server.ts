@@ -42,7 +42,7 @@ import { VIPS_DIMENSIONS as TAXONOMY_VIPS_DIMENSIONS } from '~/data/vips-taxonom
 import { type TenantContext, withStudent } from '~/db/client'
 import {
   getMirrorEntry,
-  insertVipsProposedDiff,
+  insertVipsProposedDiffIfNoPending,
   listVipsPages,
   listVipsProposedDiffs,
   listVipsTimelineEntries,
@@ -233,38 +233,30 @@ export async function runAutoConnectorAfterMirror(
       downgraded: verifierResult.downgraded,
       dropped: verifierResult.dropped,
     }
-    try {
-      const stagedRow = await insertVipsProposedDiff(
-        studentId,
-        {
-          mirror_entry_id: mirror.id,
-          payload,
-          verifier_result: verifierResult,
-        },
-        { ctx },
-      )
-      return { status: 'ok', staged_diff: stagedRow }
-    } catch (err) {
-      // R30 (Finding #6): the partial-unique index
-      // `vips_proposed_diffs_pending_per_student` rejects a second pending
-      // row for the same student. This closes the TOCTOU window between
-      // the listVipsProposedDiffs check at the top of this handler and
-      // the insert here — a concurrent call may have raced past the same
-      // check. Treat the constraint violation as a `queued` outcome:
-      // return the prior pending row's id so the UI can link to it.
-      if (isPendingPerStudentConstraintViolation(err)) {
-        const priorAfterRace = await listVipsProposedDiffs(studentId, {
-          status: 'pending',
-          ctx,
-        })
-        const prior = priorAfterRace[0]
-        return {
-          status: 'queued' as const,
-          staged_diff: null,
-          ...(prior ? { pending_diff_id: prior.id } : {}),
-        }
-      }
-      throw err
+    // R30 (Finding #6): the partial-unique index
+    // `vips_proposed_diffs_pending_per_student` rejects a second pending
+    // row for the same student. `insertVipsProposedDiffIfNoPending` pushes
+    // the decision into Postgres via INSERT … ON CONFLICT … DO NOTHING, so
+    // the surrounding transaction stays live (a bare INSERT raising
+    // SQLSTATE `25P02` would abort the tx and break the recovery query).
+    // If a concurrent run raced past the same check above, we surface the
+    // existing pending row's id as the `queued` outcome.
+    const insertOutcome = await insertVipsProposedDiffIfNoPending(
+      studentId,
+      {
+        mirror_entry_id: mirror.id,
+        payload,
+        verifier_result: verifierResult,
+      },
+      { ctx },
+    )
+    if (insertOutcome.inserted) {
+      return { status: 'ok' as const, staged_diff: insertOutcome.row }
+    }
+    return {
+      status: 'queued' as const,
+      staged_diff: null,
+      pending_diff_id: insertOutcome.existing.id,
     }
   })
 }
@@ -353,21 +345,6 @@ function mapConnectorErrorToStatus(err: unknown): AutoConnectorResult {
   // eslint-disable-next-line no-console -- ops triage signal
   console.warn('[auto-connector] unknown: unclassified Connector error', { name, status, message })
   return { status: 'unknown', staged_diff: null }
-}
-
-/**
- * Recognize the unique-constraint violation thrown when our partial unique
- * index `vips_proposed_diffs_pending_per_student` rejects a second pending
- * row. We match the index name in the error message; the underlying driver
- * (sqlite or postgres) chooses the SQLSTATE / code, but both surface the
- * constraint name in their message string. TODO(reza-step2-followup): once
- * Postgres is the only target, narrow this to SQLSTATE `23505` + the index
- * name for a tighter check.
- */
-function isPendingPerStudentConstraintViolation(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false
-  const message = (err as { message?: unknown }).message
-  return typeof message === 'string' && message.includes('vips_proposed_diffs_pending_per_student')
 }
 
 /**

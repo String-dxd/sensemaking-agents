@@ -64,15 +64,48 @@ function buildPool(): Pool {
     connectionString: url,
     max: Number(process.env.DATABASE_POOL_MAX ?? 5),
     idleTimeoutMillis: 10_000,
+    // Refuse new requests after 5s of pool starvation rather than queueing forever.
+    connectionTimeoutMillis: 5_000,
   }
   const pool = new Pool(config)
   // No-op outside Vercel's Fluid Compute runtime, but cheap and idempotent.
   try {
     attachDatabasePool(pool)
-  } catch {
-    // attachDatabasePool throws when not running on Vercel; safe to ignore.
+  } catch (err) {
+    // `attachDatabasePool` only works inside Vercel's Fluid Compute runtime
+    // and throws otherwise. Recognise the known "not running on Vercel" shape
+    // by name/message; anything else (e.g. an SDK upgrade that changes the
+    // contract) should bubble up so the regression is observable in logs.
+    if (!isVercelEnvUnavailableError(err)) {
+      // eslint-disable-next-line no-console -- ops triage signal
+      console.warn(
+        '[db/client] attachDatabasePool threw unexpectedly; pool not registered with Vercel runtime',
+        { error: err instanceof Error ? { name: err.name, message: err.message } : err },
+      )
+    }
   }
   return pool
+}
+
+/**
+ * Heuristic match for the "not running on Vercel" failure mode that
+ * `@vercel/functions` raises when `attachDatabasePool` is called outside a
+ * Fluid Compute runtime (local dev, vitest, CI runners). We match by name +
+ * message substring rather than a class import because the SDK does not
+ * export a specific error class for this case.
+ *
+ * If a future SDK upgrade changes the surface, the warn-log in the catch
+ * site will fire and we re-tighten this check then.
+ */
+function isVercelEnvUnavailableError(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  const msg = err.message.toLowerCase()
+  return (
+    msg.includes('not running on vercel') ||
+    msg.includes('attachdatabasepool') ||
+    msg.includes('fluid compute') ||
+    msg.includes('vercel runtime')
+  )
 }
 
 function getDb(): AppDatabase {
@@ -161,11 +194,15 @@ export class CounselorAccessDeniedError extends Error {
 /**
  * Replace the cached pool + Drizzle client with a test-controlled pair. Used
  * by integration tests that spin up a transient Postgres (pg-mem, a Neon dev
- * branch, etc.) and need queries to route through it.
+ * branch, etc.) and need queries to route through it. Pass `null` to clear.
+ *
+ * Single object parameter so the (pool, db) pair stays atomic — earlier
+ * (Pool|null, AppDatabase|null) overload let callers pass a mismatched pair
+ * (one null, one set) which silently broke `getDb()`'s cache invariant.
  */
-export function setDbForTests(pool: Pool | null, db: AppDatabase | null): void {
-  cachedPool = pool
-  cachedDb = db
+export function setDbForTests(handle: { pool: Pool; db: AppDatabase } | null): void {
+  cachedPool = handle?.pool ?? null
+  cachedDb = handle?.db ?? null
 }
 
 /** Close the cached pool. Test-only. */

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { executeSearchPastMirrors } from '~/agents/tools/search-corpus.server'
-import { withStudent } from '~/server/tenancy.server'
+import { withStudentLegacy } from '~/server/tenancy.server'
 
 export const searchPastMirrorsInputSchema = z.object({
   studentId: z.string().min(1),
@@ -12,7 +12,7 @@ export type SearchPastMirrorsServerInput = z.output<typeof searchPastMirrorsInpu
 
 export async function searchPastMirrorsHandler(data: SearchPastMirrorsServerInput) {
   const parsed = searchPastMirrorsInputSchema.parse(data)
-  return withStudent(parsed.studentId, async (sid) =>
+  return withStudentLegacy(parsed.studentId, async (sid) =>
     executeSearchPastMirrors(sid, { query: parsed.query, limit: parsed.limit }),
   )
 }

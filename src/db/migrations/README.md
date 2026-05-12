@@ -22,14 +22,10 @@ This folder holds Drizzle-Kit-generated migration SQL plus its tracking metadata
 
 The `pgPolicy` declarations in `schema.ts` are emitted on first generation but **not auto-tracked for drift** against the live database. If you `CREATE POLICY` manually on a Neon branch, `drizzle-kit generate` will not detect it. Always edit schema.ts first, then generate.
 
-## Initial migration
+## Local dev requirement (Step 2 → Step 3)
 
-To produce the initial migration:
-```bash
-# Point at any reachable Postgres (Neon dev branch is the canonical choice).
-export DATABASE_URL_UNPOOLED="postgres://…?sslmode=require"
-pnpm db:generate
-pnpm db:migrate
-```
+The Postgres port removes the v0.1 fallback to a local SQLite file. **Any code path that touches the DB now requires `DATABASE_URL`** — including unit tests that previously used `openInMemoryDb`. Set it in `.env.local` (Neon dev branch, pooled URL) before running `pnpm dev`, `pnpm test`, or seed scripts. Step 3 reseeds against Postgres and rewrites DB-touching tests; until then, the affected tests are gated behind `describe.skipIf(!process.env.DATABASE_URL)` and silently skip.
 
-The first generation should emit ~13 tables, ~10 indexes, 2 tsvector generated columns, 2 GIN indexes, 1 partial unique index, and RLS policies on every student-scoped table.
+## FORCE ROW LEVEL SECURITY (deferred)
+
+`ALTER TABLE … FORCE ROW LEVEL SECURITY` is **not** emitted today. Without `FORCE`, the table owner bypasses RLS, which is fine for our runtime role (a Neon database user without ownership) but means migration scripts running as the owner could read cross-tenant rows by accident. Promoting to `FORCE` requires splitting roles: a migration role (owner, RLS-bypassing) for `pnpm db:migrate`, and a runtime app role (non-owner, RLS-enforced) for the app's `DATABASE_URL`. Surface for an explicit decision before shipping `ALTER TABLE … FORCE ROW LEVEL SECURITY` in a follow-up migration; do not add the SQL ad-hoc.

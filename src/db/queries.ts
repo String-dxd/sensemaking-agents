@@ -1027,29 +1027,34 @@ async function forgetVipsTimelineEntryInner(
   studentId: string,
   id: number,
 ): Promise<VipsTimelineEntryRow | null> {
-  const existingRows = await ctx.db
-    .select()
-    .from(vipsTimelineEntries)
-    .where(eq(vipsTimelineEntries.id, id))
-    .limit(1)
-  if (existingRows.length === 0) return null
-  const existing = drizzleVipsTimelineRow(requireRow(existingRows, 'select vips_timeline_entries'))
-  if (existing.forgotten_at) return rowToVipsTimelineEntry(existing)
-
-  await ctx.db
+  // Atomic UPDATE-with-RETURNING: only flips `forgotten_at` if it was null,
+  // returning the row only when this caller is the one that performed the
+  // soft-forget. Closes the SELECT-then-UPDATE race where two concurrent
+  // forgets would both pass the `forgotten_at IS NULL` check and double-
+  // increment the counter (Finding #16).
+  const updated = await ctx.db
     .update(vipsTimelineEntries)
     .set({ forgottenAt: sql`now()` })
-    .where(eq(vipsTimelineEntries.id, id))
+    .where(and(eq(vipsTimelineEntries.id, id), isNull(vipsTimelineEntries.forgottenAt)))
+    .returning()
+
+  if (updated.length === 0) {
+    // Either the row doesn't exist OR a concurrent caller already forgot it.
+    // Return whatever is currently there (or null for the not-found case).
+    return getVipsTimelineEntryInner(ctx, id)
+  }
+
+  const updatedRow = drizzleVipsTimelineRow(requireRow(updated, 'update vips_timeline_entries'))
 
   await ctx.db
     .insert(vipsForgetCount)
-    .values({ studentId, dimension: existing.dimension, count: 1 })
+    .values({ studentId, dimension: updatedRow.dimension, count: 1 })
     .onConflictDoUpdate({
       target: [vipsForgetCount.studentId, vipsForgetCount.dimension],
       set: { count: sql`${vipsForgetCount.count} + 1` },
     })
 
-  return getVipsTimelineEntryInner(ctx, id)
+  return rowToVipsTimelineEntry(updatedRow)
 }
 
 /**
@@ -1160,6 +1165,94 @@ async function insertVipsProposedDiffInner(
   const row = await getVipsProposedDiffInner(ctx, id)
   if (!row) throw new Error('insertVipsProposedDiff: inserted row not found')
   return row
+}
+/**
+ * Race-safe insert against the `vips_proposed_diffs_pending_per_student`
+ * partial unique index. R30 says "at most one pending diff per student"; two
+ * concurrent runs can both pass an app-side existence check and race the
+ * insert. We push the decision down to the DB:
+ *
+ *   - INSERT … ON CONFLICT (student_id) WHERE status='pending' DO NOTHING
+ *     — Postgres atomically rejects the second insert without aborting the
+ *     surrounding transaction (unlike the bare INSERT that raises SQLSTATE
+ *     `25P02` and forces a rollback).
+ *   - If `.returning()` yields a row, this caller won the race.
+ *   - If it yields nothing, fetch the existing pending row and return it as
+ *     the `existing` arm of the discriminated union.
+ *
+ * The previous shape (catch on the unique-constraint violation, then
+ * re-query inside the same transaction) cannot work in Postgres: any
+ * exception inside a transaction puts it into the `25P02 aborted` state,
+ * so the recovery query throws too. `onConflictDoNothing` is the only
+ * primitive that keeps the transaction live.
+ */
+export type InsertVipsProposedDiffIfNoPendingResult =
+  | { inserted: true; row: VipsProposedDiffRow }
+  | { inserted: false; existing: VipsProposedDiffRow }
+
+export async function insertVipsProposedDiffIfNoPending(
+  studentId: string,
+  input: InsertVipsProposedDiffInput,
+  opts: { ctx?: TenantContext } = {},
+): Promise<InsertVipsProposedDiffIfNoPendingResult> {
+  if (opts.ctx) return insertVipsProposedDiffIfNoPendingInner(opts.ctx, studentId, input)
+  return withStudent(studentId, (ctx) =>
+    insertVipsProposedDiffIfNoPendingInner(ctx, studentId, input),
+  )
+}
+
+async function insertVipsProposedDiffIfNoPendingInner(
+  ctx: TenantContext,
+  studentId: string,
+  input: InsertVipsProposedDiffInput,
+): Promise<InsertVipsProposedDiffIfNoPendingResult> {
+  const inserted = await ctx.db
+    .insert(vipsProposedDiffs)
+    .values({
+      studentId,
+      mirrorEntryId: input.mirror_entry_id,
+      payloadJson: JSON.stringify(input.payload),
+      verifierResultJson: JSON.stringify(input.verifier_result),
+      status: 'pending',
+    })
+    .onConflictDoNothing({
+      // Partial unique index `vips_proposed_diffs_pending_per_student` is
+      // `UNIQUE (student_id) WHERE status='pending'`; the `where` field below
+      // emits the index-predicate clause so Postgres matches the right index.
+      target: vipsProposedDiffs.studentId,
+      where: sql`status = 'pending'`,
+    })
+    .returning({ id: vipsProposedDiffs.id })
+
+  if (inserted.length > 0) {
+    const id = requireRow(inserted, 'insert').id
+    const row = await getVipsProposedDiffInner(ctx, id)
+    if (!row) throw new Error('insertVipsProposedDiffIfNoPending: inserted row not found')
+    return { inserted: true, row }
+  }
+
+  // No row inserted ⇒ a prior pending row exists for this student. Fetch it
+  // so the caller can surface its id as the `queued` outcome's pending_diff_id.
+  const existingRows = await ctx.db
+    .select()
+    .from(vipsProposedDiffs)
+    .where(and(eq(vipsProposedDiffs.studentId, studentId), eq(vipsProposedDiffs.status, 'pending')))
+    .orderBy(desc(vipsProposedDiffs.createdAt))
+    .limit(1)
+  if (existingRows.length === 0) {
+    // Defensive — the partial unique index rejected our insert but no pending
+    // row is visible. Most likely a between-statements commit elsewhere; treat
+    // as an unrecoverable race.
+    throw new Error(
+      'insertVipsProposedDiffIfNoPending: insert rejected by partial unique index but no pending row is visible',
+    )
+  }
+  return {
+    inserted: false,
+    existing: rowToVipsProposedDiff(
+      drizzleVipsProposedDiffRow(requireRow(existingRows, 'select vips_proposed_diffs')),
+    ),
+  }
 }
 
 export async function getVipsProposedDiff(

@@ -11,6 +11,7 @@ import {
   bigserial,
   check,
   customType,
+  foreignKey,
   index,
   integer,
   pgPolicy,
@@ -64,7 +65,8 @@ export const mirrorEntries = pgTable(
   'mirror_entries',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
-    studentId: text('student_id').notNull().default('demo'),
+    // No default — RLS + withStudent envelope always supplies student_id; missing-studentId should fail loud, not silently land in 'demo'.
+    studentId: text('student_id').notNull(),
     transcript: text('transcript').notNull(),
     validation: text('validation').notNull(),
     inferredMeaning: text('inferred_meaning').notNull(),
@@ -137,7 +139,8 @@ export const connectorOutputs = pgTable(
   'connector_outputs',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
-    studentId: text('student_id').notNull().default('demo'),
+    // No default — RLS + withStudent envelope always supplies student_id; missing-studentId should fail loud, not silently land in 'demo'.
+    studentId: text('student_id').notNull(),
     patternsJson: text('patterns_json').notNull(),
     stillUnclear: text('still_unclear'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -164,7 +167,8 @@ export const pathfinderOutputs = pgTable(
   'pathfinder_outputs',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
-    studentId: text('student_id').notNull().default('demo'),
+    // No default — RLS + withStudent envelope always supplies student_id; missing-studentId should fail loud, not silently land in 'demo'.
+    studentId: text('student_id').notNull(),
     trajectory: text('trajectory').notNull(),
     pathwaysJson: text('pathways_json').notNull(),
     disclaimer: text('disclaimer').notNull(),
@@ -268,8 +272,11 @@ export const vipsTimelineEntries = pgTable(
     }),
     strength: text('strength').notNull(),
     parallaxTagJson: text('parallax_tag_json').notNull(),
-    // Self-reference defined inline; the foreignKey resolver gets the column
-    // by name to break the circular ref.
+    // Self-reference: the FK target is the same table, so we declare the
+    // constraint via `foreignKey` in the table-modifier callback below
+    // (column-level `.references` cannot name its own table at column-init
+    // time). v0.1 SQL was `FOREIGN KEY (reinforces_id) REFERENCES
+    // vips_timeline_entries(id) ON DELETE SET NULL`.
     reinforcesId: bigint('reinforces_id', { mode: 'number' }),
     forgottenAt: timestamp('forgotten_at', { withTimezone: true, mode: 'string' }),
     committedAt: timestamp('committed_at', { withTimezone: true, mode: 'string' })
@@ -284,6 +291,11 @@ export const vipsTimelineEntries = pgTable(
     check('vips_timeline_strength_check', sql.raw("strength IN ('low','medium','high')")),
     index('idx_vips_timeline_student_dim').on(t.studentId, t.dimension, t.committedAt.desc()),
     index('idx_vips_timeline_verbatim_quote_tsv').using('gin', t.verbatimQuoteTsv),
+    foreignKey({
+      columns: [t.reinforcesId],
+      foreignColumns: [t.id],
+      name: 'vips_timeline_entries_reinforces_id_fkey',
+    }).onDelete('set null'),
     pgPolicy('vips_timeline_entries_rls', {
       as: 'permissive',
       for: 'all',
@@ -444,7 +456,9 @@ export const memorySnapshots = pgTable(
       .defaultNow(),
   },
   (t) => [
-    index('idx_memory_snapshots_student_file_version').on(t.studentId, t.filePath, t.version),
+    // (student_id, file_path, version) must be unique — duplicate snapshots
+    // from botched retries would corrupt the rolling-version invariant.
+    uniqueIndex('idx_memory_snapshots_student_file_version').on(t.studentId, t.filePath, t.version),
     pgPolicy('memory_snapshots_rls', {
       as: 'permissive',
       for: 'all',

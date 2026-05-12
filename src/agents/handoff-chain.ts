@@ -14,7 +14,7 @@ import {
   listMirrorEntries,
   type PathfinderOutputRow,
 } from '~/db/queries'
-import { withStudent } from '~/server/tenancy.server'
+import { withStudentLegacy } from '~/server/tenancy.server'
 
 export interface RunSenseMakingResult {
   connector: ConnectorOutputRow
@@ -58,7 +58,7 @@ export async function runSenseMakingForStudent(
   studentId: string,
   deps: RunSenseMakingDeps = {},
 ): Promise<RunSenseMakingResult> {
-  return withStudent(studentId, async (sid) => {
+  return withStudentLegacy(studentId, async (sid) => {
     const corpus = await formatCorpusForAgent(sid)
 
     const connectorDraft =
