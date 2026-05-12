@@ -1,0 +1,48 @@
+{
+  "student_id": "demo-c",
+  "label": "demo-c",
+  "ran_at": "2026-05-12T13:54:22.183Z",
+  "session_id": "sesn_01YXFHr5zAEzeTdK5JKwDQBQ",
+  "agent": {
+    "id": "agent_014PtR7Gc2jTh7V8KvERrppb",
+    "version": 1
+  },
+  "usage": {
+    "inputTokens": 3,
+    "outputTokens": 2120,
+    "cacheReadInputTokens": 0,
+    "cacheCreationInputTokens": 4951
+  },
+  "latency_ms": 43248,
+  "output": {
+    "trajectory_paragraph": "Your four VIPS pages — Values, Interests, Personality, and Skills — are currently empty: no timeline entries, no compiled truths, and no recent reflections have been recorded yet. There is genuinely no pattern to read across the pages at this stage, and it would be misleading to sketch a trajectory from nothing. The pathways below are structural scaffolds only, included because the schema requires at least two entries and because they illustrate what a populated Trajectory page looks like. They carry no evidential weight. The open questions section is the more honest and useful output at this point: it names what your wiki still needs before a real trajectory can be drawn.",
+    "pathways": [
+      {
+        "label": "Placeholder A — pending VIPS evidence",
+        "trait_combination": [],
+        "ecg_region_tags": [
+          "cluster.engineering"
+        ],
+        "risks_tradeoffs": "No VIPS evidence exists yet, so no meaningful tradeoffs can be articulated. Once Values, Interests, Personality, and Skills entries are present, this section would describe concrete decisions a student in Singapore actually faces — for example, whether a JC H2-PCME combination or a polytechnic engineering diploma better fits a mix of hands-on interests and academic ambition, or how choosing mechatronics over civil engineering affects the kinds of internships and NS postings available after graduation. None of that reasoning is possible until the pages are populated.",
+        "exploration_prompt": "Try writing one reflection about a time you built, fixed, or figured out how something worked — what drew you in, what frustrated you, and whether you would choose to do it again."
+      },
+      {
+        "label": "Placeholder B — pending VIPS evidence",
+        "trait_combination": [],
+        "ecg_region_tags": [
+          "cluster.public-service"
+        ],
+        "risks_tradeoffs": "No VIPS evidence exists yet, so no meaningful tradeoffs can be articulated. Once timeline entries are recorded, this section would weigh, for example, whether a student's values around contribution and security sit comfortably with the structured career progression of the civil service, or whether a strong independence orientation might create tension with a system that rewards tenure and consensus — and how that tension plays out differently in a policy analyst role versus a frontline community-development role.",
+        "exploration_prompt": "Try writing one reflection about a time you wanted to change something in your school, family, or community — what problem were you reacting to, and what kind of change felt worth making?"
+      }
+    ],
+    "open_questions": [
+      "What activities or moments outside of class have felt most energising or absorbing — and what specifically made them feel that way?",
+      "What does 'meaningful work' mean to you personally, and can you point to one real example, however small, where you felt you were doing it?",
+      "Which skills do peers, teachers, or family tend to call on you for — and do those overlap with what you actually enjoy doing?",
+      "Are there subjects, roles, or environments you have tried and actively disliked, and what did that aversion tell you about what you value or how you work?",
+      "When you imagine yourself at work ten years from now, what is the texture of the day — who are you with, what problem are you solving, and what would make you feel the day was well spent?"
+    ],
+    "disclaimer": "These are structural placeholder pathways that reflect no actual evidence about you; a genuine Trajectory requires populated VIPS timeline entries before any pattern can honestly be named, and you should return to this page once your wiki has been filled in."
+  }
+}

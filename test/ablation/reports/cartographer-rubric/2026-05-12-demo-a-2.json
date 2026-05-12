@@ -1,0 +1,48 @@
+{
+  "student_id": "demo-a",
+  "label": "demo-a-2",
+  "ran_at": "2026-05-12T13:55:29.014Z",
+  "session_id": "sesn_01BVz7Y4hsioakW5RLaQnu8F",
+  "agent": {
+    "id": "agent_014PtR7Gc2jTh7V8KvERrppb",
+    "version": 1
+  },
+  "usage": {
+    "inputTokens": 3,
+    "outputTokens": 1353,
+    "cacheReadInputTokens": 4951,
+    "cacheCreationInputTokens": 0
+  },
+  "latency_ms": 33446,
+  "output": {
+    "trajectory_paragraph": "Your four VIPS pages — Values, Interests, Personality, and Skills — are currently empty: no timeline entries have been recorded, no compiled-truth claims exist, and no recent reflections were returned by the corpus search. There is no evidence base from which to read a trajectory. The pathways below are therefore placeholder scaffolds only, included solely to satisfy the structural requirement of 2–5 entries; they carry no inferential weight and should be replaced entirely once you have reflected across at least one or two sessions and your VIPS pages begin to accumulate timeline entries. Treat this output as a prompt to start writing, not as a map of where you are going.",
+    "pathways": [
+      {
+        "label": "Placeholder A — awaiting Values + Interests evidence",
+        "trait_combination": [],
+        "ecg_region_tags": [
+          "cluster.public-service"
+        ],
+        "risks_tradeoffs": "No trait evidence has been recorded yet, so no meaningful tradeoff analysis is possible. Once your Values page captures what matters most to you — stability, impact, learning, or something else — and your Interests page records what activities genuinely engage you, a counsellor can help you weigh real tensions: for example, whether a JC–university track or a poly–industry track better fits the pace and hands-on texture you need. At this stage, the cluster tag here is illustrative only.",
+        "exploration_prompt": "What is one decision — about a CCA, a subject choice, or a piece of work — that you made recently, and what did it reveal about what you actually care about?"
+      },
+      {
+        "label": "Placeholder B — awaiting Skills + Personality evidence",
+        "trait_combination": [],
+        "ecg_region_tags": [
+          "cluster.computing"
+        ],
+        "risks_tradeoffs": "Without any Skills or Personality timeline entries, it is not possible to flag real tradeoffs. Skills evidence — such as whether analytical or interpersonal strengths show up more consistently — would determine whether a computing or a people-facing cluster deserves more weight. Similarly, knowing whether you tend to be energised by group settings or prefer solitary deep work would shift the tradeoff calculus for, say, a software-engineering track versus a research-track degree. The cluster tag here is a placeholder.",
+        "exploration_prompt": "Think of a moment in school or outside it when you felt genuinely capable — what were you doing, and what skill did it seem to draw on?"
+      }
+    ],
+    "open_questions": [
+      "What does 'meaningful work' mean to you — is it about impact on others, personal mastery, financial security, or something else entirely?",
+      "Which activities — in class, in CCAs, or outside school — do you find yourself returning to without being told to?",
+      "When you have worked in a group, what role did you naturally drift toward — directing, executing, supporting, or something else?",
+      "Are there any subjects, projects, or problems that you have explored past what the syllabus required, and what drew you there?",
+      "How do you respond to setbacks or high-pressure evaluation — do you notice worry rising sharply, or does pressure tend to focus you?"
+    ],
+    "disclaimer": "These are structural placeholders pointing toward no pattern in particular — meaningful pathways can only be sketched once your VIPS pages hold real timeline evidence from your own reflections."
+  }
+}

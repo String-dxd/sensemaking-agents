@@ -138,13 +138,25 @@ export interface RunManagedAgentOptions<T> {
 
 /**
  * Strip optional ```json ... ``` fences a model might wrap the JSON in.
- * Mirrors `unwrapJsonFence` in `src/agents/tools/self-critique.ts`.
+ *
+ * Two behaviors over the previous anchored-to-edges version:
+ *   - Tolerates leading prose ("Here's the JSON:") before the open fence
+ *   - Tolerates trailing prose ("Hope this helps!") after the close fence
+ *
+ * Anthropic Managed Agents intermittently emits both shapes; the prior
+ * `^...$`-anchored regex left the close fence in place when trailing prose
+ * followed it, and `JSON.parse` then blew up on ``` ``` ```.
+ *
+ * Mirrors the spirit of `unwrapJsonFence` in `src/agents/tools/self-critique.ts`
+ * — keep them roughly in sync if the model's fence behavior shifts further.
  */
 function unwrapJsonFence(text: string): string {
   const trimmed = text.trim()
-  if (trimmed.startsWith('```')) {
-    const withoutOpen = trimmed.replace(/^```(?:json)?\s*/, '')
-    return withoutOpen.replace(/\s*```\s*$/, '').trim()
+  // Non-greedy match between the first ```json/``` opener and the next ```
+  // closer. Anchoring is dropped so prose on either side is ignored.
+  const fenced = trimmed.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
+  if (fenced?.[1] !== undefined) {
+    return fenced[1].trim()
   }
   return trimmed
 }

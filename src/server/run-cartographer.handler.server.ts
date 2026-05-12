@@ -219,6 +219,22 @@ export async function runCartographerHandler(
     const keptPathways: CartographerPathwayDraft[] = []
 
     for (const [idx, pathway] of draft.pathways.entries()) {
+      // Schema now admits empty arrays for trait_combination + ecg_region_tags
+      // (Managed Agents output is structurally legal but sometimes incomplete).
+      // We treat empty as "no anchor" and drop with a warning so the reviewer
+      // sees the agent failed to cite anchors rather than a hard parse fail.
+      if (pathway.trait_combination.length === 0) {
+        warnings.push(
+          `pathway[${idx}] "${pathway.label}" dropped: trait_combination is empty`,
+        )
+        continue
+      }
+      if (pathway.ecg_region_tags.length === 0) {
+        warnings.push(
+          `pathway[${idx}] "${pathway.label}" dropped: ecg_region_tags is empty`,
+        )
+        continue
+      }
       const badClaim = pathway.trait_combination.find((c) => !validClaimIds.has(c.claim_id))
       if (badClaim) {
         warnings.push(

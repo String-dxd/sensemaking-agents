@@ -107,18 +107,24 @@ describe('CartographerOutputSchema — v0.2 shape', () => {
     expect(parsed.success).toBe(false)
   })
 
-  it('rejects a pathway with an empty trait_combination', () => {
+  it('admits a pathway with an empty trait_combination (handler drops it with a warning)', () => {
+    // Managed Agents intermittently emits pathways with empty trait_combination.
+    // The schema admits to keep parse robust; `runCartographerHandler`'s
+    // post-process loop drops such pathways and records a warning. Asserted
+    // separately in `test/server/run-cartographer.test.ts`.
     const parsed = CartographerOutputSchema.safeParse(
       output({ pathways: [pathway({ trait_combination: [] }), pathway({ label: 'B' })] }),
     )
-    expect(parsed.success).toBe(false)
+    expect(parsed.success).toBe(true)
   })
 
-  it('rejects a pathway with an empty ecg_region_tags', () => {
+  it('admits a pathway with an empty ecg_region_tags (handler drops it with a warning)', () => {
+    // Same posture as the trait_combination case above — schema admits,
+    // handler drops + warns.
     const parsed = CartographerOutputSchema.safeParse(
       output({ pathways: [pathway({ ecg_region_tags: [] }), pathway({ label: 'B' })] }),
     )
-    expect(parsed.success).toBe(false)
+    expect(parsed.success).toBe(true)
   })
 
   it('rejects a pathway missing risks_tradeoffs', () => {

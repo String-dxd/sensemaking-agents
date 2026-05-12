@@ -154,8 +154,17 @@ export type CartographerClaimRef = z.infer<typeof CartographerClaimRefSchema>
 
 export const CartographerPathwaySchema = z.object({
   label: z.string().min(1),
-  trait_combination: z.array(CartographerClaimRefSchema).min(1),
-  ecg_region_tags: z.array(z.string()).min(1),
+  // Schema accepts `[]`; the post-process validator in
+  // `run-cartographer.handler.server.ts` drops empty-trait pathways with a
+  // warning so the signal lands in `warnings[]` rather than as a hard parse
+  // failure. Same posture as Connector's `reflection_id` coercion — Managed
+  // Agents' output is structurally legal but sometimes incomplete, and we
+  // prefer per-pathway drops to whole-output rejection.
+  trait_combination: z.array(CartographerClaimRefSchema),
+  // Same posture for ecg_region_tags. The post-process validator drops
+  // pathways whose tags can't be resolved against the closed cluster set
+  // (or, after this change, whose tag list is empty).
+  ecg_region_tags: z.array(z.string()),
   risks_tradeoffs: z.string().min(1),
   exploration_prompt: z.string().min(1),
 })
