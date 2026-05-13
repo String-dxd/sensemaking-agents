@@ -4,20 +4,15 @@
  * TrajectoryPageView). The full compiled-truth paragraph + open-question
  * line + chronological timeline render here.
  *
- * Loader rules:
- *   - `$dimension` must be one of the four canonical VIPS dimensions; any
- *     other value 404s (TanStack's `notFound()` boundary).
- *   - R30 / AE8: if any `vips_proposed_diffs.status='pending'` row exists
- *     for the student, defer to `/reflect/review`. The student must clear
- *     the queue before the library is reachable. Mirrors the library overview
- *     and `/wiki/trajectory` (U11) rules.
+ * Loader rule: `$dimension` must be one of the four canonical VIPS dimensions;
+ * any other value 404s (TanStack's `notFound()` boundary). Pending review no
+ * longer blocks the library; unresolved items live under `/library?filter=need-review`.
  */
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, notFound, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { Button } from '~/components/ui/button'
 import { VipsPageView } from '~/components/VipsPageView'
 import type { VipsDimension } from '~/data/vips-taxonomy'
-import { loadPendingReview } from '~/server/load-pending-review.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 
 const STUDENT_ID = 'me'
@@ -37,17 +32,6 @@ export const Route = createFileRoute('/library/$dimension')({
   loader: async ({ params, context }) => {
     if (!isVipsDimension(params.dimension)) throw notFound()
     const dimension: VipsDimension = params.dimension
-
-    // R30: pending diffs first. We hit the dedicated pending-review fn
-    // (not loadVipsPages) so the redirect decision is one tiny query and
-    // doesn't depend on the library query shape.
-    const pending = await context.queryClient.ensureQueryData({
-      queryKey: ['pending-review', STUDENT_ID],
-      queryFn: () => loadPendingReview({ data: {} }),
-    })
-    if (pending.diff) {
-      throw redirect({ to: '/reflect/review' })
-    }
 
     await context.queryClient.ensureQueryData({
       queryKey: ['vips-pages', STUDENT_ID],

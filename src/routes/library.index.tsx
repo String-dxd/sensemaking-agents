@@ -15,27 +15,29 @@
  * weak-corpus confirm dialog gate cleanly: only on confirm (or count >=
  * 3) do we kick the agent run.
  *
- * R30 enforcement: the loader hits `loadPendingReview` first. Any pending
- * diff bounces to `/reflect/review` before the cards render. Same rule
- * as `/library/$dimension` (U9) and `/wiki/trajectory` (U11) — F1's review
- * queue blocks every wiki surface.
+ * Library owns recorded pages and raw-thought review. The default filter
+ * shows all mirrors; the "Need review" filter surfaces only mirrors that
+ * still need confirm/forget. Connector verifies and applies links itself.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import type { RunStepEvent } from '~/agents/run-events'
+import { finishAgentRun, startAgentRun } from '~/agents/run-status'
 import { AgentRunVisualizer } from '~/components/AgentRunVisualizer'
 import { ConfirmDialog } from '~/components/ConfirmDialog'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import type { VipsDimension } from '~/data/vips-taxonomy'
 import { counsellorBrief } from '~/server/counsellor-brief.functions'
-import { loadPendingReview } from '~/server/load-pending-review.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
+import { loadWiki } from '~/server/load-wiki.functions'
 import { runCartographer } from '~/server/run-cartographer.functions'
+import { bulkUpdateMirrorReview, updateMirrorReview } from '~/server/update-mirror-review.functions'
 
 const STUDENT_ID = 'me'
 const WEAK_CORPUS_THRESHOLD = 3
+type LibraryFilter = 'all' | 'need-review'
 
 const DIMENSION_LABEL: Record<VipsDimension, string> = {
   values: 'Values',
@@ -52,17 +54,21 @@ const DIMENSION_TAGLINE: Record<VipsDimension, string> = {
 }
 
 export const Route = createFileRoute('/library/')({
+  validateSearch: (
+    search,
+  ): {
+    filter?: 'need-review'
+  } => ({
+    filter: search.filter === 'need-review' ? 'need-review' : undefined,
+  }),
   loader: async ({ context }) => {
-    const pending = await context.queryClient.ensureQueryData({
-      queryKey: ['pending-review', STUDENT_ID],
-      queryFn: () => loadPendingReview({ data: {} }),
-    })
-    if (pending.diff) {
-      throw redirect({ to: '/reflect/review' })
-    }
     await context.queryClient.ensureQueryData({
       queryKey: ['vips-pages', STUDENT_ID],
       queryFn: () => loadVipsPages({ data: {} }),
+    })
+    await context.queryClient.ensureQueryData({
+      queryKey: ['wiki', STUDENT_ID],
+      queryFn: () => loadWiki({ data: {} }),
     })
   },
   component: LibraryIndexPage,
@@ -71,6 +77,8 @@ export const Route = createFileRoute('/library/')({
 function LibraryIndexPage() {
   const qc = useQueryClient()
   const navigate = useNavigate()
+  const { filter: searchFilter } = Route.useSearch()
+  const filter: LibraryFilter = searchFilter ?? 'all'
   const [weakCorpusOpen, setWeakCorpusOpen] = useState(false)
 
   const { data, isPending } = useQuery({
@@ -78,10 +86,36 @@ function LibraryIndexPage() {
     queryFn: () => loadVipsPages({ data: {} }),
   })
 
+  const { data: wiki, isPending: wikiIsPending } = useQuery({
+    queryKey: ['wiki', STUDENT_ID],
+    queryFn: () => loadWiki({ data: {} }),
+  })
+
   const sensemake = useMutation({
-    mutationFn: () => runCartographer({ data: {} }),
+    mutationFn: async () => {
+      startAgentRun('cartographer', 'Reading VIPS pages and sketching trajectory pathways.')
+      try {
+        const result = await runCartographer({ data: {} })
+        finishAgentRun(
+          'cartographer',
+          result.ok ? 'succeeded' : 'failed',
+          result.ok
+            ? 'Cartographer generated a trajectory page.'
+            : `Cartographer stopped: ${result.status}.`,
+        )
+        return result
+      } catch (err) {
+        finishAgentRun(
+          'cartographer',
+          'failed',
+          err instanceof Error ? err.message : 'Cartographer failed.',
+        )
+        throw err
+      }
+    },
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['vips-pages', STUDENT_ID] })
+      qc.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] })
       qc.invalidateQueries({ queryKey: ['trajectory', STUDENT_ID] })
       // Navigate only on a successful Cartographer run (ok=true). On
       // schema_reject / no_valid_pathways / agent_error we stay here so
@@ -222,6 +256,18 @@ function LibraryIndexPage() {
         </section>
       ) : null}
 
+      <RecordedThoughtsSection
+        entries={wiki?.entries ?? []}
+        isPending={wikiIsPending}
+        filter={filter}
+        onFilterChange={(next) => {
+          void navigate({
+            to: '/library',
+            search: next === 'need-review' ? { filter: 'need-review' } : {},
+          })
+        }}
+      />
+
       <ConfirmDialog
         open={weakCorpusOpen}
         title="Patterns may be weak"
@@ -235,6 +281,200 @@ function LibraryIndexPage() {
         onCancel={() => setWeakCorpusOpen(false)}
       />
     </section>
+  )
+}
+
+function RecordedThoughtsSection({
+  entries,
+  isPending,
+  filter,
+  onFilterChange,
+}: {
+  entries: Awaited<ReturnType<typeof loadWiki>>['entries']
+  isPending: boolean
+  filter: LibraryFilter
+  onFilterChange: (filter: LibraryFilter) => void
+}) {
+  const qc = useQueryClient()
+  const pendingEntries = entries.filter((entry) => entry.review_status === 'pending')
+  const visibleEntries = filter === 'need-review' ? pendingEntries : entries
+  const totalNeedReview = pendingEntries.length
+
+  const updateOne = useMutation({
+    mutationFn: (input: { entryId: number; status: 'confirmed' | 'forgotten' }) =>
+      updateMirrorReview({ data: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] }),
+  })
+
+  const updateAll = useMutation({
+    mutationFn: (status: 'confirmed' | 'forgotten') => bulkUpdateMirrorReview({ data: { status } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] }),
+  })
+
+  return (
+    <section className="flex flex-col gap-3" data-testid="recorded-thoughts-section">
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Recorded thoughts
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Every reflection you save appears here. Connector links these dots in the VIPS pages
+              after verification.
+            </p>
+          </div>
+          {pendingEntries.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="accent"
+                disabled={updateAll.isPending}
+                onClick={() => updateAll.mutate('confirmed')}
+                data-testid="confirm-all-mirrors"
+              >
+                Confirm all
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={updateAll.isPending}
+                onClick={() => updateAll.mutate('forgotten')}
+                data-testid="forget-all-mirrors"
+              >
+                Forget all
+              </Button>
+            </div>
+          ) : null}
+        </div>
+        <LibraryFilterBar
+          filter={filter}
+          pendingReviewCount={totalNeedReview}
+          onChange={onFilterChange}
+        />
+      </header>
+      {isPending ? <p className="text-sm text-muted-foreground">loading thoughts…</p> : null}
+      {!isPending && visibleEntries.length === 0 && filter === 'all' ? (
+        <div className="rounded-lg border border-border/40 bg-muted/10 p-4 text-sm text-muted-foreground">
+          No thoughts recorded yet.
+        </div>
+      ) : null}
+      {!isPending &&
+      visibleEntries.length === 0 &&
+      filter === 'need-review' &&
+      totalNeedReview === 0 ? (
+        <div className="rounded-lg border border-border/40 bg-muted/10 p-4 text-sm text-muted-foreground">
+          No recorded thoughts are waiting for confirm or forget.
+        </div>
+      ) : null}
+      {visibleEntries.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          {visibleEntries.map((entry) => (
+            <ThoughtReviewCard
+              key={entry.id}
+              entry={entry}
+              onConfirm={() => updateOne.mutate({ entryId: entry.id, status: 'confirmed' })}
+              onForget={() => updateOne.mutate({ entryId: entry.id, status: 'forgotten' })}
+              disabled={updateOne.isPending || updateAll.isPending}
+            />
+          ))}
+        </div>
+      ) : null}
+    </section>
+  )
+}
+
+function LibraryFilterBar({
+  filter,
+  pendingReviewCount,
+  onChange,
+}: {
+  filter: LibraryFilter
+  pendingReviewCount: number
+  onChange: (filter: LibraryFilter) => void
+}) {
+  return (
+    <div
+      className="flex w-fit flex-wrap items-center gap-2 rounded-md border border-border/40 bg-muted/10 p-1"
+      data-testid="library-filter-bar"
+    >
+      <Button
+        type="button"
+        size="sm"
+        variant={filter === 'all' ? 'default' : 'ghost'}
+        onClick={() => onChange('all')}
+        data-testid="library-filter-all"
+      >
+        All mirrors
+      </Button>
+      <Button
+        type="button"
+        size="sm"
+        variant={filter === 'need-review' ? 'default' : 'ghost'}
+        onClick={() => onChange('need-review')}
+        data-testid="library-filter-need-review"
+      >
+        Need review{pendingReviewCount > 0 ? ` (${pendingReviewCount})` : ''}
+      </Button>
+    </div>
+  )
+}
+
+function ThoughtReviewCard({
+  entry,
+  onConfirm,
+  onForget,
+  disabled,
+}: {
+  entry: Awaited<ReturnType<typeof loadWiki>>['entries'][number]
+  onConfirm: () => void
+  onForget: () => void
+  disabled: boolean
+}) {
+  return (
+    <Card data-testid={`mirror-entry-${entry.id}`}>
+      <CardHeader>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <CardTitle>Reflection #{entry.id}</CardTitle>
+            <CardDescription>{new Date(entry.created_at).toLocaleString()}</CardDescription>
+          </div>
+          <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {entry.review_status === 'pending' ? 'needs review' : entry.review_status}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <p className="text-sm leading-relaxed">{entry.story_reframe}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">{entry.transcript}</p>
+        {entry.review_status === 'pending' ? (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="accent"
+              disabled={disabled}
+              onClick={onConfirm}
+              data-testid={`confirm-mirror-${entry.id}`}
+            >
+              Confirm
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled}
+              onClick={onForget}
+              data-testid={`forget-mirror-${entry.id}`}
+            >
+              Forget
+            </Button>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   )
 }
 

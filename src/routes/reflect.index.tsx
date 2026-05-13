@@ -27,13 +27,13 @@ function ReflectPage() {
         </CardHeader>
         <CardContent>
           <MirrorSession
-            onPersisted={(_result) => {
-              // U8: after every persistMirror, route to the post-Mirror
-              // review surface. When `_result.pendingQueued: true` (R30),
-              // the loader will surface the prior pending diff first;
-              // when the auto-Connector returned `ok`, the loader will
-              // surface the just-staged diff.
-              void navigate({ to: '/reflect/review' })
+            onPersisted={() => {
+              // Every newly recorded thought starts in raw-thought review, even
+              // if Connector has no library claims to review yet.
+              void navigate({
+                to: '/library',
+                search: { filter: 'need-review' },
+              })
             }}
           />
         </CardContent>

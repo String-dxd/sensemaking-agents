@@ -12,8 +12,8 @@
  *   4. Parse against `ConnectorDiffSchema`; malformed JSON → `schema_reject`.
  *   5. Flatten the per-dimension diffs into one verifier-shaped
  *      `timeline_entries` list and hand to the verifier (U6).
- *   6. Persist the diff + verifier annotations to `vips_proposed_diffs`
- *      with `status='pending'`; return the staged row to the caller.
+ *   6. Auto-apply verifier-passing entries to the VIPS timeline + page
+ *      summaries, then persist a confirmed audit row.
  *
  * Mirror reflection is NEVER blocked by Connector failure (A11) — the
  * `persistMirror` handler already inserted the mirror entry before invoking
@@ -48,14 +48,20 @@ import { VIPS_DIMENSIONS as TAXONOMY_VIPS_DIMENSIONS } from '~/data/vips-taxonom
 import { type TenantContext, withStudent } from '~/db/client'
 import {
   getMirrorEntry,
-  insertVipsProposedDiffIfNoPending,
+  insertVipsProposedDiff,
+  insertVipsTimelineEntry,
   listVipsPages,
-  listVipsProposedDiffs,
   listVipsTimelineEntries,
+  upsertVipsPage,
   type VipsPageRow,
   type VipsProposedDiffRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
+import {
+  checkOutputForDiagnosticLanguage,
+  checkPersonalityRewriteForDiagnosticLanguage,
+  type SafetyCheckResult,
+} from '~/lib/safety'
 
 /** 30s soft budget per plan Approach ("Wall-clock budget: 30s soft timeout"). */
 export const AUTO_CONNECTOR_TIMEOUT_MS = 30_000
@@ -70,8 +76,9 @@ const VIPS_DIMENSIONS = TAXONOMY_VIPS_DIMENSIONS as readonly ConnectorDimension[
  * `persistMirror`'s response). Closed enum so U8's review surface can
  * render specific copy per outcome.
  *
- * - `ok`: Connector ran, output parsed, verifier ran, diff staged.
- * - `queued`: R30 — a prior `status='pending'` row exists; new run skipped.
+ * - `ok`: Connector ran, output parsed, verifier ran, verified entries applied.
+ * - `queued`: Legacy status retained for old callers; normal Connector runs
+ *   no longer emit it because connections are agent-verified, not user-confirmed.
  * - `timeout`: Connector did not return inside `AUTO_CONNECTOR_TIMEOUT_MS`.
  * - `schema_reject`: Connector returned a payload that failed `ConnectorDiffSchema`
  *   (Zod parse error). The mirror entry is still persisted (A11).
@@ -102,7 +109,7 @@ export type AutoConnectorStatus =
 export interface AutoConnectorResult {
   status: AutoConnectorStatus
   staged_diff: VipsProposedDiffRow | null
-  /** Present when status is 'queued' — the prior pending diff id. */
+  /** Legacy: present only if a caller still returns queued. */
   pending_diff_id?: number
 }
 
@@ -136,17 +143,6 @@ export async function runAutoConnectorAfterMirror(
   deps: AutoConnectorDeps = {},
 ): Promise<AutoConnectorResult> {
   return withStudent(studentId, async (ctx) => {
-    // ── R30 pending-queue rule — check BEFORE invoking the agent. ──
-    const existingPending = await listVipsProposedDiffs(studentId, { status: 'pending', ctx })
-    if (existingPending.length > 0) {
-      const prior = existingPending[0]
-      return {
-        status: 'queued' as const,
-        staged_diff: null,
-        ...(prior ? { pending_diff_id: prior.id } : {}),
-      }
-    }
-
     const mirror = await getMirrorEntry(studentId, mirrorEntryId, { ctx })
     if (!mirror) return { status: 'missing_mirror', staged_diff: null }
 
@@ -265,42 +261,97 @@ export async function runAutoConnectorAfterMirror(
       }
     }
 
-    // ── Step 6: persist staged diff (status='pending'). ──
+    // ── Step 6: auto-apply verified links, then persist audit row. ──
     // Payload carries BOTH the agent's full per-dimension diff (compiled-
     // truth + open_question) AND the verifier's admitted/downgraded/dropped
-    // partitions, so the U8 review surface has one row to render from.
+    // partitions. Admitted + downgraded entries are already verifier-owned,
+    // so they become wiki timeline links immediately. Dropped entries stay
+    // in the audit payload but never become timeline entries.
     const payload = {
       diffs: draft.diffs,
-      admitted: verifierResult.admitted,
-      downgraded: verifierResult.downgraded,
+      admitted: verifierResult.admitted.map((entry) => ({ ...entry, resolved: 'confirmed' })),
+      downgraded: verifierResult.downgraded.map((entry) => ({ ...entry, resolved: 'confirmed' })),
       dropped: verifierResult.dropped,
     }
-    // R30 (Finding #6): the partial-unique index
-    // `vips_proposed_diffs_pending_per_student` rejects a second pending
-    // row for the same student. `insertVipsProposedDiffIfNoPending` pushes
-    // the decision into Postgres via INSERT … ON CONFLICT … DO NOTHING, so
-    // the surrounding transaction stays live (a bare INSERT raising
-    // SQLSTATE `25P02` would abort the tx and break the recovery query).
-    // If a concurrent run raced past the same check above, we surface the
-    // existing pending row's id as the `queued` outcome.
-    const insertOutcome = await insertVipsProposedDiffIfNoPending(
+
+    await applyVerifiedConnectorDiff(studentId, draft, verifierResult, ctx)
+
+    const auditRow = await insertVipsProposedDiff(
       studentId,
       {
         mirror_entry_id: mirror.id,
         payload,
         verifier_result: verifierResult,
+        status: 'confirmed',
       },
       { ctx },
     )
-    if (insertOutcome.inserted) {
-      return { status: 'ok' as const, staged_diff: insertOutcome.row }
-    }
-    return {
-      status: 'queued' as const,
-      staged_diff: null,
-      pending_diff_id: insertOutcome.existing.id,
-    }
+    return { status: 'ok' as const, staged_diff: auditRow }
   })
+}
+
+async function applyVerifiedConnectorDiff(
+  studentId: string,
+  draft: ConnectorDiffDraft,
+  verifierResult: VerifierResult,
+  ctx: TenantContext,
+): Promise<void> {
+  const entries = [...verifierResult.admitted, ...verifierResult.downgraded]
+  const touchedDimensions = new Set<ConnectorDimension>()
+
+  for (const entry of entries) {
+    await insertVipsTimelineEntry(
+      studentId,
+      {
+        dimension: entry.dimension,
+        canonical_claim_id: entry.canonical_claim_id,
+        verbatim_quote: entry.verbatim_quote,
+        reflection_id: entry.reflection_id,
+        strength: entry.strength,
+        parallax_tag: entry.parallax_tag,
+        reinforces_id: entry.reinforces_id ?? null,
+      },
+      { ctx },
+    )
+
+    if (VIPS_DIMENSIONS.includes(entry.dimension as ConnectorDimension)) {
+      touchedDimensions.add(entry.dimension as ConnectorDimension)
+    }
+  }
+
+  for (const dimension of touchedDimensions) {
+    const dimDiff = draft.diffs[dimension]
+    const safety = checkCompiledTruthForDimension(dimension, dimDiff.compiled_truth_rewrite)
+    if (!safety.ok) {
+      // eslint-disable-next-line no-console -- structural log for ops
+      console.warn(
+        '[auto-connector] compiled_truth_rewrite tripped diagnostic-language guard; ' +
+          `skipping vips_pages upsert. student=${studentId} dimension=${dimension} ` +
+          `matches=${JSON.stringify(safety.matches)}`,
+      )
+      continue
+    }
+
+    await upsertVipsPage(
+      studentId,
+      {
+        dimension,
+        compiled_truth: dimDiff.compiled_truth_rewrite,
+        open_question: dimDiff.open_question,
+      },
+      { ctx },
+    )
+  }
+}
+
+function checkCompiledTruthForDimension(
+  dimension: ConnectorDimension,
+  text: string,
+): SafetyCheckResult {
+  if (dimension === 'personality') {
+    return checkPersonalityRewriteForDiagnosticLanguage(text)
+  }
+  return checkOutputForDiagnosticLanguage(text)
 }
 
 /**

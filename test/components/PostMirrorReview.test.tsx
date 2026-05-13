@@ -18,6 +18,9 @@ import { buildReviewEntryId } from '~/server/review-payload-shape'
 // tests we only care about what the buttons fire.
 const confirmMock = vi.fn().mockResolvedValue({ diff: { id: 1, status: 'pending' } })
 const forgetMock = vi.fn().mockResolvedValue({ diff: { id: 1, status: 'pending' } })
+const updateReviewContextMock = vi
+  .fn()
+  .mockResolvedValue({ diff: { id: 1, status: 'pending' }, context_type: 'family' })
 
 vi.mock('~/server/confirm-diff.functions', () => ({
   confirmDiff: (args: unknown) => confirmMock(args),
@@ -25,10 +28,14 @@ vi.mock('~/server/confirm-diff.functions', () => ({
 vi.mock('~/server/forget-diff.functions', () => ({
   forgetDiff: (args: unknown) => forgetMock(args),
 }))
+vi.mock('~/server/update-review-context.functions', () => ({
+  updateReviewContext: (args: unknown) => updateReviewContextMock(args),
+}))
 
 afterEach(() => {
   confirmMock.mockClear()
   forgetMock.mockClear()
+  updateReviewContextMock.mockClear()
 })
 
 function emptyDimDiff(rewrite = '', open = '') {
@@ -255,7 +262,40 @@ describe('PostMirrorReview', () => {
     })
   })
 
-  it('Confirm all button is absent when every entry is already resolved', () => {
+  it('Forget all button fires forget for every pending entry sequentially', async () => {
+    const a = annotatedEntry({
+      dimension: 'values',
+      canonical_claim_id: 'values.a',
+      verbatim_quote: 'q1',
+    })
+    const b = annotatedEntry({
+      dimension: 'interests',
+      canonical_claim_id: 'interests.b',
+      verbatim_quote: 'q2',
+    })
+    const c = annotatedEntry({
+      dimension: 'skills',
+      canonical_claim_id: 'skills.c',
+      verbatim_quote: 'q3',
+      resolved: 'confirmed',
+    })
+    const diff = makeDiff({ admitted: [a, b, c] })
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+
+    const bulkButton = screen.getByTestId('review-forget-all')
+    expect(bulkButton).toHaveTextContent(/Forget all 2/)
+    await userEvent.click(bulkButton)
+
+    await waitFor(() => expect(forgetMock).toHaveBeenCalledTimes(2))
+    expect(forgetMock).toHaveBeenNthCalledWith(1, {
+      data: { diffId: 1, entryId: buildReviewEntryId(a) },
+    })
+    expect(forgetMock).toHaveBeenNthCalledWith(2, {
+      data: { diffId: 1, entryId: buildReviewEntryId(b) },
+    })
+  })
+
+  it('bulk action buttons are absent when every entry is already resolved', () => {
     const a = annotatedEntry({
       dimension: 'values',
       canonical_claim_id: 'values.a',
@@ -266,6 +306,70 @@ describe('PostMirrorReview', () => {
     render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
 
     expect(screen.queryByTestId('review-confirm-all')).toBeNull()
+    expect(screen.queryByTestId('review-forget-all')).toBeNull()
+  })
+
+  it('onlyPending mode hides confirmed, forgotten, and dropped entries', () => {
+    const pending = annotatedEntry({
+      dimension: 'values',
+      canonical_claim_id: 'values.pending',
+      verbatim_quote: 'pending quote',
+    })
+    const confirmed = annotatedEntry({
+      dimension: 'values',
+      canonical_claim_id: 'values.confirmed',
+      verbatim_quote: 'confirmed quote',
+      resolved: 'confirmed',
+    })
+    const forgotten = annotatedEntry({
+      dimension: 'values',
+      canonical_claim_id: 'values.forgotten',
+      verbatim_quote: 'forgotten quote',
+      resolved: 'forgotten',
+    })
+    const dropped = [
+      {
+        entry: {
+          dimension: 'values' as const,
+          canonical_claim_id: 'values.dropped',
+          verbatim_quote: 'dropped quote',
+          reflection_id: 1,
+          strength: 'medium' as const,
+          parallax_tag: ['school' as const],
+        },
+        reason: 'no_quote_match' as const,
+      },
+    ]
+    const diff = makeDiff({ admitted: [pending, confirmed, forgotten], dropped })
+
+    render(<PostMirrorReview studentId="demo" diff={diff} onlyPending />, {
+      wrapper: makeWrapper(),
+    })
+
+    expect(screen.getByText(/pending quote/)).toBeInTheDocument()
+    expect(screen.queryByText('confirmed quote')).toBeNull()
+    expect(screen.queryByText('forgotten quote')).toBeNull()
+    expect(screen.queryByTestId('dropped-section')).toBeNull()
+  })
+
+  it('onlyPending mode lets the student update the inferred context', async () => {
+    const pending = annotatedEntry({
+      dimension: 'values',
+      canonical_claim_id: 'values.pending',
+      verbatim_quote: 'pending quote',
+    })
+    const diff = makeDiff({ admitted: [pending] })
+
+    render(<PostMirrorReview studentId="demo" diff={diff} onlyPending />, {
+      wrapper: makeWrapper(),
+    })
+
+    await userEvent.click(screen.getByTestId('context-option-family'))
+
+    await waitFor(() => expect(updateReviewContextMock).toHaveBeenCalledTimes(1))
+    expect(updateReviewContextMock).toHaveBeenCalledWith({
+      data: { diffId: 1, context_type: 'family' },
+    })
   })
 
   it('renders the right verdict badge per entry (verified / aspirational / partial-match)', () => {

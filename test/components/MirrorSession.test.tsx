@@ -1,7 +1,10 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MirrorSession } from '~/components/MirrorSession'
+import { inferContextType, MirrorSession } from '~/components/MirrorSession'
+import { persistMirror } from '~/server/persist-mirror.functions'
+import { runMirror } from '~/server/run-mirror.functions'
+import { transcribeMirror } from '~/server/transcribe-mirror.functions'
 
 vi.mock('~/server/persist-mirror.functions', () => ({
   persistMirror: vi.fn(),
@@ -167,5 +170,72 @@ describe('MirrorSession recorder lifecycle', () => {
 
     await waitFor(() => expect(trackStop).toHaveBeenCalledTimes(1))
     expect(await screen.findByText('Recorder exploded')).toBeVisible()
+  })
+
+  it('transcribes, infers context, and persists without blocking on context selection', async () => {
+    const trackStop = vi.fn()
+    const onPersisted = vi.fn()
+    installMic(trackStop)
+    vi.mocked(transcribeMirror).mockResolvedValue({
+      transcript: 'I talked with my mum at home.',
+      durationMs: 5,
+    })
+    vi.mocked(runMirror).mockResolvedValue({
+      output: {
+        validation: 'v',
+        inferred_meaning: 'm',
+        story_reframe: 's',
+      },
+    })
+    vi.mocked(persistMirror).mockResolvedValue({
+      mirror_entry: {
+        id: 42,
+        student_id: 'demo',
+        transcript: 'I talked with my mum at home.',
+        validation: 'v',
+        inferred_meaning: 'm',
+        story_reframe: 's',
+        raw_output_json: '{}',
+        context_type: 'family',
+        review_status: 'pending',
+        tags: [],
+        created_at: '2026-05-13T00:00:00Z',
+      },
+      auto_connector_status: 'queued',
+      staged_diff: null,
+      pending_queued: false,
+    })
+
+    render(<MirrorSession onPersisted={onPersisted} />)
+
+    await userEvent.click(screen.getByTestId('start-button'))
+    await screen.findByText(/listening/)
+
+    act(() => {
+      activeRecorder?.ondataavailable?.({ data: new Blob(['audio']) } as BlobEvent)
+    })
+    await userEvent.click(screen.getByTestId('stop-button'))
+
+    await waitFor(() => expect(persistMirror).toHaveBeenCalledTimes(1))
+    expect(screen.queryByTestId('context-type-picker')).toBeNull()
+    expect(persistMirror).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        context_type: 'family',
+      }),
+    })
+    expect(onPersisted).toHaveBeenCalledWith({
+      entryId: 42,
+      stagedDiffPresent: false,
+      autoConnectorStatus: 'queued',
+      pendingQueued: false,
+    })
+  })
+})
+
+describe('inferContextType', () => {
+  it('uses transcript keywords instead of asking the student before save', () => {
+    expect(inferContextType('My friends and classmates were in the group chat')).toBe('peer')
+    expect(inferContextType('I volunteered for a community service project')).toBe('civic')
+    expect(inferContextType('I stayed home talking to my dad')).toBe('family')
   })
 })

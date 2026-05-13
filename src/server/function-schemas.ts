@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { VipsContextTypeSchema } from '~/agents/tools/schemas'
 
 export const confirmDiffInputSchema = z.object({
   diffId: z.number().int().positive(),
@@ -23,6 +24,12 @@ export type ForgetTimelineEntryInput = z.output<typeof forgetTimelineEntryInputS
 export const loadPendingReviewInputSchema = z.object({})
 export type LoadPendingReviewInput = z.output<typeof loadPendingReviewInputSchema>
 
+export const updateReviewContextInputSchema = z.object({
+  diffId: z.number().int().positive(),
+  context_type: VipsContextTypeSchema,
+})
+export type UpdateReviewContextInput = z.output<typeof updateReviewContextInputSchema>
+
 export const loadTrajectoryInputSchema = z.object({})
 export type LoadTrajectoryInput = z.output<typeof loadTrajectoryInputSchema>
 
@@ -36,6 +43,19 @@ export const loadWikiEntryInputSchema = z.object({
   entryId: z.number().int().positive(),
 })
 export type LoadWikiEntryInput = z.output<typeof loadWikiEntryInputSchema>
+
+const MirrorReviewActionSchema = z.enum(['confirmed', 'forgotten'])
+
+export const updateMirrorReviewInputSchema = z.object({
+  entryId: z.number().int().positive(),
+  status: MirrorReviewActionSchema,
+})
+export type UpdateMirrorReviewInput = z.output<typeof updateMirrorReviewInputSchema>
+
+export const bulkUpdateMirrorReviewInputSchema = z.object({
+  status: MirrorReviewActionSchema,
+})
+export type BulkUpdateMirrorReviewInput = z.output<typeof bulkUpdateMirrorReviewInputSchema>
 
 export const runCartographerInputSchema = z.object({})
 export type RunCartographerInput = z.output<typeof runCartographerInputSchema>

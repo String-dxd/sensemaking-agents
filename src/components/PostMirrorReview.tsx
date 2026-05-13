@@ -16,7 +16,12 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useMemo } from 'react'
-import type { VerifierAnnotatedEntry, VerifierDroppedEntry } from '~/agents/tools/schemas'
+import type {
+  VerifierAnnotatedEntry,
+  VerifierDroppedEntry,
+  VipsContextType,
+} from '~/agents/tools/schemas'
+import { ContextTypePicker } from '~/components/ContextTypePicker'
 import { Button } from '~/components/ui/button'
 import type { VipsProposedDiffRow } from '~/db/queries'
 import { confirmDiff } from '~/server/confirm-diff.functions'
@@ -27,6 +32,7 @@ import {
   type ReviewableAnnotatedEntry,
   type ReviewPayload,
 } from '~/server/review-payload-shape'
+import { updateReviewContext } from '~/server/update-review-context.functions'
 
 const DIMENSIONS = ['values', 'interests', 'personality', 'skills'] as const
 type Dimension = (typeof DIMENSIONS)[number]
@@ -41,11 +47,22 @@ const DIMENSION_LABEL: Record<Dimension, string> = {
 export interface PostMirrorReviewProps {
   studentId: string
   diff: VipsProposedDiffRow
-  /** Called after Done is clicked — typically to navigate to /wiki. */
+  /** Called after Done is clicked — typically to navigate back to the library. */
   onDone?: () => void
+  title?: string
+  description?: string
+  /** When embedded in Library's "Need review" filter, hide resolved rows. */
+  onlyPending?: boolean
 }
 
-export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewProps) {
+export function PostMirrorReview({
+  studentId,
+  diff,
+  onDone,
+  title = 'Review',
+  description = "The Connector pulled these claims from your last reflection. Confirm what fits, forget what doesn't. Forgotten entries never reach your library.",
+  onlyPending = false,
+}: PostMirrorReviewProps) {
   const qc = useQueryClient()
   const payload = useMemo(() => parseReviewPayload(diff.payload), [diff.payload])
   const reviewables = useMemo(() => [...payload.admitted, ...payload.downgraded], [payload])
@@ -53,7 +70,15 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
     () => reviewables.filter((e) => e.resolved === 'pending'),
     [reviewables],
   )
+  const visibleReviewables = onlyPending ? pendingEntries : reviewables
+  const inferredContext = firstContextType(pendingEntries) ?? firstContextType(reviewables)
   const allResolved = reviewables.length === 0 || pendingEntries.length === 0
+
+  const invalidateReviewAndLibrary = () => {
+    void qc.invalidateQueries({ queryKey: ['pending-review', studentId] })
+    void qc.invalidateQueries({ queryKey: ['vips-pages', studentId] })
+    void qc.invalidateQueries({ queryKey: ['trajectory', studentId] })
+  }
 
   // Bulk confirm — fires sequentially because each `confirmDiff` mutates the
   // same staged row's `payload_json` inside a transaction. Concurrent confirms
@@ -67,40 +92,96 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
         })
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['pending-review', studentId] }),
+    onSuccess: invalidateReviewAndLibrary,
   })
+
+  const bulkForgetMutation = useMutation({
+    mutationFn: async () => {
+      for (const entry of pendingEntries) {
+        await forgetDiff({
+          data: { diffId: diff.id, entryId: buildReviewEntryId(entry) },
+        })
+      }
+    },
+    onSuccess: invalidateReviewAndLibrary,
+  })
+
+  const updateContextMutation = useMutation({
+    mutationFn: (contextType: VipsContextType) =>
+      updateReviewContext({ data: { diffId: diff.id, context_type: contextType } }),
+    onSuccess: invalidateReviewAndLibrary,
+  })
+
+  const bulkActionPending = bulkConfirmMutation.isPending || bulkForgetMutation.isPending
 
   return (
     <section className="flex flex-col gap-6 py-6" data-testid="post-mirror-review">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Review</h1>
-        <p className="max-w-prose text-sm text-muted-foreground">
-          The Connector pulled these claims from your last reflection. Confirm what fits, forget
-          what doesn’t. Forgotten entries never reach your library.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <p className="max-w-prose text-sm text-muted-foreground">{description}</p>
       </header>
 
-      <div className="flex flex-col gap-8">
-        {DIMENSIONS.map((dim) => (
-          <DimensionGroup
-            key={dim}
-            dimension={dim}
-            diff={diff}
-            payload={payload}
-            studentId={studentId}
-            disableActions={bulkConfirmMutation.isPending}
+      {onlyPending && inferredContext ? (
+        <section
+          className="flex flex-col gap-2 rounded-lg border border-border/40 bg-muted/10 p-4"
+          data-testid="review-context-editor"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Inferred context
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Change this before confirming if the reflection was about something else.
+              </p>
+            </div>
+            {updateContextMutation.isPending ? (
+              <span className="text-xs text-muted-foreground">saving…</span>
+            ) : null}
+            {updateContextMutation.isError ? (
+              <span className="text-xs text-warning" role="alert">
+                {updateContextMutation.error instanceof Error
+                  ? updateContextMutation.error.message
+                  : 'context update failed'}
+              </span>
+            ) : null}
+          </div>
+          <ContextTypePicker
+            label="About"
+            defaultValue={inferredContext}
+            onSelect={(value) => updateContextMutation.mutate(value)}
           />
-        ))}
-      </div>
+        </section>
+      ) : null}
 
-      <DroppedSection dropped={payload.dropped} />
+      {visibleReviewables.length > 0 ? (
+        <div className="flex flex-col gap-8">
+          {DIMENSIONS.map((dim) => (
+            <DimensionGroup
+              key={dim}
+              dimension={dim}
+              diff={diff}
+              payload={payload}
+              entries={visibleReviewables.filter((e) => e.dimension === dim)}
+              studentId={studentId}
+              disableActions={bulkActionPending}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border/40 bg-muted/10 p-4 text-sm text-muted-foreground">
+          Everything in this batch has been reviewed.
+        </div>
+      )}
+
+      {onlyPending ? null : <DroppedSection dropped={payload.dropped} />}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button
           variant="default"
           size="sm"
           onClick={() => onDone?.()}
-          disabled={!allResolved || bulkConfirmMutation.isPending}
+          disabled={!allResolved || bulkActionPending}
           data-testid="review-done"
         >
           Done
@@ -110,7 +191,7 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
             variant="accent"
             size="sm"
             onClick={() => bulkConfirmMutation.mutate()}
-            disabled={bulkConfirmMutation.isPending}
+            disabled={bulkActionPending}
             data-testid="review-confirm-all"
           >
             {bulkConfirmMutation.isPending
@@ -118,7 +199,20 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
               : `Confirm all ${pendingEntries.length}`}
           </Button>
         ) : null}
-        {!allResolved && !bulkConfirmMutation.isPending ? (
+        {pendingEntries.length > 0 ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => bulkForgetMutation.mutate()}
+            disabled={bulkActionPending}
+            data-testid="review-forget-all"
+          >
+            {bulkForgetMutation.isPending
+              ? `Forgetting ${pendingEntries.length}…`
+              : `Forget all ${pendingEntries.length}`}
+          </Button>
+        ) : null}
+        {!allResolved && !bulkActionPending ? (
           <span className="text-xs text-muted-foreground" data-testid="review-done-help">
             Confirm or forget every entry to continue.
           </span>
@@ -134,15 +228,31 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
               : 'confirm all failed'}
           </span>
         ) : null}
+        {bulkForgetMutation.isError ? (
+          <span className="text-xs text-warning" role="alert" data-testid="review-forget-all-error">
+            {bulkForgetMutation.error instanceof Error
+              ? bulkForgetMutation.error.message
+              : 'forget all failed'}
+          </span>
+        ) : null}
       </div>
     </section>
   )
+}
+
+function firstContextType(entries: ReviewableAnnotatedEntry[]): VipsContextType | undefined {
+  for (const entry of entries) {
+    const contextType = entry.parallax_tag[0]
+    if (contextType) return contextType
+  }
+  return undefined
 }
 
 interface DimensionGroupProps {
   dimension: Dimension
   diff: VipsProposedDiffRow
   payload: ReviewPayload
+  entries: ReviewableAnnotatedEntry[]
   studentId: string
   disableActions?: boolean
 }
@@ -151,14 +261,11 @@ function DimensionGroup({
   dimension,
   diff,
   payload,
+  entries,
   studentId,
   disableActions,
 }: DimensionGroupProps) {
   const dimDiff = payload.diffs[dimension]
-  const entries = useMemo(
-    () => [...payload.admitted, ...payload.downgraded].filter((e) => e.dimension === dimension),
-    [payload, dimension],
-  )
 
   if (entries.length === 0) return null
 
@@ -211,7 +318,11 @@ function EntryRow({ entry, diffId, studentId, disableActions }: EntryRowProps) {
   const qc = useQueryClient()
   const entryId = buildReviewEntryId(entry)
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['pending-review', studentId] })
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['pending-review', studentId] })
+    void qc.invalidateQueries({ queryKey: ['vips-pages', studentId] })
+    void qc.invalidateQueries({ queryKey: ['trajectory', studentId] })
+  }
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmDiff({ data: { diffId, entryId } }),

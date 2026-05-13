@@ -42,6 +42,7 @@ export interface ContextTypePickerProps {
    * `localStorage` and falls back to `'school'` for first use.
    */
   defaultValue?: ContextType
+  label?: string
 }
 
 /**
@@ -52,7 +53,11 @@ export interface ContextTypePickerProps {
  * Persistence: the last-used value is mirrored to `localStorage` so the
  * next session pre-highlights it. First use defaults to `school`.
  */
-export function ContextTypePicker({ onSelect, defaultValue }: ContextTypePickerProps) {
+export function ContextTypePicker({
+  onSelect,
+  defaultValue,
+  label = 'What was this about?',
+}: ContextTypePickerProps) {
   const [selected, setSelected] = useState<ContextType>(() => defaultValue ?? readLastUsed())
 
   function handleSelect(value: ContextType) {
@@ -72,9 +77,9 @@ export function ContextTypePicker({ onSelect, defaultValue }: ContextTypePickerP
       className="flex flex-col gap-3"
       data-testid="context-type-picker"
       role="radiogroup"
-      aria-label="What was this about?"
+      aria-label={label}
     >
-      <p className="text-sm text-muted-foreground">What was this about?</p>
+      <p className="text-sm text-muted-foreground">{label}</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         {OPTIONS.map(({ value, label, hint, Icon }) => {
           const isSelected = selected === value

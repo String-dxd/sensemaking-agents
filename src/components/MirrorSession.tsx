@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef } from 'react'
+import { finishAgentRun, startAgentRun } from '~/agents/run-status'
 import { demoSignInHref, workosSignInHref } from '~/auth/demo'
-import { type ContextType, ContextTypePicker } from '~/components/ContextTypePicker'
+import type { ContextType } from '~/components/ContextTypePicker'
 import { Button } from '~/components/ui/button'
 import { persistMirror } from '~/server/persist-mirror.functions'
 import { runMirror } from '~/server/run-mirror.functions'
@@ -18,7 +19,6 @@ type Phase =
   | 'permission-pending'
   | 'recording'
   | 'transcribing'
-  | 'picking-context'
   | 'reflecting'
   | 'persisting'
   | 'done'
@@ -31,12 +31,6 @@ interface State {
   /** Smoothed amplitude for the volume ring [0..1]. */
   amplitude: number
   errorMessage: string | null
-  /**
-   * U7: held between `transcribing` → `picking-context` → `reflecting`. If the
-   * user navigates away during `picking-context`, the transcript is discarded
-   * with the component unmount and no `persistMirror` is invoked.
-   */
-  pendingTranscript: string | null
 }
 
 type Action =
@@ -47,7 +41,6 @@ type Action =
   | { type: 'opening-silence' }
   | { type: 'stop-pressed' }
   | { type: 'transcribing' }
-  | { type: 'picking-context'; transcript: string }
   | { type: 'reflecting' }
   | { type: 'persisting' }
   | { type: 'done' }
@@ -60,7 +53,6 @@ const initialState: State = {
   elapsedMs: 0,
   amplitude: 0,
   errorMessage: null,
-  pendingTranscript: null,
 }
 
 function reduce(state: State, action: Action): State {
@@ -79,8 +71,6 @@ function reduce(state: State, action: Action): State {
       return state.phase === 'recording' ? { ...state, phase: 'transcribing' } : state
     case 'transcribing':
       return { ...state, phase: 'transcribing' }
-    case 'picking-context':
-      return { ...state, phase: 'picking-context', pendingTranscript: action.transcript }
     case 'reflecting':
       return { ...state, phase: 'reflecting' }
     case 'persisting':
@@ -96,7 +86,9 @@ function reduce(state: State, action: Action): State {
 
 export interface MirrorSessionResult {
   entryId: number
-  /** U7 auto-Connector outcome. Callers route on this to /reflect/review.
+  /** True only for legacy pending Connector review rows. */
+  stagedDiffPresent: boolean
+  /** U7 auto-Connector outcome.
    * Finding #7 split the previous catch-all `schema_reject` into discrete
    * failure buckets — add the new strings so the consumer can render a
    * specific error toast per cause. */
@@ -109,18 +101,16 @@ export interface MirrorSessionResult {
     | 'auth_error'
     | 'unknown'
     | 'missing_mirror'
-  /** R30: true iff a prior pending diff caused this run to be queued. */
+  /** Legacy compatibility; Connector no longer waits for user-confirmed diffs. */
   pendingQueued: boolean
 }
 
 export interface MirrorSessionProps {
   /**
    * Called after `persistMirror` succeeds. The callback receives the
-   * mirror-entry id, the auto-Connector status, and the R30 queued flag
-   * so the consumer can decide where to route. In U8 the consumer in
-   * `routes/reflect.tsx` always routes to `/reflect/review` — that
-   * route's loader surfaces the prior pending diff when `pendingQueued`
-   * is true, or the newly-staged diff when the chain returned `ok`.
+   * mirror-entry id and the auto-Connector status. The Connector verifies
+   * and applies links itself; the caller can route to the raw-thought review
+   * filter without waiting on a separate Connector confirmation step.
    */
   onPersisted?: (result: MirrorSessionResult) => void
 }
@@ -170,7 +160,8 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
     if (import.meta.env.DEV && typeof window !== 'undefined') {
       const injected = new URLSearchParams(window.location.search).get('inject')
       if (injected && injected.trim().length > 0) {
-        dispatch({ type: 'picking-context', transcript: injected.trim() })
+        const transcript = injected.trim()
+        void reflectAndPersist(transcript, inferContextType(transcript), operationTokenRef.current)
       }
     }
     return () => {
@@ -447,32 +438,37 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
         return
       }
 
-      // U7: pause at `picking-context` for the student to pick the VIPS
-      // parallax context_type. The chain resumes in `handleContextChosen`.
-      dispatch({ type: 'picking-context', transcript })
+      await reflectAndPersist(transcript, inferContextType(transcript), token)
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
       if (isCurrentOperation(token)) dispatch({ type: 'fail', message })
     } finally {
       // Release media stream regardless of branch — recorder is already stopped.
-      // The Mirror agent + persistMirror run server-side after the picker
-      // selection; no audio is needed beyond this point.
+      // The Mirror agent + persistMirror run server-side after transcription;
+      // no audio is needed beyond this point.
       if (isCurrentOperation(token)) cleanup({ invalidate: false })
       stopInFlightRef.current = false
     }
   }
 
-  async function handleContextChosen(contextType: ContextType) {
-    const transcript = state.pendingTranscript
-    if (!transcript) {
-      dispatch({ type: 'fail', message: 'Lost the transcript before context was chosen.' })
-      return
-    }
+  async function reflectAndPersist(
+    transcript: string,
+    contextType: ContextType,
+    token = operationTokenRef.current,
+  ) {
+    let activeAgent: 'mirror' | 'connector' | null = null
     try {
+      activeAgent = 'mirror'
+      startAgentRun('mirror', 'Reflecting the transcript back to the student.')
       dispatch({ type: 'reflecting' })
       const { output } = await runMirror({ data: { transcript } })
+      finishAgentRun('mirror', 'succeeded', 'Mirror output is ready.')
+      activeAgent = null
+      if (!isCurrentOperation(token)) return
 
+      activeAgent = 'connector'
+      startAgentRun('connector', 'Saving the reflection and checking for VIPS library updates.')
       dispatch({ type: 'persisting' })
       const result = await persistMirror({
         data: {
@@ -484,19 +480,33 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
           },
           context_type: contextType,
           raw_output: output,
-          trace: { capturedDurationMs: state.elapsedMs },
+          trace: {
+            capturedDurationMs: state.elapsedMs,
+            inferredContextType: contextType,
+          },
         },
       })
+      finishAgentRun(
+        'connector',
+        statusForConnectorResult(result.auto_connector_status),
+        detailForConnectorResult(result.auto_connector_status),
+      )
+      activeAgent = null
+      if (!isCurrentOperation(token)) return
 
       dispatch({ type: 'done' })
       onPersisted?.({
         entryId: result.mirror_entry.id,
+        stagedDiffPresent: result.staged_diff?.status === 'pending',
         autoConnectorStatus: result.auto_connector_status,
         pendingQueued: result.pending_queued,
       })
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
+      if (activeAgent) {
+        finishAgentRun(activeAgent, 'failed', message)
+      }
       dispatch({ type: 'fail', message })
     }
   }
@@ -597,15 +607,6 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
 
       <div className="flex w-full max-w-md flex-col items-center gap-3">
         <PhaseLabel phase={state.phase} remainingSec={remainingSec} />
-        {state.phase === 'picking-context' && state.pendingTranscript ? (
-          <div className="flex w-full flex-col gap-3" data-testid="picking-context-block">
-            <div className="rounded-md border border-border/60 bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Here’s what I heard: </span>
-              {state.pendingTranscript}
-            </div>
-            <ContextTypePicker onSelect={(value) => void handleContextChosen(value)} />
-          </div>
-        ) : null}
         <div className="flex items-center gap-3">
           {state.phase === 'idle' ? (
             <Button size="sm" onClick={handleStart} data-testid="start-button">
@@ -647,12 +648,6 @@ function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: numbe
         transcribing what you said…
       </p>
     )
-  if (phase === 'picking-context')
-    return (
-      <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        what was this about?
-      </p>
-    )
   if (phase === 'reflecting')
     return (
       <p className="text-xs text-muted-foreground" data-testid="phase-label">
@@ -662,7 +657,7 @@ function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: numbe
   if (phase === 'persisting')
     return (
       <p className="text-xs text-muted-foreground" data-testid="phase-label">
-        saving to your library…
+        saving to your library + checking Connector…
       </p>
     )
   if (phase === 'done')
@@ -684,6 +679,35 @@ function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: numbe
       </p>
     )
   return null
+}
+
+function statusForConnectorResult(
+  status: MirrorSessionResult['autoConnectorStatus'],
+): 'succeeded' | 'queued' | 'failed' {
+  if (status === 'ok') return 'succeeded'
+  if (status === 'queued') return 'queued'
+  return 'failed'
+}
+
+function detailForConnectorResult(status: MirrorSessionResult['autoConnectorStatus']): string {
+  switch (status) {
+    case 'ok':
+      return 'Connector verified and linked this thought into the library mesh.'
+    case 'queued':
+      return 'Connector queued behind an older run.'
+    case 'timeout':
+      return 'Connector timed out; the raw thought was still saved.'
+    case 'schema_reject':
+      return 'Connector returned an invalid diff; the raw thought was still saved.'
+    case 'transport_error':
+      return 'Connector transport failed; the raw thought was still saved.'
+    case 'auth_error':
+      return 'Connector auth failed; the raw thought was still saved.'
+    case 'missing_mirror':
+      return 'Connector could not find the saved mirror entry.'
+    case 'unknown':
+      return 'Connector failed for an unknown reason; the raw thought was still saved.'
+  }
 }
 
 function blockedSitePermissionMessage(): string {
@@ -749,4 +773,95 @@ async function blobToBase64(blob: Blob): Promise<string> {
   }
   // browser's btoa works on binary strings
   return btoa(binary)
+}
+
+export function inferContextType(transcript: string): ContextType {
+  const text = transcript.toLowerCase()
+  const scores: Record<ContextType, number> = {
+    school: scoreContext(text, [
+      'school',
+      'class',
+      'lesson',
+      'teacher',
+      'homework',
+      'assignment',
+      'exam',
+      'test',
+      'grade',
+      'subject',
+      'math',
+      'science',
+      'english',
+      'cca',
+    ]),
+    family: scoreContext(text, [
+      'family',
+      'home',
+      'parent',
+      'parents',
+      'mum',
+      'mom',
+      'mother',
+      'dad',
+      'father',
+      'sibling',
+      'brother',
+      'sister',
+      'grandparent',
+    ]),
+    peer: scoreContext(text, [
+      'friend',
+      'friends',
+      'classmate',
+      'classmates',
+      'group chat',
+      'hang out',
+      'hangout',
+      'team mate',
+      'teammate',
+      'peer',
+    ]),
+    hobby: scoreContext(text, [
+      'hobby',
+      'side project',
+      'project',
+      'game',
+      'gaming',
+      'music',
+      'drawing',
+      'art',
+      'sport',
+      'coding',
+      'build',
+      'practice',
+      'club',
+    ]),
+    civic: scoreContext(text, [
+      'civic',
+      'community',
+      'volunteer',
+      'service',
+      'neighbourhood',
+      'neighborhood',
+      'charity',
+      'society',
+      'public',
+      'council',
+    ]),
+  }
+
+  return (Object.entries(scores) as Array<[ContextType, number]>).reduce<ContextType>(
+    (best, [context, score]) => (score > scores[best] ? context : best),
+    'school',
+  )
+}
+
+function scoreContext(text: string, keywords: string[]): number {
+  return keywords.reduce((score, keyword) => {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = keyword.includes(' ')
+      ? new RegExp(escaped, 'g')
+      : new RegExp(`\\b${escaped}\\b`, 'g')
+    return score + (text.match(pattern)?.length ?? 0)
+  }, 0)
 }
