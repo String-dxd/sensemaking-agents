@@ -37,9 +37,6 @@ import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import type { VipsPageRow, VipsTimelineEntryRow } from '~/db/queries'
 import { checkPersonalityRewriteForDiagnosticLanguage } from '~/lib/safety'
 
-/** Canonical render order — alias for `VIPS_DIMENSIONS` from the taxonomy. */
-const DIMENSION_ORDER: readonly VipsDimension[] = VIPS_DIMENSIONS
-
 const DIMENSION_HEADING: Record<VipsDimension, string> = {
   values: 'Values',
   interests: 'Interests',
@@ -74,7 +71,7 @@ export function renderCounsellorBrief(input: RenderCounsellorBriefInput): string
 
   sections.push(`# Counsellor Brief — ${input.studentId} — ${today}`)
 
-  for (const dim of DIMENSION_ORDER) {
+  for (const dim of VIPS_DIMENSIONS) {
     sections.push(
       renderDimensionSection(dim, pagesByDimension.get(dim), input.timelineByDimension[dim] ?? []),
     )

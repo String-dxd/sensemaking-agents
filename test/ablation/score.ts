@@ -92,14 +92,13 @@ export function buildAblationReportMarkdown(input: AblationReportInput): string 
 ${input.studentId ? `> **Student:** \`${input.studentId}\`\n` : '> **Student scope:** cross-student union (no `--student=` flag passed)\n'}> **Bar (v0.2):** ON beats OFF by ≥2 points across ≥3 dimensions to "pass."
 ${input.notes ? `> **Notes:** ${input.notes}\n` : ''}`
 
-  const dimsTable =
-    [
-      '## Scoring (0–3 Likert per dimension; fill in by hand)',
-      '',
-      '| Dimension | ON score | OFF score | Δ (ON − OFF) | Pass on this dimension? |',
-      '|-----------|---------:|----------:|-------------:|:------------------------|',
-      ...ABLATION_DIMENSIONS.map((d) => `| ${d} |   |   |   |   |`),
-    ].join('\n') + '\n'
+  const dimsTable = `${[
+    '## Scoring (0–3 Likert per dimension; fill in by hand)',
+    '',
+    '| Dimension | ON score | OFF score | Δ (ON − OFF) | Pass on this dimension? |',
+    '|-----------|---------:|----------:|-------------:|:------------------------|',
+    ...ABLATION_DIMENSIONS.map((d) => `| ${d} |   |   |   |   |`),
+  ].join('\n')}\n`
 
   const verdict = `## Verdict per dimension (Δ ≥2 to "pass" individually)
 
@@ -326,4 +325,3 @@ export function buildStructuredReport(input: BuildStructuredReportInput): Ablati
     notes: input.notes ?? '',
   }
 }
-

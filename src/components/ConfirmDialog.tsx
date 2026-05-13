@@ -1,4 +1,11 @@
-import { useEffect, useRef } from 'react'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '~/components/ui/alert-dialog'
 import { Button } from '~/components/ui/button'
 
 export interface ConfirmDialogProps {
@@ -15,15 +22,9 @@ export interface ConfirmDialogProps {
 
 /**
  * Lightweight modal confirm. Used by the library overview's "Run sense-making"
- * weak-corpus warning (R24 / AE5) — and by VipsPageView's per-entry forget
- * inline confirm pattern lives on its own (smaller, inline; not this).
- *
- * Plain DOM + tailwind because `src/components/ui/` has no Dialog primitive
- * yet. Pulling in shadcn's Dialog would mean adding `@radix-ui/react-dialog`
- * — out of scope for U9 given the dialog is a single yes/cancel surface.
- *
- * A11y: role=dialog + aria-modal, focuses the cancel button on open so
- * the destructive option is never the default-focused element, Esc closes.
+ * weak-corpus warning (R24 / AE5). Built on Base UI AlertDialog via the
+ * shadcn wrapper in `src/components/ui/alert-dialog.tsx` — focus trap,
+ * Escape close, scroll lock, and aria-modal are handled by Base UI.
  */
 export function ConfirmDialog({
   open,
@@ -35,58 +36,28 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
-  const cancelRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    cancelRef.current?.focus()
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onCancel])
-
-  if (!open) return null
   return (
-    // Backdrop is decoration only — Escape closes (keyboard) and the
-    // visible Cancel button stays in tab order. We deliberately avoid a
-    // backdrop-click cancel because pairing onClick on a div with the
-    // corresponding key handler would only mirror the Escape behavior
-    // that's already in place.
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
-      data-testid="confirm-dialog-backdrop"
+    <AlertDialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        // Only treat close transitions as cancel when the parent still
+        // thinks the dialog is open. Without this guard, Base UI fires
+        // `onOpenChange(false)` after `onConfirm` flips `open` to false,
+        // which would re-enter `onCancel` and double-fire the mutation.
+        if (!nextOpen && open) onCancel()
+      }}
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-dialog-title"
-        className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-border bg-background p-5 shadow-lg"
-        data-testid="confirm-dialog"
-      >
-        <div className="flex flex-col gap-2">
-          <h2
-            id="confirm-dialog-title"
-            className="text-base font-semibold leading-tight"
-            data-testid="confirm-dialog-title"
-          >
-            {title}
-          </h2>
+      <AlertDialogContent data-testid="confirm-dialog">
+        <AlertDialogHeader>
+          <AlertDialogTitle data-testid="confirm-dialog-title">{title}</AlertDialogTitle>
           {description ? (
-            <p className="text-sm text-muted-foreground" data-testid="confirm-dialog-description">
+            <AlertDialogDescription data-testid="confirm-dialog-description">
               {description}
-            </p>
+            </AlertDialogDescription>
           ) : null}
-        </div>
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            ref={cancelRef}
-            size="sm"
-            variant="ghost"
-            onClick={onCancel}
-            data-testid="confirm-dialog-cancel"
-          >
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button size="sm" variant="ghost" onClick={onCancel} data-testid="confirm-dialog-cancel">
             {cancelLabel}
           </Button>
           <Button
@@ -97,8 +68,8 @@ export function ConfirmDialog({
           >
             {confirmLabel}
           </Button>
-        </div>
-      </div>
-    </div>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

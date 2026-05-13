@@ -433,6 +433,5 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const result = await runAutoConnectorAfterMirror(STUDENT, mirror.id)
       expect(result.status).toBe('transport_error')
     })
-
   },
 )

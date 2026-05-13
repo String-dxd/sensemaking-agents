@@ -36,7 +36,7 @@ function WikiTrajectoryPage() {
     return (
       <section className="flex flex-col gap-4 py-6">
         <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-          ← Wiki
+          ← Library
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Trajectory</h1>
         <p className="text-sm text-muted-foreground">Run sense-making to see your trajectory.</p>
@@ -56,7 +56,7 @@ function WikiTrajectoryPage() {
   return (
     <section className="flex flex-col gap-6 py-6">
       <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-        ← Wiki
+        ← Library
       </Link>
       <TrajectoryPageView
         trajectoryParagraph={data.trajectory.trajectory_text}

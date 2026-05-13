@@ -1,13 +1,12 @@
+import { Radio } from '@base-ui-components/react/radio'
 import { GraduationCap, Heart, Mic, Sparkles, Users } from 'lucide-react'
 import { useState } from 'react'
-import { Button } from '~/components/ui/button'
+import { type VipsContextType, VipsContextTypeSchema } from '~/agents/tools/schemas'
+import { RadioGroup } from '~/components/ui/radio-group'
+import { readLastUsedContextType, writeLastUsedContextType } from '~/lib/context-type-storage'
 import { cn } from '~/lib/utils'
 
-/** Closed VIPS parallax context vocabulary (R4 / A9). */
-export const CONTEXT_TYPES = ['school', 'family', 'peer', 'hobby', 'civic'] as const
-export type ContextType = (typeof CONTEXT_TYPES)[number]
-
-const LOCAL_STORAGE_KEY = 'sensemaking.context_type.last_used'
+export type ContextType = VipsContextType
 
 interface OptionMeta {
   value: ContextType
@@ -24,17 +23,6 @@ const OPTIONS: OptionMeta[] = [
   { value: 'civic', label: 'Civic', hint: 'community, service', Icon: Mic },
 ]
 
-function readLastUsed(): ContextType {
-  if (typeof window === 'undefined') return 'school'
-  try {
-    const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY)
-    if (raw && (CONTEXT_TYPES as readonly string[]).includes(raw)) return raw as ContextType
-  } catch {
-    // localStorage unavailable (private mode / SSR / etc.) — fall through.
-  }
-  return 'school'
-}
-
 export interface ContextTypePickerProps {
   onSelect: (value: ContextType) => void
   /**
@@ -45,62 +33,62 @@ export interface ContextTypePickerProps {
 }
 
 /**
- * U7 — Context-type picker. Five large-tap buttons covering the closed
- * VIPS parallax vocabulary. One tap fires `onSelect(value)`; the parent is
- * responsible for transitioning the MirrorSession state machine.
+ * U7 — Context-type picker. Five large-tap tiles covering the closed
+ * VIPS parallax vocabulary. Built on Base UI RadioGroup so roving focus
+ * + arrow-key + Home/End navigation + aria-checked semantics come from
+ * the primitive.
  *
  * Persistence: the last-used value is mirrored to `localStorage` so the
  * next session pre-highlights it. First use defaults to `school`.
  */
 export function ContextTypePicker({ onSelect, defaultValue }: ContextTypePickerProps) {
-  const [selected, setSelected] = useState<ContextType>(() => defaultValue ?? readLastUsed())
+  const [selected, setSelected] = useState<ContextType>(
+    () => defaultValue ?? readLastUsedContextType(),
+  )
 
-  function handleSelect(value: ContextType) {
-    setSelected(value)
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(LOCAL_STORAGE_KEY, value)
-      } catch {
-        // best-effort
-      }
-    }
-    onSelect(value)
+  function handleChange(value: unknown) {
+    // Base UI's `RadioGroup.onValueChange` types the payload as `unknown`.
+    // Narrow against the canonical enum before committing.
+    const parsed = VipsContextTypeSchema.safeParse(value)
+    if (!parsed.success) return
+    const next = parsed.data
+    setSelected(next)
+    writeLastUsedContextType(next)
+    onSelect(next)
   }
 
   return (
-    <div
-      className="flex flex-col gap-3"
-      data-testid="context-type-picker"
-      role="radiogroup"
-      aria-label="What was this about?"
-    >
-      <p className="text-sm text-muted-foreground">What was this about?</p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+    <div className="flex flex-col gap-3" data-testid="context-type-picker">
+      <p className="text-sm text-muted-foreground" id="context-type-picker-label">
+        What was this about?
+      </p>
+      <RadioGroup
+        aria-labelledby="context-type-picker-label"
+        value={selected}
+        onValueChange={handleChange}
+        className="grid grid-cols-2 gap-2 sm:grid-cols-5"
+      >
         {OPTIONS.map(({ value, label, hint, Icon }) => {
           const isSelected = selected === value
           return (
-            <Button
+            <Radio.Root
               key={value}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              variant={isSelected ? 'accent' : 'outline'}
-              size="lg"
-              onClick={() => handleSelect(value)}
+              value={value}
               data-testid={`context-option-${value}`}
               data-selected={isSelected ? 'true' : 'false'}
               className={cn(
-                'flex h-auto flex-col items-center justify-center gap-1 px-2 py-3',
-                isSelected ? 'ring-2 ring-accent' : null,
+                'flex h-auto cursor-pointer flex-col items-center justify-center gap-1 rounded-md border border-border bg-background px-2 py-3 transition-colors',
+                'hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                'data-[checked]:bg-accent data-[checked]:text-accent-foreground data-[checked]:ring-2 data-[checked]:ring-accent',
               )}
             >
               <Icon aria-hidden className="h-5 w-5" />
               <span className="text-sm font-medium">{label}</span>
-              <span className="text-[10px] text-muted-foreground">{hint}</span>
-            </Button>
+              <span className="text-[10px] opacity-70">{hint}</span>
+            </Radio.Root>
           )
         })}
-      </div>
+      </RadioGroup>
     </div>
   )
 }

@@ -28,13 +28,7 @@ import {
   updateVipsProposedDiffStatus,
   type VipsProposedDiffRow,
 } from '~/db/queries'
-import {
-  allEntriesResolved,
-  buildReviewEntryId,
-  parseReviewPayload,
-  type ReviewableAnnotatedEntry,
-  type ReviewPayload,
-} from '~/server/review-payload-shape'
+import { allEntriesResolved, locateEntry, parseReviewPayload } from '~/server/review-payload-shape'
 
 export const forgetDiffInputSchema = z.object({
   diffId: z.number().int().positive(),
@@ -98,15 +92,4 @@ export async function forgetDiffHandler(data: ForgetDiffInput): Promise<ForgetDi
     }
     return { diff: updated }
   })
-}
-
-function locateEntry(
-  payload: ReviewPayload,
-  entryId: string,
-): { entry: ReviewableAnnotatedEntry; list: 'admitted' | 'downgraded' } | null {
-  for (const list of ['admitted', 'downgraded'] as const) {
-    const found = payload[list].find((e) => buildReviewEntryId(e) === entryId)
-    if (found) return { entry: found, list }
-  }
-  return null
 }
