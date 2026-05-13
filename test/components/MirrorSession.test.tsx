@@ -198,8 +198,6 @@ describe('MirrorSession (voice-mode controller)', () => {
     })
     persistMock.mockResolvedValue({
       mirror_entry: { id: 42 },
-      auto_connector_status: 'ok',
-      pending_queued: false,
     })
 
     const onPersisted = vi.fn()
@@ -221,9 +219,6 @@ describe('MirrorSession (voice-mode controller)', () => {
     expect(persistMock).toHaveBeenCalledTimes(1)
     expect(onPersisted).toHaveBeenCalledWith({
       entryId: 42,
-      stagedDiffPresent: false,
-      autoConnectorStatus: 'ok',
-      pendingQueued: false,
     })
     expect(api.current?.phase).toBe('done')
   })
@@ -235,8 +230,6 @@ describe('MirrorSession (voice-mode controller)', () => {
     })
     persistMock.mockResolvedValue({
       mirror_entry: { id: 1 },
-      auto_connector_status: 'ok',
-      pending_queued: false,
     })
 
     const onPersisted = vi.fn()

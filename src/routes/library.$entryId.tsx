@@ -1,9 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ConfirmAndSave } from '~/components/ConfirmAndSave'
-import { ConnectorPatternCard } from '~/components/ConnectorPatternCard'
-import { PathfinderPathwaysCard } from '~/components/PathfinderPathwaysCard'
-import { PathfinderTrajectoryCard } from '~/components/PathfinderTrajectoryCard'
+import { ConnectedVipsLinks } from '~/components/ConnectedVipsLinks'
 import { Button } from '~/components/ui/button'
 import { WikiEntryCard } from '~/components/WikiEntryCard'
 import type { MirrorEditableField } from '~/db/queries'
@@ -74,13 +72,7 @@ function WikiEntryPage() {
         <summary className="cursor-pointer text-muted-foreground">Transcript</summary>
         <p className="mt-2 whitespace-pre-wrap leading-relaxed">{data.entry.transcript}</p>
       </details>
-      {data.connector ? <ConnectorPatternCard output={data.connector} /> : null}
-      {data.pathfinder ? (
-        <>
-          <PathfinderTrajectoryCard output={data.pathfinder} />
-          <PathfinderPathwaysCard output={data.pathfinder} />
-        </>
-      ) : null}
+      <ConnectedVipsLinks entries={data.connected_vips_entries} />
     </section>
   )
 }

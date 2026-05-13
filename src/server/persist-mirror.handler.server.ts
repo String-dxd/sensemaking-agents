@@ -1,19 +1,13 @@
 import {
   appendIfNovel,
-  appendStudentMemory,
+  appendStudentMemory as appendStudentMemoryDefault,
   MEMORY_FILE_PATHS,
   type MemoryStoreTransport,
   MemoryWriteError,
 } from '~/agents/memory'
 import { requireCounselorContext } from '~/auth/identity'
-import type { VipsProposedDiffRow } from '~/db/queries'
 import { insertMirrorEntry, type MirrorEntryRow } from '~/db/queries'
 import { checkPayloadForDiagnosticLanguage } from '~/lib/safety'
-import {
-  type AutoConnectorDeps,
-  type AutoConnectorStatus,
-  runAutoConnectorAfterMirror,
-} from '~/server/auto-connector.handler.server'
 import { type PersistMirrorInput, persistMirrorInputSchema } from './mirror-function-schemas'
 
 export class DiagnosticLanguageError extends Error {
@@ -27,19 +21,17 @@ export class DiagnosticLanguageError extends Error {
 
 /**
  * U7-reshaped response. The mirror entry is ALWAYS present on success; the
- * auto-connector result is best-effort and may be `timeout` or
- * `schema_reject` — none of those block persistence (A11).
+ * Connector is no longer invoked during persistence. Manual and scheduled
+ * Connector runs process unconnected entries later.
  */
 export interface PersistMirrorResult {
   mirror_entry: MirrorEntryRow
-  auto_connector_status: AutoConnectorStatus
-  staged_diff: VipsProposedDiffRow | null
-  /** Legacy compatibility; Connector no longer waits for user-confirmed diffs. */
-  pending_queued: boolean
 }
 
 export interface PersistMirrorDeps {
-  autoConnector?: AutoConnectorDeps
+  requireContext?: typeof requireCounselorContext
+  insertMirrorEntry?: typeof insertMirrorEntry
+  appendStudentMemory?: typeof appendStudentMemoryDefault
   /**
    * Override the Anthropic memory-store transport. Default lazily wraps the
    * live SDK. Tests pass an in-memory fake; production leaves unset.
@@ -52,7 +44,7 @@ export async function persistMirrorHandler(
   deps: PersistMirrorDeps = {},
 ): Promise<PersistMirrorResult> {
   const parsed = persistMirrorInputSchema.parse(data)
-  const { studentId } = await requireCounselorContext()
+  const { studentId } = await (deps.requireContext ?? requireCounselorContext)()
 
   // Safety gate: reject diagnostic language at persistence time.
   const safety = checkPayloadForDiagnosticLanguage({
@@ -65,7 +57,8 @@ export async function persistMirrorHandler(
   // Single-call: insertMirrorEntry opens its own withStudent envelope so we
   // don't need to wrap. The auto-connector chain below opens a separate
   // transaction of its own.
-  const mirrorEntry = await insertMirrorEntry(studentId, {
+  const insertMirrorEntryFn = deps.insertMirrorEntry ?? insertMirrorEntry
+  const mirrorEntry = await insertMirrorEntryFn(studentId, {
     transcript: parsed.entry.transcript,
     validation: parsed.entry.validation,
     inferred_meaning: parsed.entry.inferred_meaning,
@@ -89,6 +82,7 @@ export async function persistMirrorHandler(
   // Failure here must not block persistence — the user has already given
   // their reflection and the Mirror entry exists in Postgres. Log + move on.
   try {
+    const appendStudentMemory = deps.appendStudentMemory ?? appendStudentMemoryDefault
     await appendStudentMemory(
       studentId,
       MEMORY_FILE_PATHS.studentVoice,
@@ -114,17 +108,7 @@ export async function persistMirrorHandler(
     })
   }
 
-  // ── Auto-Connector chain (in-process, same round trip per plan Approach) ──
-  const autoResult = await runAutoConnectorAfterMirror(
-    studentId,
-    mirrorEntry.id,
-    deps.autoConnector,
-  )
-
   return {
     mirror_entry: mirrorEntry,
-    auto_connector_status: autoResult.status,
-    staged_diff: autoResult.staged_diff,
-    pending_queued: autoResult.status === 'queued',
   }
 }

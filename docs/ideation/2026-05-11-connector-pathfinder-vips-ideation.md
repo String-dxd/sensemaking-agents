@@ -183,3 +183,142 @@ last_compiled_at: <ISO 8601>
 - What's the v0.2 evaluation rubric? (The v0.1 ablation rubric — 1-2 humans score 0-3 across provenance/specificity/novelty/anti-sycophancy — needs to be reshaped for the wiki-page output.)
 - Does `gpt-5.5` swap require ablation re-baselining? (Yes, almost certainly.)
 - Is there a real MOE counsellor we can talk to before scoping S2's brief shape?
+
+---
+
+## 2026-05-13 Resume Pass: Values + Skills Label Generation
+
+### What has changed since this ideation
+
+The VIPS Wiki Pivot has shipped and `plans/CURRENT_STATE.md` marks it completed by PR #1. The current product has also moved to Anthropic Managed Agents, Postgres/Drizzle, WorkOS tenancy, and a simplified review model:
+
+- Mirror persistence saves the raw thought without waiting on Connector.
+- Connector runs from the Library `Run Connector` action or the scheduled evening pass.
+- Connector proposes per-dimension VIPS diffs against an inlined closed taxonomy.
+- The deterministic verifier admits/downgrades/drops entries.
+- Verifier-passing entries are auto-applied into `vips_timeline_entries` and touched `vips_pages`.
+- The stored `vips_proposed_diffs` row is now a confirmed audit row, not a pending student-review queue.
+- Students review raw Mirror thoughts in Library; they do not confirm each Connector VIPS link.
+
+### How values and skills are generated today
+
+Values and skills are not generated as free-text labels. The server inlines `VIPS_TAXONOMY` into Connector's prompt context, and Connector is instructed to choose `canonical_claim_id` values from that closed list. The current values are:
+
+- `values.contribution`
+- `values.achievement`
+- `values.tradition`
+- `values.security`
+- `values.independence`
+- `values.relationships`
+- `values.wellbeing`
+- `values.learning`
+
+The current skills are:
+
+- `skills.interpersonal`
+- `skills.analytical`
+- `skills.creative`
+- `skills.practical`
+- `skills.leadership`
+- `skills.communication`
+
+Connector also emits a verbatim quote, reflection id, strength, and parallax tags. The verifier then checks that the `canonical_claim_id` belongs to `VIPS_TAXONOMY` for the emitted dimension, checks that the cited quote is present in the cited reflection, applies the parallax cap, and computes `reinforces_id`. Invalid taxonomy IDs drop as `unknown_canonical_claim_id`; this is no longer prompt-only.
+
+### External context
+
+- The user's linked University of Toronto values PDF is best treated as a broad **values word-bank** for reflection, not as a compact canonical taxonomy. It includes overlapping concepts such as Achievement, Balance, Contribution, Growth, Independence, Security, Service, Stability, Teamwork, and Trustworthiness.
+- SkillsFuture Singapore's Critical Core Skills give a stronger source model for skills provenance: 16 transferable skills grouped under Thinking Critically, Interacting with Others, and Staying Relevant.
+- O*NET's content model is another useful source model: it separates basic skills from cross-functional skills such as social, complex problem-solving, technical, systems, and resource-management skills.
+
+Recommendation: keep the compact VIPS IDs as the canonical student-facing labels, but add source/crosswalk metadata so broad terms from lists like the UofT PDF map into the compact vocabulary rather than replacing it.
+
+## Topic Axes
+
+- Taxonomy source and label design
+- Runtime enforcement and verifier gates
+- User/counsellor interpretability
+- Evaluation and observability
+- Plan drift and cleanup
+
+## Ranked Ideas From Resume Pass
+
+### 1. Canonical-ID verifier gate
+**Description:** Add a verifier phase that rejects Connector entries whose `canonical_claim_id` is not present in `VIPS_TAXONOMY` for the emitted dimension. Add an `unknown_canonical_claim_id` drop reason and a locked test where the quote matches but the ID is invented.
+**Axis:** Runtime enforcement and verifier gates
+**Basis:** `direct:` `canonical_claim_id` is parsed as a non-empty string in Connector schemas, then verifier-enforced against `VIPS_TAXONOMY` by dimension.
+**Rationale:** The architecture promises a closed vocabulary. That should be enforced in code, not only in prompt text.
+**Downsides:** Requires a small schema/test update and a decision about whether invalid IDs are verifier drops or schema rejects.
+**Confidence:** 94%
+**Complexity:** Low
+**Status:** Implemented in the 2026-05-13 agent-boundary/handoff pass
+
+### 2. Source-aware taxonomy crosswalks
+**Description:** Extend each VIPS taxonomy entry with source-family metadata, synonyms, and crosswalk terms. For example, UofT-style `Balance` can map to `values.wellbeing`; `Service` and `Making a difference` can map to `values.contribution`; SkillsFuture `Problem Solving` can map toward `skills.analytical` or `skills.practical` depending on evidence.
+**Axis:** Taxonomy source and label design
+**Basis:** `external:` UofT's list is a broad values word-bank; SkillsFuture CCS and O*NET provide structured skills vocabularies. `direct:` `vips-taxonomy.ts` has header-level source notes but no per-entry source or crosswalk fields.
+**Rationale:** This answers "is it from this list?" honestly: not copied wholesale, but mappable. It also gives future prompts and counsellor briefs better provenance.
+**Downsides:** Content curation work; needs discipline not to bloat the canonical set.
+**Confidence:** 88%
+**Complexity:** Medium
+**Status:** Unexplored
+
+### 3. "No label fits" feedback loop
+**Description:** Add a non-user-facing channel for Connector to record taxonomy misses: moments where evidence seems relevant to values/skills but no canonical ID fits well enough to emit. Store only compact summaries, not student-facing claims.
+**Axis:** Evaluation and observability
+**Basis:** `direct:` Connector is told to leave a claim out if no taxonomy ID fits, but those omissions are invisible.
+**Rationale:** This creates the raw material for improving the taxonomy without encouraging free-label output in the main timeline.
+**Downsides:** Must be carefully prompted and capped so it does not become a speculative shadow profile.
+**Confidence:** 82%
+**Complexity:** Medium
+**Status:** Unexplored
+
+### 4. Label-fit confidence separate from evidence strength
+**Description:** Split "the quote is strong evidence" from "the canonical label is a strong fit." Keep `strength` for evidence/parallax, and add a small `label_fit: low | medium | high` or verifier annotation for taxonomy ambiguity.
+**Axis:** Runtime enforcement and verifier gates
+**Basis:** `reasoned:` A quote can be real and specific while still being ambiguous between `values.learning` and `skills.analytical`, or between `skills.interpersonal` and `interests.social`.
+**Rationale:** This directly addresses values/skills ambiguity without abandoning auto-apply. The system can say "real evidence, tentative label."
+**Downsides:** Schema/UI change; should wait until the canonical-ID gate lands.
+**Confidence:** 74%
+**Complexity:** Medium
+**Status:** Unexplored
+
+### 5. Values/skills regression and ablation slice
+**Description:** Add a small locked fixture set for values and skills: aspirational values vs operative behavior, skill vs interest ambiguity, and weak/strong label-fit examples. Report admitted IDs by dimension, not only aggregate Connector success.
+**Axis:** Evaluation and observability
+**Basis:** `direct:` earlier ideation identified values-from-text as the hardest dimension; reports expose admitted canonical IDs and now include an explicit `dropped_unknown_canonical_claim_id` bucket for invalid labels.
+**Rationale:** The next quality jump needs measurement around exactly the user-raised concern: where these labels come from and whether they are justified.
+**Downsides:** Human-scored fixtures take time; poor fixtures would create false confidence.
+**Confidence:** 86%
+**Complexity:** Medium
+**Status:** Unexplored
+
+### 6. Plan-drift cleanup note
+**Description:** Update planning/docs language so future agents do not treat the old staged Connector review model as current product truth. The shipped model is auto-apply plus confirmed audit row; raw Mirror thought review is the student-facing control surface.
+**Axis:** Plan drift and cleanup
+**Basis:** `direct:` `CURRENT_STATE.md` and README describe the auto-apply model, while the historical plan still includes staged-review requirements and legacy confirm/forget diff handlers remain.
+**Rationale:** This prevents accidental reintroduction of pending-review assumptions during future work.
+**Downsides:** Documentation-only unless followed by legacy code cleanup.
+**Confidence:** 90%
+**Complexity:** Low
+**Status:** Implemented for current README/CURRENT_STATE/taxonomy docs in the 2026-05-13 agent-boundary/handoff pass; legacy code cleanup remains separate.
+
+## Rejection Summary From Resume Pass
+
+| # | Idea | Reason rejected |
+|---|------|-----------------|
+| R1 | Replace current Values with the UofT list | Scope overrun; the PDF is a broad reflection word-bank, not a compact verified-claim taxonomy. |
+| R2 | Add free-text custom values | Violates the closed-vocabulary architecture and weakens Cartographer references. |
+| R3 | Decompose Skills directly into all 16 SkillsFuture CCS | Better as source crosswalk first; adult workforce language may overfit student reflections. |
+| R4 | Make students confirm every Connector claim again | Reverses the current product simplification; verifier-plus-explainability is the cleaner next move. |
+| R5 | Remove legacy confirm-diff handlers immediately | Useful cleanup, but lower leverage than closing canonical-ID enforcement first. |
+| R6 | Source families in counsellor brief only | Too downstream; source metadata should start in the taxonomy. |
+| R7 | Serialize Connector/Cartographer pre-fetch queries | Real reliability follow-up from `docs/followups.md`, but adjacent to label generation. |
+
+## Recommended Next Move
+
+The canonical-ID verifier gate has now landed. The next taxonomy-quality move is **source-aware taxonomy crosswalks** as a small content/data PR:
+
+1. Add lightweight crosswalk metadata for Values and Skills so future prompts/docs can explain where labels come from.
+2. Map UofT-style values words into the compact runtime values without expanding the canonical ID set.
+3. Map SkillsFuture CCS terms into the six compact skill clusters, preserving the CCS source-family reference.
+4. Add label-fit evaluation examples for values-vs-skills and skills-vs-interests ambiguity.

@@ -33,6 +33,7 @@ import { counsellorBrief } from '~/server/counsellor-brief.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 import { loadWiki } from '~/server/load-wiki.functions'
 import { runCartographer } from '~/server/run-cartographer.functions'
+import { runConnector } from '~/server/run-connector.functions'
 import { bulkUpdateMirrorReview, updateMirrorReview } from '~/server/update-mirror-review.functions'
 
 const STUDENT_ID = 'me'
@@ -89,6 +90,33 @@ function LibraryIndexPage() {
   const { data: wiki, isPending: wikiIsPending } = useQuery({
     queryKey: ['wiki', STUDENT_ID],
     queryFn: () => loadWiki({ data: {} }),
+  })
+
+  const connector = useMutation({
+    mutationFn: async () => {
+      startAgentRun('connector', 'Connecting recent reflections to VIPS pages.')
+      try {
+        const result = await runConnector({ data: {} })
+        finishAgentRun(
+          'connector',
+          result.status === 'ok' || result.status === 'nothing_to_run' ? 'succeeded' : 'failed',
+          connectorStatusCopy(result.status, result.processed, result.remaining),
+        )
+        return result
+      } catch (err) {
+        finishAgentRun(
+          'connector',
+          'failed',
+          err instanceof Error ? err.message : 'Connector failed.',
+        )
+        throw err
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['vips-pages', STUDENT_ID] })
+      qc.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] })
+      qc.invalidateQueries({ queryKey: ['trajectory', STUDENT_ID] })
+    },
   })
 
   const sensemake = useMutation({
@@ -206,6 +234,16 @@ function LibraryIndexPage() {
       <div className="flex flex-wrap items-center gap-3">
         <Button
           size="sm"
+          variant="accent"
+          onClick={() => connector.mutate()}
+          disabled={connector.isPending}
+          data-testid="run-connector"
+          title="Run Connector over recent unconnected reflections"
+        >
+          {connector.isPending ? 'connecting…' : 'Run Connector'}
+        </Button>
+        <Button
+          size="sm"
           variant="outline"
           onClick={onRunClicked}
           disabled={sensemake.isPending}
@@ -225,6 +263,20 @@ function LibraryIndexPage() {
         {sensemake.isError ? (
           <span className="text-xs text-warning" role="alert">
             {sensemake.error instanceof Error ? sensemake.error.message : 'sense-making failed'}
+          </span>
+        ) : null}
+        {connector.isSuccess ? (
+          <span className="text-xs text-muted-foreground" data-testid="run-connector-status">
+            {connectorStatusCopy(
+              connector.data.status,
+              connector.data.processed,
+              connector.data.remaining,
+            )}
+          </span>
+        ) : null}
+        {connector.isError ? (
+          <span className="text-xs text-warning" role="alert">
+            {connector.error instanceof Error ? connector.error.message : 'Connector failed'}
           </span>
         ) : null}
         <ExportCounsellorBriefLink studentId={STUDENT_ID} />
@@ -320,8 +372,8 @@ function RecordedThoughtsSection({
               Recorded thoughts
             </h2>
             <p className="text-xs text-muted-foreground">
-              Every reflection you save appears here. Connector links these dots in the VIPS pages
-              after verification.
+              Every reflection you save appears here. Connector links these dots into VIPS pages
+              when you run it or during the evening pass.
             </p>
           </div>
           {pendingEntries.length > 0 ? (
@@ -476,6 +528,27 @@ function ThoughtReviewCard({
       </CardContent>
     </Card>
   )
+}
+
+function connectorStatusCopy(status: string, processed: number, remaining: number): string {
+  switch (status) {
+    case 'ok':
+      return `Connector linked ${processed} ${processed === 1 ? 'reflection' : 'reflections'}.`
+    case 'nothing_to_run':
+      return 'Connector found no unconnected reflections.'
+    case 'partial':
+      return `Connector linked what it could; ${remaining} still waiting.`
+    case 'timeout':
+      return 'Connector timed out before linking a reflection.'
+    case 'schema_reject':
+      return 'Connector returned an invalid diff.'
+    case 'transport_error':
+      return 'Connector transport failed.'
+    case 'auth_error':
+      return 'Connector auth failed.'
+    default:
+      return 'Connector stopped before finishing.'
+  }
 }
 
 /**

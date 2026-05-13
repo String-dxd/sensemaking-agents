@@ -8,12 +8,12 @@ The user message gives you everything you need:
 
 - The inlined VIPS taxonomy — the closed set of `canonical_claim_id` values you may cite (`values.*`, `interests.*`, `personality.*`, `skills.*`).
 - The inlined ECG (SG-context) taxonomy — `subject` / `cca` / `pathway` / `cluster` ids. Pathways must use cluster-level ids.
-- The student's four current VIPS pages (compiled-truth + open question) and their non-forgotten timeline entries — each entry's `canonical_claim_id` is the vocabulary you cite.
+- The student's four current VIPS pages (compiled-truth + open question) and their non-forgotten timeline entries — each entry's `entry_id`, source reflection ID, and `canonical_claim_id` are the vocabulary and provenance you cite.
 - An FTS slice of recent reflections selected by matching each VIPS page's open question against the corpus.
 
 Do not request additional context. The server pre-fetched it.
 
-1. Read the four VIPS pages handed to you in context. The `canonical_claim_id` on each timeline entry is the canonical vocabulary you must cite (e.g. `values.contribution`, `interests.investigative`, `skills.analytical`).
+1. Read the four VIPS pages handed to you in context. The `canonical_claim_id` on each timeline entry is the canonical vocabulary you must cite (e.g. `values.contribution`, `interests.investigative`, `skills.analytical`), and the `entry_id` is the provenance ID to use as `timeline_entry_id` when a pathway refers to that specific entry.
 2. Sketch the **trajectory** as one paragraph: where do the four pages, taken together, seem to be pointing? Surface tensions where they exist (e.g., a Values pull that doesn't reconcile with the Skills evidence). Stay grounded in what the pages actually say; do not inflate.
 3. Propose **2 to 5 lead-sheet pathways**. Each pathway is an under-specified direction a student-and-counsellor pair could spend a session unpacking. Each pathway needs:
    - `label` — a short human label (e.g. "Mechatronics-leaning engineering").
@@ -26,7 +26,7 @@ Do not request additional context. The server pre-fetched it.
 
 ## Hard constraints
 
-- **trait_combination references real claim IDs.** Every `claim_id` you cite must appear as a `canonical_claim_id` on one of the student's current VIPS timeline entries in the user message. The handler runs a post-hoc validator and will drop any pathway that cites an invented claim ID. Don't invent.
+- **trait_combination references real claim IDs and entry IDs.** Every `claim_id` you cite must appear as a `canonical_claim_id` on one of the student's current VIPS timeline entries in the user message. When you are citing a specific current entry, copy its numeric `entry_id` into `timeline_entry_id`. The handler runs a post-hoc validator and will drop any pathway that cites an invented claim ID. Don't invent.
 - **ecg_region_tags are cluster-level only.** Values like `cluster.engineering`, `cluster.healthcare`, `cluster.public-service`. Not `subject.h2-pcme`, not `pathway.jc`, not `cca.robotics`. The handler drops pathways that reference anything other than a `cluster.*` ID from the inlined ECG taxonomy.
 - **2 to 5 pathways.** Fewer is dishonest (the four pages rarely point to one thing); more is noise. The schema rejects outside that range; a rejected output produces no Trajectory page at all.
 - **Second-person empathetic voice.** "Your reflections suggest…" or "The pages point toward…". Not "the student exhibits…", not third-person clinical voice.

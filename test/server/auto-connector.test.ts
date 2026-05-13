@@ -73,7 +73,7 @@ describe.skipIf(!process.env.DATABASE_URL)('runAutoConnectorAfterMirror — happ
           open_question: 'Does the same pattern hold in collaborative settings?',
           new_timeline_entries: [
             {
-              canonical_claim_id: 'values.self_direction',
+              canonical_claim_id: 'values.independence',
               verbatim_quote: 'i hated when teacher told us exactly what to do',
               reflection_id: mirror.id,
               strength: 'medium' as const,
@@ -261,7 +261,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             open_question: '',
             new_timeline_entries: [
               {
-                canonical_claim_id: 'values.self_direction',
+                canonical_claim_id: 'values.independence',
                 // Not present in the transcript anywhere.
                 verbatim_quote: 'completely fabricated quote about nothing',
                 reflection_id: mirror.id,

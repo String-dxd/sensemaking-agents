@@ -40,7 +40,7 @@ function makeTimeline(): VipsTimelineEntryRow[] {
       id: 1,
       student_id: 'demo',
       dimension: 'values',
-      canonical_claim_id: 'values.self_direction',
+      canonical_claim_id: 'values.independence',
       verbatim_quote: 'i wanted to figure it out without help',
       reflection_id: 7,
       strength: 'medium',

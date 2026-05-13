@@ -16,7 +16,7 @@
 
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import type { VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
-import { type TenantContext, withStudent } from './client'
+import { getDbForMemoryModule, type TenantContext, withStudent } from './client'
 import {
   agentTraces,
   cartographerOutputs,
@@ -450,6 +450,35 @@ export async function getMirrorEntry(
 ): Promise<MirrorEntryRow | null> {
   if (opts.ctx) return getMirrorEntryInner(opts.ctx, id)
   return withStudent(studentId, (ctx) => getMirrorEntryInner(ctx, id))
+}
+
+export async function listUnconnectedMirrorEntries(
+  studentId: string,
+  opts: { limit?: number; ctx?: TenantContext } = {},
+): Promise<MirrorEntryRow[]> {
+  if (opts.ctx) return listUnconnectedMirrorEntriesInner(opts.ctx, opts.limit)
+  return withStudent(studentId, (ctx) => listUnconnectedMirrorEntriesInner(ctx, opts.limit))
+}
+
+async function listUnconnectedMirrorEntriesInner(
+  ctx: TenantContext,
+  limit: number | undefined,
+): Promise<MirrorEntryRow[]> {
+  const [entries, proposedDiffs] = await Promise.all([
+    listMirrorEntriesInner(ctx, undefined, false),
+    listVipsProposedDiffsInner(ctx, undefined),
+  ])
+  const attemptedMirrorIds = new Set(proposedDiffs.map((diff) => diff.mirror_entry_id))
+  const unconnected = entries.filter((entry) => !attemptedMirrorIds.has(entry.id))
+  return limit === undefined ? unconnected : unconnected.slice(0, limit)
+}
+
+export async function listAttachedStudentIds(): Promise<string[]> {
+  const db = getDbForMemoryModule()
+  const rows = await db.execute<{ student_id: string }>(
+    sql`select distinct student_id from counselor_students order by student_id asc`,
+  )
+  return rows.rows.map((row) => row.student_id)
 }
 
 async function getMirrorEntryInner(ctx: TenantContext, id: number): Promise<MirrorEntryRow | null> {
@@ -1096,6 +1125,42 @@ async function listVipsTimelineEntriesInner(
   const where = includeForgotten
     ? eq(vipsTimelineEntries.dimension, dimension)
     : and(eq(vipsTimelineEntries.dimension, dimension), isNull(vipsTimelineEntries.forgottenAt))
+  const rows = await ctx.db
+    .select()
+    .from(vipsTimelineEntries)
+    .where(where)
+    .orderBy(desc(vipsTimelineEntries.committedAt))
+  return rows.map((r: DrizzleVipsTimelineRow) => rowToVipsTimelineEntry(drizzleVipsTimelineRow(r)))
+}
+
+export async function listVipsTimelineEntriesByReflectionId(
+  studentId: string,
+  reflectionId: number,
+  opts: { includeForgotten?: boolean; ctx?: TenantContext } = {},
+): Promise<VipsTimelineEntryRow[]> {
+  if (opts.ctx) {
+    return listVipsTimelineEntriesByReflectionIdInner(
+      opts.ctx,
+      reflectionId,
+      !!opts.includeForgotten,
+    )
+  }
+  return withStudent(studentId, (ctx) =>
+    listVipsTimelineEntriesByReflectionIdInner(ctx, reflectionId, !!opts.includeForgotten),
+  )
+}
+
+async function listVipsTimelineEntriesByReflectionIdInner(
+  ctx: TenantContext,
+  reflectionId: number,
+  includeForgotten: boolean,
+): Promise<VipsTimelineEntryRow[]> {
+  const where = includeForgotten
+    ? eq(vipsTimelineEntries.reflectionId, reflectionId)
+    : and(
+        eq(vipsTimelineEntries.reflectionId, reflectionId),
+        isNull(vipsTimelineEntries.forgottenAt),
+      )
   const rows = await ctx.db
     .select()
     .from(vipsTimelineEntries)

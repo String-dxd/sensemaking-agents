@@ -10,6 +10,12 @@
       "includeFiles": "dist/server/**"
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/run-connector",
+      "schedule": "0 10 * * *"
+    }
+  ],
   "rewrites": [
     { "source": "/(.*)", "destination": "/api/index" }
   ]

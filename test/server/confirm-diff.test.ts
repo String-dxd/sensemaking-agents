@@ -84,7 +84,7 @@ function seedDiff(): SeededDiff {
 
   const valuesEntry1 = annotatedEntry({
     dimension: 'values',
-    canonical_claim_id: 'values.self_direction',
+    canonical_claim_id: 'values.independence',
     verbatim_quote: 'i hated when teacher told us',
     reflection_id: mirror.id,
   })
@@ -197,7 +197,7 @@ describe.skipIf(!process.env.DATABASE_URL)('confirmDiffHandler — happy path', 
 
     const admittedValues = annotatedEntry({
       dimension: 'values',
-      canonical_claim_id: 'values.self_direction',
+      canonical_claim_id: 'values.independence',
       verbatim_quote: 'i hated when teacher told us',
       reflection_id: mirror.id,
     })
