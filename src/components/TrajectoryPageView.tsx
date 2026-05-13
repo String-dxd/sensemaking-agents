@@ -11,7 +11,7 @@ import { cn } from '~/lib/utils'
  * risks/tradeoffs paragraph + exploration prompt), an open-questions
  * list, and a disclaimer.
  *
- * Trait_combination chips link back to `/library/$entryId` so the student can
+ * Trait_combination chips link back to `/library/entries/$entryId` so the student can
  * click any cited claim into its source reflection. ECG region tag chips
  * are inert badges in v0.2 (a future iteration may wire them to a
  * `lookup-ecg-taxonomy` modal — out of scope for U11 to avoid scope creep

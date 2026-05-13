@@ -22,6 +22,8 @@
  *
  * AE7 calibration pair lives in `test/agents/verifier.test.ts`.
  */
+
+import { isKnownVipsTaxonomyId } from '~/data/vips-taxonomy'
 import type {
   VerifierAnnotatedEntry,
   VerifierDroppedEntry,
@@ -128,6 +130,12 @@ export function verifyProposedDiff(input: VerifyInput): VerifierResult {
     // ── error path: cited reflection_id must match the mirror entry ──
     if (entry.reflection_id !== mirrorEntry.id) {
       dropped.push({ entry, reason: 'unknown_reflection' })
+      continue
+    }
+
+    // ── error path: canonical ID must exist within the emitted dimension ──
+    if (!isKnownVipsTaxonomyId({ dimension: entry.dimension, id: entry.canonical_claim_id })) {
+      dropped.push({ entry, reason: 'unknown_canonical_claim_id' })
       continue
     }
 

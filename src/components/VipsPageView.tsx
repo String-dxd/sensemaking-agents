@@ -6,7 +6,7 @@
  *   - Header: dimension label + compiled_truth paragraph + "Open question:" line
  *   - Body: chronological timeline (newest first), one card per entry
  *     · verbatim block-quote
- *     · "see source reflection" link to /library/$reflection_id
+ *     · "see source reflection" link to /library/entries/$reflection_id
  *     · strength badge (low / medium / high)
  *     · parallax tag chips
  *     · small unobtrusive forget icon button → inline confirm
@@ -149,13 +149,10 @@ function TimelineEntryRow({ studentId, entry }: TimelineEntryRowProps) {
           </Badge>
         ))}
         {entry.reflection_id != null ? (
-          // Plain `<a>` rather than TanStack `<Link>` because `/library/$entryId`
-          // requires a typegen-validated params object and this surface also
+          // Plain `<a>` rather than TanStack `<Link>` because this surface also
           // renders inside test wrappers that don't always mount a router.
-          // Mirrors `TrajectoryPageView`'s trait-chip pattern for the same
-          // reason.
           <a
-            href={`/library/${entry.reflection_id}`}
+            href={`/library/entries/${entry.reflection_id}`}
             className="ml-auto text-xs hover:text-foreground hover:underline"
             data-testid={`source-reflection-link-${entry.id}`}
           >

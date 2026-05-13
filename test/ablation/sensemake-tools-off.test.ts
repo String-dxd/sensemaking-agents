@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { ABLATION_DIMENSIONS, buildAblationReportMarkdown } from './score'
+import {
+  ABLATION_DIMENSIONS,
+  aggregateVerifierCounters,
+  buildAblationReportMarkdown,
+  buildClaimIdDistribution,
+} from './score'
 
 /**
  * Sense-making tools-off ablation (R20, surface 2).
@@ -47,5 +52,52 @@ describe('Sense-making tools-off ablation (R20 surface 2)', () => {
       off: { variant: 'off', rawOutput: '{}' },
     })
     expect(md).toContain('cross-student union')
+  })
+
+  it('tracks unknown canonical-claim drops without admitting invalid labels', () => {
+    const rows = [
+      {
+        reflection_id: 1,
+        student_id: 'demo-a',
+        context_type: 'school',
+        mirror: null,
+        connector: null,
+        cartographer: null,
+        verifier: {
+          admitted: 1,
+          downgraded: 0,
+          dropped_no_quote_match: 0,
+          dropped_unknown_reflection: 0,
+          dropped_unknown_canonical_claim_id: 1,
+          aspirational: 0,
+          claim_ids: ['values.contribution'],
+        },
+        error: null,
+      },
+      {
+        reflection_id: 2,
+        student_id: 'demo-a',
+        context_type: 'hobby',
+        mirror: null,
+        connector: null,
+        cartographer: null,
+        verifier: {
+          admitted: 0,
+          downgraded: 1,
+          dropped_no_quote_match: 0,
+          dropped_unknown_reflection: 0,
+          dropped_unknown_canonical_claim_id: 2,
+          aspirational: 1,
+          claim_ids: ['skills.communication'],
+        },
+        error: null,
+      },
+    ]
+
+    expect(aggregateVerifierCounters(rows)?.dropped_unknown_canonical_claim_id).toBe(3)
+    expect(buildClaimIdDistribution(rows)).toEqual({
+      'skills.communication': 1,
+      'values.contribution': 1,
+    })
   })
 })

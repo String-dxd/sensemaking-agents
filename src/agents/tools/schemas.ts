@@ -4,8 +4,9 @@ import { z } from 'zod'
  * Single source of truth for all four tool I/O schemas (locked at plan time
  * by K.T.D. #4 of `plans/2026-05-08-001-feat-sensemaking-agents-v0.1-plan.md`).
  *
- * Mirror exposes only `search_past_mirrors`. Connector and Pathfinder share
- * the full three-tool surface (R11 — identical surface). Wording in the
+ * Mirror exposes only `search_past_mirrors`. Connector and Cartographer used
+ * to share the broader sensemaking tool surface; current managed-agent prompts
+ * inline most context directly. Wording in the
  * `.describe()` strings is implementation-time and may iterate without
  * changing the boundary.
  */
@@ -91,21 +92,56 @@ export type VipsTaxonomyInput = z.infer<typeof VipsTaxonomyInputSchema>
 export type VipsTaxonomyEntry = z.infer<typeof VipsTaxonomyEntrySchema>
 export type VipsTaxonomyOutput = z.infer<typeof VipsTaxonomyOutputSchema>
 
-// ── self_critique ────────────────────────────────────────────────────────
-// `draft` is a JSON-serialized blob of arbitrary shape (Connector or
-// Pathfinder draft). OpenAI's tool-parameter schema validator requires
-// every property to have a `type`, so we declare it as a string the
-// caller fills with `JSON.stringify(draft)` instead of `z.unknown()`.
+// ── self_critique / eval-safety reviewer ─────────────────────────────────
+// `draft` is a JSON-serialized blob of arbitrary shape (Mirror, Connector,
+// or Cartographer output). Tool-parameter schema validators require every
+// property to have a concrete `type`, so callers fill this with
+// `JSON.stringify(draft)` instead of passing unknown JSON directly.
 export const SelfCritiqueInputSchema = z.object({
   draft: z
     .string()
     .min(1)
-    .describe('JSON-serialized draft from another agent. Re-parsed inside the critique runner.'),
-  dimension: z.enum(['evidence', 'sycophancy', 'specificity']),
+    .describe('JSON-serialized output from another agent. Re-parsed inside the eval runner.'),
+  agent: z.enum(['mirror', 'connector', 'cartographer']).optional(),
+  focus: z
+    .array(
+      z.enum([
+        'evidence_grounding',
+        'taxonomy_fit',
+        'safety',
+        'student_agency',
+        'specificity',
+        'sycophancy',
+        'actionability',
+      ]),
+    )
+    .optional(),
+  // Legacy single-focus field retained so older callers can still ask for a
+  // narrow critique; the eval agent treats it as a focus hint.
+  dimension: z.enum(['evidence', 'sycophancy', 'specificity']).optional(),
+  source_context: z.string().optional(),
+})
+
+export const SelfCritiqueFindingSchema = z.object({
+  category: z.enum([
+    'evidence_grounding',
+    'taxonomy_fit',
+    'safety',
+    'student_agency',
+    'specificity',
+    'sycophancy',
+    'actionability',
+  ]),
+  severity: z.enum(['low', 'medium', 'high']),
+  issue: z.string(),
+  recommendation: z.string(),
 })
 
 export const SelfCritiqueOutputSchema = z.object({
+  verdict: z.enum(['pass', 'pass_with_warnings', 'fail']).optional(),
+  risk_level: z.enum(['low', 'medium', 'high']).optional(),
   critique: z.string(),
+  findings: z.array(SelfCritiqueFindingSchema).optional(),
   suggestions: z.array(z.string()),
   confidence: z.enum(['low', 'medium', 'high']),
 })
@@ -201,7 +237,11 @@ export type VerifierExistingTimelineEntry = z.infer<typeof VerifierExistingTimel
  * a closed enum so the U8 review surface can render specific copy per
  * reason without string-comparing magic literals.
  */
-export const VerifierDropReasonSchema = z.enum(['no_quote_match', 'unknown_reflection'])
+export const VerifierDropReasonSchema = z.enum([
+  'no_quote_match',
+  'unknown_reflection',
+  'unknown_canonical_claim_id',
+])
 export type VerifierDropReason = z.infer<typeof VerifierDropReasonSchema>
 
 export const VerifierCapReasonSchema = z.enum(['single_context_parallax_cap'])

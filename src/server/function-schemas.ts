@@ -60,6 +60,11 @@ export type BulkUpdateMirrorReviewInput = z.output<typeof bulkUpdateMirrorReview
 export const runCartographerInputSchema = z.object({})
 export type RunCartographerInput = z.output<typeof runCartographerInputSchema>
 
+export const runConnectorInputSchema = z.object({
+  limit: z.number().int().min(1).max(10).optional(),
+})
+export type RunConnectorInput = z.output<typeof runConnectorInputSchema>
+
 export const runMirrorInputSchema = z.object({
   transcript: z.string().min(1),
 })

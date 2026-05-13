@@ -21,7 +21,7 @@ const pendingDiff = {
     admitted: [
       {
         dimension: 'values',
-        canonical_claim_id: 'values.self_direction',
+        canonical_claim_id: 'values.independence',
         verbatim_quote: 'i hated when teacher told us',
         reflection_id: 7,
         strength: 'medium',
@@ -78,7 +78,7 @@ describe('server handler auth boundary', () => {
       ({}) as Awaited<ReturnType<NonNullable<ConfirmDiffDeps['upsertVipsPage']>>>
 
     await confirmDiffHandler(
-      { diffId: 42, entryId: 'values::values.self_direction' },
+      { diffId: 42, entryId: 'values::values.independence' },
       {
         requireContext,
         withStudent,
@@ -94,7 +94,7 @@ describe('server handler auth boundary', () => {
     expect(getVipsProposedDiffCalls).toEqual([['demo-c', 42, { ctx }]])
     expect(insertVipsTimelineEntryCalls[0]).toEqual([
       'demo-c',
-      expect.objectContaining({ canonical_claim_id: 'values.self_direction' }),
+      expect.objectContaining({ canonical_claim_id: 'values.independence' }),
       { ctx },
     ])
   })
@@ -107,7 +107,7 @@ describe('server handler auth boundary', () => {
 
     await expect(
       confirmDiffHandler(
-        { diffId: 42, entryId: 'values::values.self_direction' },
+        { diffId: 42, entryId: 'values::values.independence' },
         { requireContext, withStudent },
       ),
     ).rejects.toThrow('not authenticated')

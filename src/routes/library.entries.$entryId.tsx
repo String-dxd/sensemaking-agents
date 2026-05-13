@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { ConfirmAndSave } from '~/components/ConfirmAndSave'
-import { ConnectorPatternCard } from '~/components/ConnectorPatternCard'
-import { PathfinderPathwaysCard } from '~/components/PathfinderPathwaysCard'
-import { PathfinderTrajectoryCard } from '~/components/PathfinderTrajectoryCard'
+import { ConnectedVipsLinks } from '~/components/ConnectedVipsLinks'
+import { MirrorEvalReviewPanel, parseMirrorEvalReview } from '~/components/MirrorEvalReview'
 import { Button } from '~/components/ui/button'
 import { WikiEntryCard } from '~/components/WikiEntryCard'
 import type { MirrorEditableField } from '~/db/queries'
@@ -12,7 +11,7 @@ import { loadWikiEntry } from '~/server/load-wiki.functions'
 
 const STUDENT_ID = 'me'
 
-export const Route = createFileRoute('/library/$entryId')({
+export const Route = createFileRoute('/library/entries/$entryId')({
   loader: async ({ params }) => {
     const id = Number(params.entryId)
     if (!Number.isFinite(id)) throw notFound()
@@ -48,6 +47,7 @@ function WikiEntryPage() {
     )
 
   const fields: MirrorEditableField[] = ['story_reframe', 'validation', 'inferred_meaning']
+  const evalReview = parseMirrorEvalReview(data.entry.raw_output_json)
 
   return (
     <section className="flex flex-col gap-6 py-6">
@@ -55,6 +55,7 @@ function WikiEntryPage() {
         ← Library
       </Link>
       <WikiEntryCard entry={data.entry} />
+      <MirrorEvalReviewPanel review={evalReview} showEmpty />
       {fields.map((field) => (
         <ConfirmAndSave
           key={field}
@@ -74,13 +75,7 @@ function WikiEntryPage() {
         <summary className="cursor-pointer text-muted-foreground">Transcript</summary>
         <p className="mt-2 whitespace-pre-wrap leading-relaxed">{data.entry.transcript}</p>
       </details>
-      {data.connector ? <ConnectorPatternCard output={data.connector} /> : null}
-      {data.pathfinder ? (
-        <>
-          <PathfinderTrajectoryCard output={data.pathfinder} />
-          <PathfinderPathwaysCard output={data.pathfinder} />
-        </>
-      ) : null}
+      <ConnectedVipsLinks entries={data.connected_vips_entries} />
     </section>
   )
 }

@@ -35,6 +35,11 @@ import {
   CartographerOutputSchema,
   type CartographerPathwayDraft,
 } from '~/agents/schemas'
+import {
+  runSelfCritiqueReviewBestEffort,
+  type SelfCritiqueReviewDeps,
+  summarizeSelfCritiqueReview,
+} from '~/agents/self-critique-eval'
 import { requireCounselorContext } from '~/auth/identity'
 import { ECG_TAXONOMY } from '~/data/ecg-taxonomy'
 import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
@@ -101,6 +106,8 @@ export interface RunCartographerDeps {
   }) => Promise<unknown>
   /** Override the Anthropic memory-store transport for post-run memory writes. */
   memoryTransport?: MemoryStoreTransport
+  /** Optional test seam for the self_critique eval/safety review. */
+  selfCritique?: SelfCritiqueReviewDeps
 }
 
 /** Pre-computed set of valid `cluster.*` IDs from the ECG taxonomy fixture. */
@@ -183,10 +190,32 @@ export async function runCartographerHandler(
       }
     }
     const draft: CartographerOutputDraft = validated.data
+    const evalReview = await runSelfCritiqueReviewBestEffort(
+      {
+        agent: 'cartographer',
+        draft,
+        focus: [
+          'evidence_grounding',
+          'safety',
+          'student_agency',
+          'specificity',
+          'sycophancy',
+          'actionability',
+        ],
+        sourceContext: [
+          `Student: ${studentId}`,
+          `VIPS pages: ${pages.length}`,
+          `Verified timeline entries: ${timeline.length}`,
+        ].join('\n'),
+      },
+      deps.selfCritique,
+    )
 
     // ── Post-process structural validator ──────────────────────────────────
     const validClaimIds: ReadonlySet<string> = new Set(timeline.map((e) => e.canonical_claim_id))
     const warnings: string[] = []
+    const evalWarning = summarizeSelfCritiqueReview(evalReview)
+    if (evalWarning) warnings.push(evalWarning)
     const keptPathways: CartographerPathwayDraft[] = []
 
     for (const [idx, pathway] of draft.pathways.entries()) {
@@ -255,6 +284,7 @@ export async function runCartographerHandler(
           open_questions: draft.open_questions,
           disclaimer: draft.disclaimer,
           warnings,
+          eval_review: evalReview,
         },
         // U1's helper was updated by U11 to write the `agent_traces` row with
         // `agent='cartographer'` when a trace is supplied. The widened CHECK

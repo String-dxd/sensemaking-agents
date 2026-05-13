@@ -69,7 +69,7 @@ function makeTimelineRow(over: Partial<VipsTimelineEntryRow> = {}): VipsTimeline
     id: 1,
     student_id: STUDENT,
     dimension: 'values',
-    canonical_claim_id: 'values.self_direction',
+    canonical_claim_id: 'values.independence',
     verbatim_quote: 'i wanted to figure it out myself',
     reflection_id: 7,
     strength: 'medium',
@@ -155,15 +155,31 @@ describe.skipIf(!process.env.DATABASE_URL)(
           }),
         ],
         timeline: [
-          makeTimelineRow({ dimension: 'values', canonical_claim_id: 'values.self_direction' }),
+          makeTimelineRow({ dimension: 'values', canonical_claim_id: 'values.independence' }),
         ],
       }
       const formatted = formatConnectorContext(payload)
       expect(formatted).toContain('## VALUES')
       expect(formatted).toContain('Compiled truth: Practices self-direction.')
       expect(formatted).toContain(
-        '[values.self_direction] (medium, parallax=["school"]) "i wanted to figure it out myself"',
+        'entry_id=1 source_reflection_id=7 canonical_claim_id=values.independence strength=medium parallax=["school"] reinforces_id=null quote="i wanted to figure it out myself"',
       )
+    })
+
+    it('renders null source reflection and reinforces markers explicitly', () => {
+      const payload: ConnectorContextPayload = {
+        ...minimalPayload,
+        timeline: [
+          makeTimelineRow({
+            reflection_id: null,
+            reinforces_id: 9,
+          }),
+        ],
+        pages: [],
+      }
+      const formatted = formatConnectorContext(payload)
+      expect(formatted).toContain('entry_id=1 source_reflection_id=null')
+      expect(formatted).toContain('reinforces_id=9')
     })
 
     it('ends with the deterministic task footer that pins the output schema and verbatim-quote constraint', () => {
@@ -306,7 +322,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             open_question: '',
             new_timeline_entries: [
               {
-                canonical_claim_id: 'values.self_direction',
+                canonical_claim_id: 'values.independence',
                 verbatim_quote: 'i hated when teacher told us exactly what to do',
                 reflection_id: reflectionId,
                 strength: 'medium' as const,

@@ -38,7 +38,7 @@ afterEach(() => {
 function seedEntry(studentId = 'demo', overrides: Partial<{ verbatim_quote: string }> = {}) {
   return insertVipsTimelineEntry(studentId, {
     dimension: 'values',
-    canonical_claim_id: 'values.self_direction',
+    canonical_claim_id: 'values.independence',
     verbatim_quote: overrides.verbatim_quote ?? 'practices self-direction in school',
     reflection_id: null,
     strength: 'medium',
