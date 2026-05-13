@@ -2,6 +2,11 @@ import { getManagedAgentBinding } from '~/agents/config'
 import { getOrCreateMemoryStoreId, type MemoryStoreTransport } from '~/agents/memory'
 import { runManagedAgent } from '~/agents/runner'
 import { type MirrorOutputDraft, MirrorOutputSchema } from '~/agents/schemas'
+import {
+  runSelfCritiqueReviewBestEffort,
+  type SelfCritiqueReviewDeps,
+} from '~/agents/self-critique-eval'
+import type { SelfCritiqueOutput } from '~/agents/tools/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudentLegacy } from '~/server/tenancy.server'
 import { type RunMirrorInput, runMirrorInputSchema } from './function-schemas'
@@ -19,6 +24,8 @@ export class MirrorAgentError extends Error {
 export interface RunMirrorHandlerDeps {
   /** Override Mirror invocation. Default: dispatch via `runManagedAgent`. */
   runMirror?: (input: { studentId: string; transcript: string }) => Promise<MirrorOutputDraft>
+  /** Override or disable the eval/safety review invocation. */
+  selfCritique?: SelfCritiqueReviewDeps
   /** Override the Anthropic memory-store transport for session binding. */
   memoryTransport?: MemoryStoreTransport
 }
@@ -37,7 +44,9 @@ export async function runMirrorHandler(data: RunMirrorInput, deps: RunMirrorHand
   return withStudentLegacy(studentId, async (sid) => {
     try {
       const out = await runMirrorOnTranscript(sid, parsed.transcript, deps)
-      return { output: MirrorOutputSchema.parse(out) }
+      const output = MirrorOutputSchema.parse(out)
+      const evalReview = await runMirrorEvalReview(output, parsed.transcript, deps.selfCritique)
+      return { output, eval_review: evalReview }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       throw new MirrorAgentError(`Mirror agent failed: ${msg}`, err)
@@ -72,6 +81,22 @@ async function runMirrorOnTranscript(
     ...(memoryStoreId !== null ? { memoryStoreId } : {}),
   })
   return result.output
+}
+
+async function runMirrorEvalReview(
+  output: MirrorOutputDraft,
+  transcript: string,
+  deps?: SelfCritiqueReviewDeps,
+): Promise<SelfCritiqueOutput | null> {
+  return runSelfCritiqueReviewBestEffort(
+    {
+      agent: 'mirror',
+      draft: output,
+      focus: ['evidence_grounding', 'safety', 'student_agency', 'specificity'],
+      sourceContext: `Transcript:\n${transcript}`,
+    },
+    deps,
+  )
 }
 
 async function safelyResolveMemoryStoreId(

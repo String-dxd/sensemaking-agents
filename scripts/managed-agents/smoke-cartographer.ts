@@ -55,7 +55,7 @@ function pickStudent(filter: string | undefined): string {
 async function main(): Promise<void> {
   if (!process.env.ANTHROPIC_API_KEY) {
     process.stderr.write(
-      'smoke-cartographer: ANTHROPIC_API_KEY is not set. Add it to .env.local and re-run.\n',
+      'smoke-cartographer: ANTHROPIC_API_KEY is not set. Add it to .env and re-run.\n',
     )
     process.exit(1)
   }

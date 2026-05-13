@@ -31,7 +31,7 @@ export class WorkOSEnvError extends Error {
     super(
       workosEnvErrorMessage(missing, invalid) +
         'See plan §10 for the full list. For demos, use the demo account flow or set ' +
-        'DEV_BYPASS_AUTH=demo-a in .env.local to skip auth during local development.',
+        'DEV_BYPASS_AUTH=demo-a in .env to skip auth during local development.',
     )
     this.name = 'WorkOSEnvError'
     this.missing = missing

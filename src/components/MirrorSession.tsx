@@ -134,18 +134,6 @@ function reduce(state: State, action: Action): State {
 
 export interface MirrorSessionResult {
   entryId: number
-  /** True only for legacy pending Connector review rows. */
-  stagedDiffPresent: boolean
-  autoConnectorStatus:
-    | 'ok'
-    | 'queued'
-    | 'timeout'
-    | 'schema_reject'
-    | 'transport_error'
-    | 'auth_error'
-    | 'unknown'
-    | 'missing_mirror'
-  pendingQueued: boolean
 }
 
 export interface MirrorSessionOptions {
@@ -419,7 +407,7 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
 
   const runPostStopChain = useCallback(
     async (transcript: string) => {
-      let activeAgent: 'mirror' | 'connector' | null = null
+      let activeAgent: 'mirror' | null = null
       try {
         if (mountedRef.current) dispatch({ type: 'reflecting' })
         activeAgent = 'mirror'
@@ -432,8 +420,6 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
         if (!mountedRef.current) return
 
         dispatch({ type: 'persisting' })
-        activeAgent = 'connector'
-        startAgentRun('connector', 'Saving the reflection and checking for VIPS library updates.')
         const contextType: ContextType = inferContextType(transcript)
         const result = await persistMirror({
           data: {
@@ -454,20 +440,11 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
             },
           },
         })
-        finishAgentRun(
-          'connector',
-          statusForConnectorResult(result.auto_connector_status),
-          detailForConnectorResult(result.auto_connector_status),
-        )
-        activeAgent = null
         if (!mountedRef.current) return
 
         dispatch({ type: 'done' })
         onPersisted?.({
           entryId: result.mirror_entry.id,
-          stagedDiffPresent: result.staged_diff?.status === 'pending',
-          autoConnectorStatus: result.auto_connector_status,
-          pendingQueued: result.pending_queued,
         })
       } catch (err) {
         if (!mountedRef.current) return
@@ -724,40 +701,11 @@ function phaseCopy(phase: Phase): string {
     case 'reflecting':
       return 'Mirror is reflecting back…'
     case 'persisting':
-      return 'saving to your library + checking Connector…'
+      return 'saving to your library…'
     case 'done':
       return 'done. Opening your library.'
     default:
       return ''
-  }
-}
-
-function statusForConnectorResult(
-  status: MirrorSessionResult['autoConnectorStatus'],
-): 'succeeded' | 'queued' | 'failed' {
-  if (status === 'ok') return 'succeeded'
-  if (status === 'queued') return 'queued'
-  return 'failed'
-}
-
-function detailForConnectorResult(status: MirrorSessionResult['autoConnectorStatus']): string {
-  switch (status) {
-    case 'ok':
-      return 'Connector verified and linked this thought into the library mesh.'
-    case 'queued':
-      return 'Connector queued behind an older run.'
-    case 'timeout':
-      return 'Connector timed out; the raw thought was still saved.'
-    case 'schema_reject':
-      return 'Connector returned an invalid diff; the raw thought was still saved.'
-    case 'transport_error':
-      return 'Connector transport failed; the raw thought was still saved.'
-    case 'auth_error':
-      return 'Connector auth failed; the raw thought was still saved.'
-    case 'missing_mirror':
-      return 'Connector could not find the saved mirror entry.'
-    case 'unknown':
-      return 'Connector failed for an unknown reason; the raw thought was still saved.'
   }
 }
 

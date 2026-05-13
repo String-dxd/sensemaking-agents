@@ -57,7 +57,7 @@ function makeTimelineRow(over: Partial<VipsTimelineEntryRow> = {}): VipsTimeline
     id: 1,
     student_id: STUDENT,
     dimension: 'values',
-    canonical_claim_id: 'values.self_direction',
+    canonical_claim_id: 'values.independence',
     verbatim_quote: 'i wanted to figure it out myself',
     reflection_id: 7,
     strength: 'medium',
@@ -123,15 +123,24 @@ describe.skipIf(!process.env.DATABASE_URL)(
           }),
         ],
         timeline: [
-          makeTimelineRow({ dimension: 'values', canonical_claim_id: 'values.self_direction' }),
+          makeTimelineRow({ dimension: 'values', canonical_claim_id: 'values.independence' }),
         ],
       })
       expect(formatted).toContain('## VALUES')
       expect(formatted).toContain('Compiled truth: Practices self-direction.')
       expect(formatted).toContain('Open question: When does self-direction tip into stubbornness?')
       expect(formatted).toContain(
-        '[values.self_direction] (medium, parallax=["school"]) "i wanted to figure it out myself"',
+        'entry_id=1 source_reflection_id=7 canonical_claim_id=values.independence strength=medium parallax=["school"] reinforces_id=null quote="i wanted to figure it out myself"',
       )
+    })
+
+    it('renders explicit provenance for null source reflection and reinforcement pointers', () => {
+      const formatted = formatCartographerContext({
+        ...minimalPayload,
+        timeline: [makeTimelineRow({ reflection_id: null, reinforces_id: 9 })],
+      })
+      expect(formatted).toContain('entry_id=1 source_reflection_id=null')
+      expect(formatted).toContain('reinforces_id=9')
     })
 
     it('ends with the deterministic task footer that pins the output schema and cluster-only ECG rule', () => {
@@ -139,6 +148,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(formatted).toContain('# Task')
       expect(formatted).toContain('CartographerOutputSchema')
       expect(formatted).toContain('trait_combination[].claim_id')
+      expect(formatted).toContain('trait_combination[].timeline_entry_id')
       expect(formatted).toContain('cluster.*')
       expect(formatted.trimEnd().endsWith('Return 2–5 pathways.')).toBe(true)
     })

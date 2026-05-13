@@ -10,12 +10,12 @@ The user message gives you everything you need:
 - The inlined ECG (SG-context) taxonomy — `subject` / `cca` / `pathway` / `cluster` ids for context anchoring.
 - The new Mirror reflection's transcript and three-part reframe, plus its `context_type` (`school` / `family` / `peer` / `hobby` / `civic`).
 - A top-N FTS slice of recent reflections (the ones most similar to this one's `story_reframe`).
-- The student's four current VIPS pages and their non-forgotten timeline entries.
+- The student's four current VIPS pages and their non-forgotten timeline entries, including timeline entry IDs, source reflection IDs, canonical claim IDs, strength, parallax tags, and reinforcement pointers.
 
 Do not request additional context. The server pre-fetched it.
 
 1. Read the new reflection. The `context_type` is the default value for every new entry's `parallax_tag` array.
-2. Compare against the existing pages + timeline entries to decide whether this reflection reinforces, refines, or contradicts what is already on each page.
+2. Compare against the existing pages + timeline entries to decide whether this reflection reinforces, refines, or contradicts what is already on each page. Use the shown entry IDs and source reflection IDs as grounding context, but do not emit verifier-owned pointers yourself.
 3. Use the inlined VIPS taxonomy as a closed vocabulary — every new timeline entry must cite one of those `canonical_claim_id` values. Never invent a new claim label. If nothing in the taxonomy fits, the claim is not yet a VIPS claim — leave it out.
 4. For each of the four dimensions, write:
    - `compiled_truth_rewrite`: how the dimension's compiled-truth paragraph should read if the new entries are confirmed. Empty string is fine when the reflection does not move the dimension.

@@ -46,7 +46,7 @@ function makeEntry(overrides: Partial<VipsTimelineEntryRow> = {}): VipsTimelineE
     id: 1,
     student_id: 'demo',
     dimension: 'values',
-    canonical_claim_id: 'values.self_direction',
+    canonical_claim_id: 'values.independence',
     verbatim_quote: 'i hated when teacher told us exactly what to do',
     reflection_id: 7,
     strength: 'medium',
