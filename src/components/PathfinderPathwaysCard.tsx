@@ -1,3 +1,4 @@
+import { Badge } from '~/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 import type { PathfinderOutputRow } from '~/db/queries'
 
@@ -17,10 +18,12 @@ export function PathfinderPathwaysCard({ output }: PathfinderPathwaysCardProps) 
             <li key={p.label} className="flex flex-col gap-1.5">
               <p className="text-sm font-medium">{p.label}</p>
               <p className="text-sm leading-relaxed">{p.reasoning}</p>
-              <ul className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+              <ul className="flex flex-wrap gap-1.5">
                 {p.ecg_taxonomy_ids.map((id) => (
-                  <li key={id} className="rounded bg-muted px-1.5 py-0.5">
-                    {id}
+                  <li key={id}>
+                    <Badge variant="secondary" size="sm" radius="sm">
+                      {id}
+                    </Badge>
                   </li>
                 ))}
               </ul>

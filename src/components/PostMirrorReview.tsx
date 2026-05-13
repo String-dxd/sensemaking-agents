@@ -16,7 +16,9 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useMemo } from 'react'
-import type { VerifierAnnotatedEntry, VerifierDroppedEntry } from '~/agents/tools/schemas'
+import type { Mood, VerifierAnnotatedEntry, VerifierDroppedEntry } from '~/agents/tools/schemas'
+import { MoodSchema } from '~/agents/tools/schemas'
+import { EmotionChip, EmotionConnector } from '~/components/EmotionChip'
 import { Button } from '~/components/ui/button'
 import type { VipsProposedDiffRow } from '~/db/queries'
 import { confirmDiff } from '~/server/confirm-diff.functions'
@@ -38,9 +40,32 @@ const DIMENSION_LABEL: Record<Dimension, string> = {
   skills: 'Skills',
 }
 
+/**
+ * Phase A treats `inferred_emotion` and `mood` as optional fields on the
+ * staged diff that may or may not be present. Phase B's Drizzle migration
+ * lands the columns and the fields become non-null on every persisted entry;
+ * the type alias below lets us narrow without reaching into the row via
+ * `as unknown as { … }` casts at the read sites.
+ */
+export type PostMirrorReviewDiff = VipsProposedDiffRow & {
+  inferred_emotion?: Mood | null
+  mood?: Mood | null
+}
+
+interface BulkConfirmFailure {
+  entryId: string
+  message: string
+}
+
+interface BulkConfirmResult {
+  confirmed: number
+  total: number
+  failures: BulkConfirmFailure[]
+}
+
 export interface PostMirrorReviewProps {
   studentId: string
-  diff: VipsProposedDiffRow
+  diff: PostMirrorReviewDiff
   /** Called after Done is clicked — typically to navigate to /wiki. */
   onDone?: () => void
 }
@@ -54,20 +79,47 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
     [reviewables],
   )
   const allResolved = reviewables.length === 0 || pendingEntries.length === 0
+  const inferredEmotion = readInferredEmotion(diff)
+  const userMood = readUserMood(diff)
 
   // Bulk confirm — fires sequentially because each `confirmDiff` mutates the
   // same staged row's `payload_json` inside a transaction. Concurrent confirms
   // would race on last-write-wins for the resolution flags, lose entries, and
   // potentially mis-fire the last-entry-resolved status flip.
+  //
+  // Per-entry try/catch with idempotency on "already confirmed" so a retry
+  // after a half-failed batch doesn't surface the prior commits as errors.
+  // Always invalidate via `onSettled` so a partial-success batch refreshes
+  // the cache and the next render reflects what actually landed.
   const bulkConfirmMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<BulkConfirmResult> => {
+      const failures: BulkConfirmFailure[] = []
+      let confirmed = 0
       for (const entry of pendingEntries) {
-        await confirmDiff({
-          data: { diffId: diff.id, entryId: buildReviewEntryId(entry) },
-        })
+        const entryId = buildReviewEntryId(entry)
+        try {
+          // studentId no longer travels in the data payload — managed-agents
+          // resolves it server-side via `requireCounselorContext()` (WorkOS).
+          await confirmDiff({ data: { diffId: diff.id, entryId } })
+          confirmed += 1
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'unknown error'
+          // The server treats double-confirm as an error so the single-entry
+          // path can't silently no-op. Bulk-confirm is allowed to be lenient
+          // — a re-attempt after a partial batch should count prior commits
+          // as success, not surface them as failures.
+          if (/already confirmed/i.test(message)) {
+            confirmed += 1
+            continue
+          }
+          failures.push({ entryId, message })
+        }
       }
+      return { confirmed, total: pendingEntries.length, failures }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['pending-review', studentId] }),
+    // Always invalidate, even on partial failure — half-confirmed batches
+    // leave the cache out of sync with the DB otherwise.
+    onSettled: () => qc.invalidateQueries({ queryKey: ['pending-review', studentId] }),
   })
 
   return (
@@ -79,6 +131,20 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
           what doesn’t. Forgotten entries never reach your library.
         </p>
       </header>
+
+      <section
+        className="flex flex-wrap items-center gap-3 rounded-lg border border-border/40 bg-muted/10 p-3"
+        data-testid="what-mirror-sensed"
+        aria-label="What Mirror sensed"
+      >
+        <EmotionChip mood={inferredEmotion} variant="inferred" />
+        {userMood ? (
+          <>
+            <EmotionConnector inferred={inferredEmotion} user={userMood} />
+            <EmotionChip mood={userMood} variant="user" />
+          </>
+        ) : null}
+      </section>
 
       <div className="flex flex-col gap-8">
         {DIMENSIONS.map((dim) => (
@@ -123,16 +189,24 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
             Confirm or forget every entry to continue.
           </span>
         ) : null}
-        {bulkConfirmMutation.isError ? (
-          <span
-            className="text-xs text-warning"
+        {bulkConfirmMutation.data && bulkConfirmMutation.data.failures.length > 0 ? (
+          <div
+            className="flex w-full flex-col gap-1 text-xs"
             role="alert"
-            data-testid="review-confirm-all-error"
+            data-testid="review-confirm-all-partial"
           >
-            {bulkConfirmMutation.error instanceof Error
-              ? bulkConfirmMutation.error.message
-              : 'confirm all failed'}
-          </span>
+            <span className="font-medium text-warning">
+              {bulkConfirmMutation.data.confirmed} of {bulkConfirmMutation.data.total} confirmed;{' '}
+              {bulkConfirmMutation.data.failures.length} failed.
+            </span>
+            <ul className="flex flex-col gap-0.5 text-muted-foreground">
+              {bulkConfirmMutation.data.failures.map((f) => (
+                <li key={f.entryId} data-testid={`confirm-all-failure-${f.entryId}`}>
+                  · {f.entryId}: {f.message}
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
       </div>
     </section>
@@ -321,6 +395,27 @@ function VerdictBadge({ verdict }: { verdict: Verdict }): ReactNode {
       partial match
     </span>
   )
+}
+
+/**
+ * Phase A — reads `inferred_emotion` and `mood` off the staged diff if
+ * the columns happen to be present (e.g., a test stubs them in), and
+ * falls back to a hard-coded `'joy'` for inferred + `null` for user
+ * otherwise. Phase B drops both fallbacks once the Drizzle migration
+ * lands and the field is non-null on every persisted entry.
+ *
+ * `safeParse` still runs against the typed field so a server-side bug
+ * (e.g., a stray legacy mood value) can't silently render a busted chip.
+ */
+function readInferredEmotion(diff: PostMirrorReviewDiff): Mood {
+  const parsed = MoodSchema.safeParse(diff.inferred_emotion)
+  return parsed.success ? parsed.data : 'joy'
+}
+
+function readUserMood(diff: PostMirrorReviewDiff): Mood | null {
+  if (diff.mood == null) return null
+  const parsed = MoodSchema.safeParse(diff.mood)
+  return parsed.success ? parsed.data : null
 }
 
 function DroppedSection({ dropped }: { dropped: VerifierDroppedEntry[] }) {

@@ -22,6 +22,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { ArrowLeft } from 'lucide-react'
 import { useState } from 'react'
 import type { RunStepEvent } from '~/agents/run-events'
 import { AgentRunVisualizer } from '~/components/AgentRunVisualizer'
@@ -111,116 +112,126 @@ function LibraryIndexPage() {
   }
 
   return (
-    <section className="flex flex-col gap-6 py-6">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
-        <p className="max-w-prose text-sm text-muted-foreground">
-          The patterns we've heard across your reflections, grouped by Values, Interests,
-          Personality, and Skills. Pages refine themselves as you reflect.
-        </p>
-      </header>
+    <section className="flex flex-col gap-4 py-2">
+      <Link
+        to="/"
+        data-testid="library-back-home"
+        className="inline-flex w-fit items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft aria-hidden className="h-3.5 w-3.5" />
+        Home
+      </Link>
+      <div className="flex flex-col gap-6 rounded-2xl border border-border/40 bg-muted p-6">
+        <header className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">Library</h1>
+          <p className="max-w-prose text-sm text-muted-foreground">
+            The patterns we've heard across your reflections, grouped by Values, Interests,
+            Personality, and Skills. Pages refine themselves as you reflect.
+          </p>
+        </header>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="vips-overview-grid">
-        {data.pages.map((page) => {
-          const dim = page.dimension as VipsDimension
-          const claimCount = data.claim_count_by_dimension[dim] ?? 0
-          return (
-            <Link
-              key={dim}
-              to="/library/$dimension"
-              params={{ dimension: dim }}
-              className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
-              data-testid={`vips-card-${dim}`}
-            >
-              <Card className="h-full transition-colors hover:bg-muted/30">
-                <CardHeader>
-                  <CardTitle>{DIMENSION_LABEL[dim]}</CardTitle>
-                  <CardDescription>{DIMENSION_TAGLINE[dim]}</CardDescription>
-                </CardHeader>
-                <CardContent className="gap-2">
-                  {page.compiled_truth.trim().length > 0 ? (
-                    <p
-                      className="line-clamp-2 text-sm leading-relaxed"
-                      data-testid={`vips-card-${dim}-compiled-truth`}
-                    >
-                      {page.compiled_truth}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No pattern yet — reflect a few times to fill this in.
-                    </p>
-                  )}
-                  <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
-                    <span data-testid={`vips-card-${dim}-claim-count`}>
-                      {claimCount} {claimCount === 1 ? 'claim' : 'claims'}
-                    </span>
-                    {page.updated_at ? (
-                      <span data-testid={`vips-card-${dim}-updated-at`}>
-                        updated {new Date(page.updated_at).toLocaleDateString()}
-                      </span>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2" data-testid="vips-overview-grid">
+          {data.pages.map((page) => {
+            const dim = page.dimension as VipsDimension
+            const claimCount = data.claim_count_by_dimension[dim] ?? 0
+            return (
+              <Link
+                key={dim}
+                to="/library/$dimension"
+                params={{ dimension: dim }}
+                className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded-lg"
+                data-testid={`vips-card-${dim}`}
+              >
+                <Card className="h-full transition-colors hover:bg-muted/30">
+                  <CardHeader>
+                    <CardTitle>{DIMENSION_LABEL[dim]}</CardTitle>
+                    <CardDescription>{DIMENSION_TAGLINE[dim]}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="gap-2">
+                    {page.compiled_truth.trim().length > 0 ? (
+                      <p
+                        className="line-clamp-2 text-sm leading-relaxed"
+                        data-testid={`vips-card-${dim}-compiled-truth`}
+                      >
+                        {page.compiled_truth}
+                      </p>
                     ) : (
-                      <span className="italic">never updated</span>
+                      <p className="text-sm text-muted-foreground">
+                        No pattern yet — reflect a few times to fill this in.
+                      </p>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          )
-        })}
-      </div>
+                    <div className="mt-2 flex items-center justify-between text-[11px] text-muted-foreground">
+                      <span data-testid={`vips-card-${dim}-claim-count`}>
+                        {claimCount} {claimCount === 1 ? 'claim' : 'claims'}
+                      </span>
+                      {page.updated_at ? (
+                        <span data-testid={`vips-card-${dim}-updated-at`}>
+                          updated {new Date(page.updated_at).toLocaleDateString()}
+                        </span>
+                      ) : (
+                        <span className="italic">never updated</span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            )
+          })}
+        </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onRunClicked}
-          disabled={sensemake.isPending}
-          data-testid="run-sensemaking"
-          title="Run Cartographer over your VIPS pages and generate a Trajectory page"
-        >
-          {sensemake.isPending
-            ? 'mapping your trajectory…'
-            : sensemake.isSuccess
-              ? 'Run sense-making again'
-              : 'Run sense-making'}
-        </Button>
-        <span className="text-xs text-muted-foreground" data-testid="claim-count-tooltip">
-          {data.total_claim_count} verified {data.total_claim_count === 1 ? 'claim' : 'claims'}{' '}
-          across all dimensions
-        </span>
-        {sensemake.isError ? (
-          <span className="text-xs text-warning" role="alert">
-            {sensemake.error instanceof Error ? sensemake.error.message : 'sense-making failed'}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onRunClicked}
+            disabled={sensemake.isPending}
+            data-testid="run-sensemaking"
+            title="Run Cartographer over your VIPS pages and generate a Trajectory page"
+          >
+            {sensemake.isPending
+              ? 'mapping your trajectory…'
+              : sensemake.isSuccess
+                ? 'Run sense-making again'
+                : 'Run sense-making'}
+          </Button>
+          <span className="text-xs text-muted-foreground" data-testid="claim-count-tooltip">
+            {data.total_claim_count} verified {data.total_claim_count === 1 ? 'claim' : 'claims'}{' '}
+            across all dimensions
           </span>
-        ) : null}
-        <ExportCounsellorBriefLink studentId={STUDENT_ID} />
-      </div>
-
-      {showVisualizer ? (
-        <section data-testid="live-run-section" className="flex flex-col gap-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Live agent chain
-          </h2>
-          {sensemake.isPending ? (
-            <p className="text-xs text-muted-foreground">
-              Cartographer is reading your VIPS pages and sketching pathways…
-            </p>
+          {sensemake.isError ? (
+            <span className="text-xs text-warning" role="alert">
+              {sensemake.error instanceof Error ? sensemake.error.message : 'sense-making failed'}
+            </span>
           ) : null}
-          {sensemake.isSuccess ? (
-            <AgentRunVisualizer events={events} />
-          ) : (
-            <AgentRunVisualizer
-              events={[
-                {
-                  type: 'agent_started',
-                  agent: 'cartographer',
-                  timestampMs: 0,
-                },
-              ]}
-            />
-          )}
-        </section>
-      ) : null}
+          <ExportCounsellorBriefLink studentId={STUDENT_ID} />
+        </div>
+
+        {showVisualizer ? (
+          <section data-testid="live-run-section" className="flex flex-col gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Live agent chain
+            </h2>
+            {sensemake.isPending ? (
+              <p className="text-xs text-muted-foreground">
+                Cartographer is reading your VIPS pages and sketching pathways…
+              </p>
+            ) : null}
+            {sensemake.isSuccess ? (
+              <AgentRunVisualizer events={events} />
+            ) : (
+              <AgentRunVisualizer
+                events={[
+                  {
+                    type: 'agent_started',
+                    agent: 'cartographer',
+                    timestampMs: 0,
+                  },
+                ]}
+              />
+            )}
+          </section>
+        ) : null}
+      </div>
 
       <ConfirmDialog
         open={weakCorpusOpen}

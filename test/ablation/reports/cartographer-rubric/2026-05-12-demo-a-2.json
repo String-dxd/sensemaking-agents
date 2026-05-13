@@ -20,18 +20,14 @@
       {
         "label": "Placeholder A — awaiting Values + Interests evidence",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.public-service"
-        ],
+        "ecg_region_tags": ["cluster.public-service"],
         "risks_tradeoffs": "No trait evidence has been recorded yet, so no meaningful tradeoff analysis is possible. Once your Values page captures what matters most to you — stability, impact, learning, or something else — and your Interests page records what activities genuinely engage you, a counsellor can help you weigh real tensions: for example, whether a JC–university track or a poly–industry track better fits the pace and hands-on texture you need. At this stage, the cluster tag here is illustrative only.",
         "exploration_prompt": "What is one decision — about a CCA, a subject choice, or a piece of work — that you made recently, and what did it reveal about what you actually care about?"
       },
       {
         "label": "Placeholder B — awaiting Skills + Personality evidence",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.computing"
-        ],
+        "ecg_region_tags": ["cluster.computing"],
         "risks_tradeoffs": "Without any Skills or Personality timeline entries, it is not possible to flag real tradeoffs. Skills evidence — such as whether analytical or interpersonal strengths show up more consistently — would determine whether a computing or a people-facing cluster deserves more weight. Similarly, knowing whether you tend to be energised by group settings or prefer solitary deep work would shift the tradeoff calculus for, say, a software-engineering track versus a research-track degree. The cluster tag here is a placeholder.",
         "exploration_prompt": "Think of a moment in school or outside it when you felt genuinely capable — what were you doing, and what skill did it seem to draw on?"
       }

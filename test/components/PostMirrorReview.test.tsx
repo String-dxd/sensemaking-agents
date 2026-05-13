@@ -10,7 +10,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PostMirrorReview } from '~/components/PostMirrorReview'
+import type { Mood } from '~/agents/tools/schemas'
+import { PostMirrorReview, type PostMirrorReviewDiff } from '~/components/PostMirrorReview'
 import type { VipsProposedDiffRow } from '~/db/queries'
 import { buildReviewEntryId } from '~/server/review-payload-shape'
 
@@ -72,7 +73,9 @@ function makeDiff(overrides?: {
     }
     reason: 'no_quote_match' | 'unknown_reflection'
   }[]
-}): VipsProposedDiffRow {
+  inferred_emotion?: Mood | null
+  mood?: Mood | null
+}): PostMirrorReviewDiff {
   const admitted = overrides?.admitted ?? [
     annotatedEntry({
       dimension: 'values',
@@ -108,6 +111,8 @@ function makeDiff(overrides?: {
     status: 'pending',
     created_at: '2026-05-11T00:00:00Z',
     reviewed_at: null,
+    inferred_emotion: overrides?.inferred_emotion ?? null,
+    mood: overrides?.mood ?? null,
   }
 }
 
@@ -119,6 +124,42 @@ function makeWrapper() {
 }
 
 describe('PostMirrorReview', () => {
+  it('renders the "what Mirror sensed" block with a joy fallback when inferred_emotion is absent', () => {
+    const diff = makeDiff()
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+    expect(screen.getByTestId('what-mirror-sensed')).toBeInTheDocument()
+    const inferredChip = screen.getByTestId('emotion-chip-inferred')
+    expect(inferredChip).toHaveAttribute('data-mood', 'joy')
+    // No user chip when mood is absent.
+    expect(screen.queryByTestId('emotion-chip-user')).toBeNull()
+    expect(screen.queryByTestId('emotion-connector')).toBeNull()
+  })
+
+  it('renders the inferred chip from the staged diff when inferred_emotion is present', () => {
+    const diff = makeDiff()
+    diff.inferred_emotion = 'sadness'
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+    expect(screen.getByTestId('emotion-chip-inferred')).toHaveAttribute('data-mood', 'sadness')
+  })
+
+  it('renders the user chip + connector when both mood and inferred_emotion are present (aligned case)', () => {
+    const diff = makeDiff()
+    diff.inferred_emotion = 'sadness'
+    diff.mood = 'ennui'
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+    expect(screen.getByTestId('emotion-chip-inferred')).toHaveAttribute('data-mood', 'sadness')
+    expect(screen.getByTestId('emotion-chip-user')).toHaveAttribute('data-mood', 'ennui')
+    expect(screen.getByTestId('emotion-connector')).toHaveAttribute('data-verdict', 'aligned')
+  })
+
+  it('connector reports "same" when both fields are equal', () => {
+    const diff = makeDiff()
+    diff.inferred_emotion = 'joy'
+    diff.mood = 'joy'
+    render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })
+    expect(screen.getByTestId('emotion-connector')).toHaveAttribute('data-verdict', 'same')
+  })
+
   it('renders one DimensionGroup per VIPS dimension with entries and shows the compiled-truth preview', () => {
     const diff = makeDiff()
     render(<PostMirrorReview studentId="demo" diff={diff} />, { wrapper: makeWrapper() })

@@ -98,3 +98,19 @@ export function allEntriesResolved(payload: ReviewPayload): boolean {
   if (all.length === 0) return true
   return all.every((e) => e.resolved !== 'pending')
 }
+
+/**
+ * Find a reviewable entry (`admitted` or `downgraded`) by its
+ * `buildReviewEntryId` handle. Returns the entry and the list it lives in,
+ * or `null` if no match. Shared by confirm-diff / forget-diff handlers.
+ */
+export function locateEntry(
+  payload: ReviewPayload,
+  entryId: string,
+): { entry: ReviewableAnnotatedEntry; list: 'admitted' | 'downgraded' } | null {
+  for (const list of ['admitted', 'downgraded'] as const) {
+    const found = payload[list].find((e) => buildReviewEntryId(e) === entryId)
+    if (found) return { entry: found, list }
+  }
+  return null
+}

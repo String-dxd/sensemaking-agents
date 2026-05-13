@@ -15,6 +15,7 @@
 // that filter on student_id as part of the PK are kept).
 
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import type { VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
 import { type TenantContext, withStudent } from './client'
 import {
   agentTraces,
@@ -48,6 +49,8 @@ function requireRow<T>(rows: readonly T[], context: string): T {
 // Public row types — preserve the v0.1 surface exactly. Call sites depend on
 // these field names and string-literal unions.
 // ---------------------------------------------------------------------------
+
+export type { VipsClaimStrength, VipsContextType }
 
 export interface MirrorEntryRow {
   id: number
@@ -708,8 +711,6 @@ async function insertAgentTraceInner(
 // v0.2 (U1): VIPS storage helpers — public types
 // ---------------------------------------------------------------------------
 
-export type VipsContextType = 'school' | 'family' | 'peer' | 'hobby' | 'civic'
-export type VipsClaimStrength = 'low' | 'medium' | 'high'
 export type VipsProposedDiffStatus = 'pending' | 'confirmed' | 'forgotten'
 
 /**

@@ -1,3 +1,4 @@
+import { Badge } from '~/components/ui/badge'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import type { ConnectorOutputRow } from '~/db/queries'
 
@@ -23,11 +24,13 @@ export function ConnectorPatternCard({ output }: ConnectorPatternCardProps) {
           {output.patterns.map((p) => (
             <li key={p.text} className="flex flex-col gap-1.5">
               <div className="flex items-start gap-2">
-                <span
-                  className={`mt-0.5 inline-flex shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium tracking-wide ${STRENGTH_TONE[p.strength]}`}
+                <Badge
+                  size="sm"
+                  radius="sm"
+                  className={`mt-0.5 shrink-0 text-[10px] tracking-wide ${STRENGTH_TONE[p.strength]}`}
                 >
                   {p.strength}
-                </span>
+                </Badge>
                 <p className="text-sm leading-relaxed">{p.text}</p>
               </div>
               <p className="pl-9 text-xs text-muted-foreground">

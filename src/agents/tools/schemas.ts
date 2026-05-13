@@ -127,6 +127,28 @@ export type SelfCritiqueOutput = z.infer<typeof SelfCritiqueOutputSchema>
 export const VipsContextTypeSchema = z.enum(['school', 'family', 'peer', 'hobby', 'civic'])
 export type VipsContextType = z.infer<typeof VipsContextTypeSchema>
 
+/**
+ * Inside-Out-flavored closed emotion enum. Phase A: the UI imports the
+ * 9 labels from here so the EmotionPicker, EmotionChip, and (mocked)
+ * PostMirrorReview render share one source of truth. Phase B extends
+ * `MirrorAgentOutputSchema` with `inferred_emotion: MoodSchema` and
+ * lands the Drizzle migration that adds `mood` + `inferred_emotion`
+ * columns to `mirror_entries`. Until then, this export is type-only —
+ * no agent emits it and no DB column reads it.
+ */
+export const MoodSchema = z.enum([
+  'joy',
+  'sadness',
+  'anger',
+  'fear',
+  'disgust',
+  'anxiety',
+  'envy',
+  'embarrassed',
+  'ennui',
+])
+export type Mood = z.infer<typeof MoodSchema>
+
 export const VipsClaimStrengthSchema = z.enum(['low', 'medium', 'high'])
 export type VipsClaimStrength = z.infer<typeof VipsClaimStrengthSchema>
 

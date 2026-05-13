@@ -392,5 +392,4 @@ describe.skipIf(!process.env.DATABASE_URL)('runCartographerHandler — managed d
     expect(result.ok).toBe(false)
     expect(result.status).toBe('agent_error')
   })
-
 })

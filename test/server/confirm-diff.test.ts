@@ -180,6 +180,70 @@ describe.skipIf(!process.env.DATABASE_URL)('confirmDiffHandler — happy path', 
     // updated_at should be the same — no second upsert.
     expect(pageAfterSecond?.updated_at).toBe(updatedAtFirst)
   })
+
+  // The first-confirm-in-dimension check must scan BOTH `admitted` and
+  // `downgraded` lists. If an admitted entry has already committed the
+  // dimension's compiled_truth_rewrite, confirming a downgraded entry in
+  // the same dimension must not overwrite it.
+  it('does not re-upsert compiled_truth when admitted and downgraded share a dimension', () => {
+    const mirror = insertMirrorEntry('demo', {
+      transcript: 'i hated when teacher told us exactly what to do',
+      validation: 'v',
+      inferred_meaning: 'm',
+      story_reframe: 's',
+      raw_output: {},
+      context_type: 'school',
+    })
+
+    const admittedValues = annotatedEntry({
+      dimension: 'values',
+      canonical_claim_id: 'values.self_direction',
+      verbatim_quote: 'i hated when teacher told us',
+      reflection_id: mirror.id,
+    })
+    const downgradedValues = annotatedEntry({
+      dimension: 'values',
+      canonical_claim_id: 'values.autonomy',
+      verbatim_quote: 'exactly what to do',
+      reflection_id: mirror.id,
+      partial_match: true,
+    })
+
+    const payload = {
+      diffs: {
+        values: emptyDimDiff('Practices self-direction in school settings.', 'q?'),
+        interests: emptyDimDiff(),
+        personality: emptyDimDiff(),
+        skills: emptyDimDiff(),
+      },
+      admitted: [admittedValues],
+      downgraded: [downgradedValues],
+      dropped: [],
+    }
+
+    const diff = insertVipsProposedDiff('demo', {
+      mirror_entry_id: mirror.id,
+      payload,
+      verifier_result: { admitted: payload.admitted, downgraded: payload.downgraded, dropped: [] },
+    })
+
+    confirmDiffHandler({
+      studentId: 'demo',
+      diffId: diff.id,
+      entryId: buildReviewEntryId(admittedValues),
+    })
+    const updatedAtFirst = getVipsPage('demo', 'values')?.updated_at
+
+    confirmDiffHandler({
+      studentId: 'demo',
+      diffId: diff.id,
+      entryId: buildReviewEntryId(downgradedValues),
+    })
+    const pageAfterCross = getVipsPage('demo', 'values')
+
+    expect(pageAfterCross?.compiled_truth).toBe('Practices self-direction in school settings.')
+    expect(pageAfterCross?.updated_at).toBe(updatedAtFirst)
+  })
 })
 
 describe.skipIf(!process.env.DATABASE_URL)(

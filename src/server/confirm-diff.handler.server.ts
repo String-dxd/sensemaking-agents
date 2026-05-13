@@ -102,7 +102,7 @@ export async function confirmDiffHandler(
     if (!located) {
       throw new ConfirmDiffError(`Entry ${parsed.entryId} not found in diff ${parsed.diffId}`)
     }
-    const { entry, list } = located
+    const { entry } = located
     if (entry.resolved === 'confirmed') {
       throw new ConfirmDiffError(`Entry ${parsed.entryId} is already confirmed`)
     }
@@ -114,8 +114,11 @@ export async function confirmDiffHandler(
     // First confirm in this dimension within this batch? If yes, upsert
     // the dimension's vips_pages row with the agent's compiled-truth
     // rewrite. We look at the snapshot BEFORE flipping `entry.resolved`
-    // because we want to detect the first confirm transition.
-    const isFirstConfirmInDimension = !payload[list].some(
+    // and scan BOTH lists — a prior confirm in `admitted` must suppress
+    // a redundant upsert for the same dimension's `downgraded` confirm
+    // (and vice-versa). Scanning only `payload[list]` missed the cross-
+    // list case; world-studio fix carried forward through the rebase.
+    const isFirstConfirmInDimension = ![...payload.admitted, ...payload.downgraded].some(
       (e) => e.dimension === dimension && e.resolved === 'confirmed',
     )
 

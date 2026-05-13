@@ -19,6 +19,7 @@
  * Wrapped in `withStudent` from `~/db/client` so the diff lookup and
  * payload/status updates share one Postgres transaction.
  */
+import { z } from 'zod'
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudent } from '~/db/client'
 import {
@@ -27,14 +28,14 @@ import {
   updateVipsProposedDiffStatus,
   type VipsProposedDiffRow,
 } from '~/db/queries'
-import {
-  allEntriesResolved,
-  buildReviewEntryId,
-  parseReviewPayload,
-  type ReviewableAnnotatedEntry,
-  type ReviewPayload,
-} from '~/server/review-payload-shape'
-import { type ForgetDiffInput, forgetDiffInputSchema } from './function-schemas'
+import { allEntriesResolved, locateEntry, parseReviewPayload } from '~/server/review-payload-shape'
+
+export const forgetDiffInputSchema = z.object({
+  diffId: z.number().int().positive(),
+  entryId: z.string().min(1),
+})
+
+export type ForgetDiffInput = z.output<typeof forgetDiffInputSchema>
 
 export class ForgetDiffError extends Error {
   constructor(message: string) {
@@ -91,15 +92,4 @@ export async function forgetDiffHandler(data: ForgetDiffInput): Promise<ForgetDi
     }
     return { diff: updated }
   })
-}
-
-function locateEntry(
-  payload: ReviewPayload,
-  entryId: string,
-): { entry: ReviewableAnnotatedEntry; list: 'admitted' | 'downgraded' } | null {
-  for (const list of ['admitted', 'downgraded'] as const) {
-    const found = payload[list].find((e) => buildReviewEntryId(e) === entryId)
-    if (found) return { entry: found, list }
-  }
-  return null
 }

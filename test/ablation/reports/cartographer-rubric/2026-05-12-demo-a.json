@@ -20,38 +20,28 @@
       {
         "label": "Inquiry-driven STEM track",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.engineering",
-          "cluster.applied-sciences"
-        ],
+        "ecg_region_tags": ["cluster.engineering", "cluster.applied-sciences"],
         "risks_tradeoffs": "A JC science combination (e.g. H2 PCME) keeps the widest range of engineering and research degrees open, but commits you to two years of largely theoretical study before any hands-on specialisation. If your reflections eventually show strong realistic or practical skills signals, the polytechnic route into engineering technology may give you earlier workshop time and industry exposure, at the cost of some university articulation flexibility. Neither path is wrong — but the choice is time-sensitive at the O-Level subject selection stage.",
         "exploration_prompt": "What is the last problem — inside or outside school — that you stayed up thinking about, and what made it hard to let go?"
       },
       {
         "label": "People-facing social or education pathway",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.education",
-          "cluster.public-service"
-        ],
+        "ecg_region_tags": ["cluster.education", "cluster.public-service"],
         "risks_tradeoffs": "Teaching and social-service careers in Singapore offer strong job stability and a clear MOE or SSG-funded training pipeline, but salaries in the early career years are modest compared to business or tech tracks. A humanities JC combination preserves these pathways while also keeping law and policy options open, though it narrows re-entry into lab-science degrees later. If your Values pages eventually show a strong contribution signal alongside a social interests signal, this region deserves a serious look — but that inference cannot be made yet.",
         "exploration_prompt": "Think of a moment when helping someone understand something felt genuinely satisfying — what was happening, and what role were you playing?"
       },
       {
         "label": "Computing and digital-product direction",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.computing"
-        ],
+        "ecg_region_tags": ["cluster.computing"],
         "risks_tradeoffs": "Computing degrees (NUS, NTU, SUTD, or a poly diploma articulating into SIT) lead to some of the highest starting graduate salaries in Singapore right now, but the field is competitive and the job market is shifting quickly with AI. A JC route with H2 Maths and one science keeps NUS Computing accessible; a poly diploma in IT or computer engineering is a credible alternative that gets you coding earlier. The risk is choosing this path for its salary signal rather than genuine investigative or creative-technical interest — burnout in computing is real when the underlying curiosity is absent.",
         "exploration_prompt": "Have you ever built, automated, or broken something digital just to see how it worked — and what did that feel like?"
       },
       {
         "label": "Creative and design-adjacent pathway",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.creative-arts"
-        ],
+        "ecg_region_tags": ["cluster.creative-arts"],
         "risks_tradeoffs": "Design and media pathways in Singapore (NAFA, LASALLE, NUS Architecture, SUTD design tracks, or poly visual communication diplomas) are genuine career routes, but they require a portfolio developed over years, not months. If your Interests page later shows a strong artistic signal with creative skills evidence, the earlier you start building a body of work the better — waiting until post-O-Levels to begin is a real disadvantage. Family and financial pressures around 'stable careers' are also a concrete reality in this region; the exploration prompt below is designed to surface whether the pull is genuine before that tension becomes acute.",
         "exploration_prompt": "Is there something you make or create — even privately — that you would keep doing even if no one ever saw it?"
       }

@@ -20,18 +20,14 @@
       {
         "label": "Placeholder A — pending VIPS evidence",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.engineering"
-        ],
+        "ecg_region_tags": ["cluster.engineering"],
         "risks_tradeoffs": "No VIPS evidence exists yet, so no meaningful tradeoffs can be articulated. Once Values, Interests, Personality, and Skills entries are present, this section would describe concrete decisions a student in Singapore actually faces — for example, whether a JC H2-PCME combination or a polytechnic engineering diploma better fits a mix of hands-on interests and academic ambition, or how choosing mechatronics over civil engineering affects the kinds of internships and NS postings available after graduation. None of that reasoning is possible until the pages are populated.",
         "exploration_prompt": "Try writing one reflection about a time you built, fixed, or figured out how something worked — what drew you in, what frustrated you, and whether you would choose to do it again."
       },
       {
         "label": "Placeholder B — pending VIPS evidence",
         "trait_combination": [],
-        "ecg_region_tags": [
-          "cluster.public-service"
-        ],
+        "ecg_region_tags": ["cluster.public-service"],
         "risks_tradeoffs": "No VIPS evidence exists yet, so no meaningful tradeoffs can be articulated. Once timeline entries are recorded, this section would weigh, for example, whether a student's values around contribution and security sit comfortably with the structured career progression of the civil service, or whether a strong independence orientation might create tension with a system that rewards tenure and consensus — and how that tension plays out differently in a policy analyst role versus a frontline community-development role.",
         "exploration_prompt": "Try writing one reflection about a time you wanted to change something in your school, family, or community — what problem were you reacting to, and what kind of change felt worth making?"
       }
