@@ -107,6 +107,26 @@ describe('runConnectorHandler', () => {
     expect(result.succeeded).toBe(1)
     expect(result.failed).toBe(1)
   })
+
+  it('reports the concrete failure when every processed entry fails despite backlog', async () => {
+    const result = await runConnectorForStudent(
+      'demo',
+      { limit: 2 },
+      {
+        listUnconnectedMirrorEntries: vi.fn(async () => [
+          mirrorEntry(1),
+          mirrorEntry(2),
+          mirrorEntry(3),
+        ]),
+        runConnectorForEntry: vi.fn(async () => connectorResult('timeout')),
+      },
+    )
+
+    expect(result.status).toBe('timeout')
+    expect(result.processed).toBe(2)
+    expect(result.failed).toBe(2)
+    expect(result.remaining).toBe(1)
+  })
 })
 
 describe('runConnectorCronHandler', () => {

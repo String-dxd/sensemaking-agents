@@ -170,11 +170,11 @@ function aggregateStatus(
   remaining: number,
 ): RunConnectorStatus {
   if (entries.length === 0) return 'nothing_to_run'
-  if (remaining > 0) return 'partial'
   const failures = entries.filter((entry) => entry.status !== 'ok')
-  if (failures.length === 0) return 'ok'
+  if (failures.length === 0) return remaining > 0 ? 'partial' : 'ok'
   if (failures.length < entries.length) return 'partial'
   const firstStatus = failures[0]?.status
+  if (remaining > 0 && firstStatus === 'queued') return 'partial'
   return firstStatus === 'queued' ? 'partial' : (firstStatus ?? 'unknown')
 }
 

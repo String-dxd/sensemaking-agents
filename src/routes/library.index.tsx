@@ -26,6 +26,8 @@ import type { RunStepEvent } from '~/agents/run-events'
 import { finishAgentRun, startAgentRun } from '~/agents/run-status'
 import { AgentRunVisualizer } from '~/components/AgentRunVisualizer'
 import { ConfirmDialog } from '~/components/ConfirmDialog'
+import { MirrorEvalReviewBadge, parseMirrorEvalReview } from '~/components/MirrorEvalReview'
+import { MirrorReflectionSections } from '~/components/MirrorReflectionSections'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import type { VipsDimension } from '~/data/vips-taxonomy'
@@ -485,6 +487,7 @@ function ThoughtReviewCard({
   onForget: () => void
   disabled: boolean
 }) {
+  const evalReview = parseMirrorEvalReview(entry.raw_output_json)
   return (
     <Card data-testid={`mirror-entry-${entry.id}`}>
       <CardHeader>
@@ -497,10 +500,16 @@ function ThoughtReviewCard({
             {entry.review_status === 'pending' ? 'needs review' : entry.review_status}
           </span>
         </div>
+        <MirrorEvalReviewBadge review={evalReview} />
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <p className="text-sm leading-relaxed">{entry.story_reframe}</p>
-        <p className="text-xs leading-relaxed text-muted-foreground">{entry.transcript}</p>
+        <MirrorReflectionSections entry={entry} compact />
+        <details className="rounded-md border border-border/40 bg-muted/10 p-3 text-xs">
+          <summary className="cursor-pointer text-muted-foreground">Transcript</summary>
+          <p className="mt-2 whitespace-pre-wrap leading-relaxed text-muted-foreground">
+            {entry.transcript}
+          </p>
+        </details>
         {entry.review_status === 'pending' ? (
           <div className="flex flex-wrap gap-2">
             <Button

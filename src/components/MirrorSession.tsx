@@ -414,7 +414,7 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
         startAgentRun('mirror', 'Reflecting the transcript back to the student.')
         // studentId no longer travels in the data payload — managed-agents
         // resolves it server-side via `requireCounselorContext()` (WorkOS).
-        const { output } = await runMirror({ data: { transcript } })
+        const { output, eval_review: evalReview = null } = await runMirror({ data: { transcript } })
         finishAgentRun('mirror', 'succeeded', 'Mirror output is ready.')
         activeAgent = null
         if (!mountedRef.current) return
@@ -430,7 +430,10 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
               story_reframe: output.story_reframe,
             },
             context_type: contextType,
-            raw_output: output,
+            raw_output: {
+              ...output,
+              eval_review: evalReview,
+            },
             // Read elapsed from the ref rather than state.elapsedMs so this
             // callback doesn't reidentify every animation frame and cascade
             // through handleStopInternal / handleVoicePress's useCallback chain.

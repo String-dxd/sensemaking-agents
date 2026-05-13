@@ -255,6 +255,58 @@ describe('MirrorSession (voice-mode controller)', () => {
     expect(persistArgs.data).not.toHaveProperty('mood')
   })
 
+  it('persists self-critique review as mirror-entry raw metadata', async () => {
+    const evalReview = {
+      verdict: 'pass_with_warnings',
+      risk_level: 'medium',
+      critique: 'Safe enough, but keep the reframe tentative.',
+      findings: [
+        {
+          category: 'student_agency',
+          severity: 'medium',
+          issue: 'The draft leans too certain.',
+          recommendation: 'Use hypothesis language.',
+        },
+      ],
+      suggestions: ['Keep student choice explicit.'],
+      confidence: 'high',
+    }
+    transcribeMock.mockResolvedValue({ transcript: 't' })
+    runMock.mockResolvedValue({
+      output: { validation: 'v', inferred_meaning: 'm', story_reframe: 's' },
+      eval_review: evalReview,
+    })
+    persistMock.mockResolvedValue({
+      mirror_entry: { id: 1 },
+    })
+
+    const onPersisted = vi.fn()
+    const api: { current: ReturnType<typeof useMirrorSession> | null } = { current: null }
+    render(<Harness onPersisted={onPersisted} expose={(a) => (api.current = a)} />)
+
+    await userEvent.click(screen.getByTestId('voice-button'))
+    await vi.waitFor(() => expect(api.current?.phase).toBe('recording'))
+    await userEvent.click(screen.getByTestId('voice-button'))
+    await vi.waitFor(() => expect(onPersisted).toHaveBeenCalledTimes(1))
+
+    const persistArgs = persistMock.mock.calls[0]?.[0] as {
+      data: {
+        raw_output: {
+          validation: string
+          inferred_meaning: string
+          story_reframe: string
+          eval_review: unknown
+        }
+      }
+    }
+    expect(persistArgs.data.raw_output).toMatchObject({
+      validation: 'v',
+      inferred_meaning: 'm',
+      story_reframe: 's',
+      eval_review: evalReview,
+    })
+  })
+
   it('handleVoicePress is idempotent outside idle/recording', async () => {
     transcribeMock.mockResolvedValue({ transcript: 't' })
     runMock.mockResolvedValue({

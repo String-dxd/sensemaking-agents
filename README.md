@@ -22,63 +22,76 @@ For the latest planning and merge status, see `plans/CURRENT_STATE.md`.
 - Auth: WorkOS AuthKit with Google sign-in, plus a local demo/dev bypass path.
 - Deployment target: Vercel.
 
-## Managed Agent Pipeline
+## Agent Architecture
 
-The app uses three product-facing managed agents plus one eval/safety reviewer. Each agent has a narrow job, and the boundary between them is explicit in code.
+The app uses three product-facing managed agents plus one eval/safety reviewer. The product agents create or synthesize student-facing sensemaking; the eval agent reviews those outputs. Persistence, verification, auth, and final policy decisions stay in application code.
 
-### Mirror
+| Agent | Role | Trigger | Writes student-facing state? | Default model |
+|---|---|---|---|---|
+| Mirror | Reflect one recorded thought back to the student | Immediately after transcription on `/reflect` | Indirectly: app persists its parsed output as a raw mirror entry | `claude-sonnet-4-6` |
+| Connector | Link recent mirror entries into canonical VIPS pages | Manual `Run Connector` button or 18:00 Singapore scheduled pass | Yes, but only after deterministic verifier gates proposed links | `claude-sonnet-4-6` |
+| Cartographer | Synthesize verified VIPS state into Trajectory | Manual `Run sense-making` button | Yes, writes the trajectory view | `claude-sonnet-4-6` |
+| self_critique | Eval/safety reviewer for other agent outputs | Best-effort review after Mirror, Connector, or Cartographer drafts | No | `claude-haiku-4-5` |
 
-Mirror runs immediately after recording and transcription.
+Default models and hosted managed-agent provisioning live in `scripts/managed-agents/provision.ts`.
 
-1. The user records a thought.
-2. The app transcribes the audio.
-3. The app infers a context tag from the transcript: `school`, `family`, `peer`, `hobby`, or `civic`.
+### Handoff Flow
+
+1. The user records on `/reflect`.
+2. The app transcribes audio with OpenAI Whisper.
+3. The app infers a closed context tag: `school`, `family`, `peer`, `hobby`, or `civic`.
 4. Mirror receives the transcript and returns `validation`, `inferred_meaning`, and `story_reframe`.
-5. `persistMirror` writes the raw thought to `mirror_entries`.
-6. The raw thought starts in `pending` review state so the user can later `Confirm` or `Forget` it in Library.
+5. `self_critique` reviews the Mirror draft for evidence grounding, safety, student agency, and specificity. This review is returned as `eval_review`; it does not block persistence.
+6. `persistMirror` writes the raw thought to `mirror_entries` in `pending` review state.
+7. Connector later runs from Library or the scheduled pass over recent unconnected reflections.
+8. Connector proposes VIPS timeline links and page rewrites across Values, Interests, Personality, and Skills.
+9. `self_critique` reviews the Connector draft for evidence grounding, taxonomy fit, safety, specificity, and sycophancy.
+10. The deterministic verifier gates every proposed timeline link before anything enters `vips_timeline_entries`.
+11. Verifier-passing `admitted` and `downgraded` entries become connected VIPS links. Dropped entries stay only in the audit payload in `vips_proposed_diffs`.
+12. Cartographer reads verified VIPS pages and timeline entries when the user clicks `Run sense-making`.
+13. `self_critique` reviews the Cartographer draft for evidence grounding, safety, student agency, specificity, sycophancy, and actionability.
+14. Cartographer writes `/library/trajectory` with a trajectory paragraph, 2-5 pathways, open questions, and a disclaimer.
 
-Default managed-agent model from `scripts/managed-agents/provision.ts`: `claude-sonnet-4-6`.
+### Agent Boundaries
 
-Mirror creates the dot in the wiki: the student's recorded thought.
+Mirror creates the dot. It reflects one transcript without deciding a student identity, career path, or VIPS profile. It should stay validating, concrete, and non-diagnostic.
 
-### Connector
+Connector links dots into the mesh. It can propose VIPS claims only from observed evidence and the closed VIPS taxonomy. It does not invent free-text labels from external lists. The deterministic verifier is the hard gate before links are applied.
 
-Connector runs from a deliberate trigger: the Library `Run Connector` action for the active student, or the daily scheduled pass at 18:00 Singapore time (`0 10 * * *` UTC on Vercel Cron).
+Cartographer reads the connected mesh. It synthesizes direction-of-travel from verified VIPS state without inventing certainty, destiny, or prescriptive career advice.
 
-1. Connector receives recent unconnected mirror entries, existing VIPS pages, and non-forgotten VIPS timeline context.
-2. Connector proposes per-dimension VIPS updates across Values, Interests, Personality, and Skills.
-3. The deterministic verifier checks proposed entries before anything reaches the wiki tables, including canonical taxonomy membership.
-4. Verifier-passing `admitted` and `downgraded` entries are inserted into `vips_timeline_entries`.
-5. Touched VIPS page summaries are upserted from the Connector rewrite after safety checks.
-6. Dropped entries are preserved only in the confirmed audit row in `vips_proposed_diffs`; they are not shown as user work.
+`self_critique` is the guardrail lens. It evaluates quality and safety, but it does not rewrite the full draft, create student-facing meaning, or persist state. It can flag safety and overclaiming even when the caller requested a narrower focus.
 
-Default managed-agent model from `scripts/managed-agents/provision.ts`: `claude-sonnet-4-6`.
+### Eval Review Contract
 
-Connector links dots into the mesh. The user does not confirm Connector links; the agent proposes them and the verifier gates them.
+`self_critique` receives:
 
-### Cartographer
+- `agent`: `mirror`, `connector`, or `cartographer`
+- `draft`: JSON-serialized output from that agent
+- `focus`: review dimensions such as `evidence_grounding`, `taxonomy_fit`, `safety`, `student_agency`, `specificity`, `sycophancy`, or `actionability`
+- `source_context`: compact context such as transcript text, reflection metadata, VIPS page count, or verified timeline count
 
-Cartographer runs only when the user clicks `Run sense-making` in Library.
+It returns structured JSON with:
 
-1. Cartographer reads the current VIPS pages and verified timeline.
-2. It synthesizes a Trajectory page with a trajectory paragraph, 2-5 pathways, open questions, and a disclaimer.
-3. On success, the app navigates to `/library/trajectory`.
+- `verdict`: `pass`, `pass_with_warnings`, or `fail`
+- `risk_level`: `low`, `medium`, or `high`
+- `critique`: one concise paragraph
+- `findings`: categorized issues and recommendations
+- `suggestions`: concrete follow-up checks or revisions
+- `confidence`: `low`, `medium`, or `high`
 
-Default managed-agent model from `scripts/managed-agents/provision.ts`: `claude-sonnet-4-6`.
+The eval call is best-effort. If the `self_critique` binding is missing or the managed-agent call fails, the app logs a warning and continues. Connector safety does not depend on eval alone; verified persistence still depends on deterministic checks.
 
-Cartographer reads the connected mesh and turns it into a direction-of-travel view.
+### Source Of Truth
 
-### Self-Critique Eval/Safety
-
-Self-critique is the managed eval agent for reviewing other agents' outputs. It does not create student-facing meaning or write VIPS state.
-
-1. It reviews Mirror, Connector, or Cartographer drafts against evidence grounding, taxonomy fit, safety, student agency, specificity, sycophancy, and actionability.
-2. It returns a pass / pass-with-warnings / fail style critique with risk level, findings, and recommendations.
-3. It is allowed to flag safety and overclaiming even when the caller asked for a narrower evidence or specificity review.
-
-Default managed-agent model from `scripts/managed-agents/provision.ts`: `claude-haiku-4-5`.
-
-Self-critique is the guardrail lens: it evaluates quality and safety, while the application still owns persistence and final enforcement.
+- Agent prompts: `src/agents/mirror.prompt.md`, `src/agents/connector.prompt.md`, `src/agents/cartographer.prompt.md`, `src/agents/self_critique.prompt.md`
+- Managed-agent binding and version lookup: `src/agents/config.ts`
+- Managed-agent transport: `src/agents/runner.ts`
+- Eval runner: `src/agents/self-critique-eval.ts`
+- Agent and eval schemas: `src/agents/schemas.ts`, `src/agents/tools/schemas.ts`
+- VIPS taxonomy grounding: `docs/vips-taxonomy.md`, `src/data/vips-taxonomy.ts`, `src/agents/context/index.ts`
+- Deterministic Connector verifier: `src/agents/verifier.ts`
+- Runtime handoff handlers: `src/server/run-mirror.handler.server.ts`, `src/server/auto-connector.handler.server.ts`, `src/server/run-connector.handler.server.ts`, `src/server/run-cartographer.handler.server.ts`
 
 ### Developer Debug Surface
 
