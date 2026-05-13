@@ -42,16 +42,16 @@ function RootComponent() {
       <QueryClientProvider client={queryClient}>
         <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-8">
           <header className="flex items-center justify-between gap-4">
-            <Link to="/reflect" className="text-sm font-semibold tracking-tight">
+            <Link to="/" className="text-sm font-semibold tracking-tight">
               Sensemaking agents
             </Link>
             <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm text-muted-foreground">
               <Link
-                to="/reflect"
+                to="/"
                 className="hover:text-foreground"
                 activeProps={{ className: 'text-foreground' }}
               >
-                reflect
+                island
               </Link>
               <Link
                 to="/library"
@@ -90,11 +90,11 @@ function RootComponent() {
                     <>
                       <a
                         className="rounded px-2 py-1.5 hover:bg-muted hover:text-foreground"
-                        href={workosSignInHref('/reflect')}
+                        href={workosSignInHref('/')}
                       >
                         sign in
                       </a>
-                      <form action={demoSignInHref('/reflect')} method="post">
+                      <form action={demoSignInHref('/')} method="post">
                         <button
                           type="submit"
                           className="w-full rounded px-2 py-1.5 text-left hover:bg-muted hover:text-foreground"
