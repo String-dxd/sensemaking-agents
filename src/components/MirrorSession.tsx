@@ -186,10 +186,7 @@ export interface MirrorSessionApi {
  * Hook-based session controller. Returns the state machine plus the
  * handlers used by `LandingPage` to wire the Voice button + chip overlay.
  */
-export function useMirrorSession({
-  studentId,
-  onPersisted,
-}: MirrorSessionOptions): MirrorSessionApi {
+export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorSessionApi {
   const [state, dispatch] = useReducer(reduce, initialState, (init: State): State => {
     if (typeof window !== 'undefined' && import.meta.env.DEV) {
       const injected = new URLSearchParams(window.location.search).get('inject')
@@ -317,7 +314,7 @@ export function useMirrorSession({
   }, [])
 
   const acquireMic = useCallback(async () => {
-    if (typeof window !== 'undefined' && !window.isSecureContext) {
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
       dispatch({
         type: 'permission-error',
         message: `This page is not in a secure context (${window.location.protocol}//${window.location.host}). Browsers block microphone access outside of https: or http://localhost. Open the app at http://localhost:3000 (not an IP, not a LAN hostname) or over https://.`,
@@ -452,7 +449,7 @@ export function useMirrorSession({
         dispatch({ type: 'fail', message })
       }
     },
-    [studentId, onPersisted],
+    [onPersisted],
   )
 
   const handleStopInternal = useCallback(async () => {
@@ -488,7 +485,7 @@ export function useMirrorSession({
       dispatch({ type: 'fail', message })
       cleanup()
     }
-  }, [stopRecorder, studentId, runPostStopChain, cleanup])
+  }, [stopRecorder, runPostStopChain, cleanup])
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only — drives the dev `?inject=` short-circuit straight into the post-Stop chain
   useEffect(() => {

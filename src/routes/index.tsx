@@ -55,25 +55,24 @@ export const Route = createFileRoute('/')({
  */
 function LandingErrorFallback({ reset }: { reset: () => void }) {
   return (
-    <section
-      className="flex flex-col items-center gap-4 py-8 text-center"
-      data-testid="landing-error"
-    >
-      <h1 className="text-xl font-semibold tracking-tight">
-        Couldn’t load your library right now.
-      </h1>
-      <p className="max-w-prose text-sm text-muted-foreground">
-        That’s usually a transient hiccup. You can retry, or head straight into recording — your
-        library will be there when it comes back.
-      </p>
-      <button
-        type="button"
-        onClick={reset}
-        className="rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
-        data-testid="landing-error-retry"
-      >
-        Try again
-      </button>
+    <section className="flex flex-col gap-3 py-2" data-testid="landing-error">
+      <div className="flex flex-col gap-3 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="font-medium">Library did not refresh.</p>
+          <p className="text-muted-foreground">
+            Recording is still available; retry when you need the latest pages.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={reset}
+          className="inline-flex w-fit items-center rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted"
+          data-testid="landing-error-retry"
+        >
+          Try again
+        </button>
+      </div>
+      <LandingPage />
     </section>
   )
 }

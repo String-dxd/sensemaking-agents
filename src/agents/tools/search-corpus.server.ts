@@ -1,6 +1,6 @@
 import {
-  type SearchPastMirrorsOutput,
   SearchPastMirrorsInputSchema,
+  type SearchPastMirrorsOutput,
   SearchPastMirrorsOutputSchema,
 } from '~/agents/tools/schemas'
 import type { TenantContext } from '~/db/client'
