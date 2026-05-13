@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   bootstrapDemoStudentsForCounselor: vi.fn(),
+  bootstrapPersonalStudentForCounselor: vi.fn(),
   getSignInUrl: vi.fn(),
   handleCallbackRoute: vi.fn(),
   hasWorkosEnv: vi.fn(),
@@ -18,6 +19,7 @@ vi.mock('~/auth/workos', () => ({
 
 vi.mock('~/auth/middleware', () => ({
   bootstrapDemoStudentsForCounselor: mocks.bootstrapDemoStudentsForCounselor,
+  bootstrapPersonalStudentForCounselor: mocks.bootstrapPersonalStudentForCounselor,
   isAuthBypassed: mocks.isAuthBypassed,
 }))
 
@@ -126,6 +128,26 @@ describe('/api/auth/sign-out', () => {
 })
 
 describe('/api/auth/callback', () => {
+  it('attaches successful WorkOS sign-ins to a private student namespace', async () => {
+    mocks.handleCallbackRoute.mockImplementation((options) => {
+      return async () => {
+        await options.onSuccess({ user: { id: 'user_123' } })
+        return new Response(null, {
+          status: 307,
+          headers: { Location: '/reflect' },
+        })
+      }
+    })
+
+    const response = await handleCallbackGet({
+      request: request('/api/auth/callback?code=ok&state=state'),
+    })
+
+    expect(response.status).toBe(307)
+    expect(mocks.bootstrapPersonalStudentForCounselor).toHaveBeenCalledWith('user_123')
+    expect(mocks.bootstrapDemoStudentsForCounselor).not.toHaveBeenCalled()
+  })
+
   it('configures callback auth failures to land on the existing home route', async () => {
     mocks.handleCallbackRoute.mockImplementation((options) => {
       expect(options.errorRedirectUrl).toBe('/?authError=auth_failed')

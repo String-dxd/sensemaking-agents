@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   assertCounselorHasStudent: vi.fn(),
   bootstrapDemoStudentsForCounselor: vi.fn(),
+  bootstrapPersonalStudentForCounselor: vi.fn(),
   deleteCookie: vi.fn(),
-  findFirstAttachedStudent: vi.fn(),
   getAuth: vi.fn(),
   getCookie: vi.fn(),
   getDevBypassAuth: vi.fn(),
@@ -28,12 +28,12 @@ vi.mock('~/auth/workos', () => ({
 
 vi.mock('~/auth/middleware', () => ({
   bootstrapDemoStudentsForCounselor: mocks.bootstrapDemoStudentsForCounselor,
+  bootstrapPersonalStudentForCounselor: mocks.bootstrapPersonalStudentForCounselor,
   getDevBypassAuth: mocks.getDevBypassAuth,
 }))
 
 vi.mock('~/db/client', () => ({
   assertCounselorHasStudent: mocks.assertCounselorHasStudent,
-  findFirstAttachedStudent: mocks.findFirstAttachedStudent,
 }))
 
 const { requireCounselorContext, UnauthenticatedError } = await import('~/auth/identity')
@@ -43,6 +43,9 @@ beforeEach(() => {
   mocks.getDevBypassAuth.mockReturnValue(null)
   mocks.hasWorkosEnv.mockReturnValue(true)
   mocks.getCookie.mockReturnValue(undefined)
+  mocks.bootstrapPersonalStudentForCounselor.mockImplementation(
+    async (counselorId: string) => `workos:${counselorId}`,
+  )
 })
 
 describe('requireCounselorContext', () => {
@@ -73,29 +76,28 @@ describe('requireCounselorContext', () => {
     expect(mocks.getAuth).not.toHaveBeenCalled()
   })
 
-  it('prefers a valid WorkOS session over a browser-controlled demo cookie', async () => {
+  it('prefers a private WorkOS student over a browser-controlled demo cookie', async () => {
     mocks.getCookie.mockReturnValue('demo-a')
     mocks.getAuth.mockResolvedValue({ user: { id: 'user_123' } })
-    mocks.findFirstAttachedStudent.mockResolvedValue('demo-c')
 
     await expect(requireCounselorContext()).resolves.toEqual({
       counselorId: 'user_123',
-      studentId: 'demo-c',
+      studentId: 'workos:user_123',
     })
     expect(mocks.bootstrapDemoStudentsForCounselor).not.toHaveBeenCalled()
-    expect(mocks.assertCounselorHasStudent).toHaveBeenCalledWith('user_123', 'demo-c')
+    expect(mocks.bootstrapPersonalStudentForCounselor).toHaveBeenCalledWith('user_123')
+    expect(mocks.assertCounselorHasStudent).toHaveBeenCalledWith('user_123', 'workos:user_123')
   })
 
   it('falls through invalid demo cookies to WorkOS auth', async () => {
     mocks.getCookie.mockReturnValue('real-student')
     mocks.getAuth.mockResolvedValue({ user: { id: 'user_123' } })
-    mocks.findFirstAttachedStudent.mockResolvedValue('demo-c')
 
     await expect(requireCounselorContext()).resolves.toEqual({
       counselorId: 'user_123',
-      studentId: 'demo-c',
+      studentId: 'workos:user_123',
     })
-    expect(mocks.assertCounselorHasStudent).toHaveBeenCalledWith('user_123', 'demo-c')
+    expect(mocks.assertCounselorHasStudent).toHaveBeenCalledWith('user_123', 'workos:user_123')
   })
 
   it('normalizes missing AuthKit middleware to the app auth error', async () => {
