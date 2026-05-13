@@ -1,16 +1,27 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('~/components/world/WorldScene', () => ({
+  WorldScene: () => <div data-testid="mock-world-scene" />,
+}))
+
 import { WorldStage } from '~/components/WorldStage'
 
 describe('WorldStage', () => {
-  it('renders the placeholder root with `data-testid="world-stage"`', () => {
+  it('renders the stage root with `data-testid="world-stage"`', () => {
     render(<WorldStage />)
     expect(screen.getByTestId('world-stage')).toBeInTheDocument()
   })
 
-  it('marks itself as placeholder so tests can target placeholder mode unambiguously', () => {
+  it('marks itself as no longer being the placeholder surface', () => {
     render(<WorldStage />)
-    expect(screen.getByTestId('world-stage')).toHaveAttribute('data-placeholder', 'true')
+    expect(screen.getByTestId('world-stage')).toHaveAttribute('data-placeholder', 'false')
+    expect(screen.queryByText('world')).not.toBeInTheDocument()
+  })
+
+  it('mounts the decorative world scene', () => {
+    render(<WorldStage />)
+    expect(screen.getByTestId('mock-world-scene')).toBeInTheDocument()
   })
 
   it('renders a children slot passed in by parents', () => {

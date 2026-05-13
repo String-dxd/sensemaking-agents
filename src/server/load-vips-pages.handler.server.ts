@@ -15,8 +15,10 @@ import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import { withStudent } from '~/db/client'
 import {
+  listMirrorEntries,
   listVipsPages,
   listVipsTimelineEntries,
+  type MirrorEntryRow,
   type VipsPageRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
@@ -36,6 +38,8 @@ export interface LoadVipsPagesResult {
   pages: VipsPageRow[]
   /** Non-forgotten timeline entries, keyed by dimension (newest first). */
   timeline_by_dimension: Record<VipsDimension, VipsTimelineEntryRow[]>
+  /** Recent non-forgotten Mirror entries for transient home-world butterflies. */
+  recent_entries: MirrorEntryRow[]
   /** Count of non-forgotten timeline entries per dimension. */
   claim_count_by_dimension: Record<VipsDimension, number>
   /** Sum of `claim_count_by_dimension` — drives the 3-entry gate replacement (R24). */
@@ -83,6 +87,7 @@ export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<Lo
     return {
       pages,
       timeline_by_dimension,
+      recent_entries: await listMirrorEntries(studentId, { ctx, limit: 7 }),
       claim_count_by_dimension,
       total_claim_count: total,
     }

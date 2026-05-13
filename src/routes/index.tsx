@@ -1,31 +1,27 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useEffect, useId, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Mood } from '~/agents/tools/schemas'
-import { BottomSheet } from '~/components/BottomSheet'
+import { CaptureActionMenu } from '~/components/CaptureActionMenu'
 import { EmotionChip } from '~/components/EmotionChip'
 import { EmotionPicker } from '~/components/EmotionPicker'
+import { FloatingWorldActions } from '~/components/FloatingWorldActions'
 import {
   MirrorSessionErrorPanel,
   useMirrorSession,
   VoicePhaseOverlay,
 } from '~/components/MirrorSession'
-import { SheetEntryRail, type SheetKey } from '~/components/SheetEntryRail'
-import { TrajectorySheetView } from '~/components/TrajectorySheetView'
-import { VipsPageView } from '~/components/VipsPageView'
 import { VoiceButton, type VoiceButtonPhase } from '~/components/VoiceButton'
 import { WorldHud } from '~/components/WorldHud'
 import { WorldStage } from '~/components/WorldStage'
+import { buildVipsWorldSceneModel } from '~/components/world/vipsWorldMapping'
 import type { VipsDimension } from '~/data/vips-taxonomy'
+import type { MirrorEntryRow, VipsTimelineEntryRow } from '~/db/queries'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 
 const STUDENT_ID = 'me'
 
 const VIPS_KEYS: VipsDimension[] = ['values', 'interests', 'personality', 'skills']
-
-function isVipsDimension(k: SheetKey): k is VipsDimension {
-  return (VIPS_KEYS as readonly string[]).includes(k)
-}
 
 export const Route = createFileRoute('/')({
   loader: async ({ context }) => {
@@ -81,8 +77,10 @@ function landingPhaseToVoiceButton(
 function LandingPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [openSheet, setOpenSheet] = useState<SheetKey | null>(null)
-  const sheetPanelId = useId()
+  const { data: vipsData } = useQuery({
+    queryKey: ['vips-pages', STUDENT_ID],
+    queryFn: () => loadVipsPages({ data: {} }),
+  })
   const session = useMirrorSession({
     studentId: STUDENT_ID,
     onPersisted: () => {
@@ -94,16 +92,27 @@ function LandingPage() {
 
   // Voice mode locks library navigation and sheet interaction.
   const voiceModeActive = session.voiceModeActive
-  // Closing the sheet must happen in an effect — setState during render
-  // would force a second commit and can interrupt the Drawer's open→close
-  // transition mid-flight.
-  useEffect(() => {
-    if (voiceModeActive) setOpenSheet(null)
-  }, [voiceModeActive])
+  const voicePhase = landingPhaseToVoiceButton(session.phase)
+
+  const sceneModel = useMemo(
+    () =>
+      buildVipsWorldSceneModel({
+        timelineByDimension: vipsData
+          ? {
+              values: coerceTimeline(vipsData.timeline_by_dimension.values),
+              interests: coerceTimeline(vipsData.timeline_by_dimension.interests),
+              personality: coerceTimeline(vipsData.timeline_by_dimension.personality),
+              skills: coerceTimeline(vipsData.timeline_by_dimension.skills),
+            }
+          : undefined,
+        recentEntries: vipsData ? coerceRecentEntries(vipsData.recent_entries) : undefined,
+      }),
+    [vipsData],
+  )
 
   const voiceSlot = (
     <VoiceButton
-      phase={landingPhaseToVoiceButton(session.phase)}
+      phase={voicePhase}
       amplitude={session.amplitude}
       onPress={session.handleVoicePress}
     />
@@ -112,8 +121,26 @@ function LandingPage() {
   return (
     <section className="flex flex-col items-center gap-4 py-2">
       <div className="relative w-full">
-        <WorldStage>
-          <WorldHud voiceModeActive={voiceModeActive} voiceSlot={voiceSlot} />
+        <WorldStage sceneModel={sceneModel}>
+          <FloatingWorldActions voiceModeActive={voiceModeActive} />
+          <WorldHud
+            voiceModeActive={voiceModeActive}
+            captureSlot={
+              <CaptureActionMenu
+                modes={[
+                  {
+                    id: 'voice',
+                    label: session.phase === 'recording' ? 'Stop recording' : 'Voice reflection',
+                    description: 'Audio-only Mirror capture',
+                    disabled: voicePhase === 'working',
+                    onSelect: session.handleVoicePress,
+                  },
+                ]}
+                disabled={voicePhase === 'working'}
+                triggerSlot={voiceSlot}
+              />
+            }
+          />
           <VoicePhaseOverlay
             phase={session.phase}
             remainingSec={session.remainingSec}
@@ -133,21 +160,6 @@ function LandingPage() {
           </div>
         ) : null}
       </div>
-      <SheetEntryRail
-        openSheet={openSheet}
-        onOpenSheet={setOpenSheet}
-        sheetPanelId={sheetPanelId}
-        disabled={voiceModeActive}
-      />
-      <BottomSheet
-        open={openSheet !== null && !voiceModeActive}
-        onOpenChange={(open) => {
-          if (!open) setOpenSheet(null)
-        }}
-        id={sheetPanelId}
-      >
-        {openSheet !== null ? <SheetContent openSheet={openSheet} /> : null}
-      </BottomSheet>
     </section>
   )
 }
@@ -172,7 +184,7 @@ function MoodTagOverlay({
   const [pickerOpen, setPickerOpen] = useState(false)
   return (
     <div
-      className="pointer-events-auto absolute bottom-6 right-6 z-10"
+      className="pointer-events-auto absolute bottom-6 left-6 z-10"
       data-testid="mood-tag-overlay"
     >
       {mood ? (
@@ -202,51 +214,19 @@ function MoodTagOverlay({
   )
 }
 
-function SheetContent({ openSheet }: { openSheet: SheetKey }) {
-  if (openSheet === 'trajectory') {
-    return <TrajectorySheetView studentId={STUDENT_ID} />
-  }
-  if (!isVipsDimension(openSheet)) return null
-  return <VipsDimensionSheetContent dimension={openSheet} />
+function coerceTimeline(entries: VipsTimelineEntryRow[] | undefined) {
+  return (entries ?? [])
+    .filter((entry): entry is VipsTimelineEntryRow & { dimension: VipsDimension } =>
+      (VIPS_KEYS as readonly string[]).includes(entry.dimension),
+    )
+    .map((entry) => ({ ...entry, dimension: entry.dimension as VipsDimension }))
 }
 
-function VipsDimensionSheetContent({ dimension }: { dimension: VipsDimension }) {
-  const { data, isPending, isError } = useQuery({
-    queryKey: ['vips-pages', STUDENT_ID],
-    queryFn: () => loadVipsPages({ data: {} }),
-  })
-
-  if (isPending) {
-    return (
-      <div className="flex flex-col gap-2 py-4" data-testid={`sheet-loading-${dimension}`}>
-        <div className="h-3 w-2/3 rounded bg-muted/60" />
-        <div className="h-3 w-1/2 rounded bg-muted/60" />
-        <div className="h-3 w-3/4 rounded bg-muted/60" />
-      </div>
-    )
-  }
-  if (isError || !data) {
-    return (
-      <p className="text-sm text-muted-foreground" data-testid={`sheet-error-${dimension}`}>
-        Couldn't load this page — try closing and reopening.
-      </p>
-    )
-  }
-
-  const page = data.pages.find((p) => p.dimension === dimension)
-  const timeline = data.timeline_by_dimension[dimension] ?? []
-
-  if (!page) {
-    return (
-      <p className="text-sm text-muted-foreground" data-testid={`sheet-empty-${dimension}`}>
-        No page for this dimension yet.
-      </p>
-    )
-  }
-
-  return (
-    <div data-testid={`vips-card-${dimension}`}>
-      <VipsPageView studentId={STUDENT_ID} dimension={dimension} page={page} timeline={timeline} />
-    </div>
-  )
+function coerceRecentEntries(entries: MirrorEntryRow[] | undefined) {
+  return (entries ?? []).map((entry) => ({
+    id: entry.id,
+    review_status: entry.review_status,
+    context_type: entry.context_type,
+    created_at: entry.created_at,
+  }))
 }

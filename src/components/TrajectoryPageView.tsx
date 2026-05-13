@@ -38,7 +38,7 @@ export function TrajectoryPageView({
   return (
     <section className="flex flex-col gap-6" data-testid="trajectory-page">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Trajectory</h1>
+        <h1 className="text-2xl font-semibold">Trajectory compass</h1>
         {createdAt ? (
           <p className="text-xs text-muted-foreground">
             generated {new Date(createdAt).toLocaleString()}
@@ -49,9 +49,9 @@ export function TrajectoryPageView({
         </p>
       </header>
 
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Pathways
-      </h2>
+      <CompassBearingMap pathways={pathways} />
+
+      <h2 className="text-sm font-semibold uppercase text-muted-foreground">Pathways</h2>
       <div className="flex flex-col gap-4">
         {pathways.map((pathway) => (
           <PathwayCard key={pathway.label} pathway={pathway} />
@@ -60,9 +60,7 @@ export function TrajectoryPageView({
 
       {openQuestions.length > 0 ? (
         <>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Open questions
-          </h2>
+          <h2 className="text-sm font-semibold uppercase text-muted-foreground">Open questions</h2>
           <ul className="flex flex-col gap-1.5 text-sm" data-testid="trajectory-open-questions">
             {openQuestions.map((q) => (
               <li key={q} className="leading-relaxed">
@@ -101,17 +99,57 @@ export function TrajectoryPageView({
   )
 }
 
+function CompassBearingMap({ pathways }: { pathways: CartographerPathwayDraft[] }) {
+  const bearings = pathways.slice(0, 5)
+  return (
+    <section
+      aria-label="Trajectory compass bearings"
+      className="relative mx-auto aspect-square w-full max-w-sm rounded-full border border-[#d7bd75] bg-[#fff8e8] shadow-sm"
+      data-testid="trajectory-compass"
+    >
+      <div className="absolute inset-4 rounded-full border border-[#d7bd75]/70" />
+      <div className="absolute inset-10 rounded-full border border-[#d7bd75]/40" />
+      <span className="absolute left-1/2 top-3 -translate-x-1/2 text-xs font-semibold">N</span>
+      <span className="absolute bottom-3 left-1/2 -translate-x-1/2 text-xs font-semibold">S</span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold">W</span>
+      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold">E</span>
+      <div className="absolute left-1/2 top-1/2 h-28 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground/80" />
+      <div className="absolute left-1/2 top-1/2 h-16 w-2 -translate-x-1/2 rounded-full bg-[#d7bd75]" />
+      <div className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-foreground bg-background" />
+      {bearings.map((pathway, index) => {
+        const angle = -90 + index * (360 / Math.max(1, bearings.length))
+        const radius = 38
+        const x = 50 + Math.cos((angle * Math.PI) / 180) * radius
+        const y = 50 + Math.sin((angle * Math.PI) / 180) * radius
+        return (
+          <a
+            key={pathway.label}
+            href={`#pathway-${slugify(pathway.label)}`}
+            className="absolute flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-background bg-accent text-xs font-semibold text-accent-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            style={{ left: `${x}%`, top: `${y}%` }}
+            data-testid={`compass-bearing-${slugify(pathway.label)}`}
+            aria-label={`Open pathway ${pathway.label}`}
+          >
+            {index + 1}
+          </a>
+        )
+      })}
+    </section>
+  )
+}
+
 function PathwayCard({ pathway }: { pathway: CartographerPathwayDraft }) {
   return (
-    <Card data-testid={`pathway-card-${slugify(pathway.label)}`}>
+    <Card
+      id={`pathway-${slugify(pathway.label)}`}
+      data-testid={`pathway-card-${slugify(pathway.label)}`}
+    >
       <CardHeader>
         <CardTitle>{pathway.label}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            Trait combination
-          </p>
+          <p className="text-xs uppercase text-muted-foreground">Trait combination</p>
           <ul className="flex flex-wrap gap-1.5 text-[11px]" data-testid="trait-combination-chips">
             {pathway.trait_combination.map((c) => (
               <li key={`${c.dimension}-${c.claim_id}-${c.timeline_entry_id ?? 'none'}`}>
@@ -126,7 +164,7 @@ function PathwayCard({ pathway }: { pathway: CartographerPathwayDraft }) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">ECG region tags</p>
+          <p className="text-xs uppercase text-muted-foreground">ECG region tags</p>
           <ul className="flex flex-wrap gap-1.5" data-testid="ecg-region-tag-chips">
             {pathway.ecg_region_tags.map((id) => (
               <li key={id}>
@@ -139,9 +177,7 @@ function PathwayCard({ pathway }: { pathway: CartographerPathwayDraft }) {
         </div>
 
         <div className="flex flex-col gap-1">
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">
-            Risks and tradeoffs
-          </p>
+          <p className="text-xs uppercase text-muted-foreground">Risks and tradeoffs</p>
           <p className="text-sm leading-relaxed">{pathway.risks_tradeoffs}</p>
         </div>
 
@@ -149,7 +185,7 @@ function PathwayCard({ pathway }: { pathway: CartographerPathwayDraft }) {
           className="rounded border-l-2 border-accent/60 bg-accent/5 px-3 py-2"
           data-testid="exploration-prompt"
         >
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">Explore next</p>
+          <p className="text-xs uppercase text-muted-foreground">Explore next</p>
           <p className="text-sm leading-relaxed">{pathway.exploration_prompt}</p>
         </div>
       </CardContent>

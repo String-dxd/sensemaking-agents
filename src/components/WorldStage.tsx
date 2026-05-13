@@ -1,44 +1,38 @@
 import { forwardRef, type ReactNode } from 'react'
 import { cn } from '~/lib/utils'
+import type { VipsWorldSceneModel } from './world/vipsWorldMapping'
+import { WorldScene } from './world/WorldScene'
 
 export interface WorldStageProps {
   /** HUD content rendered above the stage (Studio pill, Voice button, etc.). */
   children?: ReactNode
   /** Optional extra classes for the stage root. */
   className?: string
+  /** Plain scene descriptor rendered by the decorative Three.js layer. */
+  sceneModel?: VipsWorldSceneModel
 }
 
 /**
- * Placeholder world-stage surface. Renders a solid color with a quiet
- * label as a clearly non-final visual; the real threejs scene replaces
- * the internals in a follow-up plan without changing this component's
- * external API.
- *
- * The forwarded ref points at the stage root so a future canvas mount has
- * a stable target. Empty in this plan.
+ * World-stage surface. Three.js owns only the decorative island layer;
+ * React children remain the actionable HUD above it.
  */
 export const WorldStage = forwardRef<HTMLDivElement, WorldStageProps>(function WorldStage(
-  { children, className },
+  { children, className, sceneModel },
   ref,
 ) {
   return (
     <div
       ref={ref}
       data-testid="world-stage"
-      data-placeholder="true"
+      data-placeholder="false"
       className={cn(
-        'relative isolate w-full overflow-hidden rounded-2xl border border-border/40',
-        'min-h-[60vh] bg-muted',
+        'relative isolate w-full overflow-hidden rounded-lg border border-border/40',
+        'min-h-[56vh] bg-[#c7e3ee] sm:min-h-[60vh]',
         className,
       )}
     >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.2em] text-muted-foreground/60"
-      >
-        world
-      </span>
-      {children}
+      <WorldScene model={sceneModel} />
+      <div className="pointer-events-none absolute inset-0 z-10">{children}</div>
     </div>
   )
 })
