@@ -221,6 +221,7 @@ describe('MirrorSession (voice-mode controller)', () => {
     expect(persistMock).toHaveBeenCalledTimes(1)
     expect(onPersisted).toHaveBeenCalledWith({
       entryId: 42,
+      stagedDiffPresent: false,
       autoConnectorStatus: 'ok',
       pendingQueued: false,
     })

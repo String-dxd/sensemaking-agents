@@ -8,8 +8,8 @@
  *
  * Extends v0.1's persistMirror coverage with:
  *   - context_type column accepted on input and written to the row
- *   - R30 pending-queue logic (existing pending diff → new run queued)
- *   - auto-connector chaining produces a staged diff row on happy path
+ *   - legacy pending proposed diffs do not block Connector
+ *   - auto-connector chaining produces a confirmed audit row on happy path
  *   - auto-connector failure modes (timeout, schema_reject) leave the
  *     mirror entry intact and surface the right status string
  */
@@ -88,8 +88,8 @@ describe.skipIf(!process.env.DATABASE_URL)('persistMirror — context_type colum
   })
 })
 
-describe.skipIf(!process.env.DATABASE_URL)('persistMirror — R30 pending-queue rule', () => {
-  it('does not chain Connector when a prior pending diff exists; surfaces pending_queued=true', async () => {
+describe.skipIf(!process.env.DATABASE_URL)('persistMirror — legacy pending proposed diff', () => {
+  it('chains Connector even when a prior pending diff exists', async () => {
     // Seed a prior pending diff for the student before persisting a new mirror.
     const prior = insertMirrorEntry('demo', {
       transcript: 'earlier reflection',
@@ -105,22 +105,22 @@ describe.skipIf(!process.env.DATABASE_URL)('persistMirror — R30 pending-queue 
       verifier_result: { admitted: [], downgraded: [], dropped: [] },
     })
 
-    const runConnector = vi.fn()
+    const runConnector = vi.fn().mockResolvedValue(emptyDiff())
     const result = await persistMirrorHandler(baseInput(), {
       autoConnector: { runConnector },
     })
 
-    expect(result.pending_queued).toBe(true)
-    expect(result.auto_connector_status).toBe('queued')
-    expect(result.staged_diff).toBeNull()
-    expect(runConnector).not.toHaveBeenCalled()
+    expect(result.pending_queued).toBe(false)
+    expect(result.auto_connector_status).toBe('ok')
+    expect(result.staged_diff?.status).toBe('confirmed')
+    expect(runConnector).toHaveBeenCalledOnce()
     // Mirror entry was still persisted.
     expect(result.mirror_entry.id).toBeGreaterThan(0)
   })
 })
 
 describe.skipIf(!process.env.DATABASE_URL)('persistMirror — auto-connector happy path', () => {
-  it('chains Connector + verifier and returns the staged diff with auto_connector_status=ok', async () => {
+  it('chains Connector + verifier and returns the confirmed audit diff with auto_connector_status=ok', async () => {
     const runConnector = vi.fn(async ({ mirrorEntry }) => ({
       diffs: {
         ...emptyDiff().diffs,
@@ -146,7 +146,7 @@ describe.skipIf(!process.env.DATABASE_URL)('persistMirror — auto-connector hap
 
     expect(result.auto_connector_status).toBe('ok')
     expect(result.staged_diff).not.toBeNull()
-    expect(result.staged_diff?.status).toBe('pending')
+    expect(result.staged_diff?.status).toBe('confirmed')
     expect(result.pending_queued).toBe(false)
     const payload = result.staged_diff?.payload as { admitted: unknown[] } | null
     expect(payload?.admitted).toHaveLength(1)
@@ -183,23 +183,16 @@ describe.skipIf(!process.env.DATABASE_URL)(
 )
 
 describe.skipIf(!process.env.DATABASE_URL)(
-  'persistMirror — R30 pending-queue concurrency (Finding #18)',
+  'persistMirror — legacy pending proposed diff concurrency',
   () => {
-    it('two concurrent persistMirror calls coexist with the seeded pending row without double-staging', async () => {
-      // R30 says: at most one `status='pending'` row per student at any time.
-      // The auto-connector handler reads `listVipsProposedDiffs({status:'pending'})`
-      // and writes only if empty. This test pins the concurrent-call boundary:
+    it('two concurrent persistMirror calls coexist with a seeded pending row', async () => {
+      // Connector no longer creates a user-confirmed pending row. This test
+      // pins the concurrent-call boundary:
       //   - Seed a pending row.
       //   - Fire two persistMirror calls in parallel.
       //   - Both mirror_entries rows MUST persist (A11 — student speech is canon).
       //   - The pending count after the race MUST equal 1 (the seeded one);
-      //     no new pending row was staged. Both calls return `queued`.
-      //
-      // After Finding #6's structural unique index lands, the TOCTOU window
-      // closes and the assertion is the same. Without the index, the in-process
-      // test still sees the seeded row from both calls because better-sqlite3
-      // runs synchronously on the main thread — but documenting the
-      // assumption keeps the test honest.
+      //     new audit rows are immediately `confirmed`.
       const prior = insertMirrorEntry('demo', {
         transcript: 'earlier reflection',
         validation: 'v',
@@ -229,14 +222,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
       expect(getMirrorEntry('demo', resA.mirror_entry.id)).not.toBeNull()
       expect(getMirrorEntry('demo', resB.mirror_entry.id)).not.toBeNull()
 
-      // R30: no new pending rows beyond the seeded one. Both calls saw the
-      // pending row and returned `queued`.
+      // No new pending rows beyond the seeded one. Both runs reached Connector.
       const { listVipsProposedDiffs } = await import('~/db/queries')
       const pending = listVipsProposedDiffs('demo', { status: 'pending' })
       expect(pending).toHaveLength(1)
-      expect(resA.auto_connector_status).toBe('queued')
-      expect(resB.auto_connector_status).toBe('queued')
-      expect(runConnector).not.toHaveBeenCalled()
+      expect(resA.auto_connector_status).toBe('ok')
+      expect(resB.auto_connector_status).toBe('ok')
+      expect(runConnector).toHaveBeenCalledTimes(2)
     })
   },
 )

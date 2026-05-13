@@ -17,6 +17,8 @@ const clientFacingServerFunctionFiles = [
   'run-mirror.functions.ts',
   'search-past-mirrors.functions.ts',
   'transcribe-mirror.functions.ts',
+  'update-mirror-review.functions.ts',
+  'update-review-context.functions.ts',
 ]
 
 const forbiddenImports = [

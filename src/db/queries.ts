@@ -66,6 +66,7 @@ export interface MirrorEntryRow {
    * `'school'` when not supplied; the DB CHECK enforces the closed enum.
    */
   context_type: VipsContextType
+  review_status: MirrorReviewStatus
   tags: string[]
   created_at: string
 }
@@ -122,6 +123,11 @@ export type AgentRefTable =
   | 'pathfinder_outputs'
   | 'cartographer_outputs'
 export type MirrorEditableField = 'validation' | 'inferred_meaning' | 'story_reframe'
+export type MirrorReviewStatus = 'pending' | 'confirmed' | 'forgotten'
+
+const MIRROR_CONFIRMED_TAG = 'system:mirror-confirmed'
+const MIRROR_FORGOTTEN_TAG = 'system:mirror-forgotten'
+const MIRROR_REVIEW_TAGS = [MIRROR_CONFIRMED_TAG, MIRROR_FORGOTTEN_TAG] as const
 
 // ---------------------------------------------------------------------------
 // Internal row shapes — what Drizzle hands back before JSON-blob inflation.
@@ -198,6 +204,11 @@ interface CartographerOutputDbRow {
 // ---------------------------------------------------------------------------
 
 function rowToMirrorEntry(row: MirrorEntryDbRow, entryTags: string[]): MirrorEntryRow {
+  const review_status: MirrorReviewStatus = entryTags.includes(MIRROR_FORGOTTEN_TAG)
+    ? 'forgotten'
+    : entryTags.includes(MIRROR_CONFIRMED_TAG)
+      ? 'confirmed'
+      : 'pending'
   return {
     id: row.id,
     student_id: row.student_id,
@@ -207,9 +218,14 @@ function rowToMirrorEntry(row: MirrorEntryDbRow, entryTags: string[]): MirrorEnt
     story_reframe: row.story_reframe,
     raw_output_json: row.raw_output_json,
     context_type: row.context_type,
-    tags: entryTags,
+    review_status,
+    tags: entryTags.filter((tag) => !isMirrorReviewTag(tag)),
     created_at: row.created_at,
   }
+}
+
+function isMirrorReviewTag(tag: string): boolean {
+  return (MIRROR_REVIEW_TAGS as readonly string[]).includes(tag)
 }
 
 function rowToVipsTimelineEntry(row: VipsTimelineEntryDbRow): VipsTimelineEntryRow {
@@ -402,25 +418,27 @@ async function insertMirrorEntryInner(
 
 export async function listMirrorEntries(
   studentId: string,
-  opts: { limit?: number; ctx?: TenantContext } = {},
+  opts: { limit?: number | null; includeForgotten?: boolean; ctx?: TenantContext } = {},
 ): Promise<MirrorEntryRow[]> {
-  if (opts.ctx) return listMirrorEntriesInner(opts.ctx, opts.limit ?? 50)
-  return withStudent(studentId, (ctx) => listMirrorEntriesInner(ctx, opts.limit ?? 50))
+  const limit = opts.limit === null ? undefined : (opts.limit ?? 50)
+  if (opts.ctx) return listMirrorEntriesInner(opts.ctx, limit, opts.includeForgotten)
+  return withStudent(studentId, (ctx) => listMirrorEntriesInner(ctx, limit, opts.includeForgotten))
 }
 
 async function listMirrorEntriesInner(
   ctx: TenantContext,
-  limit: number,
+  limit: number | undefined,
+  includeForgotten = false,
 ): Promise<MirrorEntryRow[]> {
-  const rows = await ctx.db
-    .select()
-    .from(mirrorEntries)
-    .orderBy(desc(mirrorEntries.createdAt))
-    .limit(limit)
+  const baseQuery = ctx.db.select().from(mirrorEntries).orderBy(desc(mirrorEntries.createdAt))
+  const rows = limit === undefined ? await baseQuery : await baseQuery.limit(limit)
   const out: MirrorEntryRow[] = []
   for (const r of rows) {
     const row = drizzleMirrorRow(r)
-    out.push(rowToMirrorEntry(row, await loadTagsInner(ctx, row.id)))
+    const entry = rowToMirrorEntry(row, await loadTagsInner(ctx, row.id))
+    if (includeForgotten || entry.review_status !== 'forgotten') {
+      out.push(entry)
+    }
   }
   return out
 }
@@ -469,6 +487,85 @@ async function updateMirrorEntryFieldsInner(
     await ctx.db.update(mirrorEntries).set(set).where(eq(mirrorEntries.id, id))
   }
   return getMirrorEntryInner(ctx, id)
+}
+
+export async function updateMirrorEntryContextType(
+  studentId: string,
+  id: number,
+  contextType: VipsContextType,
+  opts: { ctx?: TenantContext } = {},
+): Promise<MirrorEntryRow | null> {
+  if (opts.ctx) return updateMirrorEntryContextTypeInner(opts.ctx, id, contextType)
+  return withStudent(studentId, (ctx) => updateMirrorEntryContextTypeInner(ctx, id, contextType))
+}
+
+async function updateMirrorEntryContextTypeInner(
+  ctx: TenantContext,
+  id: number,
+  contextType: VipsContextType,
+): Promise<MirrorEntryRow | null> {
+  await ctx.db.update(mirrorEntries).set({ contextType }).where(eq(mirrorEntries.id, id))
+  return getMirrorEntryInner(ctx, id)
+}
+
+export async function updateMirrorEntryReviewStatus(
+  studentId: string,
+  id: number,
+  status: Exclude<MirrorReviewStatus, 'pending'>,
+  opts: { ctx?: TenantContext } = {},
+): Promise<MirrorEntryRow | null> {
+  if (opts.ctx) return updateMirrorEntryReviewStatusInner(opts.ctx, studentId, id, status)
+  return withStudent(studentId, (ctx) =>
+    updateMirrorEntryReviewStatusInner(ctx, studentId, id, status),
+  )
+}
+
+async function updateMirrorEntryReviewStatusInner(
+  ctx: TenantContext,
+  studentId: string,
+  id: number,
+  status: Exclude<MirrorReviewStatus, 'pending'>,
+): Promise<MirrorEntryRow | null> {
+  await clearMirrorReviewTagsInner(ctx, id)
+  const label = status === 'confirmed' ? MIRROR_CONFIRMED_TAG : MIRROR_FORGOTTEN_TAG
+  const tagId = await upsertTagInner(ctx, studentId, label)
+  await ctx.db.insert(mirrorEntryTags).values({ entryId: id, tagId }).onConflictDoNothing()
+  return getMirrorEntryInner(ctx, id)
+}
+
+export async function updatePendingMirrorEntriesReviewStatus(
+  studentId: string,
+  status: Exclude<MirrorReviewStatus, 'pending'>,
+  opts: { ctx?: TenantContext } = {},
+): Promise<{ updated: number }> {
+  if (opts.ctx) return updatePendingMirrorEntriesReviewStatusInner(opts.ctx, studentId, status)
+  return withStudent(studentId, (ctx) =>
+    updatePendingMirrorEntriesReviewStatusInner(ctx, studentId, status),
+  )
+}
+
+async function updatePendingMirrorEntriesReviewStatusInner(
+  ctx: TenantContext,
+  studentId: string,
+  status: Exclude<MirrorReviewStatus, 'pending'>,
+): Promise<{ updated: number }> {
+  const entries = await listMirrorEntriesInner(ctx, undefined, false)
+  const pending = entries.filter((entry) => entry.review_status === 'pending')
+  for (const entry of pending) {
+    await updateMirrorEntryReviewStatusInner(ctx, studentId, entry.id, status)
+  }
+  return { updated: pending.length }
+}
+
+async function clearMirrorReviewTagsInner(ctx: TenantContext, entryId: number): Promise<void> {
+  for (const label of MIRROR_REVIEW_TAGS) {
+    const rows = await ctx.db.select({ id: tags.id }).from(tags).where(eq(tags.label, label))
+    for (const row of rows) {
+      await ctx.db
+        .delete(mirrorEntryTags)
+        .where(and(eq(mirrorEntryTags.entryId, entryId), eq(mirrorEntryTags.tagId, row.id)))
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1136,6 +1233,7 @@ export interface InsertVipsProposedDiffInput {
   mirror_entry_id: number
   payload: unknown
   verifier_result: unknown
+  status?: VipsProposedDiffStatus
 }
 
 export async function insertVipsProposedDiff(
@@ -1152,6 +1250,7 @@ async function insertVipsProposedDiffInner(
   studentId: string,
   input: InsertVipsProposedDiffInput,
 ): Promise<VipsProposedDiffRow> {
+  const status = input.status ?? 'pending'
   const inserted = await ctx.db
     .insert(vipsProposedDiffs)
     .values({
@@ -1159,7 +1258,8 @@ async function insertVipsProposedDiffInner(
       mirrorEntryId: input.mirror_entry_id,
       payloadJson: JSON.stringify(input.payload),
       verifierResultJson: JSON.stringify(input.verifier_result),
-      status: 'pending',
+      status,
+      ...(status === 'pending' ? {} : { reviewedAt: sql`now()` }),
     })
     .returning({ id: vipsProposedDiffs.id })
   const id = requireRow(inserted, 'insert').id

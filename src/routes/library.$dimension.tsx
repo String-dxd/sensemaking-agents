@@ -4,43 +4,34 @@
  * TrajectoryPageView). The full compiled-truth paragraph + open-question
  * line + chronological timeline render here.
  *
- * Loader rules:
- *   - `$dimension` must be one of the four canonical VIPS dimensions; any
- *     other value 404s (TanStack's `notFound()` boundary).
- *   - R30 / AE8: if any `vips_proposed_diffs.status='pending'` row exists
- *     for the student, defer to `/reflect/review`. The student must clear
- *     the queue before the library is reachable. Mirrors the library overview
- *     and `/wiki/trajectory` (U11) rules.
+ * Loader rule: `$dimension` must be one of the four canonical VIPS dimensions;
+ * any other value 404s (TanStack's `notFound()` boundary). Pending review no
+ * longer blocks the library; unresolved items live under `/library?filter=need-review`.
  */
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, notFound, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { Button } from '~/components/ui/button'
 import { VipsPageView } from '~/components/VipsPageView'
-import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
-import { loadPendingReview } from '~/server/load-pending-review.functions'
+import type { VipsDimension } from '~/data/vips-taxonomy'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 
 const STUDENT_ID = 'me'
 
+const VALID_DIMENSIONS: readonly VipsDimension[] = [
+  'values',
+  'interests',
+  'personality',
+  'skills',
+] as const
+
 function isVipsDimension(s: string): s is VipsDimension {
-  return (VIPS_DIMENSIONS as readonly string[]).includes(s)
+  return (VALID_DIMENSIONS as readonly string[]).includes(s)
 }
 
 export const Route = createFileRoute('/library/$dimension')({
   loader: async ({ params, context }) => {
     if (!isVipsDimension(params.dimension)) throw notFound()
     const dimension: VipsDimension = params.dimension
-
-    // R30: pending diffs first. We hit the dedicated pending-review fn
-    // (not loadVipsPages) so the redirect decision is one tiny query and
-    // doesn't depend on the library query shape.
-    const pending = await context.queryClient.ensureQueryData({
-      queryKey: ['pending-review', STUDENT_ID],
-      queryFn: () => loadPendingReview({ data: {} }),
-    })
-    if (pending.diff) {
-      throw redirect({ to: '/reflect/review' })
-    }
 
     await context.queryClient.ensureQueryData({
       queryKey: ['vips-pages', STUDENT_ID],
@@ -71,7 +62,7 @@ function WikiDimensionPage() {
     return (
       <section className="flex flex-col gap-4 py-8">
         <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-          ← Library
+          ← Wiki
         </Link>
         <p className="text-sm">No page for this dimension yet.</p>
       </section>
@@ -81,7 +72,7 @@ function WikiDimensionPage() {
   return (
     <section className="flex flex-col gap-4 py-2">
       <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-        ← Library
+        ← Wiki
       </Link>
       <VipsPageView studentId={STUDENT_ID} dimension={dimension} page={page} timeline={timeline} />
       <div>

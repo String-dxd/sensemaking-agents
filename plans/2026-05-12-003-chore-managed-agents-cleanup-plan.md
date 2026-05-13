@@ -1,10 +1,12 @@
 # Managed Agents Cleanup — PR 2
 
-**Status:** active; ready for ce-work
+**Status:** completed; PR #5 merged
 **Date:** 2026-05-12
 **Branch:** `chore/managed-agents-cleanup` off `main`
 **Predecessor:** PR 1 (squash `943aa9f`) — managed-agents cutover, prod flipped `USE_MANAGED_AGENTS=true`
 **Context:** `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md` §13 — this plan executes that step at full scope (the §13 file list under-counted).
+
+**Current status (2026-05-13):** Complete on `origin/main` via PR #5 (`chore(agents): cleanup — remove @openai/agents runtime + flag`).
 
 ---
 
@@ -268,14 +270,14 @@ Batch 4 (depends on all): U7
 
 ## 8. Done criteria
 
-- [ ] All 7 implementation units shipped
-- [ ] `grep -rln "@openai/agents" src/ scripts/ test/` returns zero hits
-- [ ] `grep -rln "USE_MANAGED_AGENTS\|isManagedAgentsEnabled" src/ scripts/ test/` returns zero hits
-- [ ] `pnpm typecheck && pnpm test && pnpm build` all green
-- [ ] `pnpm smoke:managed-mirror` produces parsed JSON output
-- [ ] `pnpm ablate:mirror --limit=1` produces a parseable report against the multistudent fixture
-- [ ] `.github/workflows/lint-no-stale-flag.yml` deleted
-- [ ] PR opened against `main` with a clear description and the rollback caveat noted
+- [x] All 7 implementation units shipped
+- [x] `grep -rln "@openai/agents" src/ scripts/ test/` returns zero hits
+- [x] `grep -rln "USE_MANAGED_AGENTS\|isManagedAgentsEnabled" src/ scripts/ test/` returns zero hits
+- [x] `pnpm typecheck && pnpm test && pnpm build` all green for the merged cleanup scope
+- [x] `pnpm smoke:managed-mirror` produces parsed JSON output
+- [x] `pnpm ablate:mirror --limit=1` produces a parseable report against the multistudent fixture
+- [x] `.github/workflows/lint-no-stale-flag.yml` deleted
+- [x] PR opened and merged against `main` with a clear description and rollback caveat
 
 ---
 

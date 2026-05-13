@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useEffect, useId, useState } from 'react'
 import type { Mood } from '~/agents/tools/schemas'
 import { BottomSheet } from '~/components/BottomSheet'
@@ -17,10 +17,9 @@ import { VoiceButton, type VoiceButtonPhase } from '~/components/VoiceButton'
 import { WorldHud } from '~/components/WorldHud'
 import { WorldStage } from '~/components/WorldStage'
 import type { VipsDimension } from '~/data/vips-taxonomy'
-import { loadPendingReview } from '~/server/load-pending-review.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 
-const STUDENT_ID = 'demo'
+const STUDENT_ID = 'me'
 
 const VIPS_KEYS: VipsDimension[] = ['values', 'interests', 'personality', 'skills']
 
@@ -30,13 +29,6 @@ function isVipsDimension(k: SheetKey): k is VipsDimension {
 
 export const Route = createFileRoute('/')({
   loader: async ({ context }) => {
-    const pending = await context.queryClient.ensureQueryData({
-      queryKey: ['pending-review', STUDENT_ID],
-      queryFn: () => loadPendingReview({ data: {} }),
-    })
-    if (pending.diff) {
-      throw redirect({ to: '/reflect/review' })
-    }
     await context.queryClient.ensureQueryData({
       queryKey: ['vips-pages', STUDENT_ID],
       queryFn: () => loadVipsPages({ data: {} }),
@@ -47,11 +39,11 @@ export const Route = createFileRoute('/')({
 })
 
 /**
- * Loader-level fallback. A cold-start DB blip or a flaky `loadPendingReview`
- * call shouldn't take the whole home page offline — the queryClient already
- * retries once (see src/router.tsx) and this fallback handles the case where
- * the retry also fails. Recording stays reachable because the Voice button
- * doesn't depend on the loader's pre-fetched library data.
+ * Loader-level fallback. A cold-start DB blip while prefetching library data
+ * shouldn't take the whole home page offline — the queryClient already retries
+ * once (see src/router.tsx) and this fallback handles the case where the retry
+ * also fails. Recording stays reachable because the Voice button doesn't
+ * depend on the loader's pre-fetched library data.
  */
 function LandingErrorFallback({ reset }: { reset: () => void }) {
   return (
@@ -94,12 +86,9 @@ function LandingPage() {
   const session = useMirrorSession({
     studentId: STUDENT_ID,
     onPersisted: () => {
-      // Invalidate the pending-review cache so the /reflect/review loader
-      // re-fetches against the freshly-persisted staged diff. Without this,
-      // a two-tab session can read a stale `{diff: null}` and bounce the
-      // user to the empty-review state.
-      void queryClient.invalidateQueries({ queryKey: ['pending-review', STUDENT_ID] })
-      void navigate({ to: '/reflect/review' })
+      void queryClient.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] })
+      void queryClient.invalidateQueries({ queryKey: ['vips-pages', STUDENT_ID] })
+      void navigate({ to: '/library', search: { filter: 'need-review' } })
     },
   })
 

@@ -16,8 +16,14 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { type ReactNode, useMemo } from 'react'
-import type { Mood, VerifierAnnotatedEntry, VerifierDroppedEntry } from '~/agents/tools/schemas'
+import type {
+  Mood,
+  VerifierAnnotatedEntry,
+  VerifierDroppedEntry,
+  VipsContextType,
+} from '~/agents/tools/schemas'
 import { MoodSchema } from '~/agents/tools/schemas'
+import { ContextTypePicker } from '~/components/ContextTypePicker'
 import { EmotionChip, EmotionConnector } from '~/components/EmotionChip'
 import { Button } from '~/components/ui/button'
 import type { VipsProposedDiffRow } from '~/db/queries'
@@ -29,6 +35,7 @@ import {
   type ReviewableAnnotatedEntry,
   type ReviewPayload,
 } from '~/server/review-payload-shape'
+import { updateReviewContext } from '~/server/update-review-context.functions'
 
 const DIMENSIONS = ['values', 'interests', 'personality', 'skills'] as const
 type Dimension = (typeof DIMENSIONS)[number]
@@ -40,37 +47,30 @@ const DIMENSION_LABEL: Record<Dimension, string> = {
   skills: 'Skills',
 }
 
-/**
- * Phase A treats `inferred_emotion` and `mood` as optional fields on the
- * staged diff that may or may not be present. Phase B's Drizzle migration
- * lands the columns and the fields become non-null on every persisted entry;
- * the type alias below lets us narrow without reaching into the row via
- * `as unknown as { … }` casts at the read sites.
- */
 export type PostMirrorReviewDiff = VipsProposedDiffRow & {
   inferred_emotion?: Mood | null
   mood?: Mood | null
 }
 
-interface BulkConfirmFailure {
-  entryId: string
-  message: string
-}
-
-interface BulkConfirmResult {
-  confirmed: number
-  total: number
-  failures: BulkConfirmFailure[]
-}
-
 export interface PostMirrorReviewProps {
   studentId: string
   diff: PostMirrorReviewDiff
-  /** Called after Done is clicked — typically to navigate to /wiki. */
+  /** Called after Done is clicked — typically to navigate back to the library. */
   onDone?: () => void
+  title?: string
+  description?: string
+  /** When embedded in Library's "Need review" filter, hide resolved rows. */
+  onlyPending?: boolean
 }
 
-export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewProps) {
+export function PostMirrorReview({
+  studentId,
+  diff,
+  onDone,
+  title = 'Review',
+  description = "The Connector pulled these claims from your last reflection. Confirm what fits, forget what doesn't. Forgotten entries never reach your library.",
+  onlyPending = false,
+}: PostMirrorReviewProps) {
   const qc = useQueryClient()
   const payload = useMemo(() => parseReviewPayload(diff.payload), [diff.payload])
   const reviewables = useMemo(() => [...payload.admitted, ...payload.downgraded], [payload])
@@ -78,58 +78,57 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
     () => reviewables.filter((e) => e.resolved === 'pending'),
     [reviewables],
   )
+  const visibleReviewables = onlyPending ? pendingEntries : reviewables
+  const inferredContext = firstContextType(pendingEntries) ?? firstContextType(reviewables)
   const allResolved = reviewables.length === 0 || pendingEntries.length === 0
   const inferredEmotion = readInferredEmotion(diff)
   const userMood = readUserMood(diff)
+
+  const invalidateReviewAndLibrary = () => {
+    void qc.invalidateQueries({ queryKey: ['pending-review', studentId] })
+    void qc.invalidateQueries({ queryKey: ['vips-pages', studentId] })
+    void qc.invalidateQueries({ queryKey: ['trajectory', studentId] })
+  }
 
   // Bulk confirm — fires sequentially because each `confirmDiff` mutates the
   // same staged row's `payload_json` inside a transaction. Concurrent confirms
   // would race on last-write-wins for the resolution flags, lose entries, and
   // potentially mis-fire the last-entry-resolved status flip.
-  //
-  // Per-entry try/catch with idempotency on "already confirmed" so a retry
-  // after a half-failed batch doesn't surface the prior commits as errors.
-  // Always invalidate via `onSettled` so a partial-success batch refreshes
-  // the cache and the next render reflects what actually landed.
   const bulkConfirmMutation = useMutation({
-    mutationFn: async (): Promise<BulkConfirmResult> => {
-      const failures: BulkConfirmFailure[] = []
-      let confirmed = 0
+    mutationFn: async () => {
       for (const entry of pendingEntries) {
-        const entryId = buildReviewEntryId(entry)
-        try {
-          // studentId no longer travels in the data payload — managed-agents
-          // resolves it server-side via `requireCounselorContext()` (WorkOS).
-          await confirmDiff({ data: { diffId: diff.id, entryId } })
-          confirmed += 1
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'unknown error'
-          // The server treats double-confirm as an error so the single-entry
-          // path can't silently no-op. Bulk-confirm is allowed to be lenient
-          // — a re-attempt after a partial batch should count prior commits
-          // as success, not surface them as failures.
-          if (/already confirmed/i.test(message)) {
-            confirmed += 1
-            continue
-          }
-          failures.push({ entryId, message })
-        }
+        await confirmDiff({
+          data: { diffId: diff.id, entryId: buildReviewEntryId(entry) },
+        })
       }
-      return { confirmed, total: pendingEntries.length, failures }
     },
-    // Always invalidate, even on partial failure — half-confirmed batches
-    // leave the cache out of sync with the DB otherwise.
-    onSettled: () => qc.invalidateQueries({ queryKey: ['pending-review', studentId] }),
+    onSuccess: invalidateReviewAndLibrary,
   })
+
+  const bulkForgetMutation = useMutation({
+    mutationFn: async () => {
+      for (const entry of pendingEntries) {
+        await forgetDiff({
+          data: { diffId: diff.id, entryId: buildReviewEntryId(entry) },
+        })
+      }
+    },
+    onSuccess: invalidateReviewAndLibrary,
+  })
+
+  const updateContextMutation = useMutation({
+    mutationFn: (contextType: VipsContextType) =>
+      updateReviewContext({ data: { diffId: diff.id, context_type: contextType } }),
+    onSuccess: invalidateReviewAndLibrary,
+  })
+
+  const bulkActionPending = bulkConfirmMutation.isPending || bulkForgetMutation.isPending
 
   return (
     <section className="flex flex-col gap-6 py-6" data-testid="post-mirror-review">
       <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Review</h1>
-        <p className="max-w-prose text-sm text-muted-foreground">
-          The Connector pulled these claims from your last reflection. Confirm what fits, forget
-          what doesn’t. Forgotten entries never reach your library.
-        </p>
+        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+        <p className="max-w-prose text-sm text-muted-foreground">{description}</p>
       </header>
 
       <section
@@ -146,27 +145,67 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
         ) : null}
       </section>
 
-      <div className="flex flex-col gap-8">
-        {DIMENSIONS.map((dim) => (
-          <DimensionGroup
-            key={dim}
-            dimension={dim}
-            diff={diff}
-            payload={payload}
-            studentId={studentId}
-            disableActions={bulkConfirmMutation.isPending}
+      {onlyPending && inferredContext ? (
+        <section
+          className="flex flex-col gap-2 rounded-lg border border-border/40 bg-muted/10 p-4"
+          data-testid="review-context-editor"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Inferred context
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Change this before confirming if the reflection was about something else.
+              </p>
+            </div>
+            {updateContextMutation.isPending ? (
+              <span className="text-xs text-muted-foreground">saving…</span>
+            ) : null}
+            {updateContextMutation.isError ? (
+              <span className="text-xs text-warning" role="alert">
+                {updateContextMutation.error instanceof Error
+                  ? updateContextMutation.error.message
+                  : 'context update failed'}
+              </span>
+            ) : null}
+          </div>
+          <ContextTypePicker
+            label="About"
+            defaultValue={inferredContext}
+            onSelect={(value) => updateContextMutation.mutate(value)}
           />
-        ))}
-      </div>
+        </section>
+      ) : null}
 
-      <DroppedSection dropped={payload.dropped} />
+      {visibleReviewables.length > 0 ? (
+        <div className="flex flex-col gap-8">
+          {DIMENSIONS.map((dim) => (
+            <DimensionGroup
+              key={dim}
+              dimension={dim}
+              diff={diff}
+              payload={payload}
+              entries={visibleReviewables.filter((e) => e.dimension === dim)}
+              studentId={studentId}
+              disableActions={bulkActionPending}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-border/40 bg-muted/10 p-4 text-sm text-muted-foreground">
+          Everything in this batch has been reviewed.
+        </div>
+      )}
+
+      {onlyPending ? null : <DroppedSection dropped={payload.dropped} />}
 
       <div className="flex flex-wrap items-center gap-3">
         <Button
           variant="default"
           size="sm"
           onClick={() => onDone?.()}
-          disabled={!allResolved || bulkConfirmMutation.isPending}
+          disabled={!allResolved || bulkActionPending}
           data-testid="review-done"
         >
           Done
@@ -176,7 +215,7 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
             variant="accent"
             size="sm"
             onClick={() => bulkConfirmMutation.mutate()}
-            disabled={bulkConfirmMutation.isPending}
+            disabled={bulkActionPending}
             data-testid="review-confirm-all"
           >
             {bulkConfirmMutation.isPending
@@ -184,39 +223,60 @@ export function PostMirrorReview({ studentId, diff, onDone }: PostMirrorReviewPr
               : `Confirm all ${pendingEntries.length}`}
           </Button>
         ) : null}
-        {!allResolved && !bulkConfirmMutation.isPending ? (
+        {pendingEntries.length > 0 ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => bulkForgetMutation.mutate()}
+            disabled={bulkActionPending}
+            data-testid="review-forget-all"
+          >
+            {bulkForgetMutation.isPending
+              ? `Forgetting ${pendingEntries.length}…`
+              : `Forget all ${pendingEntries.length}`}
+          </Button>
+        ) : null}
+        {!allResolved && !bulkActionPending ? (
           <span className="text-xs text-muted-foreground" data-testid="review-done-help">
             Confirm or forget every entry to continue.
           </span>
         ) : null}
-        {bulkConfirmMutation.data && bulkConfirmMutation.data.failures.length > 0 ? (
-          <div
-            className="flex w-full flex-col gap-1 text-xs"
+        {bulkConfirmMutation.isError ? (
+          <span
+            className="text-xs text-warning"
             role="alert"
-            data-testid="review-confirm-all-partial"
+            data-testid="review-confirm-all-error"
           >
-            <span className="font-medium text-warning">
-              {bulkConfirmMutation.data.confirmed} of {bulkConfirmMutation.data.total} confirmed;{' '}
-              {bulkConfirmMutation.data.failures.length} failed.
-            </span>
-            <ul className="flex flex-col gap-0.5 text-muted-foreground">
-              {bulkConfirmMutation.data.failures.map((f) => (
-                <li key={f.entryId} data-testid={`confirm-all-failure-${f.entryId}`}>
-                  · {f.entryId}: {f.message}
-                </li>
-              ))}
-            </ul>
-          </div>
+            {bulkConfirmMutation.error instanceof Error
+              ? bulkConfirmMutation.error.message
+              : 'confirm all failed'}
+          </span>
+        ) : null}
+        {bulkForgetMutation.isError ? (
+          <span className="text-xs text-warning" role="alert" data-testid="review-forget-all-error">
+            {bulkForgetMutation.error instanceof Error
+              ? bulkForgetMutation.error.message
+              : 'forget all failed'}
+          </span>
         ) : null}
       </div>
     </section>
   )
 }
 
+function firstContextType(entries: ReviewableAnnotatedEntry[]): VipsContextType | undefined {
+  for (const entry of entries) {
+    const contextType = entry.parallax_tag[0]
+    if (contextType) return contextType
+  }
+  return undefined
+}
+
 interface DimensionGroupProps {
   dimension: Dimension
   diff: VipsProposedDiffRow
   payload: ReviewPayload
+  entries: ReviewableAnnotatedEntry[]
   studentId: string
   disableActions?: boolean
 }
@@ -225,14 +285,11 @@ function DimensionGroup({
   dimension,
   diff,
   payload,
+  entries,
   studentId,
   disableActions,
 }: DimensionGroupProps) {
   const dimDiff = payload.diffs[dimension]
-  const entries = useMemo(
-    () => [...payload.admitted, ...payload.downgraded].filter((e) => e.dimension === dimension),
-    [payload, dimension],
-  )
 
   if (entries.length === 0) return null
 
@@ -285,7 +342,11 @@ function EntryRow({ entry, diffId, studentId, disableActions }: EntryRowProps) {
   const qc = useQueryClient()
   const entryId = buildReviewEntryId(entry)
 
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['pending-review', studentId] })
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['pending-review', studentId] })
+    void qc.invalidateQueries({ queryKey: ['vips-pages', studentId] })
+    void qc.invalidateQueries({ queryKey: ['trajectory', studentId] })
+  }
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmDiff({ data: { diffId, entryId } }),
@@ -397,16 +458,6 @@ function VerdictBadge({ verdict }: { verdict: Verdict }): ReactNode {
   )
 }
 
-/**
- * Phase A — reads `inferred_emotion` and `mood` off the staged diff if
- * the columns happen to be present (e.g., a test stubs them in), and
- * falls back to a hard-coded `'joy'` for inferred + `null` for user
- * otherwise. Phase B drops both fallbacks once the Drizzle migration
- * lands and the field is non-null on every persisted entry.
- *
- * `safeParse` still runs against the typed field so a server-side bug
- * (e.g., a stray legacy mood value) can't silently render a busted chip.
- */
 function readInferredEmotion(diff: PostMirrorReviewDiff): Mood {
   const parsed = MoodSchema.safeParse(diff.inferred_emotion)
   return parsed.success ? parsed.data : 'joy'

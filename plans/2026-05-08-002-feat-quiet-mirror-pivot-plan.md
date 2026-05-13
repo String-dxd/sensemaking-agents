@@ -1,12 +1,14 @@
 ---
 title: feat: Quiet Mirror Pivot — async reflection, manual sensemaking, live agent visualization
 type: feat
-status: active
+status: superseded
 date: 2026-05-08
 origin: docs/brainstorms/2026-05-08-quiet-mirror-pivot-requirements.md
 ---
 
 # feat: Quiet Mirror Pivot — async reflection, manual sensemaking, live agent visualization
+
+> **Current status (2026-05-13):** Superseded. The quiet audio capture direction survived, but the plan as written is no longer active: VIPS Wiki Pivot shipped in PR #1, Managed Agents + Postgres + WorkOS shipped in PR #4/#5, and World Studio shipped in PR #6. Do not execute the remaining Connector -> Pathfinder SSE units from this document; use `plans/CURRENT_STATE.md` and the newer plans instead.
 
 ## Summary
 

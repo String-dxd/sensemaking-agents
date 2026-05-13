@@ -4,11 +4,9 @@
  * world stage stays visible as the ambient surface while the student
  * talks; the volume-reactive halo lives on the Voice/Stop button itself.
  *
- * Linear chain on Stop: transcribing → reflecting → persisting → done →
- * navigate to /reflect/review. No post-Stop context picker — `context_type`
- * defaults to the last-used value from localStorage (matching the
- * ContextTypePicker fallback). Phase B revisits whether `context_type`
- * survives at all once `mood` + `inferred_emotion` land.
+ * Linear chain on Stop: transcribing -> reflecting -> persisting -> done.
+ * No post-Stop context picker: `context_type` is inferred from the raw
+ * transcript, and the parent route decides where to navigate next.
  *
  * `state.mood` lives in local React state only this plan — Phase A does
  * NOT modify the persistMirror data contract. Phase B (after the
@@ -16,10 +14,11 @@
  * `inferred_emotion` into the DB through the new Drizzle layer.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
+import { finishAgentRun, startAgentRun } from '~/agents/run-status'
 import type { Mood } from '~/agents/tools/schemas'
 import type { ContextType } from '~/components/ContextTypePicker'
 import { Button } from '~/components/ui/button'
-import { readLastUsedContextType } from '~/lib/context-type-storage'
+import { VoiceButton, type VoiceButtonPhase } from '~/components/VoiceButton'
 import { persistMirror } from '~/server/persist-mirror.functions'
 import { runMirror } from '~/server/run-mirror.functions'
 import { transcribeMirror } from '~/server/transcribe-mirror.functions'
@@ -135,6 +134,8 @@ function reduce(state: State, action: Action): State {
 
 export interface MirrorSessionResult {
   entryId: number
+  /** True only for legacy pending Connector review rows. */
+  stagedDiffPresent: boolean
   autoConnectorStatus:
     | 'ok'
     | 'queued'
@@ -180,6 +181,15 @@ export interface MirrorSessionApi {
   handleRetryChain: () => void
   /** Resets the state machine after an error. */
   handleReset: () => void
+}
+
+export interface MirrorSessionProps {
+  /**
+   * Called after `persistMirror` succeeds. Connector links are verified and
+   * applied server-side; the caller can route straight to the library review
+   * filter without a separate Connector confirmation step.
+   */
+  onPersisted?: (result: MirrorSessionResult) => void
 }
 
 /**
@@ -409,15 +419,22 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
 
   const runPostStopChain = useCallback(
     async (transcript: string) => {
+      let activeAgent: 'mirror' | 'connector' | null = null
       try {
         if (mountedRef.current) dispatch({ type: 'reflecting' })
+        activeAgent = 'mirror'
+        startAgentRun('mirror', 'Reflecting the transcript back to the student.')
         // studentId no longer travels in the data payload — managed-agents
         // resolves it server-side via `requireCounselorContext()` (WorkOS).
         const { output } = await runMirror({ data: { transcript } })
+        finishAgentRun('mirror', 'succeeded', 'Mirror output is ready.')
+        activeAgent = null
         if (!mountedRef.current) return
 
         dispatch({ type: 'persisting' })
-        const contextType: ContextType = readLastUsedContextType()
+        activeAgent = 'connector'
+        startAgentRun('connector', 'Saving the reflection and checking for VIPS library updates.')
+        const contextType: ContextType = inferContextType(transcript)
         const result = await persistMirror({
           data: {
             entry: {
@@ -431,14 +448,24 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
             // Read elapsed from the ref rather than state.elapsedMs so this
             // callback doesn't reidentify every animation frame and cascade
             // through handleStopInternal / handleVoicePress's useCallback chain.
-            trace: { capturedDurationMs: elapsedMsRef.current },
+            trace: {
+              capturedDurationMs: elapsedMsRef.current,
+              inferredContextType: contextType,
+            },
           },
         })
+        finishAgentRun(
+          'connector',
+          statusForConnectorResult(result.auto_connector_status),
+          detailForConnectorResult(result.auto_connector_status),
+        )
+        activeAgent = null
         if (!mountedRef.current) return
 
         dispatch({ type: 'done' })
         onPersisted?.({
           entryId: result.mirror_entry.id,
+          stagedDiffPresent: result.staged_diff?.status === 'pending',
           autoConnectorStatus: result.auto_connector_status,
           pendingQueued: result.pending_queued,
         })
@@ -446,6 +473,9 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
         if (!mountedRef.current) return
         const message =
           err instanceof Error ? err.message : 'Something went wrong saving the reflection.'
+        if (activeAgent) {
+          finishAgentRun(activeAgent, 'failed', message)
+        }
         dispatch({ type: 'fail', message })
       }
     },
@@ -555,6 +585,41 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
   }
 }
 
+export function MirrorSession({ onPersisted }: MirrorSessionProps) {
+  const session = useMirrorSession({ studentId: 'me', onPersisted })
+
+  return (
+    <div className="relative flex min-h-80 flex-col items-center justify-center gap-5">
+      <VoicePhaseOverlay
+        phase={session.phase}
+        remainingSec={session.remainingSec}
+        showSoftPrompt={session.showSoftPrompt}
+      />
+      <VoiceButton
+        phase={mirrorPhaseToVoiceButton(session.phase)}
+        amplitude={session.amplitude}
+        onPress={session.handleVoicePress}
+      />
+      {session.phase === 'error' && session.errorMessage ? (
+        <div className="w-full max-w-md">
+          <MirrorSessionErrorPanel
+            message={session.errorMessage}
+            onReset={session.handleReset}
+            onRetryChain={session.canRetryChain ? session.handleRetryChain : undefined}
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function mirrorPhaseToVoiceButton(phase: Phase): VoiceButtonPhase {
+  if (phase === 'idle') return 'idle'
+  if (phase === 'recording') return 'recording'
+  if (phase === 'error' || phase === 'done') return 'idle'
+  return 'working'
+}
+
 export interface MirrorSessionErrorPanelProps {
   message: string
   /**
@@ -659,11 +724,40 @@ function phaseCopy(phase: Phase): string {
     case 'reflecting':
       return 'Mirror is reflecting back…'
     case 'persisting':
-      return 'saving to your library…'
+      return 'saving to your library + checking Connector…'
     case 'done':
-      return 'done. Opening your reflection.'
+      return 'done. Opening your library.'
     default:
       return ''
+  }
+}
+
+function statusForConnectorResult(
+  status: MirrorSessionResult['autoConnectorStatus'],
+): 'succeeded' | 'queued' | 'failed' {
+  if (status === 'ok') return 'succeeded'
+  if (status === 'queued') return 'queued'
+  return 'failed'
+}
+
+function detailForConnectorResult(status: MirrorSessionResult['autoConnectorStatus']): string {
+  switch (status) {
+    case 'ok':
+      return 'Connector verified and linked this thought into the library mesh.'
+    case 'queued':
+      return 'Connector queued behind an older run.'
+    case 'timeout':
+      return 'Connector timed out; the raw thought was still saved.'
+    case 'schema_reject':
+      return 'Connector returned an invalid diff; the raw thought was still saved.'
+    case 'transport_error':
+      return 'Connector transport failed; the raw thought was still saved.'
+    case 'auth_error':
+      return 'Connector auth failed; the raw thought was still saved.'
+    case 'missing_mirror':
+      return 'Connector could not find the saved mirror entry.'
+    case 'unknown':
+      return 'Connector failed for an unknown reason; the raw thought was still saved.'
   }
 }
 
@@ -725,4 +819,95 @@ async function blobToBase64(blob: Blob): Promise<string> {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
   }
   return btoa(binary)
+}
+
+export function inferContextType(transcript: string): ContextType {
+  const text = transcript.toLowerCase()
+  const scores: Record<ContextType, number> = {
+    school: scoreContext(text, [
+      'school',
+      'class',
+      'lesson',
+      'teacher',
+      'homework',
+      'assignment',
+      'exam',
+      'test',
+      'grade',
+      'subject',
+      'math',
+      'science',
+      'english',
+      'cca',
+    ]),
+    family: scoreContext(text, [
+      'family',
+      'home',
+      'parent',
+      'parents',
+      'mum',
+      'mom',
+      'mother',
+      'dad',
+      'father',
+      'sibling',
+      'brother',
+      'sister',
+      'grandparent',
+    ]),
+    peer: scoreContext(text, [
+      'friend',
+      'friends',
+      'classmate',
+      'classmates',
+      'group chat',
+      'hang out',
+      'hangout',
+      'team mate',
+      'teammate',
+      'peer',
+    ]),
+    hobby: scoreContext(text, [
+      'hobby',
+      'side project',
+      'project',
+      'game',
+      'gaming',
+      'music',
+      'drawing',
+      'art',
+      'sport',
+      'coding',
+      'build',
+      'practice',
+      'club',
+    ]),
+    civic: scoreContext(text, [
+      'civic',
+      'community',
+      'volunteer',
+      'service',
+      'neighbourhood',
+      'neighborhood',
+      'charity',
+      'society',
+      'public',
+      'council',
+    ]),
+  }
+
+  return (Object.entries(scores) as Array<[ContextType, number]>).reduce<ContextType>(
+    (best, [context, score]) => (score > scores[best] ? context : best),
+    'school',
+  )
+}
+
+function scoreContext(text: string, keywords: string[]): number {
+  return keywords.reduce((score, keyword) => {
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const pattern = keyword.includes(' ')
+      ? new RegExp(escaped, 'g')
+      : new RegExp(`\\b${escaped}\\b`, 'g')
+    return score + (text.match(pattern)?.length ?? 0)
+  }, 0)
 }

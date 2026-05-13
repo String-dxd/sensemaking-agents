@@ -32,7 +32,7 @@ export async function loadWikiHandler(data: LoadWikiInput): Promise<WikiSnapshot
   loadWikiInputSchema.parse(data)
   const { studentId } = await requireCounselorContext()
   return withStudent(studentId, async (ctx) => ({
-    entries: await listMirrorEntries(studentId, { ctx }),
+    entries: await listMirrorEntries(studentId, { ctx, limit: null }),
     connector: await latestConnectorOutput(studentId, { ctx }),
     pathfinder: await latestPathfinderOutput(studentId, { ctx }),
   }))

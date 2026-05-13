@@ -1,9 +1,11 @@
 # Managed Agents Migration — Initial Plan
 
-**Status:** draft (initial)
+**Status:** superseded by `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`
 **Branch:** `claude/research-managed-agents-01ffz`
 **Date:** 2026-05-12
 **Author:** initial draft by Claude; to be deepened via `/ideate` iterations
+
+**Current status (2026-05-13):** Superseded. The full migration landed across PR #4 and PR #5 using the later single-cutover plan.
 
 ---
 

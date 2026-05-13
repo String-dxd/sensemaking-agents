@@ -27,14 +27,14 @@ export class DiagnosticLanguageError extends Error {
 
 /**
  * U7-reshaped response. The mirror entry is ALWAYS present on success; the
- * auto-connector result is best-effort and may be `queued`, `timeout`, or
+ * auto-connector result is best-effort and may be `timeout` or
  * `schema_reject` — none of those block persistence (A11).
  */
 export interface PersistMirrorResult {
   mirror_entry: MirrorEntryRow
   auto_connector_status: AutoConnectorStatus
   staged_diff: VipsProposedDiffRow | null
-  /** R30 — true iff a prior pending diff caused this run to be queued. */
+  /** Legacy compatibility; Connector no longer waits for user-confirmed diffs. */
   pending_queued: boolean
 }
 

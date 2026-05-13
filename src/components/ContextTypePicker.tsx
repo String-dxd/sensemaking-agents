@@ -25,6 +25,7 @@ const OPTIONS: OptionMeta[] = [
 
 export interface ContextTypePickerProps {
   onSelect: (value: ContextType) => void
+  label?: string
   /**
    * Optional initial value override. When omitted, the picker reads
    * `localStorage` and falls back to `'school'` for first use.
@@ -41,7 +42,11 @@ export interface ContextTypePickerProps {
  * Persistence: the last-used value is mirrored to `localStorage` so the
  * next session pre-highlights it. First use defaults to `school`.
  */
-export function ContextTypePicker({ onSelect, defaultValue }: ContextTypePickerProps) {
+export function ContextTypePicker({
+  onSelect,
+  defaultValue,
+  label = 'What was this about?',
+}: ContextTypePickerProps) {
   const [selected, setSelected] = useState<ContextType>(
     () => defaultValue ?? readLastUsedContextType(),
   )
@@ -60,7 +65,7 @@ export function ContextTypePicker({ onSelect, defaultValue }: ContextTypePickerP
   return (
     <div className="flex flex-col gap-3" data-testid="context-type-picker">
       <p className="text-sm text-muted-foreground" id="context-type-picker-label">
-        What was this about?
+        {label}
       </p>
       <RadioGroup
         aria-labelledby="context-type-picker-label"

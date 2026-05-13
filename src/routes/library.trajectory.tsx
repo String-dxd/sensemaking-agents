@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { TrajectoryPageView } from '~/components/TrajectoryPageView'
 import { Button } from '~/components/ui/button'
 import { loadTrajectory } from '~/server/load-trajectory.functions'
@@ -12,13 +12,6 @@ export const Route = createFileRoute('/library/trajectory')({
       queryKey: ['trajectory', STUDENT_ID],
       queryFn: () => loadTrajectory({ data: {} }),
     })
-    // R30 carry-forward: if F1's review queue has any pending diff, F2
-    // (this route) defers to the review surface. U8 wires the dedicated
-    // server fn that returns the queue contents; the existence check is
-    // sufficient at the loader.
-    if (data.pending_diff_present) {
-      throw redirect({ to: '/reflect/review' })
-    }
     return data
   },
   component: WikiTrajectoryPage,

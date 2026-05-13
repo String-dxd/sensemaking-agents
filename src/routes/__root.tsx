@@ -6,9 +6,10 @@ import {
   Link,
   Outlet,
   Scripts,
-  useRouterState,
 } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { demoSignInHref, workosSignInHref } from '~/auth/demo'
+import { AgentDebugPanel } from '~/components/AgentDebugPanel'
 import { queryClient } from '~/router'
 import styles from '~/styles.css?url'
 
@@ -33,35 +34,59 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootComponent() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const isWorld = pathname === '/'
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
         <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-8">
-          {isWorld ? null : (
-            <header className="flex items-center justify-between">
-              <Link to="/" className="text-sm font-semibold tracking-tight">
-                sensemaking · v0.1
+          <header className="flex items-center justify-between gap-4">
+            <Link to="/reflect" className="text-sm font-semibold tracking-tight">
+              Sensemaking agents
+            </Link>
+            <nav className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm text-muted-foreground">
+              <Link
+                to="/reflect"
+                className="hover:text-foreground"
+                activeProps={{ className: 'text-foreground' }}
+              >
+                reflect
               </Link>
-              <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-                <Link
-                  to="/library"
-                  className="hover:text-foreground"
-                  activeProps={{ className: 'text-foreground' }}
-                >
-                  library
-                </Link>
-                <Link
-                  to="/reflect/review"
-                  className="text-xs hover:text-foreground"
-                  activeProps={{ className: 'text-foreground' }}
-                >
-                  review
-                </Link>
-              </nav>
-            </header>
-          )}
+              <Link
+                to="/library"
+                className="hover:text-foreground"
+                activeProps={{ className: 'text-foreground' }}
+              >
+                library
+              </Link>
+              <details className="group relative">
+                <summary className="cursor-pointer list-none rounded px-2 py-1 text-sm hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+                  profile
+                </summary>
+                <div className="absolute right-0 z-20 mt-2 flex min-w-40 flex-col gap-1 rounded-md border border-border bg-background p-2 text-xs shadow-sm">
+                  <a
+                    className="rounded px-2 py-1.5 hover:bg-muted hover:text-foreground"
+                    href={workosSignInHref('/reflect')}
+                  >
+                    sign in
+                  </a>
+                  <form action={demoSignInHref('/reflect')} method="post">
+                    <button
+                      type="submit"
+                      className="w-full rounded px-2 py-1.5 text-left hover:bg-muted hover:text-foreground"
+                    >
+                      use demo account
+                    </button>
+                  </form>
+                  <a
+                    className="rounded px-2 py-1.5 hover:bg-muted hover:text-foreground"
+                    href="/api/auth/sign-out"
+                  >
+                    sign out
+                  </a>
+                </div>
+              </details>
+            </nav>
+          </header>
+          {import.meta.env.DEV ? <AgentDebugPanel /> : null}
           <main className="flex-1">
             <Outlet />
           </main>
