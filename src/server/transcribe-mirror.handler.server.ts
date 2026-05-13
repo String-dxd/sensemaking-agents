@@ -1,5 +1,6 @@
 import OpenAI, { toFile } from 'openai'
-import { z } from 'zod'
+import { requireCounselorContext } from '~/auth/identity'
+import { type TranscribeMirrorInput, transcribeMirrorInputSchema } from './function-schemas'
 
 /**
  * Browser-side reflection capture posts the recorded audio (encoded as
@@ -11,13 +12,6 @@ import { z } from 'zod'
  * a clear error rather than hitting an opaque OpenAI 413.
  */
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024
-
-export const transcribeMirrorInputSchema = z.object({
-  audioBase64: z.string().min(1),
-  mimeType: z.string().min(1),
-})
-
-export type TranscribeMirrorInput = z.output<typeof transcribeMirrorInputSchema>
 
 export interface TranscribeMirrorResult {
   transcript: string
@@ -36,6 +30,8 @@ export class WhisperTranscriptionError extends Error {
 }
 
 export interface TranscribeMirrorDeps {
+  /** Override auth for tests. Production requires a counselor before touching audio/OpenAI. */
+  authenticate?: () => Promise<unknown>
   /** Override the OpenAI client. Default: a real client constructed from env. */
   client?: { audio: { transcriptions: { create: OpenAI['audio']['transcriptions']['create'] } } }
 }
@@ -44,6 +40,7 @@ export async function transcribeMirrorHandler(
   data: TranscribeMirrorInput,
   deps: TranscribeMirrorDeps = {},
 ): Promise<TranscribeMirrorResult> {
+  await (deps.authenticate ?? requireCounselorContext)()
   const parsed = transcribeMirrorInputSchema.parse(data)
 
   let buffer: Buffer

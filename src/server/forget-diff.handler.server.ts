@@ -19,7 +19,6 @@
  * Wrapped in `withStudent` from `~/db/client` so the diff lookup and
  * payload/status updates share one Postgres transaction.
  */
-import { z } from 'zod'
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudent } from '~/db/client'
 import {
@@ -35,13 +34,7 @@ import {
   type ReviewableAnnotatedEntry,
   type ReviewPayload,
 } from '~/server/review-payload-shape'
-
-export const forgetDiffInputSchema = z.object({
-  diffId: z.number().int().positive(),
-  entryId: z.string().min(1),
-})
-
-export type ForgetDiffInput = z.output<typeof forgetDiffInputSchema>
+import { type ForgetDiffInput, forgetDiffInputSchema } from './function-schemas'
 
 export class ForgetDiffError extends Error {
   constructor(message: string) {

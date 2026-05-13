@@ -1,11 +1,69 @@
 // Sign-out route. AuthKit's `signOut()` clears the session cookie and
 // redirects to WorkOS's logout URL, which then bounces back to '/'.
 
-import { createFileRoute } from '@tanstack/react-router'
-import { signOut } from '@workos/authkit-tanstack-react-start'
+import { createFileRoute, isRedirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/api/auth/sign-out')({
-  loader: async () => {
-    await signOut()
+  server: {
+    handlers: {
+      GET: handleSignOutGet,
+    },
   },
 })
+
+export async function handleSignOutGet(): Promise<Response> {
+  const { clearDemoCookieHeader } = await import('~/auth/demo-session.server')
+  const [{ hasWorkosEnv }, { isAuthBypassed }] = await Promise.all([
+    import('~/auth/workos'),
+    import('~/auth/middleware'),
+  ])
+  if (isAuthBypassed() || !hasWorkosEnv()) {
+    return redirectWithClearedDemoCookie('/', clearDemoCookieHeader())
+  }
+
+  const { signOut } = await import('@workos/authkit-tanstack-react-start')
+  try {
+    await signOut()
+  } catch (err) {
+    if (isRedirect(err) || err instanceof Response) {
+      return withClearedDemoCookie(err, clearDemoCookieHeader())
+    }
+    throw err
+  }
+  return redirectWithClearedDemoCookie('/', clearDemoCookieHeader())
+}
+
+function redirectWithClearedDemoCookie(
+  location: string,
+  cookieHeader: string,
+  status = 303,
+): Response {
+  return new Response(null, {
+    status,
+    headers: {
+      Location: location,
+      'Set-Cookie': cookieHeader,
+    },
+  })
+}
+
+function withClearedDemoCookie(response: Response, cookieHeader: string): Response {
+  const headers = new Headers(response.headers)
+  headers.append('Set-Cookie', cookieHeader)
+  if (!headers.has('Location')) {
+    headers.set('Location', redirectLocation(response) ?? '/')
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
+function redirectLocation(response: Response): string | null {
+  if (isRedirect(response)) {
+    const options = response.options as { href?: string; to?: string }
+    return options.href ?? options.to ?? null
+  }
+  return null
+}

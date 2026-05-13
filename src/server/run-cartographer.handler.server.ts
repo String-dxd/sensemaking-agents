@@ -18,7 +18,6 @@
  *   5. Persists the validated payload via `insertCartographerOutput` AND
  *      writes an `agent_traces` row with `agent='cartographer'`.
  */
-import { z } from 'zod'
 import { getManagedAgentBinding } from '~/agents/config'
 import { buildCartographerContext } from '~/agents/context'
 import {
@@ -47,9 +46,7 @@ import {
   type VipsPageRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
-
-export const runCartographerInputSchema = z.object({})
-export type RunCartographerInput = z.output<typeof runCartographerInputSchema>
+import { type RunCartographerInput, runCartographerInputSchema } from './function-schemas'
 
 export type RunCartographerStatus = 'ok' | 'schema_reject' | 'no_valid_pathways' | 'agent_error'
 
@@ -198,15 +195,11 @@ export async function runCartographerHandler(
       // We treat empty as "no anchor" and drop with a warning so the reviewer
       // sees the agent failed to cite anchors rather than a hard parse fail.
       if (pathway.trait_combination.length === 0) {
-        warnings.push(
-          `pathway[${idx}] "${pathway.label}" dropped: trait_combination is empty`,
-        )
+        warnings.push(`pathway[${idx}] "${pathway.label}" dropped: trait_combination is empty`)
         continue
       }
       if (pathway.ecg_region_tags.length === 0) {
-        warnings.push(
-          `pathway[${idx}] "${pathway.label}" dropped: ecg_region_tags is empty`,
-        )
+        warnings.push(`pathway[${idx}] "${pathway.label}" dropped: ecg_region_tags is empty`)
         continue
       }
       const badClaim = pathway.trait_combination.find((c) => !validClaimIds.has(c.claim_id))

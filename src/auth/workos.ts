@@ -26,14 +26,16 @@ export type RequiredWorkosVar = (typeof REQUIRED_VARS)[number]
 
 export class WorkOSEnvError extends Error {
   readonly missing: readonly RequiredWorkosVar[]
-  constructor(missing: readonly RequiredWorkosVar[]) {
+  readonly invalid: readonly string[]
+  constructor(missing: readonly RequiredWorkosVar[], invalid: readonly string[] = []) {
     super(
-      `WorkOS env vars missing: ${missing.join(', ')}. ` +
-        'See plan §10 for the full list, or set DEV_BYPASS_AUTH=demo-a in .env.local ' +
-        'to skip auth entirely during local development.',
+      workosEnvErrorMessage(missing, invalid) +
+        'See plan §10 for the full list. For demos, use the demo account flow or set ' +
+        'DEV_BYPASS_AUTH=demo-a in .env.local to skip auth during local development.',
     )
     this.name = 'WorkOSEnvError'
     this.missing = missing
+    this.invalid = invalid
   }
 }
 
@@ -48,7 +50,8 @@ export function assertWorkosEnv(): void {
     const v = process.env[k]
     return typeof v !== 'string' || v.trim().length === 0
   })
-  if (missing.length > 0) throw new WorkOSEnvError(missing)
+  const invalid = validateWorkosEnvValues()
+  if (missing.length > 0 || invalid.length > 0) throw new WorkOSEnvError(missing, invalid)
 }
 
 export function hasWorkosEnv(): boolean {
@@ -58,4 +61,35 @@ export function hasWorkosEnv(): boolean {
   } catch {
     return false
   }
+}
+
+function validateWorkosEnvValues(): string[] {
+  const invalid: string[] = []
+  const cookiePassword = process.env.WORKOS_COOKIE_PASSWORD
+  if (cookiePassword && cookiePassword.trim().length > 0 && cookiePassword.length < 32) {
+    invalid.push('WORKOS_COOKIE_PASSWORD must be at least 32 characters')
+  }
+
+  const redirectUri = process.env.WORKOS_REDIRECT_URI
+  if (redirectUri && redirectUri.trim().length > 0) {
+    try {
+      const parsed = new URL(redirectUri)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        invalid.push('WORKOS_REDIRECT_URI must be an http(s) URL')
+      }
+    } catch {
+      invalid.push('WORKOS_REDIRECT_URI must be a valid URL')
+    }
+  }
+  return invalid
+}
+
+function workosEnvErrorMessage(
+  missing: readonly RequiredWorkosVar[],
+  invalid: readonly string[],
+): string {
+  const parts: string[] = []
+  if (missing.length > 0) parts.push(`WorkOS env vars missing: ${missing.join(', ')}.`)
+  if (invalid.length > 0) parts.push(`WorkOS env vars invalid: ${invalid.join('; ')}.`)
+  return `${parts.join(' ')} `
 }

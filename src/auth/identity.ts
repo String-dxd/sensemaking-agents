@@ -3,9 +3,9 @@
 // operating on right now."
 //
 // Two paths:
-//   1. DEV_BYPASS_AUTH set → return a synthetic counselor + the bypass's
-//      activeStudentId, after lazily ensuring the synthetic counselor has
-//      `counselor_students` rows for the 4 demo students.
+//   1. DEV_BYPASS_AUTH set, or demo-session cookie present → return a
+//      synthetic counselor + activeStudentId, after lazily ensuring the
+//      synthetic counselor has `counselor_students` rows for the 4 demo students.
 //   2. Otherwise → call `getAuth()` from AuthKit, derive activeStudentId
 //      from `counselor_students` (lowest attached studentId for v0.2,
 //      since the counselor picker UI is deferred to a follow-up PR per
@@ -19,7 +19,9 @@
 
 import { getAuth } from '@workos/authkit-tanstack-react-start'
 
+import { hasWorkosEnv } from '~/auth/workos'
 import { assertCounselorHasStudent, findFirstAttachedStudent } from '~/db/client'
+import { getDemoBypassAuthFromCookie } from './demo-session.server'
 import { bootstrapDemoStudentsForCounselor, getDevBypassAuth } from './middleware'
 
 export class UnauthenticatedError extends Error {
@@ -68,8 +70,35 @@ export async function requireCounselorContext(): Promise<CounselorContext> {
     }
   }
 
-  const auth = await getAuth()
-  if (!auth.user) throw new UnauthenticatedError()
+  const workosConfigured = hasWorkosEnv()
+  if (workosConfigured) {
+    const workosContext = await getWorkosCounselorContext()
+    if (workosContext) return workosContext
+  }
+
+  const demoBypass = getDemoBypassAuthFromCookie()
+  if (demoBypass) {
+    await bootstrapDemoStudentsForCounselor(demoBypass.counselorId)
+    return {
+      counselorId: demoBypass.counselorId,
+      studentId: demoBypass.activeStudentId,
+    }
+  }
+
+  throw new UnauthenticatedError()
+}
+
+async function getWorkosCounselorContext(): Promise<CounselorContext | null> {
+  let auth: Awaited<ReturnType<typeof getAuth>>
+  try {
+    auth = await getAuth()
+  } catch (err) {
+    if (isAuthKitMiddlewareMissingError(err)) {
+      return null
+    }
+    throw err
+  }
+  if (!auth.user) return null
 
   const counselorId = auth.user.id
   const studentId = await findFirstAttachedStudent(counselorId)
@@ -82,4 +111,8 @@ export async function requireCounselorContext(): Promise<CounselorContext> {
   await assertCounselorHasStudent(counselorId, studentId)
 
   return { counselorId, studentId }
+}
+
+function isAuthKitMiddlewareMissingError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes('AuthKit middleware is not configured')
 }

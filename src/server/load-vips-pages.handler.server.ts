@@ -11,7 +11,6 @@
  * `forgetVipsTimelineEntry` but is recorded-not-surfaced in v0.2 — agents
  * and clients learn about it through neither this fn nor the library UI.
  */
-import { z } from 'zod'
 import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import { withStudent } from '~/db/client'
@@ -21,10 +20,7 @@ import {
   type VipsPageRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
-
-export const loadVipsPagesInputSchema = z.object({})
-
-export type LoadVipsPagesInput = z.output<typeof loadVipsPagesInputSchema>
+import { type LoadVipsPagesInput, loadVipsPagesInputSchema } from './function-schemas'
 
 // Re-export for backward compatibility with any in-repo consumers; the
 // canonical home is now `~/data/vips-taxonomy`.

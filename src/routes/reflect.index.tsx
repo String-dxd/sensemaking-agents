@@ -21,8 +21,8 @@ function ReflectPage() {
         <CardHeader>
           <CardTitle>Mirror</CardTitle>
           <CardDescription>
-            Webcam-as-mirror. Audio captured locally and transcribed via Whisper after Stop. No AI
-            voice during the session.
+            Audio captured locally and transcribed via Whisper after Stop. No AI voice during the
+            session.
           </CardDescription>
         </CardHeader>
         <CardContent>

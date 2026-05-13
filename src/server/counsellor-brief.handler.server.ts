@@ -21,7 +21,6 @@
  * handing the data to the renderer; the same pattern is used by
  * `/wiki/trajectory` in `src/routes/wiki.trajectory.tsx`.
  */
-import { z } from 'zod'
 import type { CartographerOutputDraft } from '~/agents/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
@@ -34,9 +33,7 @@ import {
   type VipsTimelineEntryRow,
 } from '~/db/queries'
 import { renderCounsellorBrief } from '~/lib/counsellor-brief-renderer'
-
-export const counsellorBriefInputSchema = z.object({})
-export type CounsellorBriefInput = z.output<typeof counsellorBriefInputSchema>
+import { type CounsellorBriefInput, counsellorBriefInputSchema } from './function-schemas'
 
 export interface CounsellorBriefResult {
   markdown: string

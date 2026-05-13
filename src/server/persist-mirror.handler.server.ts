@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import {
   appendIfNovel,
   appendStudentMemory,
@@ -6,8 +5,6 @@ import {
   type MemoryStoreTransport,
   MemoryWriteError,
 } from '~/agents/memory'
-import { MirrorEntrySchema } from '~/agents/schemas'
-import { VipsContextTypeSchema } from '~/agents/tools/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import type { VipsProposedDiffRow } from '~/db/queries'
 import { insertMirrorEntry, type MirrorEntryRow } from '~/db/queries'
@@ -17,17 +14,7 @@ import {
   type AutoConnectorStatus,
   runAutoConnectorAfterMirror,
 } from '~/server/auto-connector.handler.server'
-
-export const persistMirrorInputSchema = z.object({
-  entry: MirrorEntrySchema,
-  /** U7: closed VIPS parallax context chosen by the student at Stop time. */
-  context_type: VipsContextTypeSchema,
-  /** Raw, un-edited Mirror agent output preserved for the R20 ablation. */
-  raw_output: z.unknown(),
-  trace: z.unknown().optional(),
-})
-
-export type PersistMirrorInput = z.output<typeof persistMirrorInputSchema>
+import { type PersistMirrorInput, persistMirrorInputSchema } from './mirror-function-schemas'
 
 export class DiagnosticLanguageError extends Error {
   constructor(readonly matches: { text: string; pattern: string }[]) {

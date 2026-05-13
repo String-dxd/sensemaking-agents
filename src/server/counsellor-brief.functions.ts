@@ -1,8 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import {
-  counsellorBriefHandler,
-  counsellorBriefInputSchema,
-} from './counsellor-brief.handler.server'
+import { counsellorBriefInputSchema } from './function-schemas'
 
 /**
  * U12 — Render a markdown counsellor brief for the student. The client
@@ -11,4 +8,7 @@ import {
  */
 export const counsellorBrief = createServerFn({ method: 'GET' })
   .inputValidator((raw: unknown) => counsellorBriefInputSchema.parse(raw))
-  .handler(({ data }) => counsellorBriefHandler(data))
+  .handler(async ({ data }) => {
+    const { counsellorBriefHandler } = await import('./counsellor-brief.handler.server')
+    return counsellorBriefHandler(data)
+  })

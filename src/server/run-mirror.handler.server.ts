@@ -1,16 +1,10 @@
-import { z } from 'zod'
 import { getManagedAgentBinding } from '~/agents/config'
 import { getOrCreateMemoryStoreId, type MemoryStoreTransport } from '~/agents/memory'
 import { runManagedAgent } from '~/agents/runner'
 import { type MirrorOutputDraft, MirrorOutputSchema } from '~/agents/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudentLegacy } from '~/server/tenancy.server'
-
-export const runMirrorInputSchema = z.object({
-  transcript: z.string().min(1),
-})
-
-export type RunMirrorInput = z.output<typeof runMirrorInputSchema>
+import { type RunMirrorInput, runMirrorInputSchema } from './function-schemas'
 
 export class MirrorAgentError extends Error {
   constructor(

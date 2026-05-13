@@ -16,20 +16,7 @@
 // `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md` §10
 // does not include it.
 
-import { attachCounselorToDemoStudents } from '~/db/client'
-
-/**
- * The four demo students every counselor is granted access to on first
- * sign-in. Kept in sync with the seed fixture
- * (`test/ablation/fixtures/seed-multistudent.json`).
- */
-export const DEMO_STUDENT_IDS = ['demo-a', 'demo-b', 'demo-c', 'demo-d'] as const
-export type DemoStudentId = (typeof DEMO_STUDENT_IDS)[number]
-
-export interface DevBypassIdentity {
-  counselorId: string
-  activeStudentId: string
-}
+import { type DevBypassIdentity, makeBypassIdentity } from './demo'
 
 /**
  * Read the dev-only auth bypass. Returns `null` outside dev.
@@ -47,13 +34,10 @@ export interface DevBypassIdentity {
 export function getDevBypassAuth(): DevBypassIdentity | null {
   const studentId = process.env.DEV_BYPASS_AUTH
   if (!studentId || studentId.trim().length === 0) return null
-  return {
-    // Synthetic counselor id is namespaced so it cannot collide with a real
-    // WorkOS user id (which is always `user_…`). counselor_students rows
-    // keyed against this id are inserted lazily on first request below.
-    counselorId: `auth-bypass:${studentId}`,
-    activeStudentId: studentId.trim(),
-  }
+  // Synthetic counselor id is namespaced so it cannot collide with a real
+  // WorkOS user id (which is always `user_…`). counselor_students rows
+  // keyed against this id are inserted lazily on first request below.
+  return makeBypassIdentity(studentId.trim())
 }
 
 /**
@@ -71,5 +55,6 @@ export function isAuthBypassed(): boolean {
  * hook and from the dev-bypass code path on first request.
  */
 export async function bootstrapDemoStudentsForCounselor(counselorId: string): Promise<void> {
+  const { attachCounselorToDemoStudents } = await import('~/db/client')
   await attachCounselorToDemoStudents(counselorId)
 }

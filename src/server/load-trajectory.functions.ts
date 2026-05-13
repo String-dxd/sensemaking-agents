@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { loadTrajectoryHandler, loadTrajectoryInputSchema } from './load-trajectory.handler.server'
+import { loadTrajectoryInputSchema } from './function-schemas'
 
 /**
  * U11 — fetch the most-recent `cartographer_outputs` row for the
@@ -9,4 +9,7 @@ import { loadTrajectoryHandler, loadTrajectoryInputSchema } from './load-traject
  */
 export const loadTrajectory = createServerFn({ method: 'GET' })
   .inputValidator((raw: unknown) => loadTrajectoryInputSchema.parse(raw))
-  .handler(({ data }) => loadTrajectoryHandler(data))
+  .handler(async ({ data }) => {
+    const { loadTrajectoryHandler } = await import('./load-trajectory.handler.server')
+    return loadTrajectoryHandler(data)
+  })

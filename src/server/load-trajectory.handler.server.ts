@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudent } from '~/db/client'
 import {
@@ -6,9 +5,7 @@ import {
   latestCartographerOutput,
   listVipsProposedDiffs,
 } from '~/db/queries'
-
-export const loadTrajectoryInputSchema = z.object({})
-export type LoadTrajectoryInput = z.output<typeof loadTrajectoryInputSchema>
+import { type LoadTrajectoryInput, loadTrajectoryInputSchema } from './function-schemas'
 
 /**
  * `/wiki/trajectory` loader data.

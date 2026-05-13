@@ -12,14 +12,17 @@
 // there.
 
 import { createStart } from '@tanstack/react-start'
-import { authkitMiddleware } from '@workos/authkit-tanstack-react-start'
 
-import { isAuthBypassed } from '~/auth/middleware'
-import { hasWorkosEnv } from '~/auth/workos'
+export const startInstance = createStart(async () => {
+  if (!import.meta.env.SSR) return {}
 
-export const startInstance = createStart(() => {
+  const [{ isAuthBypassed }, { hasWorkosEnv }] = await Promise.all([
+    import('~/auth/middleware'),
+    import('~/auth/workos'),
+  ])
   if (isAuthBypassed()) return {}
   if (!hasWorkosEnv()) return {}
+  const { authkitMiddleware } = await import('@workos/authkit-tanstack-react-start')
   return {
     requestMiddleware: [authkitMiddleware()],
   }

@@ -1,9 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import {
-  searchPastMirrorsHandler,
-  searchPastMirrorsInputSchema,
-} from './search-past-mirrors.handler.server'
+import { searchPastMirrorsInputSchema } from './function-schemas'
 
 export const searchPastMirrors = createServerFn({ method: 'POST' })
   .inputValidator((raw: unknown) => searchPastMirrorsInputSchema.parse(raw))
-  .handler(({ data }) => searchPastMirrorsHandler(data))
+  .handler(async ({ data }) => {
+    const { searchPastMirrorsHandler } = await import('./search-past-mirrors.handler.server')
+    return searchPastMirrorsHandler(data)
+  })

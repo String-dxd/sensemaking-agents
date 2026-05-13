@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudent } from '~/db/client'
 import {
@@ -10,15 +9,12 @@ import {
   type MirrorEntryRow,
   type PathfinderOutputRow,
 } from '~/db/queries'
-
-export const loadWikiInputSchema = z.object({})
-
-export const loadWikiEntryInputSchema = z.object({
-  entryId: z.number().int().positive(),
-})
-
-export type LoadWikiInput = z.output<typeof loadWikiInputSchema>
-export type LoadWikiEntryInput = z.output<typeof loadWikiEntryInputSchema>
+import {
+  type LoadWikiEntryInput,
+  type LoadWikiInput,
+  loadWikiEntryInputSchema,
+  loadWikiInputSchema,
+} from './function-schemas'
 
 export interface WikiSnapshot {
   entries: MirrorEntryRow[]
