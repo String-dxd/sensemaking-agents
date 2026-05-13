@@ -1,9 +1,11 @@
 # Managed Agents Full Migration — single-cutover plan
 
-**Status:** reviewed; P0 + P3 + P1 fixes applied 2026-05-12; ready for ce-work
+**Status:** completed; PR #4 cutover merged and PR #5 cleanup merged
 **Replaces:** `plans/2026-05-12-001-feat-managed-agents-migration-plan.md` (phased v1)
 **Date:** 2026-05-12
 **Source:** `docs/ideation/2026-05-12-managed-agents-migration-ideation.md`
+
+**Current status (2026-05-13):** Complete on `origin/main`. PR #4 shipped the Anthropic Managed Agents + Postgres + WorkOS cutover; PR #5 removed the stale OpenAI Agents SDK runtime and feature flag.
 
 ---
 

@@ -1,13 +1,15 @@
 ---
 title: "feat: Voice-Note Multi-Agent Wiki"
 type: feat
-status: active
+status: archived
 date: 2026-05-06
 deepened: 2026-05-08
 ---
 
 # feat: Voice-Note Multi-Agent Wiki
 
+> **Current status (2026-05-13):** Archived historical plan. It was replaced by `plans/sensemaking-agents.md`, which has since been superseded by the shipped VIPS Wiki Pivot, Managed Agents, and World Studio work. See `plans/CURRENT_STATE.md`.
+>
 > **Target repo:** standalone at `~/Developer/sensemaking-agents/voice-wiki/`. Resolved 2026-05-08 in favor of standalone (over a new monorepo or re-cloned pi-mono) because the v2 trajectory is a hosted SaaS that will live in its own server-side codebase — a v1 monorepo would only ever hold one package.
 
 ## Summary

@@ -1,9 +1,11 @@
 # World Studio — Flow & Layout Reorder (Plan)
 
-**Status:** active (initial)
+**Status:** completed; PR #6 merged
 **Date:** 2026-05-12
 **Type:** feat
 **Author:** initial draft by Claude (ce-plan)
+
+**Current status (2026-05-13):** Complete on `origin/main` via PR #6 (`feat(world-studio): ship voice-first home surface`). PR #3 was closed as superseded by the rebased PR #6.
 
 ---
 
