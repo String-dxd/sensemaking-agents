@@ -1,0 +1,105 @@
+{
+  "description": "Locked VIPS label-boundary fixture for the 2026-05-13 agent-boundary pass. This is a small evaluator-facing slice, not a replacement seed corpus. It targets the user-raised ambiguity around where Values and Skills labels come from, and verifies that closed canonical IDs are enforced after Connector parsing.",
+  "created_at": "2026-05-13",
+  "canonical_runtime_policy": {
+    "values_source_lists": "Broad values lists are synonym and crosswalk material only; runtime IDs stay compact.",
+    "skillsfuture_ccs": "SkillsFuture Critical Core Skills are a source-family and crosswalk reference; runtime IDs stay the six compact skills clusters.",
+    "personality": "Big Five Extraversion and Neuroticism are backend reference dimensions only; student-facing output should be behavioral and non-diagnostic."
+  },
+  "rows": [
+    {
+      "case_id": "valid-value-contribution",
+      "axis": "valid value from operative behavior",
+      "student_id": "label-boundary-a",
+      "context_type": "civic",
+      "transcript": "I stayed after the event to help the uncle pack the chairs because everyone else had left. I was tired, but it felt important that he did not have to finish alone.",
+      "connector_candidate": {
+        "dimension": "values",
+        "canonical_claim_id": "values.contribution",
+        "verbatim_quote": "it felt important that he did not have to finish alone",
+        "reflection_id": 1,
+        "strength": "medium",
+        "parallax_tag": ["civic"]
+      },
+      "expected_verifier": {
+        "bucket": "admitted_or_downgraded",
+        "reason": "Known canonical value ID with matching quote."
+      }
+    },
+    {
+      "case_id": "invalid-value-label-with-real-quote",
+      "axis": "valid quote but invented value label",
+      "student_id": "label-boundary-a",
+      "context_type": "civic",
+      "transcript": "I stayed after the event to help the uncle pack the chairs because everyone else had left. I was tired, but it felt important that he did not have to finish alone.",
+      "connector_candidate": {
+        "dimension": "values",
+        "canonical_claim_id": "values.service",
+        "verbatim_quote": "it felt important that he did not have to finish alone",
+        "reflection_id": 1,
+        "strength": "medium",
+        "parallax_tag": ["civic"]
+      },
+      "expected_verifier": {
+        "bucket": "dropped",
+        "reason": "unknown_canonical_claim_id"
+      }
+    },
+    {
+      "case_id": "wrong-dimension-known-id",
+      "axis": "known skill ID emitted under values",
+      "student_id": "label-boundary-b",
+      "context_type": "school",
+      "transcript": "For the physics project I broke the circuit problem into three smaller tests, then used the failed readings to find the loose connection.",
+      "connector_candidate": {
+        "dimension": "values",
+        "canonical_claim_id": "skills.analytical",
+        "verbatim_quote": "broke the circuit problem into three smaller tests",
+        "reflection_id": 2,
+        "strength": "medium",
+        "parallax_tag": ["school"]
+      },
+      "expected_verifier": {
+        "bucket": "dropped",
+        "reason": "unknown_canonical_claim_id"
+      }
+    },
+    {
+      "case_id": "skill-vs-interest-ambiguity",
+      "axis": "skill evidence should not become an interest unless preference is explicit",
+      "student_id": "label-boundary-c",
+      "context_type": "school",
+      "transcript": "I explained the debate structure to my group and rewrote our opening so it sounded clearer. I did not love being on stage, but I liked helping the argument make sense.",
+      "preferred_candidate": {
+        "dimension": "skills",
+        "canonical_claim_id": "skills.communication",
+        "verbatim_quote": "rewrote our opening so it sounded clearer",
+        "reflection_id": 3,
+        "strength": "medium",
+        "parallax_tag": ["school"]
+      },
+      "avoid_without_more_evidence": {
+        "dimension": "interests",
+        "canonical_claim_id": "interests.social",
+        "reason": "The quote shows communication work; it does not yet prove a stable preference for people-facing work."
+      }
+    },
+    {
+      "case_id": "skillsfuture-crosswalk-not-runtime-id",
+      "axis": "SkillsFuture term maps into compact runtime cluster",
+      "student_id": "label-boundary-d",
+      "context_type": "hobby",
+      "transcript": "When our robotics code failed before the showcase, I tried two backup plans and changed the demo route so we could still show the sensor working.",
+      "source_term": "SkillsFuture Critical Core Skills: Adaptability / Problem Solving",
+      "preferred_candidate": {
+        "dimension": "skills",
+        "canonical_claim_id": "skills.practical",
+        "verbatim_quote": "tried two backup plans and changed the demo route",
+        "reflection_id": 4,
+        "strength": "medium",
+        "parallax_tag": ["hobby"]
+      },
+      "avoid_runtime_id": "skillsfuture.adaptability"
+    }
+  ]
+}

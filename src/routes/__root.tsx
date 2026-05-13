@@ -11,6 +11,7 @@ import type { ReactNode } from 'react'
 import { demoSignInHref, workosSignInHref } from '~/auth/demo'
 import { AgentDebugPanel } from '~/components/AgentDebugPanel'
 import { queryClient } from '~/router'
+import { loadAuthMenu } from '~/server/auth-menu.functions'
 import styles from '~/styles.css?url'
 
 export interface RouterContext {
@@ -18,6 +19,7 @@ export interface RouterContext {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
+  loader: () => loadAuthMenu(),
   head: () => ({
     meta: [
       { charSet: 'utf-8' },
@@ -34,6 +36,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootComponent() {
+  const authMenu = Route.useLoaderData()
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
@@ -58,30 +61,49 @@ function RootComponent() {
                 library
               </Link>
               <details className="group relative">
-                <summary className="cursor-pointer list-none rounded px-2 py-1 text-sm hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-                  profile
+                <summary
+                  className="max-w-40 cursor-pointer list-none truncate rounded px-2 py-1 text-sm hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  title={authMenu.status === 'signed-in' ? authMenu.label : undefined}
+                >
+                  {authMenu.status === 'signed-in' ? authMenu.label : 'profile'}
                 </summary>
-                <div className="absolute right-0 z-20 mt-2 flex min-w-40 flex-col gap-1 rounded-md border border-border bg-background p-2 text-xs shadow-sm">
-                  <a
-                    className="rounded px-2 py-1.5 hover:bg-muted hover:text-foreground"
-                    href={workosSignInHref('/reflect')}
-                  >
-                    sign in
-                  </a>
-                  <form action={demoSignInHref('/reflect')} method="post">
-                    <button
-                      type="submit"
-                      className="w-full rounded px-2 py-1.5 text-left hover:bg-muted hover:text-foreground"
-                    >
-                      use demo account
-                    </button>
-                  </form>
-                  <a
-                    className="rounded px-2 py-1.5 hover:bg-muted hover:text-foreground"
-                    href="/api/auth/sign-out"
-                  >
-                    sign out
-                  </a>
+                <div className="absolute right-0 z-20 mt-2 flex min-w-56 max-w-72 flex-col gap-1 rounded-md border border-border bg-background p-2 text-xs shadow-sm">
+                  {authMenu.status === 'signed-in' ? (
+                    <>
+                      <div className="rounded px-2 py-1.5">
+                        <p className="font-medium text-foreground">Signed in</p>
+                        <p className="mt-0.5 break-words text-foreground">{authMenu.label}</p>
+                        {authMenu.detail ? (
+                          <p className="mt-0.5 break-all text-muted-foreground">
+                            {authMenu.detail}
+                          </p>
+                        ) : null}
+                      </div>
+                      <a
+                        className="rounded px-2 py-1.5 hover:bg-muted hover:text-foreground"
+                        href="/api/auth/sign-out"
+                      >
+                        sign out
+                      </a>
+                    </>
+                  ) : (
+                    <>
+                      <a
+                        className="rounded px-2 py-1.5 hover:bg-muted hover:text-foreground"
+                        href={workosSignInHref('/reflect')}
+                      >
+                        sign in
+                      </a>
+                      <form action={demoSignInHref('/reflect')} method="post">
+                        <button
+                          type="submit"
+                          className="w-full rounded px-2 py-1.5 text-left hover:bg-muted hover:text-foreground"
+                        >
+                          use demo account
+                        </button>
+                      </form>
+                    </>
+                  )}
                 </div>
               </details>
             </nav>

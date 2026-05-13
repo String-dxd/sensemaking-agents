@@ -9,11 +9,11 @@
 //     WorkOS dashboard, not in code — Google is the lone provider behind a
 //     single "Sign in with Google" button, per plan §6.1).
 //
-// Per the plan §6.1, open Google sign-up is acceptable for the v0.2 demo
-// (any Google-authenticated user becomes a counselor with access to the
-// 4 demo students). Production hardening (organization invite / `hd` claim
-// validation / email allowlist) is deferred to a follow-up PR — see
-// plan §16 "P1 items resolved during 2026-05-12 walkthrough".
+// Open Google sign-up is acceptable for the local v0.2 demo, but real
+// WorkOS users resolve to private empty student namespaces. Seeded demo data
+// is available only through the explicit demo account/dev-bypass paths.
+// Production hardening (organization invite / `hd` claim validation / email
+// allowlist) is deferred to a follow-up PR.
 
 const REQUIRED_VARS = [
   'WORKOS_CLIENT_ID',
@@ -31,7 +31,7 @@ export class WorkOSEnvError extends Error {
     super(
       workosEnvErrorMessage(missing, invalid) +
         'See plan §10 for the full list. For demos, use the demo account flow or set ' +
-        'DEV_BYPASS_AUTH=demo-a in .env.local to skip auth during local development.',
+        'DEV_BYPASS_AUTH=demo-a in .env to skip auth during local development.',
     )
     this.name = 'WorkOSEnvError'
     this.missing = missing

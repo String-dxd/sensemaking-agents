@@ -1,7 +1,6 @@
 // WorkOS AuthKit OAuth callback. On the first successful sign-in for a
-// counselor we idempotently attach them to the 4 demo students; on every
-// subsequent sign-in the attach is a no-op (`on conflict do nothing` per
-// `attachCounselorToDemoStudents`).
+// counselor we idempotently attach them to their private empty student
+// namespace; on subsequent sign-ins the attach is a no-op.
 //
 // The callback URL is `WORKOS_REDIRECT_URI` in env. The WorkOS dashboard
 // must list this exact URL under "Redirect URIs".
@@ -23,7 +22,7 @@ export async function handleCallbackGet(ctx: {
 }): Promise<Response> {
   const [
     { handleCallbackRoute },
-    { bootstrapDemoStudentsForCounselor },
+    { bootstrapPersonalStudentForCounselor },
     { clearDemoCookieHeader },
   ] = await Promise.all([
     import('@workos/authkit-tanstack-react-start'),
@@ -32,7 +31,7 @@ export async function handleCallbackGet(ctx: {
   ])
   const handler = handleCallbackRoute({
     onSuccess: async ({ user }) => {
-      await bootstrapDemoStudentsForCounselor(user.id)
+      await bootstrapPersonalStudentForCounselor(user.id)
     },
     // On callback failure WorkOS already logs to console; the user
     // lands on `/?authError=auth_failed` so the verifier cookies

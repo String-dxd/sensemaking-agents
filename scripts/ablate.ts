@@ -32,18 +32,14 @@
 import 'dotenv/config'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { buildConnectorContext } from '~/agents/context'
 import { getManagedAgentBinding } from '~/agents/config'
+import { buildConnectorContext } from '~/agents/context'
 import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
-import {
-  type ConnectorDiffDraft,
-  ConnectorDiffSchema,
-  MirrorOutputSchema,
-} from '~/agents/schemas'
+import { type ConnectorDiffDraft, ConnectorDiffSchema, MirrorOutputSchema } from '~/agents/schemas'
+import { verifyProposedDiff } from '~/agents/verifier'
 import { withStudent as withStudentDb } from '~/db/client'
 import { listMirrorEntries } from '~/db/queries'
 import { loadSeedCorpus, seed } from '~/db/seed'
-import { verifyProposedDiff } from '~/agents/verifier'
 import {
   type AgentRunStats,
   buildAblationReportMarkdown,
@@ -348,6 +344,8 @@ async function verifyConnectorDraft(
     for (const dropped of result.dropped) {
       if (dropped.reason === 'no_quote_match') counters.dropped_no_quote_match += 1
       else if (dropped.reason === 'unknown_reflection') counters.dropped_unknown_reflection += 1
+      else if (dropped.reason === 'unknown_canonical_claim_id')
+        counters.dropped_unknown_canonical_claim_id += 1
     }
     for (const ann of [...result.admitted, ...result.downgraded]) {
       if (ann.aspirational) counters.aspirational += 1
@@ -411,6 +409,8 @@ async function main() {
         aggregateVerifier.downgraded += partial.downgraded
         aggregateVerifier.dropped_no_quote_match += partial.dropped_no_quote_match
         aggregateVerifier.dropped_unknown_reflection += partial.dropped_unknown_reflection
+        aggregateVerifier.dropped_unknown_canonical_claim_id +=
+          partial.dropped_unknown_canonical_claim_id
         aggregateVerifier.aspirational += partial.aspirational
         aggregateVerifier.claim_ids.push(...partial.claim_ids)
       }
@@ -437,10 +437,7 @@ async function main() {
     'test/ablation/reports',
     `${date}-managed-${surface}${filenameSuffix}.json`,
   )
-  const mdPath = resolve(
-    'test/ablation/reports',
-    `${date}-managed-${surface}${filenameSuffix}.md`,
-  )
+  const mdPath = resolve('test/ablation/reports', `${date}-managed-${surface}${filenameSuffix}.md`)
   mkdirSync(resolve('test/ablation/reports'), { recursive: true })
 
   // For managed agents the runtime model is pinned by the agent version on
@@ -456,8 +453,7 @@ async function main() {
   }
   const mirrorIdentity = managedIdentity('mirror')
   const connectorIdentity = surface === 'sensemake' ? managedIdentity('connector') : null
-  const hasKey =
-    process.env.ANTHROPIC_API_KEY !== undefined && process.env.ANTHROPIC_API_KEY !== ''
+  const hasKey = process.env.ANTHROPIC_API_KEY !== undefined && process.env.ANTHROPIC_API_KEY !== ''
   const liveModelLabel =
     surface === 'sensemake'
       ? `${mirrorIdentity} (Mirror) / ${connectorIdentity ?? 'managed'} (Connector)`

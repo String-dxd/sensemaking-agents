@@ -4,9 +4,9 @@ Sensemaking Agents is a student reflection app for turning lived school experien
 
 Current product shape:
 
-- `/reflect` is the recording surface: audio-only reflection, one primary voice action, then an automatic Mirror + Connector pass.
-- Mirror transcribes audio, reflects the transcript, infers a context tag, and saves the raw thought into the Library.
-- Connector runs after reflection persistence, verifies proposed VIPS links, and applies verifier-passing links directly into the VIPS pages and timeline.
+- `/reflect` is the recording surface: audio-only reflection, one primary voice action, then Mirror saves the raw thought into Library.
+- Mirror transcribes audio, reflects the transcript, infers a context tag, and saves the raw thought without waiting on Connector.
+- Connector runs from the Library `Run Connector` action or the scheduled evening pass, verifies proposed VIPS links, and applies verifier-passing links directly into the VIPS pages and timeline.
 - `/library` is the main review surface. By default it shows all recorded thoughts and VIPS pages; the `Need review` filter shows raw mirror thoughts that still need confirm/forget.
 - Cartographer runs manually from `/library` and generates the Trajectory page.
 - `/reflect/review` is now a compatibility redirect into `/library?filter=need-review`.
@@ -16,57 +16,82 @@ For the latest planning and merge status, see `plans/CURRENT_STATE.md`.
 ## Architecture
 
 - Frontend: TanStack Router/Start, React, Tailwind, shadcn-style local primitives, Base UI for accessible dialogs/drawers/radio groups.
-- Agents: Anthropic Managed Agents for Mirror, Connector, Cartographer, and self-critique.
+- Agents: Anthropic Managed Agents for Mirror, Connector, Cartographer, and the self-critique eval/safety reviewer.
 - Transcription: OpenAI Whisper via the `openai` package.
 - Persistence: Postgres via Drizzle ORM and `pg`; every request is scoped through the `withStudent` tenancy envelope.
 - Auth: WorkOS AuthKit with Google sign-in, plus a local demo/dev bypass path.
 - Deployment target: Vercel.
 
-## Managed Agent Pipeline
+## Agent Architecture
 
-The app uses three product-facing managed agents. Each agent has a narrow job, and the boundary between them is explicit in code.
+The app uses three product-facing managed agents plus one eval/safety reviewer. The product agents create or synthesize student-facing sensemaking; the eval agent reviews those outputs. Persistence, verification, auth, and final policy decisions stay in application code.
 
-### Mirror
+| Agent | Role | Trigger | Writes student-facing state? | Default model |
+|---|---|---|---|---|
+| Mirror | Reflect one recorded thought back to the student | Immediately after transcription on `/reflect` | Indirectly: app persists its parsed output as a raw mirror entry | `claude-sonnet-4-6` |
+| Connector | Link recent mirror entries into canonical VIPS pages | Manual `Run Connector` button or 18:00 Singapore scheduled pass | Yes, but only after deterministic verifier gates proposed links | `claude-sonnet-4-6` |
+| Cartographer | Synthesize verified VIPS state into Trajectory | Manual `Run sense-making` button | Yes, writes the trajectory view | `claude-sonnet-4-6` |
+| self_critique | Eval/safety reviewer for other agent outputs | Best-effort review after Mirror, Connector, or Cartographer drafts | No | `claude-haiku-4-5` |
 
-Mirror runs immediately after recording and transcription.
+Default models and hosted managed-agent provisioning live in `scripts/managed-agents/provision.ts`.
 
-1. The user records a thought.
-2. The app transcribes the audio.
-3. The app infers a context tag from the transcript: `school`, `family`, `peer`, `hobby`, or `civic`.
+### Handoff Flow
+
+1. The user records on `/reflect`.
+2. The app transcribes audio with OpenAI Whisper.
+3. The app infers a closed context tag: `school`, `family`, `peer`, `hobby`, or `civic`.
 4. Mirror receives the transcript and returns `validation`, `inferred_meaning`, and `story_reframe`.
-5. `persistMirror` writes the raw thought to `mirror_entries`.
-6. The raw thought starts in `pending` review state so the user can later `Confirm` or `Forget` it in Library.
+5. `self_critique` reviews the Mirror draft for evidence grounding, safety, student agency, and specificity. This review is returned as `eval_review`; it does not block persistence.
+6. `persistMirror` writes the raw thought to `mirror_entries` in `pending` review state.
+7. Connector later runs from Library or the scheduled pass over recent unconnected reflections.
+8. Connector proposes VIPS timeline links and page rewrites across Values, Interests, Personality, and Skills.
+9. `self_critique` reviews the Connector draft for evidence grounding, taxonomy fit, safety, specificity, and sycophancy.
+10. The deterministic verifier gates every proposed timeline link before anything enters `vips_timeline_entries`.
+11. Verifier-passing `admitted` and `downgraded` entries become connected VIPS links. Dropped entries stay only in the audit payload in `vips_proposed_diffs`.
+12. Cartographer reads verified VIPS pages and timeline entries when the user clicks `Run sense-making`.
+13. `self_critique` reviews the Cartographer draft for evidence grounding, safety, student agency, specificity, sycophancy, and actionability.
+14. Cartographer writes `/library/trajectory` with a trajectory paragraph, 2-5 pathways, open questions, and a disclaimer.
 
-Default managed-agent model from `scripts/managed-agents/provision.ts`: `claude-sonnet-4-6`.
+### Agent Boundaries
 
-Mirror creates the dot in the wiki: the student's recorded thought.
+Mirror creates the dot. It reflects one transcript without deciding a student identity, career path, or VIPS profile. It should stay validating, concrete, and non-diagnostic.
 
-### Connector
+Connector links dots into the mesh. It can propose VIPS claims only from observed evidence and the closed VIPS taxonomy. It does not invent free-text labels from external lists. The deterministic verifier is the hard gate before links are applied.
 
-Connector runs automatically after Mirror persistence succeeds.
+Cartographer reads the connected mesh. It synthesizes direction-of-travel from verified VIPS state without inventing certainty, destiny, or prescriptive career advice.
 
-1. Connector receives the new mirror entry, existing VIPS pages, and non-forgotten VIPS timeline context.
-2. Connector proposes per-dimension VIPS updates across Values, Interests, Personality, and Skills.
-3. The deterministic verifier checks proposed entries before anything reaches the wiki tables.
-4. Verifier-passing `admitted` and `downgraded` entries are inserted into `vips_timeline_entries`.
-5. Touched VIPS page summaries are upserted from the Connector rewrite after safety checks.
-6. Dropped entries are preserved only in the confirmed audit row in `vips_proposed_diffs`; they are not shown as user work.
+`self_critique` is the guardrail lens. It evaluates quality and safety, but it does not rewrite the full draft, create student-facing meaning, or persist state. It can flag safety and overclaiming even when the caller requested a narrower focus.
 
-Default managed-agent model from `scripts/managed-agents/provision.ts`: `claude-haiku-4-5`.
+### Eval Review Contract
 
-Connector links dots into the mesh. The user does not confirm Connector links; the agent proposes them and the verifier gates them.
+`self_critique` receives:
 
-### Cartographer
+- `agent`: `mirror`, `connector`, or `cartographer`
+- `draft`: JSON-serialized output from that agent
+- `focus`: review dimensions such as `evidence_grounding`, `taxonomy_fit`, `safety`, `student_agency`, `specificity`, `sycophancy`, or `actionability`
+- `source_context`: compact context such as transcript text, reflection metadata, VIPS page count, or verified timeline count
 
-Cartographer runs only when the user clicks `Run sense-making` in Library.
+It returns structured JSON with:
 
-1. Cartographer reads the current VIPS pages and verified timeline.
-2. It synthesizes a Trajectory page with a trajectory paragraph, 2-5 pathways, open questions, and a disclaimer.
-3. On success, the app navigates to `/library/trajectory`.
+- `verdict`: `pass`, `pass_with_warnings`, or `fail`
+- `risk_level`: `low`, `medium`, or `high`
+- `critique`: one concise paragraph
+- `findings`: categorized issues and recommendations
+- `suggestions`: concrete follow-up checks or revisions
+- `confidence`: `low`, `medium`, or `high`
 
-Default managed-agent model from `scripts/managed-agents/provision.ts`: `claude-sonnet-4-6`.
+The eval call is best-effort. If the `self_critique` binding is missing or the managed-agent call fails, the app logs a warning and continues. Connector safety does not depend on eval alone; verified persistence still depends on deterministic checks.
 
-Cartographer reads the connected mesh and turns it into a direction-of-travel view.
+### Source Of Truth
+
+- Agent prompts: `src/agents/mirror.prompt.md`, `src/agents/connector.prompt.md`, `src/agents/cartographer.prompt.md`, `src/agents/self_critique.prompt.md`
+- Managed-agent binding and version lookup: `src/agents/config.ts`
+- Managed-agent transport: `src/agents/runner.ts`
+- Eval runner: `src/agents/self-critique-eval.ts`
+- Agent and eval schemas: `src/agents/schemas.ts`, `src/agents/tools/schemas.ts`
+- VIPS taxonomy grounding: `docs/vips-taxonomy.md`, `src/data/vips-taxonomy.ts`, `src/agents/context/index.ts`
+- Deterministic Connector verifier: `src/agents/verifier.ts`
+- Runtime handoff handlers: `src/server/run-mirror.handler.server.ts`, `src/server/auto-connector.handler.server.ts`, `src/server/run-connector.handler.server.ts`, `src/server/run-cartographer.handler.server.ts`
 
 ### Developer Debug Surface
 
@@ -76,7 +101,7 @@ In development builds, the header includes an `agent debug` drawer that shows th
 
 Requires Node 22+, pnpm, Postgres/Neon connection details, Anthropic Managed Agent bindings, and an OpenAI API key for transcription.
 
-Create `.env.local` with the environment variables your flow needs:
+Create `.env` with the environment variables your flow needs:
 
 ```bash
 DATABASE_URL=...
@@ -92,9 +117,16 @@ WORKOS_CLIENT_ID=...
 WORKOS_API_KEY=...
 WORKOS_REDIRECT_URI=http://localhost:3000/api/auth/callback
 WORKOS_COOKIE_PASSWORD=...
+
+CRON_SECRET=...
 ```
 
-For local development without WorkOS, use a seeded demo student:
+For local browser development without WorkOS, start the app and choose
+`profile` -> `use demo account`. That creates a same-origin demo session cookie
+for the seeded `demo-a` student.
+
+For non-browser server checks that cannot set the demo cookie, you can use the
+dev-only bypass instead:
 
 ```bash
 DEV_BYPASS_AUTH=demo-a
@@ -111,15 +143,23 @@ pnpm dev
 
 The dev server runs at `http://localhost:3000`.
 
+After changing managed-agent prompts or model defaults, update existing hosted agent versions with:
+
+```bash
+pnpm provision:managed-agents -- --update-existing connector,cartographer
+```
+
+Connector now defaults to `claude-sonnet-4-6`; adaptive Haiku/Sonnet routing is a deferred cost optimization.
+
 ## Demo Flow
 
 1. Open `/reflect`.
 2. Use the voice button.
 3. Allow microphone access. No camera or video element is used.
 4. Talk for a short reflection, then stop.
-5. The app transcribes, runs Mirror, saves the raw thought, and runs Connector.
+5. The app transcribes, runs Mirror, and saves the raw thought.
 6. Review raw thoughts at `/library?filter=need-review`.
-7. Open `/library` to inspect VIPS pages and run Cartographer for Trajectory.
+7. Open `/library` to run Connector, inspect VIPS pages, and run Cartographer for Trajectory.
 
 ## Quality Gates
 

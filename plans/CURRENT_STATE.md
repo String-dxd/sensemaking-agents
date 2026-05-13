@@ -6,7 +6,7 @@
 
 - `main` is the integration branch for the shipped product.
 - The active product line has moved past the historical v0.1 / quiet-mirror / staged-review plans.
-- The current app uses Anthropic Managed Agents for Mirror, Connector, Cartographer, and self-critique; OpenAI remains for transcription.
+- The current app uses Anthropic Managed Agents for Mirror, Connector, Cartographer, and the self-critique eval/safety reviewer; OpenAI remains for transcription.
 - Persistence is Postgres/Drizzle with WorkOS-backed counselor/student tenancy and a local demo bypass path.
 
 ## Recent PR Status
@@ -32,12 +32,13 @@
 
 ## Current Product Shape
 
-- `/reflect` is the current recording surface: audio-only capture, transcribe, Mirror reflection, raw-thought persistence, and automatic Connector run.
-- Mirror infers context from the transcript and saves every recorded thought into Library.
-- Connector runs automatically after Mirror persistence, verifies proposed VIPS links, and auto-applies verifier-passing links into VIPS pages and timelines.
+- `/reflect` is the current recording surface: audio-only capture, transcribe, Mirror reflection, and raw-thought persistence.
+- Mirror infers context from the transcript and saves every recorded thought into Library without waiting on Connector.
+- Connector runs from the manual Library `Run Connector` action or the scheduled evening pass, verifies proposed VIPS links, and auto-applies verifier-passing links into VIPS pages and timelines.
 - Users review raw recorded thoughts only: `/library` defaults to all recorded thoughts, and `/library?filter=need-review` shows thoughts that still need confirm/forget.
 - `/reflect/review` is a compatibility redirect to `/library?filter=need-review`.
-- `/library` shows VIPS pages first, then the `Run sense-making` Cartographer action, then recorded thoughts.
+- `/library` shows VIPS pages first, then the manual `Run Connector` and `Run sense-making` actions, then recorded thoughts.
+- Mirror entry detail pages show verified VIPS timeline links connected to the source reflection; entries without a Connector pass show a calm empty state.
 - Cartographer runs manually from Library and writes `/library/trajectory`.
 - The profile dropdown owns sign-in, demo account, and sign-out actions.
 - The agent debug drawer is developer-only (`import.meta.env.DEV`) and shows current-tab Mirror, Connector, and Cartographer run state.

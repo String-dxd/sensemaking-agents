@@ -37,6 +37,10 @@ import {
   ConnectorDiffSchema,
   type ConnectorDimension,
 } from '~/agents/schemas'
+import {
+  runSelfCritiqueReviewBestEffort,
+  type SelfCritiqueReviewDeps,
+} from '~/agents/self-critique-eval'
 import type {
   ProposedTimelineEntryDraft,
   VerifierExistingTimelineEntry,
@@ -135,6 +139,8 @@ export interface AutoConnectorDeps {
   }) => VerifierResult
   /** Override the Anthropic memory-store transport for the rejected-diff append. */
   memoryTransport?: MemoryStoreTransport
+  /** Optional test seam for the self_critique eval/safety review. */
+  selfCritique?: SelfCritiqueReviewDeps
 }
 
 export async function runAutoConnectorAfterMirror(
@@ -205,6 +211,21 @@ export async function runAutoConnectorAfterMirror(
       return { status: 'schema_reject', staged_diff: null }
     }
     const draft: ConnectorDiffDraft = parsed.data
+    const evalReview = await runSelfCritiqueReviewBestEffort(
+      {
+        agent: 'connector',
+        draft,
+        focus: ['evidence_grounding', 'taxonomy_fit', 'safety', 'specificity', 'sycophancy'],
+        sourceContext: [
+          `Mirror reflection #${mirror.id} (${mirror.context_type})`,
+          mirror.transcript,
+          '',
+          `Existing VIPS pages: ${pages.length}`,
+          `Existing timeline entries: ${timeline.length}`,
+        ].join('\n'),
+      },
+      deps.selfCritique,
+    )
 
     // ── Step 5: flatten + verify. ──
     const flatEntries: ProposedTimelineEntryDraft[] = flattenDiff(draft)
@@ -272,6 +293,7 @@ export async function runAutoConnectorAfterMirror(
       admitted: verifierResult.admitted.map((entry) => ({ ...entry, resolved: 'confirmed' })),
       downgraded: verifierResult.downgraded.map((entry) => ({ ...entry, resolved: 'confirmed' })),
       dropped: verifierResult.dropped,
+      eval_review: evalReview,
     }
 
     await applyVerifiedConnectorDiff(studentId, draft, verifierResult, ctx)
