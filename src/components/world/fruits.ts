@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { addWorldHitTarget, attachWorldHotspot, hotspotForSkillFruit } from './hotspots'
 import type { SkillFruitDescriptor, ValueTreeDescriptor } from './vipsWorldMapping'
 
 export function attachFruitToTrees(
@@ -24,6 +25,12 @@ export function attachFruitToTrees(
           opacity: skill.evidenceState === 'pending' ? 0.5 : 0.95,
         }),
       )
+      attachWorldHotspot(mesh, hotspotForSkillFruit(skill))
+      addWorldHitTarget(mesh, {
+        name: `${skill.id}-${i}-skill-hit-target`,
+        scale: new THREE.Vector3(0.2, 0.2, 0.2),
+        priority: 35,
+      })
       const angle = ((skill.placementSeed + i * 53) % 360) * (Math.PI / 180)
       mesh.position.set(Math.cos(angle) * 0.24, 0.78 + (i % 3) * 0.08, Math.sin(angle) * 0.18)
       target.add(mesh)

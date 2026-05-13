@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createWorldScene } from './createWorldScene'
+import type { WorldHotspot, WorldHotspotPointer } from './hotspots'
 import type { VipsWorldSceneModel } from './vipsWorldMapping'
 import { buildVipsWorldSceneModel } from './vipsWorldMapping'
 
@@ -11,7 +12,22 @@ export interface WorldSceneProps {
 export function WorldScene({ model, reduceMotion }: WorldSceneProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [failed, setFailed] = useState(false)
+  const [hovered, setHovered] = useState<{
+    hotspot: WorldHotspot
+    pointer: WorldHotspotPointer
+  } | null>(null)
   const sceneModel = useMemo(() => model ?? buildVipsWorldSceneModel(), [model])
+
+  const handleHotspotHover = useCallback(
+    (hotspot: WorldHotspot | null, pointer?: WorldHotspotPointer) => {
+      setHovered(hotspot && pointer ? { hotspot, pointer } : null)
+    },
+    [],
+  )
+
+  const handleHotspotSelect = useCallback((hotspot: WorldHotspot) => {
+    window.location.href = hotspot.href
+  }, [])
 
   useEffect(() => {
     const host = hostRef.current
@@ -27,12 +43,14 @@ export function WorldScene({ model, reduceMotion }: WorldSceneProps) {
         container: host,
         model: sceneModel,
         reduceMotion: prefersReducedMotion,
+        onHotspotHover: handleHotspotHover,
+        onHotspotSelect: handleHotspotSelect,
       })
       return () => handle.dispose()
     } catch {
       setFailed(true)
     }
-  }, [sceneModel, reduceMotion])
+  }, [sceneModel, reduceMotion, handleHotspotHover, handleHotspotSelect])
 
   return (
     <div
@@ -41,7 +59,37 @@ export function WorldScene({ model, reduceMotion }: WorldSceneProps) {
       data-testid="world-scene-host"
       data-world-scene-state={failed ? 'fallback' : 'mounted'}
     >
+      {hovered ? (
+        <WorldSceneHotspotTooltip hotspot={hovered.hotspot} pointer={hovered.pointer} />
+      ) : null}
       {failed ? <WorldSceneFallback model={sceneModel} /> : null}
+    </div>
+  )
+}
+
+function WorldSceneHotspotTooltip({
+  hotspot,
+  pointer,
+}: {
+  hotspot: WorldHotspot
+  pointer: WorldHotspotPointer
+}) {
+  return (
+    <div
+      role="status"
+      className="pointer-events-none absolute z-20 w-56 rounded-md border border-white/70 bg-background/90 px-3 py-2 text-left text-xs shadow-lg backdrop-blur"
+      style={{
+        left: `min(${Math.max(8, pointer.x + 14)}px, calc(100% - 15rem))`,
+        top: `min(${Math.max(8, pointer.y + 14)}px, calc(100% - 6.5rem))`,
+      }}
+      data-testid="world-hotspot-tooltip"
+      data-hotspot-kind={hotspot.kind}
+    >
+      <p className="font-semibold uppercase tracking-wide text-muted-foreground">
+        {hotspot.eyebrow}
+      </p>
+      <p className="mt-1 font-medium text-foreground">{hotspot.title}</p>
+      <p className="mt-1 text-muted-foreground">{hotspot.description}</p>
     </div>
   )
 }

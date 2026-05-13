@@ -27,7 +27,7 @@ export function isDemoStudentId(value: string): value is DemoStudentId {
   return (DEMO_STUDENT_IDS as readonly string[]).includes(value)
 }
 
-export function demoSignInHref(returnPathname = '/reflect'): string {
+export function demoSignInHref(returnPathname = '/'): string {
   const search = new URLSearchParams({
     demo: '1',
     returnPathname: safeReturnPathname(returnPathname),
@@ -35,15 +35,12 @@ export function demoSignInHref(returnPathname = '/reflect'): string {
   return `/api/auth/sign-in?${search.toString()}`
 }
 
-export function workosSignInHref(returnPathname = '/reflect'): string {
+export function workosSignInHref(returnPathname = '/'): string {
   const search = new URLSearchParams({ returnPathname: safeReturnPathname(returnPathname) })
   return `/api/auth/sign-in?${search.toString()}`
 }
 
-export function safeReturnPathname(
-  value: string | null | undefined,
-  fallback = '/reflect',
-): string {
+export function safeReturnPathname(value: string | null | undefined, fallback = '/'): string {
   const trimmed = value?.trim()
   if (!trimmed) return fallback
   if (!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('\\')) {

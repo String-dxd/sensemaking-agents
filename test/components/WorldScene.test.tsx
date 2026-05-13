@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { WorldSceneHandle } from '~/components/world/createWorldScene'
 
@@ -49,6 +49,35 @@ describe('WorldScene', () => {
     await waitFor(() => expect(createWorldSceneMock).toHaveBeenCalledTimes(1))
     unmount()
     expect(cleanup).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows hotspot metadata surfaced by the Three scene', async () => {
+    render(<WorldScene />)
+    await waitFor(() => expect(createWorldSceneMock).toHaveBeenCalledTimes(1))
+
+    const options = createWorldSceneMock.mock.calls[0]?.[0] as {
+      onHotspotHover?: (hotspot: unknown, pointer?: { x: number; y: number }) => void
+    }
+    act(() => {
+      options.onHotspotHover?.(
+        {
+          id: 'tree-values.achievement',
+          kind: 'value',
+          eyebrow: 'Value tree',
+          title: 'Achievement',
+          description: '2 entries · high signal',
+          href: '/library/values#entry-1',
+        },
+        { x: 120, y: 80 },
+      )
+    })
+
+    expect(screen.getByTestId('world-hotspot-tooltip')).toHaveAttribute(
+      'data-hotspot-kind',
+      'value',
+    )
+    expect(screen.getByText('Achievement')).toBeInTheDocument()
+    expect(screen.getByText('2 entries · high signal')).toBeInTheDocument()
   })
 
   it('renders an accessible fallback if scene creation fails', async () => {

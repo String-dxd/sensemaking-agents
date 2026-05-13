@@ -10,9 +10,10 @@
 // `*Inner` helpers just take `ctx` and run.
 //
 // Row-level security enforces `student_id = current_setting('app.student_id')`
-// on every tenancy-scoped table, so the WHERE student_id = ? predicates have
-// been dropped from SELECT/UPDATE/DELETE for clarity (composite-key WHEREs
-// that filter on student_id as part of the PK are kept).
+// on every tenancy-scoped table. The query layer still keeps explicit
+// student_id predicates on reads/updates as a belt-and-suspenders guard for
+// local/dev databases whose connection role may own the tables and therefore
+// bypass non-FORCE RLS.
 
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import type { VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
@@ -271,7 +272,8 @@ function rowToCartographerOutput(row: CartographerOutputDbRow): CartographerOutp
 }
 
 // ---------------------------------------------------------------------------
-// Internal helpers — operate on an open TenantContext. RLS scopes the tenant.
+// Internal helpers — operate on an open TenantContext. RLS scopes the tenant;
+// explicit student predicates below protect owner-role local/dev databases too.
 // ---------------------------------------------------------------------------
 
 async function loadTagsInner(ctx: TenantContext, entryId: number): Promise<string[]> {
@@ -279,7 +281,7 @@ async function loadTagsInner(ctx: TenantContext, entryId: number): Promise<strin
     .select({ label: tags.label })
     .from(tags)
     .innerJoin(mirrorEntryTags, eq(mirrorEntryTags.tagId, tags.id))
-    .where(eq(mirrorEntryTags.entryId, entryId))
+    .where(and(eq(tags.studentId, ctx.studentId), eq(mirrorEntryTags.entryId, entryId)))
     .orderBy(tags.label)
   return rows.map((r: { label: string }) => r.label)
 }
@@ -294,7 +296,7 @@ async function upsertTagInner(
   const existing = await ctx.db
     .select({ id: tags.id })
     .from(tags)
-    .where(eq(tags.label, label))
+    .where(and(eq(tags.studentId, studentId), eq(tags.label, label)))
     .limit(1)
   if (existing.length > 0) return requireRow(existing, 'select tag id').id
   const inserted = await ctx.db.insert(tags).values({ studentId, label }).returning({ id: tags.id })
@@ -305,7 +307,7 @@ async function upsertTagInner(
 // mirror_entries — FTS, list, get, insert, update
 // ---------------------------------------------------------------------------
 
-/** tsvector-backed search restricted to one student (via RLS). */
+/** tsvector-backed search restricted to one student. */
 export async function searchMirrors(
   studentId: string,
   query: string,
@@ -331,7 +333,12 @@ async function searchMirrorsInner(
       score: sql<number>`ts_rank(${mirrorEntries.storyReframeTsv}, plainto_tsquery('english', ${query}))`,
     })
     .from(mirrorEntries)
-    .where(sql`${mirrorEntries.storyReframeTsv} @@ plainto_tsquery('english', ${query})`)
+    .where(
+      and(
+        eq(mirrorEntries.studentId, ctx.studentId),
+        sql`${mirrorEntries.storyReframeTsv} @@ plainto_tsquery('english', ${query})`,
+      ),
+    )
     .orderBy(
       sql`ts_rank(${mirrorEntries.storyReframeTsv}, plainto_tsquery('english', ${query})) desc`,
     )
@@ -411,7 +418,11 @@ async function insertMirrorEntryInner(
     })
   }
 
-  const rows = await ctx.db.select().from(mirrorEntries).where(eq(mirrorEntries.id, id)).limit(1)
+  const rows = await ctx.db
+    .select()
+    .from(mirrorEntries)
+    .where(and(eq(mirrorEntries.studentId, ctx.studentId), eq(mirrorEntries.id, id)))
+    .limit(1)
   const row = drizzleMirrorRow(requireRow(rows, 'select mirror_entries'))
   return rowToMirrorEntry(row, await loadTagsInner(ctx, id))
 }
@@ -430,7 +441,11 @@ async function listMirrorEntriesInner(
   limit: number | undefined,
   includeForgotten = false,
 ): Promise<MirrorEntryRow[]> {
-  const baseQuery = ctx.db.select().from(mirrorEntries).orderBy(desc(mirrorEntries.createdAt))
+  const baseQuery = ctx.db
+    .select()
+    .from(mirrorEntries)
+    .where(eq(mirrorEntries.studentId, ctx.studentId))
+    .orderBy(desc(mirrorEntries.createdAt))
   const rows = limit === undefined ? await baseQuery : await baseQuery.limit(limit)
   const out: MirrorEntryRow[] = []
   for (const r of rows) {
@@ -482,7 +497,11 @@ export async function listAttachedStudentIds(): Promise<string[]> {
 }
 
 async function getMirrorEntryInner(ctx: TenantContext, id: number): Promise<MirrorEntryRow | null> {
-  const rows = await ctx.db.select().from(mirrorEntries).where(eq(mirrorEntries.id, id)).limit(1)
+  const rows = await ctx.db
+    .select()
+    .from(mirrorEntries)
+    .where(and(eq(mirrorEntries.studentId, ctx.studentId), eq(mirrorEntries.id, id)))
+    .limit(1)
   if (rows.length === 0) return null
   const row = drizzleMirrorRow(requireRow(rows, 'select mirror_entries'))
   return rowToMirrorEntry(row, await loadTagsInner(ctx, row.id))
@@ -513,7 +532,10 @@ async function updateMirrorEntryFieldsInner(
   if (patch.inferred_meaning !== undefined) set.inferredMeaning = patch.inferred_meaning
   if (patch.story_reframe !== undefined) set.storyReframe = patch.story_reframe
   if (Object.keys(set).length > 0) {
-    await ctx.db.update(mirrorEntries).set(set).where(eq(mirrorEntries.id, id))
+    await ctx.db
+      .update(mirrorEntries)
+      .set(set)
+      .where(and(eq(mirrorEntries.studentId, ctx.studentId), eq(mirrorEntries.id, id)))
   }
   return getMirrorEntryInner(ctx, id)
 }
@@ -533,7 +555,10 @@ async function updateMirrorEntryContextTypeInner(
   id: number,
   contextType: VipsContextType,
 ): Promise<MirrorEntryRow | null> {
-  await ctx.db.update(mirrorEntries).set({ contextType }).where(eq(mirrorEntries.id, id))
+  await ctx.db
+    .update(mirrorEntries)
+    .set({ contextType })
+    .where(and(eq(mirrorEntries.studentId, ctx.studentId), eq(mirrorEntries.id, id)))
   return getMirrorEntryInner(ctx, id)
 }
 
@@ -588,7 +613,10 @@ async function updatePendingMirrorEntriesReviewStatusInner(
 
 async function clearMirrorReviewTagsInner(ctx: TenantContext, entryId: number): Promise<void> {
   for (const label of MIRROR_REVIEW_TAGS) {
-    const rows = await ctx.db.select({ id: tags.id }).from(tags).where(eq(tags.label, label))
+    const rows = await ctx.db
+      .select({ id: tags.id })
+      .from(tags)
+      .where(and(eq(tags.studentId, ctx.studentId), eq(tags.label, label)))
     for (const row of rows) {
       await ctx.db
         .delete(mirrorEntryTags)
@@ -662,7 +690,7 @@ async function getConnectorOutputByIdInner(
   const rows = await ctx.db
     .select()
     .from(connectorOutputs)
-    .where(eq(connectorOutputs.id, id))
+    .where(and(eq(connectorOutputs.studentId, ctx.studentId), eq(connectorOutputs.id, id)))
     .limit(1)
   if (rows.length === 0) return null
   const row = drizzleConnectorRow(requireRow(rows, 'select connector_outputs'))
@@ -687,6 +715,7 @@ async function latestConnectorOutputInner(ctx: TenantContext): Promise<Connector
   const rows = await ctx.db
     .select()
     .from(connectorOutputs)
+    .where(eq(connectorOutputs.studentId, ctx.studentId))
     .orderBy(desc(connectorOutputs.createdAt))
     .limit(1)
   if (rows.length === 0) return null
@@ -753,7 +782,7 @@ async function insertPathfinderOutputInner(
   const rows = await ctx.db
     .select()
     .from(pathfinderOutputs)
-    .where(eq(pathfinderOutputs.id, id))
+    .where(and(eq(pathfinderOutputs.studentId, ctx.studentId), eq(pathfinderOutputs.id, id)))
     .limit(1)
   const row = drizzlePathfinderRow(requireRow(rows, 'select pathfinder_outputs'))
   return {
@@ -781,6 +810,7 @@ async function latestPathfinderOutputInner(
   const rows = await ctx.db
     .select()
     .from(pathfinderOutputs)
+    .where(eq(pathfinderOutputs.studentId, ctx.studentId))
     .orderBy(desc(pathfinderOutputs.createdAt))
     .limit(1)
   if (rows.length === 0) return null
@@ -1026,7 +1056,11 @@ export async function listVipsPages(
 }
 
 async function listVipsPagesInner(ctx: TenantContext): Promise<VipsPageRow[]> {
-  const rows = await ctx.db.select().from(vipsPages).orderBy(desc(vipsPages.updatedAt))
+  const rows = await ctx.db
+    .select()
+    .from(vipsPages)
+    .where(eq(vipsPages.studentId, ctx.studentId))
+    .orderBy(desc(vipsPages.updatedAt))
   return rows.map(drizzleVipsPageRow)
 }
 
@@ -1093,7 +1127,7 @@ async function getVipsTimelineEntryInner(
   const rows = await ctx.db
     .select()
     .from(vipsTimelineEntries)
-    .where(eq(vipsTimelineEntries.id, id))
+    .where(and(eq(vipsTimelineEntries.studentId, ctx.studentId), eq(vipsTimelineEntries.id, id)))
     .limit(1)
   if (rows.length === 0) return null
   return rowToVipsTimelineEntry(
@@ -1123,8 +1157,15 @@ async function listVipsTimelineEntriesInner(
   includeForgotten: boolean,
 ): Promise<VipsTimelineEntryRow[]> {
   const where = includeForgotten
-    ? eq(vipsTimelineEntries.dimension, dimension)
-    : and(eq(vipsTimelineEntries.dimension, dimension), isNull(vipsTimelineEntries.forgottenAt))
+    ? and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
+        eq(vipsTimelineEntries.dimension, dimension),
+      )
+    : and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
+        eq(vipsTimelineEntries.dimension, dimension),
+        isNull(vipsTimelineEntries.forgottenAt),
+      )
   const rows = await ctx.db
     .select()
     .from(vipsTimelineEntries)
@@ -1156,8 +1197,12 @@ async function listVipsTimelineEntriesByReflectionIdInner(
   includeForgotten: boolean,
 ): Promise<VipsTimelineEntryRow[]> {
   const where = includeForgotten
-    ? eq(vipsTimelineEntries.reflectionId, reflectionId)
+    ? and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
+        eq(vipsTimelineEntries.reflectionId, reflectionId),
+      )
     : and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
         eq(vipsTimelineEntries.reflectionId, reflectionId),
         isNull(vipsTimelineEntries.forgottenAt),
       )
@@ -1198,7 +1243,13 @@ async function forgetVipsTimelineEntryInner(
   const updated = await ctx.db
     .update(vipsTimelineEntries)
     .set({ forgottenAt: sql`now()` })
-    .where(and(eq(vipsTimelineEntries.id, id), isNull(vipsTimelineEntries.forgottenAt)))
+    .where(
+      and(
+        eq(vipsTimelineEntries.studentId, studentId),
+        eq(vipsTimelineEntries.id, id),
+        isNull(vipsTimelineEntries.forgottenAt),
+      ),
+    )
     .returning()
 
   if (updated.length === 0) {
@@ -1248,11 +1299,16 @@ async function searchVipsTimelineEntriesInner(
   const matchClause = sql`${vipsTimelineEntries.verbatimQuoteTsv} @@ plainto_tsquery('english', ${query})`
   const where = dimension
     ? and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
         matchClause,
         isNull(vipsTimelineEntries.forgottenAt),
         eq(vipsTimelineEntries.dimension, dimension),
       )
-    : and(matchClause, isNull(vipsTimelineEntries.forgottenAt))
+    : and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
+        matchClause,
+        isNull(vipsTimelineEntries.forgottenAt),
+      )
 
   const rows = await ctx.db
     .select({
@@ -1437,7 +1493,7 @@ async function getVipsProposedDiffInner(
   const rows = await ctx.db
     .select()
     .from(vipsProposedDiffs)
-    .where(eq(vipsProposedDiffs.id, id))
+    .where(and(eq(vipsProposedDiffs.studentId, ctx.studentId), eq(vipsProposedDiffs.id, id)))
     .limit(1)
   if (rows.length === 0) return null
   return rowToVipsProposedDiff(
@@ -1461,9 +1517,15 @@ async function listVipsProposedDiffsInner(
     ? await ctx.db
         .select()
         .from(vipsProposedDiffs)
-        .where(eq(vipsProposedDiffs.status, status))
+        .where(
+          and(eq(vipsProposedDiffs.studentId, ctx.studentId), eq(vipsProposedDiffs.status, status)),
+        )
         .orderBy(desc(vipsProposedDiffs.createdAt))
-    : await ctx.db.select().from(vipsProposedDiffs).orderBy(desc(vipsProposedDiffs.createdAt))
+    : await ctx.db
+        .select()
+        .from(vipsProposedDiffs)
+        .where(eq(vipsProposedDiffs.studentId, ctx.studentId))
+        .orderBy(desc(vipsProposedDiffs.createdAt))
   return rows.map((r: DrizzleVipsProposedDiffRow) =>
     rowToVipsProposedDiff(drizzleVipsProposedDiffRow(r)),
   )
@@ -1492,7 +1554,7 @@ async function updateVipsProposedDiffStatusInner(
   await ctx.db
     .update(vipsProposedDiffs)
     .set({ status, reviewedAt: sql`now()` })
-    .where(eq(vipsProposedDiffs.id, id))
+    .where(and(eq(vipsProposedDiffs.studentId, ctx.studentId), eq(vipsProposedDiffs.id, id)))
   return getVipsProposedDiffInner(ctx, id)
 }
 
@@ -1520,7 +1582,7 @@ async function updateVipsProposedDiffPayloadInner(
   await ctx.db
     .update(vipsProposedDiffs)
     .set({ payloadJson: JSON.stringify(payload) })
-    .where(eq(vipsProposedDiffs.id, id))
+    .where(and(eq(vipsProposedDiffs.studentId, ctx.studentId), eq(vipsProposedDiffs.id, id)))
   return getVipsProposedDiffInner(ctx, id)
 }
 
@@ -1604,7 +1666,7 @@ async function insertCartographerOutputInner(
   const rows = await ctx.db
     .select()
     .from(cartographerOutputs)
-    .where(eq(cartographerOutputs.id, id))
+    .where(and(eq(cartographerOutputs.studentId, ctx.studentId), eq(cartographerOutputs.id, id)))
     .limit(1)
   return rowToCartographerOutput(
     drizzleCartographerRow(requireRow(rows, 'select cartographer_outputs')),
@@ -1625,6 +1687,7 @@ async function latestCartographerOutputInner(
   const rows = await ctx.db
     .select()
     .from(cartographerOutputs)
+    .where(eq(cartographerOutputs.studentId, ctx.studentId))
     .orderBy(desc(cartographerOutputs.createdAt))
     .limit(1)
   if (rows.length === 0) return null

@@ -26,7 +26,7 @@ export const WorldStage = forwardRef<HTMLDivElement, WorldStageProps>(function W
       data-testid="world-stage"
       data-placeholder="false"
       className={cn(
-        'relative isolate w-full overflow-hidden rounded-lg border border-border/40',
+        'relative isolate w-full overflow-hidden rounded-[1.75rem] border border-border/40',
         'min-h-[56vh] bg-[#c7e3ee] sm:min-h-[60vh]',
         className,
       )}

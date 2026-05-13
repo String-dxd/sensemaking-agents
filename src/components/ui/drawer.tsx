@@ -45,8 +45,8 @@ export function DrawerContent({
       <DrawerOverlay />
       <BaseDialog.Popup
         className={cn(
-          'fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[70vh] w-full max-w-3xl flex-col gap-3',
-          'rounded-t-2xl border border-border bg-background p-4 shadow-2xl',
+          'fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[82vh] w-full max-w-5xl flex-col gap-3',
+          'rounded-t-[28px] border border-border bg-background p-5 shadow-2xl sm:p-6',
           'transition-transform duration-200 ease-out',
           'data-[starting-style]:translate-y-full data-[ending-style]:translate-y-full',
           className,

@@ -27,15 +27,20 @@ function WikiTrajectoryPage() {
 
   if (!data?.trajectory) {
     return (
-      <section className="flex flex-col gap-4 py-6">
-        <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-          ← Library
-        </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Trajectory</h1>
-        <p className="text-sm text-muted-foreground">Run sense-making to see your trajectory.</p>
-        <Link to="/library">
+      <section className="mx-auto flex w-full max-w-5xl flex-col gap-5 py-6">
+        <PageBackLink />
+        <div className="border-t border-border/70 pt-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            Trajectory
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">No compass yet</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Run sense-making to see your trajectory.
+          </p>
+        </div>
+        <Link to="/" className="w-fit">
           <Button size="sm" variant="outline">
-            Back to library
+            Back to island
           </Button>
         </Link>
       </section>
@@ -48,9 +53,7 @@ function WikiTrajectoryPage() {
 
   return (
     <section className="flex flex-col gap-6 py-6">
-      <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-        ← Library
-      </Link>
+      <PageBackLink />
       <TrajectoryPageView
         trajectoryParagraph={data.trajectory.trajectory_text}
         pathways={pathways}
@@ -59,5 +62,13 @@ function WikiTrajectoryPage() {
         createdAt={data.trajectory.created_at}
       />
     </section>
+  )
+}
+
+function PageBackLink() {
+  return (
+    <Link to="/" className="w-fit text-xs font-medium text-muted-foreground hover:text-foreground">
+      ← Island
+    </Link>
   )
 }

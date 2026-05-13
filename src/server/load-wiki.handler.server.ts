@@ -1,14 +1,10 @@
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudent } from '~/db/client'
 import {
-  type ConnectorOutputRow,
   getMirrorEntry,
-  latestConnectorOutput,
-  latestPathfinderOutput,
   listMirrorEntries,
   listVipsTimelineEntriesByReflectionId,
   type MirrorEntryRow,
-  type PathfinderOutputRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
 import {
@@ -20,8 +16,6 @@ import {
 
 export interface WikiSnapshot {
   entries: MirrorEntryRow[]
-  connector: ConnectorOutputRow | null
-  pathfinder: PathfinderOutputRow | null
 }
 
 export interface WikiEntryDetail {
@@ -34,8 +28,6 @@ export async function loadWikiHandler(data: LoadWikiInput): Promise<WikiSnapshot
   const { studentId } = await requireCounselorContext()
   return withStudent(studentId, async (ctx) => ({
     entries: await listMirrorEntries(studentId, { ctx, limit: null }),
-    connector: await latestConnectorOutput(studentId, { ctx }),
-    pathfinder: await latestPathfinderOutput(studentId, { ctx }),
   }))
 }
 

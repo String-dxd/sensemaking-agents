@@ -40,10 +40,10 @@ export function MirrorEvalReviewPanel({
   if (!review) {
     return (
       <details
-        className="rounded-md border border-border/40 bg-muted/10 p-3 text-xs"
+        className="border-t border-border/70 pt-4 text-xs"
         data-testid="mirror-eval-metadata"
       >
-        <summary className="cursor-pointer font-medium text-muted-foreground">
+        <summary className="cursor-pointer font-semibold uppercase tracking-[0.16em] text-muted-foreground">
           Self-critique metadata
         </summary>
         <p className="mt-2 text-muted-foreground">
@@ -56,11 +56,8 @@ export function MirrorEvalReviewPanel({
   const verdict = review.verdict ?? 'pass_with_warnings'
   const risk = review.risk_level ?? 'medium'
   return (
-    <details
-      className="rounded-md border border-border/40 bg-muted/10 p-3 text-xs"
-      data-testid="mirror-eval-metadata"
-    >
-      <summary className="cursor-pointer font-medium text-muted-foreground">
+    <details className="border-t border-border/70 pt-4 text-xs" data-testid="mirror-eval-metadata">
+      <summary className="cursor-pointer font-semibold uppercase tracking-[0.16em] text-muted-foreground">
         Self-critique metadata
       </summary>
       <div className="mt-3 flex flex-col gap-3">

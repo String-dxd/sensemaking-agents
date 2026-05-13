@@ -18,7 +18,6 @@ import { finishAgentRun, startAgentRun } from '~/agents/run-status'
 import type { Mood } from '~/agents/tools/schemas'
 import type { ContextType } from '~/components/ContextTypePicker'
 import { Button } from '~/components/ui/button'
-import { VoiceButton, type VoiceButtonPhase } from '~/components/VoiceButton'
 import { persistMirror } from '~/server/persist-mirror.functions'
 import { runMirror } from '~/server/run-mirror.functions'
 import { transcribeMirror } from '~/server/transcribe-mirror.functions'
@@ -169,15 +168,6 @@ export interface MirrorSessionApi {
   handleRetryChain: () => void
   /** Resets the state machine after an error. */
   handleReset: () => void
-}
-
-export interface MirrorSessionProps {
-  /**
-   * Called after `persistMirror` succeeds. Connector links are verified and
-   * applied server-side; the caller can route straight to the library review
-   * filter without a separate Connector confirmation step.
-   */
-  onPersisted?: (result: MirrorSessionResult) => void
 }
 
 /**
@@ -563,41 +553,6 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
     handleRetryChain,
     handleReset,
   }
-}
-
-export function MirrorSession({ onPersisted }: MirrorSessionProps) {
-  const session = useMirrorSession({ studentId: 'me', onPersisted })
-
-  return (
-    <div className="relative flex min-h-80 flex-col items-center justify-center gap-5">
-      <VoicePhaseOverlay
-        phase={session.phase}
-        remainingSec={session.remainingSec}
-        showSoftPrompt={session.showSoftPrompt}
-      />
-      <VoiceButton
-        phase={mirrorPhaseToVoiceButton(session.phase)}
-        amplitude={session.amplitude}
-        onPress={session.handleVoicePress}
-      />
-      {session.phase === 'error' && session.errorMessage ? (
-        <div className="w-full max-w-md">
-          <MirrorSessionErrorPanel
-            message={session.errorMessage}
-            onReset={session.handleReset}
-            onRetryChain={session.canRetryChain ? session.handleRetryChain : undefined}
-          />
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function mirrorPhaseToVoiceButton(phase: Phase): VoiceButtonPhase {
-  if (phase === 'idle') return 'idle'
-  if (phase === 'recording') return 'recording'
-  if (phase === 'error' || phase === 'done') return 'idle'
-  return 'working'
 }
 
 export interface MirrorSessionErrorPanelProps {

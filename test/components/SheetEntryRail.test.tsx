@@ -4,11 +4,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { SheetEntryRail } from '~/components/SheetEntryRail'
 
 describe('SheetEntryRail', () => {
-  it('renders all five entries', () => {
+  it('renders profile dimension entries only', () => {
     render(<SheetEntryRail openSheet={null} onOpenSheet={vi.fn()} sheetPanelId="sheet-1" />)
-    for (const key of ['values', 'interests', 'personality', 'skills', 'trajectory']) {
+    for (const key of ['values', 'interests', 'personality', 'skills']) {
       expect(screen.getByTestId(`sheet-trigger-${key}`)).toBeInTheDocument()
     }
+    expect(screen.queryByTestId('sheet-trigger-reflections')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('sheet-trigger-trajectory')).not.toBeInTheDocument()
   })
 
   it('clicking a trigger fires onOpenSheet with its key', async () => {

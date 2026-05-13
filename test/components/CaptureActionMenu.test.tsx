@@ -28,12 +28,28 @@ describe('CaptureActionMenu', () => {
     )
 
     await userEvent.click(screen.getByTestId('capture-action-trigger'))
+    expect(screen.getByTestId('capture-action-trigger')).toHaveAccessibleName('Open capture')
     expect(screen.getByTestId('capture-action-menu')).toBeInTheDocument()
     await userEvent.click(screen.getByTestId('capture-mode-mood'))
 
     expect(onMood).toHaveBeenCalledTimes(1)
     expect(onVoice).not.toHaveBeenCalled()
     await waitFor(() => expect(screen.queryByTestId('capture-action-menu')).toBeNull())
+  })
+
+  it('renders Speak and Feeling check-in as capture options', async () => {
+    render(
+      <CaptureActionMenu
+        modes={[
+          { id: 'voice', label: 'Speak', onSelect: vi.fn() },
+          { id: 'mood', label: 'Feeling check-in', onSelect: vi.fn() },
+        ]}
+      />,
+    )
+
+    await userEvent.click(screen.getByTestId('capture-action-trigger'))
+    expect(screen.getByRole('menuitem', { name: /speak/i })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /feeling check-in/i })).toBeInTheDocument()
   })
 
   it('closes on Escape and returns focus to the trigger', async () => {

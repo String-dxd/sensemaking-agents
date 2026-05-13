@@ -1,7 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { MirrorReflectionSections } from '~/components/MirrorReflectionSections'
 import { Badge } from '~/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import type { MirrorEntryRow } from '~/db/queries'
 
 export interface WikiEntryCardProps {
@@ -15,9 +14,12 @@ export interface WikiEntryCardProps {
  */
 export function WikiEntryCard({ entry }: WikiEntryCardProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>
+    <article className="flex flex-col gap-5 border-b border-border/70 pb-6">
+      <header>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Reflection
+        </p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
           <Link
             to="/library/entries/$entryId"
             params={{ entryId: String(entry.id) }}
@@ -25,10 +27,12 @@ export function WikiEntryCard({ entry }: WikiEntryCardProps) {
           >
             Reflection #{entry.id}
           </Link>
-        </CardTitle>
-        <CardDescription>{new Date(entry.created_at).toLocaleString()}</CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
+        </h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {new Date(entry.created_at).toLocaleString()}
+        </p>
+      </header>
+      <div className="flex flex-col gap-4">
         <MirrorReflectionSections entry={entry} />
         {entry.tags.length > 0 ? (
           <ul className="flex flex-wrap gap-1.5">
@@ -41,7 +45,7 @@ export function WikiEntryCard({ entry }: WikiEntryCardProps) {
             ))}
           </ul>
         ) : null}
-      </CardContent>
-    </Card>
+      </div>
+    </article>
   )
 }

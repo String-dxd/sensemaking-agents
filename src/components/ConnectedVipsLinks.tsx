@@ -19,14 +19,16 @@ export interface ConnectedVipsLinksProps {
 export function ConnectedVipsLinks({ entries }: ConnectedVipsLinksProps) {
   if (entries.length === 0) {
     return (
-      <section className="flex flex-col gap-2 rounded border border-border/40 bg-muted/10 p-3">
-        <h2 className="text-sm font-semibold">Connected VIPS entries</h2>
+      <section className="flex flex-col gap-2 border-t border-border/70 pt-5">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          Connected VIPS entries
+        </h2>
         <p className="text-sm text-muted-foreground">
           No connected VIPS entries yet. Run Connector from Library when you want this reflection
           linked into the VIPS pages.
         </p>
-        <Link to="/library" className="w-fit text-xs text-muted-foreground hover:text-foreground">
-          Back to Library
+        <Link to="/" className="w-fit text-xs text-muted-foreground hover:text-foreground">
+          Back to island
         </Link>
       </section>
     )
@@ -35,8 +37,13 @@ export function ConnectedVipsLinks({ entries }: ConnectedVipsLinksProps) {
   const byDimension = groupByDimension(entries)
 
   return (
-    <section className="flex flex-col gap-4" data-testid="connected-vips-links">
-      <h2 className="text-sm font-semibold">Connected VIPS entries</h2>
+    <section
+      className="flex flex-col gap-5 border-t border-border/70 pt-5"
+      data-testid="connected-vips-links"
+    >
+      <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        Connected VIPS entries
+      </h2>
       {DIMENSION_ORDER.map((dimension) => {
         const dimensionEntries = byDimension.get(dimension) ?? []
         if (dimensionEntries.length === 0) return null
@@ -54,11 +61,11 @@ export function ConnectedVipsLinks({ entries }: ConnectedVipsLinksProps) {
                 Open page
               </Link>
             </div>
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col">
               {dimensionEntries.map((entry) => (
                 <li
                   key={entry.id}
-                  className="flex flex-col gap-2 rounded border border-border/40 bg-background p-3"
+                  className="flex flex-col gap-2 border-t border-border/70 py-3 first:border-t-0"
                   data-testid={`connected-vips-entry-${entry.id}`}
                 >
                   <div className="flex flex-wrap items-center gap-2">

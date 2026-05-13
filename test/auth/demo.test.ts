@@ -17,13 +17,14 @@ describe('demo auth helpers', () => {
 
   it('builds safe sign-in URLs', () => {
     expect(demoSignInHref('/reflect')).toBe('/api/auth/sign-in?demo=1&returnPathname=%2Freflect')
+    expect(demoSignInHref()).toBe('/api/auth/sign-in?demo=1&returnPathname=%2F')
     expect(workosSignInHref('/library')).toBe('/api/auth/sign-in?returnPathname=%2Flibrary')
   })
 
   it('rejects open redirects in return paths', () => {
-    expect(safeReturnPathname('https://example.com')).toBe('/reflect')
-    expect(safeReturnPathname('//example.com')).toBe('/reflect')
-    expect(safeReturnPathname('/\\evil')).toBe('/reflect')
+    expect(safeReturnPathname('https://example.com')).toBe('/')
+    expect(safeReturnPathname('//example.com')).toBe('/')
+    expect(safeReturnPathname('/\\evil')).toBe('/')
     expect(safeReturnPathname('/library')).toBe('/library')
   })
 

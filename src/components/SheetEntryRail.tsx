@@ -1,19 +1,18 @@
 import type { VipsDimension } from '~/data/vips-taxonomy'
 import { cn } from '~/lib/utils'
 
-export type SheetKey = VipsDimension | 'trajectory'
+export type SheetKey = VipsDimension | 'profile' | 'reflections' | 'trajectory'
 
-const ENTRIES: { key: SheetKey; label: string }[] = [
+const ENTRIES: { key: VipsDimension; label: string }[] = [
   { key: 'values', label: 'Values' },
   { key: 'interests', label: 'Interests' },
   { key: 'personality', label: 'Personality' },
   { key: 'skills', label: 'Skills' },
-  { key: 'trajectory', label: 'Trajectory' },
 ]
 
 export interface SheetEntryRailProps {
   openSheet: SheetKey | null
-  onOpenSheet: (key: SheetKey) => void
+  onOpenSheet: (key: VipsDimension) => void
   /** Id of the BottomSheet panel — wired to aria-controls. */
   sheetPanelId: string
   /** When true, every entry is non-interactive (e.g., during voice mode). */
@@ -21,12 +20,10 @@ export interface SheetEntryRailProps {
 }
 
 /**
- * Row of dimension/trajectory triggers below the world stage. Each button
- * opens its sheet via the parent's `onOpenSheet` callback. Wired to the
- * sheet's `aria-controls` and reports `aria-expanded` so screen readers
- * track which sheet (if any) is open. When `disabled`, the rail is
- * non-interactive — used by voice mode in U5 to prevent the student
- * from leaving the world surface mid-recording.
+ * Row of profile dimension triggers. Each button opens a dimension sheet
+ * via the parent's `onOpenSheet` callback. Wired to the sheet's
+ * `aria-controls` and reports `aria-expanded` so screen readers track
+ * which sheet (if any) is open. When `disabled`, the rail is non-interactive.
  */
 export function SheetEntryRail({
   openSheet,
@@ -36,8 +33,8 @@ export function SheetEntryRail({
 }: SheetEntryRailProps) {
   return (
     <nav
-      aria-label="Library dimensions"
-      className="flex w-full max-w-3xl gap-2 overflow-x-auto px-2 py-3 sm:justify-center"
+      aria-label="Profile dimensions"
+      className="flex w-full gap-2 overflow-x-auto py-1 sm:flex-wrap"
       data-testid="sheet-entry-rail"
     >
       {ENTRIES.map(({ key, label }) => {

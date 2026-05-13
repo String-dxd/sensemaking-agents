@@ -31,7 +31,7 @@ export async function handleSignInGet({ request }: { request: Request }): Promis
     import('~/auth/middleware'),
   ])
   if (isAuthBypassed()) {
-    return redirectTo(returnPathname ?? '/reflect')
+    return redirectTo(returnPathname ?? '/')
   }
   if (!hasWorkosEnv()) {
     return redirectTo('/?authError=workos_unconfigured')

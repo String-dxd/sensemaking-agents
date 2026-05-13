@@ -67,8 +67,8 @@ export function CaptureActionMenu({
         ref={triggerRef}
         type="button"
         size="icon"
-        variant="accent"
-        aria-label="Open capture menu"
+        variant="outline"
+        aria-label="Open capture"
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={disabled || availableModes.length === 0}
@@ -80,17 +80,18 @@ export function CaptureActionMenu({
           }
           setOpen((next) => !next)
         }}
-        className="h-14 w-14 rounded-full shadow-lg"
+        className="h-11 w-11 rounded-full border-white/70 bg-background/82 text-foreground shadow-sm backdrop-blur hover:bg-muted"
         data-testid="capture-action-trigger"
+        title="Capture"
       >
-        <Mic aria-hidden className="h-6 w-6" />
+        <Mic aria-hidden className="h-5 w-5" />
       </Button>
       {open ? (
         <div
           ref={menuRef}
           role="menu"
           aria-label="Capture options"
-          className="absolute bottom-16 right-0 flex min-w-56 flex-col gap-1 rounded-md border border-border bg-background p-2 text-sm shadow-lg"
+          className="absolute bottom-12 right-0 flex min-w-56 flex-col gap-1 rounded-lg border border-border bg-background/95 p-2 text-sm shadow-lg backdrop-blur"
           data-testid="capture-action-menu"
         >
           {modes.map((mode) => (

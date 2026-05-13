@@ -7,11 +7,23 @@ export const Route = createFileRoute('/api/auth/sign-out')({
   server: {
     handlers: {
       GET: handleSignOutGet,
+      POST: handleSignOutPost,
     },
   },
 })
 
 export async function handleSignOutGet(): Promise<Response> {
+  return handleSignOut()
+}
+
+export async function handleSignOutPost({ request }: { request: Request }): Promise<Response> {
+  if (!isSameOriginRequest(request)) {
+    return new Response('Sign-out must start from this site.', { status: 403 })
+  }
+  return handleSignOut()
+}
+
+async function handleSignOut(): Promise<Response> {
   const { clearDemoCookieHeader } = await import('~/auth/demo-session.server')
   const [{ hasWorkosEnv }, { isAuthBypassed }] = await Promise.all([
     import('~/auth/workos'),
@@ -23,7 +35,7 @@ export async function handleSignOutGet(): Promise<Response> {
 
   const { signOut } = await import('@workos/authkit-tanstack-react-start')
   try {
-    await signOut()
+    await signOut({ data: { returnTo: '/' } })
   } catch (err) {
     if (isRedirect(err) || err instanceof Response) {
       return withClearedDemoCookie(err, clearDemoCookieHeader())
@@ -53,9 +65,10 @@ function withClearedDemoCookie(response: Response, cookieHeader: string): Respon
   if (!headers.has('Location')) {
     headers.set('Location', redirectLocation(response) ?? '/')
   }
+  const status = response.status === 307 ? 303 : response.status
   return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
+    status,
+    statusText: status === response.status ? response.statusText : undefined,
     headers,
   })
 }
@@ -66,4 +79,13 @@ function redirectLocation(response: Response): string | null {
     return options.href ?? options.to ?? null
   }
   return null
+}
+
+function isSameOriginRequest(request: Request): boolean {
+  const requestUrl = new URL(request.url)
+  const origin = request.headers.get('Origin')
+  if (origin && origin !== requestUrl.origin) return false
+
+  const fetchSite = request.headers.get('Sec-Fetch-Site')
+  return fetchSite !== 'cross-site'
 }

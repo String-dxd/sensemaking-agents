@@ -1,66 +1,112 @@
-import { Link } from '@tanstack/react-router'
-import { Compass, Library, UserRound } from 'lucide-react'
-import type { MouseEvent } from 'react'
+import { Compass, UserRound } from 'lucide-react'
+import { FloatingAgentDebugPanel } from '~/components/AgentDebugPanel'
 import { cn } from '~/lib/utils'
 
+export type FloatingAuthMenuState =
+  | { status: 'signed-out' }
+  | {
+      status: 'signed-in'
+      label: string
+      detail: string | null
+      kind: 'workos' | 'demo' | 'dev-bypass'
+    }
+
 export interface FloatingWorldActionsProps {
+  authMenu?: FloatingAuthMenuState
+  onOpenProfile?: () => void
+  onOpenTrajectory?: () => void
+  profileOpen?: boolean
+  sheetPanelId?: string
+  showAgentDebug?: boolean
+  trajectoryOpen?: boolean
   voiceModeActive?: boolean
 }
 
-export function FloatingWorldActions({ voiceModeActive = false }: FloatingWorldActionsProps) {
-  const blockIfVoiceMode = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (voiceModeActive) event.preventDefault()
-  }
-
+export function FloatingWorldActions({
+  authMenu = { status: 'signed-out' },
+  onOpenProfile,
+  onOpenTrajectory,
+  profileOpen = false,
+  sheetPanelId,
+  showAgentDebug = import.meta.env.DEV,
+  trajectoryOpen = false,
+  voiceModeActive = false,
+}: FloatingWorldActionsProps) {
   const disabledClasses = voiceModeActive ? 'cursor-not-allowed opacity-50' : null
 
   return (
     <nav
       aria-label="World navigation"
-      className="pointer-events-none absolute inset-x-4 top-4 z-20 flex items-start justify-between gap-3"
+      className="pointer-events-none z-20 flex items-start justify-between gap-3 px-4"
       data-testid="floating-world-actions"
     >
-      <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/70 bg-background/82 p-1 shadow-sm backdrop-blur">
-        <Link
-          to="/library"
-          aria-label="Open library"
-          aria-disabled={voiceModeActive || undefined}
-          onClick={blockIfVoiceMode}
-          className={cn(worldActionClassName, disabledClasses)}
-          data-testid="floating-action-library"
-        >
-          <Library aria-hidden className="h-4 w-4" />
-          <span className="sr-only">Library</span>
-        </Link>
-        <Link
-          to="/library/trajectory"
+      <div className="pointer-events-auto flex items-start gap-2">
+        {showAgentDebug ? <FloatingAgentDebugPanel align="left" /> : null}
+      </div>
+      <div
+        className={cn(
+          'pointer-events-auto flex items-start gap-2',
+          voiceModeActive && 'opacity-50',
+        )}
+      >
+        <button
+          type="button"
           aria-label="Open trajectory compass"
-          aria-disabled={voiceModeActive || undefined}
-          onClick={blockIfVoiceMode}
-          className={cn(worldActionClassName, disabledClasses)}
+          aria-controls={sheetPanelId}
+          aria-expanded={trajectoryOpen}
+          disabled={voiceModeActive}
+          onClick={onOpenTrajectory}
+          className={cn(floatingActionClassName, disabledClasses)}
           data-testid="floating-action-compass"
+          title="Trajectory compass"
         >
           <Compass aria-hidden className="h-4 w-4" />
           <span className="sr-only">Trajectory compass</span>
-        </Link>
+        </button>
+        <ProfileMenu
+          authMenu={authMenu}
+          disabledClasses={disabledClasses}
+          onOpenProfile={onOpenProfile}
+          profileOpen={profileOpen}
+          sheetPanelId={sheetPanelId}
+          voiceModeActive={voiceModeActive}
+        />
       </div>
-      <Link
-        to="/me"
-        aria-label="Open profile"
-        aria-disabled={voiceModeActive || undefined}
-        onClick={blockIfVoiceMode}
-        className={cn(
-          'pointer-events-auto rounded-full border border-white/70 bg-background/82 p-2.5 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-          disabledClasses,
-        )}
-        data-testid="floating-action-profile"
-      >
-        <UserRound aria-hidden className="h-4 w-4" />
-        <span className="sr-only">Profile</span>
-      </Link>
     </nav>
   )
 }
 
-const worldActionClassName =
-  'inline-flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+function ProfileMenu({
+  authMenu,
+  disabledClasses,
+  onOpenProfile,
+  profileOpen,
+  sheetPanelId,
+  voiceModeActive,
+}: {
+  authMenu: FloatingAuthMenuState
+  disabledClasses: string | null
+  onOpenProfile?: () => void
+  profileOpen: boolean
+  sheetPanelId?: string
+  voiceModeActive: boolean
+}) {
+  return (
+    <button
+      type="button"
+      disabled={voiceModeActive}
+      onClick={onOpenProfile}
+      aria-expanded={profileOpen}
+      aria-controls={sheetPanelId}
+      className={cn(floatingActionClassName, disabledClasses)}
+      data-testid="floating-action-profile"
+      title={authMenu.status === 'signed-in' ? authMenu.label : 'Profile'}
+    >
+      <UserRound aria-hidden className="h-4 w-4" />
+      <span className="sr-only">Open profile</span>
+    </button>
+  )
+}
+
+const floatingActionClassName =
+  'flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-white/70 bg-background/82 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'

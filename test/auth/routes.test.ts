@@ -29,12 +29,15 @@ vi.mock('@workos/authkit-tanstack-react-start', () => ({
   signOut: mocks.signOut,
 }))
 
-const [{ handleSignInGet, handleSignInPost }, { handleSignOutGet }, { handleCallbackGet }] =
-  await Promise.all([
-    import('~/routes/api/auth/sign-in.tsx'),
-    import('~/routes/api/auth/sign-out.tsx'),
-    import('~/routes/api/auth/callback.tsx'),
-  ])
+const [
+  { handleSignInGet, handleSignInPost },
+  { handleSignOutGet, handleSignOutPost },
+  { handleCallbackGet },
+] = await Promise.all([
+  import('~/routes/api/auth/sign-in.tsx'),
+  import('~/routes/api/auth/sign-out.tsx'),
+  import('~/routes/api/auth/callback.tsx'),
+])
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -84,7 +87,7 @@ describe('/api/auth/sign-in', () => {
     expect(response.headers.get('Set-Cookie')).toBeNull()
   })
 
-  it('preserves absent WorkOS returnPathname instead of forcing /reflect', async () => {
+  it('preserves absent WorkOS returnPathname instead of forcing home', async () => {
     mocks.getSignInUrl.mockResolvedValue('https://workos.example/auth')
 
     const response = await handleSignInGet({
@@ -94,6 +97,17 @@ describe('/api/auth/sign-in', () => {
     expect(response.status).toBe(307)
     expect(response.headers.get('Location')).toBe('https://workos.example/auth')
     expect(mocks.getSignInUrl).toHaveBeenCalledWith(undefined)
+  })
+
+  it('returns dev-bypass sign-ins to home by default', async () => {
+    mocks.isAuthBypassed.mockReturnValue(true)
+
+    const response = await handleSignInGet({
+      request: request('/api/auth/sign-in'),
+    })
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('Location')).toBe('/')
   })
 })
 
@@ -118,12 +132,49 @@ describe('/api/auth/sign-out', () => {
 
     const response = await handleSignOutGet()
 
-    expect(response.status).toBe(307)
+    expect(response.status).toBe(303)
     expect(response.headers.get('Location')).toBe('/')
     expect(response.headers.get('Set-Cookie')).toBe(
       'sensemaking-demo-student=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax',
     )
-    expect(mocks.signOut).toHaveBeenCalledTimes(1)
+    expect(mocks.signOut).toHaveBeenCalledWith({ data: { returnTo: '/' } })
+  })
+
+  it('uses a same-origin POST and preserves WorkOS logout cookies', async () => {
+    mocks.signOut.mockImplementation(() => {
+      throw redirect({
+        href: 'https://workos.example/logout',
+        headers: {
+          'Set-Cookie': 'workos-session=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax',
+        },
+        throw: true,
+      })
+    })
+
+    const response = await handleSignOutPost({
+      request: request('/api/auth/sign-out', {
+        method: 'POST',
+        headers: { Origin: 'http://localhost', 'Sec-Fetch-Site': 'same-origin' },
+      }),
+    })
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('Location')).toBe('https://workos.example/logout')
+    expect(response.headers.get('Set-Cookie')).toContain('workos-session=')
+    expect(response.headers.get('Set-Cookie')).toContain('sensemaking-demo-student=')
+    expect(mocks.signOut).toHaveBeenCalledWith({ data: { returnTo: '/' } })
+  })
+
+  it('rejects cross-site sign-out POSTs', async () => {
+    const response = await handleSignOutPost({
+      request: request('/api/auth/sign-out', {
+        method: 'POST',
+        headers: { Origin: 'https://evil.example', 'Sec-Fetch-Site': 'cross-site' },
+      }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(mocks.signOut).not.toHaveBeenCalled()
   })
 })
 

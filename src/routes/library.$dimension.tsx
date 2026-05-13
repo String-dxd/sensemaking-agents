@@ -60,10 +60,8 @@ function WikiDimensionPage() {
     // Should not happen — the loader synthesizes a stub row for missing
     // dimensions — but if it does, fail soft to a back-link.
     return (
-      <section className="flex flex-col gap-4 py-8">
-        <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-          ← Wiki
-        </Link>
+      <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 py-8">
+        <PageBackLink />
         <p className="text-sm">No page for this dimension yet.</p>
       </section>
     )
@@ -71,17 +69,23 @@ function WikiDimensionPage() {
 
   return (
     <section className="flex flex-col gap-4 py-2">
-      <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-        ← Wiki
-      </Link>
+      <PageBackLink />
       <VipsPageView studentId={STUDENT_ID} dimension={dimension} page={page} timeline={timeline} />
       <div>
-        <Link to="/library">
+        <Link to="/" className="w-fit">
           <Button variant="outline" size="sm">
-            Back to library
+            Back to island
           </Button>
         </Link>
       </div>
     </section>
+  )
+}
+
+function PageBackLink() {
+  return (
+    <Link to="/" className="w-fit text-xs font-medium text-muted-foreground hover:text-foreground">
+      ← Island
+    </Link>
   )
 }

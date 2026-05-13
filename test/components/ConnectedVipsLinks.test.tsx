@@ -53,10 +53,10 @@ describe('ConnectedVipsLinks', () => {
     )
   })
 
-  it('renders a calm empty state that points back to Library', () => {
+  it('renders a calm empty state that points back to the island', () => {
     render(<ConnectedVipsLinks entries={[]} />)
 
     expect(screen.getByText(/No connected VIPS entries yet/)).toBeInTheDocument()
-    expect(screen.getByText('Back to Library')).toBeInTheDocument()
+    expect(screen.getByText('Back to island')).toBeInTheDocument()
   })
 })

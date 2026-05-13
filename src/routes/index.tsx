@@ -1,9 +1,8 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
-import type { Mood } from '~/agents/tools/schemas'
+import { BottomSheet } from '~/components/BottomSheet'
 import { CaptureActionMenu } from '~/components/CaptureActionMenu'
-import { EmotionChip } from '~/components/EmotionChip'
 import { EmotionPicker } from '~/components/EmotionPicker'
 import { FloatingWorldActions } from '~/components/FloatingWorldActions'
 import {
@@ -11,19 +10,46 @@ import {
   useMirrorSession,
   VoicePhaseOverlay,
 } from '~/components/MirrorSession'
-import { VoiceButton, type VoiceButtonPhase } from '~/components/VoiceButton'
+import { ProfileSheetView } from '~/components/ProfileSheetView'
+import { type ReflectionsFilter, ReflectionsSheetView } from '~/components/ReflectionsSheetView'
+import type { SheetKey } from '~/components/SheetEntryRail'
+import { TrajectorySheetView } from '~/components/TrajectorySheetView'
+import { VipsPageView } from '~/components/VipsPageView'
+import type { VoiceButtonPhase } from '~/components/VoiceButton'
 import { WorldHud } from '~/components/WorldHud'
 import { WorldStage } from '~/components/WorldStage'
 import { buildVipsWorldSceneModel } from '~/components/world/vipsWorldMapping'
 import type { VipsDimension } from '~/data/vips-taxonomy'
 import type { MirrorEntryRow, VipsTimelineEntryRow } from '~/db/queries'
+import { loadAuthMenu } from '~/server/auth-menu.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 
 const STUDENT_ID = 'me'
+const SHEET_PANEL_ID = 'island-library-sheet'
 
 const VIPS_KEYS: VipsDimension[] = ['values', 'interests', 'personality', 'skills']
+const SHEET_KEYS: SheetKey[] = [
+  'profile',
+  'reflections',
+  'values',
+  'interests',
+  'personality',
+  'skills',
+  'trajectory',
+]
 
 export const Route = createFileRoute('/')({
+  validateSearch: (
+    search,
+  ): {
+    sheet?: SheetKey
+    filter?: ReflectionsFilter
+    authError?: string
+  } => ({
+    sheet: isSheetKey(search.sheet) ? search.sheet : undefined,
+    filter: search.filter === 'need-review' ? 'need-review' : undefined,
+    authError: typeof search.authError === 'string' ? search.authError : undefined,
+  }),
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData({
       queryKey: ['vips-pages', STUDENT_ID],
@@ -77,16 +103,24 @@ function landingPhaseToVoiceButton(
 function LandingPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { sheet, filter } = Route.useSearch()
+  const [captureMoodPickerOpen, setCaptureMoodPickerOpen] = useState(false)
+  const openSheet = sheet ?? null
+  const reflectionsFilter = filter ?? 'all'
   const { data: vipsData } = useQuery({
     queryKey: ['vips-pages', STUDENT_ID],
     queryFn: () => loadVipsPages({ data: {} }),
+  })
+  const { data: authMenu } = useQuery({
+    queryKey: ['auth-menu'],
+    queryFn: () => loadAuthMenu(),
   })
   const session = useMirrorSession({
     studentId: STUDENT_ID,
     onPersisted: () => {
       void queryClient.invalidateQueries({ queryKey: ['wiki', STUDENT_ID] })
       void queryClient.invalidateQueries({ queryKey: ['vips-pages', STUDENT_ID] })
-      void navigate({ to: '/library', search: { filter: 'need-review' } })
+      void navigate({ to: '/', search: { sheet: 'reflections', filter: 'need-review' } })
     },
   })
 
@@ -110,19 +144,43 @@ function LandingPage() {
     [vipsData],
   )
 
-  const voiceSlot = (
-    <VoiceButton
-      phase={voicePhase}
-      amplitude={session.amplitude}
-      onPress={session.handleVoicePress}
-    />
-  )
+  const openLibrarySheet = (nextSheet: SheetKey) => {
+    void navigate({
+      to: '/',
+      search: {
+        sheet: nextSheet,
+        filter: nextSheet === 'reflections' ? filter : undefined,
+      },
+    })
+  }
+
+  const closeLibrarySheet = () => {
+    void navigate({ to: '/', search: {} })
+  }
+
+  const updateReflectionsFilter = (nextFilter: ReflectionsFilter) => {
+    void navigate({
+      to: '/',
+      search: {
+        sheet: 'reflections',
+        filter: nextFilter === 'need-review' ? 'need-review' : undefined,
+      },
+    })
+  }
 
   return (
-    <section className="flex flex-col items-center gap-4 py-2">
-      <div className="relative w-full">
-        <WorldStage sceneModel={sceneModel}>
-          <FloatingWorldActions voiceModeActive={voiceModeActive} />
+    <section className="flex min-h-0 flex-1 flex-col items-center py-2">
+      <div className="relative flex min-h-0 w-full flex-1 flex-col gap-3">
+        <FloatingWorldActions
+          authMenu={authMenu}
+          onOpenProfile={() => openLibrarySheet('profile')}
+          onOpenTrajectory={() => openLibrarySheet('trajectory')}
+          profileOpen={openSheet === 'profile'}
+          sheetPanelId={SHEET_PANEL_ID}
+          trajectoryOpen={openSheet === 'trajectory'}
+          voiceModeActive={voiceModeActive}
+        />
+        <WorldStage className="min-h-[calc(100svh-6.5rem)] flex-1" sceneModel={sceneModel}>
           <WorldHud
             voiceModeActive={voiceModeActive}
             captureSlot={
@@ -130,14 +188,21 @@ function LandingPage() {
                 modes={[
                   {
                     id: 'voice',
-                    label: session.phase === 'recording' ? 'Stop recording' : 'Voice reflection',
-                    description: 'Audio-only Mirror capture',
+                    label: 'Speak',
+                    description:
+                      session.phase === 'recording' ? 'Stop this reflection' : 'Voice reflection',
                     disabled: voicePhase === 'working',
                     onSelect: session.handleVoicePress,
                   },
+                  {
+                    id: 'mood',
+                    label: 'Feeling check-in',
+                    description: 'Pick an emotion',
+                    disabled: voicePhase === 'working',
+                    onSelect: () => setCaptureMoodPickerOpen(true),
+                  },
                 ]}
                 disabled={voicePhase === 'working'}
-                triggerSlot={voiceSlot}
               />
             }
           />
@@ -146,8 +211,16 @@ function LandingPage() {
             remainingSec={session.remainingSec}
             showSoftPrompt={session.showSoftPrompt}
           />
-          {session.phase === 'recording' ? (
-            <MoodTagOverlay mood={session.mood} onMoodTagged={session.handleMoodTagged} />
+          {captureMoodPickerOpen ? (
+            <EmotionPicker
+              layout="overlay"
+              defaultValue={session.mood ?? undefined}
+              onSelect={(next) => {
+                session.handleMoodTagged(next)
+                setCaptureMoodPickerOpen(false)
+              }}
+              onDismiss={() => setCaptureMoodPickerOpen(false)}
+            />
           ) : null}
         </WorldStage>
         {session.phase === 'error' && session.errorMessage ? (
@@ -160,58 +233,79 @@ function LandingPage() {
           </div>
         ) : null}
       </div>
+      <BottomSheet
+        open={openSheet != null}
+        onOpenChange={(open) => !open && closeLibrarySheet()}
+        id={SHEET_PANEL_ID}
+      >
+        <LandingSheetContent
+          sheet={openSheet}
+          authMenu={authMenu}
+          vipsData={vipsData}
+          reflectionsFilter={reflectionsFilter}
+          sheetPanelId={SHEET_PANEL_ID}
+          voiceModeActive={voiceModeActive}
+          onOpenSheet={openLibrarySheet}
+          onReflectionsFilterChange={updateReflectionsFilter}
+        />
+      </BottomSheet>
     </section>
   )
 }
 
-/**
- * Mood-tag affordance shown during the `recording` phase. Floats bottom-
- * right of the world stage; tap opens an EmotionPicker overlay (Base UI
- * Dialog, owns focus + Escape + scroll lock). Selecting a tile calls
- * `handleMoodTagged` and auto-dismisses the picker.
- *
- * Non-blocking by design — the user can record without ever interacting
- * with this. Phase A keeps the tagged mood in MirrorSession's local state
- * only; Phase B wires it through `persistMirror`.
- */
-function MoodTagOverlay({
-  mood,
-  onMoodTagged,
+function LandingSheetContent({
+  sheet,
+  authMenu,
+  vipsData,
+  reflectionsFilter,
+  sheetPanelId,
+  voiceModeActive,
+  onOpenSheet,
+  onReflectionsFilterChange,
 }: {
-  mood: Mood | null
-  onMoodTagged: (mood: Mood) => void
+  sheet: SheetKey | null
+  authMenu: Awaited<ReturnType<typeof loadAuthMenu>> | undefined
+  vipsData: Awaited<ReturnType<typeof loadVipsPages>> | undefined
+  reflectionsFilter: ReflectionsFilter
+  sheetPanelId: string
+  voiceModeActive: boolean
+  onOpenSheet: (sheet: SheetKey) => void
+  onReflectionsFilterChange: (filter: ReflectionsFilter) => void
 }) {
-  const [pickerOpen, setPickerOpen] = useState(false)
-  return (
-    <div
-      className="pointer-events-auto absolute bottom-6 left-6 z-10"
-      data-testid="mood-tag-overlay"
-    >
-      {mood ? (
-        <EmotionChip mood={mood} variant="user" asButton onClick={() => setPickerOpen(true)} />
-      ) : (
-        <button
-          type="button"
-          onClick={() => setPickerOpen(true)}
-          data-testid="mood-tag-trigger"
-          className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background/80 px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm hover:bg-muted"
-        >
-          feeling?
-        </button>
-      )}
-      {pickerOpen ? (
-        <EmotionPicker
-          layout="overlay"
-          defaultValue={mood ?? undefined}
-          onSelect={(next) => {
-            onMoodTagged(next)
-            setPickerOpen(false)
-          }}
-          onDismiss={() => setPickerOpen(false)}
-        />
-      ) : null}
-    </div>
-  )
+  if (!sheet) return null
+  if (sheet === 'profile') {
+    return (
+      <ProfileSheetView
+        authMenu={authMenu}
+        openSheet={sheet}
+        onOpenSheet={onOpenSheet}
+        sheetPanelId={sheetPanelId}
+        disabled={voiceModeActive}
+      />
+    )
+  }
+  if (sheet === 'reflections') {
+    return (
+      <ReflectionsSheetView
+        studentId={STUDENT_ID}
+        filter={reflectionsFilter}
+        onFilterChange={onReflectionsFilterChange}
+      />
+    )
+  }
+  if (sheet === 'trajectory') {
+    return <TrajectorySheetView studentId={STUDENT_ID} />
+  }
+  if (!vipsData) {
+    return <p className="py-4 text-sm text-muted-foreground">loading library…</p>
+  }
+
+  const page = vipsData.pages.find((candidate) => candidate.dimension === sheet)
+  const timeline = vipsData.timeline_by_dimension[sheet] ?? []
+  if (!page) {
+    return <p className="py-4 text-sm text-muted-foreground">No page for this dimension yet.</p>
+  }
+  return <VipsPageView studentId={STUDENT_ID} dimension={sheet} page={page} timeline={timeline} />
 }
 
 function coerceTimeline(entries: VipsTimelineEntryRow[] | undefined) {
@@ -229,4 +323,8 @@ function coerceRecentEntries(entries: MirrorEntryRow[] | undefined) {
     context_type: entry.context_type,
     created_at: entry.created_at,
   }))
+}
+
+function isSheetKey(value: unknown): value is SheetKey {
+  return typeof value === 'string' && (SHEET_KEYS as readonly string[]).includes(value)
 }

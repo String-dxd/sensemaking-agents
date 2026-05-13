@@ -117,5 +117,6 @@ describe('buildVipsWorldSceneModel', () => {
     expect(model.butterflies[0]?.evidenceState).toBe('pending')
     expect(model.butterflies[1]?.entryId).toBe(11)
     expect(model.butterflies[1]?.touchedDimension).toBe('values')
+    expect(model.butterflies[1]?.targetClaimLabel).toBe('Achievement')
   })
 })

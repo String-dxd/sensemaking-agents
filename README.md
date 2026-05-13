@@ -1,15 +1,15 @@
-# Sensemaking Agents
+# SenseMake
 
-Sensemaking Agents is a student reflection app for turning lived school experiences into a reviewable VIPS library: Values, Interests, Personality, Skills, and Trajectory.
+SenseMake is a student reflection app for turning lived school experiences into a reviewable VIPS library: Values, Interests, Personality, Skills, and Trajectory.
 
 Current product shape:
 
-- `/reflect` is the recording surface: audio-only reflection, one primary voice action, then Mirror saves the raw thought into Library.
+- `/` is the recording surface: audio-only reflection in the island world, one primary voice action, then Mirror saves the raw thought into Library.
 - Mirror transcribes audio, reflects the transcript, infers a context tag, and saves the raw thought without waiting on Connector.
 - Connector runs from the Library `Run Connector` action or the scheduled evening pass, verifies proposed VIPS links, and applies verifier-passing links directly into the VIPS pages and timeline.
 - `/library` is the main review surface. By default it shows all recorded thoughts and VIPS pages; the `Need review` filter shows raw mirror thoughts that still need confirm/forget.
 - Cartographer runs manually from `/library` and generates the Trajectory page.
-- `/reflect/review` is now a compatibility redirect into `/library?filter=need-review`.
+- `/reflect` redirects to `/`; `/reflect/review` redirects into `/library?filter=need-review`.
 
 For the latest planning and merge status, see `plans/CURRENT_STATE.md`.
 
@@ -28,7 +28,7 @@ The app uses three product-facing managed agents plus one eval/safety reviewer. 
 
 | Agent | Role | Trigger | Writes student-facing state? | Default model |
 |---|---|---|---|---|
-| Mirror | Reflect one recorded thought back to the student | Immediately after transcription on `/reflect` | Indirectly: app persists its parsed output as a raw mirror entry | `claude-sonnet-4-6` |
+| Mirror | Reflect one recorded thought back to the student | Immediately after transcription on `/` | Indirectly: app persists its parsed output as a raw mirror entry | `claude-sonnet-4-6` |
 | Connector | Link recent mirror entries into canonical VIPS pages | Manual `Run Connector` button or 18:00 Singapore scheduled pass | Yes, but only after deterministic verifier gates proposed links | `claude-sonnet-4-6` |
 | Cartographer | Synthesize verified VIPS state into Trajectory | Manual `Run sense-making` button | Yes, writes the trajectory view | `claude-sonnet-4-6` |
 | self_critique | Eval/safety reviewer for other agent outputs | Best-effort review after Mirror, Connector, or Cartographer drafts | No | `claude-haiku-4-5` |
@@ -37,7 +37,7 @@ Default models and hosted managed-agent provisioning live in `scripts/managed-ag
 
 ### Handoff Flow
 
-1. The user records on `/reflect`.
+1. The user records on `/`.
 2. The app transcribes audio with OpenAI Whisper.
 3. The app infers a closed context tag: `school`, `family`, `peer`, `hobby`, or `civic`.
 4. Mirror receives the transcript and returns `validation`, `inferred_meaning`, and `story_reframe`.
@@ -153,7 +153,7 @@ Connector now defaults to `claude-sonnet-4-6`; adaptive Haiku/Sonnet routing is 
 
 ## Demo Flow
 
-1. Open `/reflect`.
+1. Open `/`.
 2. Use the voice button.
 3. Allow microphone access. No camera or video element is used.
 4. Talk for a short reflection, then stop.

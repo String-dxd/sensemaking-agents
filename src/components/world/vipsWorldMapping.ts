@@ -110,6 +110,7 @@ export interface ButterflyDescriptor {
   entryId: number | string
   touchedDimension: VipsDimension
   targetClaimId: string
+  targetClaimLabel: string
   evidenceState: Exclude<WorldEvidenceState, 'forgotten'>
   color: string
   recencyWeight: number
@@ -321,6 +322,9 @@ function makeButterflies(
           entryId: entry.id,
           touchedDimension,
           targetClaimId: touched?.canonical_claim_id ?? `recent-entry-${entry.id}`,
+          targetClaimLabel: touched
+            ? (TAXONOMY_LABELS.get(touched.canonical_claim_id) ?? touched.canonical_claim_id)
+            : 'Recorded thought',
           evidenceState,
           color: evidenceState === 'pending' ? '#c8bddb' : butterflyColor(touchedDimension),
           recencyWeight: 1 - index / Math.max(1, recentLimit),
@@ -339,6 +343,7 @@ function makeButterflies(
       entryId: entry.id,
       touchedDimension: entry.dimension,
       targetClaimId: entry.canonical_claim_id,
+      targetClaimLabel: TAXONOMY_LABELS.get(entry.canonical_claim_id) ?? entry.canonical_claim_id,
       evidenceState: getEvidenceState(entry) === 'pending' ? 'pending' : 'confirmed',
       color: getEvidenceState(entry) === 'pending' ? '#c8bddb' : butterflyColor(entry.dimension),
       recencyWeight: 1 - index / Math.max(1, recentLimit),

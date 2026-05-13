@@ -36,11 +36,11 @@ function WikiEntryPage() {
   if (isPending) return <p className="py-8 text-sm text-muted-foreground">loading…</p>
   if (!data)
     return (
-      <div className="flex flex-col gap-3 py-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 py-8">
         <p className="text-sm">Entry not found.</p>
-        <Link to="/library">
+        <Link to="/" className="w-fit">
           <Button variant="outline" size="sm">
-            ← Back to library
+            ← Back to island
           </Button>
         </Link>
       </div>
@@ -50,32 +50,45 @@ function WikiEntryPage() {
   const evalReview = parseMirrorEvalReview(data.entry.raw_output_json)
 
   return (
-    <section className="flex flex-col gap-6 py-6">
-      <Link to="/library" className="text-xs text-muted-foreground hover:text-foreground">
-        ← Library
-      </Link>
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 py-6">
+      <PageBackLink />
       <WikiEntryCard entry={data.entry} />
-      <MirrorEvalReviewPanel review={evalReview} showEmpty />
-      {fields.map((field) => (
-        <ConfirmAndSave
-          key={field}
-          value={data.entry[field]}
-          label={FIELD_LABELS[field]}
-          buildInput={(next) => ({
-            data: { entryId: data.entry.id, field, value: next },
-          })}
-          mutationFn={editMirrorField}
-          invalidate={[
-            ['wiki', STUDENT_ID, entryId],
-            ['wiki', STUDENT_ID],
-          ]}
-        />
-      ))}
-      <details className="rounded border border-border/40 bg-muted/20 p-3 text-xs">
-        <summary className="cursor-pointer text-muted-foreground">Transcript</summary>
+      <section className="flex flex-col gap-4">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          Interpretation
+        </h2>
+        {fields.map((field) => (
+          <ConfirmAndSave
+            key={field}
+            value={data.entry[field]}
+            label={FIELD_LABELS[field]}
+            buildInput={(next) => ({
+              data: { entryId: data.entry.id, field, value: next },
+            })}
+            mutationFn={editMirrorField}
+            invalidate={[
+              ['wiki', STUDENT_ID, entryId],
+              ['wiki', STUDENT_ID],
+            ]}
+          />
+        ))}
+      </section>
+      <details className="border-t border-border/70 pt-4 text-xs">
+        <summary className="cursor-pointer font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          Transcript
+        </summary>
         <p className="mt-2 whitespace-pre-wrap leading-relaxed">{data.entry.transcript}</p>
       </details>
+      <MirrorEvalReviewPanel review={evalReview} showEmpty />
       <ConnectedVipsLinks entries={data.connected_vips_entries} />
     </section>
+  )
+}
+
+function PageBackLink() {
+  return (
+    <Link to="/" className="w-fit text-xs font-medium text-muted-foreground hover:text-foreground">
+      ← Island
+    </Link>
   )
 }
