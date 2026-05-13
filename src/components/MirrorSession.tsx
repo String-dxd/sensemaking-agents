@@ -39,6 +39,7 @@ interface State {
 }
 
 type Action =
+  | { type: 'request-permissions' }
   | { type: 'permissions-granted' }
   | { type: 'permission-error'; message: string }
   | { type: 'tick'; elapsedMs: number; amplitude: number }
@@ -63,6 +64,8 @@ const initialState: State = {
 
 function reduce(state: State, action: Action): State {
   switch (action.type) {
+    case 'request-permissions':
+      return { ...state, phase: 'permission-pending', errorMessage: null }
     case 'permissions-granted':
       return { ...state, phase: 'recording', errorMessage: null }
     case 'permission-error':
@@ -147,150 +150,194 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
     resolve: (blob: Blob) => void
     reject: (err: Error) => void
   } | null>(null)
+  const mountedRef = useRef(true)
 
-  // Acquire camera + mic on mount, start recording.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only effect; cleanup and handleStop close over refs that are stable for the lifetime of the component
+  // Dev-only seam: ?inject=<transcript> skips media acquisition entirely so
+  // headless/automation smoke tests (and humans without a working mic) can
+  // drive the rest of the F1 pipeline. Dead-stripped from production builds
+  // via `import.meta.env.DEV`.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only effect; cleanup closes over refs that are stable for the lifetime of the component
   useEffect(() => {
-    let cancelled = false
-
-    // Dev-only seam: ?inject=<transcript> skips media acquisition entirely so
-    // headless/automation smoke tests (and humans without a working mic) can
-    // drive the rest of the F1 pipeline. Dead-stripped from production builds
-    // via `import.meta.env.DEV`.
+    mountedRef.current = true
     if (import.meta.env.DEV && typeof window !== 'undefined') {
       const injected = new URLSearchParams(window.location.search).get('inject')
       if (injected && injected.trim().length > 0) {
         dispatch({ type: 'picking-context', transcript: injected.trim() })
-        return () => {
-          cancelled = true
-        }
       }
     }
-
-    async function acquire() {
-      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-        dispatch({
-          type: 'permission-error',
-          message: 'Your browser does not support webcam capture.',
-        })
-        return
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: { width: { ideal: 720 }, height: { ideal: 720 } },
-        })
-        if (cancelled) {
-          stopStream(stream)
-          return
-        }
-        streamRef.current = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-        }
-
-        // Audio context + analyser for the volume ring + silence detection.
-        const ctx = new AudioContext()
-        audioCtxRef.current = ctx
-        const source = ctx.createMediaStreamSource(stream)
-        const analyser = ctx.createAnalyser()
-        analyser.fftSize = 1024
-        source.connect(analyser)
-        analyserRef.current = analyser
-
-        // Recorder for audio only — video is render-only.
-        const audioOnlyStream = new MediaStream(stream.getAudioTracks())
-        const mimeType = pickMimeType()
-        const recorder = new MediaRecorder(audioOnlyStream, mimeType ? { mimeType } : undefined)
-        recorderRef.current = recorder
-        chunksRef.current = []
-        recorder.ondataavailable = (ev) => {
-          if (ev.data.size > 0) chunksRef.current.push(ev.data)
-        }
-        recorder.onstop = () => {
-          const blob = new Blob(chunksRef.current, {
-            type: recorder.mimeType || 'audio/webm',
-          })
-          stopPromiseRef.current?.resolve(blob)
-          stopPromiseRef.current = null
-        }
-        recorder.onerror = (ev) => {
-          const message =
-            (ev as unknown as { error?: { message?: string } })?.error?.message ?? 'Recorder error.'
-          stopPromiseRef.current?.reject(new Error(message))
-          stopPromiseRef.current = null
-        }
-        recorder.start(250)
-
-        startedAtRef.current = performance.now()
-        silentSinceRef.current = startedAtRef.current
-        dispatch({ type: 'permissions-granted' })
-
-        startVolumeLoop()
-      } catch (err) {
-        dispatch({ type: 'permission-error', message: friendlyMediaError(err) })
-      }
-    }
-
-    function startVolumeLoop() {
-      const analyser = analyserRef.current
-      if (!analyser) return
-      const buf = new Float32Array(analyser.fftSize)
-      const tick = () => {
-        analyser.getFloatTimeDomainData(buf)
-        let sum = 0
-        for (let i = 0; i < buf.length; i++) {
-          const v = buf[i] ?? 0
-          sum += v * v
-        }
-        const rms = Math.sqrt(sum / buf.length)
-        const startedAt = startedAtRef.current ?? performance.now()
-        const elapsedMs = performance.now() - startedAt
-
-        // Smooth the amplitude — no jitter.
-        const target = Math.min(1, rms * 12)
-        // exponential moving average; alpha ~0.15
-        const prev = analyser as unknown as { _prevAmp?: number }
-        const next = (prev._prevAmp ?? 0) * 0.85 + target * 0.15
-        prev._prevAmp = next
-
-        // Silence accounting.
-        if (rms < SILENCE_RMS_THRESHOLD) {
-          if (silentSinceRef.current == null) silentSinceRef.current = performance.now()
-          const silentFor = performance.now() - silentSinceRef.current
-          if (
-            !softPromptFiredRef.current &&
-            elapsedMs >= 0 &&
-            silentFor >= OPENING_SILENCE_MS &&
-            elapsedMs <= OPENING_SILENCE_MS + 1500
-          ) {
-            softPromptFiredRef.current = true
-            dispatch({ type: 'opening-silence' })
-          }
-        } else {
-          silentSinceRef.current = null
-        }
-
-        dispatch({ type: 'tick', elapsedMs, amplitude: next })
-
-        if (elapsedMs >= SOFT_TIMEBOX_MS && recorderRef.current?.state === 'recording') {
-          // Auto-stop at the soft time-box.
-          void handleStop()
-          return
-        }
-
-        rafRef.current = requestAnimationFrame(tick)
-      }
-      rafRef.current = requestAnimationFrame(tick)
-    }
-
-    void acquire()
-
     return () => {
-      cancelled = true
+      mountedRef.current = false
       cleanup()
     }
   }, [])
+
+  async function acquire() {
+    if (typeof window === 'undefined') return
+    console.info('[MirrorSession] acquire() start', {
+      isSecureContext: window.isSecureContext,
+      protocol: window.location.protocol,
+      host: window.location.host,
+      hasMediaDevices: !!navigator.mediaDevices,
+      hasGetUserMedia: !!navigator.mediaDevices?.getUserMedia,
+    })
+    if (!window.isSecureContext) {
+      dispatch({
+        type: 'permission-error',
+        message: `This page is not in a secure context (${window.location.protocol}//${window.location.host}). Browsers block camera + microphone outside of https: or http://localhost. Open the app at http://localhost:3000 (not an IP, not a LAN hostname) or over https://.`,
+      })
+      return
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      dispatch({
+        type: 'permission-error',
+        message: 'This browser does not expose navigator.mediaDevices.getUserMedia. Try a current Chrome, Edge, Firefox, or Safari.',
+      })
+      return
+    }
+    // Preflight: if the site is already permanently blocked, getUserMedia will
+    // reject quickly with NotAllowedError but Chrome may also surface no prompt
+    // at all — query the Permissions API first so we can short-circuit with
+    // recovery instructions instead of leaving the user staring at a spinner.
+    try {
+      const perms = navigator.permissions as Permissions | undefined
+      if (perms?.query) {
+        const [cam, mic] = await Promise.all([
+          perms.query({ name: 'camera' as PermissionName }).catch(() => null),
+          perms.query({ name: 'microphone' as PermissionName }).catch(() => null),
+        ])
+        console.info('[MirrorSession] permission states', {
+          camera: cam?.state,
+          microphone: mic?.state,
+        })
+        if (cam?.state === 'denied' || mic?.state === 'denied') {
+          dispatch({
+            type: 'permission-error',
+            message: blockedSitePermissionMessage(cam?.state, mic?.state),
+          })
+          return
+        }
+      }
+    } catch (err) {
+      console.warn('[MirrorSession] permission preflight failed (continuing)', err)
+    }
+    try {
+      console.info('[MirrorSession] calling getUserMedia…')
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: { width: { ideal: 720 }, height: { ideal: 720 } },
+      })
+      console.info('[MirrorSession] getUserMedia resolved', {
+        tracks: stream.getTracks().map((t) => `${t.kind}:${t.label}`),
+      })
+      if (!mountedRef.current) {
+        stopStream(stream)
+        return
+      }
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+
+      // Audio context + analyser for the volume ring + silence detection.
+      const ctx = new AudioContext()
+      audioCtxRef.current = ctx
+      const source = ctx.createMediaStreamSource(stream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 1024
+      source.connect(analyser)
+      analyserRef.current = analyser
+
+      // Recorder for audio only — video is render-only.
+      const audioOnlyStream = new MediaStream(stream.getAudioTracks())
+      const mimeType = pickMimeType()
+      const recorder = new MediaRecorder(audioOnlyStream, mimeType ? { mimeType } : undefined)
+      recorderRef.current = recorder
+      chunksRef.current = []
+      recorder.ondataavailable = (ev) => {
+        if (ev.data.size > 0) chunksRef.current.push(ev.data)
+      }
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || 'audio/webm',
+        })
+        stopPromiseRef.current?.resolve(blob)
+        stopPromiseRef.current = null
+      }
+      recorder.onerror = (ev) => {
+        const message =
+          (ev as unknown as { error?: { message?: string } })?.error?.message ?? 'Recorder error.'
+        stopPromiseRef.current?.reject(new Error(message))
+        stopPromiseRef.current = null
+      }
+      recorder.start(250)
+
+      startedAtRef.current = performance.now()
+      silentSinceRef.current = startedAtRef.current
+      dispatch({ type: 'permissions-granted' })
+
+      startVolumeLoop()
+    } catch (err) {
+      dispatch({ type: 'permission-error', message: friendlyMediaError(err) })
+    }
+  }
+
+  function startVolumeLoop() {
+    const analyser = analyserRef.current
+    if (!analyser) return
+    const buf = new Float32Array(analyser.fftSize)
+    const tick = () => {
+      analyser.getFloatTimeDomainData(buf)
+      let sum = 0
+      for (let i = 0; i < buf.length; i++) {
+        const v = buf[i] ?? 0
+        sum += v * v
+      }
+      const rms = Math.sqrt(sum / buf.length)
+      const startedAt = startedAtRef.current ?? performance.now()
+      const elapsedMs = performance.now() - startedAt
+
+      // Smooth the amplitude — no jitter.
+      const target = Math.min(1, rms * 12)
+      // exponential moving average; alpha ~0.15
+      const prev = analyser as unknown as { _prevAmp?: number }
+      const next = (prev._prevAmp ?? 0) * 0.85 + target * 0.15
+      prev._prevAmp = next
+
+      // Silence accounting.
+      if (rms < SILENCE_RMS_THRESHOLD) {
+        if (silentSinceRef.current == null) silentSinceRef.current = performance.now()
+        const silentFor = performance.now() - silentSinceRef.current
+        if (
+          !softPromptFiredRef.current &&
+          elapsedMs >= 0 &&
+          silentFor >= OPENING_SILENCE_MS &&
+          elapsedMs <= OPENING_SILENCE_MS + 1500
+        ) {
+          softPromptFiredRef.current = true
+          dispatch({ type: 'opening-silence' })
+        }
+      } else {
+        silentSinceRef.current = null
+      }
+
+      dispatch({ type: 'tick', elapsedMs, amplitude: next })
+
+      if (elapsedMs >= SOFT_TIMEBOX_MS && recorderRef.current?.state === 'recording') {
+        // Auto-stop at the soft time-box.
+        void handleStop()
+        return
+      }
+
+      rafRef.current = requestAnimationFrame(tick)
+    }
+    rafRef.current = requestAnimationFrame(tick)
+  }
+
+  function handleStart() {
+    if (state.phase !== 'idle') return
+    dispatch({ type: 'request-permissions' })
+    void acquire()
+  }
 
   function cleanup() {
     if (rafRef.current != null) {
@@ -477,15 +524,21 @@ export function MirrorSession({ onPersisted }: MirrorSessionProps) {
           </div>
         ) : null}
         <div className="flex items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void handleStop()}
-            disabled={state.phase !== 'recording'}
-            data-testid="stop-button"
-          >
-            Stop and reflect
-          </Button>
+          {state.phase === 'idle' ? (
+            <Button size="sm" onClick={handleStart} data-testid="start-button">
+              Start mirror
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleStop()}
+              disabled={state.phase !== 'recording'}
+              data-testid="stop-button"
+            >
+              Stop and reflect
+            </Button>
+          )}
         </div>
         {state.errorMessage ? (
           <p className="text-xs text-warning" role="alert">
@@ -535,13 +588,34 @@ function PhaseLabel({ phase, remainingSec }: { phase: Phase; remainingSec: numbe
         done. Opening your reflection.
       </p>
     )
-  if (phase === 'permission-pending' || phase === 'idle')
+  if (phase === 'permission-pending')
     return (
       <p className="text-xs text-muted-foreground" data-testid="phase-label">
         granting camera + microphone…
       </p>
     )
+  if (phase === 'idle')
+    return (
+      <p className="text-xs text-muted-foreground" data-testid="phase-label">
+        click start when you’re ready — your browser will ask for camera + mic access.
+      </p>
+    )
   return null
+}
+
+function blockedSitePermissionMessage(
+  cam: PermissionState | undefined,
+  mic: PermissionState | undefined,
+): string {
+  const blocked: string[] = []
+  if (cam === 'denied') blocked.push('Camera')
+  if (mic === 'denied') blocked.push('Microphone')
+  const subject = blocked.length === 2 ? 'Camera and microphone' : (blocked[0] ?? 'Permission')
+  return [
+    `${subject} access is blocked for this site, so the browser will not show a prompt.`,
+    'Click the lock or site-info icon in the address bar, set Camera and Microphone to Allow for this site, then reload the page.',
+    'On macOS, also confirm the browser itself is allowed in System Settings → Privacy & Security → Camera (and Microphone).',
+  ].join(' ')
 }
 
 function friendlyMediaError(err: unknown): string {
