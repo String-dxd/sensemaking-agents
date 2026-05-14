@@ -61,4 +61,14 @@ describe('BottomSheet', () => {
     expect(screen.getByTestId('bottom-sheet-panel')).toBeInTheDocument()
     expect(screen.getByTestId('sheet-body')).toBeInTheDocument()
   })
+
+  it('can remove drawer padding for full-bleed sheet surfaces', () => {
+    render(
+      <BottomSheet open={true} onOpenChange={vi.fn()} fullBleed>
+        <p>edge content</p>
+      </BottomSheet>,
+    )
+
+    expect(screen.getByTestId('bottom-sheet-panel')).toHaveClass('p-0', 'sm:p-0')
+  })
 })

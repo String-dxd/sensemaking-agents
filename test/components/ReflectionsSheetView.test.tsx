@@ -40,6 +40,28 @@ afterEach(() => {
 })
 
 describe('ReflectionsSheetView', () => {
+  it('renders recorded thoughts as a calendar with day detail', async () => {
+    loadWikiMock.mockResolvedValue({
+      entries: [
+        makeMirrorEntry({ id: 24, created_at: '2026-05-13T12:00:00.000Z' }),
+        makeMirrorEntry({ id: 25, created_at: '2026-05-14T12:00:00.000Z' }),
+      ],
+    })
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<ReflectionsSheetView studentId="me" filter="all" onFilterChange={vi.fn()} />, {
+      wrapper: makeWrapper(qc),
+    })
+
+    expect(await screen.findByText('Reflection calendar')).toBeInTheDocument()
+    expect(await screen.findByTestId('sheet-reflections-calendar')).toBeInTheDocument()
+    expect(screen.getByTestId('calendar-day-detail')).toHaveTextContent('Reflection #25')
+
+    await userEvent.click(screen.getByTestId('calendar-day-2026-05-13'))
+    expect(screen.getByTestId('calendar-day-detail')).toHaveTextContent('Reflection #24')
+    expect(screen.getByTestId('calendar-day-detail')).not.toHaveTextContent('Reflection #25')
+  })
+
   it('invalidates the world scene data when a reflection is forgotten', async () => {
     const entry = makeMirrorEntry({ id: 25, review_status: 'pending' })
     loadWikiMock.mockResolvedValue({ entries: [entry] })

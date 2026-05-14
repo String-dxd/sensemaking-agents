@@ -53,7 +53,7 @@ function makeTimeline(): VipsTimelineEntryRow[] {
 }
 
 describe('VipsPageView rendered inside BottomSheet (U4 no-op)', () => {
-  it('renders unchanged: dimension label, compiled_truth, and Timeline h2', () => {
+  it('renders the Student Space profile IA inside the bottom sheet', () => {
     render(
       <BottomSheet open onOpenChange={vi.fn()}>
         <VipsPageView
@@ -69,13 +69,12 @@ describe('VipsPageView rendered inside BottomSheet (U4 no-op)', () => {
     // Same markers the existing /library/$dimension route asserts via
     // VipsPageView.test.tsx — assert from inside the sheet host.
     expect(screen.getByTestId('vips-page-values')).toBeInTheDocument()
-    expect(screen.getByText('Values')).toBeInTheDocument()
+    expect(screen.getByText('What you keep coming back to')).toBeInTheDocument()
+    expect(screen.getByTestId('profile-tabs')).toBeInTheDocument()
     expect(screen.getByTestId('compiled-truth')).toHaveTextContent(
       'Orients toward self-direction in school.',
     )
     expect(screen.getByText('Timeline')).toBeInTheDocument()
     expect(screen.getByTestId('timeline-entry-1')).toBeInTheDocument()
-    // No eyebrow / bucket restructure was introduced — explicitly absent.
-    expect(screen.queryByText(/THE NEW ONE/)).toBeNull()
   })
 })
