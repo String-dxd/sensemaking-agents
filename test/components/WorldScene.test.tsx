@@ -80,6 +80,28 @@ describe('WorldScene', () => {
     expect(screen.getByText('2 entries · high signal')).toBeInTheDocument()
   })
 
+  it('routes prompt bird selection to voice mode instead of page navigation', async () => {
+    const onVoicePromptSelect = vi.fn()
+    render(<WorldScene onVoicePromptSelect={onVoicePromptSelect} />)
+    await waitFor(() => expect(createWorldSceneMock).toHaveBeenCalledTimes(1))
+
+    const options = createWorldSceneMock.mock.calls[0]?.[0] as {
+      onHotspotSelect?: (hotspot: unknown) => void
+    }
+    act(() => {
+      options.onHotspotSelect?.({
+        id: 'voice-prompt-bird',
+        kind: 'prompt',
+        eyebrow: 'Prompt bird',
+        title: "What's on your mind right now?",
+        description: 'Click to answer by voice.',
+        action: 'voice',
+      })
+    })
+
+    expect(onVoicePromptSelect).toHaveBeenCalledTimes(1)
+  })
+
   it('renders an accessible fallback if scene creation fails', async () => {
     createWorldSceneMock.mockImplementationOnce(() => {
       throw new Error('no webgl')

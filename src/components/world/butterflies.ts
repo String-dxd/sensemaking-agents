@@ -23,35 +23,25 @@ export function createButterflies(butterflies: ButterflyDescriptor[]): THREE.Gro
 }
 
 export function tickButterflies(root: THREE.Object3D, time: number) {
-  const worldUp = new THREE.Vector3(0, 1, 0)
-  const forward = new THREE.Vector3()
-  const right = new THREE.Vector3()
-  const up = new THREE.Vector3()
-  const basis = new THREE.Matrix4()
-
   root.traverse((object) => {
     const motion = object.userData.butterflyMotion as ButterflyMotion | undefined
     if (!motion) return
     const a = time * motion.orbitSpeed + motion.phase
     object.position.set(
       motion.anchor.x + Math.cos(a) * motion.orbitRadius,
-      motion.anchor.y + Math.sin(a * 0.7) * 0.07,
-      motion.anchor.z + Math.sin(a) * motion.orbitRadius * 0.6,
+      motion.anchor.y + Math.sin(a * 0.7) * 0.06,
+      motion.anchor.z + Math.sin(a) * motion.orbitRadius * 0.56,
     )
 
-    forward.set(-Math.sin(a) * motion.orbitRadius, 0, Math.cos(a) * motion.orbitRadius * 0.6)
-    if (forward.lengthSq() > 0.0001) {
-      forward.normalize()
-      right.crossVectors(forward, worldUp).normalize()
-      up.crossVectors(right, forward).normalize()
-      basis.makeBasis(right, forward, up)
-      object.quaternion.setFromRotationMatrix(basis)
-    }
+    const velocityX = -Math.sin(a) * motion.orbitRadius
+    const velocityZ = Math.cos(a) * motion.orbitRadius * 0.56
+    object.rotation.y = Math.atan2(velocityX, velocityZ)
 
-    const flap = Math.sin(time * 7.2 + motion.phase) * 0.34
+    const flap = Math.sin(time * 9.2 + motion.phase) * 0.46
     motion.rightWing.rotation.y = flap
     motion.leftWing.rotation.y = Math.PI - flap
-    object.position.y += Math.sin(time * 1.2 + motion.phase) * 0.018
+    motion.visualRoot.rotation.z = Math.sin(time * 1.8 + motion.phase) * 0.08
+    object.position.y += Math.sin(time * 1.4 + motion.phase) * 0.018
   })
 }
 
@@ -59,6 +49,10 @@ function createButterfly(butterfly: ButterflyDescriptor, index: number): THREE.G
   const group = new THREE.Group()
   group.name = butterfly.id
   attachWorldHotspot(group, hotspotForButterfly(butterfly))
+  const visualRoot = new THREE.Group()
+  visualRoot.name = `${butterfly.id}-horizontal-flight`
+  visualRoot.rotation.x = Math.PI * 0.5
+  group.add(visualRoot)
 
   const base = positionOnIsland(butterfly.placementSeed, 0.72)
   const anchor = new THREE.Vector3(base.x, base.y + 0.82 + butterfly.recencyWeight * 0.52, base.z)
@@ -81,32 +75,33 @@ function createButterfly(butterfly: ButterflyDescriptor, index: number): THREE.G
   const abdomen = new THREE.Mesh(new THREE.CapsuleGeometry(0.024, 0.09, 4, 12), bodyMaterial)
   abdomen.position.y = -0.005
   abdomen.scale.x = 0.72
-  group.add(abdomen)
+  visualRoot.add(abdomen)
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.028, 14, 10), bodyMaterial)
   head.position.y = 0.075
-  group.add(head)
+  visualRoot.add(head)
   const thorax = new THREE.Mesh(new THREE.SphereGeometry(0.026, 14, 10), bodyMaterial)
   thorax.position.y = 0.035
   thorax.scale.set(0.8, 1.15, 0.86)
-  group.add(thorax)
+  visualRoot.add(thorax)
 
   const antennaL = buildAntenna(-1, bodyMaterial)
   const antennaR = buildAntenna(1, bodyMaterial)
-  group.add(antennaL, antennaR)
+  visualRoot.add(antennaL, antennaR)
 
   const species = SPECIES[index % SPECIES.length] ?? SPECIES[0]
   const rightWing = buildWing(species, butterfly)
   const leftWing = buildWing(species, butterfly)
   leftWing.rotation.y = Math.PI
-  group.add(leftWing, rightWing)
+  visualRoot.add(leftWing, rightWing)
 
   group.userData.butterflyMotion = {
     anchor,
-    orbitRadius: 0.16 + butterfly.recencyWeight * 0.12,
-    orbitSpeed: 0.16 + (butterfly.placementSeed % 9) * 0.014,
+    orbitRadius: 0.13 + butterfly.recencyWeight * 0.1,
+    orbitSpeed: 0.54 + (butterfly.placementSeed % 9) * 0.024,
     phase: ((butterfly.placementSeed + index * 31) % 360) * (Math.PI / 180),
     leftWing,
     rightWing,
+    visualRoot,
   } satisfies ButterflyMotion
   return group
 }
@@ -271,4 +266,5 @@ interface ButterflyMotion {
   phase: number
   leftWing: THREE.Object3D
   rightWing: THREE.Object3D
+  visualRoot: THREE.Object3D
 }

@@ -6,10 +6,11 @@ import { buildVipsWorldSceneModel } from './vipsWorldMapping'
 
 export interface WorldSceneProps {
   model?: VipsWorldSceneModel
+  onVoicePromptSelect?: () => void
   reduceMotion?: boolean
 }
 
-export function WorldScene({ model, reduceMotion }: WorldSceneProps) {
+export function WorldScene({ model, onVoicePromptSelect, reduceMotion }: WorldSceneProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const [failed, setFailed] = useState(false)
   const [hovered, setHovered] = useState<{
@@ -25,9 +26,16 @@ export function WorldScene({ model, reduceMotion }: WorldSceneProps) {
     [],
   )
 
-  const handleHotspotSelect = useCallback((hotspot: WorldHotspot) => {
-    window.location.href = hotspot.href
-  }, [])
+  const handleHotspotSelect = useCallback(
+    (hotspot: WorldHotspot) => {
+      if (hotspot.action === 'voice') {
+        onVoicePromptSelect?.()
+        return
+      }
+      if (hotspot.href) window.location.href = hotspot.href
+    },
+    [onVoicePromptSelect],
+  )
 
   useEffect(() => {
     const host = hostRef.current

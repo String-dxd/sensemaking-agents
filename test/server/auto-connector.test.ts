@@ -225,7 +225,7 @@ describe.skipIf(!process.env.DATABASE_URL)('runAutoConnectorAfterMirror — fail
   it('timeout: A11 — mirror entry STILL persists after Connector timeout (Finding #17)', async () => {
     // The contract: `persistMirror` writes the mirror reflection BEFORE
     // invoking the auto-connector chain. Even if the Connector hangs past
-    // 30s, the student's reflection must remain in `mirror_entries` —
+    // If Connector times out, the student's reflection must remain in `mirror_entries`:
     // sense-making failures never cost the student their words (A11).
     const mirror = seedMirror()
     const { getMirrorEntry } = await import('~/db/queries')

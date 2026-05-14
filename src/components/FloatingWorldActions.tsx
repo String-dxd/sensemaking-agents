@@ -109,4 +109,4 @@ function ProfileMenu({
 }
 
 const floatingActionClassName =
-  'flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-white/70 bg-background/82 text-foreground shadow-sm backdrop-blur transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'
+  'flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-border/70 bg-background/90 text-foreground shadow-[0_1px_3px_rgba(15,23,42,0.12)] backdrop-blur transition-colors hover:border-border hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent'

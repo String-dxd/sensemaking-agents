@@ -7,7 +7,10 @@ import {
   runConnectorHandler,
 } from '~/server/run-connector.handler.server'
 
-function mirrorEntry(id: number): MirrorEntryRow {
+function mirrorEntry(
+  id: number,
+  reviewStatus: MirrorEntryRow['review_status'] = 'confirmed',
+): MirrorEntryRow {
   return {
     id,
     student_id: 'demo',
@@ -17,7 +20,7 @@ function mirrorEntry(id: number): MirrorEntryRow {
     story_reframe: '',
     raw_output_json: '{}',
     context_type: 'school',
-    review_status: 'pending',
+    review_status: reviewStatus,
     tags: [],
     created_at: '2026-05-13T00:00:00.000Z',
   }
@@ -67,6 +70,23 @@ describe('runConnectorHandler', () => {
 
     expect(result.status).toBe('nothing_to_run')
     expect(result.processed).toBe(0)
+  })
+
+  it('does not dispatch Connector for reflections still waiting on review', async () => {
+    const runConnectorForEntry = vi.fn(async () => connectorResult('ok'))
+
+    const result = await runConnectorForStudent(
+      'demo',
+      {},
+      {
+        listUnconnectedMirrorEntries: vi.fn(async () => [mirrorEntry(7, 'pending')]),
+        runConnectorForEntry,
+      },
+    )
+
+    expect(result.status).toBe('nothing_to_run')
+    expect(result.processed).toBe(0)
+    expect(runConnectorForEntry).not.toHaveBeenCalled()
   })
 
   it('returns partial when the batch cap leaves reflections waiting', async () => {

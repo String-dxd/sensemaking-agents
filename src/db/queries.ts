@@ -484,7 +484,9 @@ async function listUnconnectedMirrorEntriesInner(
     listVipsProposedDiffsInner(ctx, undefined),
   ])
   const attemptedMirrorIds = new Set(proposedDiffs.map((diff) => diff.mirror_entry_id))
-  const unconnected = entries.filter((entry) => !attemptedMirrorIds.has(entry.id))
+  const unconnected = entries.filter(
+    (entry) => entry.review_status === 'confirmed' && !attemptedMirrorIds.has(entry.id),
+  )
   return limit === undefined ? unconnected : unconnected.slice(0, limit)
 }
 

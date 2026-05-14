@@ -6,7 +6,7 @@ import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { WORLD_ASSETS } from './assets'
 import { createButterflies, tickButterflies } from './butterflies'
 import { disposeObject3D } from './disposeThree'
-import { createFlowers, tickFlowers } from './flowers'
+import { createFlowers } from './flowers'
 import { attachFruitToTrees } from './fruits'
 import { createGrass } from './grass'
 import {
@@ -16,10 +16,13 @@ import {
   type WorldHotspotPointer,
 } from './hotspots'
 import { createIsland } from './island'
+import { createPromptBird, pickPromptBirdPrompt, tickPromptBird } from './promptBird'
 import { createSkyBackdrop, tickSkyBackdrop } from './sky'
-import { createValueTree, tickStudentSpaceTrees } from './trees'
+import { createValueTree } from './trees'
 import type { VipsWorldSceneModel } from './vipsWorldMapping'
 import { buildVipsWorldSceneModel } from './vipsWorldMapping'
+
+const CAMERA_AUTO_ORBIT_RADIANS_PER_MS = 0.00004
 
 export interface CreateWorldSceneOptions {
   container: HTMLElement
@@ -54,28 +57,29 @@ export function createWorldScene({
   renderer.domElement.style.width = '100%'
   renderer.domElement.style.height = '100%'
   renderer.domElement.style.pointerEvents = 'auto'
-  renderer.domElement.style.touchAction = 'none'
   container.appendChild(renderer.domElement)
 
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 120)
   const cameraTarget = new THREE.Vector3(0, 0.95, 0)
   camera.position.set(0, 6.3, 12.8)
-  const cameraRadius = Math.hypot(
-    camera.position.y - cameraTarget.y,
+  const cameraOrbitRadius = Math.hypot(
+    camera.position.x - cameraTarget.x,
     camera.position.z - cameraTarget.z,
   )
-  let cameraPitch = Math.atan2(camera.position.y - cameraTarget.y, camera.position.z)
-  const applyCameraPitch = () => {
-    cameraPitch = THREE.MathUtils.clamp(cameraPitch, 0.2, 0.82)
+  let cameraOrbitAngle = Math.atan2(
+    camera.position.x - cameraTarget.x,
+    camera.position.z - cameraTarget.z,
+  )
+  const applyCameraOrbit = () => {
     camera.position.set(
-      0,
-      cameraTarget.y + Math.sin(cameraPitch) * cameraRadius,
-      Math.cos(cameraPitch) * cameraRadius,
+      cameraTarget.x + Math.sin(cameraOrbitAngle) * cameraOrbitRadius,
+      camera.position.y,
+      cameraTarget.z + Math.cos(cameraOrbitAngle) * cameraOrbitRadius,
     )
     camera.lookAt(cameraTarget)
   }
-  applyCameraPitch()
+  applyCameraOrbit()
 
   const sky = createSkyBackdrop(model.terrain)
   scene.add(sky)
@@ -95,11 +99,15 @@ export function createWorldScene({
   composer.addPass(handheldPass)
   composer.addPass(outputPass)
 
-  const worldRoot = new THREE.Group()
-  worldRoot.name = 'vips-world-root'
-  worldRoot.scale.setScalar(0.72)
-  worldRoot.rotation.x = -0.03
-  scene.add(worldRoot)
+  const stageRoot = new THREE.Group()
+  stageRoot.name = 'vips-world-stage-root'
+  stageRoot.scale.setScalar(0.72)
+  stageRoot.rotation.x = -0.03
+  scene.add(stageRoot)
+
+  const islandRoot = new THREE.Group()
+  islandRoot.name = 'vips-world-island-root'
+  stageRoot.add(islandRoot)
 
   const textureLoader = new THREE.TextureLoader()
   const foliageTexture = textureLoader.load(WORLD_ASSETS.textures.foliageSdf.url)
@@ -109,31 +117,21 @@ export function createWorldScene({
   foliageTexture.wrapS = THREE.RepeatWrapping
   foliageTexture.wrapT = THREE.RepeatWrapping
 
-  worldRoot.add(createIsland(model.terrain))
-  worldRoot.add(createGrass())
+  islandRoot.add(createIsland(model.terrain))
+  islandRoot.add(createGrass())
   for (const tree of model.trees) {
     const treeGroup = createValueTree(tree, foliageTexture)
-    worldRoot.add(treeGroup)
+    islandRoot.add(treeGroup)
   }
-  worldRoot.add(createFlowers(model.flowers))
-  attachFruitToTrees(worldRoot, model.fruit, model.trees)
+  islandRoot.add(createFlowers(model.flowers))
+  attachFruitToTrees(islandRoot, model.fruit, model.trees)
   const butterflies = createButterflies(model.butterflies)
-  worldRoot.add(butterflies)
+  islandRoot.add(butterflies)
+  const promptBird = createPromptBird(pickPromptBirdPrompt())
+  islandRoot.add(promptBird)
 
   const raycaster = new THREE.Raycaster()
   const pointer = new THREE.Vector2()
-  let cameraPitchDrag: {
-    pointerId: number
-    startY: number
-    startPitch: number
-    moved: boolean
-  } | null = null
-  let suppressNextClick = false
-
-  const renderInteractiveFrame = () => {
-    setHandheldTime(handheldPass, performance.now() * 0.001)
-    composer.render()
-  }
 
   const hotspotAt = (event: PointerEvent | MouseEvent): WorldHotspot | null => {
     const rect = renderer.domElement.getBoundingClientRect()
@@ -141,7 +139,7 @@ export function createWorldScene({
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
     raycaster.setFromCamera(pointer, camera)
-    const intersections = raycaster.intersectObjects(worldRoot.children, true)
+    const intersections = raycaster.intersectObjects(islandRoot.children, true)
     let best: { hotspot: WorldHotspot; score: number } | null = null
     for (const intersection of intersections) {
       const hotspot = findWorldHotspot(intersection.object)
@@ -162,57 +160,17 @@ export function createWorldScene({
   }
 
   const handlePointerMove = (event: PointerEvent) => {
-    if (cameraPitchDrag) {
-      const deltaY = event.clientY - cameraPitchDrag.startY
-      if (Math.abs(deltaY) > 3) cameraPitchDrag.moved = true
-      cameraPitch = cameraPitchDrag.startPitch - deltaY * 0.0038
-      applyCameraPitch()
-      renderer.domElement.style.cursor = 'ns-resize'
-      onHotspotHover?.(null)
-      renderInteractiveFrame()
-      event.preventDefault()
-      return
-    }
-
     const hotspot = hotspotAt(event)
     renderer.domElement.style.cursor = hotspot ? 'pointer' : 'default'
     onHotspotHover?.(hotspot, hotspot ? pointerPosition(event) : undefined)
   }
 
-  const handlePointerDown = (event: PointerEvent) => {
-    if (event.button !== 0) return
-    cameraPitchDrag = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      startPitch: cameraPitch,
-      moved: false,
-    }
-    suppressNextClick = false
-    renderer.domElement.setPointerCapture(event.pointerId)
-    renderer.domElement.style.cursor = 'ns-resize'
-  }
-
-  const finishCameraPitchDrag = (event: PointerEvent) => {
-    if (!cameraPitchDrag || cameraPitchDrag.pointerId !== event.pointerId) return
-    suppressNextClick = cameraPitchDrag.moved
-    cameraPitchDrag = null
-    if (renderer.domElement.hasPointerCapture(event.pointerId)) {
-      renderer.domElement.releasePointerCapture(event.pointerId)
-    }
-    renderer.domElement.style.cursor = 'default'
-  }
-
   const handlePointerLeave = () => {
-    if (cameraPitchDrag) return
     renderer.domElement.style.cursor = 'default'
     onHotspotHover?.(null)
   }
 
   const handleClick = (event: MouseEvent) => {
-    if (suppressNextClick) {
-      suppressNextClick = false
-      return
-    }
     const hotspot = hotspotAt(event)
     if (hotspot) onHotspotSelect?.(hotspot)
   }
@@ -242,15 +200,15 @@ export function createWorldScene({
     if (disposed) return
     const delta = Math.min(32, time - lastTime)
     lastTime = time
-    worldRoot.rotation.y += delta * 0.000016
+    cameraOrbitAngle += delta * CAMERA_AUTO_ORBIT_RADIANS_PER_MS
+    applyCameraOrbit()
     const elapsed = time * 0.001
-    const sunDir = key.position.clone().normalize()
-    tickStudentSpaceTrees(worldRoot, elapsed, sunDir)
-    tickFlowers(worldRoot, elapsed)
     tickButterflies(butterflies, elapsed)
+    tickPromptBird(promptBird, elapsed)
     tickSkyBackdrop(sky, elapsed)
     setHandheldTime(handheldPass, elapsed)
-    worldRoot.traverse((object) => {
+    islandRoot.traverse((object) => {
+      if (object.name !== 'student-space-water') return
       const material = object.userData.worldAnimatedMaterial
       if (material instanceof THREE.ShaderMaterial && material.uniforms.uTime) {
         material.uniforms.uTime.value = elapsed
@@ -262,10 +220,7 @@ export function createWorldScene({
 
   const resizeObserver = new ResizeObserver(renderNow)
   resizeObserver.observe(container)
-  renderer.domElement.addEventListener('pointerdown', handlePointerDown)
   renderer.domElement.addEventListener('pointermove', handlePointerMove)
-  renderer.domElement.addEventListener('pointerup', finishCameraPitchDrag)
-  renderer.domElement.addEventListener('pointercancel', finishCameraPitchDrag)
   renderer.domElement.addEventListener('pointerleave', handlePointerLeave)
   renderer.domElement.addEventListener('click', handleClick)
   renderNow()
@@ -279,10 +234,7 @@ export function createWorldScene({
       disposed = true
       if (frameId) cancelAnimationFrame(frameId)
       resizeObserver.disconnect()
-      renderer.domElement.removeEventListener('pointerdown', handlePointerDown)
       renderer.domElement.removeEventListener('pointermove', handlePointerMove)
-      renderer.domElement.removeEventListener('pointerup', finishCameraPitchDrag)
-      renderer.domElement.removeEventListener('pointercancel', finishCameraPitchDrag)
       renderer.domElement.removeEventListener('pointerleave', handlePointerLeave)
       renderer.domElement.removeEventListener('click', handleClick)
       disposeObject3D(scene)

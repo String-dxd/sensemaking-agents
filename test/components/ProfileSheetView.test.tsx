@@ -12,16 +12,51 @@ describe('ProfileSheetView', () => {
         authMenu={{ status: 'signed-in', label: 'Demo account', detail: 'demo-a', kind: 'demo' }}
         openSheet="profile"
         onOpenSheet={onOpenSheet}
+        pageOverviews={[
+          {
+            dimension: 'values',
+            compiledTruth: 'You keep returning to dignity, trust, and careful help.',
+            claimCount: 3,
+            updatedAt: '2026-05-14T07:00:00.000Z',
+          },
+          {
+            dimension: 'interests',
+            compiledTruth: '',
+            claimCount: 0,
+            updatedAt: null,
+          },
+          {
+            dimension: 'personality',
+            compiledTruth: 'You notice emotional temperature quickly.',
+            claimCount: 2,
+            updatedAt: '2026-05-14T07:00:00.000Z',
+          },
+          {
+            dimension: 'skills',
+            compiledTruth: 'You can turn ambiguous material into working systems.',
+            claimCount: 4,
+            updatedAt: '2026-05-14T07:00:00.000Z',
+          },
+        ]}
         sheetPanelId="sheet-1"
       />,
     )
 
     expect(screen.getByTestId('profile-sheet')).toHaveTextContent('Demo account')
-    expect(screen.getByTestId('sheet-trigger-values')).toBeInTheDocument()
+    expect(screen.getByTestId('profile-page-overviews')).toBeInTheDocument()
+    expect(screen.getByTestId('profile-page-card-values')).toHaveTextContent(
+      'You keep returning to dignity',
+    )
+    expect(screen.getByTestId('profile-page-card-interests')).toHaveTextContent(
+      'No current read yet',
+    )
     expect(screen.queryByTestId('sheet-trigger-reflections')).not.toBeInTheDocument()
     expect(screen.queryByTestId('sheet-trigger-trajectory')).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByTestId('sheet-trigger-skills'))
+    await userEvent.click(screen.getByTestId('profile-open-library'))
+    expect(onOpenSheet).toHaveBeenCalledWith('reflections')
+
+    await userEvent.click(screen.getByTestId('profile-page-card-skills'))
     expect(onOpenSheet).toHaveBeenCalledWith('skills')
     const signOutButton = screen.getByRole('button', { name: 'sign out' })
     expect(signOutButton).toHaveAttribute('type', 'submit')

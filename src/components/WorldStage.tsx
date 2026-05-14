@@ -8,6 +8,8 @@ export interface WorldStageProps {
   children?: ReactNode
   /** Optional extra classes for the stage root. */
   className?: string
+  /** Triggered when the prompt bird is selected. */
+  onVoicePromptSelect?: () => void
   /** Plain scene descriptor rendered by the decorative Three.js layer. */
   sceneModel?: VipsWorldSceneModel
 }
@@ -17,7 +19,7 @@ export interface WorldStageProps {
  * React children remain the actionable HUD above it.
  */
 export const WorldStage = forwardRef<HTMLDivElement, WorldStageProps>(function WorldStage(
-  { children, className, sceneModel },
+  { children, className, onVoicePromptSelect, sceneModel },
   ref,
 ) {
   return (
@@ -31,7 +33,7 @@ export const WorldStage = forwardRef<HTMLDivElement, WorldStageProps>(function W
         className,
       )}
     >
-      <WorldScene model={sceneModel} />
+      <WorldScene model={sceneModel} onVoicePromptSelect={onVoicePromptSelect} />
       <div className="pointer-events-none absolute inset-0 z-10">{children}</div>
     </div>
   )

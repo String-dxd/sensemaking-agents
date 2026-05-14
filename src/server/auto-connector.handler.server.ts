@@ -8,7 +8,7 @@
  *   2. Format the prompt context (new mirror entry + its context_type +
  *      page snapshots).
  *   3. Call the Connector (real or stubbed via `deps.runConnector`). Race
- *      against a 30s soft budget.
+ *      against a managed-agent soft budget.
  *   4. Parse against `ConnectorDiffSchema`; malformed JSON → `schema_reject`.
  *   5. Flatten the per-dimension diffs into one verifier-shaped
  *      `timeline_entries` list and hand to the verifier (U6).
@@ -67,8 +67,8 @@ import {
   type SafetyCheckResult,
 } from '~/lib/safety'
 
-/** 30s soft budget per plan Approach ("Wall-clock budget: 30s soft timeout"). */
-export const AUTO_CONNECTOR_TIMEOUT_MS = 30_000
+/** Soft budget aligned with the managed-agent runner's default timeout. */
+export const AUTO_CONNECTOR_TIMEOUT_MS = 120_000
 
 // Re-typed to the Connector's narrowed dimension union (which is a subset
 // of `VipsDimension` literals — they are byte-equivalent today but the
@@ -166,7 +166,7 @@ export async function runAutoConnectorAfterMirror(
     )
     const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
 
-    // ── Step 3: invoke Connector with a soft 30s timeout. ──
+    // ── Step 3: invoke Connector with a managed-agent soft timeout. ──
     // Pass an AbortController.signal through so a timeout actually CANCELS
     // the underlying request (Finding #5). Test-seam `deps.runConnector`
     // doesn't need the signal (its mocks resolve synchronously).

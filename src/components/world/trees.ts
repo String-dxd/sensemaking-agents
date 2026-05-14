@@ -15,6 +15,7 @@ const LEAVES_PER_BLOB = 80
 const PLANE_SIZE = 0.5
 const ALPHA_THRESHOLD = 0.32
 const GLB_ICO_RADIUS = 1.1
+const TREE_ROOT_SINK = 0.075
 
 const dracoLoader = new DRACOLoader()
 dracoLoader.setDecoderPath('/world/draco/')
@@ -32,6 +33,7 @@ export function createValueTree(
   group.name = tree.id
   attachWorldHotspot(group, hotspotForValueTree(tree))
   group.position.copy(positionOnIsland(tree.placementSeed, 0.94))
+  group.position.y -= TREE_ROOT_SINK
   group.rotation.y = ((tree.placementSeed % 360) * Math.PI) / 180
   group.scale.setScalar(treeScale(tree))
 

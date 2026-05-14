@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { type DebugAgentStatus, finishAgentRun, startAgentRun } from '~/agents/run-status'
 import { MirrorEvalReviewBadge, parseMirrorEvalReview } from '~/components/MirrorEvalReview'
 import { MirrorReflectionSections } from '~/components/MirrorReflectionSections'
 import { Button } from '~/components/ui/button'
@@ -28,7 +29,22 @@ export function ReflectionsSheetView({
   })
 
   const connector = useMutation({
-    mutationFn: () => runConnector({ data: {} }),
+    mutationFn: async () => {
+      startAgentRun('connector', 'Linking confirmed reflections into the profile pages.')
+      try {
+        const result = await runConnector({ data: {} })
+        finishAgentRun(
+          'connector',
+          connectorDebugStatus(result.status),
+          connectorStatusCopy(result.status, result.processed, result.remaining),
+        )
+        return result
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Connector failed.'
+        finishAgentRun('connector', 'failed', message)
+        throw err
+      }
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vips-pages', studentId] })
       qc.invalidateQueries({ queryKey: ['wiki', studentId] })
@@ -107,16 +123,21 @@ function ReflectionsList({
   const qc = useQueryClient()
   const pendingEntries = entries.filter((entry) => entry.review_status === 'pending')
   const visibleEntries = filter === 'need-review' ? pendingEntries : entries
+  const invalidateReflectionDependents = () => {
+    qc.invalidateQueries({ queryKey: ['wiki', studentId] })
+    qc.invalidateQueries({ queryKey: ['vips-pages', studentId] })
+    qc.invalidateQueries({ queryKey: ['trajectory', studentId] })
+  }
 
   const updateOne = useMutation({
     mutationFn: (input: { entryId: number; status: 'confirmed' | 'forgotten' }) =>
       updateMirrorReview({ data: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['wiki', studentId] }),
+    onSuccess: invalidateReflectionDependents,
   })
 
   const updateAll = useMutation({
     mutationFn: (status: 'confirmed' | 'forgotten') => bulkUpdateMirrorReview({ data: { status } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['wiki', studentId] }),
+    onSuccess: invalidateReflectionDependents,
   })
 
   if (visibleEntries.length === 0 && filter === 'all') {
@@ -300,7 +321,7 @@ function connectorStatusCopy(status: string, processed: number, remaining: numbe
     case 'ok':
       return `Connector linked ${processed} ${processed === 1 ? 'reflection' : 'reflections'}.`
     case 'nothing_to_run':
-      return 'Connector found no unconnected reflections.'
+      return 'Connector found no confirmed reflections ready to link.'
     case 'partial':
       return `Connector linked what it could; ${remaining} still waiting.`
     case 'timeout':
@@ -313,5 +334,17 @@ function connectorStatusCopy(status: string, processed: number, remaining: numbe
       return 'Connector auth failed.'
     default:
       return 'Connector stopped before finishing.'
+  }
+}
+
+function connectorDebugStatus(status: string): Exclude<DebugAgentStatus, 'idle' | 'running'> {
+  switch (status) {
+    case 'ok':
+    case 'partial':
+      return 'succeeded'
+    case 'nothing_to_run':
+      return 'skipped'
+    default:
+      return 'failed'
   }
 }

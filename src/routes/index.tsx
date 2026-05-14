@@ -10,7 +10,7 @@ import {
   useMirrorSession,
   VoicePhaseOverlay,
 } from '~/components/MirrorSession'
-import { ProfileSheetView } from '~/components/ProfileSheetView'
+import { type ProfilePageOverview, ProfileSheetView } from '~/components/ProfileSheetView'
 import { type ReflectionsFilter, ReflectionsSheetView } from '~/components/ReflectionsSheetView'
 import type { SheetKey } from '~/components/SheetEntryRail'
 import { TrajectorySheetView } from '~/components/TrajectorySheetView'
@@ -180,7 +180,13 @@ function LandingPage() {
           trajectoryOpen={openSheet === 'trajectory'}
           voiceModeActive={voiceModeActive}
         />
-        <WorldStage className="min-h-[calc(100svh-6.5rem)] flex-1" sceneModel={sceneModel}>
+        <WorldStage
+          className="min-h-[calc(100svh-6.5rem)] flex-1"
+          onVoicePromptSelect={() => {
+            if (session.phase === 'idle') session.handleVoicePress()
+          }}
+          sceneModel={sceneModel}
+        >
           <WorldHud
             voiceModeActive={voiceModeActive}
             captureSlot={
@@ -279,6 +285,7 @@ function LandingSheetContent({
         authMenu={authMenu}
         openSheet={sheet}
         onOpenSheet={onOpenSheet}
+        pageOverviews={buildProfilePageOverviews(vipsData)}
         sheetPanelId={sheetPanelId}
         disabled={voiceModeActive}
       />
@@ -323,6 +330,21 @@ function coerceRecentEntries(entries: MirrorEntryRow[] | undefined) {
     context_type: entry.context_type,
     created_at: entry.created_at,
   }))
+}
+
+function buildProfilePageOverviews(
+  vipsData: Awaited<ReturnType<typeof loadVipsPages>> | undefined,
+): ProfilePageOverview[] | undefined {
+  if (!vipsData) return undefined
+  return VIPS_KEYS.map((dimension) => {
+    const page = vipsData.pages.find((candidate) => candidate.dimension === dimension)
+    return {
+      dimension,
+      compiledTruth: page?.compiled_truth ?? '',
+      claimCount: vipsData.claim_count_by_dimension[dimension] ?? 0,
+      updatedAt: page?.updated_at ?? null,
+    }
+  })
 }
 
 function isSheetKey(value: unknown): value is SheetKey {

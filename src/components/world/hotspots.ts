@@ -7,7 +7,8 @@ import type {
   ValueTreeDescriptor,
 } from './vipsWorldMapping'
 
-export type WorldHotspotKind = 'value' | 'interest' | 'skill' | 'reflection'
+export type WorldHotspotAction = 'voice'
+export type WorldHotspotKind = 'value' | 'interest' | 'skill' | 'reflection' | 'prompt'
 
 export interface WorldHotspot {
   id: string
@@ -15,7 +16,8 @@ export interface WorldHotspot {
   eyebrow: string
   title: string
   description: string
-  href: string
+  href?: string
+  action?: WorldHotspotAction
 }
 
 export interface WorldHotspotPointer {
@@ -137,6 +139,17 @@ export function hotspotForButterfly(butterfly: ButterflyDescriptor): WorldHotspo
   }
 }
 
+export function hotspotForPromptBird(prompt: string): WorldHotspot {
+  return {
+    id: 'voice-prompt-bird',
+    kind: 'prompt',
+    eyebrow: 'Prompt bird',
+    title: prompt,
+    description: 'Click to answer by voice.',
+    action: 'voice',
+  }
+}
+
 function dimensionHref(dimension: VipsDimension, timelineEntryIds: Array<number | string>): string {
   const firstEntryId = timelineEntryIds[0]
   return firstEntryId == null
@@ -157,6 +170,7 @@ function isWorldHotspot(value: unknown): value is WorldHotspot {
     typeof candidate.eyebrow === 'string' &&
     typeof candidate.title === 'string' &&
     typeof candidate.description === 'string' &&
-    typeof candidate.href === 'string'
+    (candidate.href === undefined || typeof candidate.href === 'string') &&
+    (candidate.action === undefined || candidate.action === 'voice')
   )
 }

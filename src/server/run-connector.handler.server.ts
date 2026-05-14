@@ -66,8 +66,12 @@ export async function runConnectorForStudent(
   const limit = input.limit ?? DEFAULT_CONNECTOR_BATCH_LIMIT
   const listEntries = deps.listUnconnectedMirrorEntries ?? listUnconnectedMirrorEntries
   const candidates = await listEntries(studentId, { limit: limit + 1 })
-  const entriesToProcess = candidates.slice(0, limit)
-  const remainingFromInitialBatch = Math.max(candidates.length - entriesToProcess.length, 0)
+  const confirmedCandidates = candidates.filter((entry) => entry.review_status === 'confirmed')
+  const entriesToProcess = confirmedCandidates.slice(0, limit)
+  const remainingFromInitialBatch = Math.max(
+    confirmedCandidates.length - entriesToProcess.length,
+    0,
+  )
 
   if (entriesToProcess.length === 0) {
     return {
