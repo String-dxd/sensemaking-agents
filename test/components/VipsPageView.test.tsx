@@ -68,17 +68,74 @@ function makeWrapper() {
 describe('VipsPageView', () => {
   it('renders dimension label, compiled_truth, open_question, and timeline list', () => {
     const page = makePage()
-    const timeline = [makeEntry({ id: 1 }), makeEntry({ id: 2, canonical_claim_id: 'values.b' })]
+    const timeline = [
+      makeEntry({ id: 1, canonical_claim_id: 'values.independence' }),
+      makeEntry({ id: 2, canonical_claim_id: 'values.contribution' }),
+    ]
     render(<VipsPageView studentId="demo" dimension="values" page={page} timeline={timeline} />, {
       wrapper: makeWrapper(),
     })
 
     expect(screen.getByTestId('vips-page-values')).toBeInTheDocument()
-    expect(screen.getByText('Values')).toBeInTheDocument()
+    expect(screen.getByText('What you keep coming back to')).toBeInTheDocument()
+    expect(screen.getByTestId('profile-tabs')).toBeInTheDocument()
+    expect(screen.getByTestId('claim-most-common')).toHaveTextContent(/Contribution/i)
+    expect(screen.getByTestId('claim-quietly-emerging')).toHaveTextContent(/Independence/i)
+    expect(screen.getByTestId('profile-collection')).toHaveTextContent(/Contribution/i)
     expect(screen.getByTestId('compiled-truth')).toHaveTextContent(/Practices self-direction/i)
     expect(screen.getByTestId('open-question')).toHaveTextContent(/Does the same/i)
     expect(screen.getByTestId('timeline-entry-1')).toBeInTheDocument()
     expect(screen.getByTestId('timeline-entry-2')).toBeInTheDocument()
+  })
+
+  it('does not fill ranked rows with unobserved taxonomy claims', () => {
+    render(
+      <VipsPageView
+        studentId="demo"
+        dimension="values"
+        page={makePage()}
+        timeline={[makeEntry({ id: 1, canonical_claim_id: 'values.independence' })]}
+      />,
+      { wrapper: makeWrapper() },
+    )
+
+    expect(screen.getByTestId('claim-most-common')).toHaveTextContent(/Independence/i)
+    expect(screen.getByTestId('claim-quietly-emerging')).toHaveTextContent(/Not enough signal yet/i)
+    expect(screen.getByTestId('claim-quietly-emerging')).not.toHaveTextContent(/Achievement/i)
+  })
+
+  it('renders non-Values tabs with their own Student Space header and observed claims', () => {
+    render(
+      <VipsPageView
+        studentId="demo"
+        dimension="interests"
+        page={makePage({
+          dimension: 'interests',
+          compiled_truth: 'People-facing contexts keep attention alive.',
+          open_question: 'Which setting keeps doing that?',
+        })}
+        timeline={[
+          makeEntry({
+            id: 1,
+            dimension: 'interests',
+            canonical_claim_id: 'interests.social',
+          }),
+          makeEntry({
+            id: 2,
+            dimension: 'interests',
+            canonical_claim_id: 'interests.enterprising',
+          }),
+        ]}
+      />,
+      { wrapper: makeWrapper() },
+    )
+
+    expect(screen.getByTestId('vips-page-interests')).toBeInTheDocument()
+    expect(screen.getByText('What lights you up')).toBeInTheDocument()
+    expect(screen.getByTestId('profile-tab-interests')).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByTestId('claim-most-common')).toHaveTextContent(/Social/i)
+    expect(screen.getByTestId('claim-quietly-emerging')).toHaveTextContent(/Enterprising/i)
+    expect(screen.getByTestId('profile-collection')).toHaveTextContent(/Investigative/i)
   })
 
   it('renders the empty-state copy when compiled_truth is empty', () => {
@@ -156,5 +213,31 @@ describe('VipsPageView', () => {
     expect(screen.queryByTestId('edit-button')).toBeNull()
     expect(screen.queryByTestId('editable-textarea')).toBeNull()
     expect(screen.getByTestId('forget-button-1')).toBeInTheDocument()
+  })
+
+  it('filters the timeline from collection tiles and clears the filter on a second click', async () => {
+    const page = makePage()
+    render(
+      <VipsPageView
+        studentId="demo"
+        dimension="values"
+        page={page}
+        timeline={[
+          makeEntry({ id: 1, canonical_claim_id: 'values.independence' }),
+          makeEntry({ id: 2, canonical_claim_id: 'values.contribution' }),
+        ]}
+      />,
+      { wrapper: makeWrapper() },
+    )
+
+    const contributionTile = screen.getByTestId('collection-tile-values.contribution')
+    await userEvent.click(contributionTile)
+    expect(screen.queryByTestId('timeline-entry-1')).toBeNull()
+    expect(screen.getByTestId('timeline-entry-2')).toBeInTheDocument()
+    expect(screen.getByText(/filtered to Contribution/i)).toBeInTheDocument()
+
+    await userEvent.click(contributionTile)
+    expect(screen.getByTestId('timeline-entry-1')).toBeInTheDocument()
+    expect(screen.getByTestId('timeline-entry-2')).toBeInTheDocument()
   })
 })

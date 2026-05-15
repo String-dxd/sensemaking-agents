@@ -8,6 +8,8 @@ export interface BottomSheetProps {
   closeLabel?: string
   /** Optional id forwarded to the sheet panel for aria-controls. */
   id?: string
+  /** Removes drawer body padding so the child surface becomes the sheet. */
+  fullBleed?: boolean
   children?: ReactNode
 }
 
@@ -21,6 +23,7 @@ export function BottomSheet({
   onOpenChange,
   closeLabel = 'Close',
   id,
+  fullBleed = false,
   children,
 }: BottomSheetProps) {
   const generatedId = useId()
@@ -31,6 +34,7 @@ export function BottomSheet({
       <DrawerContent
         id={panelId}
         closeLabel={closeLabel}
+        fullBleed={fullBleed}
         data-testid="bottom-sheet-panel"
         aria-label="Sheet"
       >

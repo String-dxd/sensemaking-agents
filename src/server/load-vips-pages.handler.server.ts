@@ -12,6 +12,8 @@
  * and clients learn about it through neither this fn nor the library UI.
  */
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import type { Mood } from '~/agents/tools/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
@@ -33,6 +35,8 @@ import { moodFromMirrorTags } from './mood-tags'
 export { VIPS_DIMENSIONS }
 
 export interface LoadVipsPagesResult {
+  /** Demo seed profile identity when the active student came from the fixture corpus. */
+  student_profile: { name: string; detail: string | null } | null
   /**
    * Four rows in canonical dimension order (values, interests, personality,
    * skills). Dimensions without an upserted `vips_pages` row are returned
@@ -106,6 +110,7 @@ export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<Lo
     const worldMailbox = await loadCounsellorBriefStatusForStudent(studentId, { ctx })
 
     return {
+      student_profile: loadSeedStudentProfileSummary(studentId),
       pages,
       timeline_by_dimension,
       recent_entries: recentEntries,
@@ -135,4 +140,39 @@ export function deriveRecentMoodsFromMirrorEntries(
       ]
     })
     .slice(0, Math.max(0, limit))
+}
+
+function loadSeedStudentProfileSummary(
+  studentId: string,
+): { name: string; detail: string | null } | null {
+  try {
+    const raw = readFileSync(
+      resolve(process.cwd(), 'test/ablation/fixtures/seed-multistudent.json'),
+      'utf8',
+    )
+    const corpus = JSON.parse(raw) as {
+      students?: Array<{
+        student_id?: string
+        profile?: { name_handle?: string; year_level?: string }
+      }>
+    }
+    const profile = corpus.students?.find((student) => student.student_id === studentId)?.profile
+    if (!profile?.name_handle) return null
+    const parsed = parseNameHandle(profile.name_handle)
+    return {
+      name: parsed.name,
+      detail: parsed.detail ?? profile.year_level ?? null,
+    }
+  } catch {
+    return null
+  }
+}
+
+function parseNameHandle(value: string): { name: string; detail: string | null } {
+  const match = value.match(/^(.+?)\s*\((.+)\)$/)
+  if (!match) return { name: value.trim(), detail: null }
+  return {
+    name: match[1]?.trim() || value.trim(),
+    detail: match[2]?.trim() || null,
+  }
 }

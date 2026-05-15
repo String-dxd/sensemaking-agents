@@ -320,6 +320,7 @@ function LandingPage() {
         open={openSheet != null}
         onOpenChange={(open) => !open && closeLibrarySheet()}
         id={SHEET_PANEL_ID}
+        fullBleed={isProfileSurfaceSheet(openSheet)}
       >
         <LandingSheetContent
           sheet={openSheet}
@@ -370,9 +371,30 @@ function LandingSheetContent({
 }) {
   if (!sheet) return null
   if (sheet === 'profile') {
+    if (vipsData) {
+      const page = vipsData.pages.find((candidate) => candidate.dimension === 'values')
+      const timeline = vipsData.timeline_by_dimension.values ?? []
+      if (page) {
+        return (
+          <VipsPageView
+            studentId={STUDENT_ID}
+            dimension="values"
+            page={page}
+            timeline={timeline}
+            authMenu={authMenu}
+            studentProfile={vipsData.student_profile}
+            openSheet="values"
+            onOpenSheet={onOpenSheet}
+            sheetPanelId={sheetPanelId}
+            disabled={voiceModeActive}
+          />
+        )
+      }
+    }
     return (
       <ProfileSheetView
         authMenu={authMenu}
+        studentProfile={vipsData?.student_profile}
         openSheet={sheet}
         onOpenSheet={onOpenSheet}
         pageOverviews={buildProfilePageOverviews(vipsData)}
@@ -402,7 +424,28 @@ function LandingSheetContent({
   if (!page) {
     return <p className="py-4 text-sm text-muted-foreground">No page for this dimension yet.</p>
   }
-  return <VipsPageView studentId={STUDENT_ID} dimension={sheet} page={page} timeline={timeline} />
+  return (
+    <VipsPageView
+      studentId={STUDENT_ID}
+      dimension={sheet}
+      page={page}
+      timeline={timeline}
+      authMenu={authMenu}
+      studentProfile={vipsData.student_profile}
+      openSheet={sheet}
+      onOpenSheet={onOpenSheet}
+      sheetPanelId={sheetPanelId}
+      disabled={voiceModeActive}
+    />
+  )
+}
+
+function isProfileSurfaceSheet(sheet: SheetKey | null): boolean {
+  return (
+    sheet === 'profile' ||
+    sheet === 'reflections' ||
+    (sheet != null && (VIPS_KEYS as readonly string[]).includes(sheet))
+  )
 }
 
 function coerceTimeline(entries: VipsTimelineEntryRow[] | undefined) {

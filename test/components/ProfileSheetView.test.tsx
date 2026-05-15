@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ProfileSheetView } from '~/components/ProfileSheetView'
 
 describe('ProfileSheetView', () => {
-  it('keeps profile dimensions inside the profile sheet', async () => {
+  it('uses the Student Space profile IA with identity, tabs, and active page summary', async () => {
     const onOpenSheet = vi.fn()
     render(
       <ProfileSheetView
@@ -42,22 +42,25 @@ describe('ProfileSheetView', () => {
       />,
     )
 
-    expect(screen.getByTestId('profile-sheet')).toHaveTextContent('Demo account')
-    expect(screen.getByTestId('profile-page-overviews')).toBeInTheDocument()
-    expect(screen.getByTestId('profile-page-card-values')).toHaveTextContent(
+    expect(screen.getByTestId('profile-sheet')).toHaveTextContent('Student')
+    expect(screen.getByTestId('profile-sheet')).toHaveTextContent('Sec 3B')
+    expect(screen.getByTestId('profile-tabs')).toBeInTheDocument()
+    expect(screen.getByTestId('profile-tab-values')).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('What you keep coming back to')).toBeInTheDocument()
+    expect(screen.getByTestId('profile-active-summary')).toHaveTextContent(
       'You keep returning to dignity',
-    )
-    expect(screen.getByTestId('profile-page-card-interests')).toHaveTextContent(
-      'No current read yet',
     )
     expect(screen.queryByTestId('sheet-trigger-reflections')).not.toBeInTheDocument()
     expect(screen.queryByTestId('sheet-trigger-trajectory')).not.toBeInTheDocument()
 
+    await userEvent.click(screen.getByTestId('profile-tab-skills'))
+    expect(onOpenSheet).toHaveBeenCalledWith('skills')
+
     await userEvent.click(screen.getByTestId('profile-open-library'))
     expect(onOpenSheet).toHaveBeenCalledWith('reflections')
 
-    await userEvent.click(screen.getByTestId('profile-page-card-skills'))
-    expect(onOpenSheet).toHaveBeenCalledWith('skills')
+    await userEvent.click(screen.getByTestId('profile-open-active-values'))
+    expect(onOpenSheet).toHaveBeenCalledWith('values')
     const signOutButton = screen.getByRole('button', { name: 'sign out' })
     expect(signOutButton).toHaveAttribute('type', 'submit')
     expect(signOutButton.closest('form')).toHaveAttribute('action', '/api/auth/sign-out')
