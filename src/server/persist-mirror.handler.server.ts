@@ -9,6 +9,7 @@ import { requireCounselorContext } from '~/auth/identity'
 import { insertMirrorEntry, type MirrorEntryRow } from '~/db/queries'
 import { checkPayloadForDiagnosticLanguage } from '~/lib/safety'
 import { type PersistMirrorInput, persistMirrorInputSchema } from './mirror-function-schemas'
+import { mirrorMoodTag } from './mood-tags'
 
 export class DiagnosticLanguageError extends Error {
   constructor(readonly matches: { text: string; pattern: string }[]) {
@@ -58,6 +59,7 @@ export async function persistMirrorHandler(
   // don't need to wrap. The auto-connector chain below opens a separate
   // transaction of its own.
   const insertMirrorEntryFn = deps.insertMirrorEntry ?? insertMirrorEntry
+  const taggedMood = parsed.mood ?? null
   const mirrorEntry = await insertMirrorEntryFn(studentId, {
     transcript: parsed.entry.transcript,
     validation: parsed.entry.validation,
@@ -70,6 +72,7 @@ export async function persistMirrorHandler(
       story_reframe: parsed.entry.story_reframe,
     },
     trace: parsed.trace,
+    tags: taggedMood ? [mirrorMoodTag(taggedMood)] : undefined,
   })
 
   // ── Student-voice memory append (best-effort, non-blocking) ──

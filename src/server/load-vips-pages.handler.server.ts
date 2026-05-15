@@ -11,6 +11,8 @@
  * `forgetVipsTimelineEntry` but is recorded-not-surfaced in v0.2 — agents
  * and clients learn about it through neither this fn nor the library UI.
  */
+
+import type { Mood } from '~/agents/tools/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import { withStudent } from '~/db/client'
@@ -22,7 +24,9 @@ import {
   type VipsPageRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
+import { loadCounsellorBriefStatusForStudent } from './counsellor-brief.handler.server'
 import { type LoadVipsPagesInput, loadVipsPagesInputSchema } from './function-schemas'
+import { moodFromMirrorTags } from './mood-tags'
 
 // Re-export for backward compatibility with any in-repo consumers; the
 // canonical home is now `~/data/vips-taxonomy`.
@@ -40,10 +44,24 @@ export interface LoadVipsPagesResult {
   timeline_by_dimension: Record<VipsDimension, VipsTimelineEntryRow[]>
   /** Recent non-forgotten Mirror entries for transient home-world butterflies. */
   recent_entries: MirrorEntryRow[]
+  /** Recent user-tagged emotions, adapted into Student Space-style mood pins. */
+  recent_moods: LoadVipsPagesRecentMood[]
+  /** Counsellor brief status, adapted into the Student Space-style mailbox. */
+  world_mailbox: {
+    unreadBriefCount: number
+    lastBriefId: number | null
+  }
   /** Count of non-forgotten timeline entries per dimension. */
   claim_count_by_dimension: Record<VipsDimension, number>
   /** Sum of `claim_count_by_dimension` — drives the 3-entry gate replacement (R24). */
   total_claim_count: number
+}
+
+export interface LoadVipsPagesRecentMood {
+  id: number
+  emotion: Mood
+  intensity: number
+  created_at: string
 }
 
 export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<LoadVipsPagesResult> {
@@ -84,12 +102,37 @@ export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<Lo
       total += entries.length
     }
 
+    const recentEntries = await listMirrorEntries(studentId, { ctx, limit: 7 })
+    const worldMailbox = await loadCounsellorBriefStatusForStudent(studentId, { ctx })
+
     return {
       pages,
       timeline_by_dimension,
-      recent_entries: await listMirrorEntries(studentId, { ctx, limit: 7 }),
+      recent_entries: recentEntries,
+      recent_moods: deriveRecentMoodsFromMirrorEntries(recentEntries),
+      world_mailbox: worldMailbox,
       claim_count_by_dimension,
       total_claim_count: total,
     }
   })
+}
+
+export function deriveRecentMoodsFromMirrorEntries(
+  entries: readonly MirrorEntryRow[],
+  limit = 6,
+): LoadVipsPagesRecentMood[] {
+  return entries
+    .flatMap((entry): LoadVipsPagesRecentMood[] => {
+      const mood = moodFromMirrorTags(entry.tags)
+      if (!mood) return []
+      return [
+        {
+          id: entry.id,
+          emotion: mood,
+          intensity: 0.72,
+          created_at: entry.created_at,
+        },
+      ]
+    })
+    .slice(0, Math.max(0, limit))
 }

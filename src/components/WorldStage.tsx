@@ -1,7 +1,9 @@
 import { forwardRef, type ReactNode } from 'react'
 import { cn } from '~/lib/utils'
+import type { WorldHotspot } from './world/hotspots'
 import type { VipsWorldSceneModel } from './world/vipsWorldMapping'
-import { WorldScene } from './world/WorldScene'
+import { WorldScene, type WorldSceneInteractionEvent } from './world/WorldScene'
+import type { WorldEnvironmentControls } from './world/worldStyle'
 
 export interface WorldStageProps {
   /** HUD content rendered above the stage (Studio pill, Voice button, etc.). */
@@ -10,8 +12,14 @@ export interface WorldStageProps {
   className?: string
   /** Triggered when the prompt bird is selected. */
   onVoicePromptSelect?: () => void
+  /** Lets TanStack routes handle world hotspot links without a page reload. */
+  onHotspotNavigate?: (href: string, hotspot: WorldHotspot) => void
+  /** Backend-ready seam for future world interaction analytics/wiring. */
+  onWorldInteraction?: (event: WorldSceneInteractionEvent) => void
   /** Plain scene descriptor rendered by the decorative Three.js layer. */
   sceneModel?: VipsWorldSceneModel
+  /** Student Space-inspired time and weather controls for the scene layer. */
+  environmentControls?: WorldEnvironmentControls
 }
 
 /**
@@ -19,7 +27,15 @@ export interface WorldStageProps {
  * React children remain the actionable HUD above it.
  */
 export const WorldStage = forwardRef<HTMLDivElement, WorldStageProps>(function WorldStage(
-  { children, className, onVoicePromptSelect, sceneModel },
+  {
+    children,
+    className,
+    environmentControls,
+    onHotspotNavigate,
+    onVoicePromptSelect,
+    onWorldInteraction,
+    sceneModel,
+  },
   ref,
 ) {
   return (
@@ -27,13 +43,20 @@ export const WorldStage = forwardRef<HTMLDivElement, WorldStageProps>(function W
       ref={ref}
       data-testid="world-stage"
       data-placeholder="false"
+      data-fullscreen="true"
       className={cn(
-        'relative isolate w-full overflow-hidden rounded-[1.75rem] border border-border/40',
-        'min-h-[56vh] bg-[#c7e3ee] sm:min-h-[60vh]',
+        'relative isolate w-full overflow-hidden',
+        'min-h-svh bg-transparent',
         className,
       )}
     >
-      <WorldScene model={sceneModel} onVoicePromptSelect={onVoicePromptSelect} />
+      <WorldScene
+        environmentControls={environmentControls}
+        model={sceneModel}
+        onHotspotNavigate={onHotspotNavigate}
+        onVoicePromptSelect={onVoicePromptSelect}
+        onWorldInteraction={onWorldInteraction}
+      />
       <div className="pointer-events-none absolute inset-0 z-10">{children}</div>
     </div>
   )

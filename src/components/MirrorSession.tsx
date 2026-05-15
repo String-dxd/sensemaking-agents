@@ -8,10 +8,9 @@
  * No post-Stop context picker: `context_type` is inferred from the raw
  * transcript, and the parent route decides where to navigate next.
  *
- * `state.mood` lives in local React state only this plan — Phase A does
- * NOT modify the persistMirror data contract. Phase B (after the
- * Managed Agents migration) wires `state.mood` and Mirror's emitted
- * `inferred_emotion` into the DB through the new Drizzle layer.
+ * `state.mood` stays optional and user-controlled. When present, the selected
+ * mood is persisted as an existing mirror-entry tag so the world stage can
+ * render recent Student Space-style mood markers without a schema migration.
  */
 import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import { finishAgentRun, startAgentRun } from '~/agents/run-status'
@@ -54,8 +53,8 @@ interface State {
    */
   pendingTranscript: string | null
   /**
-   * User-tagged emotion. Optional, never blocking. Phase A: stays local;
-   * not forwarded to persistMirror. Phase B adds the column + wiring.
+   * User-tagged emotion. Optional, never blocking. Persisted as a mirror tag
+   * only after the post-Stop chain succeeds.
    */
   mood: Mood | null
 }
@@ -212,6 +211,7 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
   // post-stop callback's deps and stop rebuilding the handler chain every
   // animation frame during recording.
   const elapsedMsRef = useRef(0)
+  const moodRef = useRef<Mood | null>(null)
   // Tracks whether the hook is still mounted so async chain steps (transcribe
   // → reflect → persist) can skip dispatch + onPersisted on a torn-down
   // reducer instead of crashing on a stale closure.
@@ -411,6 +411,7 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
 
         dispatch({ type: 'persisting' })
         const contextType: ContextType = inferContextType(transcript)
+        const taggedMood = moodRef.current
         const result = await persistMirror({
           data: {
             entry: {
@@ -423,13 +424,16 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
             raw_output: {
               ...output,
               eval_review: evalReview,
+              mood: taggedMood,
             },
+            mood: taggedMood,
             // Read elapsed from the ref rather than state.elapsedMs so this
             // callback doesn't reidentify every animation frame and cascade
             // through handleStopInternal / handleVoicePress's useCallback chain.
             trace: {
               capturedDurationMs: elapsedMsRef.current,
               inferredContextType: contextType,
+              taggedMood,
             },
           },
         })
@@ -499,6 +503,7 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
 
   const handleVoicePress = useCallback(() => {
     if (state.phase === 'idle') {
+      moodRef.current = null
       void acquireMic()
       return
     }
@@ -508,12 +513,18 @@ export function useMirrorSession({ onPersisted }: MirrorSessionOptions): MirrorS
     // Other phases: no-op (handler is idempotent).
   }, [state.phase, acquireMic, handleStopInternal])
 
-  const handleMoodTagged = useCallback((mood: Mood) => {
-    dispatch({ type: 'mood-tagged', mood })
-  }, [])
+  const handleMoodTagged = useCallback(
+    (mood: Mood) => {
+      if (state.phase !== 'recording') return
+      moodRef.current = mood
+      dispatch({ type: 'mood-tagged', mood })
+    },
+    [state.phase],
+  )
 
   const handleReset = useCallback(() => {
     cleanup()
+    moodRef.current = null
     dispatch({ type: 'reset' })
   }, [cleanup])
 

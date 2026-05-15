@@ -12,3 +12,15 @@ export const counsellorBrief = createServerFn({ method: 'GET' })
     const { counsellorBriefHandler } = await import('./counsellor-brief.handler.server')
     return counsellorBriefHandler(data)
   })
+
+/**
+ * Lightweight status for Student Space-style world mailbox state. The brief
+ * itself remains on-demand; this only reports whether a Cartographer-backed
+ * brief source exists yet.
+ */
+export const loadCounsellorBriefStatus = createServerFn({ method: 'GET' })
+  .inputValidator((raw: unknown) => counsellorBriefInputSchema.parse(raw))
+  .handler(async ({ data }) => {
+    const { loadCounsellorBriefStatusHandler } = await import('./counsellor-brief.handler.server')
+    return loadCounsellorBriefStatusHandler(data)
+  })

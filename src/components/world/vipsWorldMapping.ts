@@ -25,10 +25,20 @@ export interface VipsWorldRecentEntry {
 
 export type VipsTimelineByDimension = Partial<Record<VipsDimension, VipsWorldTimelineEntry[]>>
 
+export interface VipsWorldRecentMood {
+  id: number | string
+  emotion: string
+  intensity?: number
+  created_at?: string | null
+}
+
 export interface VipsWorldSceneInput {
   timelineByDimension?: VipsTimelineByDimension
   recentEntries?: VipsWorldRecentEntry[]
   recentLimit?: number
+  recentMoods?: VipsWorldRecentMood[]
+  moodLimit?: number
+  mailbox?: { unreadBriefCount?: number; lastBriefId?: number | string | null }
 }
 
 export interface VipsWorldSceneModel {
@@ -37,12 +47,30 @@ export interface VipsWorldSceneModel {
   flowers: InterestFlowerDescriptor[]
   fruit: SkillFruitDescriptor[]
   butterflies: ButterflyDescriptor[]
+  moodPins: MoodPinDescriptor[]
+  mailbox: MailboxDescriptor
   summary: {
     confirmedClaims: number
     pendingClaims: number
     omittedForgottenClaims: number
     warnings: string[]
   }
+}
+
+export interface MoodPinDescriptor {
+  id: string
+  emotion: string
+  intensity: number
+  color: string
+  placementSeed: number
+  recencyWeight: number
+}
+
+export interface MailboxDescriptor {
+  id: 'mailbox'
+  state: 'empty' | 'has-brief' | 'unread'
+  unreadCount: number
+  lastBriefId: number | string | null
 }
 
 export interface TerrainDescriptor {
@@ -94,13 +122,15 @@ export interface SkillFruitDescriptor {
   id: string
   claimId: string
   label: string
-  fruitFamily: 'round-orchard-fruit'
+  fruitFamily: 'student-space-berry-cluster'
+  host: 'bush' | 'tree'
   color: string
   strength: WorldEvidenceStrength
   evidenceState: Exclude<WorldEvidenceState, 'forgotten'>
   count: number
   ripeness: number
   valueTreeId: string | null
+  valueTreeLabel: string | null
   placementSeed: number
   timelineEntryIds: Array<number | string>
 }
@@ -192,6 +222,8 @@ export function buildVipsWorldSceneModel(input: VipsWorldSceneInput = {}): VipsW
     flowers,
     fruit,
     butterflies: makeButterflies(activeEntries, input.recentEntries, recentLimit),
+    moodPins: makeMoodPins(input.recentMoods, input.moodLimit ?? 6),
+    mailbox: makeMailbox(input.mailbox),
     summary: {
       confirmedClaims: confirmedEntries.length,
       pendingClaims: pendingEntries.length,
@@ -199,6 +231,45 @@ export function buildVipsWorldSceneModel(input: VipsWorldSceneInput = {}): VipsW
       warnings: makeWarnings({ activeEntries, trees, flowers, fruit }),
     },
   }
+}
+
+function makeMoodPins(
+  moods: VipsWorldRecentMood[] | undefined,
+  moodLimit: number,
+): MoodPinDescriptor[] {
+  if (!moods || moods.length === 0) return []
+  return [...moods]
+    .sort((a, b) => timestamp(b.created_at) - timestamp(a.created_at))
+    .slice(0, Math.max(0, moodLimit))
+    .map((mood, index) => ({
+      id: `mood-pin-${mood.id}`,
+      emotion: mood.emotion,
+      intensity: clamp01(mood.intensity ?? 0.5),
+      color: moodColor(mood.emotion),
+      placementSeed: stableSeed(`mood-${mood.emotion}-${mood.id}`),
+      recencyWeight: 1 - index / Math.max(1, moodLimit),
+    }))
+}
+
+function makeMailbox(input: VipsWorldSceneInput['mailbox']): MailboxDescriptor {
+  const unread = Math.max(0, input?.unreadBriefCount ?? 0)
+  const lastBriefId = input?.lastBriefId ?? null
+  return {
+    id: 'mailbox',
+    state: unread > 0 ? 'unread' : lastBriefId != null ? 'has-brief' : 'empty',
+    unreadCount: unread,
+    lastBriefId,
+  }
+}
+
+function moodColor(emotion: string): string {
+  const lower = emotion.toLowerCase()
+  if (/(joy|happy|content|excited|proud)/.test(lower)) return '#f6c763'
+  if (/(calm|grateful|peaceful)/.test(lower)) return '#9bc7d8'
+  if (/(sad|down|tired|lonely)/.test(lower)) return '#7a85b3'
+  if (/(angry|frustrated|annoyed)/.test(lower)) return '#df6b5a'
+  if (/(anxious|worried|scared|nervous)/.test(lower)) return '#b48fd6'
+  return '#cfc7b8'
 }
 
 function flattenTimeline(
@@ -274,13 +345,15 @@ function makeFruitDescriptor(
     id: `fruit-${claimId}`,
     claimId,
     label: TAXONOMY_LABELS.get(claimId) ?? claimId,
-    fruitFamily: 'round-orchard-fruit',
+    fruitFamily: 'student-space-berry-cluster',
+    host: 'bush',
     color: SKILL_COLORS[claimId] ?? '#d99a4e',
     strength: strongest(group),
     evidenceState: combinedState(group),
     count: strengthCount(group),
     ripeness: Math.min(1, 0.25 + STRENGTH_RANK[strongest(group)] * 0.22 + group.length * 0.08),
     valueTreeId: tree?.id ?? null,
+    valueTreeLabel: tree?.label ?? null,
     placementSeed: stableSeed(claimId),
     timelineEntryIds: group.map((entry) => entry.id),
   }

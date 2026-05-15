@@ -3,12 +3,21 @@ import type { VipsDimension } from '~/data/vips-taxonomy'
 import type {
   ButterflyDescriptor,
   InterestFlowerDescriptor,
+  MailboxDescriptor,
+  MoodPinDescriptor,
   SkillFruitDescriptor,
   ValueTreeDescriptor,
 } from './vipsWorldMapping'
 
 export type WorldHotspotAction = 'voice'
-export type WorldHotspotKind = 'value' | 'interest' | 'skill' | 'reflection' | 'prompt'
+export type WorldHotspotKind =
+  | 'value'
+  | 'interest'
+  | 'skill'
+  | 'reflection'
+  | 'prompt'
+  | 'mailbox'
+  | 'mood'
 
 export interface WorldHotspot {
   id: string
@@ -73,10 +82,16 @@ export function addWorldHitTarget(
 }
 
 export function findWorldHotspot(object: THREE.Object3D | null): WorldHotspot | null {
+  return findWorldHotspotOwner(object)?.hotspot ?? null
+}
+
+export function findWorldHotspotOwner(
+  object: THREE.Object3D | null,
+): { object: THREE.Object3D; hotspot: WorldHotspot } | null {
   let current: THREE.Object3D | null = object
   while (current) {
     const hotspot = current.userData.worldHotspot
-    if (isWorldHotspot(hotspot)) return hotspot
+    if (isWorldHotspot(hotspot)) return { object: current, hotspot }
     current = current.parent
   }
   return null
@@ -115,12 +130,20 @@ export function hotspotForInterestFlower(flower: InterestFlowerDescriptor): Worl
 }
 
 export function hotspotForSkillFruit(fruit: SkillFruitDescriptor): WorldHotspot {
+  const host =
+    fruit.host === 'bush'
+      ? fruit.valueTreeLabel
+        ? `berry bush near ${fruit.valueTreeLabel}`
+        : 'berry bush'
+      : fruit.valueTreeLabel
+        ? `fruit on ${fruit.valueTreeLabel}`
+        : 'tree fruit'
   return {
     id: fruit.id,
     kind: 'skill',
     eyebrow: 'Skill fruit',
     title: fruit.label,
-    description: `${entryCount(fruit.timelineEntryIds.length)} · ${fruit.strength} signal`,
+    description: `${entryCount(fruit.timelineEntryIds.length)} · ${fruit.strength} signal · ${host}`,
     href: dimensionHref('skills', fruit.timelineEntryIds),
   }
 }
@@ -136,6 +159,47 @@ export function hotspotForButterfly(butterfly: ButterflyDescriptor): WorldHotspo
       butterfly.targetClaimLabel
     }`,
     href: `/?sheet=reflections#reflection-${butterfly.entryId}`,
+  }
+}
+
+export function hotspotForMailbox(mailbox: MailboxDescriptor): WorldHotspot {
+  if (mailbox.state === 'unread') {
+    return {
+      id: 'mailbox',
+      kind: 'mailbox',
+      eyebrow: 'Mailbox',
+      title: mailbox.unreadCount === 1 ? '1 unread brief' : `${mailbox.unreadCount} unread briefs`,
+      description: 'New counsellor brief is waiting.',
+      href: '/?sheet=trajectory',
+    }
+  }
+  if (mailbox.state === 'has-brief') {
+    return {
+      id: 'mailbox',
+      kind: 'mailbox',
+      eyebrow: 'Mailbox',
+      title: 'Latest brief',
+      description: 'Open the trajectory to revisit it.',
+      href: '/?sheet=trajectory',
+    }
+  }
+  return {
+    id: 'mailbox',
+    kind: 'mailbox',
+    eyebrow: 'Mailbox',
+    title: 'No mail yet',
+    description: 'Counsellor briefs will land here.',
+  }
+}
+
+export function hotspotForMoodPin(pin: MoodPinDescriptor): WorldHotspot {
+  return {
+    id: pin.id,
+    kind: 'mood',
+    eyebrow: 'Mood pin',
+    title: pin.emotion,
+    description: `${Math.round(pin.intensity * 100)}% intensity`,
+    href: '/?sheet=reflections',
   }
 }
 

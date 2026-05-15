@@ -1,27 +1,28 @@
 import * as THREE from 'three'
 import type { TerrainDescriptor } from './vipsWorldMapping'
+import { WORLD_STYLE } from './worldStyle'
 
 const CURVE_K = 0.13
 const CURVE_STRENGTH = 0.65
-const SEA = new THREE.Color(0x1d75d6)
-const SEA_DEEP = new THREE.Color(0x083fa4)
-const SEA_SHALLOW = new THREE.Color(0x67dcef)
-const FOAM = new THREE.Color(0xeafcff)
-const SHORELINE_DRY = new THREE.Color(0xfff4c8)
-const SHORELINE_PALE = new THREE.Color(0xffffec)
+const SEA = new THREE.Color(WORLD_STYLE.island.sea)
+const SEA_DEEP = new THREE.Color(WORLD_STYLE.island.seaDeep)
+const FOAM = new THREE.Color(WORLD_STYLE.island.foam)
 
 const islandShape = {
   radius: 5,
-  sandOuterRadius: 7.8,
-  plateauTopY: 0.7,
-  sandTopY: 0.16,
-  shoreBlendWidth: 1.55,
-  noiseAmp: 0.13,
+  sandOuterRadius: 7.2,
+  plateauTopY: 1,
+  sandTopY: 0.18,
+  cliffHeight: 0.55,
+  noiseAmp: 0.22,
   noiseFreq: 0.6,
-  detailAmp: 0.024,
+  detailAmp: 0.035,
 }
 
-export function createIsland(terrain: TerrainDescriptor): THREE.Group {
+export const STUDENT_SPACE_ISLAND_CHUNK_SIZE = 16
+export const STUDENT_SPACE_ISLAND_TEXTURE_SIZE = 256
+
+export function createIsland(_terrain: TerrainDescriptor): THREE.Group {
   const group = new THREE.Group()
   group.name = 'student-space-island'
 
@@ -31,10 +32,9 @@ export function createIsland(terrain: TerrainDescriptor): THREE.Group {
   }
 
   group.add(createPlateau(curveUniforms))
-  group.add(createDirtBerm(curveUniforms))
   group.add(createSand(curveUniforms))
-  group.add(createShoreLine(curveUniforms))
-  group.add(createWater(curveUniforms, terrain))
+  group.add(createCliff(curveUniforms))
+  group.add(createWater(curveUniforms))
 
   return group
 }
@@ -53,20 +53,15 @@ export function islandHeightAt(x: number, z: number): number {
   const theta = Math.atan2(z, x)
   const plateauR = radiusAtTheta(theta)
   if (r > plateauR) {
-    const outer = radiusAtTheta(theta, islandShape.sandOuterRadius)
-    if (r < outer) {
-      const t = (r - plateauR) / Math.max(0.001, outer - plateauR)
-      const beachLip = islandShape.sandTopY + 0.06 + Math.sin(theta * 6) * 0.012
-      return mix(beachLip, -0.24, smoothstep(0, 1, t)) + sandRippleAt(theta, t) * 0.35
-    }
-    return -0.45
+    if (r < radiusAtTheta(theta, islandShape.sandOuterRadius)) return islandShape.sandTopY
+    return -1
   }
 
-  const shoreT = smoothstep(0, islandShape.shoreBlendWidth, plateauR - r)
-  const detail = terrainDetail(x, z) * smoothstep(0.18, 0.7, shoreT)
+  const rim = Math.min(1, (plateauR - r) / 0.7)
+  const detail = terrainDetail(x, z) * smoothstep(0, 0.35, rim)
   const peak = islandShape.plateauTopY + islandShape.noiseAmp * terrainPatch(x, z) + detail
-  const beachLip = islandShape.sandTopY + 0.06 + Math.sin(theta * 6) * 0.012
-  return mix(beachLip, peak, shoreT)
+  const baseAtRim = islandShape.sandTopY + islandShape.cliffHeight
+  return baseAtRim + (peak - baseAtRim) * rim
 }
 
 export function isOnPlateau(x: number, z: number): boolean {
@@ -159,6 +154,7 @@ function buildDiscGeometry(radius: number, radialSegments: number, angularSegmen
 function buildSandRingGeometry(radialSegments: number, angularSegments: number) {
   const vertices: number[] = []
   const indices: number[] = []
+  const slope = -0.85
 
   for (let ring = 0; ring <= radialSegments; ring += 1) {
     const t = ring / radialSegments
@@ -168,14 +164,9 @@ function buildSandRingGeometry(radialSegments: number, angularSegments: number) 
       const outer = radiusAtTheta(theta, islandShape.sandOuterRadius)
       const r = inner + (outer - inner) * t
       const ripple = sandRippleAt(theta, t)
-      const innerY = islandHeightAt(
-        Math.cos(theta) * inner * 0.995,
-        Math.sin(theta) * inner * 0.995,
-      )
-      const beachBerm = Math.sin(t * Math.PI) * 0.045
       vertices.push(
         Math.cos(theta) * r,
-        mix(innerY - 0.012, -0.28, smoothstep(0, 1, t)) + ripple * 0.72 + beachBerm,
+        islandShape.sandTopY + slope * t + ripple,
         Math.sin(theta) * r,
       )
     }
@@ -204,88 +195,33 @@ function buildSandRingGeometry(radialSegments: number, angularSegments: number) 
   return geometry
 }
 
-function buildShoreLineGeometry(radialSegments: number, angularSegments: number) {
-  const vertices: number[] = []
-  const bands: number[] = []
-  const indices: number[] = []
-
-  for (let ring = 0; ring <= radialSegments; ring += 1) {
-    const t = ring / radialSegments
-    for (let seg = 0; seg < angularSegments; seg += 1) {
-      const theta = (seg / angularSegments) * Math.PI * 2
-      const outer = radiusAtTheta(theta, islandShape.sandOuterRadius)
-      const wobble =
-        Math.sin(theta * 4.0 + t * 2.6 + 0.8) * 0.08 +
-        Math.sin(theta * 8.5 - t * 3.4 - 1.2) * 0.045 +
-        Math.sin(theta * 15.0 + 0.35) * 0.018
-      const r = outer - 0.84 + t * 1.02 + wobble
-      const x = Math.cos(theta) * r
-      const z = Math.sin(theta) * r
-      const y =
-        r < outer
-          ? islandHeightAt(x, z) + 0.026 + Math.sin(t * Math.PI) * 0.012
-          : -0.218 + Math.sin(theta * 9.0) * 0.004
-      vertices.push(x, y, z)
-      bands.push(t)
-    }
-  }
-
-  for (let ring = 0; ring < radialSegments; ring += 1) {
-    const curr = ring * angularSegments
-    const nextRing = (ring + 1) * angularSegments
-    for (let seg = 0; seg < angularSegments; seg += 1) {
-      const next = (seg + 1) % angularSegments
-      indices.push(
-        curr + seg,
-        nextRing + next,
-        nextRing + seg,
-        curr + seg,
-        curr + next,
-        nextRing + next,
-      )
-    }
-  }
-
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-  geometry.setAttribute('aShoreBand', new THREE.Float32BufferAttribute(bands, 1))
-  geometry.setIndex(indices)
-  geometry.computeVertexNormals()
-  return geometry
-}
-
-function buildTransitionRingGeometry(radialSegments: number, angularSegments: number) {
+function buildCliffGeometry(angularSegments: number) {
   const vertices: number[] = []
   const indices: number[] = []
+  const yBottom = islandShape.sandTopY
+  const yTop = islandShape.sandTopY + islandShape.cliffHeight
 
-  for (let ring = 0; ring <= radialSegments; ring += 1) {
-    const t = ring / radialSegments
-    for (let seg = 0; seg < angularSegments; seg += 1) {
-      const theta = (seg / angularSegments) * Math.PI * 2
-      const inner = radiusAtTheta(theta) * 0.82
-      const outer = radiusAtTheta(theta) * 1.012
-      const r = inner + (outer - inner) * t
-      const x = Math.cos(theta) * r
-      const z = Math.sin(theta) * r
-      const edgeLift = Math.sin(t * Math.PI) * 0.018
-      vertices.push(x, islandHeightAt(x, z) + 0.012 + edgeLift, z)
-    }
+  for (let seg = 0; seg < angularSegments; seg += 1) {
+    const theta = (seg / angularSegments) * Math.PI * 2
+    const topR = radiusAtTheta(theta) * 0.99
+    const bottomR = radiusAtTheta(theta) * 1.04
+    vertices.push(
+      Math.cos(theta) * bottomR,
+      yBottom,
+      Math.sin(theta) * bottomR,
+      Math.cos(theta) * topR,
+      yTop,
+      Math.sin(theta) * topR,
+    )
   }
 
-  for (let ring = 0; ring < radialSegments; ring += 1) {
-    const curr = ring * angularSegments
-    const nextRing = (ring + 1) * angularSegments
-    for (let seg = 0; seg < angularSegments; seg += 1) {
-      const next = (seg + 1) % angularSegments
-      indices.push(
-        curr + seg,
-        nextRing + next,
-        nextRing + seg,
-        curr + seg,
-        curr + next,
-        nextRing + next,
-      )
-    }
+  for (let seg = 0; seg < angularSegments; seg += 1) {
+    const next = (seg + 1) % angularSegments
+    const b0 = seg * 2
+    const t0 = b0 + 1
+    const b1 = next * 2
+    const t1 = b1 + 1
+    indices.push(b0, t1, b1, b0, t0, t1)
   }
 
   const geometry = new THREE.BufferGeometry()
@@ -299,7 +235,7 @@ function createPlateau(curveUniforms: CurveUniforms): THREE.Mesh {
   const geometry = buildDiscGeometry(islandShape.radius, 56, 192)
   const material = new THREE.ShaderMaterial({
     uniforms: {
-      uColor: { value: new THREE.Color(0x58b14a) },
+      uColor: { value: new THREE.Color(WORLD_STYLE.island.plateau) },
       uSunPosition: { value: new THREE.Vector3(-0.5, -0.5, -0.5) },
       ...curveUniforms,
     },
@@ -337,250 +273,154 @@ function createPlateau(curveUniforms: CurveUniforms): THREE.Mesh {
         return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
       }
       void main() {
-        float light = dot(normalize(vNormal), normalize(vec3(0.35, 0.88, 0.32))) * 0.5 + 0.5;
+        float sunShade = dot(vNormal, -uSunPosition) * 0.5 + 0.5;
+        vec3 shadeColor = uColor * vec3(0.0, 0.5, 0.7);
         float broad = islandNoise(vWorldPosition.xz * 2.0);
         float grain = islandNoise(vWorldPosition.xz * 8.0);
-        float rim = smoothstep(3.35, 5.25, length(vWorldPosition.xz));
+        float rim = smoothstep(3.8, 5.25, length(vWorldPosition.xz));
         vec3 base = mix(uColor * 0.88, uColor * 1.08, broad);
         base += vec3((grain - 0.5) * 0.045);
-        base = mix(base, base * vec3(0.92, 1.03, 0.84), rim * 0.28);
-        base *= 0.78 + light * 0.42;
-        gl_FragColor = vec4(base, 1.0);
+        base = mix(base, base * vec3(0.78, 0.9, 0.72), rim * 0.28);
+        vec3 col = mix(base, shadeColor, sunShade);
+        gl_FragColor = vec4(col, 1.0);
       }
     `,
   })
   const mesh = new THREE.Mesh(geometry, material)
   mesh.name = 'student-space-plateau'
+  mesh.userData.worldAnimatedMaterial = material
   return mesh
 }
 
 function createSand(curveUniforms: CurveUniforms): THREE.Mesh {
-  const material = new THREE.MeshLambertMaterial({ color: 0xffe9a3 })
+  const material = new THREE.MeshLambertMaterial({ color: WORLD_STYLE.island.sand })
   applyCurvedEarth(material, curveUniforms, 'sand')
   const mesh = new THREE.Mesh(buildSandRingGeometry(18, 192), material)
   mesh.name = 'student-space-sand'
   return mesh
 }
 
-function createShoreLine(curveUniforms: CurveUniforms): THREE.Mesh {
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      uDry: { value: SHORELINE_DRY.clone() },
-      uPale: { value: SHORELINE_PALE.clone() },
-      ...curveUniforms,
-    },
-    transparent: true,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    vertexShader: `
-      attribute float aShoreBand;
-      uniform float uCurveK;
-      uniform float uCurveStrength;
-      varying float vBand;
-      varying vec2 vXZ;
-      void main() {
-        vec3 p = position;
-        vBand = aShoreBand;
-        vXZ = p.xz;
-        float r = length(p.xz);
-        p.y -= (r * r) * (uCurveK * uCurveK) * uCurveStrength;
-        gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(p, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 uDry;
-      uniform vec3 uPale;
-      varying float vBand;
-      varying vec2 vXZ;
-
-      float shoreHash(vec2 p) {
-        return fract(sin(dot(p, vec2(41.7, 289.1))) * 43758.5453123);
-      }
-      float shoreNoise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        float a = shoreHash(i);
-        float b = shoreHash(i + vec2(1.0, 0.0));
-        float c = shoreHash(i + vec2(0.0, 1.0));
-        float d = shoreHash(i + vec2(1.0, 1.0));
-        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-      }
-      float softLine(float center, float width) {
-        return 1.0 - smoothstep(width * 0.35, width, abs(vBand - center));
-      }
-      void main() {
-        float theta = atan(vXZ.y, vXZ.x);
-        float waveringCenter =
-          0.70 +
-          sin(theta * 4.2 + vBand * 2.8) * 0.07 +
-          sin(theta * 9.5 - vBand * 3.4) * 0.036;
-        float paleLine = softLine(waveringCenter, 0.23);
-        float dryLine = softLine(0.38 + sin(theta * 3.4 + 0.7) * 0.055, 0.34);
-        float edgeFade = smoothstep(0.02, 0.16, vBand) * (1.0 - smoothstep(0.94, 1.0, vBand));
-        float broken = 0.68 + shoreNoise(vec2(theta * 5.0, vBand * 8.0)) * 0.32;
-        float scallop = sin(theta * 22.0 + shoreNoise(vXZ * 0.7) * 2.6) * 0.5 + 0.5;
-        float alpha = (dryLine * 0.2 + paleLine * 0.72) * edgeFade * broken;
-        alpha *= 0.82 + scallop * 0.18;
-        vec3 color = mix(uDry, uPale, paleLine * 0.82);
-        gl_FragColor = vec4(color, alpha);
-      }
-    `,
-  })
-  const mesh = new THREE.Mesh(buildShoreLineGeometry(8, 224), material)
-  mesh.name = 'student-space-shore-line'
-  mesh.renderOrder = 3
+function createCliff(curveUniforms: CurveUniforms): THREE.Mesh {
+  const material = new THREE.MeshLambertMaterial({ color: WORLD_STYLE.island.cliff })
+  applyCurvedEarth(material, curveUniforms, 'cliff')
+  const mesh = new THREE.Mesh(buildCliffGeometry(192), material)
+  mesh.name = 'student-space-cliff'
   return mesh
 }
 
-function createDirtBerm(curveUniforms: CurveUniforms): THREE.Mesh {
-  const material = new THREE.MeshLambertMaterial({
-    color: 0xbd8f4a,
-    transparent: true,
-    opacity: 0.9,
-  })
-  applyCurvedEarth(material, curveUniforms, 'dirt')
-  const mesh = new THREE.Mesh(buildTransitionRingGeometry(8, 192), material)
-  mesh.name = 'student-space-dirt-berm'
-  return mesh
-}
-
-function createWater(curveUniforms: CurveUniforms, terrain: TerrainDescriptor): THREE.Mesh {
-  const waterRadius = 60
-  const geometry = new THREE.PlaneGeometry(waterRadius * 2, waterRadius * 2, 32, 32)
+function createWater(curveUniforms: CurveUniforms): THREE.Mesh {
+  const waterRadius = WORLD_STYLE.island.waterRadius
+  const geometry = new THREE.PlaneGeometry(
+    waterRadius * 2,
+    waterRadius * 2,
+    WORLD_STYLE.island.waterSegments,
+    WORLD_STYLE.island.waterSegments,
+  )
   geometry.rotateX(-Math.PI / 2)
   const material = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uSea: { value: SEA.clone() },
       uDeep: { value: SEA_DEEP.clone() },
-      uShallow: { value: SEA_SHALLOW.clone() },
       uFoam: { value: FOAM.clone() },
-      uSkyTint: {
-        value: new THREE.Color(terrain.mood === 'sheltered' ? 0x8fcdf2 : 0x65b8ff),
-      },
+      uSkyTint: { value: new THREE.Color(0xffffff) },
       uIslandR: { value: islandShape.sandOuterRadius },
-      uWaterMood: { value: terrain.water },
+      uWaveAmp: { value: WORLD_STYLE.island.waveAmplitude },
+      uRain: { value: 0 },
       ...curveUniforms,
     },
-    transparent: true,
     vertexShader: `
       varying vec2 vXZ;
+      varying float vWave;
       uniform float uTime;
+      uniform float uWaveAmp;
+      uniform float uRain;
       uniform float uCurveK;
       uniform float uCurveStrength;
       void main() {
         vec3 p = position;
         vXZ = p.xz;
         float r = length(p.xz);
+        float damp = smoothstep(${islandShape.sandOuterRadius.toFixed(2)} - 0.5, ${islandShape.sandOuterRadius.toFixed(2)} + 6.0, r);
+        float w1 = sin(p.x * 0.45 + uTime * 0.9) * 0.6;
+        float w2 = sin(p.z * 0.38 - uTime * 0.7) * 0.5;
+        float w3 = sin((p.x + p.z) * 0.85 + uTime * 1.6) * 0.18;
+        float ampScale = ${WORLD_STYLE.island.oceanRainAmplitudeBase.toFixed(2)} + uRain * ${WORLD_STYLE.island.oceanRainAmplitudeScale.toFixed(2)};
+        float wave = (w1 + w2 + w3) * uWaveAmp * ampScale * damp;
+        p.y += wave;
         p.y -= (r * r) * (uCurveK * uCurveK) * uCurveStrength;
+        vWave = wave;
         gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(p, 1.0);
       }
     `,
     fragmentShader: `
       varying vec2 vXZ;
+      varying float vWave;
       uniform vec3 uSea;
       uniform vec3 uDeep;
-      uniform vec3 uShallow;
       uniform vec3 uFoam;
       uniform vec3 uSkyTint;
       uniform float uIslandR;
       uniform float uTime;
-      uniform float uWaterMood;
-      float saturate(float value) {
-        return clamp(value, 0.0, 1.0);
-      }
-      float waterHash(vec2 p) {
-        return fract(sin(dot(p, vec2(27.91, 113.47))) * 43758.5453);
-      }
-      float waterNoise(vec2 p) {
-        vec2 i = floor(p);
-        vec2 f = fract(p);
-        f = f * f * (3.0 - 2.0 * f);
-        float a = waterHash(i);
-        float b = waterHash(i + vec2(1.0, 0.0));
-        float c = waterHash(i + vec2(0.0, 1.0));
-        float d = waterHash(i + vec2(1.0, 1.0));
-        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-      }
-      float softCrest(float phase, float low, float high) {
-        return smoothstep(low, high, sin(phase));
-      }
-      float softLine(float phase, float width) {
-        return 1.0 - smoothstep(width * 0.36, width, abs(sin(phase)));
-      }
-      float causticRibbon(vec2 p, float width) {
-        p += vec2(sin(p.y * 0.56) * 0.7, cos(p.x * 0.48) * 0.58);
-        float a = softLine(p.x * 0.98 + sin(p.y * 0.72) * 1.62, width);
-        float b = softLine(p.y * 0.9 + sin(p.x * 0.6) * 1.46, width * 1.12);
-        float c = softLine((p.x + p.y) * 0.56 + sin((p.x - p.y) * 0.42) * 1.55, width * 1.35);
-        return a * 0.44 + b * 0.34 + c * 0.26;
-      }
       void main() {
         float r = length(vXZ);
-        vec2 radial = normalize(vXZ + vec2(0.0001));
-        vec2 tangent = vec2(-radial.y, radial.x);
-        float theta = atan(vXZ.y, vXZ.x);
-        float shoreDistance = max(0.0, r - uIslandR);
-        float depthT = smoothstep(0.1, 23.0, shoreDistance);
-        float shallowMask = 1.0 - smoothstep(1.0, 17.0, shoreDistance);
+        float depthT = smoothstep(uIslandR, uIslandR + 14.0, r);
+        vec3 col = mix(uSea, uDeep, depthT);
+        col = mix(col, col * uSkyTint, 0.35);
+        float y = vWave * 4.0;
+        float ox = vXZ.x;
+        float oy = vXZ.y;
+        float t = uTime;
+        float w1 = sin(ox * 2.15 + oy * 1.35 + y * 0.55 + t * 3.6) * 0.5 + 0.5;
+        float w2 = sin(oy * 1.85 + y * 2.65 + ox * 0.35 - t * 2.7) * 0.5 + 0.5;
+        float w3 = sin(y * 1.55 + ox * 0.95 + oy * 2.35 + t * 2.1) * 0.5 + 0.5;
+        float w4 = sin(ox * 0.85 + y * 1.45 - oy * 0.65 + t * 1.5) * 0.5 + 0.5;
+        float w5 = sin(oy * 0.55 + ox * 2.95 + y * 1.15 - t * 1.2) * 0.5 + 0.5;
+        float w6 = sin(y * 2.05 - oy * 0.35 + ox * 1.65 + t * 1.8) * 0.5 + 0.5;
+        float w7 = sin(ox * 3.35 - y * 2.15 + oy * 0.15 - t * 0.9) * 0.5 + 0.5;
+        float blobs = w1 * w2 * w4 * w6 + w3 * w5 * w7 * 0.3;
+        blobs = 1.0 - smoothstep(0.002, 0.015, blobs);
+        float shallowness = 1.0 - depthT;
+        blobs *= smoothstep(uIslandR + 0.6, uIslandR + 2.5, r);
+        col += vec3(0.7, 1.0, 1.0) * blobs * mix(0.03, 0.17, shallowness);
 
-        vec3 col = mix(uShallow, uSea, smoothstep(0.0, 8.0, shoreDistance));
-        col = mix(col, uDeep, smoothstep(10.0, 40.0, shoreDistance) * 0.78);
-        col = mix(col, uSkyTint, 0.035);
+        float sp1 = sin(ox * 2.00 + oy * 1.15 + y * 0.45 + t * 3.5);
+        float sp2 = sin(oy * 1.75 + y * 1.45 + ox * 0.65 - t * 2.8);
+        float sp3 = sin(y * 1.35 + ox * 1.85 - oy * 0.85 + t * 4.1);
+        float sp4 = sin(ox * 3.55 - y * 2.35 + oy * 0.25 + t * 1.9);
+        float sp5 = sin(oy * 2.95 + ox * 0.55 - y * 1.55 - t * 2.3);
+        float spMask = sin(ox * 0.155 + y * 0.235 + t * 0.25)
+          * sin(oy * 0.265 - ox * 0.145 - t * 0.18);
+        spMask *= sin(y * 0.115 + oy * 0.195 + t * 0.35);
+        spMask = smoothstep(0.15, 0.5, spMask);
+        float sparkle = sp1 * sp2 * sp3 * sp4 + sp2 * sp3 * sp5 * 0.5;
+        float sparkleThresh = mix(0.70, 0.30, shallowness);
+        sparkle = smoothstep(sparkleThresh, 0.97, sparkle) * spMask;
+        sparkle *= smoothstep(uIslandR + 0.6, uIslandR + 4.0, r);
+        col += vec3(1.0) * sparkle * mix(0.18, 0.30, shallowness);
 
-        float inwardTime = uTime * (0.52 + uWaterMood * 0.1);
-        float shoreWarp =
-          sin(theta * 3.2 + shoreDistance * 0.22 - inwardTime * 0.22) * 0.72 +
-          sin(theta * 7.4 - shoreDistance * 0.15 + inwardTime * 0.28) * 0.32 +
-          waterNoise(vec2(theta * 1.6, shoreDistance * 0.13 + inwardTime * 0.12)) * 0.3;
-        float waveCoord = shoreDistance + shoreWarp;
-        float swellA = softCrest(waveCoord * 0.96 + inwardTime * 1.74, 0.18, 0.98);
-        float swellB = softCrest(waveCoord * 0.52 + inwardTime * 1.08 + 1.7, 0.32, 0.98);
-        float swellShadow = softCrest(waveCoord * 0.78 + inwardTime * 1.2 + 3.1, 0.48, 0.98);
-        float broadSwell = saturate(swellA * 0.86 + swellB * 0.5);
-        col *= mix(vec3(0.76, 0.88, 1.18), vec3(1.08, 1.16, 1.18), broadSwell * 0.7);
-        col = mix(col, col * vec3(0.66, 0.8, 1.14), swellShadow * 0.18);
-        col = mix(col, vec3(0.62, 0.9, 1.0), broadSwell * (0.13 + shallowMask * 0.17));
-
-        vec2 flow =
-          radial * inwardTime * 1.18 +
-          tangent * (sin(uTime * 0.28 + theta * 2.0) * 0.24);
-        float causticA = causticRibbon(vXZ * 0.5 + flow, 0.24);
-        float causticB = causticRibbon(vXZ * 0.32 + flow * 0.72 + vec2(7.4, -2.0), 0.31);
-        float causticC = causticRibbon(vXZ * 0.19 + flow * 0.48 + vec2(-4.0, 5.8), 0.38);
-        float caustics = saturate(causticA * 0.5 + causticB * 0.36 + causticC * 0.26);
-        caustics *= mix(0.48, 1.18, shallowMask);
-        caustics *= 0.78 + broadSwell * 0.34;
-
-        float washMask = 1.0 - smoothstep(0.24, 3.5, shoreDistance);
-        float washPhase =
-          shoreDistance * 1.92 +
-          inwardTime * 2.85 +
-          sin(theta * 4.2 + shoreDistance * 0.34 + uTime * 0.08) * 0.58 +
-          sin(theta * 9.0 - shoreDistance * 0.2) * 0.22;
-        float shoreWash = softLine(washPhase, 0.54) * washMask;
-        shoreWash += softLine(washPhase * 0.68 + 1.6, 0.7) * washMask * 0.52;
-        shoreWash *= 0.84 + (sin(theta * 14.0 + inwardTime * 0.45) * 0.5 + 0.5) * 0.34;
-
-        float surfaceGrain =
-          waterNoise(vXZ * 0.2 + radial * inwardTime * 0.22 + tangent * 0.1) - 0.5;
-        col += vec3(0.02, 0.08, 0.14) * broadSwell * 0.16;
-        col += vec3(surfaceGrain * 0.02);
-        col = mix(col, vec3(0.8, 0.96, 1.0), caustics * 0.44);
-        col = mix(col, uFoam, saturate(shoreWash * 0.56 + caustics * 0.1));
-
-        float farFade = smoothstep(uIslandR + 18.0, uIslandR + 38.0, r);
-        col = mix(col, mix(uSea, uSkyTint, 0.42), farFade * 0.1);
-        gl_FragColor = vec4(col, 0.95);
+        float edgeFoam = smoothstep(uIslandR + 0.65, uIslandR + 0.10, r)
+          * smoothstep(uIslandR - 0.40, uIslandR + 0.20, r);
+        float pulseA = fract(uTime * 0.18);
+        float pulseB = fract(uTime * 0.18 + 0.5);
+        float ringA = smoothstep(0.35, 0.0, abs(r - (uIslandR + 0.4 + pulseA * 2.6))) * (1.0 - pulseA);
+        float ringB = smoothstep(0.35, 0.0, abs(r - (uIslandR + 0.4 + pulseB * 2.6))) * (1.0 - pulseB);
+        float foam = max(edgeFoam, max(ringA, ringB) * 0.55);
+        col = mix(col, uFoam, foam * 0.78);
+        col += vec3(0.15) * max(0.0, vWave) * 4.5;
+        col -= vec3(0.08) * max(0.0, -vWave) * 3.0;
+        float farFade = smoothstep(uIslandR + 12.0, uIslandR + 22.0, r);
+        col = mix(col, uSkyTint, farFade * 0.45);
+        gl_FragColor = vec4(col, 1.0);
       }
     `,
   })
   const mesh = new THREE.Mesh(geometry, material)
   mesh.name = 'student-space-water'
-  mesh.position.y = -0.24
+  mesh.position.y = WORLD_STYLE.island.waterY
   mesh.frustumCulled = false
   mesh.userData.worldAnimatedMaterial = material
+  mesh.userData.worldAnimatedKind = 'ocean'
   return mesh
 }
 
@@ -592,7 +432,7 @@ type CurveUniforms = {
 function applyCurvedEarth(
   material: THREE.MeshLambertMaterial,
   curveUniforms: CurveUniforms,
-  detailKind: 'sand' | 'dirt',
+  detailKind: 'sand' | 'cliff',
 ) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uCurveK = curveUniforms.uCurveK
@@ -647,13 +487,9 @@ function applyCurvedEarth(
           detailDiffuse *= 1.0 - shell * 0.08;
           vec4 diffuseColor = vec4( detailDiffuse, opacity );`
           : `vec3 detailDiffuse = diffuse;
-          float r = length(vIslandWorld.xz);
-          float soilNoise = islandNoise(vIslandWorld.xz * 9.0);
-          float fine = islandNoise(vIslandWorld.xz * 22.0);
-          float dryEdge = smoothstep(4.3, 5.35, r);
-          detailDiffuse = mix(vec3(0.48, 0.34, 0.16), vec3(0.78, 0.58, 0.28), soilNoise);
-          detailDiffuse = mix(detailDiffuse, vec3(0.96, 0.78, 0.38), dryEdge * 0.44);
-          detailDiffuse += vec3((fine - 0.5) * 0.08);
+          float layer = sin(vIslandWorld.y * 34.0 + islandNoise(vIslandWorld.xz * 2.6) * 4.0) * 0.5 + 0.5;
+          float chips = islandNoise(vIslandWorld.xz * 10.0 + vIslandWorld.y);
+          detailDiffuse = mix(detailDiffuse * 0.78, detailDiffuse * 1.12, layer * 0.32 + chips * 0.18);
           vec4 diffuseColor = vec4( detailDiffuse, opacity );`,
       )
   }
@@ -671,10 +507,6 @@ function sandRippleAt(theta: number, t: number): number {
 function smoothstep(edge0: number, edge1: number, value: number): number {
   const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)))
   return t * t * (3 - 2 * t)
-}
-
-function mix(a: number, b: number, t: number): number {
-  return a + (b - a) * t
 }
 
 export function islandNormalAt(x: number, z: number): [number, number, number] {
