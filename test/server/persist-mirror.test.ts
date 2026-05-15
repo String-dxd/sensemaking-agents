@@ -54,4 +54,34 @@ describe('persistMirrorHandler', () => {
     expect(Object.keys(result)).not.toContain('auto_connector_status')
     expect(Object.keys(result)).not.toContain('staged_diff')
   })
+
+  it('persists user-selected mood as a mirror-entry tag', async () => {
+    const requireContext = vi.fn(async () => ({ counselorId: 'counselor', studentId: 'demo' }))
+    const insertMirrorEntry = vi.fn(async () => mirrorEntry())
+
+    await persistMirrorHandler(
+      {
+        ...input(),
+        mood: 'joy',
+      },
+      {
+        requireContext,
+        insertMirrorEntry,
+        appendStudentMemory: vi.fn(async () => ({
+          filePath: MEMORY_FILE_PATHS.studentVoice,
+          skipped: false,
+          opCount: 1,
+          snapshotVersion: null,
+          memoryId: 'mem_1',
+        })),
+      },
+    )
+
+    expect(insertMirrorEntry).toHaveBeenCalledWith(
+      'demo',
+      expect.objectContaining({
+        tags: ['mood:joy'],
+      }),
+    )
+  })
 })

@@ -1,4 +1,4 @@
-import { Mic, SmilePlus } from 'lucide-react'
+import { Mic, Plus, SmilePlus } from 'lucide-react'
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Button } from '~/components/ui/button'
 import { cn } from '~/lib/utils'
@@ -66,8 +66,8 @@ export function CaptureActionMenu({
       <Button
         ref={triggerRef}
         type="button"
-        size="icon"
-        variant="outline"
+        size="lg"
+        variant="accent"
         aria-label="Open capture"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -80,18 +80,19 @@ export function CaptureActionMenu({
           }
           setOpen((next) => !next)
         }}
-        className="h-11 w-11 rounded-full border-white/70 bg-background/82 text-foreground shadow-sm backdrop-blur hover:bg-muted"
+        className="h-14 min-w-36 gap-3 rounded-full border border-white/30 bg-[#f08c5f] px-6 text-base text-white shadow-lg backdrop-blur hover:bg-[#e77f50]"
         data-testid="capture-action-trigger"
         title="Capture"
       >
-        <Mic aria-hidden className="h-5 w-5" />
+        <Plus aria-hidden className="h-6 w-6" />
+        <span>capture</span>
       </Button>
       {open ? (
         <div
           ref={menuRef}
           role="menu"
           aria-label="Capture options"
-          className="absolute bottom-12 right-0 flex min-w-56 flex-col gap-1 rounded-lg border border-border bg-background/95 p-2 text-sm shadow-lg backdrop-blur"
+          className="absolute bottom-16 left-1/2 flex min-w-56 -translate-x-1/2 flex-col gap-1 rounded-lg border border-border bg-background/95 p-2 text-sm shadow-lg backdrop-blur"
           data-testid="capture-action-menu"
         >
           {modes.map((mode) => (

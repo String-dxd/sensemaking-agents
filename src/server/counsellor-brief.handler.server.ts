@@ -24,7 +24,7 @@
 import type { CartographerOutputDraft } from '~/agents/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
-import { withStudent } from '~/db/client'
+import { type TenantContext, withStudent } from '~/db/client'
 import {
   latestCartographerOutput,
   listVipsPages,
@@ -37,6 +37,11 @@ import { type CounsellorBriefInput, counsellorBriefInputSchema } from './functio
 
 export interface CounsellorBriefResult {
   markdown: string
+}
+
+export interface CounsellorBriefStatusResult {
+  unreadBriefCount: number
+  lastBriefId: number | null
 }
 
 export class CounsellorBriefError extends Error {
@@ -97,4 +102,23 @@ export async function counsellorBriefHandler(
     })
     return { markdown }
   })
+}
+
+export async function loadCounsellorBriefStatusHandler(
+  data: CounsellorBriefInput,
+): Promise<CounsellorBriefStatusResult> {
+  counsellorBriefInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, (ctx) => loadCounsellorBriefStatusForStudent(studentId, { ctx }))
+}
+
+export async function loadCounsellorBriefStatusForStudent(
+  studentId: string,
+  opts: { ctx: TenantContext },
+): Promise<CounsellorBriefStatusResult> {
+  const latestBriefSource = await latestCartographerOutput(studentId, { ctx: opts.ctx })
+  return {
+    unreadBriefCount: 0,
+    lastBriefId: latestBriefSource?.id ?? null,
+  }
 }

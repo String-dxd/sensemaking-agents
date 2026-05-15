@@ -26,7 +26,7 @@ export function WorldHud({
 }: WorldHudProps) {
   return (
     <div className="pointer-events-none absolute inset-0">
-      <div className="absolute bottom-5 right-5 z-20">
+      <div className="absolute bottom-5 left-1/2 z-20 -translate-x-1/2">
         {captureSlot ?? voiceSlot ?? (
           <div className="pointer-events-auto">
             <Button

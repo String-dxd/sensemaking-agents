@@ -16,10 +16,40 @@ export function disposeObject3D(object: THREE.Object3D) {
 }
 
 function disposeMaterial(material: THREE.Material) {
-  for (const value of Object.values(material)) {
-    if (value instanceof THREE.Texture) {
-      value.dispose()
-    }
+  const textureFields = [
+    'map',
+    'alphaMap',
+    'aoMap',
+    'bumpMap',
+    'displacementMap',
+    'emissiveMap',
+    'envMap',
+    'lightMap',
+    'metalnessMap',
+    'normalMap',
+    'roughnessMap',
+  ] as const
+  const materialRecord = material as THREE.Material & Record<string, unknown>
+  for (const field of textureFields) {
+    disposeTexturesInValue(materialRecord[field])
   }
+  disposeTexturesInValue(materialRecord.uniforms)
   material.dispose()
+}
+
+function disposeTexturesInValue(value: unknown, seen = new Set<unknown>()) {
+  if (!value || seen.has(value)) return
+  seen.add(value)
+  if (value instanceof THREE.Texture) {
+    value.dispose()
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) disposeTexturesInValue(item, seen)
+    return
+  }
+  if (typeof value !== 'object') return
+  for (const child of Object.values(value)) {
+    disposeTexturesInValue(child, seen)
+  }
 }

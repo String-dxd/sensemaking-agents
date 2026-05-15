@@ -46,7 +46,7 @@ describe('buildVipsWorldSceneModel', () => {
     expect(model.flowers.map((flower) => flower.flower).sort()).toEqual(['lily', 'pansy'])
   })
 
-  it('maps all Skills to one shared fruit family while strength affects count', () => {
+  it('maps all Skills to one shared berry-bush family while strength affects count', () => {
     const model = buildVipsWorldSceneModel({
       timelineByDimension: {
         values: [entry({ id: 1, canonical_claim_id: 'values.learning' })],
@@ -67,10 +67,14 @@ describe('buildVipsWorldSceneModel', () => {
       },
     })
     expect(new Set(model.fruit.map((fruit) => fruit.fruitFamily))).toEqual(
-      new Set(['round-orchard-fruit']),
+      new Set(['student-space-berry-cluster']),
     )
+    expect(new Set(model.fruit.map((fruit) => fruit.host))).toEqual(new Set(['bush']))
     expect(model.fruit.find((fruit) => fruit.claimId === 'skills.creative')?.count).toBeGreaterThan(
       model.fruit.find((fruit) => fruit.claimId === 'skills.analytical')?.count ?? 0,
+    )
+    expect(model.fruit.find((fruit) => fruit.claimId === 'skills.creative')?.valueTreeLabel).toBe(
+      'Learning',
     )
   })
 
@@ -95,6 +99,39 @@ describe('buildVipsWorldSceneModel', () => {
     expect(model.trees[0]?.claimId).toBe('values.security')
     expect(model.trees[0]?.evidenceState).toBe('pending')
     expect(model.summary.omittedForgottenClaims).toBe(1)
+  })
+
+  it('renders recent moods as bounded mood pins, ordered newest-first', () => {
+    const model = buildVipsWorldSceneModel({
+      moodLimit: 2,
+      recentMoods: [
+        { id: 1, emotion: 'calm', intensity: 0.4, created_at: '2026-05-13T08:00:00Z' },
+        { id: 2, emotion: 'joy', intensity: 0.7, created_at: '2026-05-13T09:00:00Z' },
+        { id: 3, emotion: 'anxious', intensity: 0.6, created_at: '2026-05-13T10:00:00Z' },
+      ],
+    })
+    expect(model.moodPins).toHaveLength(2)
+    expect(model.moodPins[0]?.emotion).toBe('anxious')
+    expect(model.moodPins[1]?.emotion).toBe('joy')
+    expect(model.moodPins[1]?.color).toBe('#f6c763')
+  })
+
+  it('returns an empty mailbox descriptor by default and reflects unread count when provided', () => {
+    const empty = buildVipsWorldSceneModel({})
+    expect(empty.mailbox.state).toBe('empty')
+    expect(empty.mailbox.unreadCount).toBe(0)
+
+    const unread = buildVipsWorldSceneModel({
+      mailbox: { unreadBriefCount: 2, lastBriefId: 'brief-7' },
+    })
+    expect(unread.mailbox.state).toBe('unread')
+    expect(unread.mailbox.unreadCount).toBe(2)
+    expect(unread.mailbox.lastBriefId).toBe('brief-7')
+
+    const read = buildVipsWorldSceneModel({
+      mailbox: { unreadBriefCount: 0, lastBriefId: 'brief-3' },
+    })
+    expect(read.mailbox.state).toBe('has-brief')
   })
 
   it('renders recent entries as bounded butterflies', () => {

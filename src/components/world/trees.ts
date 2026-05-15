@@ -4,17 +4,18 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { WORLD_ASSETS } from './assets'
 import { addWorldHitTarget, attachWorldHotspot, hotspotForValueTree } from './hotspots'
-import { positionOnIsland } from './island'
+import { islandHeightAt, positionOnIsland } from './island'
 import type { ValueTreeDescriptor, ValueTreeSpecies } from './vipsWorldMapping'
+import { WORLD_STYLE } from './worldStyle'
 
-const OAK_COLOR_A = 0x3a7d2a
-const OAK_COLOR_B = 0x8aaa35
-const CHERRY_COLOR_A = 0xff66a3
-const CHERRY_COLOR_B = 0xffcc66
-const LEAVES_PER_BLOB = 80
-const PLANE_SIZE = 0.5
-const ALPHA_THRESHOLD = 0.32
-const GLB_ICO_RADIUS = 1.1
+const OAK_COLOR_A = WORLD_STYLE.foliage.oakColorA
+const OAK_COLOR_B = WORLD_STYLE.foliage.oakColorB
+const CHERRY_COLOR_A = WORLD_STYLE.foliage.cherryColorA
+const CHERRY_COLOR_B = WORLD_STYLE.foliage.cherryColorB
+const LEAVES_PER_BLOB = WORLD_STYLE.foliage.leavesPerBlob
+const PLANE_SIZE = WORLD_STYLE.foliage.planeSize
+const ALPHA_THRESHOLD = WORLD_STYLE.foliage.alphaThreshold
+const GLB_ICO_RADIUS = WORLD_STYLE.foliage.icoRadius
 const TREE_ROOT_SINK = 0.075
 
 const dracoLoader = new DRACOLoader()
@@ -23,53 +24,85 @@ dracoLoader.setDecoderPath('/world/draco/')
 const gltfLoader = new GLTFLoader()
 gltfLoader.setDRACOLoader(dracoLoader)
 const treeTemplateCache = new Map<ValueTreeSpecies, Promise<StudentSpaceTreeTemplate>>()
-let leafCloudGeometry: THREE.BufferGeometry | null = null
+let leafClusterGeometry: THREE.BufferGeometry | null = null
+
+export type StudentSpaceTreePlacement = {
+  species: 'oak' | 'cherry'
+  x: number
+  z: number
+  scale: number
+  yaw: number
+}
+
+export const STUDENT_SPACE_TREE_PLACEMENTS: readonly StudentSpaceTreePlacement[] = [
+  { species: 'oak', x: 0, z: 0, scale: 0.58, yaw: 0 },
+  { species: 'oak', x: -2.1, z: -1.6, scale: 0.52, yaw: 0.85 },
+  { species: 'cherry', x: 2.4, z: -1.1, scale: 0.5, yaw: 1.6 },
+  { species: 'cherry', x: -1.8, z: 2.1, scale: 0.56, yaw: -0.7 },
+  { species: 'oak', x: 1.6, z: 2.4, scale: 0.54, yaw: 2.35 },
+  { species: 'oak', x: -3.2, z: 0.3, scale: 0.6, yaw: -1.3 },
+  { species: 'cherry', x: 3, z: 0.9, scale: 0.48, yaw: 2.2 },
+]
 
 export function createValueTree(
   tree: ValueTreeDescriptor,
   foliageTexture?: THREE.Texture,
+  placement?: StudentSpaceTreePlacement,
 ): THREE.Group {
   const group = new THREE.Group()
   group.name = tree.id
-  attachWorldHotspot(group, hotspotForValueTree(tree))
-  group.position.copy(positionOnIsland(tree.placementSeed, 0.94))
-  group.position.y -= TREE_ROOT_SINK
-  group.rotation.y = ((tree.placementSeed % 360) * Math.PI) / 180
-  group.scale.setScalar(treeScale(tree))
+  const isInteractive = !tree.claimId.startsWith('student-space.decorative')
+  if (isInteractive) attachWorldHotspot(group, hotspotForValueTree(tree))
+  if (placement) {
+    group.position.set(placement.x, islandHeightAt(placement.x, placement.z), placement.z)
+    group.rotation.y = placement.yaw
+    group.scale.setScalar(placement.scale)
+  } else {
+    group.position.copy(positionOnIsland(tree.placementSeed, 0.94))
+    group.position.y -= TREE_ROOT_SINK
+    group.rotation.y = ((tree.placementSeed % 360) * Math.PI) / 180
+    group.scale.setScalar(treeScale(tree))
+  }
 
-  const assetSpecies = studentSpaceAssetSpecies(tree.species)
+  const assetSpecies = placement?.species ?? studentSpaceAssetSpecies(tree.species)
   if (assetSpecies && foliageTexture) {
-    group.add(createFallbackTree(tree))
-    addTreeHitTarget(group)
-    void hydrateStudentSpaceTree(group, tree, assetSpecies, foliageTexture)
+    void hydrateStudentSpaceTree(group, tree, assetSpecies, foliageTexture, isInteractive)
     return group
   }
 
   group.add(createFallbackTree(tree))
-  addTreeHitTarget(group)
+  if (isInteractive) addTreeHitTarget(group)
   return group
 }
 
-export function tickStudentSpaceTrees(root: THREE.Object3D, time: number, sunDir: THREE.Vector3) {
+export function tickStudentSpaceTrees(
+  root: THREE.Object3D,
+  time: number,
+  sunDir: THREE.Vector3,
+  windGust: number,
+  windRotation = WORLD_STYLE.motion.leafFlutter,
+) {
   root.traverse((object) => {
     const material = object.userData.worldLeafMaterial
     if (!isLeafMaterial(material)) return
     material.uniforms.uSunDir.value.copy(sunDir)
     material.uniforms.uTime.value = time
-    material.uniforms.uWindGust.value = 0.68 + Math.sin(time * 0.42) * 0.22
+    material.uniforms.uWindGust.value = windGust
+    material.uniforms.uWindRotation.value = windRotation
   })
 }
 
 function treeScale(tree: ValueTreeDescriptor): number {
-  const strengthScale = tree.strength === 'high' ? 0.055 : tree.strength === 'medium' ? 0.028 : 0
-  const evidenceScale = Math.min(0.06, tree.evidenceCount * 0.015)
-  const pendingScale = tree.evidenceState === 'pending' ? -0.035 : 0
-  return 0.3 + strengthScale + evidenceScale + pendingScale
+  const strengthScale = tree.strength === 'high' ? 0.05 : tree.strength === 'medium' ? 0.025 : 0
+  const evidenceScale = Math.min(0.05, tree.evidenceCount * 0.012)
+  const pendingScale = tree.evidenceState === 'pending' ? -0.04 : 0
+  return 0.5 + strengthScale + evidenceScale + pendingScale
 }
 
-function studentSpaceAssetSpecies(species: ValueTreeSpecies): 'oak' | 'cherry' {
-  if (species === 'cherry' || species === 'willow') return 'cherry'
-  return 'oak'
+function studentSpaceAssetSpecies(species: ValueTreeSpecies): 'oak' | 'cherry' | null {
+  if (species === 'oak') return 'oak'
+  if (species === 'cherry') return 'cherry'
+  return null
 }
 
 async function hydrateStudentSpaceTree(
@@ -77,6 +110,7 @@ async function hydrateStudentSpaceTree(
   tree: ValueTreeDescriptor,
   species: 'oak' | 'cherry',
   foliageTexture: THREE.Texture,
+  isInteractive: boolean,
 ) {
   try {
     const template = await loadTreeTemplate(species, foliageTexture)
@@ -91,7 +125,7 @@ async function hydrateStudentSpaceTree(
     const leafMaterial = template.leavesMaterial.clone()
     leafMaterial.uniforms = THREE.UniformsUtils.clone(template.leavesMaterial.uniforms)
     const leaves = new THREE.InstancedMesh(
-      getLeafCloudGeometry(),
+      getLeafClusterGeometry(),
       leafMaterial,
       template.leafRefs.length,
     )
@@ -107,10 +141,11 @@ async function hydrateStudentSpaceTree(
     leaves.instanceMatrix.needsUpdate = true
     group.add(leaves)
 
-    addTreeHitTarget(group)
+    if (isInteractive) addTreeHitTarget(group)
     if (tree.evidenceState === 'pending') leafMaterial.uniforms.uOpacity.value = 0.62
   } catch {
-    // Keep the procedural fallback visible if the asset is unavailable.
+    group.add(createFallbackTree(tree))
+    if (isInteractive) addTreeHitTarget(group)
   }
 }
 
@@ -184,16 +219,16 @@ function extractTreeTemplate(
 
   if (bodyTexture) {
     bodyTexture.colorSpace = THREE.SRGBColorSpace
-    bodyTexture.magFilter = THREE.LinearFilter
-    bodyTexture.minFilter = THREE.LinearFilter
+    bodyTexture.magFilter = THREE.NearestFilter
+    bodyTexture.minFilter = THREE.NearestFilter
     bodyTexture.generateMipmaps = false
     bodyTexture.needsUpdate = true
   }
 
   const bodyMaterial = new THREE.MeshLambertMaterial({
     map: bodyTexture,
-    color: bodyTexture ? 0xb36b2e : 0x73543c,
-    flatShading: false,
+    color: bodyTexture ? 0xffffff : 0x73543c,
+    flatShading: true,
     side: THREE.DoubleSide,
   })
 
@@ -212,12 +247,12 @@ function materialMap(material: THREE.Material | THREE.Material[]): THREE.Texture
   return mapped.map instanceof THREE.Texture ? mapped.map : null
 }
 
-function getLeafCloudGeometry(): THREE.BufferGeometry {
-  leafCloudGeometry ??= buildLeafCloudGeometry()
-  return leafCloudGeometry
+export function getLeafClusterGeometry(): THREE.BufferGeometry {
+  leafClusterGeometry ??= buildLeafClusterGeometry()
+  return leafClusterGeometry
 }
 
-function buildLeafCloudGeometry(): THREE.BufferGeometry {
+function buildLeafClusterGeometry(): THREE.BufferGeometry {
   const rng = mulberry32(42)
   const planes: THREE.BufferGeometry[] = []
   const centers: number[] = []
@@ -252,7 +287,7 @@ function buildLeafCloudGeometry(): THREE.BufferGeometry {
   return geometry
 }
 
-function makeLeavesMaterial(
+export function makeLeavesMaterial(
   foliageTexture: THREE.Texture,
   colorA: number,
   colorB: number,
@@ -266,6 +301,7 @@ function makeLeavesMaterial(
       uTime: { value: 0 },
       uThreshold: { value: ALPHA_THRESHOLD },
       uWindGust: { value: 0.7 },
+      uWindRotation: { value: 1 },
       uOpacity: { value: 1 },
     },
     vertexShader: `
@@ -297,6 +333,7 @@ function makeLeavesMaterial(
       uniform float uTime;
       uniform float uThreshold;
       uniform float uWindGust;
+      uniform float uWindRotation;
       uniform float uOpacity;
       varying vec2 vUv;
       varying vec3 vWorldPos;
@@ -304,7 +341,7 @@ function makeLeavesMaterial(
       void main() {
         float a = sin(uTime * 0.70 + vWorldPos.x * 0.35 + vWorldPos.z * 0.22);
         float b = cos(uTime * 0.55 + vWorldPos.x * 0.30 + vWorldPos.z * 0.48);
-        float rot = (a + b) * 0.40 * uWindGust;
+        float rot = (a + b) * 0.40 * uWindGust * uWindRotation;
         float c = cos(rot);
         float s = sin(rot);
         vec2 uv = vUv - 0.5;
@@ -317,7 +354,7 @@ function makeLeavesMaterial(
       }
     `,
     side: THREE.DoubleSide,
-    transparent: true,
+    transparent: false,
   }) as LeafMaterial
 }
 
@@ -325,12 +362,15 @@ function createFallbackTree(tree: ValueTreeDescriptor): THREE.Group {
   const group = new THREE.Group()
   group.name = `${tree.id}-procedural-fallback`
 
+  const trunkHeight = trunkHeightForSpecies(tree.species)
   const trunk = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.1, 0.16, 0.82, 12),
+    new THREE.CylinderGeometry(0.1, trunkBaseRadius(tree.species), trunkHeight, 12),
     new THREE.MeshLambertMaterial({ color: 0x73543c, flatShading: false }),
   )
-  trunk.position.y = 0.4
+  trunk.position.y = trunkHeight / 2
+  if (tree.species === 'palm') trunk.rotation.z = -0.16
   group.add(trunk)
+  addSpeciesRoots(group, tree.species)
 
   for (const canopy of canopyLayout(tree.species)) {
     const geometry =
@@ -350,38 +390,151 @@ function createFallbackTree(tree: ValueTreeDescriptor): THREE.Group {
     mesh.scale.set(canopy.scaleX, canopy.scaleY, canopy.scaleZ)
     group.add(mesh)
   }
+  if (tree.species === 'willow') addWillowDroop(group, tree.color, tree.evidenceState === 'pending')
+  if (tree.species === 'palm') addPalmFronds(group, tree.color, tree.evidenceState === 'pending')
 
   return group
 }
 
 function canopyLayout(species: ValueTreeSpecies) {
+  if (species === 'mangrove') {
+    return [
+      { x: 0, y: 0.72, z: 0, radius: 0.46, height: 0.5, scaleX: 1.24, scaleY: 0.78, scaleZ: 1.08 },
+      {
+        x: -0.24,
+        y: 0.68,
+        z: 0.08,
+        radius: 0.3,
+        height: 0.35,
+        scaleX: 1.1,
+        scaleY: 0.72,
+        scaleZ: 0.95,
+      },
+      {
+        x: 0.24,
+        y: 0.7,
+        z: -0.04,
+        radius: 0.32,
+        height: 0.35,
+        scaleX: 1.1,
+        scaleY: 0.74,
+        scaleZ: 0.95,
+      },
+    ]
+  }
   if (species === 'pine') {
     return [
       { x: 0, y: 0.86, z: 0, radius: 0.48, height: 0.8, scaleX: 1, scaleY: 1, scaleZ: 1 },
       { x: 0, y: 1.2, z: 0, radius: 0.34, height: 0.64, scaleX: 1, scaleY: 1, scaleZ: 1 },
+      { x: 0, y: 1.48, z: 0, radius: 0.22, height: 0.45, scaleX: 1, scaleY: 1, scaleZ: 1 },
     ]
   }
   if (species === 'palm') {
     return [
       {
         x: -0.16,
-        y: 1.02,
+        y: 1.24,
         z: 0,
-        radius: 0.34,
+        radius: 0.28,
         height: 0.4,
-        scaleX: 1.9,
-        scaleY: 0.35,
+        scaleX: 1.55,
+        scaleY: 0.25,
         scaleZ: 0.72,
       },
       {
         x: 0.18,
-        y: 1.03,
+        y: 1.22,
         z: 0,
+        radius: 0.28,
+        height: 0.4,
+        scaleX: 1.55,
+        scaleY: 0.25,
+        scaleZ: 0.72,
+      },
+    ]
+  }
+  if (species === 'maple') {
+    return [
+      { x: 0, y: 0.92, z: 0, radius: 0.46, height: 0.5, scaleX: 1.36, scaleY: 0.7, scaleZ: 1.08 },
+      {
+        x: -0.26,
+        y: 0.86,
+        z: 0.08,
+        radius: 0.3,
+        height: 0.4,
+        scaleX: 1.08,
+        scaleY: 0.72,
+        scaleZ: 1,
+      },
+      {
+        x: 0.28,
+        y: 0.86,
+        z: -0.08,
+        radius: 0.3,
+        height: 0.4,
+        scaleX: 1.08,
+        scaleY: 0.72,
+        scaleZ: 1,
+      },
+    ]
+  }
+  if (species === 'willow') {
+    return [
+      { x: 0, y: 0.98, z: 0, radius: 0.5, height: 0.5, scaleX: 1.05, scaleY: 0.82, scaleZ: 1.05 },
+      {
+        x: -0.2,
+        y: 0.82,
+        z: 0.05,
         radius: 0.34,
         height: 0.4,
-        scaleX: 1.9,
-        scaleY: 0.35,
-        scaleZ: 0.72,
+        scaleX: 0.85,
+        scaleY: 0.78,
+        scaleZ: 0.85,
+      },
+      {
+        x: 0.22,
+        y: 0.83,
+        z: -0.04,
+        radius: 0.34,
+        height: 0.4,
+        scaleX: 0.85,
+        scaleY: 0.78,
+        scaleZ: 0.85,
+      },
+    ]
+  }
+  if (species === 'banyan') {
+    return [
+      { x: 0, y: 0.96, z: 0, radius: 0.5, height: 0.5, scaleX: 1.36, scaleY: 0.82, scaleZ: 1.18 },
+      {
+        x: -0.32,
+        y: 0.82,
+        z: 0.08,
+        radius: 0.34,
+        height: 0.4,
+        scaleX: 1.05,
+        scaleY: 0.72,
+        scaleZ: 0.95,
+      },
+      {
+        x: 0.34,
+        y: 0.83,
+        z: -0.08,
+        radius: 0.34,
+        height: 0.4,
+        scaleX: 1.05,
+        scaleY: 0.72,
+        scaleZ: 0.95,
+      },
+      {
+        x: 0.04,
+        y: 0.74,
+        z: 0.28,
+        radius: 0.28,
+        height: 0.35,
+        scaleX: 1,
+        scaleY: 0.68,
+        scaleZ: 0.9,
       },
     ]
   }
@@ -390,6 +543,66 @@ function canopyLayout(species: ValueTreeSpecies) {
     { x: -0.22, y: 0.82, z: 0.05, radius: 0.34, height: 0.4, scaleX: 1, scaleY: 0.8, scaleZ: 1 },
     { x: 0.24, y: 0.84, z: -0.04, radius: 0.32, height: 0.4, scaleX: 1, scaleY: 0.8, scaleZ: 1 },
   ]
+}
+
+function trunkHeightForSpecies(species: ValueTreeSpecies): number {
+  if (species === 'palm') return 1.18
+  if (species === 'mangrove') return 0.62
+  if (species === 'banyan') return 0.72
+  return 0.82
+}
+
+function trunkBaseRadius(species: ValueTreeSpecies): number {
+  if (species === 'banyan') return 0.22
+  if (species === 'mangrove') return 0.19
+  if (species === 'palm') return 0.12
+  return 0.16
+}
+
+function addSpeciesRoots(group: THREE.Group, species: ValueTreeSpecies) {
+  if (species !== 'mangrove' && species !== 'banyan') return
+  const material = new THREE.MeshLambertMaterial({ color: 0x6c4d32, flatShading: false })
+  const count = species === 'banyan' ? 8 : 6
+  for (let i = 0; i < count; i += 1) {
+    const root = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.032, 0.5, 7), material)
+    const angle = (i / count) * Math.PI * 2
+    root.position.set(Math.cos(angle) * 0.18, 0.19, Math.sin(angle) * 0.18)
+    root.rotation.z = Math.cos(angle) * 0.72
+    root.rotation.x = -Math.sin(angle) * 0.72
+    group.add(root)
+  }
+}
+
+function addWillowDroop(group: THREE.Group, color: string, pending: boolean) {
+  const material = new THREE.MeshLambertMaterial({
+    color,
+    transparent: pending,
+    opacity: pending ? 0.45 : 0.75,
+  })
+  for (let i = 0; i < 10; i += 1) {
+    const strand = new THREE.Mesh(new THREE.CapsuleGeometry(0.018, 0.56, 4, 8), material)
+    const angle = (i / 10) * Math.PI * 2
+    strand.position.set(Math.cos(angle) * 0.38, 0.62, Math.sin(angle) * 0.28)
+    strand.rotation.z = Math.cos(angle) * 0.24
+    strand.rotation.x = -Math.sin(angle) * 0.24
+    group.add(strand)
+  }
+}
+
+function addPalmFronds(group: THREE.Group, color: string, pending: boolean) {
+  const material = new THREE.MeshLambertMaterial({
+    color,
+    side: THREE.DoubleSide,
+    transparent: pending,
+    opacity: pending ? 0.5 : 0.9,
+  })
+  for (let i = 0; i < 7; i += 1) {
+    const frond = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.72), material)
+    const angle = (i / 7) * Math.PI * 2
+    frond.position.set(Math.cos(angle) * 0.22, 1.18, Math.sin(angle) * 0.22)
+    frond.rotation.set(0.72, angle, 0)
+    group.add(frond)
+  }
 }
 
 function isLeafMaterial(value: unknown): value is LeafMaterial {
@@ -429,9 +642,10 @@ type LeafUniforms = {
   uTime: { value: number }
   uThreshold: { value: number }
   uWindGust: { value: number }
+  uWindRotation: { value: number }
   uOpacity: { value: number }
 }
 
-type LeafMaterial = THREE.ShaderMaterial & {
+export type LeafMaterial = THREE.ShaderMaterial & {
   uniforms: LeafUniforms
 }

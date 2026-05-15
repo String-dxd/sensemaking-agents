@@ -3,8 +3,8 @@
  * audio capture stack so the chain runs entirely in happy-dom. The
  * critical Phase A contract: getUserMedia is called with `{audio:true}`
  * only — never `{video}` — and no `<video>` element appears anywhere.
- * `state.mood` lives in local state and is NOT forwarded to persistMirror
- * (that contract change waits for Phase B).
+ * User-selected mood stays optional, then travels through persistMirror as a
+ * durable mirror-entry tag source for the world-stage mood pins.
  */
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -223,7 +223,7 @@ describe('MirrorSession (voice-mode controller)', () => {
     expect(api.current?.phase).toBe('done')
   })
 
-  it('persistMirror call shape does NOT carry a `mood` field (Phase A contract)', async () => {
+  it('forwards a selected mood through persistMirror for durable mood pins', async () => {
     transcribeMock.mockResolvedValue({ transcript: 't' })
     runMock.mockResolvedValue({
       output: { validation: 'v', inferred_meaning: 'm', story_reframe: 's' },
@@ -239,8 +239,7 @@ describe('MirrorSession (voice-mode controller)', () => {
     // Start recording via user click — same path the world view will use.
     await userEvent.click(screen.getByTestId('voice-button'))
     await vi.waitFor(() => expect(api.current?.phase).toBe('recording'))
-    // Tag a mood mid-recording — Phase A: stays local, never reaches the
-    // persistMirror call.
+    // Tag a mood mid-recording; persistence records it as a mirror-entry tag.
     act(() => {
       api.current?.handleMoodTagged('sadness')
     })
@@ -252,7 +251,9 @@ describe('MirrorSession (voice-mode controller)', () => {
     const persistArgs = persistMock.mock.calls[0]?.[0] as {
       data: Record<string, unknown> & { mood?: unknown }
     }
-    expect(persistArgs.data).not.toHaveProperty('mood')
+    expect(persistArgs.data.mood).toBe('sadness')
+    expect(persistArgs.data.raw_output).toMatchObject({ mood: 'sadness' })
+    expect(persistArgs.data.trace).toMatchObject({ taggedMood: 'sadness' })
   })
 
   it('persists self-critique review as mirror-entry raw metadata', async () => {

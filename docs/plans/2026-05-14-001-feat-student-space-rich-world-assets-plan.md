@@ -1,9 +1,11 @@
 ---
 title: "feat: Bring richer Student Space world assets into the island"
 type: feat
-status: active
+status: shipped
 date: 2026-05-14
+deepened: 2026-05-14
 origin: docs/plans/2026-05-13-001-feat-student-space-world-stage-plan.md
+followup: docs/plans/2026-05-14-003-feat-world-data-connectors-plan.md
 ---
 
 # feat: Bring richer Student Space world assets into the island
@@ -82,6 +84,31 @@ The current app already has a working Three.js island surface in `src/components
 - Reduce motion should reduce continuous motion amplitude and disable nonessential effects, not blank the scene.
 - First pass should ship in layers: core asset upgrades first, then atmosphere. Rain is last because it touches render-order and framebuffer assumptions.
 
+## High-Level Technical Design
+
+This is a planning sketch, not an implementation contract. The important shape is the boundary between product evidence, scene descriptors, reusable visual helpers, and disposable Three objects.
+
+```text
+route loader / existing queries
+  -> buildVipsWorldSceneModel(input)
+      -> terrain, trees, flowers, fruit, butterflies, residentBird, effects
+          -> createWorldScene({ model, reduceMotion })
+              -> evidence objects: trees, flowers, fruit, butterflies, bird hotspot
+              -> decorative objects: sky, particles, aurora, rain
+              -> tick loop: motion, shader uniforms, effect opacity
+              -> dispose: renderer, composer, geometries, materials, textures
+```
+
+The descriptor layer is the only place that knows about VIPS dimensions, timeline IDs, review status, and recent Mirror entries. The Three layer receives objects such as "confirmed oak value tree with strength high" or "pending recent-entry butterfly" and renders them. That keeps visual richness from leaking back into agent or persistence behavior.
+
+Shared visual helpers should be small and app-owned:
+
+- `worldStyle.ts`: palette, day/twilight/night factors, reduced-motion multipliers, and shared count caps.
+- `foliage.ts`: Student Space-inspired billboard cloud geometry/material helpers used by trees and fruit bushes.
+- `sceneEffects/*`: optional decorative layers with a common create/tick/dispose surface.
+
+Decorative effects should never own product meaning. Butterflies may fold into firefly visuals because they still represent recent entries; loose particles and aurora are atmosphere only and should not have hotspots.
+
 ## Implementation Units
 
 ### U1. Visual Source Boundary and Shared World Style
@@ -101,6 +128,8 @@ Work:
 - Add shared style/timing inputs for palette, wind intensity, twilight factor, night factor, and reduced-motion intensity.
 - Keep the scene model serializable and independent of Three objects.
 - Ensure `buildVipsWorldSceneModel` exposes enough metadata for richer rendering without coupling to Student Space modules.
+- Add a descriptor-level home for resident-bird and effect preferences if implementation needs them, but keep these as visual settings, not student facts.
+- Define global caps for tree foliage planes, fruit bush count, butterfly count, particles, and optional effects before implementation starts.
 
 Test scenarios:
 
@@ -108,6 +137,7 @@ Test scenarios:
 - Reduced-motion input changes scene options without altering evidence descriptors.
 - Asset metadata includes provenance for copied assets and adapted recipes.
 - WebGL fallback still renders when Three initialization fails.
+- Scene options can disable optional effects without changing evidence-bearing descriptors.
 
 ### U2. Rich Value Trees
 
@@ -127,6 +157,8 @@ Work:
 - Add procedural variants for mangrove, pine, palm, maple, willow, and banyan using app-owned geometry inspired by Student Space's tree/botanical grammar.
 - Apply consistent wind and sun-direction uniforms to tree leaves.
 - Preserve fallback trees if asset loading fails.
+- Keep per-species shape decisions in one table or helper so taxonomy mapping and rendering cannot drift.
+- Avoid one material per leaf/blob where possible. Prefer shared geometries and cloned uniforms only where object-specific opacity/color requires it.
 
 Test scenarios:
 
@@ -135,6 +167,7 @@ Test scenarios:
 - Forgotten values are omitted.
 - Tree hotspots still link to value pages or timeline anchors.
 - Missing GLB/texture keeps a procedural fallback visible.
+- Each species path can render without requiring a matching GLB.
 
 ### U3. Articulated Butterflies and Firefly Fold
 
@@ -153,6 +186,8 @@ Work:
 - Keep bounded recent-entry behavior and evidence-state coloring.
 - Add optional night/firefly fold as part of the same object layer rather than a separate product concept.
 - Ensure butterfly motion is deterministic from `placementSeed` and `recencyWeight`.
+- Keep the visual group and hit target separate: wing/body animation can be tiny, but pointer hit targets must remain usable.
+- Treat night/firefly fold as a rendering mode on the same recent-entry object, not a second evidence marker.
 
 Test scenarios:
 
@@ -161,6 +196,7 @@ Test scenarios:
 - Forgotten entries never create butterflies.
 - Butterfly objects retain clickable hotspots for their source reflection.
 - Reduced motion freezes or calms wing/orbit animation without removing the evidence marker.
+- Dusk/firefly mode does not duplicate hotspot entries or change the recent-entry count.
 
 ### U4. Skill Fruit Bushes or Tree-Attached Fruit
 
@@ -180,6 +216,8 @@ Work:
 - Reuse foliage-cloud helpers for bushes where possible.
 - Render berry clusters with skill color/ripeness/count.
 - Keep hotspots tied to skill evidence and avoid turning bushes into generic decoration.
+- If fruit moves to bushes, preserve the "skill serving a value" relationship in tooltip copy or hotspot routing, not just in hidden descriptor fields.
+- If fruit stays on trees, borrow Student Space's berry-cluster geometry without adopting its standalone bush placement.
 
 Test scenarios:
 
@@ -188,6 +226,7 @@ Test scenarios:
 - Evidence strength changes count/ripeness without changing claim identity.
 - Pending skills are visually tentative.
 - Skill hotspots link to the correct skill/VIPS surface.
+- The chosen host strategy is visible in descriptor output and covered by tests so future refactors cannot silently switch metaphors.
 
 ### U5. Resident Bird Upgrade
 
@@ -205,6 +244,8 @@ Work:
 - Preserve the existing prompt/hotspot affordance if it remains product-useful.
 - Add gentle walk, settle, breathing, and head-turn motion. Avoid chatty autonomous behavior.
 - Keep all user-facing copy in this app's tone. Do not copy Student Space's Kira dialogue system wholesale.
+- Keep the bird's geometry config local and minimal. Student Space's species catalog can inspire proportions and palettes, but this app should not carry unused customization tables.
+- Define when the bird is hidden, muted, or noninteractive during recording/processing so it does not compete with Mirror.
 
 Test scenarios:
 
@@ -212,6 +253,7 @@ Test scenarios:
 - Bird prompt selection remains bounded and deterministic enough for tests.
 - Reduced motion lowers or disables walking while preserving the visual marker.
 - Bird disposal does not leak geometries/materials.
+- Recording/processing states do not allow the bird prompt to interrupt the primary reflection flow.
 
 ### U6. Scene Effects Layer
 
@@ -232,6 +274,8 @@ Work:
 - Integrate firefly behavior through butterflies before adding a separate firefly layer.
 - Defer rain until after core visuals are stable; if implemented, start with simple streaks before framebuffer refraction.
 - Route all effects through a single tick/dispose path.
+- Make each effect configurable by intensity and enabled flag so visual tuning does not require deleting code.
+- Keep rain as a follow-up unless simple streaks are enough; framebuffer refraction needs extra composer/render-target scrutiny.
 
 Test scenarios:
 
@@ -239,6 +283,34 @@ Test scenarios:
 - Reduced motion lowers particle/aurora/rain animation intensity.
 - Scene still renders when an optional effect is unavailable.
 - `disposeThree` disposes effect geometries, materials, textures, and render targets.
+- Decorative effects never create `WorldHotspot` records.
+
+### U8. Performance, Disposal, and Test Harness Hardening
+
+Files:
+
+- `src/components/world/disposeThree.ts`
+- `src/components/world/createWorldScene.ts`
+- `src/components/world/trees.ts`
+- `src/components/world/butterflies.ts`
+- `src/components/world/fruits.ts`
+- `src/components/world/sceneEffects/*` (new, if U6 creates it)
+- `test/components/WorldScene.test.tsx`
+
+Work:
+
+- Audit each new geometry/material/texture/render target for ownership and disposal.
+- Keep object counts capped and centralized in world-style constants.
+- Reuse shared geometry/material templates where possible, then clone only object-specific uniforms or colors.
+- Confirm optional effects do not require extra render passes unless the visual payoff is obvious.
+- Add test seams that let `WorldScene` initialize with effects disabled, reduced motion enabled, and asset-load fallbacks.
+
+Test scenarios:
+
+- Disposing the scene calls disposal paths for new object families and optional effects.
+- The scene can mount with effects disabled and still render evidence objects.
+- Asset-load failure for tree GLBs or foliage texture does not prevent flowers, fruit, butterflies, or DOM fallback from appearing.
+- Reduced-motion mode avoids starting unnecessary animation-heavy effects.
 
 ### U7. Browser Verification and Tuning
 
@@ -254,6 +326,8 @@ Work:
 - Verify objects do not overlap key floating controls.
 - Verify hotspots are discoverable but not visually noisy.
 - Verify no text overlaps inside DOM controls and fallback states.
+- Verify the scene remains legible with empty, sparse, and dense VIPS evidence states.
+- Verify hover/tap targets are usable on a narrow mobile viewport, even when butterfly or fruit geometry is visually small.
 
 Test scenarios:
 
@@ -261,6 +335,7 @@ Test scenarios:
 - `pnpm test`
 - `pnpm build`
 - Browser smoke test of `/` or the current home/reflect route, including one narrow mobile viewport.
+- Visual smoke checks confirm nonblank canvas, correct framing, visible evidence objects, and no DOM overlap.
 
 ## Sequencing
 
@@ -268,8 +343,20 @@ Test scenarios:
 2. U2 and U3 next: trees and butterflies are the highest-value evidence visuals already present in the app.
 3. U4 after tree helpers stabilize: fruit bushes can reuse foliage helpers and placement utilities.
 4. U5 after object scale is clearer: the bird needs to sit naturally among the richer trees/fruits.
-5. U6 last: atmosphere should enhance the scene, not hide unfinished object grammar.
-6. U7 throughout each visual slice, with a final focused tuning pass before shipping.
+5. U6 after core object grammar: atmosphere should enhance the scene, not hide unfinished objects.
+6. U8 runs alongside U2-U6 and gets a final pass before browser verification.
+7. U7 throughout each visual slice, with a final focused tuning pass before shipping.
+
+## System-Wide Impact
+
+- Product data boundary: richer visuals must not alter Connector verification, VIPS timeline persistence, raw reflection review, or Cartographer trajectory generation.
+- Route and UI boundary: `src/routes/index.tsx`, `WorldStage`, floating actions, capture controls, and bottom sheets remain DOM-owned. Canvas objects can provide shortcuts/hotspots but not replace accessible navigation.
+- Asset boundary: copied binary files stay under `public/world/trees/`; adapted procedural recipes live in app-owned TS files with provenance comments or manifest entries in `assets.ts`.
+- Render lifecycle: all new object families join the existing `createWorldScene` create/tick/dispose lifecycle. No module-level scene singletons should be introduced.
+- Test boundary: descriptor tests prove evidence behavior; component tests prove mount/fallback/control behavior; browser verification proves visual framing and nonblank canvas.
+- Performance boundary: richer assets increase draw calls, shader work, and animation cost. Counts, pixel ratio, and optional effect intensity must remain bounded.
+- Accessibility boundary: the canvas stays supplementary. Keyboard, screen reader, capture, and navigation affordances remain in React DOM and must still work when WebGL fails.
+- Privacy boundary: no scene effect, bird prompt, or visual object should introduce new capture, camera, or AI-inference behavior.
 
 ## Risks and Mitigations
 
@@ -280,6 +367,10 @@ Test scenarios:
 - Risk: performance regression. Mitigation: cap instancing counts, reuse geometries/materials, keep pixel ratio bounded, and test low viewport sizes.
 - Risk: asset provenance confusion. Mitigation: keep `assets.ts` as the manifest for copied files and adapted sources.
 - Risk: accessibility regression. Mitigation: React controls remain DOM-owned; canvas objects supplement but do not replace accessible navigation.
+- Risk: memory leaks from richer Three objects. Mitigation: add U8, route all new object families through `disposeThree`, and test disposal seams where practical.
+- Risk: optional effects become product semantics. Mitigation: only evidence-bearing objects get hotspots; decorative effects remain noninteractive and can be disabled.
+- Risk: rain/refraction destabilizes the composer. Mitigation: ship rain only after core visuals pass browser verification, and start with simple streaks before render-target refraction.
+- Risk: Kira becomes a parasocial/chat layer. Mitigation: keep the bird visual and optional prompt affordance only; defer autonomous dialogue to a separate product plan.
 
 ## Open Questions
 
@@ -288,11 +379,15 @@ Test scenarios:
 - Should aurora be a default signature moment, or only appear in demo/twilight states?
 - Should rain/weather ship in this pass, or wait until the core object vocabulary feels settled?
 - Do we want a tiny in-app tuning/debug surface for scene constants, or should tuning happen through code constants and browser screenshots only?
+- Should U4 ship fruit-bushes in the first implementation, or should it first improve current tree-attached fruit and leave bushes as a second visual iteration?
+- Should U6 define a fixed twilight demo state for visual QA, or should it rely only on real time / seeded scene options?
 
 ## Definition of Done
 
 - Richer trees, butterflies, fruits, bird, and at least one atmospheric effect are implemented without changing agent/data behavior.
 - Every evidence-bearing object still comes from `buildVipsWorldSceneModel` and has deterministic tests.
 - Optional effects are reduced-motion aware and disposable.
+- All copied/adapted Student Space sources have clear provenance in `assets.ts`, comments, or the plan.
+- Performance caps and optional-effect toggles are centralized rather than scattered through object modules.
 - The app passes `pnpm check`, `pnpm test`, and `pnpm build`.
 - Browser verification confirms the island is nonblank, framed correctly, readable on mobile, and not fighting the DOM controls.

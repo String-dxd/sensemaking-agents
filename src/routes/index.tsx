@@ -1,9 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { type CSSProperties, useCallback, useMemo, useState } from 'react'
 import { BottomSheet } from '~/components/BottomSheet'
 import { CaptureActionMenu } from '~/components/CaptureActionMenu'
 import { EmotionPicker } from '~/components/EmotionPicker'
+import { EnvironmentPanel } from '~/components/EnvironmentPanel'
 import { FloatingWorldActions } from '~/components/FloatingWorldActions'
 import {
   MirrorSessionErrorPanel,
@@ -18,7 +19,15 @@ import { VipsPageView } from '~/components/VipsPageView'
 import type { VoiceButtonPhase } from '~/components/VoiceButton'
 import { WorldHud } from '~/components/WorldHud'
 import { WorldStage } from '~/components/WorldStage'
-import { buildVipsWorldSceneModel } from '~/components/world/vipsWorldMapping'
+import {
+  buildVipsWorldSceneModel,
+  type VipsWorldRecentMood,
+} from '~/components/world/vipsWorldMapping'
+import {
+  DEFAULT_WORLD_ENVIRONMENT_CONTROLS,
+  type WorldEnvironmentControls,
+  worldWeatherAtElapsed,
+} from '~/components/world/worldStyle'
 import type { VipsDimension } from '~/data/vips-taxonomy'
 import type { MirrorEntryRow, VipsTimelineEntryRow } from '~/db/queries'
 import { loadAuthMenu } from '~/server/auth-menu.functions'
@@ -69,8 +78,8 @@ export const Route = createFileRoute('/')({
  */
 function LandingErrorFallback({ reset }: { reset: () => void }) {
   return (
-    <section className="flex flex-col gap-3 py-2" data-testid="landing-error">
-      <div className="flex flex-col gap-3 rounded-md border border-warning/30 bg-warning/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+    <section className="contents" data-testid="landing-error">
+      <div className="fixed inset-x-4 top-4 z-50 flex flex-col gap-3 rounded-md border border-warning/30 bg-background/90 px-4 py-3 text-sm shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-medium">Library did not refresh.</p>
           <p className="text-muted-foreground">
@@ -105,6 +114,7 @@ function LandingPage() {
   const queryClient = useQueryClient()
   const { sheet, filter } = Route.useSearch()
   const [captureMoodPickerOpen, setCaptureMoodPickerOpen] = useState(false)
+  const [environmentControls, setEnvironmentControls] = useState(DEFAULT_WORLD_ENVIRONMENT_CONTROLS)
   const openSheet = sheet ?? null
   const reflectionsFilter = filter ?? 'all'
   const { data: vipsData } = useQuery({
@@ -140,9 +150,16 @@ function LandingPage() {
             }
           : undefined,
         recentEntries: vipsData ? coerceRecentEntries(vipsData.recent_entries) : undefined,
+        recentMoods: vipsData ? coerceRecentMoods(vipsData.recent_moods) : undefined,
+        mailbox: vipsData?.world_mailbox,
       }),
     [vipsData],
   )
+  const skyStyle = useMemo(
+    () => createStudentSpaceSkyStyle(environmentControls),
+    [environmentControls],
+  )
+  const skyNight = worldWeatherAtElapsed(0, environmentControls).isNight
 
   const openLibrarySheet = (nextSheet: SheetKey) => {
     void navigate({
@@ -168,25 +185,85 @@ function LandingPage() {
     })
   }
 
+  const openWorldHotspotHref = useCallback(
+    (href: string) => {
+      const url = new URL(href, window.location.origin)
+      const nextSheet = url.searchParams.get('sheet')
+      if (!isSheetKey(nextSheet)) {
+        window.location.href = href
+        return
+      }
+
+      const nextFilter =
+        nextSheet === 'reflections' && url.searchParams.get('filter') === 'need-review'
+          ? 'need-review'
+          : undefined
+      void navigate({
+        to: '/',
+        search: {
+          sheet: nextSheet,
+          filter: nextFilter,
+        },
+      })
+      if (url.hash) {
+        window.setTimeout(() => {
+          window.location.hash = url.hash
+        }, 0)
+      }
+    },
+    [navigate],
+  )
+
   return (
-    <section className="flex min-h-0 flex-1 flex-col items-center py-2">
-      <div className="relative flex min-h-0 w-full flex-1 flex-col gap-3">
-        <FloatingWorldActions
-          authMenu={authMenu}
-          onOpenProfile={() => openLibrarySheet('profile')}
-          onOpenTrajectory={() => openLibrarySheet('trajectory')}
-          profileOpen={openSheet === 'profile'}
-          sheetPanelId={SHEET_PANEL_ID}
-          trajectoryOpen={openSheet === 'trajectory'}
-          voiceModeActive={voiceModeActive}
+    <section className="fixed inset-0 overflow-hidden" style={skyStyle}>
+      <div className="relative h-full w-full">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-[1800ms]"
+          style={{
+            opacity: skyNight ? 0 : 1,
+            background:
+              'radial-gradient(ellipse 70% 55% at 50% 22%, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.18) 28%, rgba(255,255,255,0) 60%)',
+          }}
         />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-0 transition-opacity duration-[1800ms]"
+          style={{
+            opacity: skyNight ? 0 : 0.85,
+            background:
+              'repeating-linear-gradient(92deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0) 6%, rgba(255,255,255,0.08) 8%, rgba(255,255,255,0.13) 9%, rgba(255,255,255,0) 11%, rgba(255,255,255,0) 17%)',
+            WebkitMaskImage:
+              'radial-gradient(ellipse 80% 60% at 50% 18%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 45%, rgba(0,0,0,0) 75%)',
+            maskImage:
+              'radial-gradient(ellipse 80% 60% at 50% 18%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.4) 45%, rgba(0,0,0,0) 75%)',
+          }}
+        />
+        <div className="pointer-events-none absolute inset-x-0 top-4 z-20">
+          <FloatingWorldActions
+            authMenu={authMenu}
+            onOpenProfile={() => openLibrarySheet('profile')}
+            onOpenTrajectory={() => openLibrarySheet('trajectory')}
+            profileOpen={openSheet === 'profile'}
+            sheetPanelId={SHEET_PANEL_ID}
+            trajectoryOpen={openSheet === 'trajectory'}
+            voiceModeActive={voiceModeActive}
+          />
+        </div>
         <WorldStage
-          className="min-h-[calc(100svh-6.5rem)] flex-1"
+          className="absolute inset-0 h-full min-h-svh w-full"
+          onHotspotNavigate={openWorldHotspotHref}
           onVoicePromptSelect={() => {
             if (session.phase === 'idle') session.handleVoicePress()
           }}
+          environmentControls={environmentControls}
           sceneModel={sceneModel}
         >
+          <EnvironmentPanel
+            controls={environmentControls}
+            disabled={voiceModeActive}
+            onChange={setEnvironmentControls}
+          />
           <WorldHud
             voiceModeActive={voiceModeActive}
             captureSlot={
@@ -230,7 +307,7 @@ function LandingPage() {
           ) : null}
         </WorldStage>
         {session.phase === 'error' && session.errorMessage ? (
-          <div className="absolute inset-x-4 bottom-4">
+          <div className="absolute inset-x-4 bottom-4 z-30">
             <MirrorSessionErrorPanel
               message={session.errorMessage}
               onReset={session.handleReset}
@@ -258,6 +335,19 @@ function LandingPage() {
       </BottomSheet>
     </section>
   )
+}
+
+function createStudentSpaceSkyStyle(controls: WorldEnvironmentControls): CSSProperties {
+  const weather = worldWeatherAtElapsed(0, controls)
+  return {
+    background: `linear-gradient(180deg, ${rgbCss(weather.skyTop)} 0%, ${rgbCss(weather.skyMid)} 42%, ${rgbCss(weather.skyBottom)} 100%)`,
+    color: weather.isNight ? '#f4f1ea' : undefined,
+    transition: 'background 1800ms ease',
+  }
+}
+
+function rgbCss(rgb: readonly [number, number, number]): string {
+  return `rgb(${Math.round(rgb[0])}, ${Math.round(rgb[1])}, ${Math.round(rgb[2])})`
 }
 
 function LandingSheetContent({
@@ -371,6 +461,24 @@ function coerceRecentEntries(entries: MirrorEntryRow[] | undefined) {
     id: entry.id,
     review_status: entry.review_status,
     context_type: entry.context_type,
+    created_at: entry.created_at,
+  }))
+}
+
+function coerceRecentMoods(
+  entries:
+    | Array<{
+        id: number | string
+        emotion: string
+        intensity?: number
+        created_at?: string | null
+      }>
+    | undefined,
+): VipsWorldRecentMood[] {
+  return (entries ?? []).map((entry) => ({
+    id: entry.id,
+    emotion: entry.emotion,
+    intensity: entry.intensity,
     created_at: entry.created_at,
   }))
 }

@@ -19,6 +19,15 @@ describe('WorldStage', () => {
     expect(screen.queryByText('world')).not.toBeInTheDocument()
   })
 
+  it('uses the full-screen stage treatment instead of a visible frame', () => {
+    render(<WorldStage />)
+    const stage = screen.getByTestId('world-stage')
+    expect(stage).toHaveAttribute('data-fullscreen', 'true')
+    expect(stage.className).toContain('overflow-hidden')
+    expect(stage.className).not.toContain('rounded-')
+    expect(stage.className).not.toContain('border')
+  })
+
   it('mounts the decorative world scene', () => {
     render(<WorldStage />)
     expect(screen.getByTestId('mock-world-scene')).toBeInTheDocument()

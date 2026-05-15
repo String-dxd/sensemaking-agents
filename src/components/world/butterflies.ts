@@ -2,9 +2,11 @@ import * as THREE from 'three'
 import { addWorldHitTarget, attachWorldHotspot, hotspotForButterfly } from './hotspots'
 import { positionOnIsland } from './island'
 import type { ButterflyDescriptor } from './vipsWorldMapping'
+import { type WorldEnvironmentControls, worldNightFactorForControls } from './worldStyle'
 
 const BODY_INK = 0x2b2620
 const WING_HIGHLIGHT = 0xfff6ce
+const FIREFLY_CORE = 0xfff4c2
 
 const SPECIES = [
   { id: 'common', w: 0.36, h: 0.28, spotR: 0.042, spotPos: 0.66, tail: false },
@@ -22,14 +24,19 @@ export function createButterflies(butterflies: ButterflyDescriptor[]): THREE.Gro
   return group
 }
 
-export function tickButterflies(root: THREE.Object3D, time: number) {
+export function tickButterflies(
+  root: THREE.Object3D,
+  time: number,
+  motionScale = 1,
+  controls?: WorldEnvironmentControls,
+) {
   root.traverse((object) => {
     const motion = object.userData.butterflyMotion as ButterflyMotion | undefined
     if (!motion) return
     const a = time * motion.orbitSpeed + motion.phase
     object.position.set(
       motion.anchor.x + Math.cos(a) * motion.orbitRadius,
-      motion.anchor.y + Math.sin(a * 0.7) * 0.06,
+      motion.anchor.y + Math.sin(a * 0.7) * 0.06 * motionScale,
       motion.anchor.z + Math.sin(a) * motion.orbitRadius * 0.56,
     )
 
@@ -37,11 +44,22 @@ export function tickButterflies(root: THREE.Object3D, time: number) {
     const velocityZ = Math.cos(a) * motion.orbitRadius * 0.56
     object.rotation.y = Math.atan2(velocityX, velocityZ)
 
-    const flap = Math.sin(time * 9.2 + motion.phase) * 0.46
+    const flap = Math.sin(time * 9.2 + motion.phase) * 0.46 * motionScale
     motion.rightWing.rotation.y = flap
     motion.leftWing.rotation.y = Math.PI - flap
-    motion.visualRoot.rotation.z = Math.sin(time * 1.8 + motion.phase) * 0.08
-    object.position.y += Math.sin(time * 1.4 + motion.phase) * 0.018
+    motion.visualRoot.rotation.z = Math.sin(time * 1.8 + motion.phase) * 0.08 * motionScale
+    object.position.y += Math.sin(time * 1.4 + motion.phase) * 0.018 * motionScale
+
+    const night = worldNightFactorForControls(time, controls)
+    const butterflyOpacity = 1 - night * 0.92
+    const fireflyOpacity = night * (0.58 + Math.sin(time * 1.7 + motion.phase) * 0.14)
+    for (const material of motion.butterflyMaterials) {
+      material.opacity = material.userData.baseOpacity * butterflyOpacity
+    }
+    motion.fireflyMaterial.opacity = fireflyOpacity
+    motion.firefly.scale.setScalar(
+      0.11 + night * 0.08 + Math.sin(time * 1.5 + motion.phase) * 0.012,
+    )
   })
 }
 
@@ -93,6 +111,17 @@ function createButterfly(butterfly: ButterflyDescriptor, index: number): THREE.G
   const leftWing = buildWing(species, butterfly)
   leftWing.rotation.y = Math.PI
   visualRoot.add(leftWing, rightWing)
+  const fireflyMaterial = new THREE.MeshBasicMaterial({
+    color: FIREFLY_CORE,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  })
+  const firefly = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 8), fireflyMaterial)
+  firefly.name = `${butterfly.id}-firefly-fold`
+  firefly.renderOrder = 8
+  visualRoot.add(firefly)
 
   group.userData.butterflyMotion = {
     anchor,
@@ -102,8 +131,30 @@ function createButterfly(butterfly: ButterflyDescriptor, index: number): THREE.G
     leftWing,
     rightWing,
     visualRoot,
+    firefly,
+    fireflyMaterial,
+    butterflyMaterials: collectButterflyMaterials(visualRoot, fireflyMaterial),
   } satisfies ButterflyMotion
   return group
+}
+
+function collectButterflyMaterials(
+  root: THREE.Object3D,
+  fireflyMaterial: THREE.Material,
+): Array<THREE.Material & { opacity: number }> {
+  const materials: Array<THREE.Material & { opacity: number }> = []
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh
+    const material = mesh.material
+    const list = Array.isArray(material) ? material : material ? [material] : []
+    for (const item of list) {
+      if (item === fireflyMaterial || !('opacity' in item)) continue
+      const transparentMaterial = item as THREE.Material & { opacity: number }
+      transparentMaterial.userData.baseOpacity = transparentMaterial.opacity
+      materials.push(transparentMaterial)
+    }
+  })
+  return materials
 }
 
 function buildAntenna(side: -1 | 1, material: THREE.Material): THREE.Group {
@@ -267,4 +318,7 @@ interface ButterflyMotion {
   leftWing: THREE.Object3D
   rightWing: THREE.Object3D
   visualRoot: THREE.Object3D
+  firefly: THREE.Object3D
+  fireflyMaterial: THREE.MeshBasicMaterial
+  butterflyMaterials: Array<THREE.Material & { opacity: number }>
 }

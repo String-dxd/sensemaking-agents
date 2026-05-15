@@ -2,16 +2,16 @@ import * as THREE from 'three'
 import { addWorldHitTarget, attachWorldHotspot, hotspotForPromptBird } from './hotspots'
 import { islandHeightAt } from './island'
 
-const BODY_GREEN = 0x5f8f3d
-const BODY_CAMO = [0x3f6f32, 0x7b8f42, 0x8a7a45] as const
-const WARM_YELLOW = 0xf4b63a
+const BODY_GREEN = 0x9cc8c0
+const BODY_CAMO = [0x8fb9a9, 0xf0a86a, 0xffb0a0] as const
+const WARM_YELLOW = 0xfaf1dc
 const FACE_WHITE = 0xfffbf2
-const HEAD_RED = 0xf23a32
-const TOP_GREEN = 0x46d65c
-const BEAK_BLUE = 0x4e4db8
-const INK = 0x23223d
-const LEG_ORANGE = 0xe98a21
-const PROMPT_BIRD_BASE_SCALE = 0.88
+const HEAD_RED = 0xff8a5c
+const TOP_GREEN = 0x9cc8c0
+const BEAK_BLUE = 0x2b2620
+const INK = 0x2b2620
+const LEG_ORANGE = 0xa07659
+const PROMPT_BIRD_BASE_SCALE = 0.78
 const PROMPT_BIRD_GROUND_LIFT = 0.18
 
 export const PROMPT_BIRD_PROMPTS = [
@@ -47,7 +47,7 @@ export function createPromptBird(prompt: string): THREE.Group {
     softMaterial(WARM_YELLOW, 0.08),
   )
   body.position.y = 0.58
-  body.scale.set(0.88, 1.15, 0.72)
+  body.scale.set(0.92, 1.08, 0.76)
   group.add(body)
 
   const jacket = new THREE.Mesh(
@@ -57,9 +57,9 @@ export function createPromptBird(prompt: string): THREE.Group {
   jacket.position.set(0, 0.62, -0.01)
   jacket.scale.set(0.96, 0.9, 0.75)
   group.add(jacket)
-  addCamoPatches(group)
+  addWingAccents(group)
 
-  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.26, 24, 16), softMaterial(0xf04431, 0.04))
+  const belly = new THREE.Mesh(new THREE.SphereGeometry(0.26, 24, 16), softMaterial(0xffd8b7, 0.04))
   belly.position.set(0, 0.34, -0.01)
   belly.scale.set(0.85, 0.58, 0.58)
   group.add(belly)
@@ -80,11 +80,7 @@ export function createPromptBird(prompt: string): THREE.Group {
   redCap.scale.copy(head.scale)
   group.add(redCap)
 
-  const crownPatch = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.22, 3), flatMaterial(TOP_GREEN))
-  crownPatch.position.set(0, 1.55, -0.12)
-  crownPatch.rotation.set(Math.PI * 0.5, Math.PI / 3, 0)
-  crownPatch.scale.set(1.1, 0.9, 0.8)
-  group.add(crownPatch)
+  addCrest(group)
 
   addCheek(group, -1)
   addCheek(group, 1)
@@ -122,7 +118,7 @@ export function createPromptBird(prompt: string): THREE.Group {
   return group
 }
 
-export function tickPromptBird(root: THREE.Object3D, time: number) {
+export function tickPromptBird(root: THREE.Object3D, time: number, motionScale = 1) {
   root.traverse((object) => {
     const motion = object.userData.promptBirdMotion as PromptBirdMotion | undefined
     if (!motion) return
@@ -132,7 +128,7 @@ export function tickPromptBird(root: THREE.Object3D, time: number) {
     const z = motion.anchor.z + Math.sin(a) * motion.walkRadiusZ
     const velocityX = -Math.sin(a) * motion.walkRadiusX
     const velocityZ = Math.cos(a) * motion.walkRadiusZ
-    const stride = Math.sin(time * 5.4 + motion.phase) * 0.28
+    const stride = Math.sin(time * 5.4 + motion.phase) * 0.2 * motionScale
 
     object.position.set(
       x,
@@ -143,8 +139,8 @@ export function tickPromptBird(root: THREE.Object3D, time: number) {
     object.scale.setScalar(motion.baseScale * (1 + Math.abs(stride) * 0.018))
     motion.leftLeg.rotation.x = stride
     motion.rightLeg.rotation.x = -stride
-    motion.leftArm.rotation.x = -stride * 0.32
-    motion.rightArm.rotation.x = stride * 0.32
+    motion.leftArm.rotation.x = -stride * 0.2
+    motion.rightArm.rotation.x = stride * 0.2
   })
 }
 
@@ -171,7 +167,7 @@ function addBrow(group: THREE.Group, side: -1 | 1) {
     new THREE.Vector3(side * 0.2, 1.37, -0.42),
     new THREE.Vector3(side * 0.32, 1.37, -0.37),
   ])
-  const brow = new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.012, 8), flatMaterial(0x5a55b4))
+  const brow = new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.012, 8), flatMaterial(INK))
   group.add(brow)
 }
 
@@ -182,7 +178,7 @@ function addBeak(group: THREE.Group) {
   upper.scale.set(1.12, 0.78, 0.74)
   group.add(upper)
 
-  const lower = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.24, 4), softMaterial(0x373796, 0.04))
+  const lower = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.24, 4), softMaterial(0x1f1a16, 0.04))
   lower.position.set(0, 0.99, -0.5)
   lower.rotation.set(Math.PI * 0.5, Math.PI / 4, Math.PI)
   lower.scale.set(1, 0.62, 0.58)
@@ -242,7 +238,7 @@ function addLeg(group: THREE.Group, side: -1 | 1): THREE.Group {
   return legGroup
 }
 
-function addCamoPatches(group: THREE.Group) {
+function addWingAccents(group: THREE.Group) {
   const placements = [
     [-0.16, 0.78, -0.29, 0],
     [0.12, 0.72, -0.31, 1],
@@ -252,12 +248,22 @@ function addCamoPatches(group: THREE.Group) {
   for (const [x, y, z, colorIndex] of placements) {
     const patch = new THREE.Mesh(
       new THREE.SphereGeometry(0.08, 16, 10),
-      flatMaterial(BODY_CAMO[colorIndex] ?? BODY_CAMO[0]),
+      softMaterial(BODY_CAMO[colorIndex] ?? BODY_CAMO[0], 0.03),
     )
     patch.position.set(x, y, z)
     patch.scale.set(1.5, 0.7, 0.18)
     patch.rotation.z = x * 2.3
     group.add(patch)
+  }
+}
+
+function addCrest(group: THREE.Group) {
+  for (let i = -1; i <= 1; i += 1) {
+    const feather = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.24, 5), flatMaterial(HEAD_RED))
+    feather.position.set(i * 0.075, 1.52, -0.1)
+    feather.rotation.set(Math.PI * 0.5, Math.PI / 3, i * -0.2)
+    feather.scale.set(0.82, 0.92, 0.82)
+    group.add(feather)
   }
 }
 
