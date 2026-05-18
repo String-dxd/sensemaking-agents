@@ -1,17 +1,16 @@
-# Draft PR description for `feat/island-object-progression`
+# PR description for `feat/island-object-progression`
 
-> **Draft only** — saved here so it's ready when you're at a keyboard.
-> Branch is one commit behind main (`c7e9bbc fix(student-space): unstick onboarding flow`); rebase or merge main before pushing.
+> **Draft** — review this, then run the push + gh pr create at the bottom.
 
 ---
 
 ## Title
 
 ```
-feat: island progression — captures grow sprouts into trees (v1)
+feat: island progression — captures grow species-tagged objects (v1)
 ```
 
-(63 chars — under the 70-char target.)
+(64 chars — under the 70 target.)
 
 ---
 
@@ -20,79 +19,93 @@ feat: island progression — captures grow sprouts into trees (v1)
 ```markdown
 ## Summary
 
-- Every capture (ask / photo / mood pin) now visibly contributes to the island. A small sprout appears on the plateau; its count badge tracks `n/threshold` overhead; the third capture flips it to "Ready," pulsing with a warm glow. Tap the pulsing sprout → it dissolves and a persistent oak (or cherry) grows in its place over ~1.2s, with a `Sound.playOneShot('bloom')` chime.
-- Shipped as a third engine state slice (`Game/State/Sprouts.js`) alongside MoodPins/Captures, plus a Sprouts view module (`Game/View/Sprouts.js`) for 3D rendering, plus a small React overlay (`IslandProgressionOverlay.tsx`) for the "Ready to plant" tray and reflection-voice toasts.
-- v1 is single-species (trees only, cycling oak/cherry per sprout index) and pure-client; the brainstorm's VIPS claim-binding path (sprout species = inferred Value/Interest/Personality/Skill dimension) is explicitly deferred to v2 along with a Mirror → AutoConnector → engine bridge. `Sprout.captureRefs[]` carries the join key v2 will use.
+- Every capture earns a cinematic beat: camera glides to the active sprout on the island, holds while the badge ticks, then returns. Threshold-crossing capture stays focused and auto-blooms in the same beat — no tap, no tray, no deliberate plant step. One continuous flow per capture.
+- After each capture submit, a small modal asks the student: *"What is this about?"* — Value / Interest / Personality / Skill. The pick is recorded on the capture AND locks the species of the sprout it lives in. The first capture's tag determines what eventually grows.
+- Species determines the bloomed object: Value → tree, Interest → flower, Personality → butterfly, Skill → fruit. Mood pins auto-tag as Personality (mood is emotional state by construction). Single sprout always growing at a time; bloom replaces it with a persistent island object that survives reload.
 
 ## What's in the diff
 
-| Layer | File | What |
-|---|---|---|
-| State | `Game/State/Sprouts.js` (+ `.d.ts`) | Singleton slice with `grow`/`bloom`/`subscribe`. Snapshot accessors (`recent`, `getActive`) cache referentially-stable references for React's `useSyncExternalStore`. |
-| State | `Persistence.js`, `schema.js`, `State.js`, `Game.js`, `index.d.ts` | Three-file extension contract (KEY, SLICES, empty default) + `Sprouts.instance` nulling in `Game.dispose()` to survive StrictMode double-mount + `mergeSprout` lenient schema. |
-| State | `wireSproutsToCaptures` helper (in Sprouts.js) | Bridges Captures + MoodPins subscriptions to Sprouts.grow with try/catch wrappers. The engine's subscriber loop does NOT swallow exceptions, so a throwing `grow` would otherwise abort fan-out and skip `_persist`. |
-| View | `Game/View/Sprouts.js` | Per-sprout group (stem + leaf cluster + glow ring) reconciled from slice events. DOM count badge projected by world-coord. Click handler raycasts ALL active sprouts: ready → bloom, not-ready → tap-acknowledgement bump + CustomEvent for the overlay. Persistent mini-tree (trunk + 3-icosphere canopy) grows from scale 0→1 over 1.2s on bloom. |
-| View | `Game/View/View.js` | Wires Sprouts into `update()` + dispose chain. |
-| UI | `components/IslandProgressionOverlay.tsx` | React tray (bottom-center, above mood-hud) + reflection-voice toasts via `useSyncExternalStore`. Listens for `ss:sprout-tap-not-ready` CustomEvent to surface "Still growing — 2/3" feedback. |
-| UI | `components/StudentSpaceHost.tsx` | Lifts `Game` ref into React state and mounts the overlay once the engine boots. |
+Engine state (`src/engine/student-space/Game/State/`):
+- New `Sprouts.js` slice — third state alongside MoodPins and Captures. Singleton + subscribe + persist + try/catch boundary. Snapshot accessors return referentially-stable references so React's `useSyncExternalStore` works correctly.
+- `Sprouts.d.ts` companion types. Species enum: `pending | tree | flower | butterfly | fruit`. Dimension enum: `values | interests | personality | skills`.
+- `wireSproutsToCaptures(captures, moodPins, sprouts)` helper — subscribes Sprouts to both capture sources; defense-in-depth try/catch so a buggy `grow` cannot break host slice persistence.
+- `Captures.patch(id, updates)` — new method mirroring `MoodPins.patch`; used by the chip picker to attach dimension post-submit.
+- `Sprouts.setDimensionForFirstCapture(captureId, dimension)` — locks species (first capture in sprout only); can flip readyToBloom if threshold shifts.
+- `schema.js` — extended `mergeSprout` + `mergeCapture` with new dimension fields; lenient enum guards.
+- `Persistence.js` / `Game.js` / `State.js` / `index.d.ts` — wired through KEY/SLICES/empty/dispose/host surface.
 
-## Tests
+Engine view (`src/engine/student-space/Game/View/`):
+- New `Sprouts.js` view module — per-sprout 3D mesh (stem + leaves + glow ring), DOM count badge projected to screen, ready-to-bloom pulse + bob, dissolve animation, click handler with drag-guard.
+- Camera flow state machine — `flying → holding → (blooming →) returning`. Mirrors ObjectPeek's camera math (`view.camera.zoomTo` / `restoreZoom`). Concurrent events during in-flight flow update visuals without restarting the camera.
+- Species-specific bloomed object builders: tree (existing oak/cherry), flower (6-petal with color hash), butterfly (4-wing hover on stem with color hash), fruit (3-icosphere bush with berries).
+- Reduced-motion path: skip camera, brief tap-ack glow flash, dissolve+grow collapse to 200ms cross-fade.
+- Wired into `View.js` update/dispose chain.
 
-38 tests across the feature, all passing:
+React layer (`src/components/`):
+- New `IslandProgressionOverlay.tsx` — reflection-voice toasts on every grow/bloom event. Listens for `ss:sprout-tap-not-ready` CustomEvent to surface "Still growing — 2/3" feedback.
+- New `CaptureTagPicker.tsx` — modal with 4 chips after each capture submit. Queues rapid-fire captures; ignores patch re-fires; defensive against partial game objects.
+- `StudentSpaceHost.tsx` — lifts Game ref into React state; mounts both overlays once the engine boots.
 
-- 16 unit tests on the Sprouts state slice (threshold progression, dedup on patch re-fire, snapshot stability, hydrate-no-fan, persistence round-trip, singleton guard, subscriber crash isolation)
-- 7 integration tests on the cross-slice wiring helper (captures → sprouts, mood patch re-fire safety, subscriber-throw isolation)
-- 7 component tests on the overlay (tray visibility, toast variants, partial-game safety, CustomEvent listener cleanup)
-- 4 e2e tests (`Progression.e2e.test.tsx`) chaining real Captures + real Sprouts + real overlay through `captures.add()`
-- 4 existing StudentSpaceHost lifecycle tests still pass unchanged
-
-`pnpm build` clean.
-
-## Design decisions worth surfacing for review
-
-- **Substrate**: live engine at `src/engine/student-space/Game/`, not the dormant `src/components/world/*`. See `docs/solutions/2026-05-18-island-progression-engine-substrate.md` for the rule of thumb.
-- **InstancedMesh strategy**: bloomed trees are spawned as small per-instance meshes inside `Game/View/Sprouts.js` rather than pre-allocating spare slots in `Tree.js`. Preserves the celebration moment without surgery on the baked InstancedMesh sizing; v2 can revisit.
-- **Single-species v1**: explicitly chose to ship trees-only after doc-review flagged that rotation-by-index = Tamagotchi-shaped feedback the brainstorm explicitly disclaimed. Species variety is v2 when claim dimension can drive it meaningfully.
-- **Connector deferred**: `runAutoConnectorAfterMirror` exists but is not invoked from `persistMirror` today. v1 uses pure-client engine state; v2 is a separate plan.
-- **Toast voice**: reflection-style ("Heard. Something is growing on the island.") not points-style ("+1 toward tree"). Per doc-review's product-lens finding.
+Tests (`test/`):
+- Sprouts unit tests (19): threshold progression, dedup, snapshot stability, hydrate-no-fan, persistence round-trip, singleton guard, subscriber crash isolation, dimension lock, threshold shift on tag.
+- Cross-slice integration (9): captures→sprouts wiring, mood patch dedup, subscriber-throw isolation, mood auto-tag (spawn vs join).
+- Component tests (12): tray + toasts, partial-game safety, CustomEvent listener, chip picker render/queue/pick/unmount.
+- e2e (4): full chain from `captures.add()` through React overlay.
+- 48 tests across the feature, 285 passing in the full suite.
 
 Origin: `docs/brainstorms/2026-05-18-island-object-progression-requirements.md`
 Plan: `docs/plans/2026-05-18-002-feat-island-object-progression-plan.md`
+Substrate learning: `docs/solutions/2026-05-18-island-progression-engine-substrate.md`
 
-## Test plan
+## Design decisions worth review
 
-- [ ] Open the home page; verify the island still renders before any captures
-- [ ] Capture once via the FAB → sprout appears, `1/3` badge above it, toast "Heard. Something is growing on the island."
-- [ ] Capture twice more → badge climbs to `2/3` → `Ready`; sprout pulses with warm gold glow; "Ready to plant · 1" tray appears bottom-center
-- [ ] Tap the pulsing sprout → chime plays, sprout dissolves, oak grows in place over ~1.2s, toast "Planted. A new tree on the island."
-- [ ] Tap a NOT-ready sprout → brief scale bump, toast "Still growing — 2/3"
-- [ ] Reload the page → bloomed tree persists in the same spot; active sprouts and their counts persist
-- [ ] Add a 4th capture after a bloom → new sprout appears (separate species per rotation), not added to the bloomed tree
-- [ ] Capture via mood pin → grows the same active sprout (not a separate one) — proves the moodPins → sprouts wiring
-- [ ] Test `prefers-reduced-motion` (macOS: System Settings → Accessibility → Display → Reduce Motion) → bloom collapses to a 200ms cross-fade, no camera fly-in, no chime, no particle storm
-- [ ] StrictMode double-mount: navigate away and back → engine cleanly disposes and re-mounts; no duplicate sprouts
+- **Substrate**: live engine at `src/engine/student-space/Game/`, not the dormant `src/components/world/*`. Documented in the solutions entry so future contributors don't re-derive.
+- **Species mechanism**: student tags V/I/P/S explicitly after capture (Path B per the iteration). Rejected modality-driven heuristic (Path A) after dogfooding showed it didn't match how captures actually work — a photo of teamwork is a value, not an interest. Rejected full Mirror→Connector v2 because the home route isn't wired to Mirror yet.
+- **First-capture-wins species lock**: simpler model than blending. The student learns: the FIRST thing you tag in a sprout determines what it becomes.
+- **Mood pins skip the picker**: auto-tag as Personality. Less friction; mood is inherently emotional state.
+- **Auto-bloom in same camera moment**: threshold-crossing capture goes camera-fly → hold → bloom → return as one beat. No tap-to-plant step. Trades the brainstorm's deliberate plant moment for a smoother cinematic.
+- **Tray removed**: with auto-bloom, sprouts never sit in ready-and-waiting state for the student to discover.
+- **Bloomed mini-objects spawned in Sprouts view**, NOT through `Tree.js` / `Flowers.js` / `Fruits.js` InstancedMesh runtime-add. Those modules bake instance counts at boot; surgery on them was flagged in the plan as the heaviest unit and not worth it for v1. Mini-objects are small low-poly inline geometries.
 
-## Follow-up / deferred
+## Test plan (dogfood)
 
-- **U4 (capture particles)** — particles flying from FAB to sprout target. Deferred as polish; toast + count badge + sprout pulse already give per-input feedback. Plan: `docs/plans/2026-05-18-002-feat-island-object-progression-plan.md`.
-- **v2 — VIPS claim binding** — bridge captures → Mirror → AutoConnector → engine. Sprout species/labels become claim-dimension-driven. `Sprout.captureRefs[]` is the v2 join key.
-- **v2 — Reduced-motion celebratory beat** — 200ms cross-fade may need a non-motion accent (color flash, haptic). Defer until first reduced-motion user reports a feel issue.
+- [ ] Capture once via FAB (ask or photo); camera flies to sprout, picker modal appears asking V/I/P/S; pick → camera returns
+- [ ] Capture twice more (3 total ask/photo); badge climbs 2/3, then auto-blooms on threshold
+- [ ] Each species visibly different on bloom:
+  - Tag Value → mini-tree (oak or cherry)
+  - Tag Interest → flower with hash-colored petals
+  - Tag Personality → butterfly hovering on a thin stem
+  - Tag Skill → bush with berries (blooms at 2, not 3)
+- [ ] Mood pin → no picker, auto-tags as Personality → butterfly
+- [ ] Tap a still-growing sprout → "Still growing — N/threshold" toast
+- [ ] Reload → bloomed objects persist; active sprouts and counts persist
+- [ ] `prefers-reduced-motion` → bloom collapses to 200ms cross-fade, no camera fly, no chime
+- [ ] StrictMode double-mount: engine cleanly disposes and re-mounts (smoke via `test/engine/StudentSpaceHost.test.tsx`)
 
-## Branch state notes
+## Follow-ups / deferred
 
-- One commit behind main (`c7e9bbc fix(student-space): unstick onboarding flow`). Rebase or merge main before final review.
-- 13 commits on the branch (3 docs, 10 feature/chore). Conventional commits throughout; merge-as-is is OK if you prefer a cleaner main history.
+- **Camera flow holistic review** — `view.camera.zoomTo` now has 3 consumers (ObjectPeek, KiraNarrator, Sprouts) and the camera only saves pre-zoom state once. Chained/interleaved zooms may restore to the wrong state. Tracked in `docs/followups.md`.
+- **Growing sprout species hint** — sprouts look generic (green stem + leaves) while growing; the species visual only appears at bloom. May want to surface a subtle hint (color tint, leaf shape) once tagged. Defer pending feedback.
+- **Finer-grained tags** — V/I/P/S only in v1. The engine's `vipsTaxonomy.js` already has sub-claims (Teamwork, Curiosity, …). Adding a second-level picker is a follow-up.
+- **Mirror → Connector v2** — the brainstorm's original vision had AI-classified species from `runAutoConnectorAfterMirror`. The home route isn't wired to Mirror yet; v2 work tracked separately.
+- **U4 (per-capture DOM particle trail)** — deferred as polish; toast + count badge + camera-fly already deliver per-input feedback.
+
+## Notes for review
+
+- Branch was merged with main at `9abef80` to pick up `c7e9bbc fix(student-space): unstick onboarding flow`. Onboarding now works end-to-end.
+- The existing `MoodPins.js` / `Captures.js` slices were unchanged behaviorally (Captures gained a `patch` method, mirroring MoodPins.patch). No breaking changes to existing engine consumers.
+- `Sound.playOneShot('bloom')` reuses the existing engine audio path. No new AudioContext (which would have collided with `MirrorSession.tsx`'s MediaRecorder).
 ```
 
 ---
 
-## Command to open the PR (when ready)
+## Push + open PR commands
 
 ```bash
 git push -u origin feat/island-object-progression
 gh pr create \
-  --title "feat: island progression — captures grow sprouts into trees (v1)" \
-  --body-file docs/pr-island-object-progression-draft.md
+  --title "feat: island progression — captures grow species-tagged objects (v1)" \
+  --body-file <(awk '/^## Body$/{flag=1;next}/^## Push/{flag=0}flag' docs/pr-island-object-progression-draft.md | sed 's/^```markdown$//; s/^```$//')
 ```
 
-(Strip the "Draft PR description" heading and the "Branch state notes" / "Command" sections before piping to `gh pr create`; the body is everything between `## Body` and `## Branch state notes`.)
+(The awk extracts the body section between `## Body` and `## Push`; the sed strips the markdown code fences.)
