@@ -1,7 +1,23 @@
-import type { FloatingAuthMenuState } from '~/components/FloatingWorldActions'
 import type { SheetKey } from '~/components/SheetEntryRail'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
+import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
+import { signOutEngine } from '~/lib/sign-out-engine'
 import { cn } from '~/lib/utils'
+
+/**
+ * Signed-in/signed-out chrome state shared by the profile sheet and the
+ * `VipsPageView`. Defined here (the live module) so the dormant
+ * `FloatingWorldActions` can be removed without dragging live code with it.
+ * `FloatingWorldActions` re-exports the type for backwards compatibility.
+ */
+export type FloatingAuthMenuState =
+  | { status: 'signed-out' }
+  | {
+      status: 'signed-in'
+      label: string
+      detail: string | null
+      kind: 'workos' | 'demo' | 'dev-bypass'
+    }
 
 export const DIMENSION_LABEL: Record<VipsDimension, string> = {
   values: 'Values',
@@ -172,7 +188,20 @@ export function ProfileStudentChrome({
 function AuthAction({ authMenu }: { authMenu: FloatingAuthMenuState }) {
   if (authMenu.status !== 'signed-in') return null
   return (
-    <form action="/api/auth/sign-out" method="post" className="shrink-0">
+    <form
+      action="/api/auth/sign-out"
+      method="post"
+      className="shrink-0"
+      // Tear down the engine BEFORE clearing localStorage so Persistence's
+      // 250ms debounce can't race the wipe and re-create the `ss:v1:*` keys
+      // we just removed. dispose() flushes pending writes synchronously and
+      // revokes the rAF loop / window listeners. Then the clear runs, then
+      // the form POST fires.
+      onSubmit={() => {
+        signOutEngine()
+        clearStudentSpaceLocalState()
+      }}
+    >
       <button
         type="submit"
         className="rounded-full bg-[#f1ede5] px-3 py-1.5 text-sm text-[#2b2620]/65 transition-colors hover:text-[#2b2620]"

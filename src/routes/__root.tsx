@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { DevPalette } from '~/components/DevPalette'
 import { queryClient } from '~/router'
 import styles from '~/styles.css?url'
 
@@ -34,6 +35,9 @@ function RootComponent() {
             <Outlet />
           </main>
         </div>
+        {/* Dev-only Cmd-K palette. Tree-shaken out of production bundles so
+            the keybinding and developer commands do not ship to end users. */}
+        {import.meta.env.DEV ? <DevPalette /> : null}
       </QueryClientProvider>
     </RootDocument>
   )
