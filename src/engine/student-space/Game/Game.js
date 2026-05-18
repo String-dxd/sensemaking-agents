@@ -9,6 +9,7 @@ import Profile from './State/Profile.js'
 import Onboarding from './State/Onboarding.js'
 import CalendarEvents from './State/CalendarEvents.js'
 import TeacherLetters from './State/TeacherLetters.js'
+import Sprouts from './State/Sprouts.js'
 import { HOST_BODY_CLASSES } from './index.js'
 
 /**
@@ -200,6 +201,7 @@ export default class Game
         Onboarding.instance = null
         CalendarEvents.instance = null
         TeacherLetters.instance = null
+        Sprouts.instance = null
         Game.instance = null
     }
 }

@@ -353,6 +353,69 @@ export function mergeCalendarEvent(raw, ctx = 'event')
     return out
 }
 
+// ── Sprout ─────────────────────────────────────────────────────────────────
+/**
+ * @typedef {Object} Sprout
+ * @property {string} id
+ * @property {string} createdAt ISO
+ * @property {string} entryDate YYYY-MM-DD
+ * @property {'tree'} species v1 fixed to tree; v2 widens to flower/fruit
+ * @property {string} treeSpecies engine tree variety (oak, cherry, ...)
+ * @property {number} placementSeed deterministic seed → island position
+ * @property {number} threshold captures required to mark ready
+ * @property {number} count captures attached so far
+ * @property {boolean} readyToBloom threshold crossed, awaiting student tap
+ * @property {string|null} bloomedAt ISO; non-null once bloomed (sprout is then removed from active list anyway)
+ * @property {string[]} captureRefs capture/mood ids contributing to this sprout
+ */
+const SPROUT_SPECIES = new Set(['tree'])  // v1; v2 widens enum
+const SPROUT_TREE_SPECIES = new Set(['oak', 'cherry'])  // matches Tree.js PLACEMENTS
+
+const defaultSprout = () => ({
+    id:            '',
+    createdAt:     new Date(0).toISOString(),
+    entryDate:     '1970-01-01',
+    species:       'tree',
+    treeSpecies:   'oak',
+    placementSeed: 0,
+    threshold:     3,
+    count:         0,
+    readyToBloom:  false,
+    bloomedAt:     null,
+    captureRefs:   [],
+})
+
+const KNOWN_SPROUT_KEYS = new Set([
+    'id', 'createdAt', 'entryDate', 'species', 'treeSpecies',
+    'placementSeed', 'threshold', 'count', 'readyToBloom', 'bloomedAt', 'captureRefs',
+])
+
+export function mergeSprout(raw, ctx = 'sprout')
+{
+    if(!raw || typeof raw !== 'object') { warn(`${ctx}: not an object`); return null }
+    const out = defaultSprout()
+    for(const k of Object.keys(raw))
+    {
+        if(!KNOWN_SPROUT_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
+        const v = raw[k]
+        if(k === 'species' && !SPROUT_SPECIES.has(v)) { warn(`${ctx}.species invalid: "${v}"`); continue }
+        if(k === 'treeSpecies' && !SPROUT_TREE_SPECIES.has(v)) { warn(`${ctx}.treeSpecies invalid: "${v}"`); continue }
+        if((k === 'placementSeed' || k === 'threshold' || k === 'count') && typeof v !== 'number') { warn(`${ctx}.${k} not number`); continue }
+        if(k === 'readyToBloom' && !isBool(v)) { warn(`${ctx}.readyToBloom not bool`); continue }
+        if(k === 'bloomedAt' && v !== null && !isISO(v)) { warn(`${ctx}.bloomedAt invalid`); continue }
+        if(k === 'captureRefs')
+        {
+            if(!Array.isArray(v)) { warn(`${ctx}.captureRefs not array`); continue }
+            out.captureRefs = v.filter((x) => typeof x === 'string')
+            continue
+        }
+        if((k === 'id' || k === 'entryDate' || k === 'createdAt') && !isString(v)) { warn(`${ctx}.${k} not string`); continue }
+        out[k] = v
+    }
+    if(!out.id) return null
+    return out
+}
+
 // ── Array helpers ──────────────────────────────────────────────────────────
 export const mergeArray = (raw, mergeFn, ctx) =>
     (Array.isArray(raw) ? raw.map((r, i) => mergeFn(r, `${ctx}[${i}]`)).filter(Boolean) : [])

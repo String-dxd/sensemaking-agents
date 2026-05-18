@@ -13,6 +13,7 @@ import Persistence from './Persistence.js'
 import Weather from './Weather.js'
 import Wind from './Wind.js'
 import Onboarding from './Onboarding.js'
+import Sprouts from './Sprouts.js'
 
 export default class State
 {
@@ -54,6 +55,7 @@ export default class State
         this.profile  = new Profile()
         this.letters  = new TeacherLetters()
         this.calendar = new CalendarEvents()
+        this.sprouts  = new Sprouts()
         this.weather = new Weather()
         this.wind = new Wind()
 
@@ -67,6 +69,7 @@ export default class State
         this.profile.hydrate(snapshot.profile)
         this.letters.hydrate(snapshot.letters)
         this.calendar.hydrate(snapshot.calendar)
+        this.sprouts.hydrate(snapshot.sprouts)
 
         // Player shim — Bruno's Sky/Grass/etc read `state.player.position.current`
         // to centre their world around the moving player. We don't have a player,
