@@ -27,11 +27,9 @@ import Debug from '../Debug/Debug.js'
  *
  * Trunks stay static — the wind illusion lives entirely in the leaf mask.
  */
-// PATCH (sensemaking-agents 2026-05-18, see src/engine/student-space/PATCHES.md #1):
-// Self-host the DRACO decoder under public/draco/ instead of fetching from
-// https://www.gstatic.com/draco/v1/decoders/. The gstatic CDN is whitelist-
-// blocked on Singapore MOE school networks and trees silently fail to load.
-// Re-apply on every upstream sync.
+// DRACO decoder is self-hosted under public/draco/ (copied from
+// three/examples/jsm/libs/draco/gltf/). Avoids gstatic.com, which is
+// whitelist-blocked on Singapore MOE school networks where this app runs.
 const dracoLoader = new DRACOLoader()
 dracoLoader.setDecoderPath('/draco/')
 const gltfLoader = new GLTFLoader()

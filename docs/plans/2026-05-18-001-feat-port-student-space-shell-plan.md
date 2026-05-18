@@ -83,12 +83,11 @@ Prior plans (`2026-05-13-001-feat-student-space-world-stage-plan.md`) explicitly
 
 ### U1. Vendor the engine into `src/engine/student-space/`
 
-**Decision (2026-05-18):** vendored copy — full local control; upstream changes tracked manually via `cd ~/Developer/student-space && git pull` then a manual sync.
+**Decision (2026-05-18):** clean-cut copy — `cp -R` from upstream `~/Developer/student-space/student-space-v1/sources/Game/` (commit `cd30172`). No future upstream sync intended. The code is ours to edit freely; engine bugs are in-PR fixes, not "patches against upstream."
 
-- Copy `~/Developer/student-space/student-space-v1/sources/Game/` → `src/engine/student-space/Game/`.
-- Copy their `style.css` if shaders/CSS sky depend on it — verify.
-- Record the upstream commit SHA in `src/engine/student-space/UPSTREAM.md` so future syncs have a base.
-- Biome: add `src/engine/student-space/` to ignore list (their code is JS, not our TS style; not our problem to lint).
+- Copy `Game/` → `src/engine/student-space/Game/`.
+- Copy `style.css` → `src/engine/student-space/style.css`.
+- Biome: add `src/engine/student-space/` to ignore list — engine source is JS with 4-space Bruno-Simon style; preserving the original formatting is more useful than retro-fitting our 2-space convention across ~26k LOC of working code.
 
 ### U2. Verify the engine constructs in our Vite + TanStack Start environment
 - Install `vite-plugin-glsl@^1.3` (latest compatible with Vite 7); add to `vite.config.ts` plugin list.
@@ -101,7 +100,7 @@ DoD: a throwaway test page can import `createGame` without bundler errors. Const
 - `'use client'`-equivalent route boundary (TanStack Start's `clientOnly` HOC or guarded `useEffect`).
 - `useEffect` on a `ref.current` div: `const game = createGame({ container: ref.current, persistence: { storage: localStorageAdapter() } })`. Cleanup: `game.dispose()`.
 - React StrictMode double-mount: their docs say `dispose()` handles it. Add a dev-only assertion that logs warn if `createGame` throws (means StrictMode dispose path is broken).
-- Self-host DRACO: patch `Tree.js` (in our vendored copy under `src/engine/student-space/Game/View/Tree.js`) to read decoder path from a config object passed via `createGame({ assets: { dracoDecoderPath: '/draco/' } })`. **Decision (2026-05-18): patch ours only; don't upstream.** Re-apply on every upstream sync. Document the patch in `src/engine/student-space/PATCHES.md` so syncs catch it.
+- Self-host DRACO: edit `src/engine/student-space/Game/View/Tree.js` to read from `/draco/` instead of `gstatic.com`. Under clean-cut policy this is just our code, not a "patch."
 
 DoD: `/` renders Student Space island; mood pins, captures via their UI, day cycle work; localStorage persists across reloads; HMR doesn't double-mount.
 
@@ -185,4 +184,4 @@ DoD: manual smoke pass; tests in U3/U5/U6 green; biome/tsc clean.
 
 - Vendored vs sibling-imported engine: the lesson is which option survived contact with reality (loader resolution, type-checking, upstream merge friction). Capture in `docs/solutions/engine-import-strategy.md`.
 - StrictMode singleton survival: precise sequence that made `dispose()` work cleanly across React 19 StrictMode double-mount. Capture in `docs/solutions/three-engine-react-mount.md`.
-- DRACO self-hosting pattern: the exact host-override seam we patched into `Tree.js` (and hopefully upstreamed). Capture in `docs/solutions/draco-self-host.md`.
+- DRACO self-hosting: copy decoders from `three/examples/jsm/libs/draco/gltf/` to `public/draco/` and set `dracoLoader.setDecoderPath('/draco/')` in `Tree.js`. Capture in `docs/solutions/draco-self-host.md`.
