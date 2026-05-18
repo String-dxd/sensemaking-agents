@@ -39,6 +39,7 @@ export default class DayDetailCard
     constructor()
     {
         this.state = State.getInstance()
+        this.backend = this.state.backend || null
 
         const root = document.createElement('aside')
         root.className = 'day-detail-card'
@@ -70,6 +71,13 @@ export default class DayDetailCard
 
         this._onRootClick = (event) =>
         {
+            const review = event.target.closest?.('[data-review-action]')
+            if(review)
+            {
+                event.preventDefault()
+                this._reviewReflection(review)
+                return
+            }
             if(event.target.closest('.day-detail-card__close')) this.close()
         }
         root.addEventListener('click', this._onRootClick)
@@ -135,8 +143,9 @@ export default class DayDetailCard
         {
             const col = MOOD_HEX[p.emotion] || '#888'
             const dot = `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${col}"></span>`
-            const cause = p.cause ? ` · ${p.cause}` : ''
-            return renderRow(dot, `${p.emotion} (${p.intensity}/4)`, cause + (p.note ? ` · "${p.note}"` : ''))
+            const cause = p.cause ? ` · ${escapeHtml(p.cause)}` : ''
+            const note = p.note ? ` · "${escapeHtml(p.note)}"` : ''
+            return renderRow(dot, escapeHtml(`${p.emotion} (${p.intensity}/4)`), cause + note)
         }).join('')
 
         // Captures
@@ -144,20 +153,29 @@ export default class DayDetailCard
         {
             if(c.kind === 'ask')
             {
-                const text = (c.text || '').slice(0, 120)
-                return renderRow('✎', text || '<i>(empty)</i>', c.prompt ? `prompt: ${c.prompt}` : '')
+                const text = escapeHtml((c.text || '').slice(0, 120))
+                const status = c.reviewStatus ? `status: ${c.reviewStatus}` : ''
+                const prompt = c.prompt ? `prompt: ${escapeHtml(c.prompt)}` : ''
+                const actions = c.backendMirrorEntryId && c.reviewStatus === 'pending'
+                    ? `<div class="day-detail-row__actions">
+                        <button type="button" data-review-action="confirmed" data-entry-id="${c.backendMirrorEntryId}">Confirm</button>
+                        <button type="button" data-review-action="forgotten" data-entry-id="${c.backendMirrorEntryId}">Forget</button>
+                      </div>`
+                    : ''
+                const sub = [status, prompt, actions].filter(Boolean).join(' ')
+                return renderRow('✎', text || '<i>(empty)</i>', sub)
             }
             if(c.kind === 'photo')
             {
-                const cap = c.caption ? c.caption.slice(0, 120) : '<i>(photo, no caption)</i>'
+                const cap = c.caption ? escapeHtml(c.caption.slice(0, 120)) : '<i>(photo, no caption)</i>'
                 return renderRow('📷', cap, '')
             }
-            return renderRow('•', c.kind, '')
+            return renderRow('•', escapeHtml(c.kind), '')
         }).join('')
 
         // Events
         sectionEls[2].querySelector('.day-detail-card__rows').innerHTML = evs.map((e) =>
-            renderRow('·', e.label, e.kind)
+            renderRow('·', escapeHtml(e.label), escapeHtml(e.kind))
         ).join('')
 
         // Hide empty sections and decide whether to show the global empty msg.
@@ -166,4 +184,29 @@ export default class DayDetailCard
         sectionEls[2].hidden = evs.length   === 0
         this.emptyEl.hidden = (moods.length + caps.length + evs.length) !== 0
     }
+
+    async _reviewReflection(button)
+    {
+        if(!this.backend?.updateReflectionReview) return
+        const entryId = parseInt(button.dataset.entryId || '', 10)
+        const status = button.dataset.reviewAction
+        if(!Number.isInteger(entryId) || (status !== 'confirmed' && status !== 'forgotten')) return
+        try
+        {
+            await this.backend.updateReflectionReview({ entryId, status })
+            const snapshot = await this.backend.refreshSnapshot?.()
+            if(snapshot) this.state.applyBackendSnapshot?.(snapshot)
+            else this.state.captures?.patch?.(`mirror:${entryId}`, { reviewStatus: status })
+            this._render()
+        }
+        catch(err)
+        {
+            console.warn('[DayDetailCard] reflection review failed', err)
+        }
+    }
+}
+
+function escapeHtml(value)
+{
+    return String(value || '').replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[ch])
 }

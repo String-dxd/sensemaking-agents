@@ -21,7 +21,7 @@ export interface TranscribeMirrorResult {
 export class WhisperTranscriptionError extends Error {
   constructor(
     message: string,
-    readonly code: 'EMPTY_AUDIO' | 'TOO_LARGE' | 'NO_API_KEY' | 'UPSTREAM',
+    readonly code: 'EMPTY_AUDIO' | 'TOO_LARGE' | 'UNSUPPORTED_MIME' | 'NO_API_KEY' | 'UPSTREAM',
     readonly upstreamStatus?: number,
   ) {
     super(message)
@@ -41,7 +41,20 @@ export async function transcribeMirrorHandler(
   deps: TranscribeMirrorDeps = {},
 ): Promise<TranscribeMirrorResult> {
   await (deps.authenticate ?? requireCounselorContext)()
+  return transcribeMirrorAudio(data, deps)
+}
+
+export async function transcribeMirrorAudio(
+  data: TranscribeMirrorInput,
+  deps: Omit<TranscribeMirrorDeps, 'authenticate'> = {},
+): Promise<TranscribeMirrorResult> {
   const parsed = transcribeMirrorInputSchema.parse(data)
+  if (!isSupportedAudioMime(parsed.mimeType)) {
+    throw new WhisperTranscriptionError(
+      `Unsupported audio MIME type: ${parsed.mimeType}`,
+      'UNSUPPORTED_MIME',
+    )
+  }
 
   let buffer: Buffer
   try {
@@ -108,4 +121,13 @@ function filenameForMime(mime: string): string {
   if (mime.includes('wav')) return 'mirror-session.wav'
   if (mime.includes('ogg')) return 'mirror-session.ogg'
   return 'mirror-session.bin'
+}
+
+function isSupportedAudioMime(mime: string): boolean {
+  return (
+    mime.startsWith('audio/') ||
+    mime === 'video/webm' ||
+    mime === 'application/ogg' ||
+    mime === 'application/octet-stream'
+  )
 }

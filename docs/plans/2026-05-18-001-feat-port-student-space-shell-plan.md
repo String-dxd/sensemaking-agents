@@ -2,7 +2,7 @@
 date: 2026-05-18
 title: "feat: Port Student Space app shell as the new home surface"
 type: feat
-status: planning
+status: completed
 origin: "User request 2026-05-18: replace world stage with Student Space's; backend wired later; Cmd-K dev palette to toggle UI vs backend table view"
 ---
 
@@ -12,7 +12,7 @@ origin: "User request 2026-05-18: replace world stage with Student Space's; back
 
 The Student Space repo (`github.com/wondopamine/student-space`, cloned to `~/Developer/student-space`) shipped two changes that unblock a wholesale shell port: (a) a public `createGame()` entrypoint with `dispose()` lifecycle and pluggable `StorageAdapter`; (b) an onboarding ceremony (3D egg shatter, Kira emerges, click-gated reveal, Plus Jakarta typography). ENGINE.md is the host contract.
 
-This plan replaces our current home-route surface (Three.js scene we wrote + Sheets we wrote) with their engine mounted via `createGame()`. The agent pipeline (Mirror/Connector/Cartographer), DB, RLS, auth, and ablation evals are untouched. Backend wiring is deferred — initial port uses their default `localStorageAdapter()`, so the engine runs fully client-side against browser storage.
+This plan replaces our current home-route surface (Three.js scene we wrote + Sheets we wrote) with their engine mounted via `createGame()`. The agent pipeline (Mirror/Connector/Cartographer), DB, RLS, auth, and ablation evals are untouched. Backend wiring was deferred in this shell-port plan and is now covered by `docs/plans/2026-05-18-002-feat-student-space-backend-bridge-plan.md`.
 
 A new developer surface — Cmd-K command palette — toggles between two app modes:
 1. **UI mode** (default): their engine fills the screen.

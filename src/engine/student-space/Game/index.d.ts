@@ -7,6 +7,10 @@
 //
 // Host contract is documented in:
 //   docs/plans/2026-05-18-001-feat-port-student-space-shell-plan.md
+import type {
+  StudentSpaceBackendBridge,
+  StudentSpaceOpenSurfaceInput,
+} from '~/lib/student-space/backend-bridge'
 
 export interface StorageAdapter {
   getItem(key: string): string | null
@@ -25,9 +29,12 @@ export interface StorageAdapter {
 export interface GameOptions {
   container?: HTMLElement
   persistence?: { storage?: StorageAdapter }
+  backend?: StudentSpaceBackendBridge
 }
 
 export interface Game {
+  backend: StudentSpaceBackendBridge | null
+  openSurface(input: StudentSpaceOpenSurfaceInput): void
   dispose(): void
   /**
    * Public state surface. The four slices below are the stable engine

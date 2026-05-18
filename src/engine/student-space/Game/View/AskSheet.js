@@ -58,6 +58,7 @@ export default class AskSheet
     {
         this.state = State.getInstance()
         this.captures = this.state.captures
+        this.backend = this.state.backend || null
 
         const root = document.createElement('div')
         root.className = 'ask-sheet'
@@ -892,11 +893,49 @@ export default class AskSheet
         // Single funnel so Raw-log, Reframe-log, and Chat-log share one
         // path. The mergeCapture schema is forward-additive (commit #4),
         // so extra fields here flow straight into persistence.
-        const entry = { kind: 'ask', prompt: this.prompt, ...payload }
+        const entry = { kind: 'ask', prompt: this.prompt, syncStatus: this.backend?.submitReflection ? 'syncing' : 'local', ...payload }
         // Strip empties so old-style captures stay { kind, text, prompt }.
         if(!entry.reframe) delete entry.reframe
         if(!entry.thread || entry.thread.length === 0) delete entry.thread
-        this.captures.add(entry)
+        const capture = this.captures.add(entry)
+        if(this.backend?.submitReflection)
+            this._submitBackendReflection(capture)
+    }
+
+    async _submitBackendReflection(capture)
+    {
+        try
+        {
+            const result = await this.backend.submitReflection({
+                localCaptureId: capture.id,
+                transcript: capture.text || '',
+                contextType: capture.contextType || 'school',
+            })
+            const mirror = result?.mirrorEntry
+            if(!mirror) return
+            this.captures.patch?.(capture.id, {
+                backendMirrorEntryId: mirror.id,
+                reviewStatus: mirror.reviewStatus || 'pending',
+                syncStatus: 'synced',
+                contextType: mirror.contextType || 'school',
+                reframe: {
+                    headline: mirror.storyReframe || '',
+                    highlightPhrase: mirror.inferredMeaning || '',
+                    themes: [],
+                    needs: [],
+                    moods: [],
+                },
+            })
+        }
+        catch(err)
+        {
+            const message = err instanceof Error ? err.message : String(err)
+            console.warn('[AskSheet] backend reflection submit failed', err)
+            this.captures.patch?.(capture.id, {
+                syncStatus: 'failed',
+                syncError: message,
+            })
+        }
     }
 
     /* ----- stage routing ----- */

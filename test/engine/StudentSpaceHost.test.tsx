@@ -13,8 +13,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StudentSpaceHost } from '~/components/StudentSpaceHost'
 
 const dispose = vi.fn()
-const createGame = vi.fn().mockReturnValue({ dispose })
+const openSurface = vi.fn()
+const createGame = vi.fn().mockReturnValue({ dispose, openSurface })
 const localStorageAdapter = vi.fn().mockReturnValue({})
+const backendBridge = vi.hoisted(() => ({ version: 1 }))
+
+vi.mock('~/lib/student-space/backend-bridge', () => ({
+  createStudentSpaceBackendBridge: () => backendBridge,
+}))
 
 vi.mock('~/engine/student-space/Game', () => ({
   createGame: (args: unknown) => createGame(args),
@@ -24,16 +30,23 @@ vi.mock('~/engine/student-space/Game', () => ({
 afterEach(() => {
   createGame.mockClear()
   dispose.mockClear()
+  openSurface.mockClear()
   localStorageAdapter.mockClear()
-  createGame.mockImplementation(() => ({ dispose }))
+  createGame.mockImplementation(() => ({ dispose, openSurface }))
+  delete (backendBridge as { refreshSnapshot?: unknown }).refreshSnapshot
+  window.history.pushState({}, '', '/')
 })
 
 describe('StudentSpaceHost', () => {
   it('renders a container and mounts the engine into it', async () => {
     const { container } = render(<StudentSpaceHost />)
     await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
-    const arg = createGame.mock.calls[0]?.[0] as { container: HTMLElement }
+    const arg = createGame.mock.calls[0]?.[0] as {
+      backend: { version: number }
+      container: HTMLElement
+    }
     expect(arg.container).toBe(container.firstElementChild)
+    expect(arg.backend).toMatchObject({ version: 1 })
   })
 
   it('disposes the game when unmounted', async () => {
@@ -58,6 +71,37 @@ describe('StudentSpaceHost', () => {
     )
     expect(screen.getByRole('alert')).toHaveTextContent('engine boom')
     errSpy.mockRestore()
+  })
+
+  it('opens a sheet from the current route query after the engine mounts', async () => {
+    window.history.pushState({}, '', '/?sheet=values#entry-7')
+    render(<StudentSpaceHost />)
+
+    await waitFor(() =>
+      expect(openSurface).toHaveBeenCalledWith(expect.objectContaining({ surface: 'values' })),
+    )
+  })
+
+  it('replays the route-opened sheet after backend snapshot hydration', async () => {
+    window.history.pushState({}, '', '/?sheet=reflections&filter=need-review#entry-7')
+    ;(backendBridge as { refreshSnapshot?: () => Promise<unknown> }).refreshSnapshot = vi.fn(
+      async () => ({
+        profile: {
+          facets: {},
+          identity: { name: 'Maya', className: 'Sec 3', avatarDataUrl: null },
+        },
+        reflections: [],
+        trajectory: null,
+        recentMoods: [],
+      }),
+    )
+
+    render(<StudentSpaceHost />)
+
+    await waitFor(() => expect(openSurface).toHaveBeenCalledTimes(2))
+    expect(openSurface).toHaveBeenLastCalledWith(
+      expect.objectContaining({ surface: 'reflections', filter: 'need-review', entryId: 7 }),
+    )
   })
 
   it('does not call createGame when unmounted before the dynamic import resolves', async () => {

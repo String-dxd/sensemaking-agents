@@ -27,6 +27,7 @@ export default class TrajectorySheet
         this.state    = State.getInstance()
         this.captures = this.state.captures
         this.profile  = this.state.profile
+        this.backend  = this.state.backend || null
 
         // Cheap sanity audit at construct time — surface any taxonomy drift
         // before the first user open. The function only console.warns.
@@ -43,6 +44,7 @@ export default class TrajectorySheet
                     <h2 class="trajectory-sheet__title">Trajectory compass</h2>
                     <p class="trajectory-sheet__throughline"></p>
                     <p class="trajectory-sheet__meta"></p>
+                    <button class="trajectory-sheet__run" type="button">Run sense-making</button>
                 </header>
 
                 <nav class="trajectory-sheet__tabs" role="tablist" data-role="tabs"></nav>
@@ -83,6 +85,7 @@ export default class TrajectorySheet
         this.scrollEl  = root.querySelector('.trajectory-sheet__scroll')
         this.throughLineEl = root.querySelector('.trajectory-sheet__throughline')
         this.metaEl    = root.querySelector('.trajectory-sheet__meta')
+        this.runBtn    = root.querySelector('.trajectory-sheet__run')
         this.tabsEl    = root.querySelector('[data-role="tabs"]')
         this.panelEl   = root.querySelector('[data-role="panel"]')
         this.panelIndexEl   = root.querySelector('[data-role="panel-index"]')
@@ -102,6 +105,7 @@ export default class TrajectorySheet
         this.bearings    = []
 
         this.closeEl.addEventListener('click', () => this.close())
+        this.runBtn.addEventListener('click', () => this._runBackendTrajectory())
         this.tabsEl.addEventListener('click', (event) =>
         {
             const tab = event.target.closest?.('.trajectory-tab')
@@ -148,6 +152,36 @@ export default class TrajectorySheet
             trajectory,
         })
         return capture
+    }
+
+    async _runBackendTrajectory()
+    {
+        if(!this.backend?.runTrajectory) return
+        this.runBtn.disabled = true
+        this.runBtn.textContent = 'Running...'
+        try
+        {
+            await this.backend.runTrajectory()
+            const snapshot = await this.backend.refreshSnapshot?.()
+            if(snapshot) this.state.applyBackendSnapshot?.(snapshot)
+            const capture = this._latestTrajectoryCapture()
+            if(capture) this._render(capture)
+            this.runBtn.textContent = 'Updated'
+        }
+        catch(err)
+        {
+            console.warn('[TrajectorySheet] backend trajectory run failed', err)
+            this.runBtn.textContent = 'Run failed'
+        }
+        finally
+        {
+            setTimeout(() =>
+            {
+                if(!this.runBtn) return
+                this.runBtn.disabled = false
+                this.runBtn.textContent = 'Run sense-making'
+            }, 1600)
+        }
     }
 
     _latestTrajectoryCapture()
