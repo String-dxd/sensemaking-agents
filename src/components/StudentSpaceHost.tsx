@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import '~/engine/student-space/style.css'
 import type { Game } from '~/engine/student-space/Game'
 import { cn } from '~/lib/utils'
+import { CaptureTagPicker } from './CaptureTagPicker'
 import { IslandProgressionOverlay } from './IslandProgressionOverlay'
 
 /**
@@ -71,7 +72,12 @@ export function StudentSpaceHost({ className }: { className?: string }) {
   return (
     <>
       <div ref={containerRef} className={cn('game fixed inset-0 h-svh w-svw', className)} />
-      {game ? <IslandProgressionOverlay game={game} /> : null}
+      {game ? (
+        <>
+          <IslandProgressionOverlay game={game} />
+          <CaptureTagPicker game={game} />
+        </>
+      ) : null}
     </>
   )
 }

@@ -439,7 +439,21 @@ export function wireSproutsToCaptures(captures, moodPins, sprouts)
     })
     const offMoodPins = moodPins.subscribe((pin) =>
     {
-        try { sprouts.grow({ kind: 'mood', id: pin.id }) }
+        try
+        {
+            const result = sprouts.grow({ kind: 'mood', id: pin.id })
+            // Mood pins auto-tag as 'personality' — emotional state is
+            // inherently a glimpse of how you tend to be. The chip
+            // picker exists for captures (ask/photo/trajectory) where
+            // the content meaning is genuinely ambiguous. Only tag if
+            // this mood pin spawned a new sprout (so the species lock
+            // applies); if it joined an existing sprout, the species
+            // is already locked by whatever tagged the first capture.
+            if(result?.didSpawn && pin?.id)
+            {
+                sprouts.setDimensionForFirstCapture(pin.id, 'personality')
+            }
+        }
         catch(err) { console.warn('[sprouts] grow from mood pin failed', err) }
     })
     return () => { offCaptures(); offMoodPins() }

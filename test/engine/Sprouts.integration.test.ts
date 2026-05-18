@@ -108,6 +108,24 @@ describe('wireSproutsToCaptures', () => {
     expect(sprouts.getActive()?.readyToBloom).toBe(false)
   })
 
+  it('mood pin auto-tags as personality on the sprout it spawned', () => {
+    moodPins.add({ emotion: 'joy', intensity: 2 })
+    const active = sprouts.recent(1)[0]!
+    expect(active.species).toBe('butterfly')
+    expect(active.dimension).toBe('personality')
+  })
+
+  it('mood pin joining an existing capture-spawned sprout does NOT change species', () => {
+    captures.add({ kind: 'ask', text: 'hello' })
+    // The capture-spawned sprout is 'pending' until the chip picker
+    // (component-level) tags it. The mood-pin auto-tag runs only when
+    // didSpawn is true; here it should join, not spawn.
+    moodPins.add({ emotion: 'joy', intensity: 2 })
+    const active = sprouts.recent(1)[0]!
+    expect(active.species).toBe('pending')
+    expect(active.dimension).toBeNull()
+  })
+
   it('unwire() detaches both subscriptions', () => {
     captures.add({ kind: 'ask', text: 'before' })
     expect(sprouts.getActive()?.count).toBe(1)
