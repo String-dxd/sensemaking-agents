@@ -54,6 +54,34 @@ const COLORS = {
     fruitBerries: [0xC8202A, 0xE8632E, 0xF0B044], // red, orange, amber
 }
 
+// Pre-bloom species hints. Once a sprout's species locks (from the
+// student's V/I/P/S tag), the still-growing sprout subtly foreshadows
+// the bloomed-object look so the eventual bloom doesn't feel arbitrary.
+// Recolor existing materials — never spawn new ones per sprout.
+// Reduced motion: tint only (no sparkle / no berry dot).
+export const SPECIES_HINT = {
+    tree: {
+        leafLight: 0x6B9445,   // darker, oak-leaning canopy preview
+        leafDark:  0x375D1F,
+        glow:      0xFFE38C,   // unchanged warm gold
+    },
+    flower: {
+        leafLight: 0xC9D67A,   // pale yellow-green — warm tinge
+        leafDark:  0x9DB07A,
+        glow:      0xFFB088,   // warm rose ring
+    },
+    butterfly: {
+        leafLight: 0xB8D898,
+        leafDark:  0x5E8E40,
+        glow:      0xC4B5E5,   // pale violet ring
+    },
+    fruit: {
+        leafLight: 0xA0BE6A,
+        leafDark:  0x6A8A36,
+        glow:      0xE4906A,   // amber ring
+    },
+}
+
 const BOB_AMPLITUDE = 0.05   // metres of vertical bob when ready
 const BOB_PERIOD_S  = 2.5    // seconds per bob cycle
 const PULSE_PERIOD_S = 2.5   // seconds per pulse cycle
@@ -168,6 +196,15 @@ export default class Sprouts
                 // bloom triggers automatically within the same cinematic
                 // beat. No tap, no tray.
                 this._startCameraFlow(event.sprout.id, { autoBloom: true })
+            }
+            else if(event.type === 'speciesLocked')
+            {
+                const node = this.nodes.get(event.sprout.id)
+                if(node)
+                {
+                    node.sprout = event.sprout
+                    this._applySpeciesHint(node)
+                }
             }
             else if(event.type === 'bloomed')
             {
@@ -521,7 +558,7 @@ export default class Sprouts
         group.add(hitTarget)
         parts.hitTarget = hitTarget
 
-        this.nodes.set(sprout.id, {
+        const node = {
             sprout,
             group,
             parts,
@@ -530,7 +567,80 @@ export default class Sprouts
             pulsePhase: 0,
             bobPhase: 0,
             dissolveStartMs: null,
-        })
+            // Track which species hint is currently painted, so re-firing
+            // 'speciesLocked' on the same species is a cheap no-op.
+            hintedSpecies: null,
+        }
+        this.nodes.set(sprout.id, node)
+        // Hydrated sprouts may already carry a locked species; paint
+        // the hint immediately so the visual matches state on load.
+        if(sprout.species && sprout.species !== 'pending') this._applySpeciesHint(node)
+    }
+
+    /**
+     * Recolor an existing sprout node's materials + (for butterfly /
+     * fruit) attach a small decorative mesh so the still-growing sprout
+     * foreshadows its eventual bloomed form. Idempotent: re-applying the
+     * same species is a no-op. Reduced motion drops the decorative mesh
+     * and keeps tint only.
+     */
+    _applySpeciesHint(node)
+    {
+        const species = node.sprout?.species
+        const hint = species && SPECIES_HINT[species]
+        if(!hint) return
+        if(node.hintedSpecies === species) return
+        node.hintedSpecies = species
+
+        // Each sprout owns its own MeshLambertMaterials (built in
+        // _buildSproutMesh), so mutating .color affects this sprout only.
+        try {
+            node.parts.leafA.material.color.setHex(hint.leafLight)
+            node.parts.leafC.material.color.setHex(hint.leafLight)
+            node.parts.leafB.material.color.setHex(hint.leafDark)
+            node.parts.glow.material.color.setHex(hint.glow)
+        } catch(_) { /* defensive: post-dispose race */ }
+
+        // Decorative accents — skipped under reduced motion.
+        if(reduceMotion()) return
+        if(species === 'butterfly')
+        {
+            this._addSparkleHint(node)
+        }
+        else if(species === 'fruit')
+        {
+            this._addBerryHint(node)
+        }
+    }
+
+    _addSparkleHint(node)
+    {
+        if(node.parts.sparkleHint) return
+        // Three tiny dots above the leaf cluster, in butterfly-wing tones.
+        const group = new THREE.Group()
+        group.position.y = 0.32
+        const geo = new THREE.SphereGeometry(0.012, 6, 4)
+        const tones = [0xFFD24A, 0xFF7AA2, 0x8FD3FF]
+        for(let i = 0; i < 3; i++)
+        {
+            const a = (i / 3) * Math.PI * 2
+            const mat = new THREE.MeshBasicMaterial({ color: tones[i], transparent: true, opacity: 0.85 })
+            const dot = new THREE.Mesh(geo, mat)
+            dot.position.set(Math.cos(a) * 0.06, Math.sin(a * 1.7) * 0.02, Math.sin(a) * 0.06)
+            group.add(dot)
+        }
+        node.group.add(group)
+        node.parts.sparkleHint = group
+    }
+
+    _addBerryHint(node)
+    {
+        if(node.parts.berryHint) return
+        const mat = new THREE.MeshLambertMaterial({ color: 0xC8202A, flatShading: true })
+        const berry = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), mat)
+        berry.position.set(0.012, 0.27, 0)
+        node.group.add(berry)
+        node.parts.berryHint = berry
     }
 
     /**
@@ -587,7 +697,7 @@ export default class Sprouts
             tgt.z + unitZ * dist,
         )
         const camLook = new (this._tmpVec.constructor)(tgt.x, tgt.y + lookLift, tgt.z)
-        camera.zoomTo(camPos, camLook, CAM_ZOOM_IN_MS)
+        camera.zoomTo(camPos, camLook, CAM_ZOOM_IN_MS, { owner: 'sprouts' })
 
         this._camFlow = {
             sproutId,
@@ -656,7 +766,7 @@ export default class Sprouts
     _returnCamera(flow)
     {
         const camera = this.view.camera
-        if(camera && camera.restoreZoom) camera.restoreZoom(CAM_ZOOM_OUT_MS)
+        if(camera && camera.restoreZoom) camera.restoreZoom(CAM_ZOOM_OUT_MS, { owner: 'sprouts' })
         flow.phase = 'returning'
         flow.startMs = performance.now()
     }
@@ -783,8 +893,11 @@ export default class Sprouts
                 const scale = node.targetScale * (1 - t)
                 node.group.scale.setScalar(scale)
                 node.group.position.y += delta * 0.6  // gentle rise
-                // Fade leaves + stem
-                for(const part of [node.parts.stem, node.parts.leafA, node.parts.leafB, node.parts.leafC])
+                // Fade leaves + stem + any species-hint accents
+                const fadeParts = [node.parts.stem, node.parts.leafA, node.parts.leafB, node.parts.leafC]
+                if(node.parts.berryHint) fadeParts.push(node.parts.berryHint)
+                if(node.parts.sparkleHint) fadeParts.push(...node.parts.sparkleHint.children)
+                for(const part of fadeParts)
                 {
                     if(!part.material.transparent)
                     {

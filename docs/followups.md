@@ -82,18 +82,9 @@ When adding entries here:
 Move entries OUT of this file when fixed — link the commit/PR in the section
 header for archaeology, or delete outright. This file should stay short.
 
-## Camera flow needs holistic review across all consumers (2026-05-18)
+## ~~Camera flow needs holistic review across all consumers~~ (resolved 2026-05-18)
 
-The engine's `view.camera.zoomTo()` / `restoreZoom()` API is now used by:
-- `View/ObjectPeek.js` — flower/mailbox/telescope peek-then-companion
-- `View/KiraNarrator.js` — AC-style dialogue beats
-- `View/Sprouts.js` — per-capture beat (added in feat/island-object-progression)
-
-Each consumer manages its own zoom lifecycle, but the camera only saves
-its pre-zoom state ONCE (`if(!this._savedPos)` in Camera.js:138). Chained
-or interleaved zooms from different consumers may restore to the wrong
-saved state. Surface for review: do we need a stack-based save, a single
-owner pattern, or a coordinator?
-
-User flagged 2026-05-18 in #feat/island-object-progression dogfood:
-"camera move in general need to be fixed with other objects too."
+Fixed via owner-keyed save stack in `Camera.zoomTo/restoreZoom`. Each
+consumer now passes `{ owner: '...' }`; the camera holds a `Map<owner,
+{pos, target}>` so interleaved zooms restore in LIFO order. Tests in
+`test/engine/Camera.test.ts` cover the failing pre-fix scenarios.

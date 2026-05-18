@@ -128,17 +128,31 @@ export default class Camera
     }
 
     // -----------------------------------------------------------------
-    // Cinematic zoom — used by KiraNarrator to frame Kira during an
-    // Animal-Crossing-style dialogue beat. While a zoom (or restore) is
-    // animating, OrbitControls is suppressed; on restore-complete it
-    // resumes at the prior orbit position.
+    // Cinematic zoom — used by KiraNarrator, ObjectPeek, Sprouts, and
+    // onboarding to frame a subject during a dialogue/peek beat. While
+    // a zoom is animating, OrbitControls is suppressed; on the final
+    // restore (stack drains) controls re-enable.
+    //
+    // Multiple consumers can stack zooms via `options.owner`. The first
+    // zoom from a given owner captures the *current* camera pose as that
+    // owner's restore anchor; subsequent zoomTo calls from the same owner
+    // retarget without replacing the anchor (so a within-consumer chain
+    // like ObjectPeek.open → _goPickup still returns to the pre-peek
+    // pose on close). `restoreZoom` matched by owner pops that owner's
+    // entry; out-of-order restores remove the anchor silently rather
+    // than yanking the camera away from whichever owner is currently
+    // on top.
     // -----------------------------------------------------------------
-    zoomTo(position, lookAt, duration = 700)
+    zoomTo(position, lookAt, duration = 700, options = {})
     {
-        if(!this._savedPos)
+        const owner = options.owner ?? '_default'
+        if(!this._saveStack) this._saveStack = new Map()
+        if(!this._saveStack.has(owner))
         {
-            this._savedPos    = this.instance.position.clone()
-            this._savedTarget = this.controls ? this.controls.target.clone() : this.target.clone()
+            this._saveStack.set(owner, {
+                pos:    this.instance.position.clone(),
+                target: this.controls ? this.controls.target.clone() : this.target.clone(),
+            })
         }
         this._zoom = {
             startPos:    this.instance.position.clone(),
@@ -152,18 +166,32 @@ export default class Camera
         if(this.controls) this.controls.enabled = false
     }
 
-    restoreZoom(duration = 700)
+    restoreZoom(duration = 700, options = {})
     {
-        if(!this._savedPos) return
+        const owner = options.owner ?? '_default'
+        if(!this._saveStack || !this._saveStack.has(owner)) return
+        const keys = Array.from(this._saveStack.keys())
+        const top  = keys[keys.length - 1]
+        if(owner !== top)
+        {
+            // Out-of-order close: another consumer is currently
+            // displaying the camera. Drop our anchor and let them keep
+            // ownership; they'll restore to their own pre-zoom pose.
+            this._saveStack.delete(owner)
+            return
+        }
+        const saved = this._saveStack.get(owner)
+        this._saveStack.delete(owner)
         this._zoom = {
             startPos:    this.instance.position.clone(),
-            endPos:      this._savedPos.clone(),
+            endPos:      saved.pos.clone(),
             startTarget: this.controls ? this.controls.target.clone() : this.target.clone(),
-            endTarget:   this._savedTarget.clone(),
+            endTarget:   saved.target.clone(),
             startTime:   performance.now(),
             duration,
             mode:        'out',
         }
+        if(this.controls) this.controls.enabled = false
     }
 
     // Smooth ride back to the default framing — exposed to a "reset
@@ -203,19 +231,19 @@ export default class Camera
             {
                 const mode = this._zoom.mode
                 this._zoom = null
-                // 'out' restores the saved pre-zoom position (KiraNarrator
-                // close path); 'reset' is a fresh return-home gesture, so
-                // it also re-enables controls AND clears the saved state
-                // so a future narrator zoom starts cleanly.
+                // 'out' completes one owner's restore; 'reset' is a fresh
+                // return-home gesture that drops the whole save stack.
+                // Controls only re-enable when the stack is fully drained
+                // — otherwise an outer consumer is still zoomed and we
+                // mustn't hand the camera back to OrbitControls yet.
+                if(mode === 'reset' && this._saveStack) this._saveStack.clear()
                 if(mode === 'out' || mode === 'reset')
                 {
-                    if(this.controls)
+                    if((!this._saveStack || this._saveStack.size === 0) && this.controls)
                     {
                         this.controls.enabled = true
                         this.controls.update()
                     }
-                    this._savedPos    = null
-                    this._savedTarget = null
                 }
             }
             return
