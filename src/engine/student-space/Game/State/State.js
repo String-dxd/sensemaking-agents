@@ -13,7 +13,7 @@ import Persistence from './Persistence.js'
 import Weather from './Weather.js'
 import Wind from './Wind.js'
 import Onboarding from './Onboarding.js'
-import Sprouts from './Sprouts.js'
+import Sprouts, { wireSproutsToCaptures } from './Sprouts.js'
 
 export default class State
 {
@@ -70,6 +70,13 @@ export default class State
         this.letters.hydrate(snapshot.letters)
         this.calendar.hydrate(snapshot.calendar)
         this.sprouts.hydrate(snapshot.sprouts)
+
+        // Cross-slice wiring — Sprouts subscribes to Captures and MoodPins so
+        // every new capture/mood grows the active sprout. The helper wraps
+        // each subscriber in try/catch so a buggy Sprouts.grow cannot abort
+        // host-slice fan-out or skip its debounced _persist. See
+        // wireSproutsToCaptures in ./Sprouts.js for the boundary rationale.
+        this._unwireSprouts = wireSproutsToCaptures(this.captures, this.moodPins, this.sprouts)
 
         // Player shim — Bruno's Sky/Grass/etc read `state.player.position.current`
         // to centre their world around the moving player. We don't have a player,

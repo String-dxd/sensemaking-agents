@@ -293,3 +293,34 @@ export default class Sprouts
 
     _persist() { Persistence.getInstance()?.save('sprouts', this.serialize()) }
 }
+
+/**
+ * Wire a Sprouts slice to a Captures and MoodPins slice so every new
+ * capture/mood grows the active sprout. Each subscription wraps the
+ * Sprouts.grow call in try/catch — the host slice's subscriber dispatch
+ * loop does NOT swallow exceptions, and a throw from grow would abort
+ * fan-out and skip the host's debounced _persist, silently losing the
+ * entry on tab close. The wrap is the boundary that enforces "Sprouts
+ * is best-effort, never blocks captures."
+ *
+ * Returns an `unsubscribe()` function that detaches both subscriptions.
+ *
+ * @param {{ subscribe: (cb: (entry: { id: string }) => void) => () => void }} captures
+ * @param {{ subscribe: (cb: (pin: { id: string }) => void) => () => void }} moodPins
+ * @param {Sprouts} sprouts
+ * @returns {() => void}
+ */
+export function wireSproutsToCaptures(captures, moodPins, sprouts)
+{
+    const offCaptures = captures.subscribe((entry) =>
+    {
+        try { sprouts.grow({ kind: 'capture', id: entry.id }) }
+        catch(err) { console.warn('[sprouts] grow from capture failed', err) }
+    })
+    const offMoodPins = moodPins.subscribe((pin) =>
+    {
+        try { sprouts.grow({ kind: 'mood', id: pin.id }) }
+        catch(err) { console.warn('[sprouts] grow from mood pin failed', err) }
+    })
+    return () => { offCaptures(); offMoodPins() }
+}
