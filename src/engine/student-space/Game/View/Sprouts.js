@@ -352,15 +352,15 @@ export default class Sprouts
         const originScale = node.group.scale.x  // uniform scale assumed
         const reduce = reduceMotion()
         const pickupGroundY = this.island.heightAt(originPos.x, originPos.z)
+        const liftHeight = pickupGroundY + (reduce ? 0 : this._dragLiftOffset)
 
-        // Align the drag plane with the object's pickup height so the
-        // ray-plane intersection in pointermove lands at the cursor
-        // rather than projecting through the plateau to y=0. The
-        // plateau is gently undulating (heightAt varies by ~0.05m), so
-        // the cursor will drift very slightly as the student drags
-        // across the surface, but that's invisible at typical
-        // pointer-precision.
-        this._dragGroundPlane.constant = -pickupGroundY
+        // Plane must sit at the mesh's actual rendered height, not the
+        // ground beneath it. Putting the plane at the ground produces
+        // a parallax offset under perspective camera: the cursor
+        // projects onto the ground plane, but the mesh visually sits
+        // `lift` above that, so the mesh appears to trail the cursor
+        // by however many screen pixels `lift` projects to.
+        this._dragGroundPlane.constant = -liftHeight
 
         this._drag = {
             kind: target.kind,
@@ -369,18 +369,17 @@ export default class Sprouts
             originPos,
             originScale,
             pickupGroundY,
+            liftHeight,
             lifted: !reduce,
             valid: true,
             pointerId: e.pointerId,
         }
 
-        if(!reduce)
-        {
-            // Lift by adjusting y above terrain; multiply scale slightly
-            // so the held object feels picked up.
-            node.group.position.y = pickupGroundY + this._dragLiftOffset
-            node.group.scale.setScalar(originScale * 1.05)
-        }
+        // Lift by adjusting y to the plane height; multiply scale
+        // slightly so the held object feels picked up (skipped under
+        // reduced motion).
+        node.group.position.y = liftHeight
+        if(!reduce) node.group.scale.setScalar(originScale * 1.05)
 
         if(camera?.controls) camera.controls.enabled = false
         if(this._canvasEl)
@@ -444,10 +443,14 @@ export default class Sprouts
         const intersected = this._raycaster.ray.intersectPlane(this._dragGroundPlane, hit)
         if(!intersected) return
 
+        // Lock the mesh at the plane's exact y (drag.liftHeight) so the
+        // cursor and the object stay perfectly aligned regardless of
+        // the gentle plateau bumpiness. The terrain snap is applied
+        // ONCE at pointerup so the final committed position sits on
+        // the ground at the actual heightAt of the drop point.
         const x = hit.x
         const z = hit.z
-        const y = this.island.heightAt(x, z) + (drag.lifted ? this._dragLiftOffset : 0)
-        drag.group.position.set(x, y, z)
+        drag.group.position.set(x, drag.liftHeight, z)
         drag.valid = this.island.isPlaceable(x, z)
 
         // Lightweight validity cue — tint a sprout's glow ring red on
