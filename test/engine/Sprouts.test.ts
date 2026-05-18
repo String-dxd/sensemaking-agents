@@ -43,14 +43,55 @@ describe('Sprouts state slice', () => {
     sprouts = new Sprouts()
   })
 
-  it('first grow() spawns a sprout with count=1, species=tree, first rotation variety', () => {
+  it('first grow() spawns a sprout with count=1, species=pending, first rotation variety', () => {
     const result = sprouts.grow({ kind: 'capture', id: 'cap-1' })
     expect(result.didSpawn).toBe(true)
     expect(result.sprout).toBeTruthy()
     expect(result.sprout?.count).toBe(1)
-    expect(result.sprout?.species).toBe('tree')
+    expect(result.sprout?.species).toBe('pending')
+    expect(result.sprout?.dimension).toBeNull()
     expect(result.sprout?.treeSpecies).toBe(TREE_SPECIES_ROTATION[0])
     expect(result.sprout?.readyToBloom).toBe(false)
+  })
+
+  it('setDimensionForFirstCapture locks species from the first capture id', () => {
+    sprouts.grow({ kind: 'capture', id: 'cap-1' })
+    sprouts.grow({ kind: 'capture', id: 'cap-2' })
+    const changed = sprouts.setDimensionForFirstCapture('cap-1', 'interests')
+    expect(changed).toBe(true)
+    const active = sprouts.getActive()!
+    expect(active.species).toBe('flower')
+    expect(active.dimension).toBe('interests')
+  })
+
+  it('setDimensionForFirstCapture ignores non-first captures and locked species', () => {
+    sprouts.grow({ kind: 'capture', id: 'cap-1' })
+    sprouts.grow({ kind: 'capture', id: 'cap-2' })
+    // Second capture in the sprout — should NOT change species.
+    expect(sprouts.setDimensionForFirstCapture('cap-2', 'skills')).toBe(false)
+    expect(sprouts.getActive()?.species).toBe('pending')
+    // First-tag locks; second tag attempt is a no-op.
+    expect(sprouts.setDimensionForFirstCapture('cap-1', 'values')).toBe(true)
+    expect(sprouts.getActive()?.species).toBe('tree')
+    expect(sprouts.setDimensionForFirstCapture('cap-1', 'interests')).toBe(false)
+    expect(sprouts.getActive()?.species).toBe('tree')
+  })
+
+  it('setDimensionForFirstCapture to a smaller-threshold species can mark ready immediately', () => {
+    // skills→fruit has threshold=2; if we grew 2 captures while pending
+    // (default threshold 3, no markedReady yet), then tag as skill, the
+    // sprout should flip to readyToBloom right then.
+    sprouts.grow({ kind: 'capture', id: 'cap-1' })
+    sprouts.grow({ kind: 'capture', id: 'cap-2' })
+    expect(sprouts.getActive()?.readyToBloom).toBe(false)
+    const events: string[] = []
+    sprouts.subscribe((ev: SproutsEvent) => events.push(ev.type))
+    sprouts.setDimensionForFirstCapture('cap-1', 'skills')
+    // getActive() skips ready sprouts, so look at the readyToBloom set.
+    const ready = sprouts.readyToBloom()[0]!
+    expect(ready.species).toBe('fruit')
+    expect(ready.readyToBloom).toBe(true)
+    expect(events).toContain('markedReady')
   })
 
   it('BLOOM_THRESHOLD grows reach readyToBloom on the threshold-th call', () => {

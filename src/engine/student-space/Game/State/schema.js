@@ -191,7 +191,11 @@ const KNOWN_CAPTURE_KEYS = new Set([
     'reframe', 'thread',
     // Path Finder — trajectory captures carry { throughLine, bearings }.
     'trajectory',
+    // Sprout dimension picked by the student post-capture (values /
+    // interests / personality / skills). Drives sprout species.
+    'dimension',
 ])
+const CAPTURE_DIMENSIONS = new Set(['values', 'interests', 'personality', 'skills'])
 
 const TRAJECTORY_BEARING_KEYS = new Set(['id', 'title', 'prompt', 'traitTags', 'ecgTags', 'risk'])
 
@@ -278,6 +282,7 @@ export function mergeCapture(raw, ctx = 'capture')
         if(!KNOWN_CAPTURE_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
         const v = raw[k]
         if(k === 'kind' && !CAPTURE_KIND.has(v)) { warn(`${ctx}.kind invalid`); continue }
+        if(k === 'dimension' && v !== null && !CAPTURE_DIMENSIONS.has(v)) { warn(`${ctx}.dimension invalid: "${v}"`); continue }
         if(k === 'reframe')
         {
             const rf = mergeReframe(v, ctx)
@@ -368,14 +373,20 @@ export function mergeCalendarEvent(raw, ctx = 'event')
  * @property {string|null} bloomedAt ISO; non-null once bloomed (sprout is then removed from active list anyway)
  * @property {string[]} captureRefs capture/mood ids contributing to this sprout
  */
-const SPROUT_SPECIES = new Set(['tree'])  // v1; v2 widens enum
+// Species widened in v1.1: 'pending' is the holding state until the
+// student tags the sprout's first capture; the picker then maps the
+// dimension → species (value=tree, interest=flower, personality=
+// butterfly, skill=fruit). Tree variety (oak/cherry) cycles within
+// the 'tree' species.
+const SPROUT_SPECIES = new Set(['pending', 'tree', 'flower', 'butterfly', 'fruit'])
 const SPROUT_TREE_SPECIES = new Set(['oak', 'cherry'])  // matches Tree.js PLACEMENTS
+const SPROUT_DIMENSIONS = new Set(['values', 'interests', 'personality', 'skills'])
 
 const defaultSprout = () => ({
     id:            '',
     createdAt:     new Date(0).toISOString(),
     entryDate:     '1970-01-01',
-    species:       'tree',
+    species:       'pending',
     treeSpecies:   'oak',
     placementSeed: 0,
     threshold:     3,
@@ -383,10 +394,11 @@ const defaultSprout = () => ({
     readyToBloom:  false,
     bloomedAt:     null,
     captureRefs:   [],
+    dimension:     null,
 })
 
 const KNOWN_SPROUT_KEYS = new Set([
-    'id', 'createdAt', 'entryDate', 'species', 'treeSpecies',
+    'id', 'createdAt', 'entryDate', 'species', 'treeSpecies', 'dimension',
     'placementSeed', 'threshold', 'count', 'readyToBloom', 'bloomedAt', 'captureRefs',
 ])
 
@@ -400,6 +412,7 @@ export function mergeSprout(raw, ctx = 'sprout')
         const v = raw[k]
         if(k === 'species' && !SPROUT_SPECIES.has(v)) { warn(`${ctx}.species invalid: "${v}"`); continue }
         if(k === 'treeSpecies' && !SPROUT_TREE_SPECIES.has(v)) { warn(`${ctx}.treeSpecies invalid: "${v}"`); continue }
+        if(k === 'dimension' && v !== null && !SPROUT_DIMENSIONS.has(v)) { warn(`${ctx}.dimension invalid: "${v}"`); continue }
         if((k === 'placementSeed' || k === 'threshold' || k === 'count') && typeof v !== 'number') { warn(`${ctx}.${k} not number`); continue }
         if(k === 'readyToBloom' && !isBool(v)) { warn(`${ctx}.readyToBloom not bool`); continue }
         if(k === 'bloomedAt' && v !== null && !isISO(v)) { warn(`${ctx}.bloomedAt invalid`); continue }

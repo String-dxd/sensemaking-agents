@@ -27,13 +27,34 @@ import Persistence from './Persistence.js'
 import { mergeArray, mergeSprout } from './schema.js'
 
 // Bloom threshold — number of captures required before a sprout is
-// ready to plant. v1 single-species; one number suffices. Origin: R1
-// in docs/brainstorms/2026-05-18-island-object-progression-requirements.md.
+// ready to plant. v1.1: thresholds vary by species (tree=3, flower=3,
+// fruit=2, butterfly=3) — see THRESHOLD_BY_SPECIES.  BLOOM_THRESHOLD
+// is the default used when species is still 'pending' (no dimension
+// chosen yet).
 export const BLOOM_THRESHOLD = 3
 
 // Tree species cycled per sprout createdAt index. Matches the existing
 // Tree.js PLACEMENTS species set (oak, cherry).
 export const TREE_SPECIES_ROTATION = Object.freeze(['oak', 'cherry'])
+
+// Dimension → sprout species mapping. The student picks a dimension
+// chip after each capture; the sprout's species is locked from the
+// FIRST tagged capture in the sprout (later captures' dimensions are
+// stored on their entries but don't change the sprout).
+export const DIMENSION_TO_SPECIES = Object.freeze({
+    values:      'tree',
+    interests:   'flower',
+    personality: 'butterfly',
+    skills:      'fruit',
+})
+
+export const THRESHOLD_BY_SPECIES = Object.freeze({
+    pending:   3,
+    tree:      3,
+    flower:    3,
+    butterfly: 3,
+    fruit:     2,
+})
 
 let counter = 0
 const uuid = () => `${Date.now().toString(36)}-${(counter++).toString(36)}`
@@ -149,9 +170,15 @@ export default class Sprouts
             id:            sprout.id,
             createdAt:     sprout.createdAt,
             bloomedAt,
+            // Species may be 'pending' if the student bloomed before
+            // tagging (rare path — chip picker would normally land
+            // first). Persist whatever it is; the view falls back to
+            // the tree visual for 'pending' bloomedTrees.
+            species:       sprout.species,
             treeSpecies:   sprout.treeSpecies,
             placementSeed: sprout.placementSeed,
             captureRefs:   [...sprout.captureRefs],
+            dimension:     sprout.dimension,
         }
         this.bloomedTrees.push(bloomedTree)
 
@@ -165,6 +192,54 @@ export default class Sprouts
     listBloomedTrees()
     {
         return this.bloomedTrees
+    }
+
+    /**
+     * The student has tagged a capture with a V/I/P/S dimension via the
+     * chip picker. If this capture is the FIRST in its sprout AND the
+     * sprout is still 'pending', lock the sprout's species from the
+     * dimension. Later captures' dimensions are still recorded on the
+     * capture entry itself (by Captures.patch) but do NOT change the
+     * sprout's species — only the first one counts. This matches the
+     * student mental model of "the first thing I tag determines what
+     * grows."
+     *
+     * @param {string} captureId — the id of the capture that was tagged
+     * @param {'values'|'interests'|'personality'|'skills'} dimension
+     * @returns {boolean} true if the sprout's species changed
+     */
+    setDimensionForFirstCapture(captureId, dimension)
+    {
+        if(!DIMENSION_TO_SPECIES[dimension]) return false
+        for(const sprout of this.sprouts)
+        {
+            const idx = sprout.captureRefs.indexOf(captureId)
+            if(idx === -1) continue
+            // Only the first capture in the sprout drives species.
+            if(idx !== 0) return false
+            // Species is locked once set; subsequent tags are ignored.
+            if(sprout.species !== 'pending') return false
+            sprout.species = DIMENSION_TO_SPECIES[dimension]
+            sprout.dimension = dimension
+            sprout.threshold = THRESHOLD_BY_SPECIES[sprout.species]
+            // The threshold may have shifted (fruit=2 vs default 3).
+            // If the count has already crossed it (rare but possible
+            // if the picker is delayed), flip readyToBloom now.
+            if(!sprout.readyToBloom && sprout.count >= sprout.threshold)
+            {
+                sprout.readyToBloom = true
+                this._invalidateCache()
+                this._fan({ type: 'markedReady', sprout })
+            }
+            else
+            {
+                this._invalidateCache()
+                this._fan({ type: 'speciesLocked', sprout })
+            }
+            this._persist()
+            return true
+        }
+        return false
     }
 
     // ── Snapshot accessors (referentially stable until next mutation) ──
@@ -237,12 +312,20 @@ export default class Sprouts
         if(Array.isArray(snapshot.bloomedTrees))
         {
             // Lenient — keep only well-formed entries with id + treeSpecies + placementSeed.
-            this.bloomedTrees = snapshot.bloomedTrees.filter((t) =>
-                t && typeof t === 'object' &&
-                typeof t.id === 'string' &&
-                typeof t.treeSpecies === 'string' &&
-                typeof t.placementSeed === 'number',
-            )
+            // Default species to 'tree' for legacy entries written before
+            // v1.1 widened the species enum (preserves smoke-test data).
+            this.bloomedTrees = snapshot.bloomedTrees
+                .filter((t) =>
+                    t && typeof t === 'object' &&
+                    typeof t.id === 'string' &&
+                    typeof t.treeSpecies === 'string' &&
+                    typeof t.placementSeed === 'number',
+                )
+                .map((t) => ({
+                    species: 'tree',
+                    dimension: null,
+                    ...t,
+                }))
         }
         this._invalidateCache()
         // Bulk load is not a `spawned`/`grew` event. View subscribers
@@ -277,18 +360,23 @@ export default class Sprouts
         const now = new Date()
         const entryDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
         const treeSpecies = TREE_SPECIES_ROTATION[this.cycleIndex % TREE_SPECIES_ROTATION.length]
+        // Species starts as 'pending' — the student picks a dimension
+        // chip after the capture lands; setDimensionForFirstCapture
+        // then locks the species (only the FIRST capture's dimension
+        // counts).
         const sprout = {
             id:            uuid(),
             createdAt:     now.toISOString(),
             entryDate,
-            species:       'tree',
+            species:       'pending',
             treeSpecies,
             placementSeed: this._nextPlacementSeed(),
-            threshold:     BLOOM_THRESHOLD,
+            threshold:     THRESHOLD_BY_SPECIES.pending,
             count:         0,
             readyToBloom:  false,
             bloomedAt:     null,
             captureRefs:   [],
+            dimension:     null,
         }
         this.sprouts.push(sprout)
         this.cycleIndex += 1

@@ -107,6 +107,23 @@ export default class Captures
         return entry
     }
 
+    /**
+     * Patch an existing capture entry (used for post-save dimension
+     * tagging by the chip picker). Mirrors MoodPins.patch — fans to
+     * subscribers AFTER mutation, then persists. Subscribers must
+     * dedupe by capture id if they only care about add events
+     * (see Sprouts.grow's dedupe).
+     */
+    patch(id, updates)
+    {
+        const entry = this.entries.find((c) => c.id === id)
+        if(!entry) return null
+        Object.assign(entry, updates)
+        for(const cb of this.subscribers) cb(entry, this.entries)
+        this._persist()
+        return entry
+    }
+
     subscribe(cb)
     {
         this.subscribers.add(cb)
