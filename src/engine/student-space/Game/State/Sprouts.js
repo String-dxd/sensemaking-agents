@@ -50,10 +50,12 @@ export default class Sprouts
         Sprouts.instance = this
 
         // Active list — sprouts that have not yet been bloomed. Once a
-        // sprout blooms it is removed from this list (the spawned Tree
-        // takes over the visual surface). The total count of sprouts
-        // ever created is tracked separately for the rotation cursor.
+        // sprout blooms it is removed from this list and a small tree
+        // descriptor is appended to `bloomedTrees` (visible to the view
+        // module as a persistent island object). The cycleIndex tracks
+        // the total number of sprouts ever spawned for rotation.
         this.sprouts = []
+        this.bloomedTrees = []
         this.cycleIndex = 0
         this.subscribers = new Set()
 
@@ -123,12 +125,14 @@ export default class Sprouts
     }
 
     /**
-     * Mark a sprout as bloomed. Removes it from the active list. The
-     * view module is responsible for the visual animation + spawning
-     * the corresponding Tree at the sprout's placement seed.
+     * Mark a sprout as bloomed. Removes it from the active list and
+     * appends a persistent BloomedTree descriptor to `bloomedTrees` so
+     * the view can keep rendering the result after the bloom animation
+     * completes. The view module owns the dissolve/grow animation; this
+     * slice only carries the state.
      *
      * @param {string} id
-     * @returns {Sprout|null} the bloomed sprout (with bloomedAt set) or null if not found / not ready
+     * @returns {{ sprout: Sprout, bloomedTree: BloomedTree } | null}
      */
     bloom(id)
     {
@@ -137,13 +141,30 @@ export default class Sprouts
         const sprout = this.sprouts[idx]
         if(!sprout.readyToBloom) return null
 
-        sprout.bloomedAt = new Date().toISOString()
+        const bloomedAt = new Date().toISOString()
+        sprout.bloomedAt = bloomedAt
         this.sprouts.splice(idx, 1)
 
+        const bloomedTree = {
+            id:            sprout.id,
+            createdAt:     sprout.createdAt,
+            bloomedAt,
+            treeSpecies:   sprout.treeSpecies,
+            placementSeed: sprout.placementSeed,
+            captureRefs:   [...sprout.captureRefs],
+        }
+        this.bloomedTrees.push(bloomedTree)
+
         this._invalidateCache()
-        this._fan({ type: 'bloomed', sprout })
+        this._fan({ type: 'bloomed', sprout, bloomedTree })
         this._persist()
-        return sprout
+        return { sprout, bloomedTree }
+    }
+
+    /** All bloomed trees, in bloom order. Used by the view to render persistent trees. */
+    listBloomedTrees()
+    {
+        return this.bloomedTrees
     }
 
     // ── Snapshot accessors (referentially stable until next mutation) ──
@@ -213,6 +234,16 @@ export default class Sprouts
         {
             this.sprouts = mergeArray(snapshot.sprouts, mergeSprout, 'sprout')
         }
+        if(Array.isArray(snapshot.bloomedTrees))
+        {
+            // Lenient — keep only well-formed entries with id + treeSpecies + placementSeed.
+            this.bloomedTrees = snapshot.bloomedTrees.filter((t) =>
+                t && typeof t === 'object' &&
+                typeof t.id === 'string' &&
+                typeof t.treeSpecies === 'string' &&
+                typeof t.placementSeed === 'number',
+            )
+        }
         this._invalidateCache()
         // Bulk load is not a `spawned`/`grew` event. View subscribers
         // are written against post-add semantics; firing them on hydrate
@@ -223,8 +254,9 @@ export default class Sprouts
     serialize()
     {
         return {
-            cycleIndex: this.cycleIndex,
-            sprouts:    this.sprouts.map((s) => ({ ...s, captureRefs: [...s.captureRefs] })),
+            cycleIndex:    this.cycleIndex,
+            sprouts:       this.sprouts.map((s) => ({ ...s, captureRefs: [...s.captureRefs] })),
+            bloomedTrees:  this.bloomedTrees.map((t) => ({ ...t, captureRefs: [...t.captureRefs] })),
         }
     }
 

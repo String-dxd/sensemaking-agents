@@ -92,18 +92,36 @@ describe('Sprouts state slice', () => {
     expect(sprouts.recent(10)).toHaveLength(1)
   })
 
-  it('bloom() removes the sprout from the active list and emits a bloomed event', () => {
+  it('bloom() removes the sprout, appends a bloomedTree, and emits a bloomed event', () => {
     for (let i = 0; i < BLOOM_THRESHOLD; i++) {
       sprouts.grow({ kind: 'capture', id: `cap-${i}` })
     }
     const ready = sprouts.readyToBloom()[0]!
     const events: Array<{ type: string; id: string }> = []
     sprouts.subscribe((ev: SproutsEvent) => events.push({ type: ev.type, id: ev.sprout.id }))
-    const bloomed = sprouts.bloom(ready.id)
-    expect(bloomed).toBeTruthy()
-    expect(bloomed!.bloomedAt).not.toBeNull()
+    const result = sprouts.bloom(ready.id)
+    expect(result).toBeTruthy()
+    expect(result!.sprout.bloomedAt).not.toBeNull()
+    expect(result!.bloomedTree.id).toBe(ready.id)
+    expect(result!.bloomedTree.treeSpecies).toBe(ready.treeSpecies)
+    expect(result!.bloomedTree.placementSeed).toBe(ready.placementSeed)
     expect(sprouts.recent(10)).toHaveLength(0)
+    expect(sprouts.listBloomedTrees()).toHaveLength(1)
     expect(events).toEqual([{ type: 'bloomed', id: ready.id }])
+  })
+
+  it('bloomed trees persist across serialize → hydrate', () => {
+    for (let i = 0; i < BLOOM_THRESHOLD; i++) {
+      sprouts.grow({ kind: 'capture', id: `cap-${i}` })
+    }
+    const ready = sprouts.readyToBloom()[0]!
+    sprouts.bloom(ready.id)
+    const serialized = sprouts.serialize()
+    ;(Sprouts as unknown as { instance: unknown }).instance = null
+    const reborn = new Sprouts()
+    reborn.hydrate(serialized)
+    expect(reborn.listBloomedTrees()).toHaveLength(1)
+    expect(reborn.listBloomedTrees()[0].treeSpecies).toBe(ready.treeSpecies)
   })
 
   it('recent(n) returns referentially stable arrays between mutations', () => {

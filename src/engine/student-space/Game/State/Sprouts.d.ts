@@ -17,11 +17,20 @@ export interface Sprout {
   readonly captureRefs: readonly string[]
 }
 
+export interface BloomedTree {
+  readonly id: string
+  readonly createdAt: string
+  readonly bloomedAt: string
+  readonly treeSpecies: 'oak' | 'cherry'
+  readonly placementSeed: number
+  readonly captureRefs: readonly string[]
+}
+
 export type SproutsEvent =
   | { type: 'spawned'; sprout: Sprout }
   | { type: 'grew'; sprout: Sprout }
   | { type: 'markedReady'; sprout: Sprout }
-  | { type: 'bloomed'; sprout: Sprout }
+  | { type: 'bloomed'; sprout: Sprout; bloomedTree: BloomedTree }
 
 export interface CaptureRef {
   kind: 'capture' | 'mood'
@@ -36,6 +45,7 @@ export default class Sprouts {
   static getInstance(): Sprouts | null
 
   sprouts: Sprout[]
+  bloomedTrees: BloomedTree[]
   cycleIndex: number
 
   constructor()
@@ -45,11 +55,12 @@ export default class Sprouts {
     didSpawn: boolean
     didMarkReady: boolean
   }
-  bloom(id: string): Sprout | null
+  bloom(id: string): { sprout: Sprout; bloomedTree: BloomedTree } | null
 
   recent(n?: number): readonly Sprout[]
   getActive(): Sprout | null
   readyToBloom(): readonly Sprout[]
+  listBloomedTrees(): readonly BloomedTree[]
 
   subscribe(cb: (event: SproutsEvent, sprouts: readonly Sprout[]) => void): () => void
 

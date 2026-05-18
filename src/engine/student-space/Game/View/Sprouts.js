@@ -34,10 +34,14 @@ import State from '../State/State.js'
  */
 
 const COLORS = {
-    stem:      0x5C8A3A,   // mid green stem
+    stem:      0x5C8A3A,   // mid green stem (sprout)
     leafLight: 0x9DC36F,   // bright top leaves
     leafDark:  0x4C7B2D,   // shaded base leaves
     glow:      0xFFE38C,   // warm gold glow for ready-to-bloom
+    trunkOak:    0x6B4A2A, // oak trunk
+    trunkCherry: 0x7B5238, // cherry trunk (slightly warmer)
+    leafOak:     0x7CA73E, // oak canopy
+    leafCherry:  0xE7B6CB, // cherry canopy (soft pink)
 }
 
 const BOB_AMPLITUDE = 0.05   // metres of vertical bob when ready
@@ -75,6 +79,8 @@ export default class Sprouts
 
         // Map<sproutId, { sprout, group, parts, badgeEl, pulsePhase, bobPhase, dissolveStartMs }>
         this.nodes = new Map()
+        // Map<bloomedTreeId, { tree, group }>
+        this.bloomedNodes = new Map()
 
         // Container Group so sprouts share a parent in the scene graph —
         // makes disposing all sprouts atomic.
@@ -99,10 +105,14 @@ export default class Sprouts
         // Cached screen-projection vector reused per frame.
         this._tmpVec = new THREE.Vector3()
 
-        // Initial reconcile against any hydrated sprouts.
+        // Initial reconcile against any hydrated sprouts + bloomed trees.
         for(const sprout of this.state.sprouts.recent(50))
         {
             this._spawnNode(sprout)
+        }
+        for(const tree of this.state.sprouts.listBloomedTrees())
+        {
+            this._spawnBloomedTree(tree)
         }
 
         // Subscribe to live mutations.
@@ -130,11 +140,129 @@ export default class Sprouts
                 {
                     node.dissolveStartMs = performance.now()
                 }
-                else
+                // Spawn the persistent tree at the same position with a
+                // growIn animation. The dissolving sprout and the growing
+                // tree overlap visually for ~700ms — the celebration moment.
+                if(event.bloomedTree)
                 {
-                    // Already disposed somehow — nothing to animate.
+                    this._spawnBloomedTree(event.bloomedTree, /*animate=*/ true)
                 }
             }
+        })
+
+        // Click handler — raycast against sprout hit targets; ready
+        // sprouts bloom on tap. Bound to the renderer's DOM element so
+        // OrbitControls drag events don't false-fire.
+        this._raycaster = new THREE.Raycaster()
+        this._pointer = new THREE.Vector2()
+        this._dragGuard = { isDragging: false, downX: 0, downY: 0 }
+        this._onPointerDown = (e) => this._handlePointerDown(e)
+        this._onPointerUp = (e) => this._handlePointerUp(e)
+        this._canvasEl = this.view.renderer?.instance?.domElement || null
+        if(this._canvasEl)
+        {
+            this._canvasEl.addEventListener('pointerdown', this._onPointerDown)
+            this._canvasEl.addEventListener('pointerup', this._onPointerUp)
+        }
+    }
+
+    _handlePointerDown(e)
+    {
+        this._dragGuard.isDragging = false
+        this._dragGuard.downX = e.clientX
+        this._dragGuard.downY = e.clientY
+    }
+
+    _handlePointerUp(e)
+    {
+        const dx = Math.abs(e.clientX - this._dragGuard.downX)
+        const dy = Math.abs(e.clientY - this._dragGuard.downY)
+        if(dx > 4 || dy > 4) return  // drag, not click
+        const camera = this.view.camera?.instance
+        if(!camera || !this._canvasEl) return
+        const rect = this._canvasEl.getBoundingClientRect()
+        this._pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+        this._pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+        this._raycaster.setFromCamera(this._pointer, camera)
+
+        // Collect hit-target meshes for ready-to-bloom sprouts only.
+        const targets = []
+        for(const node of this.nodes.values())
+        {
+            if(node.sprout.readyToBloom && node.dissolveStartMs === null && node.parts.hitTarget)
+            {
+                targets.push(node.parts.hitTarget)
+            }
+        }
+        if(targets.length === 0) return
+        const intersects = this._raycaster.intersectObjects(targets, false)
+        const hit = intersects[0]
+        if(!hit) return
+        const sproutId = hit.object?.userData?.sproutId
+        if(!sproutId) return
+        const result = this.state.sprouts.bloom(sproutId)
+        if(result)
+        {
+            // Subtle audio celebration — engine's existing one-shot.
+            try { this.view.sound?.playOneShot?.('bloom') } catch(_) {}
+        }
+    }
+
+    _spawnBloomedTree(tree, animate = false)
+    {
+        if(this.bloomedNodes.has(tree.id)) return
+
+        const group = new THREE.Group()
+        const { theta, radius } = seededAngleAndRadius(tree.placementSeed)
+        const x = Math.cos(theta) * radius
+        const z = Math.sin(theta) * radius
+        const y = this.island.heightAt(x, z)
+        group.position.set(x, y, z)
+        group.rotation.y = theta + 0.3
+        this.root.add(group)
+
+        const isOak = tree.treeSpecies === 'oak'
+        const trunkColor = isOak ? COLORS.trunkOak : COLORS.trunkCherry
+        const leafColor  = isOak ? COLORS.leafOak  : COLORS.leafCherry
+
+        const matTrunk = new THREE.MeshLambertMaterial({ color: trunkColor, flatShading: true })
+        const matLeaf  = new THREE.MeshLambertMaterial({ color: leafColor,  flatShading: true })
+
+        // TRUNK — taller cylinder than a sprout's stem.
+        const trunk = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.05, 0.075, 0.55, 8),
+            matTrunk,
+        )
+        trunk.position.y = 0.275
+        group.add(trunk)
+
+        // CANOPY — three overlapping icospheres for a fluffy silhouette.
+        const canopyA = new THREE.Mesh(new THREE.IcosahedronGeometry(0.20, 1), matLeaf)
+        canopyA.position.set(0, 0.62, 0)
+        const canopyB = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), matLeaf)
+        canopyB.position.set(0.13, 0.56, 0.05)
+        const canopyC = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 1), matLeaf)
+        canopyC.position.set(-0.10, 0.55, -0.07)
+        group.add(canopyA)
+        group.add(canopyB)
+        group.add(canopyC)
+
+        const targetScale = 1.0
+        if(animate)
+        {
+            group.scale.setScalar(0.001)  // animate up from ~zero
+        }
+        else
+        {
+            group.scale.setScalar(targetScale)
+        }
+
+        this.bloomedNodes.set(tree.id, {
+            tree,
+            group,
+            parts: { trunk, canopyA, canopyB, canopyC },
+            growStartMs: animate ? performance.now() : null,
+            targetScale,
         })
     }
 
@@ -383,6 +511,20 @@ export default class Sprouts
         {
             this._disposeNode(id)
         }
+
+        // Animate growing bloomed trees (scale 0 → 1 over ~1200ms with
+        // ease-out, matching the brainstorm's 1.5s bloom envelope).
+        for(const node of this.bloomedNodes.values())
+        {
+            if(node.growStartMs === null) continue
+            const dt = now - node.growStartMs
+            const duration = reduce ? 200 : 1200
+            const t = Math.min(1, dt / duration)
+            // Ease out cubic
+            const eased = 1 - Math.pow(1 - t, 3)
+            node.group.scale.setScalar(node.targetScale * eased)
+            if(t >= 1) node.growStartMs = null
+        }
     }
 
     _disposeNode(id)
@@ -405,9 +547,29 @@ export default class Sprouts
     dispose()
     {
         if(this._unsubscribe) { try { this._unsubscribe() } catch(_) {} this._unsubscribe = null }
+        if(this._canvasEl && this._onPointerDown)
+        {
+            try { this._canvasEl.removeEventListener('pointerdown', this._onPointerDown) } catch(_) {}
+            try { this._canvasEl.removeEventListener('pointerup', this._onPointerUp) } catch(_) {}
+        }
+        this._canvasEl = null
         for(const id of Array.from(this.nodes.keys()))
         {
             this._disposeNode(id)
+        }
+        for(const id of Array.from(this.bloomedNodes.keys()))
+        {
+            const bn = this.bloomedNodes.get(id)
+            if(bn?.group)
+            {
+                this.root?.remove(bn.group)
+                bn.group.traverse((obj) =>
+                {
+                    if(obj.geometry) { try { obj.geometry.dispose() } catch(_) {} }
+                    if(obj.material) { try { obj.material.dispose() } catch(_) {} }
+                })
+            }
+            this.bloomedNodes.delete(id)
         }
         if(this.root)
         {
