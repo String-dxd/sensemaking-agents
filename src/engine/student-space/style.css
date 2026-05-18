@@ -30,7 +30,7 @@ html, body
     height: 100%;
 }
 
-body
+body.student-space-shell
 {
     /* Tiny-Skies-style sky: three-stop linear gradient between CSS vars.
        Sky-haze + sky-rays sit above this for the highlight + god rays. */
@@ -44,7 +44,7 @@ body
     transition: background 1800ms ease;
 }
 
-body.is-night
+body.student-space-shell.is-night
 {
     color: #f4f1ea;
 }
@@ -66,7 +66,7 @@ body.is-night
     transition: opacity 1800ms ease;
 }
 
-body.is-night #sky-haze
+body.student-space-shell.is-night #sky-haze
 {
     opacity: 0;
 }
@@ -104,7 +104,7 @@ body.is-night #sky-haze
     transition: opacity 1800ms ease;
 }
 
-body.is-night #sky-rays
+body.student-space-shell.is-night #sky-rays
 {
     opacity: 0;
 }
@@ -4858,4 +4858,3 @@ body.is-onboarding .kira-bubble
         animation-iteration-count: 1 !important;
     }
 }
-

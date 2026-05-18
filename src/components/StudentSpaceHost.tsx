@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import '~/engine/student-space/style.css'
+import { cn } from '~/lib/utils'
 
 /**
  * Mounts the vendored Student Space engine. The engine is one-game-per-page;
@@ -23,6 +25,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
     const container = containerRef.current
     if (!container) return
 
+    document.body.classList.add('student-space-shell')
     let dispose: (() => void) | null = null
     let cancelled = false
 
@@ -54,12 +57,13 @@ export function StudentSpaceHost({ className }: { className?: string }) {
     return () => {
       cancelled = true
       dispose?.()
+      document.body.classList.remove('student-space-shell')
     }
   }, [])
 
   if (error) return <EngineLoadFailure error={error} />
 
-  return <div ref={containerRef} className={className ?? 'fixed inset-0 h-svh w-svw'} />
+  return <div ref={containerRef} className={cn('game fixed inset-0 h-svh w-svw', className)} />
 }
 
 function EngineLoadFailure({ error }: { error: Error }) {

@@ -18,6 +18,8 @@ import * as THREE from 'three'
 
 import { EGG_COLORS, EGG_COLOR_BY_ID } from './copy.js'
 import { SPECIES_BY_ID, buildStandingBird } from '../Kira.js'
+import { escapeHtml } from '../../util/html.js'
+import { wait } from '../../util/timing.js'
 
 const ENTER_MS = 320
 const EXIT_MS  = 240
@@ -1144,4 +1146,3 @@ export default class EggHatcher
         if(s.canvas.parentElement) s.canvas.parentElement.removeChild(s.canvas)
     }
 }
-
