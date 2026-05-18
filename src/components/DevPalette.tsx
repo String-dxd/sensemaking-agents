@@ -1,7 +1,8 @@
 import { Dialog as BaseDialog } from '@base-ui-components/react/dialog'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogOverlay, DialogPortal } from '~/components/ui/dialog'
+import { clearStudentSpaceLocalState } from '~/engine/student-space/clear-local-state'
 import { cn } from '~/lib/utils'
 
 /**
@@ -28,7 +29,6 @@ export function DevPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
-  const inputRef = useRef<HTMLInputElement | null>(null)
 
   const commands = useMemo<Command[]>(() => {
     const go = (path: string) => () => {
@@ -62,7 +62,18 @@ export function DevPalette() {
         hint: '/api/auth/sign-out',
         run: () => {
           setOpen(false)
-          window.location.href = '/api/auth/sign-out'
+          // Clear the engine's `ss:v1:*` localStorage keys before submitting
+          // the server-side sign-out, mirroring the ProfileSheetChrome form.
+          clearStudentSpaceLocalState()
+          // POST via a hidden form mirrors ProfileSheetChrome's sign-out
+          // pattern. The GET handler skips the same-origin guard the POST
+          // handler enforces; using POST removes a cross-site forced-logout
+          // vector.
+          const form = document.createElement('form')
+          form.method = 'post'
+          form.action = '/api/auth/sign-out'
+          document.body.appendChild(form)
+          form.submit()
         },
       },
     ]
@@ -77,15 +88,12 @@ export function DevPalette() {
   }, [commands, query])
 
   useEffect(() => {
-    setActiveIndex(0)
-  }, [])
-
-  useEffect(() => {
     if (activeIndex >= filtered.length) setActiveIndex(0)
   }, [filtered, activeIndex])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (e.defaultPrevented) return
       const isCmdOrCtrl = e.metaKey || e.ctrlKey
       if (!isCmdOrCtrl) return
       if (e.key !== 'k' && e.key !== 'K') return
@@ -100,8 +108,6 @@ export function DevPalette() {
     if (!open) return
     setQuery('')
     setActiveIndex(0)
-    const id = window.setTimeout(() => inputRef.current?.focus(), 0)
-    return () => window.clearTimeout(id)
   }, [open])
 
   function handleInputKey(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -133,7 +139,7 @@ export function DevPalette() {
           <BaseDialog.Title className="sr-only">Developer command palette</BaseDialog.Title>
           <div className="border-b border-border px-3 py-2">
             <input
-              ref={inputRef}
+              autoFocus
               type="text"
               placeholder="Type a command…"
               value={query}

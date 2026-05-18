@@ -1,6 +1,7 @@
 ---
 date: 2026-05-18
 title: "feat: Port Student Space app shell as the new home surface"
+type: feat
 status: planning
 origin: "User request 2026-05-18: replace world stage with Student Space's; backend wired later; Cmd-K dev palette to toggle UI vs backend table view"
 ---

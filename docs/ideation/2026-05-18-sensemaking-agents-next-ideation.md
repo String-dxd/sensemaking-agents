@@ -1,6 +1,6 @@
 ---
 date: 2026-05-18
-topic: open-ideation
+topic: sensemaking-agents-next
 focus: "check the state of the app, and figure out what should we do next"
 mode: repo-grounded
 ---

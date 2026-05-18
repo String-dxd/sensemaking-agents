@@ -14,60 +14,51 @@
  */
 
 import { requireCounselorContext } from '~/auth/identity'
-import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
+import { VIPS_DIMENSIONS } from '~/data/vips-taxonomy'
 import { withStudent } from '~/db/client'
 import {
-  type CartographerOutputRow,
   latestCartographerOutput,
   listMirrorEntries,
   listVipsPages,
   listVipsProposedDiffs,
   listVipsTimelineEntries,
-  type VipsPageRow,
   type VipsProposedDiffRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
-
-export interface PipelineMirrorRow {
-  id: number
-  created_at: string
-  context_type: string
-  review_status: string
-  transcript: string
-  validation: string
-  inferred_meaning: string
-  story_reframe: string
-  diffs: VipsProposedDiffRow[]
-  committed_timeline: VipsTimelineEntryRow[]
-}
-
-export interface PipelineTraceResult {
-  activeStudentId: string
-  mirrors: PipelineMirrorRow[]
-  pages: VipsPageRow[]
-  cartographer: CartographerOutputRow | null
-  totals: {
-    mirrors: number
-    diffs: number
-    committed_timeline: number
-  }
-}
+import type { PipelineMirrorRow, PipelineTraceResult } from './load-pipeline-trace.types'
 
 export async function loadPipelineTraceHandler(): Promise<PipelineTraceResult> {
+  // Defence in depth: the `/dev/pipeline` route already 404s in production,
+  // but the server function is a separate seam (it could be called from
+  // anywhere a server function call is reachable). Refuse to run in
+  // production until a counsellor-role gate exists upstream.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('loadPipelineTrace is dev-only')
+  }
   const { studentId } = await requireCounselorContext()
 
   return withStudent(studentId, async (ctx) => {
-    const [mirrors, diffs, pages, cartographer, ...timelinePerDim] = await Promise.all([
-      listMirrorEntries(studentId, { ctx, limit: 200, includeForgotten: true }),
-      listVipsProposedDiffs(studentId, { ctx }),
-      listVipsPages(studentId, { ctx }),
-      latestCartographerOutput(studentId, { ctx }),
-      ...VIPS_DIMENSIONS.map((d) =>
+    // pg@9 deprecates `Promise.all(db.execute(...))` patterns inside one
+    // transaction — sequential awaits match the canonical pattern in
+    // `load-vips-pages.handler.server.ts` and keep this handler ready for
+    // the upgrade.
+    const mirrors = await listMirrorEntries(studentId, {
+      ctx,
+      limit: 200,
+      includeForgotten: true,
+    })
+    const diffs = await listVipsProposedDiffs(studentId, { ctx })
+    const pages = await listVipsPages(studentId, { ctx })
+    const cartographer = await latestCartographerOutput(studentId, { ctx })
+
+    // The dimension fan-out stays parallel: it is a single-shape map of
+    // independent reads, not the mixed-shape pattern pg@9 warns about.
+    const timelinePerDim: VipsTimelineEntryRow[][] = await Promise.all(
+      VIPS_DIMENSIONS.map((d) =>
         listVipsTimelineEntries(studentId, d, { ctx, includeForgotten: true }),
       ),
-    ])
-
-    const timeline = timelinePerDim.flat() as VipsTimelineEntryRow[]
+    )
+    const timeline = timelinePerDim.flat()
 
     const diffsByMirror = new Map<number, VipsProposedDiffRow[]>()
     for (const d of diffs) {
@@ -111,7 +102,3 @@ export async function loadPipelineTraceHandler(): Promise<PipelineTraceResult> {
     return result
   })
 }
-
-// Re-export VipsDimension so route consumers don't have to know about taxonomy
-// internals.
-export type { VipsDimension }

@@ -1,22 +1,56 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
 import { useMemo, useState } from 'react'
-import type { VipsProposedDiffRow } from '~/db/queries'
+import type { CartographerOutputRow, MirrorReviewStatus, VipsProposedDiffRow } from '~/db/queries'
 import { cn } from '~/lib/utils'
 import { loadPipelineTrace } from '~/server/load-pipeline-trace.functions'
-import type {
-  PipelineMirrorRow,
-  PipelineTraceResult,
-} from '~/server/load-pipeline-trace.handler.server'
+import type { PipelineMirrorRow, PipelineTraceResult } from '~/server/load-pipeline-trace.types'
 
 export const Route = createFileRoute('/dev/pipeline')({
+  // Dev-only surface. In production the route 404s before the loader runs so
+  // verifier audit data is not reachable from a deployed app.
+  beforeLoad: () => {
+    if (!import.meta.env.DEV) throw notFound()
+  },
   loader: () => loadPipelineTrace(),
   component: PipelinePage,
+  errorComponent: PipelineErrorFallback,
 })
 
-type FilterState = 'all' | 'pending' | 'confirmed' | 'forgotten'
+type FilterState = 'all' | MirrorReviewStatus
+
+function PipelineErrorFallback({ error, reset }: { error: Error; reset: () => void }) {
+  return (
+    <div className="rounded border border-warning/30 bg-background/90 p-4 text-sm font-mono">
+      <p className="font-semibold">/dev/pipeline failed to load.</p>
+      <p className="mt-1 text-muted-foreground">{error.message}</p>
+      <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={reset}
+          className="rounded border border-border bg-background px-2 py-1 hover:bg-muted"
+        >
+          Retry
+        </button>
+        <span className="self-center text-[11px] text-muted-foreground">
+          ⌘K to switch to UI mode
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// Exported for direct test rendering — the route entry point still wires
+// this via `component: PipelinePage` so production behavior is unchanged.
+export function PipelinePageView({ data }: { data: PipelineTraceResult }) {
+  return <PipelinePageInner data={data} />
+}
 
 function PipelinePage() {
-  const data = Route.useLoaderData() as PipelineTraceResult
+  const data = Route.useLoaderData()
+  return <PipelinePageInner data={data} />
+}
+
+function PipelinePageInner({ data }: { data: PipelineTraceResult }) {
   const [openIds, setOpenIds] = useState<Set<number>>(new Set())
   const [filter, setFilter] = useState<FilterState>('all')
 
@@ -194,22 +228,8 @@ function MirrorDetailRow({ mirror }: { mirror: PipelineMirrorRow }) {
                       </span>
                       <span className="text-muted-foreground">{formatTime(d.created_at)}</span>
                     </div>
-                    <details>
-                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                        payload
-                      </summary>
-                      <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2">
-                        {safeStringify(d.payload)}
-                      </pre>
-                    </details>
-                    <details>
-                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-                        verifier_result
-                      </summary>
-                      <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2">
-                        {safeStringify(d.verifier_result)}
-                      </pre>
-                    </details>
+                    <LazyBlob label="payload" value={d.payload} />
+                    <LazyBlob label="verifier_result" value={d.verifier_result} />
                   </li>
                 ))}
               </ul>
@@ -223,19 +243,22 @@ function MirrorDetailRow({ mirror }: { mirror: PipelineMirrorRow }) {
               <p className="text-muted-foreground">No claims committed from this entry yet.</p>
             ) : (
               <ul className="space-y-1">
-                {mirror.committed_timeline.map((t) => (
-                  <li key={t.id} className="rounded bg-background px-2 py-1">
-                    <span className="font-semibold">{t.dimension}</span> · {t.canonical_claim_id} ·{' '}
-                    <span className="text-muted-foreground">strength={t.strength}</span> ·{' '}
-                    parallax=[{t.parallax_tag.join(', ')}]
-                    {t.forgotten_at ? (
-                      <span className="ml-1 rounded bg-warning/20 px-1 text-warning">
-                        forgotten
-                      </span>
-                    ) : null}
-                    <div className="mt-0.5 text-muted-foreground">“{t.verbatim_quote}”</div>
-                  </li>
-                ))}
+                {mirror.committed_timeline.map((t) => {
+                  const parallax = Array.isArray(t.parallax_tag) ? t.parallax_tag : []
+                  return (
+                    <li key={t.id} className="rounded bg-background px-2 py-1">
+                      <span className="font-semibold">{t.dimension}</span> · {t.canonical_claim_id}{' '}
+                      · <span className="text-muted-foreground">strength={t.strength}</span> ·{' '}
+                      parallax=[{parallax.join(', ')}]
+                      {t.forgotten_at ? (
+                        <span className="ml-1 rounded bg-warning/20 px-1 text-warning">
+                          forgotten
+                        </span>
+                      ) : null}
+                      <div className="mt-0.5 text-muted-foreground">“{t.verbatim_quote}”</div>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </DetailBlock>
@@ -245,7 +268,7 @@ function MirrorDetailRow({ mirror }: { mirror: PipelineMirrorRow }) {
   )
 }
 
-function CartographerCard({ cartographer }: { cartographer: PipelineTraceResult['cartographer'] }) {
+function CartographerCard({ cartographer }: { cartographer: CartographerOutputRow | null }) {
   if (!cartographer) {
     return (
       <section className="mb-4 rounded border border-dashed border-border bg-muted/30 px-3 py-2">
@@ -272,21 +295,23 @@ function CartographerCard({ cartographer }: { cartographer: PipelineTraceResult[
             pathways ({cartographer.pathways.length})
           </summary>
           <ul className="mt-1 space-y-1">
-            {cartographer.pathways.map((p) => (
-              <li key={p.label} className="rounded bg-background px-2 py-1">
-                <div className="font-semibold">{p.label}</div>
-                <div className="mt-0.5 text-muted-foreground">
-                  traits:{' '}
-                  {p.trait_combination.map((t) => `${t.dimension}.${t.claim_id}`).join(', ')}
-                </div>
-                {p.risks_tradeoffs ? (
-                  <div className="mt-0.5">risks: {p.risks_tradeoffs}</div>
-                ) : null}
-                {p.exploration_prompt ? (
-                  <div className="mt-0.5">→ {p.exploration_prompt}</div>
-                ) : null}
-              </li>
-            ))}
+            {cartographer.pathways.map((p) => {
+              const traits = Array.isArray(p.trait_combination) ? p.trait_combination : []
+              return (
+                <li key={p.label} className="rounded bg-background px-2 py-1">
+                  <div className="font-semibold">{p.label}</div>
+                  <div className="mt-0.5 text-muted-foreground">
+                    traits: {traits.map((t) => `${t.dimension}.${t.claim_id}`).join(', ') || '—'}
+                  </div>
+                  {p.risks_tradeoffs ? (
+                    <div className="mt-0.5">risks: {p.risks_tradeoffs}</div>
+                  ) : null}
+                  {p.exploration_prompt ? (
+                    <div className="mt-0.5">→ {p.exploration_prompt}</div>
+                  ) : null}
+                </li>
+              )
+            })}
           </ul>
         </details>
       ) : null}
@@ -359,6 +384,22 @@ function DetailBlock({
       </div>
       {children}
     </div>
+  )
+}
+
+function LazyBlob({ label, value }: { label: string; value: unknown }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <details onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
+      <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+        {label}
+      </summary>
+      {open ? (
+        <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2">
+          {safeStringify(value)}
+        </pre>
+      ) : null}
+    </details>
   )
 }
 

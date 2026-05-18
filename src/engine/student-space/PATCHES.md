@@ -15,6 +15,30 @@ or past the merge commit.
 |---|---|---|---|
 | 1 | `Game/View/Tree.js` | DRACO decoder path is host-overridable (default `/draco/`); never fetch from `gstatic.com`. | 2026-05-18 |
 
+## Pending patches (not yet applied)
+
+These are documented future patches we know we need, kept here so the next
+upstream sync does not need to rediscover them. Apply when the situation
+demands it (CPU/battery on hidden tabs, focus-trap conflict, etc.) rather
+than speculatively now.
+
+### Pending patch A: visibility-aware RAF in `Game/Game.js`
+
+**Why.** The engine's main loop calls `requestAnimationFrame` unconditionally
+(see `Game/Game.js`). On hidden tabs `requestAnimationFrame` is already
+throttled, but Three.js scene updates, audio polling, and Kira dialogue
+timers still tick. Reviewers flagged this as a CPU/battery drag in
+back-grounded sessions.
+
+**Shape (planned).** Wrap the RAF tick in a `document.visibilityState`
+check, and add a `visibilitychange` listener that calls
+`requestAnimationFrame()` to resume when the tab becomes visible again.
+Pause audio's `AudioContext` while hidden; restore on visibility return.
+
+**Not yet applied** because the fix touches the engine's hottest path and we
+want a focused dedicated session — not a same-PR squash with the host
+shell. Re-add this section to the patch index once applied.
+
 ## Patch 1: DRACO decoder path is host-overridable
 
 **Why.** Upstream `Game/View/Tree.js` hardcodes
