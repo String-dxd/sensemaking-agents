@@ -42,6 +42,16 @@ const COLORS = {
     trunkCherry: 0x7B5238, // cherry trunk (slightly warmer)
     leafOak:     0x7CA73E, // oak canopy
     leafCherry:  0xE7B6CB, // cherry canopy (soft pink)
+    // Flower palette — small, vivid, varied. Picked by hash on createdAt.
+    flowerStem:    0x4C7B2D,
+    flowerCenter:  0xF6C84C, // warm yellow center
+    flowerPetals:  [0xFF7AA2, 0xFFFFFF, 0xE08CFF, 0xFF9F4A, 0xFFE066, 0x8FD3FF],
+    // Butterfly palette
+    butterflyBody:  0x2B2A28,
+    butterflyWings: [0xFF7AA2, 0xFFD24A, 0x8FD3FF, 0xFF9F4A, 0xC78EFF],
+    // Fruit palette — bush + fruits
+    fruitBush:   0x4C7B2D,
+    fruitBerries: [0xC8202A, 0xE8632E, 0xF0B044], // red, orange, amber
 }
 
 const BOB_AMPLITUDE = 0.05   // metres of vertical bob when ready
@@ -259,6 +269,10 @@ export default class Sprouts
 
     _spawnBloomedTree(tree, animate = false)
     {
+        // Renamed semantically: dispatches mesh construction by sprout
+        // species. 'tree' (or legacy missing species) → mini-tree;
+        // 'flower' → flower cluster; 'butterfly' → butterfly perched
+        // above ground; 'fruit' → small bush with fruits.
         if(this.bloomedNodes.has(tree.id)) return
 
         const group = new THREE.Group()
@@ -270,31 +284,12 @@ export default class Sprouts
         group.rotation.y = theta + 0.3
         this.root.add(group)
 
-        const isOak = tree.treeSpecies === 'oak'
-        const trunkColor = isOak ? COLORS.trunkOak : COLORS.trunkCherry
-        const leafColor  = isOak ? COLORS.leafOak  : COLORS.leafCherry
-
-        const matTrunk = new THREE.MeshLambertMaterial({ color: trunkColor, flatShading: true })
-        const matLeaf  = new THREE.MeshLambertMaterial({ color: leafColor,  flatShading: true })
-
-        // TRUNK — taller cylinder than a sprout's stem.
-        const trunk = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.05, 0.075, 0.55, 8),
-            matTrunk,
-        )
-        trunk.position.y = 0.275
-        group.add(trunk)
-
-        // CANOPY — three overlapping icospheres for a fluffy silhouette.
-        const canopyA = new THREE.Mesh(new THREE.IcosahedronGeometry(0.20, 1), matLeaf)
-        canopyA.position.set(0, 0.62, 0)
-        const canopyB = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), matLeaf)
-        canopyB.position.set(0.13, 0.56, 0.05)
-        const canopyC = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 1), matLeaf)
-        canopyC.position.set(-0.10, 0.55, -0.07)
-        group.add(canopyA)
-        group.add(canopyB)
-        group.add(canopyC)
+        const species = tree.species || 'tree'
+        let parts
+        if(species === 'flower')        parts = this._buildBloomedFlower(group, tree.placementSeed)
+        else if(species === 'butterfly') parts = this._buildBloomedButterfly(group, tree.placementSeed)
+        else if(species === 'fruit')     parts = this._buildBloomedFruit(group, tree.placementSeed)
+        else                             parts = this._buildBloomedTree(group, tree.treeSpecies)
 
         const targetScale = 1.0
         if(animate)
@@ -309,10 +304,162 @@ export default class Sprouts
         this.bloomedNodes.set(tree.id, {
             tree,
             group,
-            parts: { trunk, canopyA, canopyB, canopyC },
+            parts,
             growStartMs: animate ? performance.now() : null,
             targetScale,
         })
+    }
+
+    _buildBloomedTree(group, treeSpeciesId)
+    {
+        const isOak = treeSpeciesId === 'oak'
+        const trunkColor = isOak ? COLORS.trunkOak : COLORS.trunkCherry
+        const leafColor  = isOak ? COLORS.leafOak  : COLORS.leafCherry
+
+        const matTrunk = new THREE.MeshLambertMaterial({ color: trunkColor, flatShading: true })
+        const matLeaf  = new THREE.MeshLambertMaterial({ color: leafColor,  flatShading: true })
+
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.075, 0.55, 8), matTrunk)
+        trunk.position.y = 0.275
+        group.add(trunk)
+
+        const canopyA = new THREE.Mesh(new THREE.IcosahedronGeometry(0.20, 1), matLeaf)
+        canopyA.position.set(0, 0.62, 0)
+        const canopyB = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), matLeaf)
+        canopyB.position.set(0.13, 0.56, 0.05)
+        const canopyC = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 1), matLeaf)
+        canopyC.position.set(-0.10, 0.55, -0.07)
+        group.add(canopyA, canopyB, canopyC)
+
+        return { kind: 'tree', trunk, canopyA, canopyB, canopyC }
+    }
+
+    _buildBloomedFlower(group, seed)
+    {
+        const matStem = new THREE.MeshLambertMaterial({ color: COLORS.flowerStem, flatShading: true })
+        const matCenter = new THREE.MeshLambertMaterial({ color: COLORS.flowerCenter, flatShading: true })
+        const petalColor = COLORS.flowerPetals[seed % COLORS.flowerPetals.length]
+        const matPetal = new THREE.MeshLambertMaterial({ color: petalColor, flatShading: true })
+
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.030, 0.34, 6), matStem)
+        stem.position.y = 0.17
+        group.add(stem)
+
+        // Two small leaves on the stem
+        const leafGeo = new THREE.IcosahedronGeometry(0.06, 0)
+        const leafA = new THREE.Mesh(leafGeo, matStem)
+        leafA.position.set(0.06, 0.18, 0)
+        leafA.scale.set(1.2, 0.5, 0.6)
+        const leafB = new THREE.Mesh(leafGeo, matStem)
+        leafB.position.set(-0.05, 0.14, 0.03)
+        leafB.scale.set(1.0, 0.5, 0.6)
+        group.add(leafA, leafB)
+
+        // Flower head — 6 petals arranged radially + a center
+        const flowerGroup = new THREE.Group()
+        flowerGroup.position.y = 0.37
+        const center = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), matCenter)
+        flowerGroup.add(center)
+        const petalGeo = new THREE.IcosahedronGeometry(0.07, 0)
+        const petalCount = 6
+        for(let i = 0; i < petalCount; i++)
+        {
+            const angle = (i / petalCount) * Math.PI * 2
+            const petal = new THREE.Mesh(petalGeo, matPetal)
+            petal.position.set(Math.cos(angle) * 0.085, 0, Math.sin(angle) * 0.085)
+            petal.scale.set(1.1, 0.45, 0.85)
+            flowerGroup.add(petal)
+        }
+        group.add(flowerGroup)
+
+        return { kind: 'flower', stem, flowerGroup, center }
+    }
+
+    _buildBloomedButterfly(group, seed)
+    {
+        const wingColor = COLORS.butterflyWings[seed % COLORS.butterflyWings.length]
+        const matBody = new THREE.MeshLambertMaterial({ color: COLORS.butterflyBody, flatShading: true })
+        const matWing = new THREE.MeshLambertMaterial({
+            color: wingColor,
+            flatShading: true,
+            side: THREE.DoubleSide,
+        })
+
+        // Anchor lifted off the ground so the butterfly hovers
+        const anchor = new THREE.Group()
+        anchor.position.y = 0.42
+        group.add(anchor)
+
+        // Body
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.10, 6), matBody)
+        body.rotation.z = Math.PI / 2
+        anchor.add(body)
+
+        // Wings — two thin planes per side
+        const wingGeo = new THREE.PlaneGeometry(0.16, 0.12)
+        const wL = new THREE.Mesh(wingGeo, matWing)
+        wL.position.set(0, 0.02, 0.08)
+        wL.rotation.x = -Math.PI / 6
+        wL.rotation.y = -Math.PI / 2.6
+        const wR = new THREE.Mesh(wingGeo, matWing)
+        wR.position.set(0, 0.02, -0.08)
+        wR.rotation.x = -Math.PI / 6
+        wR.rotation.y = Math.PI / 2.6
+        anchor.add(wL, wR)
+
+        // Smaller back wings
+        const wingGeo2 = new THREE.PlaneGeometry(0.10, 0.08)
+        const wLb = new THREE.Mesh(wingGeo2, matWing)
+        wLb.position.set(-0.04, -0.02, 0.06)
+        wLb.rotation.x = -Math.PI / 6
+        wLb.rotation.y = -Math.PI / 2.6
+        const wRb = new THREE.Mesh(wingGeo2, matWing)
+        wRb.position.set(-0.04, -0.02, -0.06)
+        wRb.rotation.x = -Math.PI / 6
+        wRb.rotation.y = Math.PI / 2.6
+        anchor.add(wLb, wRb)
+
+        // Thin stem holding the butterfly above ground so it doesn't
+        // look like it's resting on grass — gives the floating effect
+        // without animation.
+        const matStem = new THREE.MeshLambertMaterial({ color: COLORS.flowerStem, flatShading: true })
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.012, 0.42, 6), matStem)
+        stem.position.y = 0.21
+        group.add(stem)
+
+        return { kind: 'butterfly', anchor, body, wingL: wL, wingR: wR }
+    }
+
+    _buildBloomedFruit(group, seed)
+    {
+        const matBush = new THREE.MeshLambertMaterial({ color: COLORS.fruitBush, flatShading: true })
+        const berryColor = COLORS.fruitBerries[seed % COLORS.fruitBerries.length]
+        const matBerry = new THREE.MeshLambertMaterial({ color: berryColor, flatShading: true })
+
+        // Bush — three overlapping icospheres for a fuller shape
+        const bushA = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 1), matBush)
+        bushA.position.set(0, 0.13, 0)
+        const bushB = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 1), matBush)
+        bushB.position.set(0.10, 0.10, 0.04)
+        const bushC = new THREE.Mesh(new THREE.IcosahedronGeometry(0.12, 1), matBush)
+        bushC.position.set(-0.08, 0.10, -0.05)
+        group.add(bushA, bushB, bushC)
+
+        // 3 berries sprinkled across the bush
+        const berryGeo = new THREE.SphereGeometry(0.035, 10, 8)
+        const positions = [
+            [0.04, 0.20, 0.05],
+            [-0.08, 0.18, 0.02],
+            [0.02, 0.16, -0.10],
+        ]
+        for(const [bx, by, bz] of positions)
+        {
+            const berry = new THREE.Mesh(berryGeo, matBerry)
+            berry.position.set(bx, by, bz)
+            group.add(berry)
+        }
+
+        return { kind: 'fruit', bushA, bushB, bushC }
     }
 
     _spawnNode(sprout)
