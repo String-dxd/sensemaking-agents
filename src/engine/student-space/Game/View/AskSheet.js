@@ -651,6 +651,20 @@ export default class AskSheet
     _appendChat(role, text, { animate = false } = {})
     {
         this.thread.push({ role, text })
+        // Bounded thread length — a runaway loop or a very long session
+        // could otherwise grow `thread` (and the DOM bubble list) without
+        // limit, blowing up memory + the saved capture payload size. Evict
+        // oldest entries while keeping the most recent THREAD_CAP turns.
+        const THREAD_CAP = 50
+        while(this.thread.length > THREAD_CAP)
+        {
+            this.thread.shift()
+            // Remove the matching DOM bubble (first child) so the visible
+            // thread mirrors the model — the user can't scroll back to an
+            // entry that no longer exists in the saved capture.
+            const firstBubble = this.chatThreadEl?.firstElementChild
+            if(firstBubble) firstBubble.remove()
+        }
         const wrap = document.createElement('div')
         wrap.className = `ask-chat__bubble ${role === 'kira' ? 'ask-chat__bubble--kira' : 'ask-chat__bubble--you'}`
         wrap.innerHTML = `

@@ -50,12 +50,17 @@ export default class ZoomHud
         this.root = wrap
         this.soundBtn = wrap.querySelector('[data-action="sound"]')
 
-        wrap.addEventListener('click', (event) =>
+        // Listener refs kept on `this` so dispose() can detach them. The
+        // window-level keydown listener is the leak risk: without explicit
+        // teardown it survives root.remove() and keeps the closure (and the
+        // whole subsystem) alive across remounts.
+        this._onClick = (event) =>
         {
             const btn = event.target.closest('.zoom-hud__btn')
             if(!btn) return
             this._dispatch(btn.dataset.action)
-        })
+        }
+        wrap.addEventListener('click', this._onClick)
 
         this._onKeyDown = (event) =>
         {
@@ -69,12 +74,13 @@ export default class ZoomHud
 
         // Sync the sound button icon when the Sound module changes state
         // (other surfaces, persistence on reload). View constructs Sound
-        // before this class, so the singleton is ready here.
+        // before this class, so the singleton is ready here. The
+        // unsubscribe fn is held for dispose() so we drop the closure too.
         const view = View.getInstance()
         if(view.sound)
         {
             this._renderSoundIcon(view.sound.muted)
-            view.sound.onMuteChange(muted => this._renderSoundIcon(muted))
+            this._offMuteChange = view.sound.onMuteChange(muted => this._renderSoundIcon(muted))
         }
     }
 
@@ -104,4 +110,26 @@ export default class ZoomHud
     }
 
     update() {}
+
+    dispose()
+    {
+        if(this._onKeyDown)
+        {
+            try { window.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+            this._onKeyDown = null
+        }
+        if(this._onClick && this.root)
+        {
+            try { this.root.removeEventListener('click', this._onClick) } catch(_) {}
+            this._onClick = null
+        }
+        if(this._offMuteChange)
+        {
+            try { this._offMuteChange() } catch(_) {}
+            this._offMuteChange = null
+        }
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
+        this.soundBtn = null
+    }
 }

@@ -110,7 +110,11 @@ export default class KiraDialogue
         document.body.appendChild(this.bubble)
         this.textEl = this.bubble.querySelector('.kira-bubble__text')
 
-        this.bubble.addEventListener('click', () => this.hide())
+        // Held on `this` so dispose() can detach. The bubble-attached click
+        // would be GC'd with the detached bubble, but the THREE window-level
+        // activity listeners definitely outlive root removal.
+        this._onBubbleClick = () => this.hide()
+        this.bubble.addEventListener('click', this._onBubbleClick)
 
         this.spoken = 0           // count of lines this session (cap = 2)
         this.invited = false      // max 1 inviting_reflection per session
@@ -125,16 +129,53 @@ export default class KiraDialogue
         // post-ceremony autonomous channel starts fresh.
         this.onboardingMode = false
 
-        // Track any meaningful student activity for the idle counter.
-        const activityEvents = ['pointerdown', 'keydown', 'wheel']
-        for(const evt of activityEvents)
-            window.addEventListener(evt, () => { this.lastActivity = performance.now() })
+        // Track any meaningful student activity for the idle counter. Use a
+        // single shared handler and remember it for dispose() — the previous
+        // pattern attached three independent anonymous closures per remount.
+        this._activityEvents = ['pointerdown', 'keydown', 'wheel']
+        this._onActivity = () => { this.lastActivity = performance.now() }
+        for(const evt of this._activityEvents)
+            window.addEventListener(evt, this._onActivity)
 
         this.worldPos = new THREE.Vector3()
         this.screenPos = new THREE.Vector3()
 
         // Greet on first arrival — 1.4s delay so the world has time to settle.
-        setTimeout(() => this._greet(), 1400)
+        // The timer id is held so dispose() can cancel it if teardown lands
+        // before the greet fires (otherwise the greet would touch a torn-down
+        // bubble and log a benign error).
+        this._greetTimerId = setTimeout(() => this._greet(), 1400)
+    }
+
+    /**
+     * Tear-down hook called from View.dispose(). Removes the three window-
+     * level activity listeners (the leak risk that survives bubble removal)
+     * and cancels the deferred greet timer.
+     */
+    dispose()
+    {
+        if(this._greetTimerId != null)
+        {
+            try { clearTimeout(this._greetTimerId) } catch(_) {}
+            this._greetTimerId = null
+        }
+        if(this._onActivity && this._activityEvents)
+        {
+            for(const evt of this._activityEvents)
+            {
+                try { window.removeEventListener(evt, this._onActivity) } catch(_) {}
+            }
+            this._onActivity = null
+            this._activityEvents = null
+        }
+        if(this._onBubbleClick && this.bubble)
+        {
+            try { this.bubble.removeEventListener('click', this._onBubbleClick) } catch(_) {}
+            this._onBubbleClick = null
+        }
+        try { this.bubble?.remove?.() } catch(_) {}
+        this.bubble = null
+        this.textEl = null
     }
 
     _hourBand(hour)

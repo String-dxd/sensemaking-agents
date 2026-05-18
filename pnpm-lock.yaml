@@ -59,6 +59,9 @@ importers:
       drizzle-orm:
         specifier: ^0.36.0
         version: 0.36.4(@types/better-sqlite3@7.6.13)(@types/pg@8.20.0)(@types/react@19.2.14)(better-sqlite3@12.9.0)(pg@8.20.0)(react@19.2.6)
+      lil-gui:
+        specifier: ^0.17.0
+        version: 0.17.0
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.6)
@@ -74,6 +77,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.6(react@19.2.6)
+      stats.js:
+        specifier: ^0.17.0
+        version: 0.17.0
       tailwind-merge:
         specifier: ^2.5.5
         version: 2.6.1
@@ -132,12 +138,6 @@ importers:
       happy-dom:
         specifier: ^15.11.0
         version: 15.11.7
-      lil-gui:
-        specifier: ^0.17.0
-        version: 0.17.0
-      stats.js:
-        specifier: ^0.17.0
-        version: 0.17.0
       tsx:
         specifier: ^4.19.0
         version: 4.21.0

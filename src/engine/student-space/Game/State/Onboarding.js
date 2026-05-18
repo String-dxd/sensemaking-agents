@@ -38,10 +38,11 @@ export default class Onboarding
         // stays on the URL so the student can refresh during QA without
         // losing the replay intent. Hydration below still runs first so we
         // can observe what was persisted before clearing it.
-        this._replayHash = (typeof window !== 'undefined') && (
-            window.location.hash === '#onboarding' ||
-            window.location.hash.toLowerCase().includes('onboarding')
-        )
+        // Exact match only — earlier `.includes('onboarding')` matched any URL
+        // fragment containing the word (e.g. `#section-onboarding-foo`), making
+        // it a foot-gun for accidental ceremony resets via shareable links.
+        this._replayHash = (typeof window !== 'undefined') &&
+            window.location.hash === '#onboarding'
 
         this.subscribers = new Set()
 

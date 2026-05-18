@@ -21,7 +21,7 @@ export function clearStudentSpaceLocalState(): void {
     const keys: string[] = []
     for (let i = 0; i < storage.length; i++) {
       const key = storage.key(i)
-      if (key && key.startsWith('ss:v1:')) keys.push(key)
+      if (key?.startsWith('ss:v1:')) keys.push(key)
     }
     for (const key of keys) storage.removeItem(key)
   } catch {

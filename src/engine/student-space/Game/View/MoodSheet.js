@@ -170,7 +170,10 @@ export default class MoodSheet
 
         this.draft = { emotion: null, intensity: null, pinId: null }
 
-        root.addEventListener('click', (event) =>
+        // Stored on `this` so dispose() can remove them. The root-level click
+        // would be GC'd with the detached root, but the document-level
+        // keydown survives root removal and would leak across remounts.
+        this._onRootClick = (event) =>
         {
             const close = event.target.closest('.mood-sheet__close')
             if(close) { this._onBack(); return }
@@ -191,13 +194,15 @@ export default class MoodSheet
             // Skip during the cause step has already committed the pin —
             // dismiss the whole capture flow rather than backtracking.
             if(skip) { this.close(); return }
-        })
+        }
+        root.addEventListener('click', this._onRootClick)
 
         // Escape mirrors the × — go back to the chooser, not dismiss.
-        document.addEventListener('keydown', (event) =>
+        this._onKeyDown = (event) =>
         {
             if(this.isOpen && event.key === 'Escape') this._onBack()
-        })
+        }
+        document.addEventListener('keydown', this._onKeyDown)
     }
 
     open({ readOnly, pin } = {})
@@ -307,5 +312,25 @@ export default class MoodSheet
         dots[0].classList.toggle('is-on', true)
         dots[1].classList.toggle('is-on', step === 'intensity' || step === 'cause')
         dots[2].classList.toggle('is-on', step === 'cause')
+    }
+
+    dispose()
+    {
+        // Remove the document-level keydown listener first — the root-
+        // attached click would be GC'd with the detached root, but the
+        // document-level handler survives root removal and keeps the whole
+        // subsystem alive (including any captured state references).
+        if(this._onKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+            this._onKeyDown = null
+        }
+        if(this._onRootClick && this.root)
+        {
+            try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
+            this._onRootClick = null
+        }
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
     }
 }

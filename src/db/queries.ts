@@ -1145,11 +1145,12 @@ async function getVipsTimelineEntryInner(
 export async function listVipsTimelineEntries(
   studentId: string,
   dimension: string,
-  opts: { includeForgotten?: boolean; ctx?: TenantContext } = {},
+  opts: { includeForgotten?: boolean; ctx?: TenantContext; limit?: number } = {},
 ): Promise<VipsTimelineEntryRow[]> {
-  if (opts.ctx) return listVipsTimelineEntriesInner(opts.ctx, dimension, !!opts.includeForgotten)
+  if (opts.ctx)
+    return listVipsTimelineEntriesInner(opts.ctx, dimension, !!opts.includeForgotten, opts.limit)
   return withStudent(studentId, (ctx) =>
-    listVipsTimelineEntriesInner(ctx, dimension, !!opts.includeForgotten),
+    listVipsTimelineEntriesInner(ctx, dimension, !!opts.includeForgotten, opts.limit),
   )
 }
 
@@ -1157,6 +1158,7 @@ async function listVipsTimelineEntriesInner(
   ctx: TenantContext,
   dimension: string,
   includeForgotten: boolean,
+  limit?: number,
 ): Promise<VipsTimelineEntryRow[]> {
   const where = includeForgotten
     ? and(
@@ -1168,11 +1170,12 @@ async function listVipsTimelineEntriesInner(
         eq(vipsTimelineEntries.dimension, dimension),
         isNull(vipsTimelineEntries.forgottenAt),
       )
-  const rows = await ctx.db
+  const base = ctx.db
     .select()
     .from(vipsTimelineEntries)
     .where(where)
     .orderBy(desc(vipsTimelineEntries.committedAt))
+  const rows = limit != null ? await base.limit(limit) : await base
   return rows.map((r: DrizzleVipsTimelineRow) => rowToVipsTimelineEntry(drizzleVipsTimelineRow(r)))
 }
 
@@ -1505,29 +1508,31 @@ async function getVipsProposedDiffInner(
 
 export async function listVipsProposedDiffs(
   studentId: string,
-  opts: { status?: VipsProposedDiffStatus; ctx?: TenantContext } = {},
+  opts: { status?: VipsProposedDiffStatus; ctx?: TenantContext; limit?: number } = {},
 ): Promise<VipsProposedDiffRow[]> {
-  if (opts.ctx) return listVipsProposedDiffsInner(opts.ctx, opts.status)
-  return withStudent(studentId, (ctx) => listVipsProposedDiffsInner(ctx, opts.status))
+  if (opts.ctx) return listVipsProposedDiffsInner(opts.ctx, opts.status, opts.limit)
+  return withStudent(studentId, (ctx) => listVipsProposedDiffsInner(ctx, opts.status, opts.limit))
 }
 
 async function listVipsProposedDiffsInner(
   ctx: TenantContext,
   status: VipsProposedDiffStatus | undefined,
+  limit?: number,
 ): Promise<VipsProposedDiffRow[]> {
-  const rows = status
-    ? await ctx.db
+  const base = status
+    ? ctx.db
         .select()
         .from(vipsProposedDiffs)
         .where(
           and(eq(vipsProposedDiffs.studentId, ctx.studentId), eq(vipsProposedDiffs.status, status)),
         )
         .orderBy(desc(vipsProposedDiffs.createdAt))
-    : await ctx.db
+    : ctx.db
         .select()
         .from(vipsProposedDiffs)
         .where(eq(vipsProposedDiffs.studentId, ctx.studentId))
         .orderBy(desc(vipsProposedDiffs.createdAt))
+  const rows = limit != null ? await base.limit(limit) : await base
   return rows.map((r: DrizzleVipsProposedDiffRow) =>
     rowToVipsProposedDiff(drizzleVipsProposedDiffRow(r)),
   )

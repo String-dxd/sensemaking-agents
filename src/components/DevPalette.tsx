@@ -2,7 +2,8 @@ import { Dialog as BaseDialog } from '@base-ui-components/react/dialog'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogOverlay, DialogPortal } from '~/components/ui/dialog'
-import { clearStudentSpaceLocalState } from '~/engine/student-space/clear-local-state'
+import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
+import { signOutEngine } from '~/lib/sign-out-engine'
 import { cn } from '~/lib/utils'
 
 /**
@@ -62,8 +63,14 @@ export function DevPalette() {
         hint: '/api/auth/sign-out',
         run: () => {
           setOpen(false)
-          // Clear the engine's `ss:v1:*` localStorage keys before submitting
-          // the server-side sign-out, mirroring the ProfileSheetChrome form.
+          // Tear the engine down BEFORE wiping its localStorage keys.
+          // Persistence's debounced writes (250ms) would otherwise race the
+          // clear: a save scheduled at t=0 lands at t=250ms and re-creates
+          // the `ss:v1:*` keys we just deleted, defeating the per-session
+          // cleanup. dispose() drains the pending writes synchronously
+          // (via Persistence.dispose → flush) and removes the rAF loop so
+          // no further saves can fire during the sign-out POST flight.
+          signOutEngine()
           clearStudentSpaceLocalState()
           // POST via a hidden form mirrors ProfileSheetChrome's sign-out
           // pattern. The GET handler skips the same-origin guard the POST

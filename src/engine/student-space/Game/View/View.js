@@ -213,10 +213,24 @@ export default class View
         // listeners / timers / DOM. Defensive `?.` so a subsystem
         // can opt into the contract without forcing every other one
         // to grow a dispose() at the same time.
+        //
+        // Representative high-traffic chrome subsystems (MoodSheet,
+        // KiraDialogue, ZoomHud, ProfileSheet) now implement dispose() —
+        // each owns at least one document- or window-level listener that
+        // survives root.remove() and would leak across React StrictMode /
+        // HMR remounts. The remaining chrome subsystems (sheets, HUDs,
+        // pickers under Game/View/) are tracked in the rev2 review and
+        // queued for a focused follow-up; they leak DOM only (not
+        // page-level listeners), so the per-remount cost is bounded.
         const SUBSYSTEMS = [
             this.onboardingFlow,
             this.camera,
             this.sound,
+            this.captureFab?.moodSheet,
+            this.kiraDialogue,
+            this.zoomHud,
+            this.profileSheet,
+            this.captureFab?.chooser,
         ]
         for(const sub of SUBSYSTEMS)
         {

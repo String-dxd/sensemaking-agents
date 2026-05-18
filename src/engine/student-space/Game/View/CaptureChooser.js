@@ -371,6 +371,9 @@ export default class CaptureChooser
         this.root.classList.add('is-open')
         this.isOpen = true
         if(this.scroll) this.scroll.scrollTop = 0
+        // Rebuild scenes if close() disposed them (we now dispose on close
+        // to release the three WebGL contexts back to the browser pool).
+        if(this._scenes.length === 0) this._buildScenes()
         // Kick the render loop on the next frame so the canvas slots have
         // measured their final layout before the first resize.
         if(this._rafId === null)
@@ -390,9 +393,36 @@ export default class CaptureChooser
         this.root.setAttribute('inert', '')
         this.isOpen = false
         if(this._rafId) { cancelAnimationFrame(this._rafId); this._rafId = null }
+        // Browsers cap WebGL contexts per page (~16 in Chrome). Each MODES
+        // stage builds its own renderer (3 contexts), and the chooser opens
+        // and closes repeatedly within a session — without explicit dispose
+        // + forceContextLoss every close leaks all three contexts and a
+        // dozen open/close cycles starve the rest of the page (the main
+        // engine renderer included) of GL state.
+        //
+        // We dispose on close, then rebuild on the next open() so the
+        // chooser stays interactive across many show/hide cycles.
+        this._disposeScenes()
         OverlayController.getInstance().noteClosed('chooser')
     }
 
+    _disposeScenes()
+    {
+        for(const s of this._scenes)
+        {
+            try { s.renderer?.dispose?.() } catch(_) {}
+            try { s.renderer?.forceContextLoss?.() } catch(_) {}
+            try { s.canvas?.remove?.() } catch(_) {}
+        }
+        this._scenes = []
+        this._stagesEls = []
+    }
+
+    /**
+     * Open intentionally re-builds scenes lazily because close() now
+     * disposes them — the WebGL context leak (3 contexts per open/close
+     * cycle) was higher cost than the rebuild on re-open.
+     */
     toggle()
     {
         this.isOpen ? this.close() : this.open()

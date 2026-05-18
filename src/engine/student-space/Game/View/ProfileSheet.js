@@ -155,12 +155,39 @@ export default class ProfileSheet
         this.emptyEl     = root.querySelector('.profile-sheet__empty')
         this.panelEl     = root.querySelector('.profile-sheet__panel')
 
-        root.addEventListener('click', (event) => this._onClick(event))
+        // Listener refs held on `this` so dispose() can detach them. The
+        // document-level keydown is the leak risk; the root-attached click
+        // would be GC'd with the detached root, but tracking it keeps the
+        // teardown pattern uniform across sheets.
+        this._onRootClick = (event) => this._onClick(event)
+        root.addEventListener('click', this._onRootClick)
 
-        document.addEventListener('keydown', (event) =>
+        this._onKeyDown = (event) =>
         {
             if(this.isOpen && event.key === 'Escape') this.close()
-        })
+        }
+        document.addEventListener('keydown', this._onKeyDown)
+    }
+
+    /**
+     * Tear-down hook called from View.dispose(). Removes the page-level
+     * keydown listener (the root.remove() drops the bubbled click handler
+     * with it) so a remount doesn't leak a closure tied to the old root.
+     */
+    dispose()
+    {
+        if(this._onKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+            this._onKeyDown = null
+        }
+        if(this._onRootClick && this.root)
+        {
+            try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
+            this._onRootClick = null
+        }
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
     }
 
     // ── Open / close ──────────────────────────────────────────────────────

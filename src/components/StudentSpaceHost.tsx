@@ -34,7 +34,15 @@ export function StudentSpaceHost({ className }: { className?: string }) {
           container,
           persistence: { storage: engine.localStorageAdapter() },
         })
-        dispose = () => game.dispose()
+        // Expose the live Game so the sign-out helper (which cannot static-
+        // import the engine without bloating server bundles) can call
+        // `dispose()` synchronously to drain Persistence before the
+        // `ss:v1:*` localStorage wipe. The handle is cleared on unmount.
+        window.__studentSpaceGame = game
+        dispose = () => {
+          window.__studentSpaceGame = null
+          game.dispose()
+        }
       } catch (err) {
         console.error('[StudentSpaceHost] createGame failed', err)
         if (!cancelled) {

@@ -30,8 +30,20 @@ import Debug from '../Debug/Debug.js'
 // DRACO decoder is self-hosted under public/draco/ (copied from
 // three/examples/jsm/libs/draco/gltf/). Avoids gstatic.com, which is
 // whitelist-blocked on Singapore MOE school networks where this app runs.
+//
+// Asset paths are derived from `import.meta.env.BASE_URL` so a subpath
+// deployment (e.g. `/student-space/`) still resolves /draco/ and trees/
+// relative to the app root, not the document origin. Falls back to '/'
+// for environments where Vite's BASE_URL isn't injected (SSR, unit tests).
+const BASE_URL = (typeof import.meta !== 'undefined'
+    && import.meta.env
+    && typeof import.meta.env.BASE_URL === 'string')
+    ? import.meta.env.BASE_URL
+    : '/'
+const ASSET_BASE = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`
+
 const dracoLoader = new DRACOLoader()
-dracoLoader.setDecoderPath('/draco/')
+dracoLoader.setDecoderPath(`${ASSET_BASE}draco/`)
 const gltfLoader = new GLTFLoader()
 gltfLoader.setDRACOLoader(dracoLoader)
 
@@ -274,15 +286,29 @@ export default class Tree
         this._sunV = new THREE.Vector3(0.4, 0.85, 0.3).normalize()
         this._tmpM = new THREE.Matrix4()
 
-        // Foliage SDF texture — Bruno's exact atlas.
-        this.foliageTex = new THREE.TextureLoader().load('trees/foliageSDF.png', (tex) =>
-        {
-            tex.magFilter = THREE.LinearFilter
-            tex.minFilter = THREE.LinearFilter
-            tex.generateMipmaps = false
-            tex.wrapS = THREE.RepeatWrapping
-            tex.wrapT = THREE.RepeatWrapping
-        })
+        // Foliage SDF texture — Bruno's exact atlas. Surfaces load failures
+        // through console.error so a subpath misconfig or a 404 (CDN swap,
+        // typo'd public/) is visible instead of silently rendering as a
+        // texture-less canopy. The host can read `this.assetsFailed` for a
+        // future EngineLoadFailure integration.
+        this.assetsFailed = false
+        this.foliageTex = new THREE.TextureLoader().load(
+            `${ASSET_BASE}trees/foliageSDF.png`,
+            (tex) =>
+            {
+                tex.magFilter = THREE.LinearFilter
+                tex.minFilter = THREE.LinearFilter
+                tex.generateMipmaps = false
+                tex.wrapS = THREE.RepeatWrapping
+                tex.wrapT = THREE.RepeatWrapping
+            },
+            undefined,
+            (err) =>
+            {
+                this.assetsFailed = true
+                console.error('[engine] tree assets failed to load (foliageSDF)', err)
+            },
+        )
 
         this._loadAndBuild()
         this.setDebug()
@@ -293,8 +319,8 @@ export default class Tree
         try
         {
             const [oakGltf, cherryGltf] = await Promise.all([
-                loadGLB('trees/oakTreesVisual.glb'),
-                loadGLB('trees/cherryTreesVisual.glb'),
+                loadGLB(`${ASSET_BASE}trees/oakTreesVisual.glb`),
+                loadGLB(`${ASSET_BASE}trees/cherryTreesVisual.glb`),
             ])
 
             this.templates = {
@@ -323,7 +349,8 @@ export default class Tree
         }
         catch(err)
         {
-            console.error('[Tree] failed to load Bruno tree assets:', err)
+            this.assetsFailed = true
+            console.error('[engine] tree assets failed to load (GLB/DRACO)', err)
         }
     }
 

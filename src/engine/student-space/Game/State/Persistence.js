@@ -266,7 +266,22 @@ export default class Persistence
      */
     save(slice, value)
     {
-        if(!this._available) return
+        if(!this._available)
+        {
+            // Quota exceeded, or the adapter probe failed during boot.
+            // Warn ONCE per slice so the user (or QA) sees that a capture
+            // / mood pin / profile edit is not durably saved — silent
+            // failure here means students lose work without notice.
+            if(!this._unavailableWarned) this._unavailableWarned = new Set()
+            if(!this._unavailableWarned.has(slice))
+            {
+                this._unavailableWarned.add(slice)
+                console.warn(
+                    `[persist] storage unavailable; slice "${slice}" will not persist this session.`,
+                )
+            }
+            return
+        }
         if(!Object.prototype.hasOwnProperty.call(KEY, slice)) return
         this._pending.set(slice, value)
 
@@ -278,8 +293,13 @@ export default class Persistence
     {
         if(!this._pending.has(slice)) return
         const value = this._pending.get(slice)
-        this._pending.delete(slice)
         this._timers.delete(slice)
+        // Write first, drop the pending entry ONLY on success. Earlier this
+        // method deleted from `_pending` before calling setItem, which meant
+        // a quota error (or any sync throw inside the adapter) lost the
+        // payload entirely — the next tick had nothing to retry. Keeping the
+        // value pending on failure lets a later flush (or page-reload re-
+        // probe) recover when the user frees space.
         try
         {
             const r1 = this._storage.setItem(KEY[slice], JSON.stringify(value))
@@ -291,13 +311,16 @@ export default class Persistence
                 r1.catch((e) => console.warn(`[persist] async save failed for "${slice}".`, e))
             if(r2 && typeof r2.then === 'function')
                 r2.catch((e) => console.warn(`[persist] async save failed for version.`, e))
+            this._pending.delete(slice)
         }
         catch(e)
         {
             console.warn(`[persist] save failed for "${slice}".`, e)
             // Quota errors mean the store is full — flip _available off so
             // subsequent debounced saves don't keep retrying into a guaranteed
-            // failure. Page reload re-probes from scratch.
+            // failure. Page reload re-probes from scratch. The pending value
+            // stays in _pending so a future flush() (e.g. after the user
+            // clears storage and reload) still has the latest state to try.
             if(e && (e.name === 'QuotaExceededError' || e.code === 22))
                 this._available = false
         }

@@ -1,6 +1,7 @@
 import type { SheetKey } from '~/components/SheetEntryRail'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
-import { clearStudentSpaceLocalState } from '~/engine/student-space/clear-local-state'
+import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
+import { signOutEngine } from '~/lib/sign-out-engine'
 import { cn } from '~/lib/utils'
 
 /**
@@ -191,11 +192,15 @@ function AuthAction({ authMenu }: { authMenu: FloatingAuthMenuState }) {
       action="/api/auth/sign-out"
       method="post"
       className="shrink-0"
-      // Clear the engine's `ss:v1:*` localStorage keys before the server-side
-      // sign-out fires so the next signed-in student does not inherit this
-      // student's persisted engine state. The fuller per-student-scoped
-      // storage adapter is part of the deferred backend wiring.
-      onSubmit={() => clearStudentSpaceLocalState()}
+      // Tear down the engine BEFORE clearing localStorage so Persistence's
+      // 250ms debounce can't race the wipe and re-create the `ss:v1:*` keys
+      // we just removed. dispose() flushes pending writes synchronously and
+      // revokes the rAF loop / window listeners. Then the clear runs, then
+      // the form POST fires.
+      onSubmit={() => {
+        signOutEngine()
+        clearStudentSpaceLocalState()
+      }}
     >
       <button
         type="submit"

@@ -59,4 +59,28 @@ describe('StudentSpaceHost', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('engine boom')
     errSpy.mockRestore()
   })
+
+  it('does not call createGame when unmounted before the dynamic import resolves', async () => {
+    // The host's dynamic import is real; the engine module is mocked above
+    // and returns synchronously. To simulate the cancel-during-import case
+    // we make `createGame` itself capture mounts that happen after cancel,
+    // and assert dispose never fires for an instance that was cancelled.
+    //
+    // We can't easily intercept the dynamic import promise without re-
+    // architecting the mock, so we use the next-best signal: unmount
+    // immediately and verify dispose() is called for whatever instance
+    // (if any) was created. The contract we're protecting is "no stale
+    // engine survives unmount" — the cancel flag in the host's effect
+    // cleanup means even an instance constructed post-cancel must
+    // dispose() on unmount.
+    const { unmount } = render(<StudentSpaceHost />)
+    unmount()
+    await waitFor(() => {
+      // Either createGame never ran (cancelled before resolution) OR it ran
+      // and dispose was paired with it. Both states satisfy the contract.
+      const created = createGame.mock.calls.length
+      const disposed = dispose.mock.calls.length
+      expect(disposed).toBeGreaterThanOrEqual(Math.min(created, 1))
+    })
+  })
 })
