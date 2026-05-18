@@ -185,11 +185,14 @@ export default class Sprouts
         this._pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
         this._raycaster.setFromCamera(this._pointer, camera)
 
-        // Collect hit-target meshes for ready-to-bloom sprouts only.
+        // Collect hit-target meshes for ALL active sprouts (not just ready).
+        // We separate the bloom decision into the post-hit branch below so
+        // tapping a still-growing sprout still produces feedback rather than
+        // a silent no-op.
         const targets = []
         for(const node of this.nodes.values())
         {
-            if(node.sprout.readyToBloom && node.dissolveStartMs === null && node.parts.hitTarget)
+            if(node.dissolveStartMs === null && node.parts.hitTarget)
             {
                 targets.push(node.parts.hitTarget)
             }
@@ -200,11 +203,32 @@ export default class Sprouts
         if(!hit) return
         const sproutId = hit.object?.userData?.sproutId
         if(!sproutId) return
-        const result = this.state.sprouts.bloom(sproutId)
-        if(result)
+        const node = this.nodes.get(sproutId)
+        if(!node) return
+        if(node.sprout.readyToBloom)
         {
-            // Subtle audio celebration — engine's existing one-shot.
-            try { this.view.sound?.playOneShot?.('bloom') } catch(_) {}
+            const result = this.state.sprouts.bloom(sproutId)
+            if(result)
+            {
+                // Subtle audio celebration — engine's existing one-shot.
+                try { this.view.sound?.playOneShot?.('bloom') } catch(_) {}
+            }
+            return
+        }
+        // Not-ready tap — acknowledge so the tap doesn't feel ignored. Brief
+        // scale bump on the sprout itself + a CustomEvent for the React
+        // overlay to surface a "still growing" toast. The slice does not
+        // mutate; this is pure UI feedback for a non-mutation interaction.
+        node.tapAckUntilMs = performance.now() + 280
+        if(typeof window !== 'undefined')
+        {
+            window.dispatchEvent(new CustomEvent('ss:sprout-tap-not-ready', {
+                detail: {
+                    sproutId,
+                    count: node.sprout.count,
+                    threshold: node.sprout.threshold,
+                },
+            }))
         }
     }
 
@@ -418,6 +442,20 @@ export default class Sprouts
                 const diff = targetX - curX
                 const next = curX + Math.sign(diff) * Math.min(Math.abs(diff), step)
                 node.group.scale.setScalar(next)
+            }
+
+            // Tap-acknowledgement bump for not-ready taps — brief 6% scale
+            // overshoot that decays over ~280ms. Visible feedback that the
+            // tap registered even though the threshold isn't met yet.
+            if(node.tapAckUntilMs && node.tapAckUntilMs > now)
+            {
+                const remaining = (node.tapAckUntilMs - now) / 280
+                const bump = remaining * 0.06
+                node.group.scale.multiplyScalar(1 + bump)
+            }
+            else if(node.tapAckUntilMs)
+            {
+                node.tapAckUntilMs = 0
             }
 
             // Dissolve animation

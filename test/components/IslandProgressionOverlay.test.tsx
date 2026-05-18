@@ -109,4 +109,33 @@ describe('IslandProgressionOverlay', () => {
     // Should mount without throwing; no tray, no toasts.
     expect(screen.queryByRole('status')).toBeNull()
   })
+
+  it('surfaces a "still growing" toast on the ss:sprout-tap-not-ready CustomEvent', () => {
+    const { game } = makeFakeGame()
+    render(<IslandProgressionOverlay game={game} />)
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('ss:sprout-tap-not-ready', {
+          detail: { sproutId: 'abc', count: 2, threshold: 3 },
+        }),
+      )
+    })
+    expect(screen.getByText(/still growing — 2\/3/i)).toBeInTheDocument()
+  })
+
+  it('unmounts the not-ready event listener on cleanup', () => {
+    const { game } = makeFakeGame()
+    const { unmount } = render(<IslandProgressionOverlay game={game} />)
+    unmount()
+    // Dispatching after unmount should NOT throw and should NOT surface
+    // a toast (the listener detached).
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent('ss:sprout-tap-not-ready', {
+          detail: { count: 1, threshold: 3 },
+        }),
+      )
+    })
+    expect(screen.queryByText(/still growing/i)).toBeNull()
+  })
 })

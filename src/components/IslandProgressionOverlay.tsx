@@ -131,7 +131,31 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
         }, TOAST_TTL_MS)
       }
     })
-    return unsubscribe
+
+    // Not-ready sprout taps come through a CustomEvent dispatched by the
+    // engine's Sprouts view, NOT through the slice's subscriber chain
+    // (the tap doesn't mutate slice state). Surface a brief "still
+    // growing" toast so the tap doesn't feel ignored.
+    const onNotReady = (e: Event) => {
+      const ce = e as CustomEvent<{ count?: number; threshold?: number }>
+      const count = ce.detail?.count ?? 0
+      const threshold = ce.detail?.threshold ?? 0
+      const tip: Toast = {
+        id: nextId++,
+        text: `Still growing — ${count}/${threshold}.`,
+        variant: 'grow',
+      }
+      setToasts((prev) => [...prev, tip])
+      window.setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== tip.id))
+      }, TOAST_TTL_MS)
+    }
+    window.addEventListener('ss:sprout-tap-not-ready', onNotReady)
+
+    return () => {
+      unsubscribe()
+      window.removeEventListener('ss:sprout-tap-not-ready', onNotReady)
+    }
   }, [game])
 
   return (
