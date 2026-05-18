@@ -51,6 +51,13 @@ const DISSOLVE_MS = 700      // bloomed sprout dissolve duration
 
 const PLATEAU_RADIUS = 2.6   // safe placement radius on the central plateau
 
+// Camera flow timings — total ≈1.5s for a normal grow, ≈2.7s for a bloom.
+const CAM_ZOOM_IN_MS    = 500
+const CAM_HOLD_MS       = 500     // non-bloom hold before returning
+const CAM_HOLD_BLOOM_MS = 350     // shorter; bloom animation provides the dwell
+const CAM_ZOOM_OUT_MS   = 500
+const BLOOM_GROW_MS     = 1000    // bloomed-object grow-in duration (was 1200)
+
 /** Stable PRNG from a seed integer. Deterministic + fast. */
 function seededAngleAndRadius(seed)
 {
@@ -115,23 +122,42 @@ export default class Sprouts
             this._spawnBloomedTree(tree)
         }
 
+        // Camera flow state — ensures only one flow runs at a time.
+        // Rapid-fire captures during an in-flight flow are visualised
+        // (badge, sprout scale tick) but don't enqueue another camera
+        // moment — the existing flow finishes first.
+        this._camFlow = null  // null | { sproutId, phase, startMs, autoBloom }
+
         // Subscribe to live mutations.
         this._unsubscribe = this.state.sprouts.subscribe((event) =>
         {
             if(event.type === 'spawned')
             {
                 this._spawnNode(event.sprout)
+                this._startCameraFlow(event.sprout.id, { autoBloom: false })
             }
-            else if(event.type === 'grew' || event.type === 'markedReady')
+            else if(event.type === 'grew')
             {
                 const node = this.nodes.get(event.sprout.id)
                 if(node)
                 {
                     node.sprout = event.sprout
-                    // Subtle scale-up tick on grow so each capture has a
-                    // visible echo on the sprout itself, not just the badge.
                     node.targetScale = Math.min(1.0, 0.7 + 0.1 * event.sprout.count)
                 }
+                this._startCameraFlow(event.sprout.id, { autoBloom: false })
+            }
+            else if(event.type === 'markedReady')
+            {
+                const node = this.nodes.get(event.sprout.id)
+                if(node)
+                {
+                    node.sprout = event.sprout
+                    node.targetScale = Math.min(1.0, 0.7 + 0.1 * event.sprout.count)
+                }
+                // Threshold crossed — camera flies, holds briefly, then
+                // bloom triggers automatically within the same cinematic
+                // beat. No tap, no tray.
+                this._startCameraFlow(event.sprout.id, { autoBloom: true })
             }
             else if(event.type === 'bloomed')
             {
@@ -207,12 +233,11 @@ export default class Sprouts
         if(!node) return
         if(node.sprout.readyToBloom)
         {
-            const result = this.state.sprouts.bloom(sproutId)
-            if(result)
-            {
-                // Subtle audio celebration — engine's existing one-shot.
-                try { this.view.sound?.playOneShot?.('bloom') } catch(_) {}
-            }
+            // Fallback path — auto-bloom should have already fired on
+            // the markedReady event. If somehow the sprout is still
+            // sitting ready (event missed, reduced-motion edge case),
+            // the tap still works as an escape hatch.
+            this._triggerBloom(sproutId)
             return
         }
         // Not-ready tap — acknowledge so the tap doesn't feel ignored. Brief
@@ -361,6 +386,147 @@ export default class Sprouts
         })
     }
 
+    /**
+     * Start the per-capture camera flow: glide camera to the sprout,
+     * hold, then either restore or trigger auto-bloom. If a flow is
+     * already running, skip silently — the visual badge / scale tick
+     * still updates from the event itself, this just avoids fighting
+     * camera animations against each other.
+     *
+     * Reduced-motion: no camera fly. Instead a brief glow flash on the
+     * sprout via `node.tapAckUntilMs` (already used by not-ready taps);
+     * auto-bloom still fires but with the existing reduced-motion path
+     * (200ms cross-fade) inside the dissolve/grow code.
+     */
+    _startCameraFlow(sproutId, { autoBloom })
+    {
+        const node = this.nodes.get(sproutId)
+        if(!node) return
+
+        // Reduced-motion path: skip camera, flash, kick auto-bloom if
+        // applicable. The dissolve/grow code already has reduced-motion
+        // branches.
+        if(reduceMotion())
+        {
+            node.tapAckUntilMs = performance.now() + 240
+            if(autoBloom) this._triggerBloom(sproutId)
+            return
+        }
+
+        // Skip if a flow is in flight — the new event's visuals still
+        // appear (badge updates, scale tick) but we don't restart the
+        // camera. This prevents jittery overlapping zooms.
+        if(this._camFlow) return
+
+        const camera = this.view.camera
+        if(!camera || !camera.zoomTo) return
+
+        // Compute camera pose along the student's current viewing axis
+        // so the camera glides toward the sprout rather than swinging
+        // around. Mirror of ObjectPeek's targeting math.
+        const tgt = node.group.position
+        const liveCam = camera.instance.position
+        const dx = liveCam.x - tgt.x
+        const dz = liveCam.z - tgt.z
+        const flatLen = Math.hypot(dx, dz) || 1
+        const unitX = dx / flatLen
+        const unitZ = dz / flatLen
+        const dist = 1.7   // ~1.7m back from the sprout
+        const lift = 0.8   // 0.8m above ground
+        const lookLift = 0.22  // look slightly above the sprout's base
+        const camPos = new (this._tmpVec.constructor)(
+            tgt.x + unitX * dist,
+            tgt.y + lift,
+            tgt.z + unitZ * dist,
+        )
+        const camLook = new (this._tmpVec.constructor)(tgt.x, tgt.y + lookLift, tgt.z)
+        camera.zoomTo(camPos, camLook, CAM_ZOOM_IN_MS)
+
+        this._camFlow = {
+            sproutId,
+            phase: 'flying',  // → 'holding' → ('blooming' →) 'returning' → done
+            startMs: performance.now(),
+            autoBloom,
+        }
+    }
+
+    _tickCameraFlow(now)
+    {
+        const flow = this._camFlow
+        if(!flow) return
+
+        const elapsed = now - flow.startMs
+
+        if(flow.phase === 'flying')
+        {
+            if(elapsed >= CAM_ZOOM_IN_MS)
+            {
+                flow.phase = 'holding'
+                flow.startMs = now
+            }
+            return
+        }
+
+        if(flow.phase === 'holding')
+        {
+            const holdMs = flow.autoBloom ? CAM_HOLD_BLOOM_MS : CAM_HOLD_MS
+            if(elapsed >= holdMs)
+            {
+                if(flow.autoBloom)
+                {
+                    const ok = this._triggerBloom(flow.sproutId)
+                    if(ok)
+                    {
+                        flow.phase = 'blooming'
+                        flow.startMs = now
+                        return
+                    }
+                    // Bloom refused (e.g., state changed); fall through to return.
+                }
+                this._returnCamera(flow)
+            }
+            return
+        }
+
+        if(flow.phase === 'blooming')
+        {
+            if(elapsed >= BLOOM_GROW_MS)
+            {
+                this._returnCamera(flow)
+            }
+            return
+        }
+
+        if(flow.phase === 'returning')
+        {
+            if(elapsed >= CAM_ZOOM_OUT_MS)
+            {
+                this._camFlow = null
+            }
+        }
+    }
+
+    _returnCamera(flow)
+    {
+        const camera = this.view.camera
+        if(camera && camera.restoreZoom) camera.restoreZoom(CAM_ZOOM_OUT_MS)
+        flow.phase = 'returning'
+        flow.startMs = performance.now()
+    }
+
+    /**
+     * Dispatch a bloom on the slice. Returns true if the slice
+     * accepted the bloom; false if it refused (e.g., the sprout is
+     * not actually ready). Plays the bloom chime on success.
+     */
+    _triggerBloom(sproutId)
+    {
+        const result = this.state.sprouts.bloom(sproutId)
+        if(!result) return false
+        try { this.view.sound?.playOneShot?.('bloom') } catch(_) {}
+        return true
+    }
+
     _buildSproutMesh()
     {
         const matStem = new THREE.MeshLambertMaterial({ color: COLORS.stem, flatShading: true })
@@ -428,6 +594,9 @@ export default class Sprouts
         const reduce = reduceMotion()
         const now = performance.now()
         const camera = this.view.camera?.instance
+
+        // Drive the per-capture camera-flow state machine.
+        this._tickCameraFlow(now)
 
         const toDelete = []
 
@@ -556,7 +725,7 @@ export default class Sprouts
         {
             if(node.growStartMs === null) continue
             const dt = now - node.growStartMs
-            const duration = reduce ? 200 : 1200
+            const duration = reduce ? 200 : BLOOM_GROW_MS
             const t = Math.min(1, dt / duration)
             // Ease out cubic
             const eased = 1 - Math.pow(1 - t, 3)

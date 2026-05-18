@@ -59,22 +59,12 @@ afterEach(() => {
 })
 
 describe('IslandProgressionOverlay', () => {
-  it('renders nothing chrome-relevant when there are zero ready sprouts', () => {
+  it('renders nothing chrome-relevant when no events have fired', () => {
     const { game } = makeFakeGame()
     render(<IslandProgressionOverlay game={game} />)
-    expect(screen.queryByRole('status', { name: /ready to plant/i })).toBeNull()
-  })
-
-  it('shows the tray when ready count > 0', () => {
-    const { game, sprouts } = makeFakeGame()
-    sprouts.ready = 2
-    sprouts.active = 3
-    render(<IslandProgressionOverlay game={game} />)
-    act(() => {
-      sprouts.emit({ type: 'markedReady' })
-    })
-    const tray = screen.getByRole('status', { name: /ready to plant: 2 sprouts/i })
-    expect(tray).toHaveTextContent('Ready to plant · 2')
+    // No tray (removed in the auto-bloom rev), no toasts, no chrome.
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByText(/heard/i)).toBeNull()
   })
 
   it('renders a toast on grow events and removes it after the TTL', async () => {

@@ -1,27 +1,19 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useState } from 'react'
 import type { Game } from '~/engine/student-space/Game'
 
 /**
- * U6 — small React overlay above the engine canvas. Two responsibilities:
+ * U6 — small React overlay above the engine canvas. Surfaces transient
+ * reflection-voice toasts on capture / grow / bloom events, plus the
+ * "still growing" feedback for not-ready sprout taps.
  *
- *  1. **Tray** — a bottom-center pill showing the count of bloom-ready
- *     sprouts. Hidden when none. Clicking the tray is informational only
- *     (the visible sprout pulse is the actual CTA — see View/Sprouts.js);
- *     the tray provides a global affordance for students whose camera is
- *     facing away from the ready sprouts.
- *  2. **Toasts** — transient reflection-voice messages on grow / spawn /
- *     markedReady / bloomed events. Auto-dismiss after 2.4s. Stack near
- *     the tray.
+ * The "Ready to plant" tray was removed once auto-bloom-in-camera-moment
+ * shipped: the camera flow itself is the celebration; the bloom happens
+ * automatically when the threshold-crossing capture lands, so there's no
+ * "ready and waiting" state for the student to discover.
  *
- * Position chosen to avoid colliding with `zoom-hud` (bottom-right) and
- * `mood-hud` (bottom-center). The tray sits *above* the mood-hud band
- * so neither overlaps.
- *
- * useSyncExternalStore is called twice — once for the ready-sprouts
- * count snapshot, once for live event subscription that produces toasts.
- * Both anchor on Game.state.sprouts.subscribe; the Sprouts slice's
- * recent()/getActive() return referentially-stable snapshots between
- * mutations so React's getSnapshot contract holds.
+ * useSyncExternalStore is no longer needed since the only thing rendered
+ * is the toast stack — toasts are local component state, driven directly
+ * by the slice's subscribe callback inside useEffect.
  */
 
 type Toast = {
@@ -32,11 +24,6 @@ type Toast = {
 
 const TOAST_TTL_MS = 2400
 
-type SproutSnapshot = {
-  readyCount: number
-  activeCount: number
-}
-
 function getSproutsSlice(game: Game) {
   // Defensive: tests sometimes pass a partial game without a state surface.
   // Real engine boots always have state.sprouts; partial mocks must not crash.
@@ -44,8 +31,6 @@ function getSproutsSlice(game: Game) {
     game as unknown as {
       state?: {
         sprouts?: {
-          readyToBloom?(): readonly unknown[]
-          recent?(n: number): readonly unknown[]
           subscribe?(cb: (event: { type: string }) => void): () => void
         }
       }
@@ -54,54 +39,7 @@ function getSproutsSlice(game: Game) {
   return state?.sprouts ?? null
 }
 
-function buildSnapshot(game: Game): SproutSnapshot {
-  const sprouts = getSproutsSlice(game)
-  if (!sprouts?.readyToBloom || !sprouts.recent) {
-    return { readyCount: 0, activeCount: 0 }
-  }
-  return {
-    readyCount: sprouts.readyToBloom().length,
-    activeCount: sprouts.recent(50).length,
-  }
-}
-
-const snapshotCache = new WeakMap<Game, SproutSnapshot>()
-
-function getSnapshot(game: Game): SproutSnapshot {
-  // useSyncExternalStore requires a stable reference until subscribe
-  // signals a change. The Sprouts slice already returns stable arrays;
-  // we cache the wrapper object too so React's referential check
-  // short-circuits on no-op rerenders.
-  const cached = snapshotCache.get(game)
-  if (cached !== undefined) {
-    const next = buildSnapshot(game)
-    if (cached.readyCount === next.readyCount && cached.activeCount === next.activeCount) {
-      return cached
-    }
-    snapshotCache.set(game, next)
-    return next
-  }
-  const fresh = buildSnapshot(game)
-  snapshotCache.set(game, fresh)
-  return fresh
-}
-
-function subscribe(game: Game, onStoreChange: () => void): () => void {
-  const sprouts = getSproutsSlice(game)
-  if (!sprouts?.subscribe) return () => {}
-  return sprouts.subscribe(() => {
-    snapshotCache.delete(game)
-    onStoreChange()
-  })
-}
-
 export function IslandProgressionOverlay({ game }: { game: Game }) {
-  const snapshot = useSyncExternalStore(
-    (onChange) => subscribe(game, onChange),
-    () => getSnapshot(game),
-    () => ({ readyCount: 0, activeCount: 0 }), // SSR fallback
-  )
-
   const [toasts, setToasts] = useState<Toast[]>([])
 
   useEffect(() => {
@@ -172,52 +110,15 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
       }}
       data-island-progression-overlay
     >
-      {snapshot.readyCount > 0 ? (
-        <div
-          role="status"
-          aria-label={`Ready to plant: ${snapshot.readyCount} sprouts`}
-          style={{
-            position: 'absolute',
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 92px)', // above mood-hud band
-            left: '50%',
-            transform: 'translateX(-50%)',
-            padding: '7px 14px',
-            borderRadius: 999,
-            background: 'rgba(255, 251, 230, 0.95)',
-            color: '#1a3a14',
-            fontFamily: 'system-ui, sans-serif',
-            fontSize: 13,
-            fontWeight: 600,
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.18)',
-            pointerEvents: 'auto',
-            userSelect: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-          }}
-        >
-          <span
-            aria-hidden="true"
-            style={{
-              display: 'inline-block',
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: '#FFB347',
-              boxShadow: '0 0 6px rgba(255, 179, 71, 0.7)',
-            }}
-          />
-          Ready to plant · {snapshot.readyCount}
-        </div>
-      ) : null}
-
       <section
-        // Toast stack — bottom-center, just above the tray slot.
+        // Toast stack — bottom-center, above the mood-hud band. Tray
+        // removed in the auto-bloom rev so toasts move down to where the
+        // tray used to be.
         aria-live="polite"
         aria-label="Island progression updates"
         style={{
           position: 'absolute',
-          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 132px)',
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
           left: '50%',
           transform: 'translateX(-50%)',
           display: 'flex',

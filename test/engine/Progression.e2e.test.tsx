@@ -79,18 +79,21 @@ describe('island progression — captures → sprouts → overlay e2e', () => {
     expect(screen.getByText(/heard\. something is growing/i)).toBeInTheDocument()
   })
 
-  it('threshold captures surface the ready-to-plant tray', () => {
+  it('threshold-crossing capture flips the sprout to readyToBloom', () => {
     render(<IslandProgressionOverlay game={bundle.game} />)
     act(() => {
       for (let i = 0; i < BLOOM_THRESHOLD; i++) {
         bundle.captures.add({ kind: 'ask', text: `c-${i}` })
       }
     })
-    const tray = screen.getByRole('status', { name: /ready to plant: 1 sprouts/i })
-    expect(tray).toHaveTextContent('Ready to plant · 1')
+    // State-side: the sprout is now ready. The auto-bloom + camera flow
+    // lives in Sprouts VIEW; this e2e doesn't boot the view (no WebGL
+    // in vitest). The view's camera flow + auto-bloom is covered by
+    // manual smoke testing — see plan.
+    expect(bundle.sprouts.readyToBloom()).toHaveLength(1)
   })
 
-  it('bloom() empties the tray and surfaces the planted toast', async () => {
+  it('explicit bloom() removes the sprout and surfaces the planted toast', () => {
     render(<IslandProgressionOverlay game={bundle.game} />)
     act(() => {
       for (let i = 0; i < BLOOM_THRESHOLD; i++) {
@@ -102,10 +105,8 @@ describe('island progression — captures → sprouts → overlay e2e', () => {
       bundle.sprouts.bloom(ready.id)
     })
     expect(screen.getByText(/planted\. a new tree/i)).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.queryByRole('status', { name: /ready to plant/i })).toBeNull()
-    })
     expect(bundle.sprouts.listBloomedTrees()).toHaveLength(1)
+    expect(bundle.sprouts.recent(10)).toHaveLength(0)
   })
 
   it('a fourth capture after bloom opens a new sprout (not increments the bloomed tree)', () => {
