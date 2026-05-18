@@ -206,6 +206,10 @@ export default class Sprouts
                 if(next) this.badgeLayer.classList.add('edit-mode')
                 else this.badgeLayer.classList.remove('edit-mode')
             }
+            // Exiting edit mode mid-drag cancels the gesture so the
+            // half-moved object doesn't strand in the air with no way
+            // to commit.
+            if(!next && this._drag) this._cancelDrag()
         }
         if(typeof window !== 'undefined')
         {
@@ -300,8 +304,19 @@ export default class Sprouts
         this._raycaster = new THREE.Raycaster()
         this._pointer = new THREE.Vector2()
         this._dragGuard = { isDragging: false, downX: 0, downY: 0 }
+
+        // Pick-and-plant drag state. Non-null while a drag is in
+        // flight; cleared on commit or snap-back. Holds the original
+        // group position + scale so cancelling a drag (off-plateau
+        // drop, edit-mode toggled off mid-drag, or dispose) can restore
+        // visual state without consulting the slice.
+        this._drag = null
+        this._dragLiftOffset = 0.15  // metres lifted while held
+        this._dragGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+
         this._onPointerDown = (e) => this._handlePointerDown(e)
         this._onPointerUp = (e) => this._handlePointerUp(e)
+        this._onPointerMove = (e) => this._handlePointerMove(e)
         this._canvasEl = this.view.renderer?.instance?.domElement || null
         if(this._canvasEl)
         {
@@ -315,10 +330,128 @@ export default class Sprouts
         this._dragGuard.isDragging = false
         this._dragGuard.downX = e.clientX
         this._dragGuard.downY = e.clientY
+
+        if(!this._editMode) return
+        const target = this._raycastDraggable(e)
+        if(!target) return
+
+        // Begin a pick-and-plant drag.
+        const camera = this.view.camera
+        const node = target.kind === 'sprout'
+            ? this.nodes.get(target.id)
+            : this.bloomedNodes.get(target.id)
+        if(!node) return
+
+        const originPos = node.group.position.clone()
+        const originScale = node.group.scale.x  // uniform scale assumed
+        const reduce = reduceMotion()
+
+        this._drag = {
+            kind: target.kind,
+            id: target.id,
+            group: node.group,
+            originPos,
+            originScale,
+            lifted: !reduce,
+            valid: true,
+            pointerId: e.pointerId,
+        }
+
+        if(!reduce)
+        {
+            // Lift by adjusting y above terrain; multiply scale slightly
+            // so the held object feels picked up.
+            node.group.position.y = this.island.heightAt(originPos.x, originPos.z) + this._dragLiftOffset
+            node.group.scale.setScalar(originScale * 1.05)
+        }
+
+        if(camera?.controls) camera.controls.enabled = false
+        if(this._canvasEl)
+        {
+            try { this._canvasEl.setPointerCapture?.(e.pointerId) } catch(_) {}
+            this._canvasEl.addEventListener('pointermove', this._onPointerMove)
+        }
+        e.preventDefault?.()
+    }
+
+    /**
+     * Cast against the full draggable set (sprouts + bloomed) for a
+     * pointer event and return `{ kind, id } | null`. Skips dissolving
+     * sprouts so the still-fading mesh from a recent bloom can't catch
+     * the drag.
+     */
+    _raycastDraggable(e)
+    {
+        const camera = this.view.camera?.instance
+        if(!camera || !this._canvasEl) return null
+        const rect = this._canvasEl.getBoundingClientRect()
+        this._pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+        this._pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+        this._raycaster.setFromCamera(this._pointer, camera)
+
+        const targets = []
+        for(const node of this.nodes.values())
+        {
+            if(node.dissolveStartMs === null && node.parts.hitTarget)
+            {
+                targets.push(node.parts.hitTarget)
+            }
+        }
+        for(const node of this.bloomedNodes.values())
+        {
+            if(node.parts?.hitTarget) targets.push(node.parts.hitTarget)
+        }
+        if(targets.length === 0) return null
+        const intersects = this._raycaster.intersectObjects(targets, false)
+        const hit = intersects[0]
+        if(!hit) return null
+        const ud = hit.object?.userData
+        if(ud?.kind === 'sprout' && ud.sproutId) return { kind: 'sprout', id: ud.sproutId }
+        if(ud?.kind === 'bloomed' && ud.bloomedId) return { kind: 'bloomed', id: ud.bloomedId }
+        return null
+    }
+
+    _handlePointerMove(e)
+    {
+        const drag = this._drag
+        if(!drag) return
+
+        const camera = this.view.camera?.instance
+        if(!camera || !this._canvasEl) return
+        const rect = this._canvasEl.getBoundingClientRect()
+        this._pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1
+        this._pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1
+        this._raycaster.setFromCamera(this._pointer, camera)
+
+        const hit = new THREE.Vector3()
+        const intersected = this._raycaster.ray.intersectPlane(this._dragGroundPlane, hit)
+        if(!intersected) return
+
+        const x = hit.x
+        const z = hit.z
+        const y = this.island.heightAt(x, z) + (drag.lifted ? this._dragLiftOffset : 0)
+        drag.group.position.set(x, y, z)
+        drag.valid = this.island.isPlaceable(x, z)
+
+        // Lightweight validity cue — tint a sprout's glow ring red on
+        // invalid drops; bloomed objects don't have a glow so we rely
+        // on the snap-back to communicate "didn't take." Cheap and
+        // doesn't add new materials.
+        if(drag.kind === 'sprout')
+        {
+            const node = this.nodes.get(drag.id)
+            if(node?.parts.glow)
+            {
+                node.parts.glow.material.color.setHex(drag.valid ? COLORS.glow : 0xC8202A)
+                node.parts.glow.material.opacity = 0.55
+            }
+        }
     }
 
     _handlePointerUp(e)
     {
+        if(this._drag) { this._finishDrag(e); return }
+
         const dx = Math.abs(e.clientX - this._dragGuard.downX)
         const dy = Math.abs(e.clientY - this._dragGuard.downY)
         if(dx > 4 || dy > 4) return  // drag, not click
@@ -375,6 +508,98 @@ export default class Sprouts
         }
     }
 
+    /**
+     * Resolve an in-flight drag on pointerup. If the drop is valid,
+     * commit the new position to the slice (which fires sproutMoved /
+     * bloomedMoved and the subscriber re-positions cleanly without the
+     * lift offset). If invalid, snap the mesh back to its original
+     * position. Either way: restore controls, drop scale, clear drag.
+     */
+    _finishDrag(e)
+    {
+        const drag = this._drag
+        if(!drag) return
+        this._drag = null
+
+        if(this._canvasEl)
+        {
+            try { this._canvasEl.releasePointerCapture?.(e?.pointerId ?? drag.pointerId) } catch(_) {}
+            this._canvasEl.removeEventListener('pointermove', this._onPointerMove)
+        }
+
+        const camera = this.view.camera
+        if(camera?.controls) camera.controls.enabled = true
+
+        // Restore scale + sprout glow color regardless of commit/cancel.
+        drag.group.scale.setScalar(drag.originScale)
+        if(drag.kind === 'sprout')
+        {
+            const node = this.nodes.get(drag.id)
+            if(node?.parts.glow)
+            {
+                // Glow returns to its species-appropriate color; the
+                // ready-to-bloom pulse logic in update() takes over on
+                // the next frame, including resetting opacity.
+                const speciesHint = node.sprout?.species && SPECIES_HINT[node.sprout.species]
+                node.parts.glow.material.color.setHex(speciesHint?.glow ?? COLORS.glow)
+            }
+        }
+
+        if(drag.valid)
+        {
+            const finalX = drag.group.position.x
+            const finalZ = drag.group.position.z
+            const finalY = this.island.heightAt(finalX, finalZ)
+            drag.group.position.set(finalX, finalY, finalZ)
+            // Commit to state — subscriber will re-position to the same
+            // place idempotently. Use the corresponding mutation method
+            // for the object's kind.
+            if(drag.kind === 'sprout')
+            {
+                this.state.sprouts.setSproutPosition(drag.id, { x: finalX, z: finalZ })
+            }
+            else
+            {
+                this.state.sprouts.setBloomedPosition(drag.id, { x: finalX, z: finalZ })
+            }
+        }
+        else
+        {
+            // Snap back — no slice mutation; the visual returns to
+            // origin so the student sees "didn't take" feedback.
+            drag.group.position.copy(drag.originPos)
+        }
+    }
+
+    /**
+     * Cancel an in-flight drag without committing (edit mode toggled
+     * off mid-drag, or dispose). Restores visuals to origin.
+     */
+    _cancelDrag()
+    {
+        const drag = this._drag
+        if(!drag) return
+        this._drag = null
+
+        if(this._canvasEl)
+        {
+            this._canvasEl.removeEventListener('pointermove', this._onPointerMove)
+        }
+        const camera = this.view.camera
+        if(camera?.controls) camera.controls.enabled = true
+        drag.group.scale.setScalar(drag.originScale)
+        drag.group.position.copy(drag.originPos)
+        if(drag.kind === 'sprout')
+        {
+            const node = this.nodes.get(drag.id)
+            if(node?.parts.glow)
+            {
+                const speciesHint = node.sprout?.species && SPECIES_HINT[node.sprout.species]
+                node.parts.glow.material.color.setHex(speciesHint?.glow ?? COLORS.glow)
+            }
+        }
+    }
+
     _spawnBloomedTree(tree, animate = false)
     {
         // Renamed semantically: dispatches mesh construction by sprout
@@ -405,6 +630,20 @@ export default class Sprouts
         {
             group.scale.setScalar(targetScale)
         }
+
+        // Invisible hit target — gives drag (and any future tap-on-
+        // bloomed feature) a uniform raycast surface regardless of
+        // species. Radius chosen to cover the bounding extent of every
+        // species; per-species variations are small enough that one
+        // size fits all here.
+        const hitTarget = new THREE.Mesh(
+            new THREE.SphereGeometry(0.35, 8, 6),
+            new THREE.MeshBasicMaterial({ visible: false }),
+        )
+        hitTarget.position.y = 0.25
+        hitTarget.userData = { kind: 'bloomed', bloomedId: tree.id }
+        group.add(hitTarget)
+        parts.hitTarget = hitTarget
 
         this.bloomedNodes.set(tree.id, {
             tree,
@@ -924,21 +1163,31 @@ export default class Sprouts
 
         for(const [id, node] of this.nodes)
         {
+            // While this sprout is being dragged, skip the targetScale
+            // smoothing — the drag start applied a 1.05x grab scale and
+            // the smoothing loop would fight to pull it back to the
+            // count-driven target.
+            const isDragging = this._drag?.kind === 'sprout' && this._drag.id === id
+
             // Smoothly approach targetScale (set on grow/spawn).
-            const targetX = node.targetScale
-            const curX = node.group.scale.x
-            if(Math.abs(curX - targetX) > 0.001)
+            if(!isDragging)
             {
-                const step = delta * 1.6
-                const diff = targetX - curX
-                const next = curX + Math.sign(diff) * Math.min(Math.abs(diff), step)
-                node.group.scale.setScalar(next)
+                const targetX = node.targetScale
+                const curX = node.group.scale.x
+                if(Math.abs(curX - targetX) > 0.001)
+                {
+                    const step = delta * 1.6
+                    const diff = targetX - curX
+                    const next = curX + Math.sign(diff) * Math.min(Math.abs(diff), step)
+                    node.group.scale.setScalar(next)
+                }
             }
 
             // Tap-acknowledgement bump for not-ready taps — brief 6% scale
             // overshoot that decays over ~280ms. Visible feedback that the
             // tap registered even though the threshold isn't met yet.
-            if(node.tapAckUntilMs && node.tapAckUntilMs > now)
+            // Suppressed during drag so the grab scale isn't fought.
+            if(!isDragging && node.tapAckUntilMs && node.tapAckUntilMs > now)
             {
                 const remaining = (node.tapAckUntilMs - now) / 280
                 const bump = remaining * 0.06
@@ -1078,11 +1327,17 @@ export default class Sprouts
 
     dispose()
     {
+        // Cancel any in-flight drag BEFORE removing listeners so the
+        // cleanup path can reach the canvas to detach pointermove and
+        // restore controls.
+        if(this._drag) { try { this._cancelDrag() } catch(_) {} }
+
         if(this._unsubscribe) { try { this._unsubscribe() } catch(_) {} this._unsubscribe = null }
         if(this._canvasEl && this._onPointerDown)
         {
             try { this._canvasEl.removeEventListener('pointerdown', this._onPointerDown) } catch(_) {}
             try { this._canvasEl.removeEventListener('pointerup', this._onPointerUp) } catch(_) {}
+            try { this._canvasEl.removeEventListener('pointermove', this._onPointerMove) } catch(_) {}
         }
         this._canvasEl = null
         if(typeof window !== 'undefined' && this._onEditMode)
