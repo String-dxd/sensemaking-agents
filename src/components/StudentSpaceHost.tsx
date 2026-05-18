@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import '~/engine/student-space/style.css'
 import type { Game } from '~/engine/student-space/Game'
+import { cn } from '~/lib/utils'
 import { IslandProgressionOverlay } from './IslandProgressionOverlay'
 
 /**
@@ -26,6 +28,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
     const container = containerRef.current
     if (!container) return
 
+    document.body.classList.add('student-space-shell')
     let dispose: (() => void) | null = null
     let cancelled = false
 
@@ -59,6 +62,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
     return () => {
       cancelled = true
       dispose?.()
+      document.body.classList.remove('student-space-shell')
     }
   }, [])
 
@@ -66,7 +70,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
 
   return (
     <>
-      <div ref={containerRef} className={className ?? 'fixed inset-0 h-svh w-svw'} />
+      <div ref={containerRef} className={cn('game fixed inset-0 h-svh w-svw', className)} />
       {game ? <IslandProgressionOverlay game={game} /> : null}
     </>
   )
