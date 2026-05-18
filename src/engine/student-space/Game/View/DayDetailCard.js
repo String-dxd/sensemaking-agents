@@ -78,6 +78,13 @@ export default class DayDetailCard
                 this._reviewReflection(review)
                 return
             }
+            const retry = event.target.closest?.('[data-sync-action="retry"]')
+            if(retry)
+            {
+                event.preventDefault()
+                this._retryReflectionSync(retry)
+                return
+            }
             if(event.target.closest('.day-detail-card__close')) this.close()
         }
         root.addEventListener('click', this._onRootClick)
@@ -155,6 +162,7 @@ export default class DayDetailCard
             {
                 const text = escapeHtml((c.text || '').slice(0, 120))
                 const status = c.reviewStatus ? `status: ${c.reviewStatus}` : ''
+                const sync = syncLine(c)
                 const prompt = c.prompt ? `prompt: ${escapeHtml(c.prompt)}` : ''
                 const actions = c.backendMirrorEntryId && c.reviewStatus === 'pending'
                     ? `<div class="day-detail-row__actions">
@@ -162,7 +170,12 @@ export default class DayDetailCard
                         <button type="button" data-review-action="forgotten" data-entry-id="${c.backendMirrorEntryId}">Forget</button>
                       </div>`
                     : ''
-                const sub = [status, prompt, actions].filter(Boolean).join(' ')
+                const retry = c.syncStatus === 'failed' && this.backend?.submitReflection
+                    ? `<div class="day-detail-row__actions">
+                        <button type="button" data-sync-action="retry" data-capture-id="${escapeAttr(c.id)}">Retry sync</button>
+                      </div>`
+                    : ''
+                const sub = [status, sync, prompt, actions, retry].filter(Boolean).join(' ')
                 return renderRow('✎', text || '<i>(empty)</i>', sub)
             }
             if(c.kind === 'photo')
@@ -204,9 +217,62 @@ export default class DayDetailCard
             console.warn('[DayDetailCard] reflection review failed', err)
         }
     }
+
+    async _retryReflectionSync(button)
+    {
+        if(!this.backend?.submitReflection) return
+        const captureId = button.dataset.captureId
+        if(!captureId) return
+        const capture = this.state.captures.findById?.(captureId)
+        if(!capture || capture.kind !== 'ask') return
+        try
+        {
+            this.state.captures.patch?.(capture.id, { syncStatus: 'syncing', syncError: '' })
+            const result = await this.backend.submitReflection({
+                localCaptureId: capture.id,
+                transcript: capture.text || '',
+                contextType: capture.contextType || 'school',
+            })
+            const mirror = result?.mirrorEntry
+            if(mirror)
+            {
+                this.state.captures.patch?.(capture.id, {
+                    backendMirrorEntryId: mirror.id,
+                    reviewStatus: mirror.reviewStatus || 'pending',
+                    syncStatus: 'synced',
+                    syncError: '',
+                    contextType: mirror.contextType || 'school',
+                    reframe: {
+                        headline: mirror.storyReframe || '',
+                        highlightPhrase: mirror.inferredMeaning || '',
+                        themes: [],
+                        needs: [],
+                        moods: [],
+                    },
+                })
+            }
+            this._render()
+        }
+        catch(err)
+        {
+            const message = err instanceof Error ? err.message : String(err)
+            console.warn('[DayDetailCard] reflection sync retry failed', err)
+            this.state.captures.patch?.(capture.id, { syncStatus: 'failed', syncError: message })
+            this._render()
+        }
+    }
 }
 
 function escapeHtml(value)
 {
     return String(value || '').replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[ch])
+}
+
+function escapeAttr(value) { return escapeHtml(value) }
+
+function syncLine(c)
+{
+    if(c.syncStatus === 'failed') return `sync failed${c.syncError ? `: ${escapeHtml(c.syncError)}` : ''}`
+    if(c.syncStatus === 'syncing') return 'syncing...'
+    return ''
 }

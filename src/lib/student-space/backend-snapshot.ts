@@ -84,11 +84,29 @@ export interface StudentSpaceMoodPinSnapshot {
   backendMirrorEntryId: number
 }
 
+export interface StudentSpaceCalendarEventSnapshot {
+  id: string
+  label: string
+  kind: 'class' | 'cca' | 'note'
+  date: string
+}
+
+export interface StudentSpaceTeacherLetterSnapshot {
+  id: string
+  from: string
+  subject: string
+  body: string
+  sentAt: string
+  read: boolean
+}
+
 export interface StudentSpaceBackendSnapshot {
   profile: StudentSpaceProfileSnapshot
   reflections: StudentSpaceReflectionCaptureSnapshot[]
   trajectory: StudentSpaceTrajectoryCaptureSnapshot | null
   recentMoods: StudentSpaceMoodPinSnapshot[]
+  calendarEvents: StudentSpaceCalendarEventSnapshot[]
+  teacherLetters: StudentSpaceTeacherLetterSnapshot[]
 }
 
 interface SnapshotInput {
@@ -115,6 +133,12 @@ interface GameLike {
       hydrate?: (snapshot: unknown) => void
       hydrateBackend?: (snapshot: unknown) => void
     }
+    calendar?: {
+      hydrateBackend?: (snapshot: unknown[]) => void
+    }
+    letters?: {
+      hydrateBackend?: (snapshot: unknown[]) => void
+    }
   }
 }
 
@@ -130,6 +154,8 @@ export function createStudentSpaceBackendSnapshot({
     reflections: mapWikiSnapshotToStudentSpaceReflections(wiki),
     trajectory: mapTrajectoryResultToStudentSpaceCapture(trajectory),
     recentMoods: mapRecentMoodsToStudentSpacePins(vips),
+    calendarEvents: mapShellCalendarEvents(vips),
+    teacherLetters: mapShellTeacherLetters(vips),
   }
 }
 
@@ -156,6 +182,9 @@ export function applyStudentSpaceBackendSnapshot(
   const moodPins = game.state?.moodPins
   if (moodPins?.upsertBackend) moodPins.upsertBackend(snapshot.recentMoods)
   else moodPins?.hydrate?.(snapshot.recentMoods)
+
+  game.state?.calendar?.hydrateBackend?.(snapshot.calendarEvents)
+  game.state?.letters?.hydrateBackend?.(snapshot.teacherLetters)
 }
 
 export function mapVipsPagesToStudentSpaceProfile(
@@ -264,6 +293,30 @@ export function mapRecentMoodsToStudentSpacePins(
     cause: null,
     note: null,
     backendMirrorEntryId: mood.id,
+  }))
+}
+
+export function mapShellCalendarEvents(
+  snapshot: LoadVipsPagesResult,
+): StudentSpaceCalendarEventSnapshot[] {
+  return (snapshot.student_space_shell?.calendarEvents ?? []).map((event) => ({
+    id: event.id,
+    label: event.label,
+    kind: event.kind,
+    date: event.date,
+  }))
+}
+
+export function mapShellTeacherLetters(
+  snapshot: LoadVipsPagesResult,
+): StudentSpaceTeacherLetterSnapshot[] {
+  return (snapshot.student_space_shell?.teacherLetters ?? []).map((letter) => ({
+    id: letter.id,
+    from: letter.from,
+    subject: letter.subject,
+    body: letter.body,
+    sentAt: letter.sentAt,
+    read: letter.read,
   }))
 }
 

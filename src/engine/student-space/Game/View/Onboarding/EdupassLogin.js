@@ -1,13 +1,12 @@
 /**
  * Dummy "Login with Edupass" surface.
  *
- * On click: shows a 600ms "Connecting…" affordance, picks a random student
- * from DEMO_STUDENTS, writes profile.identity, advances to greeting. Easy
- * swap for a real OAuth redirect later — the rest of the flow only needs
- * `profile.identity.name`.
+ * On click: shows a 600ms "Connecting…" affordance and advances to greeting.
+ * In bridged mode the server snapshot owns identity; the offline engine-only
+ * fallback still picks a local demo student so the ceremony remains usable.
  */
 
-import { DEMO_STUDENTS } from './copy.js'
+import { OFFLINE_DEMO_STUDENTS } from './copy.js'
 import { wait } from '../../util/timing.js'
 import { escapeHtml } from '../../util/html.js'
 
@@ -114,12 +113,12 @@ export default class EdupassLogin
 
         setTimeout(() =>
         {
-            // Random pick from the demo students list. Real Edupass OAuth
-            // would replace this with the redirect's callback handling.
-            const pick = DEMO_STUDENTS[Math.floor(Math.random() * DEMO_STUDENTS.length)]
-            ctx.profile.setIdentity({ name: pick.name, className: pick.className })
+            if(!ctx.state?.backend)
+            {
+                const pick = OFFLINE_DEMO_STUDENTS[Math.floor(Math.random() * OFFLINE_DEMO_STUDENTS.length)]
+                ctx.profile.setIdentity({ name: pick.name, className: pick.className })
+            }
             this._advance?.('greeting')
         }, CONNECTING_MS)
     }
 }
-

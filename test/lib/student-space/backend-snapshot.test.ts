@@ -154,6 +154,50 @@ describe('Student Space backend snapshot mappers', () => {
         backendMirrorEntryId: 24,
       }),
     ])
+    expect(snapshot.calendarEvents).toEqual([])
+    expect(snapshot.teacherLetters).toEqual([])
+  })
+
+  it('maps centralized shell calendar and teacher-letter data into the engine snapshot', () => {
+    const snapshot = createStudentSpaceBackendSnapshot({
+      vips: vipsSnapshot({
+        student_space_shell: {
+          identity: { name: 'Maya', className: 'Sec 3', avatarDataUrl: null },
+          calendarEvents: [
+            {
+              id: 'demo-shell:demo-a:school-checkpoint',
+              label: 'Form teacher check-in',
+              kind: 'class',
+              date: '2025-10-14',
+            },
+          ],
+          teacherLetters: [
+            {
+              id: 'demo-shell:demo-a:letter-pattern',
+              from: 'Ms Tan',
+              subject: 'A pattern worth keeping',
+              body: 'Keep noticing the pattern.',
+              sentAt: '2025-11-23T17:15:00Z',
+              read: false,
+            },
+          ],
+        },
+      }),
+      wiki: { entries: [] },
+      trajectory: { trajectory: null, pending_diff_present: false },
+    })
+
+    expect(snapshot.profile.identity).toEqual({
+      name: 'Maya',
+      className: 'Sec 3',
+      avatarDataUrl: null,
+    })
+    expect(snapshot.calendarEvents).toEqual([
+      expect.objectContaining({ label: 'Form teacher check-in', date: '2025-10-14' }),
+    ])
+    expect(snapshot.teacherLetters).toEqual([
+      expect.objectContaining({ from: 'Ms Tan', subject: 'A pattern worth keeping' }),
+    ])
   })
 })
 
@@ -170,6 +214,7 @@ function vipsSnapshot(overrides: Partial<LoadVipsPagesResult> = {}): LoadVipsPag
     recent_entries: [],
     recent_moods: [],
     world_mailbox: { unreadBriefCount: 0, lastBriefId: null },
+    student_space_shell: null,
     claim_count_by_dimension: {
       values: 0,
       interests: 0,

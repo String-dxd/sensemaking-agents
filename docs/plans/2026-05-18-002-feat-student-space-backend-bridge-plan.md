@@ -17,6 +17,8 @@ The Student Space shell is now the home surface, but its captures, profile, cale
 
 The bridge should not make the engine's `StorageAdapter` the domain integration layer. The adapter stays a local UI cache; typed and voice reflection capture, review actions, profile evidence, and trajectory run/read operations move through intentional server functions and mappers.
 
+Follow-up `docs/plans/2026-05-18-003-feat-student-space-demo-data-audio-plan.md` closed the remaining shell-data and audio gaps: Student Space voice capture now records audio for the existing OpenAI transcription path, and bridged identity/calendar/letters hydrate from one server-side demo/session snapshot instead of scattered engine seed fixtures.
+
 ---
 
 ## Problem Frame

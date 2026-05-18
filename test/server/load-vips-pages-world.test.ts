@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MirrorEntryRow } from '~/db/queries'
+import { loadStudentSpaceShellData } from '~/lib/student-space/demo-shell-data.server'
 import { deriveRecentMoodsFromMirrorEntries } from '~/server/load-vips-pages.handler.server'
 
 function mirrorEntry(overrides: Partial<MirrorEntryRow>): MirrorEntryRow {
@@ -63,5 +64,19 @@ describe('loadVipsPages world data helpers', () => {
     ]
 
     expect(deriveRecentMoodsFromMirrorEntries(entries, 2).map((mood) => mood.id)).toEqual([1, 2])
+  })
+
+  it('resolves deterministic shell data from the centralized demo corpus', () => {
+    const demoA = loadStudentSpaceShellData('demo-a')
+    const demoB = loadStudentSpaceShellData('demo-b')
+
+    expect(demoA?.identity).toMatchObject({ name: 'Mei', className: 'Sec 4, NA' })
+    expect(demoA?.calendarEvents.map((event) => event.date)).toContain('2025-10-14')
+    expect(demoA?.teacherLetters[0]).toMatchObject({
+      from: 'Ms Tan',
+      read: false,
+    })
+    expect(demoB?.identity.name).not.toBe(demoA?.identity.name)
+    expect(loadStudentSpaceShellData('private-student')).toBeNull()
   })
 })

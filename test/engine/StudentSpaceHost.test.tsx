@@ -104,6 +104,36 @@ describe('StudentSpaceHost', () => {
     )
   })
 
+  it('waits for backend hydration before opening a route-targeted trajectory sheet', async () => {
+    window.history.pushState({}, '', '/?sheet=trajectory')
+    let resolveSnapshot: (value: unknown) => void = () => {}
+    ;(backendBridge as { refreshSnapshot?: () => Promise<unknown> }).refreshSnapshot = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveSnapshot = resolve
+        }),
+    )
+
+    render(<StudentSpaceHost />)
+
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    expect(openSurface).not.toHaveBeenCalled()
+
+    resolveSnapshot({
+      profile: {
+        facets: {},
+        identity: { name: 'Maya', className: 'Sec 3', avatarDataUrl: null },
+      },
+      reflections: [],
+      trajectory: null,
+      recentMoods: [],
+    })
+
+    await waitFor(() =>
+      expect(openSurface).toHaveBeenCalledWith(expect.objectContaining({ surface: 'trajectory' })),
+    )
+  })
+
   it('does not call createGame when unmounted before the dynamic import resolves', async () => {
     // The host's dynamic import is real; the engine module is mocked above
     // and returns synchronously. To simulate the cancel-during-import case

@@ -38,15 +38,16 @@
 
 ## Current Product Shape
 
-- `/` is the current student-facing surface: `StudentSpaceHost` mounts the Student Space engine and hydrates backend-backed profile, reflection, mood, and trajectory snapshots.
-- Student Space Ask captures create local optimistic captures immediately, then submit typed transcripts through the backend bridge to Mirror and `persistMirror`; persisted entries start as pending raw reflections.
+- `/` is the current student-facing surface: `StudentSpaceHost` mounts the Student Space engine and hydrates backend-backed profile, reflection, mood, trajectory, calendar, letter, and identity snapshots.
+- Student Space Ask captures create local optimistic captures immediately. Typed captures submit transcripts directly; voice captures record audio with `MediaRecorder`, post `audioBase64`/`mimeType` through `submitStudentSpaceReflection`, use OpenAI transcription on the server, then run Mirror and `persistMirror`. Persisted entries start as pending raw reflections.
+- Engine profile/calendar/letter seed files are offline/no-bridge fallbacks only. In bridged mode, visible identity, calendar events, and teacher letters come from the server-side demo/session snapshot.
 - The engine `StorageAdapter` remains local UI/cache persistence. Durable Mirror/VIPS/Cartographer operations use named bridge methods and server functions.
-- Connector runs from the shell calendar `Run Connector` action, the existing React review surface, or the scheduled evening pass; it processes confirmed reflections only and auto-applies verifier-passing links into VIPS pages and timelines.
+- Connector runs from the shell calendar `Run Connector` action, the existing React review surface, or the scheduled evening pass; it processes confirmed reflections only, reports real batch counts in the shell, and auto-applies verifier-passing links into VIPS pages and timelines.
 - Users review raw recorded thoughts only: shell calendar day detail and legacy `/library?filter=need-review` expose confirm/forget for pending reflections.
 - `/reflect` and `/reflect/review` are compatibility redirects into the Student Space shell or library review flow.
 - `/library` redirects to `/?sheet=reflections`; `StudentSpaceHost` opens matching shell surfaces for `?sheet=reflections`, `?sheet=trajectory`, and VIPS dimension sheets.
 - Mirror entry detail pages remain available and show verified VIPS timeline links connected to the source reflection.
-- Cartographer can run from the shell trajectory sheet or the legacy trajectory surface and writes `/library/trajectory` data.
+- Cartographer can run from the shell trajectory sheet or the legacy trajectory surface and writes `/library/trajectory` data. In bridged mode, the trajectory sheet shows Cartographer output or an honest run/empty state rather than minting a local heuristic trajectory.
 - The profile dropdown owns sign-in, demo account, and sign-out actions.
 - The Cmd-K developer palette is developer-only (`import.meta.env.DEV`) and links UI mode, `/dev/pipeline`, legacy routes, and sign-out.
 - `/dev/pipeline` is the backend table view for inspecting mirror entries, proposed diff/audit rows, VIPS timeline entries, and Cartographer output.

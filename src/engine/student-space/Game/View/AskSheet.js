@@ -3,6 +3,11 @@ import OverlayController from './OverlayController.js'
 import { reframeFor } from './reframeHeuristics.js'
 import { kiraReplyFor } from './chatHeuristics.js'
 import { EMOTIONS, shapeSvg } from './MoodSheet.js'
+import {
+    blobToStudentSpaceAudioBase64,
+    canRecordStudentSpaceAudio,
+    startStudentSpaceAudioCapture,
+} from '../../../../lib/student-space/audio-capture.ts'
 
 /**
  * Open-ended capture. Three stages:
@@ -13,10 +18,9 @@ import { EMOTIONS, shapeSvg } from './MoodSheet.js'
  *   3. review    — static read of the final transcript. Log commits it as a
  *                  capture; Discard drops it and routes back to the chooser.
  *
- * Voice path: Web Speech API. Interim results stream into the captions
- * element so the user sees their voice transcribed in near real-time. When
- * the engine isn't available we hide the mic button and degrade to the
- * textarea path.
+ * Voice path: MediaRecorder audio. Web Speech is optional live-caption help,
+ * but the durable transcript comes back from the backend OpenAI transcription
+ * path after `backend.submitReflection({ audioBase64, mimeType })`.
  *
  * Close behaviour: the × at the top is "back" (returns to the chooser, not
  * a hard dismiss). The chooser's own × is the only place that dismisses
@@ -213,13 +217,19 @@ export default class AskSheet
         this.stage       = 'compose'
         this.recCommitted = ''
         this.recInterim   = ''
+        this.audioCapture = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
         this.reframe     = null   // {headline, highlightPhrase, themes, needs, moods, edited}
         this.thread      = null   // [{role, text}, …] — set by chat stage
         this.typerId     = 0
 
-        if(!SpeechRecognition)
+        if(!canRecordStudentSpaceAudio())
         {
             this.micBtn.hidden = true
+        }
+        if(!SpeechRecognition)
+        {
             this.chatMicBtn.hidden = true
         }
 
@@ -283,6 +293,10 @@ export default class AskSheet
             try { this.chatRecognition.abort?.() ?? this.chatRecognition.stop?.() } catch(_) {}
             this.chatRecognition = null
         }
+        this.audioCapture?.abort?.()
+        this.audioCapture = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
         this.listening = false
         // Bump the typer id so any pending setTimeout chain self-cancels
         // when it next checks myId !== this.typerId.
@@ -323,6 +337,10 @@ export default class AskSheet
         this.thread = null
         this.recCommitted = ''
         this.recInterim = ''
+        this.audioCapture = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        if(this.reframeCtaRowEl) this.reframeCtaRowEl.hidden = false
         if(this.chatThreadEl) this.chatThreadEl.innerHTML = ''
         if(this.chatInputEl)  this.chatInputEl.value = ''
 
@@ -365,6 +383,8 @@ export default class AskSheet
         // aria-hidden=true from an ancestor.
         if(this.root.contains(document.activeElement)) document.activeElement.blur()
         if(this.listening) this._abortRecording()
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
         if(this.chatRecognition)
         {
             try { this.chatRecognition.abort?.() ?? this.chatRecognition.stop?.() } catch(_) {}
@@ -419,7 +439,39 @@ export default class AskSheet
 
     /* ----- recording ----- */
 
-    _startRecording()
+    async _startRecording()
+    {
+        if(!canRecordStudentSpaceAudio() || this.listening) return
+
+        // Seed committed with any text the user has typed — recording adds
+        // onto it rather than replacing.
+        this.recCommitted = this.input.value.trim()
+        this.recInterim   = ''
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        this._paintCaptions()
+        this.hintLiveEl.hidden = true
+
+        this.listening = true
+        this._setStage('recording')
+        try
+        {
+            this.audioCapture = await startStudentSpaceAudioCapture()
+            this.recordedAudioMimeType = this.audioCapture.mimeType
+            this._startLiveCaptions()
+        }
+        catch(err)
+        {
+            this.listening = false
+            this.audioCapture = null
+            const message = err instanceof Error ? err.message : String(err)
+            this.hintEl.hidden = false
+            this.hintEl.textContent = friendlyMicError(message)
+            this._setStage('compose')
+        }
+    }
+
+    _startLiveCaptions()
     {
         if(!SpeechRecognition) return
         const rec = new SpeechRecognition()
@@ -427,12 +479,19 @@ export default class AskSheet
         rec.interimResults = true
         rec.continuous = true
 
-        // Seed committed with any text the user has typed — recording adds
-        // onto it rather than replacing.
-        this.recCommitted = this.input.value.trim()
-        this.recInterim   = ''
-        this._paintCaptions()
-        this.hintLiveEl.hidden = true
+        rec.addEventListener('end', () =>
+        {
+            this.recognition = null
+        })
+
+        rec.addEventListener('error', (event) =>
+        {
+            this.recognition = null
+            this.hintLiveEl.hidden = false
+            this.hintLiveEl.textContent = event.error === 'not-allowed'
+                ? 'Live captions unavailable. Recording still works.'
+                : `Live captions unavailable (${event.error}). Recording still works.`
+        })
 
         rec.addEventListener('result', (event) =>
         {
@@ -451,41 +510,15 @@ export default class AskSheet
             this._paintCaptions()
         })
 
-        rec.addEventListener('end', () =>
-        {
-            // Engine can self-end on long silences; advance to review only
-            // if we still believe we're listening (vs explicit user stop,
-            // which already routed us).
-            if(this.listening) this._goReview()
-        })
-
-        rec.addEventListener('error', (event) =>
-        {
-            this.listening = false
-            this.recognition = null
-            this.hintLiveEl.hidden = false
-            this.hintLiveEl.textContent = event.error === 'not-allowed'
-                ? 'Mic permission denied. Type instead.'
-                : `Voice input unavailable (${event.error}). Type instead.`
-            // Drop back to compose so the user can keep going by typing.
-            this._setStage('compose')
-        })
-
         this.recognition = rec
-        this.listening = true
-        this._setStage('recording')
         try { rec.start() }
-        catch(err)
+        catch(_)
         {
-            this.listening = false
             this.recognition = null
-            this.hintEl.hidden = false
-            this.hintEl.textContent = 'Could not start mic.'
-            this._setStage('compose')
         }
     }
 
-    _stopRecording()
+    async _stopRecording()
     {
         // Explicit user stop → advance to review with whatever we have.
         if(!this.listening) return
@@ -500,7 +533,29 @@ export default class AskSheet
                 : this.recInterim
             this.recInterim = ''
         }
-        this._goReview()
+
+        const audioCapture = this.audioCapture
+        this.audioCapture = null
+        try
+        {
+            const blob = await audioCapture?.stop?.()
+            if(!blob || blob.size === 0)
+            {
+                this._setStage('compose')
+                this.hintEl.hidden = false
+                this.hintEl.textContent = 'No audio was captured. Try again or type it.'
+                return
+            }
+            this.recordedAudioBlob = blob
+            this.recordedAudioMimeType = blob.type || this.recordedAudioMimeType || 'audio/webm'
+            this._goReview()
+        }
+        catch(err)
+        {
+            this._setStage('compose')
+            this.hintEl.hidden = false
+            this.hintEl.textContent = err instanceof Error ? err.message : 'Could not stop recording.'
+        }
     }
 
     _abortRecording()
@@ -509,6 +564,10 @@ export default class AskSheet
         this.listening = false
         try { this.recognition?.abort?.() ?? this.recognition?.stop?.() } catch(_) {}
         this.recognition = null
+        this.audioCapture?.abort?.()
+        this.audioCapture = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
     }
 
     _paintCaptions()
@@ -522,7 +581,8 @@ export default class AskSheet
     _goReview()
     {
         const text = this.recCommitted.trim()
-        if(!text)
+        const hasAudio = !!this.recordedAudioBlob
+        if(!text && !hasAudio)
         {
             // Nothing transcribed — return to compose, surface a hint.
             this._setStage('compose')
@@ -530,7 +590,8 @@ export default class AskSheet
             this.hintEl.textContent = "Didn't catch anything. Try again or type it."
             return
         }
-        this.reviewTextEl.textContent = text
+        this.reviewTextEl.textContent = text || 'Audio recorded. Transcript will appear after Mirror listens.'
+        if(this.reframeCtaRowEl) this.reframeCtaRowEl.hidden = !text
         this._setStage('review')
     }
 
@@ -538,8 +599,13 @@ export default class AskSheet
     {
         // Raw path — student opted out of the reframe. Commit text only.
         const text = this.recCommitted.trim()
-        if(!text) return
-        this._commitCapture({ text })
+        if(!text && !this.recordedAudioBlob) return
+        this._commitCapture(
+            { text: text || 'Voice recording awaiting transcript...' },
+            this.recordedAudioBlob
+                ? { audioBlob: this.recordedAudioBlob, mimeType: this.recordedAudioMimeType }
+                : {},
+        )
         this.close()
     }
 
@@ -549,6 +615,8 @@ export default class AskSheet
         // back to the chooser.
         this.recCommitted = ''
         this.recInterim   = ''
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
         this.reframe = null
         this.thread = null
         this._paintCaptions()
@@ -765,7 +833,12 @@ export default class AskSheet
     {
         const text = (this.recCommitted || '').trim()
         if(!text) return
-        this._commitCapture({ text, reframe: this.reframe, thread: this.thread })
+        this._commitCapture(
+            { text, reframe: this.reframe, thread: this.thread },
+            this.recordedAudioBlob
+                ? { audioBlob: this.recordedAudioBlob, mimeType: this.recordedAudioMimeType }
+                : {},
+        )
         this.close()
     }
 
@@ -826,7 +899,12 @@ export default class AskSheet
     {
         const text = (this.recCommitted || '').trim()
         if(!text) return
-        this._commitCapture({ text, reframe: this.reframe, thread: this.thread })
+        this._commitCapture(
+            { text, reframe: this.reframe, thread: this.thread },
+            this.recordedAudioBlob
+                ? { audioBlob: this.recordedAudioBlob, mimeType: this.recordedAudioMimeType }
+                : {},
+        )
         this.close()
     }
 
@@ -888,7 +966,7 @@ export default class AskSheet
         return String(s || '').replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[ch])
     }
 
-    _commitCapture(payload)
+    _commitCapture(payload, options = {})
     {
         // Single funnel so Raw-log, Reframe-log, and Chat-log share one
         // path. The mergeCapture schema is forward-additive (commit #4),
@@ -899,24 +977,35 @@ export default class AskSheet
         if(!entry.thread || entry.thread.length === 0) delete entry.thread
         const capture = this.captures.add(entry)
         if(this.backend?.submitReflection)
-            this._submitBackendReflection(capture)
+            this._submitBackendReflection(capture, options)
     }
 
-    async _submitBackendReflection(capture)
+    async _submitBackendReflection(capture, options = {})
     {
         try
         {
+            const audioBlob = options.audioBlob
+            let audioBase64 = null
+            if(audioBlob)
+            {
+                if(audioBlob.size === 0) throw new Error('No audio was captured.')
+                audioBase64 = await blobToStudentSpaceAudioBase64(audioBlob)
+            }
             const result = await this.backend.submitReflection({
                 localCaptureId: capture.id,
-                transcript: capture.text || '',
+                ...(audioBase64
+                    ? { audioBase64, mimeType: options.mimeType || audioBlob.type || 'audio/webm' }
+                    : { transcript: capture.text || '' }),
                 contextType: capture.contextType || 'school',
             })
             const mirror = result?.mirrorEntry
             if(!mirror) return
             this.captures.patch?.(capture.id, {
                 backendMirrorEntryId: mirror.id,
+                text: mirror.transcript || capture.text || '',
                 reviewStatus: mirror.reviewStatus || 'pending',
                 syncStatus: 'synced',
+                syncError: '',
                 contextType: mirror.contextType || 'school',
                 reframe: {
                     headline: mirror.storyReframe || '',
@@ -948,4 +1037,13 @@ export default class AskSheet
             el.hidden = el.dataset.stage !== stage
         if(stage !== 'compose') this.hintEl.hidden = true
     }
+}
+
+function friendlyMicError(message)
+{
+    if(/permission denied|not allowed|NotAllowedError/i.test(message))
+        return 'Mic permission denied. Type instead.'
+    if(/not found|NotFoundError/i.test(message))
+        return 'No microphone was found. Type instead.'
+    return `Could not start mic: ${message}`
 }

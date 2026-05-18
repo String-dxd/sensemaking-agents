@@ -53,7 +53,11 @@ export function StudentSpaceHost({ className }: { className?: string }) {
           game.dispose()
         }
         const routeSurface = studentSpaceSurfaceFromLocation(window.location)
-        if (routeSurface) game.openSurface?.(routeSurface)
+        let openedRouteBeforeHydration = false
+        if (routeSurface && routeSurface.surface !== 'trajectory') {
+          game.openSurface?.(routeSurface)
+          openedRouteBeforeHydration = true
+        }
         void backend
           .refreshSnapshot?.()
           .then((snapshot) => {
@@ -63,6 +67,9 @@ export function StudentSpaceHost({ className }: { className?: string }) {
           })
           .catch((snapshotErr) => {
             console.warn('[StudentSpaceHost] backend snapshot hydration failed', snapshotErr)
+            if (!cancelled && routeSurface && !openedRouteBeforeHydration) {
+              game.openSurface?.(routeSurface)
+            }
           })
       } catch (err) {
         console.error('[StudentSpaceHost] createGame failed', err)

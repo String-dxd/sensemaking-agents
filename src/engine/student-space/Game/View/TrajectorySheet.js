@@ -146,6 +146,7 @@ export default class TrajectorySheet
         const existing = this._latestTrajectoryCapture()
         if(existing && existing.trajectory && Array.isArray(existing.trajectory.bearings) && existing.trajectory.bearings.length > 0)
             return existing
+        if(this.state.backendActive) return null
         const trajectory = trajectoryFor(this.profile?.facets, this.profile?.identity)
         const capture = this.captures.add({
             kind: 'trajectory',
@@ -165,7 +166,7 @@ export default class TrajectorySheet
             const snapshot = await this.backend.refreshSnapshot?.()
             if(snapshot) this.state.applyBackendSnapshot?.(snapshot)
             const capture = this._latestTrajectoryCapture()
-            if(capture) this._render(capture)
+            this._render(capture)
             this.runBtn.textContent = 'Updated'
         }
         catch(err)
@@ -191,6 +192,12 @@ export default class TrajectorySheet
         for(let i = entries.length - 1; i >= 0; i--)
         {
             const c = entries[i]
+            if(c.kind === 'trajectory' && c.trajectory && c.backendCartographerOutputId) return c
+        }
+        if(this.state.backendActive) return null
+        for(let i = entries.length - 1; i >= 0; i--)
+        {
+            const c = entries[i]
             if(c.kind === 'trajectory' && c.trajectory) return c
         }
         return null
@@ -198,6 +205,11 @@ export default class TrajectorySheet
 
     _render(capture)
     {
+        if(!capture?.trajectory)
+        {
+            this._renderEmpty()
+            return
+        }
         const trajectory = capture.trajectory
         const bearings = trajectory.bearings || []
         this.bearings = bearings
@@ -223,9 +235,23 @@ export default class TrajectorySheet
         this._setActive(0)
     }
 
+    _renderEmpty()
+    {
+        this.bearings = []
+        this.throughLineEl.textContent = this.state.backendActive
+            ? 'No backend trajectory has been generated yet.'
+            : 'No trajectory has been generated yet.'
+        this.metaEl.textContent = this.backend?.runTrajectory
+            ? 'Run sense-making to generate a Cartographer trajectory.'
+            : 'Open Path Finder after more profile evidence is available.'
+        this.tabsEl.innerHTML = ''
+        this.panelEl.hidden = true
+    }
+
     _setActive(idx)
     {
         if(idx < 0 || idx >= this.bearings.length) return
+        this.panelEl.hidden = false
         this.activeIndex = idx
         const bearing = this.bearings[idx]
 

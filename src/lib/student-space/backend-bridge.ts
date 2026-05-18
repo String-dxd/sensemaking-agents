@@ -11,6 +11,7 @@ import { loadVipsPages } from '~/server/load-vips-pages.functions'
 import { loadWiki } from '~/server/load-wiki.functions'
 import { runCartographer } from '~/server/run-cartographer.functions'
 import { runConnector } from '~/server/run-connector.functions'
+import type { RunConnectorResult } from '~/server/run-connector.handler.server'
 import { submitStudentSpaceReflection } from '~/server/submit-student-space-reflection.functions'
 import type { SubmitStudentSpaceReflectionResult } from '~/server/submit-student-space-reflection.handler.server'
 import { updateMirrorReview } from '~/server/update-mirror-review.functions'
@@ -72,7 +73,7 @@ export interface StudentSpaceBackendBridge {
   updateReflectionReview?: (
     input: StudentSpaceReviewInput,
   ) => Promise<StudentSpaceMirrorEntrySummary>
-  runConnector?: () => Promise<unknown>
+  runConnector?: () => Promise<RunConnectorResult>
   forgetEvidence?: (input: StudentSpaceForgetEvidenceInput) => Promise<unknown>
   loadTrajectory?: () => Promise<unknown>
   runTrajectory?: () => Promise<unknown>
@@ -133,7 +134,7 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
     },
     runConnector: async () => {
       const result = await runConnector({ data: {} })
-      if (isFailedConnectorResult(result)) {
+      if (isHardFailedConnectorResult(result)) {
         throw new Error(`Connector run failed with status ${result.status}`)
       }
       return result
@@ -154,14 +155,12 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
   }
 }
 
-function isFailedConnectorResult(
+function isHardFailedConnectorResult(
   result: unknown,
 ): result is { status: string; failed: number; processed: number } {
   if (!result || typeof result !== 'object') return false
-  const maybe = result as { status?: unknown; failed?: unknown; processed?: unknown }
+  const maybe = result as { status?: unknown }
   const status = typeof maybe.status === 'string' ? maybe.status : ''
-  const failed = typeof maybe.failed === 'number' ? maybe.failed : 0
-  const processed = typeof maybe.processed === 'number' ? maybe.processed : 0
   const hardStatuses = new Set([
     'timeout',
     'schema_reject',
@@ -170,10 +169,7 @@ function isFailedConnectorResult(
     'unknown',
     'missing_mirror',
   ])
-  return (
-    hardStatuses.has(status) ||
-    (status !== 'nothing_to_run' && processed > 0 && failed === processed)
-  )
+  return hardStatuses.has(status)
 }
 
 function isFailedCartographerResult(
