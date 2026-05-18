@@ -2,8 +2,9 @@
  * U1 coverage for docs/plans/2026-05-18-004-feat-island-pick-and-plant-plan.md.
  *
  * Pins the position-mutation surface: setSproutPosition /
- * setBloomedPosition, the 'moved' event, schema hydrate round-trips,
- * carry-forward on bloom, and the lenient-merge stance on bad payloads.
+ * setBloomedPosition, the sproutMoved / bloomedMoved events, schema
+ * hydrate round-trips, carry-forward on bloom, and the lenient-merge
+ * stance on bad payloads.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Persistence, { memoryAdapter } from '~/engine/student-space/Game/State/Persistence.js'
@@ -23,10 +24,10 @@ afterEach(() => {
 
 describe('Sprouts pick-and-plant — position mutations', () => {
   let sprouts: Sprouts
-  let persistence: Persistence
+  let _persistence: Persistence
 
   beforeEach(() => {
-    persistence = freshPersistence()
+    _persistence = freshPersistence()
     sprouts = new Sprouts()
   })
 
@@ -35,9 +36,11 @@ describe('Sprouts pick-and-plant — position mutations', () => {
     expect(sprouts.getActive()?.position).toBeNull()
   })
 
-  it('setSproutPosition stores a valid {x,z} payload and fans a "moved" event', () => {
+  it('setSproutPosition stores a valid {x,z} payload and fans a sproutMoved event', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
-    const id = sprouts.getActive()!.id
+    const active = sprouts.getActive()
+    expect(active).not.toBeNull()
+    const id = active!.id
 
     const events: SproutsEvent[] = []
     sprouts.subscribe((event) => events.push(event))
@@ -46,24 +49,24 @@ describe('Sprouts pick-and-plant — position mutations', () => {
     expect(changed).toBe(true)
 
     const recent = sprouts.recent()
-    expect(recent[0].position).toEqual({ x: 1.2, z: -0.4 })
+    expect(recent[0]!.position).toEqual({ x: 1.2, z: -0.4 })
 
-    const moved = events.find((e) => e.type === 'moved')
+    const moved = events.find((e) => e.type === 'sproutMoved')
     expect(moved).toBeTruthy()
-    expect((moved as { sprout: { id: string } }).sprout.id).toBe(id)
+    expect((moved as { type: 'sproutMoved'; sprout: { id: string } }).sprout.id).toBe(id)
   })
 
   it('setSproutPosition with null clears an existing position', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
     const id = sprouts.getActive()!.id
     sprouts.setSproutPosition(id, { x: 1, z: 1 })
-    expect(sprouts.recent()[0].position).toEqual({ x: 1, z: 1 })
+    expect(sprouts.recent()[0]!.position).toEqual({ x: 1, z: 1 })
 
     expect(sprouts.setSproutPosition(id, null)).toBe(true)
-    expect(sprouts.recent()[0].position).toBeNull()
+    expect(sprouts.recent()[0]!.position).toBeNull()
   })
 
-  it('setSproutPosition rejects bad payloads without mutating state or emitting moved', () => {
+  it('setSproutPosition rejects bad payloads without mutating state or emitting', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
     const id = sprouts.getActive()!.id
     sprouts.setSproutPosition(id, { x: 1.5, z: 2.0 })
@@ -72,16 +75,20 @@ describe('Sprouts pick-and-plant — position mutations', () => {
     sprouts.subscribe((event) => events.push(event))
 
     // Missing z
-    expect(sprouts.setSproutPosition(id, { x: 1 } as unknown as { x: number; z: number })).toBe(false)
+    expect(
+      sprouts.setSproutPosition(id, { x: 1 } as unknown as { x: number; z: number }),
+    ).toBe(false)
     // Wrong type
-    expect(sprouts.setSproutPosition(id, { x: 'foo', z: 0 } as unknown as { x: number; z: number })).toBe(false)
+    expect(
+      sprouts.setSproutPosition(id, { x: 'foo', z: 0 } as unknown as { x: number; z: number }),
+    ).toBe(false)
     // NaN
     expect(sprouts.setSproutPosition(id, { x: NaN, z: 0 })).toBe(false)
     // Infinity
     expect(sprouts.setSproutPosition(id, { x: Infinity, z: 0 })).toBe(false)
 
-    expect(sprouts.recent()[0].position).toEqual({ x: 1.5, z: 2.0 })
-    expect(events.some((e) => e.type === 'moved')).toBe(false)
+    expect(sprouts.recent()[0]!.position).toEqual({ x: 1.5, z: 2.0 })
+    expect(events.some((e) => e.type === 'sproutMoved')).toBe(false)
   })
 
   it('setSproutPosition on an unknown id is a silent no-op', () => {
@@ -100,21 +107,25 @@ describe('Sprouts pick-and-plant — position mutations', () => {
     ;(Sprouts as unknown as { instance: unknown }).instance = null
     const fresh = new Sprouts()
     fresh.hydrate(serialized)
-    expect(fresh.recent()[0].position).toEqual({ x: 0.7, z: -1.1 })
+    expect(fresh.recent()[0]!.position).toEqual({ x: 0.7, z: -1.1 })
   })
 
   it('schema drops a corrupt position to null on hydrate', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
-    const serialized = sprouts.serialize()
+    const serialized = sprouts.serialize() as {
+      cycleIndex: number
+      sprouts: Array<{ position: unknown }>
+      bloomedTrees: unknown[]
+    }
     // Tamper: replace position with garbage; schema should drop to null
     // rather than carrying NaN forward (the view would then misplace).
-    serialized.sprouts[0].position = { x: NaN, z: 5 } as unknown as { x: number; z: number }
+    serialized.sprouts[0]!.position = { x: NaN, z: 5 }
 
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     ;(Sprouts as unknown as { instance: unknown }).instance = null
     const fresh = new Sprouts()
     fresh.hydrate(serialized)
-    expect(fresh.recent()[0].position).toBeNull()
+    expect(fresh.recent()[0]!.position).toBeNull()
     expect(warn).toHaveBeenCalled()
   })
 
@@ -141,7 +152,7 @@ describe('Sprouts pick-and-plant — position mutations', () => {
       bloomedTrees: [],
     }
     sprouts.hydrate(snapshot)
-    expect(sprouts.recent()[0].position).toBeNull()
+    expect(sprouts.recent()[0]!.position).toBeNull()
   })
 
   it('returned snapshots from recent() are frozen so callers cannot mutate position', () => {
@@ -149,7 +160,7 @@ describe('Sprouts pick-and-plant — position mutations', () => {
     const id = sprouts.getActive()!.id
     sprouts.setSproutPosition(id, { x: 1, z: 1 })
 
-    const snap = sprouts.recent()[0]
+    const snap = sprouts.recent()[0]!
     expect(Object.isFrozen(snap)).toBe(true)
     expect(Object.isFrozen(snap.position)).toBe(true)
   })
@@ -157,10 +168,10 @@ describe('Sprouts pick-and-plant — position mutations', () => {
 
 describe('Sprouts pick-and-plant — bloomed objects', () => {
   let sprouts: Sprouts
-  let persistence: Persistence
+  let _persistence: Persistence
 
   beforeEach(() => {
-    persistence = freshPersistence()
+    _persistence = freshPersistence()
     sprouts = new Sprouts()
   })
 
@@ -168,21 +179,23 @@ describe('Sprouts pick-and-plant — bloomed objects', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
     sprouts.grow({ kind: 'capture', id: 'cap-2' })
     sprouts.grow({ kind: 'capture', id: 'cap-3' })
-    const id = sprouts.readyToBloom()[0].id
+    const ready = sprouts.readyToBloom()[0]
+    expect(ready).toBeTruthy()
+    const id = ready!.id
 
     sprouts.setSproutPosition(id, { x: 2.0, z: 0.5 })
     const result = sprouts.bloom(id)
     expect(result?.bloomedTree.position).toEqual({ x: 2.0, z: 0.5 })
 
     const persisted = sprouts.listBloomedTrees()
-    expect(persisted[0].position).toEqual({ x: 2.0, z: 0.5 })
+    expect(persisted[0]!.position).toEqual({ x: 2.0, z: 0.5 })
   })
 
-  it('setBloomedPosition updates a bloomed tree and emits "moved" with bloomedTree', () => {
+  it('setBloomedPosition updates a bloomed tree and emits bloomedMoved', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
     sprouts.grow({ kind: 'capture', id: 'cap-2' })
     sprouts.grow({ kind: 'capture', id: 'cap-3' })
-    const id = sprouts.readyToBloom()[0].id
+    const id = sprouts.readyToBloom()[0]!.id
     sprouts.bloom(id)
 
     const events: SproutsEvent[] = []
@@ -190,11 +203,13 @@ describe('Sprouts pick-and-plant — bloomed objects', () => {
 
     expect(sprouts.setBloomedPosition(id, { x: -1.5, z: 1.2 })).toBe(true)
     const bloomed = sprouts.listBloomedTrees()[0]
-    expect(bloomed.position).toEqual({ x: -1.5, z: 1.2 })
+    expect(bloomed!.position).toEqual({ x: -1.5, z: 1.2 })
 
-    const moved = events.find((e) => e.type === 'moved')
+    const moved = events.find((e) => e.type === 'bloomedMoved')
     expect(moved).toBeTruthy()
-    expect((moved as { bloomedTree: { id: string } }).bloomedTree.id).toBe(id)
+    expect(
+      (moved as { type: 'bloomedMoved'; bloomedTree: { id: string } }).bloomedTree.id,
+    ).toBe(id)
   })
 
   it('setBloomedPosition is a silent no-op on unknown id', () => {
@@ -205,7 +220,7 @@ describe('Sprouts pick-and-plant — bloomed objects', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
     sprouts.grow({ kind: 'capture', id: 'cap-2' })
     sprouts.grow({ kind: 'capture', id: 'cap-3' })
-    const id = sprouts.readyToBloom()[0].id
+    const id = sprouts.readyToBloom()[0]!.id
     sprouts.setSproutPosition(id, { x: 1.1, z: -0.2 })
     sprouts.bloom(id)
 
@@ -213,7 +228,7 @@ describe('Sprouts pick-and-plant — bloomed objects', () => {
     ;(Sprouts as unknown as { instance: unknown }).instance = null
     const fresh = new Sprouts()
     fresh.hydrate(serialized)
-    expect(fresh.listBloomedTrees()[0].position).toEqual({ x: 1.1, z: -0.2 })
+    expect(fresh.listBloomedTrees()[0]!.position).toEqual({ x: 1.1, z: -0.2 })
   })
 
   it('hydrate drops corrupt bloomedTree position to null', () => {
@@ -235,6 +250,6 @@ describe('Sprouts pick-and-plant — bloomed objects', () => {
       ],
     }
     sprouts.hydrate(snapshot)
-    expect(sprouts.listBloomedTrees()[0].position).toBeNull()
+    expect(sprouts.listBloomedTrees()[0]!.position).toBeNull()
   })
 })

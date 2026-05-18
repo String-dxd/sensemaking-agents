@@ -39,8 +39,11 @@ function getSproutsSlice(game: Game) {
   return state?.sprouts ?? null
 }
 
+const FIRST_ARRANGE_TOAST_KEY = 'ss:arrange:firstEntry:v1'
+
 export function IslandProgressionOverlay({ game }: { game: Game }) {
   const [toasts, setToasts] = useState<Toast[]>([])
+  const [editMode, setEditMode] = useState(false)
 
   useEffect(() => {
     let nextId = 1
@@ -96,6 +99,35 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
     }
   }, [game])
 
+  const toggleEditMode = () => {
+    setEditMode((prev) => {
+      const next = !prev
+      window.dispatchEvent(new CustomEvent('ss:edit-mode', { detail: { on: next } }))
+      if (next) {
+        // One-time per-session discoverability toast on first entry.
+        // sessionStorage failure (Safari private) is a silent skip — the
+        // banner still teaches the feature.
+        try {
+          if (!window.sessionStorage.getItem(FIRST_ARRANGE_TOAST_KEY)) {
+            window.sessionStorage.setItem(FIRST_ARRANGE_TOAST_KEY, '1')
+            const toast: Toast = {
+              id: Date.now(),
+              text: 'Drag any of your things to plant them somewhere new.',
+              variant: 'ready',
+            }
+            setToasts((current) => [...current, toast])
+            window.setTimeout(() => {
+              setToasts((current) => current.filter((t) => t.id !== toast.id))
+            }, TOAST_TTL_MS + 1200)
+          }
+        } catch (_) {
+          /* sessionStorage blocked — banner is enough */
+        }
+      }
+      return next
+    })
+  }
+
   return (
     <div
       // The overlay layer covers the viewport so absolutely-positioned
@@ -110,6 +142,68 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
       }}
       data-island-progression-overlay
     >
+      {editMode ? (
+        <div
+          // Persistent banner while edit mode is on. Top-center, above
+          // the canvas but below any modal sheet (z=22 matches the
+          // parent overlay). pointer-events: none so it doesn't catch
+          // taps meant for the canvas — the toggle button below is
+          // the only interactive element of arrange mode.
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'absolute',
+            top: 'calc(env(safe-area-inset-top, 0px) + 14px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            padding: '6px 14px',
+            borderRadius: 999,
+            background: 'rgba(36, 56, 30, 0.88)',
+            color: '#FFFBE6',
+            fontFamily: 'system-ui, sans-serif',
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: 0.2,
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
+            pointerEvents: 'none',
+          }}
+        >
+          Arranging your island — tap Done when finished.
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={toggleEditMode}
+        aria-pressed={editMode}
+        aria-label={editMode ? 'Finish arranging' : 'Arrange island'}
+        style={{
+          position: 'absolute',
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 18px)',
+          left: 18,
+          padding: '8px 14px',
+          borderRadius: 999,
+          border: 'none',
+          background: editMode ? '#3B5A2B' : 'rgba(255, 251, 230, 0.94)',
+          color: editMode ? '#FFFBE6' : '#1A3A14',
+          fontFamily: 'system-ui, sans-serif',
+          fontSize: 13,
+          fontWeight: 600,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.22)',
+          cursor: 'pointer',
+          pointerEvents: 'auto',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+        }}
+        data-arrange-toggle
+      >
+        <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>
+          {editMode ? '✓' : '✥'}
+        </span>
+        {editMode ? 'Done' : 'Arrange'}
+      </button>
+
       <section
         // Toast stack — bottom-center, above the mood-hud band. Tray
         // removed in the auto-bloom rev so toasts move down to where the

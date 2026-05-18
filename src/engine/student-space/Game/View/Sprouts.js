@@ -107,6 +107,32 @@ function seededAngleAndRadius(seed)
     return { theta, radius }
 }
 
+/**
+ * Resolve a sprout or bloomedTree descriptor to a concrete world
+ * placement. An explicit `position: {x,z}` overrides the seeded hash
+ * so student-moved objects render where they were planted; absent or
+ * cleared positions fall back to the deterministic seed.
+ *
+ * Returns `{ x, y, z, theta }` — `theta` is the seeded yaw used by
+ * spawned meshes for adjacent-sprout variety; when an explicit
+ * position overrides the seed we still derive a deterministic yaw
+ * from the seed so the visual orientation stays stable across moves.
+ */
+function resolveWorldPlacement(descriptor, island)
+{
+    const seed = typeof descriptor.placementSeed === 'number' ? descriptor.placementSeed : 0
+    const { theta, radius } = seededAngleAndRadius(seed)
+    const pos = descriptor.position
+    if(pos && typeof pos.x === 'number' && typeof pos.z === 'number' &&
+       Number.isFinite(pos.x) && Number.isFinite(pos.z))
+    {
+        return { x: pos.x, y: island.heightAt(pos.x, pos.z), z: pos.z, theta }
+    }
+    const x = Math.cos(theta) * radius
+    const z = Math.sin(theta) * radius
+    return { x, y: island.heightAt(x, z), z, theta }
+}
+
 function reduceMotion()
 {
     if(typeof window === 'undefined' || !window.matchMedia) return false
@@ -166,6 +192,26 @@ export default class Sprouts
         // moment — the existing flow finishes first.
         this._camFlow = null  // null | { sproutId, phase, startMs, autoBloom }
 
+        // Pick-and-plant edit mode. Flipped via the 'ss:edit-mode'
+        // CustomEvent dispatched by the React overlay's Arrange button.
+        // While on: pointer drag relocates the object; while off: taps
+        // flow through the existing bloom-on-tap / not-ready paths.
+        this._editMode = false
+        this._onEditMode = (e) =>
+        {
+            const next = !!(e && e.detail && e.detail.on)
+            this._editMode = next
+            if(this.badgeLayer)
+            {
+                if(next) this.badgeLayer.classList.add('edit-mode')
+                else this.badgeLayer.classList.remove('edit-mode')
+            }
+        }
+        if(typeof window !== 'undefined')
+        {
+            window.addEventListener('ss:edit-mode', this._onEditMode)
+        }
+
         // Subscribe to live mutations.
         this._unsubscribe = this.state.sprouts.subscribe((event) =>
         {
@@ -219,6 +265,31 @@ export default class Sprouts
                 if(event.bloomedTree)
                 {
                     this._spawnBloomedTree(event.bloomedTree, /*animate=*/ true)
+                }
+            }
+            else if(event.type === 'sproutMoved')
+            {
+                // Pick-and-plant: a sprout's position changed. Move the
+                // mesh in place so the visual stays in sync with state.
+                // Drag-in-flight uses direct mesh manipulation; this
+                // branch handles commit (and any future programmatic
+                // position updates).
+                const node = this.nodes.get(event.sprout.id)
+                if(node)
+                {
+                    node.sprout = event.sprout
+                    const placement = resolveWorldPlacement(event.sprout, this.island)
+                    node.group.position.set(placement.x, placement.y, placement.z)
+                }
+            }
+            else if(event.type === 'bloomedMoved')
+            {
+                const bNode = this.bloomedNodes.get(event.bloomedTree.id)
+                if(bNode)
+                {
+                    bNode.tree = event.bloomedTree
+                    const placement = resolveWorldPlacement(event.bloomedTree, this.island)
+                    bNode.group.position.set(placement.x, placement.y, placement.z)
                 }
             }
         })
@@ -313,10 +384,7 @@ export default class Sprouts
         if(this.bloomedNodes.has(tree.id)) return
 
         const group = new THREE.Group()
-        const { theta, radius } = seededAngleAndRadius(tree.placementSeed)
-        const x = Math.cos(theta) * radius
-        const z = Math.sin(theta) * radius
-        const y = this.island.heightAt(x, z)
+        const { x, y, z, theta } = resolveWorldPlacement(tree, this.island)
         group.position.set(x, y, z)
         group.rotation.y = theta + 0.3
         this.root.add(group)
@@ -504,10 +572,7 @@ export default class Sprouts
         if(this.nodes.has(sprout.id)) return
 
         const group = new THREE.Group()
-        const { theta, radius } = seededAngleAndRadius(sprout.placementSeed)
-        const x = Math.cos(theta) * radius
-        const z = Math.sin(theta) * radius
-        const y = this.island.heightAt(x, z)
+        const { x, y, z, theta } = resolveWorldPlacement(sprout, this.island)
         group.position.set(x, y, z)
         // Subtle yaw so adjacent sprouts don't look like clones.
         group.rotation.y = theta
@@ -1020,6 +1085,19 @@ export default class Sprouts
             try { this._canvasEl.removeEventListener('pointerup', this._onPointerUp) } catch(_) {}
         }
         this._canvasEl = null
+        if(typeof window !== 'undefined' && this._onEditMode)
+        {
+            try { window.removeEventListener('ss:edit-mode', this._onEditMode) } catch(_) {}
+        }
+        this._onEditMode = null
+        // Defensive: if dispose fires mid-drag (HMR / route change),
+        // restore camera controls so the next mount isn't camera-locked.
+        try
+        {
+            const controls = this.view?.camera?.controls
+            if(controls) controls.enabled = true
+        }
+        catch(_) {}
         for(const id of Array.from(this.nodes.keys()))
         {
             this._disposeNode(id)

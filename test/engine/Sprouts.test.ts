@@ -136,7 +136,12 @@ describe('Sprouts state slice', () => {
     }
     const ready = sprouts.readyToBloom()[0]!
     const events: Array<{ type: string; id: string }> = []
-    sprouts.subscribe((ev: SproutsEvent) => events.push({ type: ev.type, id: ev.sprout.id }))
+    sprouts.subscribe((ev: SproutsEvent) =>
+      events.push({
+        type: ev.type,
+        id: 'sprout' in ev ? ev.sprout.id : ev.bloomedTree.id,
+      }),
+    )
     const result = sprouts.bloom(ready.id)
     expect(result).toBeTruthy()
     expect(result?.sprout.bloomedAt).not.toBeNull()

@@ -45,8 +45,8 @@ export type SproutsEvent =
   | { type: 'markedReady'; sprout: Sprout }
   | { type: 'speciesLocked'; sprout: Sprout }
   | { type: 'bloomed'; sprout: Sprout; bloomedTree: BloomedTree }
-  | { type: 'moved'; sprout: Sprout }
-  | { type: 'moved'; bloomedTree: BloomedTree }
+  | { type: 'sproutMoved'; sprout: Sprout }
+  | { type: 'bloomedMoved'; bloomedTree: BloomedTree }
 
 export interface CaptureRef {
   kind: 'capture' | 'mood'
@@ -83,8 +83,8 @@ export default class Sprouts {
 
   subscribe(cb: (event: SproutsEvent, sprouts: readonly Sprout[]) => void): () => void
 
-  hydrate(snapshot: { cycleIndex?: number; sprouts?: unknown[] } | null | undefined): void
-  serialize(): { cycleIndex: number; sprouts: Sprout[] }
+  hydrate(snapshot: { cycleIndex?: number; sprouts?: unknown[]; bloomedTrees?: unknown[] } | null | undefined): void
+  serialize(): { cycleIndex: number; sprouts: Sprout[]; bloomedTrees: BloomedTree[] }
 }
 
 export interface CapturesLike {

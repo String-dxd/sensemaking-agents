@@ -226,7 +226,7 @@ export default class Sprouts
 
         sprout.position = coerced
         this._invalidateCache()
-        this._fan({ type: 'moved', sprout })
+        this._fan({ type: 'sproutMoved', sprout })
         this._persist()
         return true
     }
@@ -234,8 +234,8 @@ export default class Sprouts
     /**
      * Pick-and-plant: set or clear an explicit world position for a
      * bloomed object. Same contract as `setSproutPosition`. Fans a
-     * `'moved'` event carrying the bloomedTree (no `sprout` field) so
-     * subscribers can dispatch by shape.
+     * `'bloomedMoved'` event so subscribers can dispatch by tag rather
+     * than peeking at shape.
      */
     setBloomedPosition(id, position)
     {
@@ -248,7 +248,7 @@ export default class Sprouts
 
         bloomedTree.position = coerced
         this._invalidateCache()
-        this._fan({ type: 'moved', bloomedTree })
+        this._fan({ type: 'bloomedMoved', bloomedTree })
         this._persist()
         return true
     }
