@@ -75,9 +75,9 @@ describe('Sprouts pick-and-plant — position mutations', () => {
     sprouts.subscribe((event) => events.push(event))
 
     // Missing z
-    expect(
-      sprouts.setSproutPosition(id, { x: 1 } as unknown as { x: number; z: number }),
-    ).toBe(false)
+    expect(sprouts.setSproutPosition(id, { x: 1 } as unknown as { x: number; z: number })).toBe(
+      false,
+    )
     // Wrong type
     expect(
       sprouts.setSproutPosition(id, { x: 'foo', z: 0 } as unknown as { x: number; z: number }),
@@ -207,9 +207,7 @@ describe('Sprouts pick-and-plant — bloomed objects', () => {
 
     const moved = events.find((e) => e.type === 'bloomedMoved')
     expect(moved).toBeTruthy()
-    expect(
-      (moved as { type: 'bloomedMoved'; bloomedTree: { id: string } }).bloomedTree.id,
-    ).toBe(id)
+    expect((moved as { type: 'bloomedMoved'; bloomedTree: { id: string } }).bloomedTree.id).toBe(id)
   })
 
   it('setBloomedPosition is a silent no-op on unknown id', () => {
