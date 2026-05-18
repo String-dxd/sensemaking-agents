@@ -166,3 +166,15 @@ These do not affect the *what*; they affect the *how* and should be resolved in 
 ## Notes
 
 This requirements doc keeps the existing VIPS architecture and treats the island progression as a *rendering* of claims the system already infers — not as a parallel XP mechanic. The "more inputs → more objects" intuition is correct, but the *rule* is "inputs become evidence; evidence supports claims; claims become trees/flowers/fruit." The sprout is the visible intermediate state that has been invisible until now.
+
+---
+
+## Implementation note (2026-05-18)
+
+v1 shipped on `feat/island-object-progression` per [docs/plans/2026-05-18-002-feat-island-object-progression-plan.md](../plans/2026-05-18-002-feat-island-object-progression-plan.md). Two substantive deviations from the brainstorm framing — both surfaced and resolved during ce-doc-review:
+
+1. **Substrate**. The brainstorm referenced `src/components/world/*` (trees.ts / vipsWorldMapping.ts / hotspots.ts). Those files are dormant since the engine port; the live home route mounts `StudentSpaceHost` → the vendored engine under `src/engine/student-space/Game/`. v1 lives entirely in the engine. See [docs/solutions/2026-05-18-island-progression-engine-substrate.md](../solutions/2026-05-18-island-progression-engine-substrate.md) for the rule of thumb future authors should apply.
+
+2. **Single-species v1**. The brainstorm assumed sprouts would derive species from VIPS claim dimension (Values/Interests/Personality/Skills). The Connector → verifier pipeline is not currently invoked from the home route, so v1 ships single-species (trees only, cycling oak/cherry by sprout createdAt index). Species variety driven by claim dimension is v2 work, alongside a Mirror → AutoConnector → engine bridge that the original Open Questions section already flagged. The `Sprout.captureRefs[]` field is the join key v2 will use to map captures → claims without invalidating v1 state.
+
+The R1–R22 surface is preserved with two narrow adaptations: R5's toast copy uses reflection-voice ("Heard. Something is growing on the island.") rather than points-style ("+1 toward ..."), and R15's narration panel is the engine's `ObjectPeek` sprout kind rather than the dormant hotspot panel. The brainstorm's "Outside this product's identity" stance (no XP, no streaks, no auto-bloom) is honored throughout.
