@@ -312,6 +312,12 @@ export default class Sprouts
         // visual state without consulting the slice.
         this._drag = null
         this._dragLiftOffset = 0.15  // metres lifted while held
+        // Ground plane reused per drag. Its `constant` is updated on
+        // each pointerdown to `-pickupGroundY` so the cursor-to-world
+        // projection lands at the height the object was grabbed from
+        // (≈ plateauTopY of 1.0m). A plane at y=0 would put the
+        // intersection far behind the visible terrain and make the
+        // mesh trail the cursor by metres.
         this._dragGroundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
 
         this._onPointerDown = (e) => this._handlePointerDown(e)
@@ -345,6 +351,16 @@ export default class Sprouts
         const originPos = node.group.position.clone()
         const originScale = node.group.scale.x  // uniform scale assumed
         const reduce = reduceMotion()
+        const pickupGroundY = this.island.heightAt(originPos.x, originPos.z)
+
+        // Align the drag plane with the object's pickup height so the
+        // ray-plane intersection in pointermove lands at the cursor
+        // rather than projecting through the plateau to y=0. The
+        // plateau is gently undulating (heightAt varies by ~0.05m), so
+        // the cursor will drift very slightly as the student drags
+        // across the surface, but that's invisible at typical
+        // pointer-precision.
+        this._dragGroundPlane.constant = -pickupGroundY
 
         this._drag = {
             kind: target.kind,
@@ -352,6 +368,7 @@ export default class Sprouts
             group: node.group,
             originPos,
             originScale,
+            pickupGroundY,
             lifted: !reduce,
             valid: true,
             pointerId: e.pointerId,
@@ -361,7 +378,7 @@ export default class Sprouts
         {
             // Lift by adjusting y above terrain; multiply scale slightly
             // so the held object feels picked up.
-            node.group.position.y = this.island.heightAt(originPos.x, originPos.z) + this._dragLiftOffset
+            node.group.position.y = pickupGroundY + this._dragLiftOffset
             node.group.scale.setScalar(originScale * 1.05)
         }
 
