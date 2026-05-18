@@ -11,7 +11,7 @@ export const Route = createFileRoute('/dev/pipeline')({
   beforeLoad: () => {
     if (!import.meta.env.DEV) throw notFound()
   },
-  loader: () => loadPipelineTrace(),
+  loader: () => loadPipelineTrace({ data: {} }),
   component: PipelinePage,
   errorComponent: PipelineErrorFallback,
 })
