@@ -7,7 +7,8 @@
     "dev": "vite dev",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
-    "check": "biome check src test && tsc --noEmit",
+    "check": "biome check src test && tsc --noEmit && tsx scripts/verify-patches.ts",
+    "verify-patches": "tsx scripts/verify-patches.ts",
     "lint": "biome check src test",
     "format": "biome format --write src test",
     "typecheck": "tsc --noEmit",
@@ -43,7 +44,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^2.5.5",
-    "three": "0.184.0",
+    "three": "0.149.0",
     "zod": "^4.0.0"
   },
   "pnpm": {
@@ -83,6 +84,8 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "0.184.0",
+    "lil-gui": "^0.17.0",
+    "stats.js": "^0.17.0",
     "@vitejs/plugin-react": "^4.3.4",
     "better-sqlite3": "^12.0.0",
     "drizzle-kit": "^0.30.0",
@@ -90,6 +93,7 @@
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vite": "^7.0.0",
+    "vite-plugin-glsl": "^1.6.0",
     "vite-tsconfig-paths": "^5.1.0",
     "vitest": "^3.0.0"
   }

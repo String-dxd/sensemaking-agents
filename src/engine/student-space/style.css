@@ -1,0 +1,4861 @@
+/* Sky palette — written each frame by View/CssSky.js. Seed values match
+   midday so first-paint isn't black before DayCycle catches up. */
+:root
+{
+    --sky-top: rgb(26, 74, 130);
+    --sky-mid: rgb(96, 216, 232);
+    --sky-bottom: rgb(255, 240, 80);
+    --ink: #1a2b3a;
+    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+html, body, button, input, select, textarea
+{
+    font-family: var(--font-sans);
+}
+
+*
+{
+    box-sizing: border-box;
+}
+
+html, body
+{
+    margin: 0;
+    padding: 0;
+    /* Body has no flow content (everything is position:fixed) so it would
+       collapse to height:0 and the gradient would paint into an empty box.
+       Pin both elements to the viewport so the gradient renders properly. */
+    min-height: 100vh;
+    height: 100%;
+}
+
+body
+{
+    /* Tiny-Skies-style sky: three-stop linear gradient between CSS vars.
+       Sky-haze + sky-rays sit above this for the highlight + god rays. */
+    background: linear-gradient(
+        180deg,
+        var(--sky-top) 0%,
+        var(--sky-mid) 42%,
+        var(--sky-bottom) 100%
+    );
+    color: var(--ink);
+    transition: background 1800ms ease;
+}
+
+body.is-night
+{
+    color: #f4f1ea;
+}
+
+/* Soft central haze — the bright spot the god-rays radiate from.
+   Sits below the canvas + UI but above the body gradient. */
+#sky-haze
+{
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: radial-gradient(
+        ellipse 70% 55% at 50% 22%,
+        rgba(255, 255, 255, 0.42) 0%,
+        rgba(255, 255, 255, 0.18) 28%,
+        rgba(255, 255, 255, 0) 60%
+    );
+    transition: opacity 1800ms ease;
+}
+
+body.is-night #sky-haze
+{
+    opacity: 0;
+}
+
+/* Vertical god-ray shafts. Subtle by default so they read as atmosphere
+   rather than disco lights. Radial mask keeps rays in the upper sky. */
+#sky-rays
+{
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background: repeating-linear-gradient(
+        92deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0) 6%,
+        rgba(255, 255, 255, 0.08) 8%,
+        rgba(255, 255, 255, 0.13) 9%,
+        rgba(255, 255, 255, 0) 11%,
+        rgba(255, 255, 255, 0) 17%
+    );
+    -webkit-mask-image: radial-gradient(
+        ellipse 80% 60% at 50% 18%,
+        rgba(0, 0, 0, 0.9) 0%,
+        rgba(0, 0, 0, 0.4) 45%,
+        rgba(0, 0, 0, 0) 75%
+    );
+            mask-image: radial-gradient(
+        ellipse 80% 60% at 50% 18%,
+        rgba(0, 0, 0, 0.9) 0%,
+        rgba(0, 0, 0, 0.4) 45%,
+        rgba(0, 0, 0, 0) 75%
+    );
+    opacity: 0.85;
+    transition: opacity 1800ms ease;
+}
+
+body.is-night #sky-rays
+{
+    opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    body, #sky-haze, #sky-rays { transition: none; }
+}
+
+.game
+{
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100%;
+    touch-action: none;
+    z-index: 1;
+}
+
+.ui
+{
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    font-family: var(--font-sans);
+    font-size: 12px;
+    color: #ffffff;
+    pointer-events: none;
+    user-select: none;
+}
+
+.ui a
+{
+    pointer-events: auto;
+}
+
+.ui .mobile-warning
+{
+    display: none;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 200px;
+}
+
+@media (orientation: portrait)
+{
+    .ui .mobile-warning
+    {
+        display: flex;
+    }
+}
+
+.ui .controls
+{
+    display: flex;
+    justify-content: space-between;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 8px;
+}
+
+.ui a
+{
+    color: inherit;
+}
+
+.ui .group
+{
+    display: flex;
+}
+
+.ui .element
+{
+    display: flex;
+    align-items: center;
+    margin-right: 10px;
+}
+
+.ui .keys
+{
+    --key-size: 15px;
+    --key-margin: 2px;
+
+    font-size: 0;
+    margin-right: 2px;
+    white-space: nowrap;
+}
+
+.ui .keys.is-arrows
+{
+    position: relative;
+}
+
+.ui .keys.is-arrows .key:last-child
+{
+    position: absolute;
+    bottom: calc(100% + var(--key-margin));
+    left: calc(var(--key-size) + var(--key-margin));
+}
+
+.ui .key
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--key-size);
+    height: var(--key-size);
+    margin-right: var(--key-margin);
+    border: 1px solid #ffffff;
+    font-size: 9px;
+}
+
+/* Hour HUD — top-right, always-on. Slider scrubs 0–24, button resets to wall-clock. */
+/* Environment panel — vertically centred on the right edge. Hour scrub +
+   real-time toggle on top, a thin divider, then a rain on/off switch. */
+.hour-hud
+{
+    position: fixed;
+    top: 50%;
+    right: 16px;
+    transform: translateY(-50%);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(20, 24, 32, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #f4f1ea;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    pointer-events: auto;
+    user-select: none;
+}
+
+.hour-hud__divider
+{
+    height: 1px;
+    background: rgba(255, 255, 255, 0.14);
+    margin: 2px 0;
+}
+
+.hour-hud__row--toggle
+{
+    justify-content: space-between;
+    gap: 14px;
+}
+.hour-hud__row--toggle .hour-hud__label { width: auto; }
+
+.hour-hud__switch
+{
+    --switch-w: 38px;
+    --switch-h: 22px;
+    position: relative;
+    width: var(--switch-w);
+    height: var(--switch-h);
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.10);
+    padding: 0;
+    cursor: pointer;
+    transition: background 180ms ease, border-color 180ms ease;
+    flex-shrink: 0;
+}
+
+.hour-hud__switch-thumb
+{
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: calc(var(--switch-h) - 4px);
+    height: calc(var(--switch-h) - 4px);
+    border-radius: 50%;
+    background: #f4f1ea;
+    transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.hour-hud__switch.is-on .hour-hud__switch-thumb
+{
+    transform: translateX(calc(var(--switch-w) - var(--switch-h)));
+}
+
+/* Per-switch tints. Each event gets a hue that hints at the effect even
+   before the user looks up at the sky. */
+.hour-hud__switch[data-switch="rain"].is-on
+{
+    background: rgba(127, 179, 217, 0.65);
+    border-color: rgba(127, 179, 217, 0.9);
+}
+.hour-hud__switch[data-switch="aurora"].is-on
+{
+    background: rgba(150, 220, 170, 0.55);
+    border-color: rgba(168, 230, 200, 0.9);
+}
+.hour-hud__switch[data-switch="rainbow"].is-on
+{
+    background: linear-gradient(90deg, #d63131 0%, #f0a82a 22%, #f3d533 42%, #5cb35b 60%, #4a9adb 78%, #9555c5 100%);
+    border-color: rgba(255, 255, 255, 0.85);
+}
+
+.hour-hud__row
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.hour-hud__label
+{
+    width: 30px;
+    opacity: 0.7;
+}
+
+.hour-hud__slider
+{
+    width: 140px;
+}
+
+.hour-hud__value
+{
+    width: 32px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.85;
+}
+
+.hour-hud__realtime
+{
+    font: inherit;
+    color: inherit;
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease;
+}
+
+.hour-hud__realtime:hover
+{
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.hour-hud__realtime.is-active
+{
+    background: rgba(255, 255, 255, 0.18);
+    border-color: rgba(255, 255, 255, 0.55);
+}
+
+/* Zoom HUD — bottom-right corner. Wheel/pinch still work through
+   OrbitControls; these buttons mirror that for tap-only users. */
+.zoom-hud
+{
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    pointer-events: auto;
+    user-select: none;
+}
+
+/* User-facing controls use the white-glass tier (zoom +/-, capture FAB,
+   sheet closes). Admin/dev tools use the dark-glass tier (HourHud weather
+   switches, BirdPicker species cycle). The split is principled — students
+   tap user-facing chrome; the dark chrome is for "inspect the product"
+   moments. */
+.zoom-hud__btn
+{
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(255, 253, 246, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #2b2620;
+    font: 600 18px/1 var(--font-sans);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: background 150ms ease, border-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.zoom-hud__btn:hover
+{
+    background: #fff;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    transform: translateY(-1px);
+}
+
+.zoom-hud__btn:active { transform: translateY(0) scale(0.96); }
+
+/* Sound toggle reflects mute state — the off state dims the icon so the
+   crossed-out speaker reads as "off" without color noise. */
+.zoom-hud__btn[data-action="sound"][data-on="0"] { color: rgba(43, 38, 32, 0.45); }
+
+/* Mood HUD — dev row of 9 colored dots; not the production capture flow. */
+.mood-hud
+{
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: rgba(20, 24, 32, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #f4f1ea;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    pointer-events: auto;
+    user-select: none;
+}
+
+.mood-hud__label
+{
+    width: 90px;
+    opacity: 0.75;
+    text-transform: lowercase;
+    font-variant-numeric: tabular-nums;
+}
+
+.mood-hud__dots
+{
+    display: flex;
+    gap: 6px;
+}
+
+.mood-hud__dot
+{
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    padding: 0;
+    cursor: pointer;
+    transition: transform 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.mood-hud__dot:hover
+{
+    transform: scale(1.12);
+}
+
+.mood-hud__dot.is-active
+{
+    border-color: rgba(255, 255, 255, 0.9);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+}
+
+.mood-hud__clear
+{
+    font: inherit;
+    color: inherit;
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: border-color 150ms ease;
+}
+
+.mood-hud__clear:hover
+{
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Capture FAB — production entry point (sits to the left of MoodHud).
+   Doubles as the "mood pill": after each pin save, --capture-tint biases
+   the background toward the latest emotion colour. */
+/* TrackPicker — admin-tier music switcher, sits just above BirdPicker
+   so the two admin chips stack on the left without crowding. Same
+   dark-glass tier as HourHud + BirdPicker (this is "configure the
+   room"; user-facing chrome is white). */
+.track-picker
+{
+    position: fixed;
+    bottom: 70px;          /* sits above .bird-picker (22px + ~40 chip h) */
+    left: 16px;
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px 8px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(20, 24, 32, 0.55);
+    color: #f4f1ea;
+    font: 500 13px/1 var(--font-sans);
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+    max-width: 240px;
+}
+.track-picker:hover
+{
+    transform: translateY(-1px);
+    background: rgba(20, 24, 32, 0.72);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+.track-picker:active { transform: translateY(0); }
+
+.track-picker__note
+{
+    font-size: 16px;
+    line-height: 1;
+    flex-shrink: 0;
+    color: #ffb347;
+    /* Lift the glyph a touch — the ♪ symbol sits low in its em-box. */
+    transform: translateY(-1px);
+}
+.track-picker__text
+{
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.15;
+    text-align: left;
+    min-width: 0;
+}
+.track-picker__eyebrow
+{
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: rgba(244, 241, 234, 0.55);
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+.track-picker__name
+{
+    font-weight: 600;
+    font-size: 13.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.track-picker__attribution
+{
+    font-size: 10.5px;
+    color: rgba(244, 241, 234, 0.45);
+    font-weight: 500;
+    margin-top: 2px;
+}
+.track-picker__chev
+{
+    font-size: 14px;
+    opacity: 0.55;
+    margin-left: 2px;
+    flex-shrink: 0;
+}
+
+/* Hide along with the bird-picker when any sheet is open. */
+body.has-overlay        .track-picker,
+body.has-capture-sheet  .track-picker,
+body.has-chooser        .track-picker
+{
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px);
+}
+
+/* Bird picker — admin/dev affordance for trying species variants.
+   Lives in the dark-glass tier alongside HourHud's weather switches:
+   visually marked as "inspect the product" chrome, not part of the
+   student-facing flow. Same translucent ink-tinted background, same
+   cream text, same blur. */
+.bird-picker
+{
+    position: fixed;
+    bottom: 22px;
+    left: 16px;
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px 8px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(20, 24, 32, 0.55);
+    color: #f4f1ea;
+    font: 500 13px/1 var(--font-sans);
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: transform 160ms ease, background 160ms ease, border-color 160ms ease;
+}
+.bird-picker:hover
+{
+    transform: translateY(-1px);
+    background: rgba(20, 24, 32, 0.72);
+    border-color: rgba(255, 255, 255, 0.28);
+}
+.bird-picker:active { transform: translateY(0); }
+
+.bird-picker__dot
+{
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: #ffb347;
+    /* Soft outer halo so the accent color stays legible against the
+       dark glass without needing a hard 2px ring. */
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.bird-picker__text
+{
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.1;
+    text-align: left;
+}
+.bird-picker__eyebrow
+{
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: rgba(244, 241, 234, 0.55);
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+.bird-picker__name { font-weight: 600; font-size: 13.5px; }
+.bird-picker__chev
+{
+    font-size: 14px;
+    opacity: 0.55;
+    margin-left: 2px;
+}
+
+/* Hide the picker when any full sheet is open — same body-class hooks the
+   TopNav uses. */
+body.has-overlay        .bird-picker,
+body.has-capture-sheet  .bird-picker,
+body.has-chooser        .bird-picker
+{
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(6px);
+}
+
+.capture-fab
+{
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 20;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px 12px 16px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(255, 138, 92, 0.96);
+    color: #fff;
+    font: 500 14px/1 var(--font-sans);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+    cursor: pointer;
+    pointer-events: auto;
+    transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 180ms ease, background 900ms ease;
+}
+.capture-fab:hover { transform: translateX(-50%) translateY(-1px); box-shadow: 0 9px 26px rgba(0, 0, 0, 0.28); }
+.capture-fab:active { transform: translateX(-50%); }
+.capture-fab__label { letter-spacing: 0.01em; }
+.capture-fab.is-tinted { background: var(--capture-tint, rgba(255, 138, 92, 0.96)); }
+
+/* Capture chooser — full-viewport panel that opens when the FAB is tapped.
+   Three big cards (Ask · Mood · Photo) each pairing a low-poly "3D object"
+   with a text label. Slides up from below (matches Profile/Calendar/Letters
+   open posture), z-30 so it shares the sheet tier. Picking a card routes
+   to its sheet via OverlayController, which atomically swaps in 'mood' /
+   'ask' / 'photo' as the new active and the body class follows. */
+.capture-chooser
+{
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    transform: translateY(100%);
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.capture-chooser.is-open { transform: translateY(0); }
+
+.capture-chooser__scroll
+{
+    position: absolute;
+    inset: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-snap-type: y proximity;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ----- Shared sheet-close button --------------------------------
+   Every full-viewport overlay closes through this exact button: same
+   position, same diameter, same palette, same press-feedback. Don't
+   add a per-sheet override of these properties — extend the grouped
+   selector below instead. Nested in-context closes (day-detail-card,
+   kira-dialogue) use a smaller variant further down. ---------- */
+.capture-chooser__close,
+.ask-sheet__close,
+.photo-sheet__close,
+.mood-sheet__close,
+.half-sheet__close,
+.profile-sheet__close,
+.calendar-sheet__close,
+.letters-sheet__close,
+.trajectory-sheet__close
+{
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(0, 0, 0, 0.06);
+    color: #2b2620;
+    font: 500 22px/1 inherit;
+    cursor: pointer;
+    z-index: 32;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 160ms ease, transform 160ms ease;
+}
+.capture-chooser__close:hover,
+.ask-sheet__close:hover,
+.photo-sheet__close:hover,
+.mood-sheet__close:hover,
+.half-sheet__close:hover,
+.profile-sheet__close:hover,
+.calendar-sheet__close:hover,
+.letters-sheet__close:hover,
+.trajectory-sheet__close:hover { background: rgba(0, 0, 0, 0.12); }
+.capture-chooser__close:active,
+.ask-sheet__close:active,
+.photo-sheet__close:active,
+.mood-sheet__close:active,
+.half-sheet__close:active,
+.profile-sheet__close:active,
+.calendar-sheet__close:active,
+.letters-sheet__close:active,
+.trajectory-sheet__close:active { transform: scale(0.94); }
+
+.capture-chooser__head
+{
+    text-align: left;
+    padding: 24px 28px 4px;
+    max-width: 820px;
+    margin: 0 auto;
+}
+.capture-chooser__title
+{
+    margin: 0;
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+}
+
+.capture-chooser__stages
+{
+    list-style: none;
+    margin: 0;
+    padding: 12px 0 84px;
+    display: flex;
+    flex-direction: column;
+    max-width: 820px;
+    margin: 0 auto;
+}
+
+.capture-stage
+{
+    /* Each stage is roughly a full screen so the user scrolls between
+       objects. min-height instead of fixed height so labels never clip. */
+    min-height: 78vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    scroll-snap-align: center;
+}
+
+.capture-stage__btn
+{
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    height: 78vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.capture-stage__canvas-slot
+{
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 460px;
+    min-height: 0;
+    display: block;
+    position: relative;
+}
+
+.capture-stage__canvas
+{
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+    /* The mesh ARE the UI — no card chrome, no borders, just the object. */
+    background: transparent;
+    transition: filter 220ms ease, transform 220ms ease;
+}
+.capture-stage__btn:hover .capture-stage__canvas { filter: brightness(1.04) saturate(1.05); }
+.capture-stage__btn:active .capture-stage__canvas { transform: scale(0.985); }
+
+.capture-stage__text
+{
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 24px 0;
+    text-align: center;
+}
+.capture-stage__label
+{
+    font-size: 20px;
+    font-weight: 600;
+    color: #2b2620;
+    letter-spacing: -0.005em;
+}
+.capture-stage__sub
+{
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: rgba(43, 38, 32, 0.6);
+    max-width: 36ch;
+}
+
+@media (max-width: 600px)
+{
+    .capture-chooser__title { font-size: 24px; }
+    .capture-stage         { min-height: 72vh; }
+    .capture-stage__btn    { height: 72vh; }
+    .capture-stage__label  { font-size: 18px; }
+    .capture-stage__sub    { font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .capture-chooser { transition-duration: 120ms; }
+    .capture-stage__canvas { transition: none; }
+}
+
+/* Ask sheet — open-ended chat-style capture. Same slide-up posture as
+   mood-sheet but trimmed to a single panel since there are no steps. */
+.ask-sheet,
+.photo-sheet
+{
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: linear-gradient(180deg, #faf6ee 0%, #f3eadd 100%);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    transform: translateY(100%);
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    overflow-y: auto;
+    padding: 24px 20px 48px;
+    box-sizing: border-box;
+}
+.ask-sheet.is-open,
+.photo-sheet.is-open { transform: translateY(0); }
+
+/* ask-sheet / photo-sheet close styling is provided by the shared
+   sheet-close grouped selector at the top of this file. */
+
+.ask-sheet__inner,
+.photo-sheet__inner
+{
+    max-width: 720px;
+    margin: 0 auto;
+    padding-top: 24px;
+}
+
+/* Eyebrow + title alignment — matches profile-sheet / half-sheet /
+   day-detail-card so every sheet shares the same micro-typography.
+   Eyebrow: 11px / 0.10em / 600 / ink-at-55%. Title: weight 600 with
+   negative tracking on the larger sizes. */
+.ask-sheet__eyebrow,
+.photo-sheet__eyebrow
+{
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+    margin: 0 0 6px;
+}
+.ask-sheet__title,
+.photo-sheet__title
+{
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    margin: 0 0 18px;
+}
+.ask-sheet__prompt
+{
+    background: rgba(255, 255, 255, 0.7);
+    border-left: 3px solid #A07659;
+    padding: 10px 14px;
+    border-radius: 0 10px 10px 0;
+    font-size: 14px;
+    line-height: 1.4;
+    margin: 0 0 16px;
+    font-style: italic;
+    opacity: 0.85;
+}
+
+.ask-sheet__field
+{
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1.5px solid rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+    padding: 4px 4px 4px 14px;
+    transition: border-color 160ms ease;
+}
+.ask-sheet__field:focus-within
+{
+    border-color: rgba(255, 138, 92, 0.55);
+}
+.ask-sheet__input
+{
+    flex: 1;
+    border: none;
+    background: transparent;
+    resize: vertical;
+    font: 15px/1.5 inherit;
+    color: inherit;
+    padding: 10px 0;
+    outline: none;
+    min-height: 80px;
+}
+.ask-sheet__mic
+{
+    width: 44px;
+    height: 44px;
+    align-self: flex-end;
+    margin: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: #fff;
+    color: #2b2620;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+.ask-sheet__mic:hover { border-color: rgba(255, 138, 92, 0.55); }
+.ask-sheet__mic.is-listening
+{
+    background: #FF8A5C;
+    border-color: #FF8A5C;
+    color: #fff;
+    animation: askMicPulse 1.2s ease-in-out infinite;
+}
+@keyframes askMicPulse
+{
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 138, 92, 0.45); }
+    50%      { box-shadow: 0 0 0 10px rgba(255, 138, 92, 0); }
+}
+
+.ask-sheet__hint
+{
+    margin: 8px 4px 0;
+    font-size: 12px;
+    color: rgba(43, 38, 32, 0.65);
+}
+
+.ask-sheet__row,
+.photo-sheet__row
+{
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 18px;
+}
+
+.ask-sheet__save,
+.photo-sheet__save
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    border-radius: 999px;
+    border: none;
+    background: #FF8A5C;
+    color: #fff;
+    font: 600 14px/1 inherit;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255, 138, 92, 0.32);
+    transition: background 160ms ease, transform 160ms ease, opacity 160ms ease;
+}
+.ask-sheet__save:hover,
+.photo-sheet__save:hover { background: #ff7842; transform: translateY(-1px); }
+.ask-sheet__save:disabled,
+.photo-sheet__save:disabled
+{
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Photo sheet — file input drives a preview frame + caption */
+/* ---- AskSheet — multi-stage (compose / recording / review) ---- */
+
+.ask-sheet__stage { display: block; }
+.ask-sheet__stage[hidden] { display: none; }
+
+.ask-sheet__eyebrow--live
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #c45032;
+}
+.ask-sheet__rec-dot
+{
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #e8543a;
+    box-shadow: 0 0 0 0 rgba(232, 84, 58, 0.5);
+    animation: ask-rec-pulse 1.4s ease-out infinite;
+}
+@keyframes ask-rec-pulse
+{
+    0%   { box-shadow: 0 0 0 0   rgba(232, 84, 58, 0.55); }
+    70%  { box-shadow: 0 0 0 14px rgba(232, 84, 58, 0);    }
+    100% { box-shadow: 0 0 0 0   rgba(232, 84, 58, 0);    }
+}
+
+.ask-sheet__captions
+{
+    margin: 22px 0 28px;
+    padding: 22px 24px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1.5px solid rgba(0, 0, 0, 0.06);
+    min-height: 36vh;
+    max-height: 50vh;
+    overflow-y: auto;
+    line-height: 1.5;
+    font-size: 22px;
+    font-weight: 500;
+    color: #2b2620;
+}
+.ask-sheet__captions-committed { margin: 0; }
+.ask-sheet__captions-interim
+{
+    margin: 0;
+    color: rgba(43, 38, 32, 0.5);
+    font-weight: 400;
+}
+.ask-sheet__captions-committed:empty + .ask-sheet__captions-interim:empty::before
+{
+    content: 'Start speaking…';
+    color: rgba(43, 38, 32, 0.35);
+    font-style: italic;
+}
+
+.ask-sheet__row--rec
+{
+    justify-content: center;
+}
+.ask-sheet__stop
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: none;
+    background: #e8543a;
+    color: #fff;
+    font: 600 15px/1 inherit;
+    cursor: pointer;
+    transition: background 160ms ease, transform 160ms ease;
+}
+.ask-sheet__stop:hover { background: #d24628; transform: translateY(-1px); }
+.ask-sheet__stop-icon
+{
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 2px;
+}
+
+.ask-sheet__review-card
+{
+    margin: 22px 0 28px;
+    padding: 22px 24px;
+    border-radius: 18px;
+    background: #fff;
+    border: 1.5px solid rgba(0, 0, 0, 0.06);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.05);
+    min-height: 26vh;
+    max-height: 55vh;
+    overflow-y: auto;
+}
+.ask-sheet__review-text
+{
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.55;
+    color: #2b2620;
+    white-space: pre-wrap;
+}
+
+.ask-sheet__row--review
+{
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+.ask-sheet__discard
+{
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(0, 0, 0, 0.1);
+    background: #fff;
+    color: #6a625a;
+    font: 500 14px/1 inherit;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+}
+.ask-sheet__discard:hover { background: rgba(0, 0, 0, 0.04); color: #2b2620; }
+.ask-sheet__log
+{
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: none;
+    background: #FF8A5C;
+    color: #fff;
+    font: 600 15px/1 inherit;
+    cursor: pointer;
+    transition: background 160ms ease, transform 160ms ease;
+}
+.ask-sheet__log:hover { background: #ff7842; transform: translateY(-1px); }
+
+/* ---- AskSheet — reframe stage (Kira's reading) ---- */
+
+.ask-sheet__reframe-cta-row
+{
+    display: flex;
+    justify-content: center;
+    margin: 10px 0 22px;
+}
+.ask-sheet__reframe-cta
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(160, 118, 89, 0.4);
+    background: rgba(255, 255, 255, 0.7);
+    color: #5e493a;
+    font: 500 13px/1 inherit;
+    cursor: pointer;
+    min-height: 44px;
+    transition: background 160ms ease, border-color 160ms ease;
+}
+.ask-sheet__reframe-cta:hover
+{
+    background: rgba(255, 255, 255, 0.95);
+    border-color: rgba(160, 118, 89, 0.65);
+}
+
+.ask-sheet__stage--reframe
+{
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.ask-reframe__shapes
+{
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    margin: 24px 0 4px;
+}
+.ask-reframe__shape
+{
+    width: 120px;
+    height: 120px;
+    display: inline-block;
+    animation: askReframeBreath 4.2s ease-in-out infinite;
+}
+.ask-reframe__shape:nth-child(2) { animation-delay: 0.9s; }
+.ask-reframe__shape svg { width: 100%; height: 100%; display: block; }
+@keyframes askReframeBreath
+{
+    0%, 100% { transform: scale(1);     opacity: 0.96; }
+    50%      { transform: scale(1.045); opacity: 1; }
+}
+
+.ask-reframe__pills
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+}
+.ask-reframe__pill
+{
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 14px;
+    border-radius: 14px;
+    color: #2b2620;
+    min-width: 80px;
+    min-height: 44px;
+    justify-content: center;
+}
+.ask-reframe__pill-theme
+{
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+.ask-reframe__pill-need
+{
+    font-size: 11px;
+    color: rgba(43, 38, 32, 0.65);
+    letter-spacing: 0.02em;
+    margin-top: 1px;
+}
+
+.ask-reframe__quote
+{
+    margin: 8px 8px 0;
+    padding: 0 6px;
+    font: italic 500 19px/1.35 inherit;
+    color: #2b2620;
+    text-align: center;
+}
+.ask-reframe__quote::before { content: '“'; margin-right: 2px; opacity: 0.55; }
+.ask-reframe__quote::after  { content: '”'; margin-left: 2px;  opacity: 0.55; }
+
+.ask-reframe__prose
+{
+    margin: 0 4px;
+    font-size: 15.5px;
+    line-height: 1.55;
+    color: #2b2620;
+    min-height: 3.1em;     /* reserve typewriter space so the layout doesn't reflow */
+    white-space: pre-wrap;
+}
+
+.ask-sheet__row--reframe
+{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+}
+.ask-sheet__edit,
+.ask-sheet__talk-more
+{
+    padding: 12px 18px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(0, 0, 0, 0.1);
+    background: #fff;
+    color: #2b2620;
+    font: 500 14px/1 inherit;
+    cursor: pointer;
+    min-height: 44px;
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.ask-sheet__edit:hover,
+.ask-sheet__talk-more:hover
+{
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.18);
+}
+.ask-sheet__log--reframe
+{
+    margin-left: auto;
+}
+
+/* Read-only replay: hide the live action surfaces, render reframe + thread
+   stacked under the raw review card. */
+.ask-sheet.is-read-only .ask-sheet__reframe-cta-row,
+.ask-sheet.is-read-only .ask-sheet__row--reframe
+{
+    display: none;
+}
+.ask-sheet__replay-extras
+{
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    margin-top: 16px;
+}
+.ask-sheet__replay-reframe,
+.ask-sheet__replay-thread
+{
+    padding: 18px 18px 22px;
+    background: rgba(255, 255, 255, 0.7);
+    border: 1.5px solid rgba(0, 0, 0, 0.05);
+    border-radius: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.ask-sheet__replay-reframe .ask-reframe__shapes { margin: 4px 0 0; }
+.ask-sheet__replay-reframe .ask-reframe__shape  { width: 88px; height: 88px; }
+.ask-sheet__replay-reframe .ask-reframe__quote  { font-size: 17px; }
+
+/* ---- AskSheet — chat stage (Kira dive-deeper) ---- */
+
+.ask-sheet__stage--chat
+{
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: calc(100vh - 120px);
+}
+.ask-chat__header
+{
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+.ask-chat__with
+{
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+}
+.ask-chat__thread
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 0 12px;
+    overflow-y: auto;
+    max-height: 56vh;
+}
+.ask-chat__bubble
+{
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    max-width: 85%;
+    line-height: 1.45;
+    font-size: 15px;
+}
+.ask-chat__bubble--kira
+{
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.88);
+    border: 1.5px solid rgba(0, 0, 0, 0.05);
+    color: #2b2620;
+}
+.ask-chat__bubble--you
+{
+    align-self: flex-end;
+    background: rgba(255, 138, 92, 0.16);
+    border: 1.5px solid rgba(255, 138, 92, 0.28);
+    color: #2b2620;
+}
+.ask-chat__author
+{
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+    text-transform: lowercase;
+}
+.ask-chat__text { margin: 0; white-space: pre-wrap; }
+
+.ask-chat__compose
+{
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    padding: 4px 4px 4px 14px;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1.5px solid rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+}
+.ask-chat__compose:focus-within { border-color: rgba(255, 138, 92, 0.55); }
+.ask-chat__input
+{
+    flex: 1;
+    border: none;
+    background: transparent;
+    resize: none;
+    font: 15px/1.5 inherit;
+    color: inherit;
+    padding: 10px 0;
+    outline: none;
+    min-height: 44px;
+    max-height: 140px;
+}
+.ask-chat__mic
+{
+    width: 44px;
+    height: 44px;
+    align-self: flex-end;
+    margin: 4px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: #fff;
+    color: #2b2620;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.ask-chat__mic:hover { border-color: rgba(255, 138, 92, 0.55); }
+.ask-chat__mic.is-listening
+{
+    background: #FF8A5C;
+    border-color: #FF8A5C;
+    color: #fff;
+    animation: askMicPulse 1.2s ease-in-out infinite;
+}
+.ask-chat__row
+{
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
+}
+.ask-chat__log
+{
+    padding: 10px 22px;
+    border-radius: 999px;
+    border: none;
+    background: #FF8A5C;
+    color: #fff;
+    font: 600 14px/1 inherit;
+    cursor: pointer;
+    min-height: 44px;
+    box-shadow: 0 4px 12px rgba(255, 138, 92, 0.32);
+    transition: background 160ms ease, transform 160ms ease;
+}
+.ask-chat__log:hover { background: #ff7842; transform: translateY(-1px); }
+
+@media (prefers-reduced-motion: reduce)
+{
+    .ask-reframe__shape { animation: none; }
+}
+
+/* ---- PhotoSheet — live camera / review / denied ---- */
+
+.photo-sheet__stage { display: block; }
+.photo-sheet__stage[hidden] { display: none; }
+
+.photo-sheet__viewfinder
+{
+    margin: 18px 0 20px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #000;
+    aspect-ratio: 3 / 4;
+    max-height: 62vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+}
+.photo-sheet__video
+{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.photo-sheet__hint--live
+{
+    margin: 0 0 14px;
+    font-size: 13px;
+    color: rgba(43, 38, 32, 0.7);
+    text-align: center;
+}
+
+.photo-sheet__row--shoot
+{
+    justify-content: center;
+    padding: 4px 0 20px;
+}
+.photo-sheet__shutter
+{
+    position: relative;
+    width: 78px;
+    height: 78px;
+    border-radius: 50%;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+    transition: transform 140ms ease;
+}
+.photo-sheet__shutter:active { transform: scale(0.94); }
+.photo-sheet__shutter-ring
+{
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 4px solid rgba(43, 38, 32, 0.85);
+    background: transparent;
+}
+.photo-sheet__shutter-core
+{
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    transition: background 140ms ease;
+}
+.photo-sheet__shutter:hover .photo-sheet__shutter-core { background: #ffe8d8; }
+
+.photo-sheet__preview
+{
+    margin: 18px 0 20px;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #000;
+    aspect-ratio: 3 / 4;
+    max-height: 62vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+}
+.photo-sheet__image
+{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.photo-sheet__caption
+{
+    width: 100%;
+    border: 1.5px solid rgba(0, 0, 0, 0.06);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 12px 14px;
+    font: 15px/1.5 inherit;
+    color: inherit;
+    resize: vertical;
+    min-height: 72px;
+    outline: none;
+    transition: border-color 160ms ease;
+}
+.photo-sheet__caption:focus { border-color: rgba(255, 138, 92, 0.55); }
+
+.photo-sheet__row--review
+{
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+}
+.photo-sheet__retry
+{
+    padding: 12px 22px;
+    border-radius: 999px;
+    border: 1.5px solid rgba(0, 0, 0, 0.1);
+    background: #fff;
+    color: #6a625a;
+    font: 500 14px/1 inherit;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease;
+}
+.photo-sheet__retry:hover { background: rgba(0, 0, 0, 0.04); color: #2b2620; }
+
+.photo-sheet__denied
+{
+    margin: 28px 0;
+    padding: 26px 24px;
+    border-radius: 18px;
+    background: rgba(255, 235, 220, 0.65);
+    border: 1.5px solid rgba(232, 84, 58, 0.25);
+    text-align: center;
+}
+.photo-sheet__denied-title
+{
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #c45032;
+}
+.photo-sheet__denied-body
+{
+    margin: 0 0 18px;
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: rgba(43, 38, 32, 0.75);
+}
+.photo-sheet__retry-perm
+{
+    padding: 10px 20px;
+    border-radius: 999px;
+    border: none;
+    background: #2b2620;
+    color: #fff;
+    font: 600 14px/1 inherit;
+    cursor: pointer;
+}
+
+@media (max-width: 640px)
+{
+    .ask-sheet, .photo-sheet { padding: 24px 16px 40px; }
+    .ask-sheet__title, .photo-sheet__title { font-size: 20px; }
+}
+
+/* A single particle in the pin colour drifts up-and-right toward the
+   canopy on save. Position is set inline by CaptureFab._emitParticle so
+   we only need the visual + transition rules here. */
+.mood-particle
+{
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 21;
+    opacity: 0.95;
+    transform: translate(0, 0) scale(1);
+    box-shadow: 0 0 12px currentColor;
+    transition: transform 1400ms cubic-bezier(0.22, 1, 0.36, 1), opacity 1400ms ease-out;
+}
+
+/* Mood sheet — full-viewport slide-up from the bottom */
+.mood-sheet
+{
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: linear-gradient(180deg, #faf6ee 0%, #f3eadd 100%);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    transform: translateY(100%);
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    overflow-y: auto;
+    padding: 24px 20px 48px;
+    box-sizing: border-box;
+}
+.mood-sheet.is-open { transform: translateY(0%); }
+/* mood-sheet close styling is provided by the shared sheet-close
+   grouped selector at the top of this file. */
+.mood-sheet__header
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    /* 60px right-pad leaves room for the close button now anchored
+       top-right; previously the pad was on the left (TL close). */
+    padding: 0 60px 0 12px;
+    margin-bottom: 24px;
+    font-size: 12px;
+    opacity: 0.7;
+}
+.mood-sheet__dots { display: inline-flex; gap: 6px; }
+.mood-sheet__dots > span
+{
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.18);
+}
+.mood-sheet__dots > span.is-on { background: rgba(255, 138, 92, 0.96); }
+
+.mood-sheet__step
+{
+    display: none;
+    max-width: 720px;
+    margin: 0 auto;
+}
+.mood-sheet__step.is-active { display: block; animation: moodSheetStep 320ms cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes moodSheetStep
+{
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.mood-sheet__title
+{
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+    margin: 24px 0 4px;
+}
+.mood-sheet__sub   { font-size: 14px; opacity: 0.7; margin: 0 0 28px; }
+
+.mood-sheet__grid
+{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+}
+.mood-tile
+{
+    background: rgba(255, 255, 255, 0.6);
+    border: 2px solid transparent;
+    border-radius: 14px;
+    padding: 14px 8px 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+    font: inherit;
+    color: inherit;
+}
+.mood-tile:hover { background: rgba(255, 255, 255, 0.85); transform: translateY(-1px); }
+.mood-tile.is-picked
+{
+    border-color: rgba(255, 138, 92, 0.85);
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.mood-tile__shape { width: 64px; height: 64px; display: block; }
+.mood-tile__shape svg { width: 100%; height: 100%; display: block; }
+.mood-tile__label { font-size: 13px; letter-spacing: 0.01em; }
+
+.mood-sheet__intensities
+{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+.intensity-tile
+{
+    background: rgba(255, 255, 255, 0.6);
+    border: 2px solid transparent;
+    border-radius: 14px;
+    padding: 22px 8px 14px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    font: inherit;
+    color: inherit;
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+.intensity-tile:hover { background: rgba(255, 255, 255, 0.9); transform: translateY(-1px); }
+.intensity-tile.is-picked
+{
+    border-color: rgba(255, 138, 92, 0.85);
+    background: #fff;
+}
+.intensity-tile__dots
+{
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 6px;
+    min-height: 22px;
+}
+.intensity-tile__dots > span
+{
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #2b2620;
+    opacity: 0.85;
+}
+.intensity-tile__dots[data-count="2"] > span:nth-child(1),
+.intensity-tile__dots[data-count="3"] > span:nth-child(1),
+.intensity-tile__dots[data-count="3"] > span:nth-child(2),
+.intensity-tile__dots[data-count="4"] > span:nth-child(1),
+.intensity-tile__dots[data-count="4"] > span:nth-child(2),
+.intensity-tile__dots[data-count="4"] > span:nth-child(3)
+{
+    width: 12px; height: 12px;
+}
+.intensity-tile__dots[data-count="3"] > span:nth-child(3),
+.intensity-tile__dots[data-count="4"] > span:nth-child(3),
+.intensity-tile__dots[data-count="4"] > span:nth-child(4)
+{
+    width: 14px; height: 14px;
+}
+.intensity-tile__label { font-size: 13px; opacity: 0.85; }
+
+/* Cause step — 10 soft chips + a skip row. Chips wrap; on mobile they
+   stack two-up. The pin is already saved by the time this shows, so the
+   step reads as a calm offer, not a gate. */
+.mood-sheet__causes
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    margin-bottom: 28px;
+}
+.cause-chip
+{
+    background: rgba(255, 255, 255, 0.7);
+    border: 1.5px solid rgba(0, 0, 0, 0.08);
+    border-radius: 999px;
+    padding: 10px 18px;
+    font: inherit;
+    color: inherit;
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+.cause-chip:hover
+{
+    background: #fff;
+    transform: translateY(-1px);
+    border-color: rgba(255, 138, 92, 0.45);
+}
+.cause-chip.is-picked
+{
+    background: #fff;
+    border-color: rgba(255, 138, 92, 0.95);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}
+.mood-sheet__skip-row
+{
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+}
+.cause-skip
+{
+    background: transparent;
+    border: none;
+    color: rgba(43, 38, 32, 0.6);
+    font: inherit;
+    font-size: 13px;
+    padding: 8px 16px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.cause-skip:hover { color: rgba(43, 38, 32, 0.9); }
+
+/* Half-sheet — bottom-rising sheet that opens when the student picks an
+   island element. Two states: half (50vh) and full (92vh). The handle at
+   the top morphs into a chevron on hover via in-place geometry change
+   (no icon swap). Replaces the v1.0 bottom-right facet card. */
+.half-sheet
+{
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    pointer-events: none;
+    color: var(--facet-ink, #2b2620);
+    font-family: var(--font-sans);
+}
+.half-sheet__scrim
+{
+    position: absolute;
+    inset: 0;
+    background: rgba(20, 16, 14, 0.0);
+    transition: background 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.half-sheet.is-open { pointer-events: auto; }
+.half-sheet.is-open .half-sheet__scrim { background: rgba(20, 16, 14, 0.32); }
+.half-sheet.is-open.is-full .half-sheet__scrim { background: rgba(20, 16, 14, 0.48); }
+
+.half-sheet__sheet
+{
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 50vh;
+    background: linear-gradient(180deg, #fdfaf3 0%, var(--facet-soft, #efe7d5) 100%);
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -14px 38px rgba(0, 0, 0, 0.28);
+    transform: translateY(100%);
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+                height 360ms cubic-bezier(0.22, 1, 0.36, 1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+.half-sheet.is-open .half-sheet__sheet { transform: translateY(0); }
+.half-sheet.is-full  .half-sheet__sheet { height: 92vh; }
+
+.half-sheet__handle
+{
+    position: relative;
+    width: 72px;
+    height: 44px;        /* WCAG 2.5.5 — minimum touch target */
+    margin: 6px auto 0;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    display: block;
+    flex-shrink: 0;
+}
+.half-sheet__handle:focus-visible
+{
+    outline: 2px solid var(--facet-accent, #A07659);
+    outline-offset: 2px;
+    border-radius: 22px;
+}
+.half-sheet__handle-bar
+{
+    position: absolute;
+    top: 50%;
+    width: 22px;
+    height: 4px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.22);
+    transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1),
+                background-color 200ms ease;
+}
+/* At rest the two bars meet flush at the centre (x = 36 of the 72px handle),
+   reading as a single 44px drag pill. The two-bar split only becomes visible
+   when the handle morphs into a chevron on hover/focus. */
+.half-sheet__handle-bar--l { left: 14px;  transform: translateY(-50%); transform-origin: 100% 50%; }
+.half-sheet__handle-bar--r { right: 14px; transform: translateY(-50%); transform-origin: 0% 50%; }
+
+/* HOVER (half) — pivot the bars inward at the centre to form a ^ chevron.
+   The handle's own geometry becomes the chevron; nothing crossfades. */
+.half-sheet:not(.is-full) .half-sheet__handle:hover .half-sheet__handle-bar--l,
+.half-sheet:not(.is-full) .half-sheet__handle:focus-visible .half-sheet__handle-bar--l
+{
+    transform: translateY(-50%) rotate(-22deg);
+    background: rgba(0, 0, 0, 0.42);
+}
+.half-sheet:not(.is-full) .half-sheet__handle:hover .half-sheet__handle-bar--r,
+.half-sheet:not(.is-full) .half-sheet__handle:focus-visible .half-sheet__handle-bar--r
+{
+    transform: translateY(-50%) rotate(22deg);
+    background: rgba(0, 0, 0, 0.42);
+}
+
+/* HOVER (full) — same geometry, mirrored: pivot the bars to form v (chevron-down). */
+.half-sheet.is-full .half-sheet__handle:hover .half-sheet__handle-bar--l,
+.half-sheet.is-full .half-sheet__handle:focus-visible .half-sheet__handle-bar--l
+{
+    transform: translateY(-50%) rotate(22deg);
+    background: rgba(0, 0, 0, 0.42);
+}
+.half-sheet.is-full .half-sheet__handle:hover .half-sheet__handle-bar--r,
+.half-sheet.is-full .half-sheet__handle:focus-visible .half-sheet__handle-bar--r
+{
+    transform: translateY(-50%) rotate(-22deg);
+    background: rgba(0, 0, 0, 0.42);
+}
+
+/* half-sheet (facet view) close styling is provided by the shared
+   sheet-close grouped selector at the top of this file. The facet
+   view is a full-viewport surface, so it uses the same 40×40 spec
+   as the other primary sheets. */
+
+.half-sheet__inner
+{
+    padding: 14px 28px 28px;
+    overflow-y: auto;
+    flex: 1;
+    box-sizing: border-box;
+    max-width: 720px;
+    margin: 0 auto;
+    width: 100%;
+}
+.half-sheet__eyebrow-row
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.half-sheet__eyebrow
+{
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    /* Match the project-wide ink-at-55% so this eyebrow visually
+       matches every other sheet's. Facet-tinted color is preserved on
+       the chip + body, not the eyebrow. */
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+}
+.half-sheet__tag
+{
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--facet-accent, #A07659) 18%, #fff);
+    color: var(--facet-ink, #2b2620);
+    font-weight: 600;
+}
+.half-sheet__title
+{
+    font-size: clamp(26px, 4vw, 34px);
+    font-weight: 600;
+    line-height: 1.15;
+    margin: 4px 0 6px;
+    letter-spacing: -0.01em;
+}
+.half-sheet__subtitle
+{
+    font-size: 14px;
+    line-height: 1.45;
+    margin: 0 0 18px;
+    color: var(--facet-ink, #2b2620);
+    opacity: 0.62;
+}
+
+.vips-rows
+{
+    list-style: none;
+    margin: 0 0 22px;
+    padding: 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.07);
+}
+.vips-row
+{
+    padding: 14px 0 12px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+}
+.vips-row__label
+{
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: var(--facet-accent, #A07659);
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+.vips-row__body
+{
+    font-size: 15px;
+    line-height: 1.4;
+    margin: 0;
+    color: var(--facet-ink, #2b2620);
+}
+
+.half-sheet__detail
+{
+    margin-top: 4px;
+    /* Hide detail in half state, show smoothly in full */
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 280ms ease, transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+}
+.half-sheet.is-full .half-sheet__detail
+{
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+.half-sheet__detail-title
+{
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 6px;
+}
+.half-sheet__detail-body
+{
+    font-size: 14px;
+    line-height: 1.55;
+    margin: 0 0 14px;
+    color: var(--facet-ink, #2b2620);
+    opacity: 0.86;
+}
+.half-sheet__bento
+{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+}
+.bento-empty
+{
+    text-align: center;
+    padding: 18px 12px;
+    opacity: 0.6;
+    font-size: 13px;
+    grid-column: 1 / -1;
+}
+
+/* Reduced motion: snap state changes instead of sliding. */
+@media (prefers-reduced-motion: reduce)
+{
+    .half-sheet__sheet,
+    .half-sheet__handle-bar,
+    .half-sheet__detail,
+    .half-sheet__scrim
+    {
+        transition-duration: 1ms !important;
+    }
+}
+.bento
+{
+    background: rgba(255, 255, 255, 0.65);
+    border-radius: 12px;
+    padding: 14px 16px;
+}
+.bento--pin
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.bento__dot
+{
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.bento__head
+{
+    font-size: 15px;
+    font-weight: 500;
+    text-transform: capitalize;
+    margin-bottom: 2px;
+}
+.bento__sub
+{
+    font-size: 13px;
+    opacity: 0.7;
+    margin: 0;
+}
+.bento--summary { grid-column: 1 / -1; }
+.bento--label
+{
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--facet-accent, #A07659);
+    background: transparent;
+    padding: 4px 2px 0;
+}
+.bento--row
+{
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.55);
+    border-radius: 10px;
+}
+.bento__label
+{
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--facet-accent, #A07659);
+    flex-shrink: 0;
+}
+.bento__value
+{
+    font-size: 13px;
+    color: var(--facet-ink, #2b2620);
+    text-align: right;
+    opacity: 0.92;
+}
+/* Hover CTA — small floating preview near a hovered/picked element.
+   Three-row IA: facet question + tag badge, species thumb + name, one
+   line of meaning. The chip is non-interactive — clicking the island
+   object opens the half-sheet, and the half-sheet's own CTA opens the
+   full facet panel. */
+.hover-cta
+{
+    position: fixed;
+    z-index: 28;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 160ms ease, transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
+    min-width: 220px;
+    max-width: 280px;
+    padding: 12px 14px 12px 14px;
+    border-radius: 16px;
+    background: rgba(28, 22, 20, 0.90);
+    color: #F5EFE3;
+    font: 13px/1.4 var(--font-sans);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    user-select: none;
+    /* Defaults; HoverCta._setHeader overrides per-facet on open. */
+    --cta-accent: #C99B73;
+    --cta-soft:   rgba(232, 184, 148, 0.16);
+    --cta-ink:    #3A2A1E;
+}
+.hover-cta.is-open
+{
+    opacity: 1;
+    transform: translateY(0);
+}
+.hover-cta__header
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+.hover-cta__eyebrow
+{
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: rgba(245, 239, 227, 0.72);
+    font-weight: 500;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.hover-cta__badge
+{
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--cta-accent) 22%, transparent);
+    color: color-mix(in srgb, var(--cta-accent) 70%, #fff);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+.hover-cta__row
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+.hover-cta__thumb
+{
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background-color: rgba(255, 255, 255, 0.06);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.hover-cta__title
+{
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+.hover-cta__line
+{
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.4;
+    opacity: 0.72;
+}
+
+/* Half-sheet CTA — "See all your interests →" lifts the student into the
+   full facet sheet. Sits inside the panel content so it scrolls with the
+   bento rows; styled as a soft pill in the active facet's accent. */
+.half-sheet__cta
+{
+    align-self: flex-start;
+    margin-top: 18px;
+    padding: 10px 18px;
+    border: 1px solid color-mix(in srgb, var(--facet-accent, #A07659) 50%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--facet-accent, #A07659) 14%, transparent);
+    color: var(--facet-ink, #2b2620);
+    font: 600 13px/1 var(--font-sans);
+    letter-spacing: 0.005em;
+    cursor: pointer;
+    transition: background 180ms cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+                transform 160ms ease;
+}
+.half-sheet__cta:hover
+{
+    background: color-mix(in srgb, var(--facet-accent, #A07659) 24%, transparent);
+    border-color: var(--facet-accent, #A07659);
+}
+.half-sheet__cta:focus-visible
+{
+    outline: 2px solid var(--facet-accent, #A07659);
+    outline-offset: 2px;
+}
+.half-sheet__cta[hidden] { display: none; }
+
+/* Kira's speech bubble — anchored to her screen-space head each frame */
+.kira-bubble
+{
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 15;
+    max-width: 280px;
+    padding: 10px 14px;
+    border-radius: 14px;
+    background: rgba(250, 241, 220, 0.95);
+    color: #2b2620;
+    font: 14px/1.4 var(--font-sans);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    cursor: pointer;
+}
+.kira-bubble.is-visible
+{
+    opacity: 1;
+    pointer-events: auto;
+}
+.kira-bubble::after
+{
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -6px;
+    transform: translateX(-50%) rotate(45deg);
+    width: 12px;
+    height: 12px;
+    background: rgba(250, 241, 220, 0.95);
+    border-radius: 2px;
+}
+
+/* Kira AC-style narrator dialogue — bottom-screen bubble with yellow
+   "Kira" name tag, large rounded white panel, and a CTA button. Used
+   when she mediates an island-element pick. */
+.kira-dialogue
+{
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    z-index: 26;
+    width: min(720px, calc(100vw - 32px));
+    transform: translate(-50%, 24px);
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 240ms ease;
+    font-family: var(--font-sans);
+    color: #2b2620;
+}
+.kira-dialogue.is-open
+{
+    transform: translate(-50%, 0);
+    opacity: 1;
+    pointer-events: auto;
+}
+.kira-dialogue__name
+{
+    position: absolute;
+    top: -18px;
+    left: 28px;
+    z-index: 1;
+    padding: 6px 18px;
+    border-radius: 999px;
+    background: #FFD66B;
+    color: #6A4A26;
+    font-weight: 700;
+    font-size: 14px;
+    letter-spacing: 0.02em;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+}
+/* Compact in-context close — used inside the inline speech bubble
+   (kira-dialogue) where a full 40px button would dominate the
+   tooltip. Same palette as the shared sheet-close; smaller diameter. */
+.kira-dialogue__close
+{
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(0, 0, 0, 0.06);
+    color: #2b2620;
+    font: 500 18px/1 inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 160ms ease, transform 160ms ease;
+}
+.kira-dialogue__close:hover { background: rgba(0, 0, 0, 0.12); }
+.kira-dialogue__close:active { transform: scale(0.94); }
+.kira-dialogue__body
+{
+    background: #FFFDF6;
+    border-radius: 28px;
+    padding: 28px 28px 22px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 14px;
+}
+.kira-dialogue__text
+{
+    font-size: 16px;
+    line-height: 1.55;
+    margin: 4px 4px 0;
+    color: #2b2620;
+}
+.kira-dialogue__row
+{
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+.kira-dialogue__cta
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: none;
+    background: #FF8A5C;
+    color: #fff;
+    font: 600 14px/1 var(--font-sans);
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255, 138, 92, 0.32);
+    transition: background 160ms ease, transform 160ms ease;
+}
+.kira-dialogue__cta:hover  { background: #ff7842; transform: translateY(-1px); }
+.kira-dialogue__cta:active { transform: translateY(0); }
+.kira-dialogue__cta span   { transition: transform 160ms ease; display: inline-block; }
+.kira-dialogue__cta:hover span { transform: translateX(2px); }
+
+@media (max-width: 640px)
+{
+    .kira-dialogue { bottom: 16px; }
+    .kira-dialogue__body { padding: 24px 20px 18px; border-radius: 22px; }
+    .kira-dialogue__text { font-size: 15px; }
+}
+
+/* ============================================================================
+   v1.1 — Profile / Calendar / Letters
+   ============================================================================
+   New top-nav, sheets, and per-facet themes for the four-tab Profile sheet.
+   Personality token (lavender) is the only addition to the v0.3 facet palette.
+   ============================================================================ */
+
+:root
+{
+    --facet-personality-accent: #8E6FB8;
+    --facet-personality-soft:   #E8DDF2;
+    --facet-personality-ink:    #4C3470;
+}
+
+/* ============ top-nav ============ */
+.top-nav
+{
+    position: fixed;
+    top: 12px;
+    right: 12px;     /* HourHud now lives on the mid-right edge, so this slot is free. */
+    z-index: 10;
+    display: inline-flex;
+    gap: 6px;
+    pointer-events: auto;
+    transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.top-nav__chip
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    background: rgba(253, 250, 243, 0.86);
+    color: #2b2620;
+    font: 500 13px/1 var(--font-sans);
+    cursor: pointer;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+}
+
+.top-nav__chip:hover  { transform: translateY(-1px); background: rgba(253, 250, 243, 0.96); }
+.top-nav__chip:active { transform: translateY(0); }
+
+.top-nav__icon
+{
+    width: 20px;
+    height: 20px;
+    color: #7a6a55;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.top-nav__label { letter-spacing: 0.01em; }
+
+/* Body-class hide rules: TopNav steps out of the way when anything full
+   sheet-style is open. Capture sheets cover the lower viewport, so we hide
+   it for those too even though they don't reach the top corner. */
+body.has-overlay        .top-nav,
+body.has-capture-sheet  .top-nav,
+body.has-chooser        .top-nav
+{
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-6px);
+}
+
+@media (max-width: 520px)
+{
+    .top-nav__label { display: none; }
+    .top-nav__chip { padding: 0 10px; }
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .top-nav,
+    .top-nav__chip { transition-duration: 80ms; }
+}
+
+/* ============ capture sheets — read-only mode shared by Ask/Photo/Mood ============
+   When opened from a Profile quote's "see source reflection →" link, the
+   sheet renders in replay-mode: textarea/caption become disabled bystanders,
+   the save row + mic row are hidden, the title's eyebrow swaps. */
+.ask-sheet.is-read-only .ask-sheet__row,
+.ask-sheet.is-read-only .ask-sheet__mic,
+.photo-sheet.is-read-only .photo-sheet__row,
+.photo-sheet.is-read-only .photo-sheet__shoot,
+.photo-sheet.is-read-only .photo-sheet__retry,
+.mood-sheet.is-read-only .mood-sheet__skip-row
+{
+    display: none;
+}
+
+.ask-sheet.is-read-only .ask-sheet__input,
+.photo-sheet.is-read-only .photo-sheet__caption
+{
+    opacity: 0.85;
+    cursor: default;
+}
+
+.ask-sheet.is-read-only .ask-sheet__eyebrow::before,
+.photo-sheet.is-read-only .photo-sheet__eyebrow::before,
+.mood-sheet.is-read-only .mood-sheet__title::before
+{
+    content: 'Replay · ';
+    color: rgba(0, 0, 0, 0.45);
+    font-weight: 500;
+}
+
+/* Mood-sheet in replay-mode: emotion + intensity rings keep highlighting
+   so the picked pin reads as the saved state; chooser tiles stay inert. */
+.mood-sheet.is-read-only .mood-tile,
+.mood-sheet.is-read-only .intensity-tile,
+.mood-sheet.is-read-only .cause-chip
+{
+    pointer-events: none;
+}
+
+/* ============ profile-sheet ============ */
+.profile-sheet
+{
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    transform: translateY(100%);
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    /* defaults — overridden by applyFacetVars on open */
+    --facet-accent: #A07659;
+    --facet-soft:   #EAD7BE;
+    --facet-ink:    #6A4A26;
+}
+
+.profile-sheet.is-open { transform: translateY(0); }
+
+/* profile-sheet close styling is provided by the shared sheet-close
+   grouped selector at the top of this file. */
+
+/* Identity header — name, class, and avatar above the VIPS tabs. The
+   avatar placeholder uses the existing cream/coral palette so a student
+   without an uploaded photo still gets a person-shaped slot. */
+.profile-id
+{
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 56px 24px 16px;
+    max-width: 760px;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+.profile-id__avatar
+{
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background-color: #FAE1CE;
+    background-size: cover;
+    background-position: center;
+    color: #B5532A;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font: 600 26px/1 var(--font-sans);
+    letter-spacing: -0.02em;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), inset 0 -2px 0 rgba(0, 0, 0, 0.04);
+}
+.profile-id__avatar.has-photo .profile-id__initial { display: none; }
+.profile-id__text { display: flex; flex-direction: column; }
+.profile-id__name
+{
+    margin: 0 0 2px;
+    font: 600 22px/1.15 var(--font-sans);
+    letter-spacing: -0.01em;
+    color: #2b2620;
+}
+.profile-id__class
+{
+    margin: 0;
+    font-size: 13px;
+    color: rgba(43, 38, 32, 0.62);
+    letter-spacing: 0.02em;
+}
+
+.profile-sheet__tabs
+{
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    gap: 6px;
+    padding-block: 12px;
+    /* Match the centered 760px column used by .profile-id and .profile-sheet__panel
+       so the tab pills line up with the page title. Bar itself stays full-width
+       so the sticky gradient + backdrop blur still spans the viewport. */
+    padding-inline: max(24px, calc((100% - 760px) / 2 + 24px));
+    background: linear-gradient(180deg, rgba(253,250,243,0.96) 0%, rgba(253,250,243,0.8) 100%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.profile-tab
+{
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(43, 38, 32, 0.55);
+    font: 500 13px/1 inherit;
+    cursor: pointer;
+    transition: background 180ms cubic-bezier(0.22, 1, 0.36, 1),
+                color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.profile-tab.is-active
+{
+    background: var(--facet-soft);
+    color: var(--facet-ink);
+    border-color: var(--facet-accent);
+}
+
+.profile-sheet__panel
+{
+    padding: 16px 24px 96px;
+    max-width: 760px;
+    margin: 0 auto;
+    transition: opacity 110ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.profile-sheet__header
+{
+    margin-bottom: 28px;
+}
+
+.profile-sheet__eyebrow-row
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.profile-sheet__panel-eyebrow
+{
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: #2b2620;
+    opacity: 0.55;
+    font-weight: 600;
+}
+.profile-sheet__panel-tag
+{
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--facet-accent, #A07659) 18%, #fff);
+    color: #2b2620;
+    font-weight: 600;
+}
+.profile-sheet__title
+{
+    font-size: clamp(26px, 3.6vw, 32px);
+    line-height: 1.15;
+    margin: 0 0 6px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+.profile-sheet__panel-subtitle
+{
+    font-size: 14px;
+    line-height: 1.45;
+    margin: 0 0 18px;
+    color: #2b2620;
+    opacity: 0.62;
+}
+.vips-rows--profile
+{
+    margin-bottom: 22px;
+}
+
+.profile-sheet__summary
+{
+    font-size: 15.5px;
+    line-height: 1.55;
+    margin: 0 0 18px;
+    color: #2b2620;
+}
+
+.profile-sheet__open-question
+{
+    background: var(--facet-soft);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin: 0 0 12px;
+}
+
+.profile-sheet__open-eyebrow
+{
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--facet-ink);
+    opacity: 0.7;
+    margin-bottom: 6px;
+}
+
+.profile-sheet__open-text
+{
+    margin: 0;
+    font-size: 14.5px;
+    line-height: 1.5;
+    font-style: italic;
+    color: var(--facet-ink);
+}
+
+.profile-sheet__meta
+{
+    margin: 0;
+    font-size: 12px;
+    color: rgba(43, 38, 32, 0.55);
+}
+
+.profile-sheet__eyebrow
+{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    color: rgba(43, 38, 32, 0.55);
+    margin: 28px 0 12px;
+    font-weight: 600;
+}
+
+.profile-sheet__timeline-filter
+{
+    color: var(--facet-ink);
+    opacity: 0.85;
+    margin-left: 4px;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+}
+
+/* Bento grid — Pokédex-style collection. 4 columns on desktop, 3 on
+   tablet, 2 on phone. The personality facet only has 2 tiles so it
+   centres naturally inside whichever grid is active. */
+.profile-sheet__bento
+{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+@media (max-width: 720px)
+{
+    .profile-sheet__bento { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 480px)
+{
+    .profile-sheet__bento { grid-template-columns: repeat(2, 1fr); }
+}
+
+.bento-tile
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 10px 12px;
+    border-radius: 14px;
+    border: 1.5px solid transparent;
+    background: rgba(255, 255, 255, 0.55);
+    cursor: pointer;
+    text-align: center;
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.bento-tile:hover
+{
+    background: rgba(255, 255, 255, 0.85);
+    transform: translateY(-1px);
+}
+
+.bento-tile.is-selected
+{
+    background: var(--facet-soft);
+    border-color: var(--facet-accent);
+}
+
+.bento-tile.is-empty .bento-tile__icon { opacity: 0.35; }
+.bento-tile.is-empty .bento-tile__count { opacity: 0.45; }
+
+.bento-tile__icon
+{
+    width: 72px;
+    height: 72px;
+    color: var(--facet-accent);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.bento-tile__icon svg { width: 100%; height: 100%; }
+.bento-tile__thumb
+{
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    image-rendering: -webkit-optimize-contrast;
+}
+
+.bento-tile__label
+{
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--facet-ink);
+    margin-top: 2px;
+}
+
+.bento-tile__count
+{
+    font-size: 11px;
+    color: rgba(43, 38, 32, 0.55);
+}
+
+/* Quote list — newest first. Each card has italic quote text, chips,
+   and the forget + source-reflection actions. */
+.profile-sheet__quote-list
+{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.quote-card
+{
+    background: rgba(255, 255, 255, 0.60);
+    border-radius: 14px;
+    padding: 14px 16px;
+    border-left: 3px solid var(--facet-accent);
+    overflow: hidden;
+    transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
+                max-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
+                padding 200ms cubic-bezier(0.22, 1, 0.36, 1),
+                margin 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.quote-card.is-forgotten
+{
+    opacity: 0;
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin-top: 0;
+    margin-bottom: 0;
+    border-top: 0;
+    border-bottom: 0;
+}
+
+.quote-card__text
+{
+    margin: 0 0 10px;
+    font-size: 15px;
+    line-height: 1.55;
+    font-style: italic;
+    color: #2b2620;
+}
+
+.quote-card__chips
+{
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.chip
+{
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.06);
+    color: rgba(43, 38, 32, 0.75);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.chip--claim
+{
+    background: var(--facet-soft);
+    color: var(--facet-ink);
+    text-transform: none;
+    font-weight: 500;
+    letter-spacing: 0;
+}
+
+.chip--confidence
+{
+    background: transparent;
+    border: 1px solid rgba(43, 38, 32, 0.18);
+    color: rgba(43, 38, 32, 0.65);
+}
+.chip--conf-high   { color: #2b2620; border-color: rgba(43, 38, 32, 0.55); }
+.chip--conf-medium { color: rgba(43, 38, 32, 0.70); }
+.chip--conf-low    { color: rgba(43, 38, 32, 0.45); }
+
+.quote-card__actions
+{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.quote-card__forget
+{
+    border: none;
+    background: transparent;
+    color: rgba(43, 38, 32, 0.55);
+    cursor: pointer;
+    font: inherit;
+    padding: 4px 6px;
+    border-radius: 6px;
+    transition: color 160ms ease, background 160ms ease;
+}
+.quote-card__forget:hover { color: rgba(43, 38, 32, 0.85); background: rgba(0, 0, 0, 0.04); }
+.quote-card__forget.is-armed
+{
+    color: var(--facet-accent);
+    font-weight: 600;
+    background: var(--facet-soft);
+}
+
+.quote-card__source
+{
+    color: var(--facet-ink);
+    font-weight: 500;
+    text-decoration: none;
+    transition: opacity 160ms ease;
+}
+.quote-card__source:hover    { opacity: 0.8; }
+.quote-card__source.is-disabled
+{
+    color: rgba(43, 38, 32, 0.30);
+    cursor: default;
+    font-weight: 400;
+}
+
+.profile-sheet__empty
+{
+    margin: 24px 0 0;
+    font-size: 14px;
+    color: rgba(43, 38, 32, 0.55);
+    text-align: center;
+    font-style: italic;
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .profile-sheet,
+    .profile-sheet__panel,
+    .profile-tab,
+    .bento-tile,
+    .quote-card,
+    .quote-card__forget,
+    .quote-card__source { transition-duration: 80ms; }
+}
+
+/* ============ calendar-sheet ============ */
+.calendar-sheet
+{
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    transform: translateY(100%);
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 56px 24px 96px;
+}
+.calendar-sheet.is-open { transform: translateY(0); }
+
+/* calendar-sheet close styling is provided by the shared sheet-close
+   grouped selector at the top of this file. */
+
+.calendar-sheet__head
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 560px;
+    margin: 0 auto 18px;
+}
+.cal-title
+{
+    flex: 1;
+    text-align: center;
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+.cal-nav
+{
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.10);
+    background: rgba(255, 255, 255, 0.55);
+    color: #2b2620;
+    font: 500 18px/1 inherit;
+    cursor: pointer;
+    transition: background 160ms ease, transform 160ms ease;
+}
+.cal-nav:hover { background: rgba(255, 255, 255, 0.85); }
+.cal-nav:active { transform: scale(0.96); }
+
+.cal-today
+{
+    border: none;
+    background: var(--facet-personality-soft);
+    color: var(--facet-personality-ink);
+    font: 600 12px/1 inherit;
+    padding: 8px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 160ms ease;
+}
+.cal-today:hover { background: var(--facet-personality-soft); filter: brightness(0.95); }
+
+.calendar-sheet__weekdays
+{
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+    max-width: 560px;
+    margin: 0 auto 6px;
+    font-size: 11px;
+    text-align: center;
+    color: rgba(43, 38, 32, 0.55);
+    letter-spacing: 0.06em;
+}
+
+.calendar-sheet__grid
+{
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 6px;
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.calendar-day
+{
+    position: relative;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    border: none;
+    background: rgba(255, 255, 255, 0.55);
+    color: #2b2620;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: stretch;
+    font: 500 12px/1 inherit;
+    cursor: pointer;
+    text-align: left;
+    transition: background 160ms ease, transform 160ms ease;
+}
+.calendar-day:hover { background: rgba(255, 255, 255, 0.92); }
+.calendar-day:active { transform: scale(0.98); }
+.calendar-day.is-today  { outline: 1.5px solid var(--facet-personality-accent); outline-offset: -1.5px; }
+.calendar-day.is-otherm { opacity: 0.35; cursor: default; pointer-events: none; }
+
+.calendar-day__num
+{
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.calendar-day__marks
+{
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+/* Larger, recognisable per-capture markers — replaces the v1.1 dots that
+   were too small to read at a glance. ~16px so three fit cleanly under
+   the day number; overflow chip takes any extras. */
+.calendar-day__mark
+{
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.calendar-day__mark--mood
+{
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), inset 0 -1px 0 rgba(0, 0, 0, 0.08);
+}
+.calendar-day__mark--ask
+{
+    background: #FAF4E8;
+    color: #6B4A30;
+}
+.calendar-day__mark--ask svg
+{
+    width: 12px;
+    height: 12px;
+    display: block;
+}
+.calendar-day__mark--photo
+{
+    background-color: rgba(43, 38, 32, 0.18);
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.calendar-day__overflow
+{
+    font-size: 10.5px;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    background: rgba(43, 38, 32, 0.10);
+    color: rgba(43, 38, 32, 0.70);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+
+.calendar-day__teacher
+{
+    position: absolute;
+    bottom: 4px;
+    right: 6px;
+    font-size: 14px;
+    color: rgba(43, 38, 32, 0.55);
+    line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .calendar-sheet,
+    .calendar-day,
+    .cal-nav { transition-duration: 80ms; }
+}
+
+/* ============ day-detail-card ============ */
+.day-detail-card
+{
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(380px, 92vw);
+    z-index: 32;
+    background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
+    transform: translateX(100%);
+    transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+    overflow-y: auto;
+    padding: 56px 22px 48px;
+}
+.day-detail-card.is-open { transform: translateX(0); }
+
+/* Compact in-context close — used inside the day-detail card nested
+   within calendar-sheet. Same palette as the shared sheet-close;
+   smaller diameter so it doesn't crowd the card. */
+.day-detail-card__close
+{
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(0, 0, 0, 0.06);
+    color: #2b2620;
+    font: 500 20px/1 inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 160ms ease, transform 160ms ease;
+}
+.day-detail-card__close:hover { background: rgba(0, 0, 0, 0.12); }
+.day-detail-card__close:active { transform: scale(0.94); }
+
+.day-detail-card__head { margin-bottom: 18px; }
+.day-detail-card__eyebrow
+{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+    margin: 18px 0 8px;
+}
+.day-detail-card__head .day-detail-card__eyebrow { margin-top: 0; }
+.day-detail-card__title
+{
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.day-detail-card__section { margin-bottom: 8px; }
+.day-detail-card__rows
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.day-detail-row
+{
+    display: flex;
+    gap: 10px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.55);
+    border-radius: 10px;
+    align-items: flex-start;
+}
+.day-detail-row__dot
+{
+    flex-shrink: 0;
+    font-size: 14px;
+    margin-top: 2px;
+}
+.day-detail-row__primary { font-size: 13.5px; line-height: 1.45; }
+.day-detail-row__sub
+{
+    font-size: 11.5px;
+    color: rgba(43, 38, 32, 0.55);
+    margin-top: 2px;
+}
+
+.day-detail-card__empty
+{
+    margin: 24px 0 0;
+    font-size: 13px;
+    color: rgba(43, 38, 32, 0.55);
+    font-style: italic;
+    text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .day-detail-card { transition-duration: 80ms; }
+}
+
+/* ============ letters-sheet ============ */
+.letters-sheet
+{
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    transform: translateY(100%);
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.letters-sheet.is-open { transform: translateY(0); }
+
+/* letters-sheet close styling is provided by the shared sheet-close
+   grouped selector at the top of this file. */
+
+.letters-sheet__list
+{
+    border-right: 1px solid rgba(0, 0, 0, 0.06);
+    overflow-y: auto;
+    padding: 56px 8px 24px;
+    background: rgba(253, 250, 243, 0.6);
+}
+
+.letter-row
+{
+    display: grid;
+    grid-template-columns: 18px 1fr;
+    gap: 10px;
+    align-items: start;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    padding: 12px;
+    border-radius: 10px;
+    font: inherit;
+    transition: background 160ms ease;
+}
+.letter-row:hover     { background: rgba(255, 255, 255, 0.65); }
+.letter-row.is-selected { background: rgba(255, 255, 255, 0.92); }
+
+.letter-row__unread
+{
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--facet-personality-accent);
+    margin-top: 8px;
+    opacity: 0;
+    transition: opacity 160ms ease;
+}
+.letter-row.is-unread .letter-row__unread { opacity: 1; }
+
+.letter-row__meta
+{
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+    color: rgba(43, 38, 32, 0.65);
+    font-size: 12px;
+}
+.letter-row__from { font-weight: 600; color: #2b2620; }
+.letter-row__date { font-variant-numeric: tabular-nums; }
+
+.letter-row__subject
+{
+    font-size: 13px;
+    line-height: 1.4;
+    color: #2b2620;
+}
+.letter-row.is-unread .letter-row__subject { font-weight: 600; }
+
+.letters-sheet__panel
+{
+    overflow-y: auto;
+    padding: 56px 40px 64px;
+}
+
+.letters-sheet__back
+{
+    display: none;
+    margin-bottom: 16px;
+    border: none;
+    background: transparent;
+    color: rgba(43, 38, 32, 0.65);
+    font: 500 13px/1 inherit;
+    cursor: pointer;
+    padding: 8px 10px;
+    border-radius: 8px;
+}
+.letters-sheet__back:hover { background: rgba(0, 0, 0, 0.04); color: #2b2620; }
+
+.letters-sheet__body
+{
+    max-width: 60ch;
+    margin: 0 auto;
+    font-size: 15px;
+    line-height: 1.6;
+}
+.letters-sheet__body p { margin: 0 0 14px; }
+
+.letters-sheet__header { margin-bottom: 18px; }
+.letters-sheet__from
+{
+    margin: 0 0 6px;
+    color: rgba(43, 38, 32, 0.65);
+    font-size: 12.5px;
+}
+.letters-sheet__subject
+{
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+.letters-sheet__empty
+{
+    color: rgba(43, 38, 32, 0.55);
+    font-style: italic;
+    text-align: center;
+    margin-top: 24px;
+}
+
+/* Narrow viewport: single-pane router. List shows by default; once a
+   letter is selected (.is-reading), list hides and panel shows the back btn. */
+@media (max-width: 779px)
+{
+    .letters-sheet { grid-template-columns: 1fr; }
+    .letters-sheet__panel { display: none; }
+    .letters-sheet.is-reading .letters-sheet__list  { display: none; }
+    .letters-sheet.is-reading .letters-sheet__panel { display: block; }
+    .letters-sheet.is-reading .letters-sheet__back  { display: inline-flex; align-items: center; }
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .letters-sheet,
+    .letter-row,
+    .letter-row__unread { transition-duration: 80ms; }
+}
+
+/* ============ trajectory-sheet (Path Finder) ====================
+   Full-viewport overlay that mirrors the Profile-sheet posture:
+   centered summary header at the top, sticky tab bar in the middle,
+   and a single panel under the selected tab. Tabs are Path 1 / 2 / 3;
+   the panel renders the active bearing's title, exploration prompt,
+   trait + ECG region pills, and risks-and-tradeoffs prose. */
+.trajectory-sheet
+{
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: linear-gradient(180deg, #faf6ee 0%, #f3eadd 100%);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    transform: translateY(100%);
+    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+.trajectory-sheet.is-open { transform: translateY(0); }
+
+.trajectory-sheet__scroll
+{
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 32px 24px 96px;
+}
+.trajectory-sheet__head
+{
+    max-width: 760px;
+    margin: 0 auto 12px;
+    padding-top: 8px;
+}
+.trajectory-sheet__eyebrow
+{
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+    margin: 0 0 8px;
+}
+.trajectory-sheet__title
+{
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin: 0 0 16px;
+}
+.trajectory-sheet__throughline
+{
+    margin: 0 0 14px;
+    font-size: 16px;
+    line-height: 1.55;
+    color: rgba(43, 38, 32, 0.88);
+    max-width: 62ch;
+}
+.trajectory-sheet__meta
+{
+    margin: 0;
+    font-size: 12.5px;
+    color: rgba(43, 38, 32, 0.55);
+    letter-spacing: 0.01em;
+}
+
+.trajectory-sheet__tabs
+{
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding-block: 12px;
+    /* Match the centered 760px column used elsewhere on this sheet. */
+    padding-inline: max(24px, calc((100% - 760px) / 2 + 24px));
+    background: linear-gradient(180deg, rgba(253, 250, 243, 0.96) 0%, rgba(253, 250, 243, 0.8) 100%);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.trajectory-tab
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 32px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(43, 38, 32, 0.55);
+    font: 500 13px/1 inherit;
+    cursor: pointer;
+    max-width: 100%;
+    transition: background 180ms cubic-bezier(0.22, 1, 0.36, 1),
+                color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.trajectory-tab__num
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: rgba(43, 38, 32, 0.10);
+    color: rgba(43, 38, 32, 0.75);
+    font-size: 11px;
+    font-weight: 600;
+}
+.trajectory-tab__label
+{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 22ch;
+}
+.trajectory-tab.is-active
+{
+    background: rgba(82, 134, 201, 0.12);
+    color: #2F66B7;
+    border-color: rgba(47, 102, 183, 0.32);
+}
+.trajectory-tab.is-active .trajectory-tab__num
+{
+    background: rgba(47, 102, 183, 0.18);
+    color: #2F66B7;
+}
+
+.trajectory-sheet__panel
+{
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 16px 0 0;
+    transition: opacity 160ms cubic-bezier(0.22, 1, 0.36, 1);
+    opacity: 1;
+}
+.trajectory-sheet__panel.is-fading
+{
+    animation: trajectory-panel-fade 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes trajectory-panel-fade
+{
+    0%   { opacity: 0; transform: translateY(4px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+.trajectory-panel__head
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+.trajectory-panel__index
+{
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+}
+.trajectory-panel__title
+{
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+}
+.trajectory-panel__prompt
+{
+    margin: 0 0 22px;
+    font-size: 16px;
+    line-height: 1.55;
+    color: rgba(43, 38, 32, 0.86);
+    max-width: 62ch;
+}
+
+.trajectory-panel__chips { margin: 0 0 18px; }
+.trajectory-panel__chip-label
+{
+    margin: 0 0 8px;
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+}
+.trajectory-panel__chip-row
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* Chip language mirrors ProfileSheet `.chip--claim`: sans-serif, mixed-case,
+   low-contrast soft background. The trajectory variant carries a kicker
+   (facet name) + label (claim name) joined by an arrow — "Interests → Social"
+   reads how the underlying id (`interests.social`) actually maps. */
+.trajectory-chip
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(43, 38, 32, 0.06);
+    color: rgba(43, 38, 32, 0.82);
+    font-size: 12.5px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0;
+}
+.trajectory-chip__kicker
+{
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 500;
+}
+.trajectory-chip__sep
+{
+    color: rgba(43, 38, 32, 0.40);
+    font-weight: 400;
+}
+.trajectory-chip__label
+{
+    color: rgba(43, 38, 32, 0.92);
+    font-weight: 600;
+}
+.trajectory-chip--ecg
+{
+    background: rgba(82, 134, 201, 0.14);
+    color: #2F66B7;
+    font-weight: 600;
+}
+
+.trajectory-panel__risk
+{
+    border-left: 2px solid rgba(43, 38, 32, 0.18);
+    padding: 4px 0 4px 14px;
+    margin-top: 12px;
+}
+.trajectory-panel__risk-text
+{
+    margin: 6px 0 0;
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: rgba(43, 38, 32, 0.78);
+    max-width: 60ch;
+}
+
+/* CTA link to MySkillsFuture under each path. Quiet by default — looks like
+   a text link, not a button — so it sits alongside the prose without
+   competing with the path title. */
+.trajectory-panel__cta
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 22px;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: #2F66B7;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(47, 102, 183, 0.32);
+    padding-bottom: 1px;
+    transition: color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+                border-color 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.trajectory-panel__cta:hover
+{
+    color: #1f4d8a;
+    border-color: rgba(31, 77, 138, 0.55);
+}
+.trajectory-panel__cta-arrow
+{
+    font-size: 12px;
+    color: inherit;
+    transform: translateY(-1px);
+}
+
+@media (max-width: 779px)
+{
+    .trajectory-sheet__title { font-size: 26px; }
+    .trajectory-tab__label   { max-width: 16ch; }
+    .trajectory-panel__title { font-size: 20px; }
+}
+
+/* ============ object-peek (Step 1 of the peek-then-companion flow) ====
+   Lightweight DOM popover that floats near a clicked island object after
+   the camera zooms in. Shared by flowers, the mailbox, and the telescope —
+   each kind feeds its own eyebrow + title + meaning + Find-out-more CTA
+   which hands off to Kira's bubble (.object-pickup) in step 2. */
+.object-peek
+{
+    position: fixed;
+    z-index: 26;
+    min-width: 220px;
+    max-width: 280px;
+    transform: translate(-50%, -100%);
+    background: rgba(250, 246, 238, 0.96);
+    color: #2b2620;
+    border: 1px solid rgba(43, 38, 32, 0.08);
+    border-radius: 16px;
+    box-shadow: 0 12px 32px rgba(43, 38, 32, 0.16);
+    padding: 14px 16px 14px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 220ms ease, transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    backdrop-filter: blur(6px);
+}
+.object-peek.is-open
+{
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, -108%);
+}
+.object-peek__eyebrow
+{
+    margin: 0 0 4px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+}
+.object-peek__title
+{
+    margin: 0 0 6px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+.object-peek__meaning
+{
+    margin: 0 0 12px;
+    font-size: 13.5px;
+    line-height: 1.45;
+    color: rgba(43, 38, 32, 0.85);
+}
+.object-peek__cta
+{
+    appearance: none;
+    border: none;
+    background: #2b2620;
+    color: #faf6ee;
+    border-radius: 999px;
+    padding: 8px 16px;
+    font: 500 13px/1 inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform 140ms ease, background 160ms ease;
+}
+.object-peek__cta:hover { background: #3a342b; }
+.object-peek__cta:active { transform: scale(0.96); }
+
+/* Step-2 bubble — same chrome as kira-dialogue but with two CTAs
+   (primary "Talk about it more" + secondary kind-specific detail open).
+   Override the parent .kira-dialogue__row's flex-end so the row spreads. */
+.kira-dialogue.object-pickup .object-pickup__row
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-end;
+}
+.kira-dialogue.object-pickup .object-pickup__talk
+{
+    background: transparent;
+    color: #2b2620;
+    border: 1px solid rgba(43, 38, 32, 0.18);
+    box-shadow: none;
+}
+.kira-dialogue.object-pickup .object-pickup__talk:hover
+{
+    background: rgba(43, 38, 32, 0.06);
+    color: #2b2620;
+}
+
+/* While a full-viewport overlay is up (AskSheet, FacetView, TrajectorySheet
+   itself, etc.), the peek popover must not fight for the foreground. */
+body.has-overlay .object-peek,
+body.has-capture-sheet .object-peek
+{
+    pointer-events: none;
+    opacity: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Onboarding — first-run ceremony
+ * See plan: /Users/jeongwondo/.claude/plans/steady-conjuring-panda.md
+ * See spec: DESIGN.md §"First-run ceremony"
+ * ─────────────────────────────────────────────────────────────────────── */
+
+:root
+{
+    --onb-bg-cream:    #faf2e3;
+    --onb-bg-deep:     #0f1224;
+    --onb-ink:         #2b2620;
+    --onb-ink-soft:    rgba(43, 38, 32, 0.62);
+    --onb-ink-faint:   rgba(43, 38, 32, 0.32);
+    --onb-accent:      #ff8a5c;
+    --onb-accent-deep: #e26a3c;
+    --onb-card:        rgba(255, 255, 255, 0.92);
+    --onb-card-line:   rgba(43, 38, 32, 0.10);
+    --onb-shadow:      0 8px 28px rgba(43, 38, 32, 0.10);
+    --onb-ease:        cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Suppress every chrome surface while the ceremony is in flight. The
+   orchestrator toggles `body.is-onboarding` on start() and removes it in
+   _finish(). The autonomous Kira bubble stays gated by its own onboarding
+   mode flag; the orchestrator drives it via sayOnboarding(). */
+body.is-onboarding .top-nav,
+body.is-onboarding .capture-fab,
+body.is-onboarding .hour-hud,
+body.is-onboarding .zoom-hud,
+body.is-onboarding .bird-picker,
+body.is-onboarding .track-picker,
+body.is-onboarding .object-peek,
+body.is-onboarding .hover-cta
+{
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+}
+
+.onboarding-root
+{
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: block;
+    overflow: hidden;
+}
+
+/* Each surface child stretches to fill the root and animates via opacity.
+   Use the .is-visible / .is-leaving state classes added by surface.mount/
+   unmount. Reduced-motion overrides at the bottom collapse durations. */
+.onboarding-root > *
+{
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 320ms var(--onb-ease);
+    will-change: opacity;
+}
+.onboarding-root > .is-visible { opacity: 1; }
+.onboarding-root > .is-leaving { opacity: 0; }
+
+
+/* ── Shared cream-overlay surfaces (login / greeting / egg) ─────────── */
+
+.onb-login,
+.onb-greeting,
+.onb-egg
+{
+    background: var(--onb-bg-cream);
+    color: var(--onb-ink);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 24px max(32px, env(safe-area-inset-bottom));
+    gap: 28px;
+}
+
+/* ── Landing — Edupass login renders OVER the live 3D world ──────────
+ *
+ * When .onb-login carries .onb-login--landing the cream panel turns
+ * transparent so the camera's slow orbit shows through; the title floats
+ * at top-center, the Edupass CTA + demo note sit at the bottom. Body
+ * class .is-onb-landing also lets us suppress other onboarding-root
+ * children from blocking pointer events here (in practice only one
+ * surface is mounted at a time so this is belt-and-braces).
+ */
+.onb-login--landing
+{
+    background: transparent;
+    color: #fff;
+    padding: 0;
+    gap: 0;
+    justify-content: space-between;
+    /* Subtle sky-bottom wash + top vignette via the dedicated sky-wash
+     * child so we don't tint the whole panel and lose the orbit. */
+}
+.onb-login__sky-wash
+{
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse 120% 60% at 50% 0%, rgba(7, 18, 36, 0.32), transparent 60%),
+        radial-gradient(ellipse 140% 50% at 50% 100%, rgba(255, 218, 145, 0.18), transparent 60%);
+}
+.onb-login__hero
+{
+    position: relative;
+    margin-top: max(48px, env(safe-area-inset-top));
+    padding: 0 24px;
+    text-align: center;
+}
+.onb-login__footer
+{
+    position: relative;
+    width: 100%;
+    padding: 0 24px max(36px, env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+/* ── Login wordmark ─────────────────────────────────────────────────── */
+
+.onb-login__wordmark
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+.onb-login__brand
+{
+    font-size: clamp(28px, 7vw, 40px);
+    letter-spacing: 0.04em;
+    font-weight: 500;
+}
+.onb-login__brand-sub
+{
+    font-size: 14px;
+    color: var(--onb-ink-soft);
+    font-style: italic;
+}
+/* Landing variant: white wordmark with a soft sky-bottom drop shadow so
+ * it stays legible whether it's currently against blue water or green
+ * island. The italic sub-line scales up + sits closer to the title. */
+.onb-login--landing .onb-login__brand
+{
+    font-size: clamp(40px, 11vw, 72px);
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.01em;
+    line-height: 1.05;
+    text-shadow:
+        0 2px 4px  rgba(7, 18, 36, 0.42),
+        0 8px 24px rgba(7, 18, 36, 0.28);
+}
+.onb-login--landing .onb-login__brand-sub
+{
+    font-size: clamp(13px, 3vw, 16px);
+    color: rgba(255, 255, 255, 0.84);
+    text-shadow: 0 1px 3px rgba(7, 18, 36, 0.42);
+    margin-top: 4px;
+}
+.onb-login__cta
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--onb-accent);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 0 22px;
+    min-height: 56px;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    /* Accent-tinted lift: a warm coral halo plus a hairline base so the
+       CTA feels intentional on the cream panel. */
+    box-shadow:
+        0 8px 20px rgba(255, 138, 92, 0.30),
+        0 1px 2px  rgba(43, 38, 32, 0.06);
+    transition: transform 180ms var(--onb-ease), background 180ms ease, box-shadow 180ms ease;
+    max-width: 320px;
+    width: 100%;
+    justify-content: center;
+}
+.onb-login__cta:hover
+{
+    transform: translateY(-1px);
+    background: var(--onb-accent-deep);
+    box-shadow:
+        0 12px 26px rgba(255, 138, 92, 0.38),
+        0 2px 4px   rgba(43, 38, 32, 0.08);
+}
+.onb-login__cta:disabled,
+.onb-login__cta.is-connecting { opacity: 0.85; cursor: progress; }
+.onb-login__cta:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+}
+.onb-login__edupass-mark
+{
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.onb-login__demo-note
+{
+    margin: 0;
+    font-size: 12px;
+    color: var(--onb-ink-faint);
+    font-style: italic;
+}
+.onb-login--landing .onb-login__demo-note
+{
+    color: rgba(255, 255, 255, 0.78);
+    text-shadow: 0 1px 2px rgba(7, 18, 36, 0.35);
+}
+
+/* ── Greeting ───────────────────────────────────────────────────────── */
+
+.onb-greeting__text
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+    max-width: 360px;
+}
+.onb-greeting__hello
+{
+    margin: 0;
+    font-size: clamp(28px, 7vw, 36px);
+    font-weight: 500;
+}
+.onb-greeting__sub
+{
+    margin: 0;
+    font-size: 18px;
+    color: var(--onb-ink);
+}
+.onb-greeting__hint
+{
+    margin: 4px 0 0;
+    font-size: 14px;
+    color: var(--onb-ink-faint);
+    font-style: italic;
+}
+.onb-greeting__cta
+{
+    background: var(--onb-accent);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 0 26px;
+    min-height: 56px;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    box-shadow:
+        0 8px 20px rgba(255, 138, 92, 0.30),
+        0 1px 2px  rgba(43, 38, 32, 0.06);
+    transition: transform 180ms var(--onb-ease), background 180ms ease, box-shadow 180ms ease;
+}
+.onb-greeting__cta:hover
+{
+    transform: translateY(-1px);
+    background: var(--onb-accent-deep);
+    box-shadow:
+        0 12px 26px rgba(255, 138, 92, 0.38),
+        0 2px 4px   rgba(43, 38, 32, 0.08);
+}
+.onb-greeting__cta:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+}
+
+/* ── Egg hatcher ────────────────────────────────────────────────────── */
+
+.onb-egg__stage
+{
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+}
+/* `display: flex` above wins against the user-agent `[hidden]` rule by
+   specificity. Restore the hide behaviour with a same-specificity rule
+   that combines the class with the attribute. */
+.onb-egg__stage[hidden]
+{
+    display: none;
+}
+.onb-egg__viewport
+{
+    position: relative;
+    width: 160px;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+/* 3D egg canvas — fills the viewport (160×200). The renderer + scene
+   are owned by EggHatcher; the canvas DOM node is re-parented into the
+   active sub-stage's [data-canvas-host] on every sub-stage swap. */
+.onb-egg__canvas
+{
+    display: block;
+    width: 160px;
+    height: 200px;
+    background: transparent;
+}
+
+/* Hatch-only wrapper: holds the canvas + the cracks SVG so they tilt
+   together during the wiggle and fade together during the dissolve. */
+.onb-egg__egg-shell
+{
+    position: relative;
+    width: 160px;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform-origin: 50% 50%;
+}
+
+.onb-egg__pedestal
+{
+    position: absolute;
+    bottom: 6px;
+    width: 116px;
+    height: 16px;
+    /* Deeper than the original 0.08 so the 3D egg's volume reads as
+       grounded rather than floating; still soft enough not to compete
+       with the lit highlight on the shell. */
+    background: rgba(43, 38, 32, 0.14);
+    border-radius: 50%;
+    filter: blur(5px);
+}
+.onb-egg__title
+{
+    margin: 0;
+    font-size: 22px;
+    font-weight: 500;
+    text-align: center;
+}
+.onb-egg__sub
+{
+    margin: 0;
+    font-size: 14px;
+    color: var(--onb-ink-soft);
+    text-align: center;
+}
+.onb-egg__swatches
+{
+    display: grid;
+    grid-template-columns: repeat(3, 56px);
+    grid-template-rows: repeat(2, 56px);
+    gap: 14px;
+    margin-top: 4px;
+}
+.onb-egg__swatch
+{
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 2px solid transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 180ms var(--onb-ease), border-color 180ms ease;
+}
+.onb-egg__swatch:hover { transform: translateY(-1px); }
+.onb-egg__swatch.is-picked
+{
+    border-color: var(--onb-accent);
+    background: #fff;
+    /* Accent ring + soft halo so "picked" reads at a glance against
+       the other swatches in the 2×3 grid. */
+    box-shadow:
+        0 0 0 1px var(--onb-accent),
+        0 8px 18px rgba(255, 138, 92, 0.28);
+}
+.onb-egg__swatch:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+}
+.onb-egg__swatch-dot
+{
+    display: block;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+}
+.onb-egg__cta
+{
+    background: var(--onb-accent);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 0 26px;
+    min-height: 56px;
+    font-size: 16px;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    box-shadow:
+        0 8px 20px rgba(255, 138, 92, 0.30),
+        0 1px 2px  rgba(43, 38, 32, 0.06);
+    transition: transform 180ms var(--onb-ease), background 180ms ease, opacity 180ms ease, box-shadow 180ms ease;
+}
+.onb-egg__cta:hover
+{
+    transform: translateY(-1px);
+    background: var(--onb-accent-deep);
+    box-shadow:
+        0 12px 26px rgba(255, 138, 92, 0.38),
+        0 2px 4px   rgba(43, 38, 32, 0.08);
+}
+.onb-egg__cta:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.onb-egg__cta:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+}
+.onb-egg__name-input
+{
+    width: 100%;
+    max-width: 320px;
+    background: #fff;
+    color: var(--onb-ink);
+    /* Coral caret echoes the accent on focus, the CTAs, and the picked
+       swatch — small but signature. */
+    caret-color: var(--onb-accent);
+    border: 1.5px solid var(--onb-card-line);
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 18px;
+    text-align: center;
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.onb-egg__name-input:focus
+{
+    outline: none;
+    border-color: var(--onb-accent);
+    box-shadow: 0 0 0 3px rgba(255, 138, 92, 0.18);
+}
+.onb-egg__name-actions
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
+}
+.onb-egg__back
+{
+    background: transparent;
+    border: none;
+    color: var(--onb-ink-soft);
+    font-size: 14px;
+    padding: 8px 12px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    min-height: 44px;
+}
+.onb-egg__back:hover { color: var(--onb-ink); }
+.onb-egg__back:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+    border-radius: 6px;
+}
+.onb-egg__a11y
+{
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* Hatch sub-stage — sits centred over a brighter pedestal halo. */
+.onb-egg__stage--hatch
+{
+    justify-content: center;
+}
+.onb-egg__hatch-stage
+{
+    position: relative;
+    width: 320px;
+    height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.onb-egg__hatch-stage .onb-egg__egg-shell
+{
+    /* Stage the shell wrapper for the hatch sequence — the wiggle animation
+       and the dissolve transition both target this wrapper so the 3D egg
+       (canvas) and the crack lines (SVG) move + fade together. */
+    animation: none;
+    transition: opacity 240ms var(--onb-ease), transform 240ms var(--onb-ease);
+}
+.onb-egg__rays
+{
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+}
+.onb-egg__rays-svg
+{
+    width: 320px;
+    height: 320px;
+    overflow: visible;
+}
+.onb-egg__ray
+{
+    stroke: var(--onb-accent);
+    stroke-width: 7;
+    stroke-linecap: round;
+    transform-origin: 0 0;
+    transform: scale(0);
+    transition: transform 380ms var(--onb-ease), opacity 380ms var(--onb-ease);
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(255, 138, 92, 0.55));
+}
+.onb-egg__egg-wrap
+{
+    position: relative;
+    width: 160px;
+    height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.onb-egg__pedestal--hatch
+{
+    position: absolute;
+    bottom: 36px;
+    width: 140px;
+    height: 18px;
+    background: rgba(43, 38, 32, 0.10);
+    border-radius: 50%;
+    filter: blur(4px);
+}
+.onb-egg__flash
+{
+    position: absolute;
+    inset: -200px;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 80ms ease-out;
+}
+.onb-egg__bird-wrap
+{
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.6);
+    transform-origin: 50% 65%;
+    transition: opacity 240ms var(--onb-ease), transform 640ms var(--onb-ease);
+}
+.onb-egg__bird-svg
+{
+    width: 132px;
+    height: 132px;
+}
+
+/* Hatch phases driven by classes on .onb-egg__hatch-stage */
+.onb-egg__hatch-stage.is-wiggling .onb-egg__egg-shell
+{
+    animation: onbEggWiggle 1000ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes onbEggWiggle
+{
+    0%   { transform: rotate(0deg); }
+    10%  { transform: rotate(-4deg); }
+    25%  { transform: rotate(4deg); }
+    40%  { transform: rotate(-3deg); }
+    55%  { transform: rotate(3deg); }
+    70%  { transform: rotate(-2deg); }
+    85%  { transform: rotate(1deg); }
+    100% { transform: rotate(0deg); }
+}
+.onb-egg__hatch-stage.is-flashing .onb-egg__flash
+{
+    animation: onbEggFlash 160ms ease-out;
+}
+@keyframes onbEggFlash
+{
+    0%   { opacity: 0; }
+    50%  { opacity: 0.85; }
+    100% { opacity: 0; }
+}
+
+/* Reveal — egg shatters (3D fragments inside the canvas, see
+ * EggHatcher._startShatter). The shell wrapper itself stays at full
+ * opacity so the canvas can show the burst. */
+.onb-egg__hatch-stage.is-revealing .onb-egg__bird-wrap
+{
+    opacity: 1;
+    transform: scale(1.0);
+    transition-delay: 80ms;
+}
+/* When the 3D mini-Kira owns the canvas (full-motion path), keep the
+ * SVG bird suppressed so it doesn't double over the 3D emergence. The
+ * reduced-motion path doesn't carry .has-3d-bird and falls back to the
+ * SVG bird via `.is-reduced.is-reveal` below. */
+.onb-egg__hatch-stage.is-revealing.has-3d-bird .onb-egg__bird-wrap
+{
+    opacity: 0;
+    transform: scale(0.6);
+    transition: none;
+}
+.onb-egg__hatch-stage.is-revealing .onb-egg__rays
+{
+    opacity: 1;
+    transition: opacity 320ms var(--onb-ease);
+}
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray
+{
+    transform: scale(1);
+}
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="0"]  { transition-delay:   0ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="1"]  { transition-delay:  40ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="2"]  { transition-delay:  80ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="3"]  { transition-delay: 120ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="4"]  { transition-delay: 160ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="5"]  { transition-delay: 200ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="6"]  { transition-delay: 240ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="7"]  { transition-delay: 280ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="8"]  { transition-delay: 320ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="9"]  { transition-delay: 360ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="10"] { transition-delay: 400ms; }
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray[data-i="11"] { transition-delay: 440ms; }
+
+/* Rays fade out during settle, leaving the bird alone on the pedestal. */
+.onb-egg__hatch-stage.is-revealing .onb-egg__ray
+{
+    animation: onbEggRayFade 1200ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation-delay: 600ms;
+}
+@keyframes onbEggRayFade
+{
+    0%   { opacity: 0.9; }
+    100% { opacity: 0; }
+}
+
+/* Reduced-motion: render the bird immediately, drop the rays + flash. */
+.onb-egg__hatch-stage.is-reduced.is-reveal .onb-egg__egg-shell { opacity: 0; }
+.onb-egg__hatch-stage.is-reduced.is-reveal .onb-egg__bird-wrap
+{ opacity: 1; transform: scale(1); transition-duration: 80ms; }
+
+/* ── First-chat sheen ───────────────────────────────────────────────── */
+
+.onb-firstchat
+{
+    pointer-events: auto;
+    background: transparent;
+}
+.onb-firstchat__sheen
+{
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 18, 36, 0.0);
+    transition: background 320ms var(--onb-ease);
+    pointer-events: none;
+}
+.onb-firstchat.is-visible .onb-firstchat__sheen
+{
+    background: rgba(15, 18, 36, 0.18);
+}
+
+/* Chip row — sits low-centre so it doesn't cover Kira's face. The
+   surface itself has pointer-events: auto so chips stay clickable
+   even though the sheen is non-interactive. */
+.onb-firstchat__chips
+{
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: max(28px, env(safe-area-inset-bottom, 0));
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 16px;
+    z-index: 5;
+}
+.onb-firstchat__chip
+{
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--onb-ink);
+    border: 1.5px solid rgba(43, 38, 32, 0.10);
+    border-radius: 999px;
+    padding: 12px 20px;
+    min-height: 44px;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(15, 18, 36, 0.22);
+    transition: transform 160ms var(--onb-ease), background 160ms ease, box-shadow 160ms ease;
+}
+.onb-firstchat__chip:hover { transform: translateY(-1px); background: #fff; }
+.onb-firstchat__chip--primary
+{
+    background: var(--onb-accent);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 8px 20px rgba(255, 138, 92, 0.32);
+}
+.onb-firstchat__chip--primary:hover { background: var(--onb-accent-deep); }
+.onb-firstchat__chip:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+}
+
+/* ── First-mood ─────────────────────────────────────────────────────── */
+
+.onb-firstmood
+{
+    pointer-events: auto;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 16px max(20px, env(safe-area-inset-bottom));
+}
+.onb-firstmood__sheen
+{
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 18, 36, 0.20);
+    pointer-events: none;
+}
+.onb-firstmood__panel
+{
+    position: relative;
+    width: 100%;
+    max-width: 460px;
+    margin: 0 auto;
+    background: var(--onb-card);
+    color: var(--onb-ink);
+    border-radius: 24px 24px 16px 16px;
+    padding: 22px 18px 18px;
+    box-shadow: var(--onb-shadow);
+}
+.onb-firstmood__title
+{
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 500;
+    text-align: center;
+}
+.onb-firstmood__sub
+{
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--onb-ink-soft);
+    text-align: center;
+}
+.onb-firstmood__grid
+{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.onb-firstmood__tile
+{
+    min-height: 88px;
+    background: rgba(255, 255, 255, 0.6);
+    border: 2px solid transparent;
+    border-radius: 14px;
+    padding: 8px 6px 6px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transition: transform 180ms var(--onb-ease), border-color 180ms ease, background 180ms ease;
+}
+.onb-firstmood__tile:hover { transform: translateY(-1px); }
+.onb-firstmood__tile.is-picked
+{
+    border-color: var(--onb-accent);
+    background: #fff;
+    box-shadow: var(--onb-shadow);
+}
+.onb-firstmood__tile:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+}
+.onb-firstmood__shape
+{
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.onb-firstmood__shape svg
+{
+    width: 100%;
+    height: 100%;
+}
+.onb-firstmood__label
+{
+    font-size: 11px;
+    color: var(--onb-ink);
+    letter-spacing: 0.01em;
+}
+
+/* ── Island reveal ─────────────────────────────────────────────────── */
+
+.onb-reveal
+{
+    pointer-events: auto;
+    background: transparent;
+}
+.onb-reveal__sheen
+{
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 18, 36, 0.04);
+    pointer-events: none;
+}
+
+/* Reveal-beat chips share the FirstChat pill style so the onboarding
+   reads as one continuous voice. Sit low-centre so the scene + Kira
+   bubble stay readable. */
+.onb-reveal__chips
+{
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: max(28px, env(safe-area-inset-bottom, 0));
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    padding: 0 16px;
+    z-index: 5;
+}
+.onb-reveal__chip
+{
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--onb-ink);
+    border: 1.5px solid rgba(43, 38, 32, 0.10);
+    border-radius: 999px;
+    padding: 12px 22px;
+    min-height: 44px;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(15, 18, 36, 0.22);
+    transition: transform 160ms var(--onb-ease), background 160ms ease, box-shadow 160ms ease;
+}
+.onb-reveal__chip:hover { transform: translateY(-1px); background: #fff; }
+.onb-reveal__chip--primary
+{
+    background: var(--onb-accent);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 8px 20px rgba(255, 138, 92, 0.32);
+}
+.onb-reveal__chip--primary:hover { background: var(--onb-accent-deep); }
+.onb-reveal__chip:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+}
+
+/* The Kira bubble must sit ABOVE the onboarding-root so it remains
+   readable during first-chat / first-mood / island-reveal. */
+body.is-onboarding .kira-bubble
+{
+    z-index: 60;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce)
+{
+    .onboarding-root > *,
+    .onb-egg__canvas,
+    .onb-egg__egg-shell,
+    .onb-egg__name-input,
+    .onb-firstchat__sheen,
+    .onb-firstmood__tile,
+    .onb-egg__cta,
+    .onb-login__cta,
+    .onb-greeting__cta
+    {
+        transition-duration: 80ms !important;
+        animation-duration: 80ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}
+

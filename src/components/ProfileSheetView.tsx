@@ -1,7 +1,7 @@
 import { demoSignInHref, workosSignInHref } from '~/auth/demo'
-import type { FloatingAuthMenuState } from '~/components/FloatingWorldActions'
 import {
   DIMENSION_LABEL,
+  type FloatingAuthMenuState,
   PROFILE_HEADERS,
   PROFILE_THEMES,
   ProfileStudentChrome,

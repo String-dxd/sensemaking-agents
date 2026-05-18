@@ -1,15 +1,13 @@
 import { Compass, UserRound } from 'lucide-react'
 import { FloatingAgentDebugPanel } from '~/components/AgentDebugPanel'
+import type { FloatingAuthMenuState } from '~/components/ProfileSheetChrome'
 import { cn } from '~/lib/utils'
 
-export type FloatingAuthMenuState =
-  | { status: 'signed-out' }
-  | {
-      status: 'signed-in'
-      label: string
-      detail: string | null
-      kind: 'workos' | 'demo' | 'dev-bypass'
-    }
+// `FloatingAuthMenuState` has moved to `ProfileSheetChrome` (the live module
+// that consumes it). Re-exported here so any existing import keeps working
+// while the dormant `FloatingWorldActions` component is on its eventual
+// deletion path.
+export type { FloatingAuthMenuState } from '~/components/ProfileSheetChrome'
 
 export interface FloatingWorldActionsProps {
   authMenu?: FloatingAuthMenuState

@@ -36,6 +36,9 @@ export type LoadTrajectoryInput = z.output<typeof loadTrajectoryInputSchema>
 export const loadVipsPagesInputSchema = z.object({})
 export type LoadVipsPagesInput = z.output<typeof loadVipsPagesInputSchema>
 
+export const loadPipelineTraceInputSchema = z.object({})
+export type LoadPipelineTraceInput = z.output<typeof loadPipelineTraceInputSchema>
+
 export const loadWikiInputSchema = z.object({})
 export type LoadWikiInput = z.output<typeof loadWikiInputSchema>
 

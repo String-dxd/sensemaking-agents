@@ -5,9 +5,9 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { FloatingAuthMenuState } from '~/components/FloatingWorldActions'
 import {
   DIMENSION_LABEL,
+  type FloatingAuthMenuState,
   PROFILE_HEADERS,
   PROFILE_THEMES,
   ProfileStudentChrome,

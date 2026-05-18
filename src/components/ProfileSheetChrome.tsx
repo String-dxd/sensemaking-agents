@@ -1,7 +1,22 @@
-import type { FloatingAuthMenuState } from '~/components/FloatingWorldActions'
 import type { SheetKey } from '~/components/SheetEntryRail'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
+import { clearStudentSpaceLocalState } from '~/engine/student-space/clear-local-state'
 import { cn } from '~/lib/utils'
+
+/**
+ * Signed-in/signed-out chrome state shared by the profile sheet and the
+ * `VipsPageView`. Defined here (the live module) so the dormant
+ * `FloatingWorldActions` can be removed without dragging live code with it.
+ * `FloatingWorldActions` re-exports the type for backwards compatibility.
+ */
+export type FloatingAuthMenuState =
+  | { status: 'signed-out' }
+  | {
+      status: 'signed-in'
+      label: string
+      detail: string | null
+      kind: 'workos' | 'demo' | 'dev-bypass'
+    }
 
 export const DIMENSION_LABEL: Record<VipsDimension, string> = {
   values: 'Values',
@@ -172,7 +187,16 @@ export function ProfileStudentChrome({
 function AuthAction({ authMenu }: { authMenu: FloatingAuthMenuState }) {
   if (authMenu.status !== 'signed-in') return null
   return (
-    <form action="/api/auth/sign-out" method="post" className="shrink-0">
+    <form
+      action="/api/auth/sign-out"
+      method="post"
+      className="shrink-0"
+      // Clear the engine's `ss:v1:*` localStorage keys before the server-side
+      // sign-out fires so the next signed-in student does not inherit this
+      // student's persisted engine state. The fuller per-student-scoped
+      // storage adapter is part of the deferred backend wiring.
+      onSubmit={() => clearStudentSpaceLocalState()}
+    >
       <button
         type="submit"
         className="rounded-full bg-[#f1ede5] px-3 py-1.5 text-sm text-[#2b2620]/65 transition-colors hover:text-[#2b2620]"
