@@ -20,7 +20,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Sprouts, { wireSproutsToCaptures } from '~/engine/student-space/Game/State/Sprouts.js'
+// @ts-expect-error — MoodPins.js is JS without a companion .d.ts.
 import MoodPins from '~/engine/student-space/Game/State/MoodPins.js'
+// @ts-expect-error — Captures.js is JS without a companion .d.ts.
 import Captures from '~/engine/student-space/Game/State/Captures.js'
 import Persistence, { memoryAdapter } from '~/engine/student-space/Game/State/Persistence.js'
 
@@ -96,7 +98,7 @@ describe('wireSproutsToCaptures', () => {
     captures.add({ kind: 'ask', text: 'one' })
     captures.add({ kind: 'ask', text: 'two' })
     captures.add({ kind: 'ask', text: 'three' })
-    const sprout = sprouts.recent(10)[0]
+    const sprout = sprouts.recent(10)[0]!
     expect(sprout.count).toBe(3)
     expect(sprout.readyToBloom).toBe(true)
     expect(sprouts.readyToBloom()).toHaveLength(1)

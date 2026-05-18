@@ -19,6 +19,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import Sprouts, {
   BLOOM_THRESHOLD,
   TREE_SPECIES_ROTATION,
+  type SproutsEvent,
 } from '~/engine/student-space/Game/State/Sprouts.js'
 import Persistence, {
   memoryAdapter,
@@ -95,9 +96,9 @@ describe('Sprouts state slice', () => {
     for (let i = 0; i < BLOOM_THRESHOLD; i++) {
       sprouts.grow({ kind: 'capture', id: `cap-${i}` })
     }
-    const ready = sprouts.readyToBloom()[0]
+    const ready = sprouts.readyToBloom()[0]!
     const events: Array<{ type: string; id: string }> = []
-    sprouts.subscribe((ev) => events.push({ type: ev.type, id: ev.sprout.id }))
+    sprouts.subscribe((ev: SproutsEvent) => events.push({ type: ev.type, id: ev.sprout.id }))
     const bloomed = sprouts.bloom(ready.id)
     expect(bloomed).toBeTruthy()
     expect(bloomed!.bloomedAt).not.toBeNull()
@@ -126,7 +127,7 @@ describe('Sprouts state slice', () => {
 
   it('subscribe() callbacks fire in order: spawned, grew, grew, markedReady', () => {
     const types: string[] = []
-    sprouts.subscribe((ev) => types.push(ev.type))
+    sprouts.subscribe((ev: SproutsEvent) => types.push(ev.type))
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
     sprouts.grow({ kind: 'capture', id: 'cap-2' })
     sprouts.grow({ kind: 'capture', id: 'cap-3' })
@@ -138,7 +139,7 @@ describe('Sprouts state slice', () => {
     sprouts.subscribe(() => {
       throw new Error('boom')
     })
-    sprouts.subscribe((ev) => calls.push(ev.type))
+    sprouts.subscribe((ev: SproutsEvent) => calls.push(ev.type))
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
     // The second subscriber still fired despite the first throwing.
     expect(calls).toEqual(['spawned'])
@@ -149,9 +150,7 @@ describe('Sprouts state slice', () => {
   })
 
   it('grow() silently no-ops on malformed payload', () => {
-    // @ts-expect-error — intentional bad input
     expect(sprouts.grow(null).didSpawn).toBe(false)
-    // @ts-expect-error — intentional bad input
     expect(sprouts.grow({}).didSpawn).toBe(false)
     expect(sprouts.recent(10)).toHaveLength(0)
   })
@@ -171,7 +170,7 @@ describe('Sprouts state slice', () => {
     ;(Sprouts as unknown as { instance: unknown }).instance = null
     const reborn = new Sprouts()
     const events: string[] = []
-    reborn.subscribe((ev) => events.push(ev.type))
+    reborn.subscribe((ev: SproutsEvent) => events.push(ev.type))
     reborn.hydrate(serialized)
     expect(events).toEqual([])  // hydrate must not fan out
     expect(reborn.recent(10)).toHaveLength(1)
@@ -192,7 +191,7 @@ describe('Sprouts state slice', () => {
     const persistence2 = new Persistence({ storage: adapter as ReturnType<typeof memoryAdapter> })
     const snapshot = persistence2.load()
     const reborn = new Sprouts()
-    reborn.hydrate(snapshot.sprouts)
+    reborn.hydrate(snapshot.sprouts as { cycleIndex?: number; sprouts?: unknown[] })
 
     expect(reborn.recent(10)).toHaveLength(1)
     expect(reborn.getActive()!.count).toBe(2)
