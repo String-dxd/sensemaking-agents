@@ -80,25 +80,33 @@ export default class HoverProbe
         // the View update loop instead; here we just stash the latest event
         // coords and re-raycast at update time.
         this._latestPointer = null
-        this.dom.addEventListener('pointermove', (event) =>
+        // Listener refs held on `this` for dispose(). The dom (canvas) is
+        // torn down by Renderer.dispose(), but the document.pointerdown
+        // survives Renderer teardown and would keep this whole probe alive.
+        this._onPointerMove = (event) =>
         {
             this._latestPointer = { x: event.clientX, y: event.clientY, type: event.pointerType }
-        })
-        this.dom.addEventListener('pointerleave', () =>
+        }
+        this.dom.addEventListener('pointermove', this._onPointerMove)
+
+        this._onPointerLeave = () =>
         {
             this._latestPointer = null
             this._setHover(null)
-        })
+        }
+        this.dom.addEventListener('pointerleave', this._onPointerLeave)
 
         // Click pick — re-uses FacetView's existing drag-guard pattern so
         // OrbitControls drags don't fire pick events.
         let downX = 0, downY = 0
-        this.dom.addEventListener('pointerdown', (event) =>
+        this._onDomPointerDown = (event) =>
         {
             downX = event.clientX
             downY = event.clientY
-        })
-        this.dom.addEventListener('pointerup', (event) =>
+        }
+        this.dom.addEventListener('pointerdown', this._onDomPointerDown)
+
+        this._onPointerUp = (event) =>
         {
             const dx = event.clientX - downX
             const dy = event.clientY - downY
@@ -142,10 +150,11 @@ export default class HoverProbe
                 // Tap on empty space dismisses chip + ring.
                 this._setHover(null)
             }
-        })
+        }
+        this.dom.addEventListener('pointerup', this._onPointerUp)
 
         // Tap outside the canvas (DOM CTA, etc) — dismiss hover.
-        document.addEventListener('pointerdown', (event) =>
+        this._onDocPointerDown = (event) =>
         {
             // If the tap is inside the CTA chip, the chip handles it.
             // If it's outside both canvas and CTA, clear hover.
@@ -153,12 +162,50 @@ export default class HoverProbe
             const onChip   = !!event.target.closest?.('.hover-cta')
             const onCard   = !!event.target.closest?.('.facet-view')
             if(!onCanvas && !onChip && !onCard) this._setHover(null)
-        })
+        }
+        document.addEventListener('pointerdown', this._onDocPointerDown)
+    }
+
+    /**
+     * Tear-down hook called from View.dispose(). Detaches the document-
+     * level pointerdown listener (the leak that outlives Renderer.dispose),
+     * removes the canvas listeners, drops the hover ring from the scene
+     * and disposes its geometry + material.
+     */
+    dispose()
+    {
+        if(this._onDocPointerDown)
+        {
+            try { document.removeEventListener('pointerdown', this._onDocPointerDown) } catch(_) {}
+            this._onDocPointerDown = null
+        }
+        if(this.dom)
+        {
+            if(this._onPointerMove)    { try { this.dom.removeEventListener('pointermove', this._onPointerMove) }   catch(_) {} }
+            if(this._onPointerLeave)   { try { this.dom.removeEventListener('pointerleave', this._onPointerLeave) } catch(_) {} }
+            if(this._onDomPointerDown) { try { this.dom.removeEventListener('pointerdown', this._onDomPointerDown) } catch(_) {} }
+            if(this._onPointerUp)      { try { this.dom.removeEventListener('pointerup', this._onPointerUp) }       catch(_) {} }
+        }
+        this._onPointerMove = null
+        this._onPointerLeave = null
+        this._onDomPointerDown = null
+        this._onPointerUp = null
+        if(this.ring)
+        {
+            try { this.scene?.remove?.(this.ring) } catch(_) {}
+            try { this.ring.geometry?.dispose?.() } catch(_) {}
+            try { this.ring.material?.dispose?.() } catch(_) {}
+            this.ring = null
+        }
+        this.hovered = null
+        this.lastHovered = null
+        this._latestPointer = null
+        this.enabled = false
     }
 
     update()
     {
-        if(!this.enabled) return
+        if(!this.enabled || !this.ring) return    // post-dispose tick guard
 
         // Continuous hover ray each frame using the latest pointer coords.
         if(this._latestPointer)

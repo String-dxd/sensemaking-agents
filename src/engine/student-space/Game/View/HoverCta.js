@@ -227,5 +227,26 @@ export default class HoverCta
         this.root.setAttribute('aria-hidden', 'true')
     }
 
+    /**
+     * Tear-down hook. Drops the chip from the DOM. No document/window
+     * listeners are registered. The lazy thumbnail renderer (if created)
+     * is detached so its WebGL resources can be collected — ThumbnailRenderer
+     * doesn't expose a dispose() in v1, but nulling the ref removes one
+     * source of retention.
+     */
+    dispose()
+    {
+        try { this._thumbs?.dispose?.() } catch(_) {}
+        this._thumbs = null
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
+        this.eyebrowEl = null
+        this.badgeEl = null
+        this.thumbEl = null
+        this.titleEl = null
+        this.lineEl = null
+        this.target = null
+    }
+
     update() {}
 }

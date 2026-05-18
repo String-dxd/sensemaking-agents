@@ -222,6 +222,9 @@ export default class AskSheet
             this.chatMicBtn.hidden = true
         }
 
+        // All listeners attached to elements inside the detached root are
+        // GC'd alongside root.remove(); the document-level keydown is the
+        // only one that survives, so it is the priority for dispose().
         root.querySelector('.ask-sheet__close').addEventListener('click', () => this._onBack())
         this.input.addEventListener('input', () => this._refreshSave())
         this.saveBtn.addEventListener('click', () => this._saveTyped())
@@ -246,11 +249,45 @@ export default class AskSheet
         this.chatMicBtn.addEventListener('click', () => this._chatStartRecording())
         this.chatLogBtn.addEventListener('click', () => this._logFromChat())
 
-        document.addEventListener('keydown', (event) =>
+        this._onKeyDown = (event) =>
         {
             if(!this.isOpen) return
             if(event.key === 'Escape') this._onBack()
-        })
+        }
+        document.addEventListener('keydown', this._onKeyDown)
+    }
+
+    /**
+     * Tear-down hook called from View.dispose(). Removes the document-level
+     * keydown listener (the leak risk that survives root.remove()), tears
+     * down any in-flight SpeechRecognition engines so they don't keep the
+     * mic hot across remounts, and detaches the sheet root.
+     */
+    dispose()
+    {
+        if(this._onKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+            this._onKeyDown = null
+        }
+        // SpeechRecognition engines hold the mic; abort both compose- and
+        // chat-stage instances if they were left listening.
+        if(this.recognition)
+        {
+            try { this.recognition.abort?.() ?? this.recognition.stop?.() } catch(_) {}
+            this.recognition = null
+        }
+        if(this.chatRecognition)
+        {
+            try { this.chatRecognition.abort?.() ?? this.chatRecognition.stop?.() } catch(_) {}
+            this.chatRecognition = null
+        }
+        this.listening = false
+        // Bump the typer id so any pending setTimeout chain self-cancels
+        // when it next checks myId !== this.typerId.
+        this.typerId += 1
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
     }
 
     open({ prompt, readOnly, capture, dismissOnBack, prefilledText } = {})

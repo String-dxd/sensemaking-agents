@@ -159,8 +159,28 @@ export default class Telescope
         this.headPivot = headPivot
     }
 
+    /**
+     * Tear-down hook. Removes the prop group from the scene and disposes
+     * its geometries + materials so GPU buffers release.
+     */
+    dispose()
+    {
+        if(this.group)
+        {
+            try { this.scene?.remove?.(this.group) } catch(_) {}
+            this.group.traverse((node) =>
+            {
+                if(node.geometry) { try { node.geometry.dispose() } catch(_) {} }
+                if(node.material) { try { node.material.dispose() } catch(_) {} }
+            })
+            this.group = null
+        }
+        this.headPivot = null
+    }
+
     update()
     {
+        if(!this.group) return    // post-dispose tick
         // Tiny breeze sway on the tube — under 1Hz, well inside the locked
         // motion envelope. Pitch is anchored; only yaw oscillates lightly so
         // the telescope reads as planted, not animatronic.

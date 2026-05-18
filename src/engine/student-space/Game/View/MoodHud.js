@@ -69,6 +69,20 @@ export default class MoodHud
         this._setActive(null)
     }
 
+    /**
+     * Tear-down hook. Click listeners are attached to descendants of
+     * `this.root`, so detaching the wrap removes them with the tree. No
+     * document/window listeners to detach.
+     */
+    dispose()
+    {
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
+        this.dotsWrap = null
+        this.clearBtn = null
+        this.label = null
+    }
+
     _setActive(id)
     {
         for(const dot of this.dotsWrap.querySelectorAll('.mood-hud__dot'))
@@ -78,6 +92,7 @@ export default class MoodHud
 
     update()
     {
+        if(!this.root) return    // post-dispose tick
         // Auto-clear UI state when the bias expires so the active ring fades
         // out in sync with the sky tint.
         const active = this.root.querySelector('.mood-hud__dot.is-active')

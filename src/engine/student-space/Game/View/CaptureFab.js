@@ -84,16 +84,66 @@ export default class CaptureFab
         // anchor on the first pin. Mood pins tint the FAB toward the emotion
         // color and emit a coloured particle. Ask/photo captures fire a
         // neutral particle so every save shows the same kind of feedback.
-        this.state.moodPins.subscribe((pin) =>
+        // The unsubscribe handles are held so dispose() can drop the closures
+        // — otherwise both subscriptions keep the FAB and its sheets alive.
+        this._offMoodPins = this.state.moodPins.subscribe((pin) =>
         {
             const colour = MOOD_HEX[pin.emotion] || '#FF8A5C'
             this._tint(colour)
             this._emitParticle(colour)
         })
-        this.state.captures.subscribe(() =>
+        this._offCaptures = this.state.captures.subscribe(() =>
         {
             this._emitParticle('#FFFDF6')
         })
+
+        // Pending particle removal timers tracked here so dispose() can
+        // clear them — otherwise a teardown mid-particle would touch a
+        // detached node 1.5s later.
+        this._particleTimers = new Set()
+    }
+
+    /**
+     * Tear-down hook called from View.dispose(). Drops the state-store
+     * subscriptions, clears any pending particle removal timers, and
+     * cascades dispose() down to the owned capture sheets + chooser (the
+     * orchestrator opted into doing all of that here rather than enumerate
+     * each surface separately in View.dispose()).
+     */
+    dispose()
+    {
+        if(this._offMoodPins)
+        {
+            try { this._offMoodPins() } catch(_) {}
+            this._offMoodPins = null
+        }
+        if(this._offCaptures)
+        {
+            try { this._offCaptures() } catch(_) {}
+            this._offCaptures = null
+        }
+        if(this._particleTimers)
+        {
+            for(const id of this._particleTimers)
+            {
+                try { clearTimeout(id) } catch(_) {}
+            }
+            this._particleTimers.clear()
+            this._particleTimers = null
+        }
+        // Cascade to the owned capture surfaces. moodSheet + chooser had
+        // their own SUBSYSTEMS entries pre-rev2; they now ride this path so
+        // View.dispose() can speak about the FAB as a single unit.
+        try { this.moodSheet?.dispose?.() }  catch(_) {}
+        try { this.askSheet?.dispose?.() }   catch(_) {}
+        try { this.photoSheet?.dispose?.() } catch(_) {}
+        try { this.chooser?.dispose?.() }    catch(_) {}
+        this.moodSheet = null
+        this.askSheet = null
+        this.photoSheet = null
+        this.chooser = null
+        try { this.el?.remove?.() } catch(_) {}
+        this.el = null
     }
 
     _tint(colour)
@@ -105,6 +155,7 @@ export default class CaptureFab
 
     _emitParticle(colour)
     {
+        if(!this.el) return    // post-dispose subscription fire
         const rect = this.el.getBoundingClientRect()
         const startX = rect.left + rect.width / 2
         const startY = rect.top + rect.height / 2
@@ -128,7 +179,14 @@ export default class CaptureFab
         dot.style.transform = `translate(${dx}px, ${dy}px) scale(0.6)`
         dot.style.opacity = '0'
 
-        setTimeout(() => dot.remove(), 1500)
+        // Tracked so dispose() can cancel the pending removal and drop the
+        // dot synchronously instead of leaving it on the body.
+        const id = setTimeout(() =>
+        {
+            this._particleTimers?.delete(id)
+            dot.remove()
+        }, 1500)
+        this._particleTimers?.add(id)
     }
 
     update() {}

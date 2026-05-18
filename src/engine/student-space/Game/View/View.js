@@ -214,23 +214,35 @@ export default class View
         // can opt into the contract without forcing every other one
         // to grow a dispose() at the same time.
         //
-        // Representative high-traffic chrome subsystems (MoodSheet,
-        // KiraDialogue, ZoomHud, ProfileSheet) now implement dispose() —
-        // each owns at least one document- or window-level listener that
-        // survives root.remove() and would leak across React StrictMode /
-        // HMR remounts. The remaining chrome subsystems (sheets, HUDs,
-        // pickers under Game/View/) are tracked in the rev2 review and
-        // queued for a focused follow-up; they leak DOM only (not
-        // page-level listeners), so the per-remount cost is bounded.
+        // Every chrome subsystem that registers a document- or window-level
+        // listener, a state-store subscription, or a Three.js scene addition
+        // now implements dispose(). CaptureFab cascades to its owned
+        // sheets (moodSheet / askSheet / photoSheet / chooser); CalendarSheet
+        // cascades to DayDetailCard. The handful of subsystems still without
+        // a dispose() either don't appendChild to body (their DOM is owned
+        // by a parent surface) or are pure scene-graph nodes torn down by
+        // Renderer.dispose() — both bounded per remount.
         const SUBSYSTEMS = [
             this.onboardingFlow,
             this.camera,
             this.sound,
-            this.captureFab?.moodSheet,
             this.kiraDialogue,
+            this.kiraNarrator,
             this.zoomHud,
+            this.hourHud,
+            this.topNav,
+            this.captureFab,
             this.profileSheet,
-            this.captureFab?.chooser,
+            this.calendarSheet,
+            this.lettersSheet,
+            this.facetView,
+            this.hoverProbe,
+            this.hoverCta,
+            this.objectPeek,
+            this.birdPicker,
+            this.trackPicker,
+            this.mailbox,
+            this.telescope,
         ]
         for(const sub of SUBSYSTEMS)
         {

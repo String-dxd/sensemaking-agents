@@ -53,11 +53,36 @@ export default class LettersSheet
         this.listEl  = root.querySelector('.letters-sheet__list')
         this.bodyEl  = root.querySelector('.letters-sheet__body')
 
-        root.addEventListener('click', (event) => this._onClick(event))
-        document.addEventListener('keydown', (event) =>
+        // Root click is GC'd when root is removed; the document keydown
+        // outlives root.remove() and is the leak risk we need to detach.
+        this._onRootClick = (event) => this._onClick(event)
+        root.addEventListener('click', this._onRootClick)
+
+        this._onKeyDown = (event) =>
         {
             if(this.isOpen && event.key === 'Escape') this.close()
-        })
+        }
+        document.addEventListener('keydown', this._onKeyDown)
+    }
+
+    /**
+     * Tear-down hook called from View.dispose(). Detaches the page-level
+     * keydown listener and the sheet root.
+     */
+    dispose()
+    {
+        if(this._onKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+            this._onKeyDown = null
+        }
+        if(this._onRootClick && this.root)
+        {
+            try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
+            this._onRootClick = null
+        }
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
     }
 
     open()

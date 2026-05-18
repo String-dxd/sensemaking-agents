@@ -214,8 +214,39 @@ export default class Mailbox
         this._flagAxisGroup.rotation.x = rad
     }
 
+    /**
+     * Tear-down hook called from View.dispose(). Drops the letters
+     * subscription and removes the group from the scene. Geometries and
+     * materials are disposed via a depth traversal so the GPU buffers
+     * release; otherwise they'd survive Renderer.dispose() through their
+     * scene-graph parent.
+     */
+    dispose()
+    {
+        if(this._unsubLetters)
+        {
+            try { this._unsubLetters() } catch(_) {}
+            this._unsubLetters = null
+        }
+        if(this.group)
+        {
+            try { this.scene?.remove?.(this.group) } catch(_) {}
+            this.group.traverse((node) =>
+            {
+                if(node.geometry) { try { node.geometry.dispose() } catch(_) {} }
+                if(node.material) { try { node.material.dispose() } catch(_) {} }
+            })
+            this.group = null
+        }
+        this.flag = null
+        this.flagAnchor = null
+        this.body = null
+        this._flagAxisGroup = null
+    }
+
     update()
     {
+        if(!this.group) return    // post-dispose tick
         // Ease flag toward target at the same 1.6/s rate Kira uses on her
         // brow tween — under 1Hz, no spring, no overshoot.
         if(Math.abs(this._flagCurrent - this._flagTarget) > 0.001)

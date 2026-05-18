@@ -42,11 +42,32 @@ export default class BirdPicker
         })
 
         this._render(this.kira.speciesId)
-        this.kira.onSpeciesChange(id => this._render(id))
+        // Held for dispose() — onSpeciesChange returns an unsubscribe fn
+        // and the closure captures `this`, so we need to drop it.
+        this._offSpeciesChange = this.kira.onSpeciesChange(id => this._render(id))
+    }
+
+    /**
+     * Tear-down hook. Drops the Kira species-change subscription (the
+     * captured closure keeps the picker alive otherwise) and detaches the
+     * chip. No document/window listeners are registered here.
+     */
+    dispose()
+    {
+        if(this._offSpeciesChange)
+        {
+            try { this._offSpeciesChange() } catch(_) {}
+            this._offSpeciesChange = null
+        }
+        try { this.el?.remove?.() } catch(_) {}
+        this.el = null
+        this.nameEl = null
+        this.dotEl = null
     }
 
     _render(id)
     {
+        if(!this.nameEl) return    // post-dispose subscription fire
         const spec = SPECIES.find(s => s.id === id) || SPECIES[0]
         this.nameEl.textContent = spec.displayName
         // Tint the dot with the species' accent. The dot also gets a soft

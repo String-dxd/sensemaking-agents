@@ -68,10 +68,29 @@ export default class DayDetailCard
         this.titleEl = root.querySelector('.day-detail-card__title')
         this.emptyEl = root.querySelector('.day-detail-card__empty')
 
-        root.addEventListener('click', (event) =>
+        this._onRootClick = (event) =>
         {
             if(event.target.closest('.day-detail-card__close')) this.close()
-        })
+        }
+        root.addEventListener('click', this._onRootClick)
+    }
+
+    /**
+     * Tear-down hook called from CalendarSheet.dispose() (since the
+     * calendar owns this card's lifetime). No document/window listeners
+     * are registered — just detach the root.
+     */
+    dispose()
+    {
+        if(this._onRootClick && this.root)
+        {
+            try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
+            this._onRootClick = null
+        }
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
+        this.titleEl = null
+        this.emptyEl = null
     }
 
     open({ date } = {})

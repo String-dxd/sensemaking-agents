@@ -44,11 +44,30 @@ export default class TrackPicker
         })
 
         this._render(this.sound.trackId)
-        this.sound.onTrackChange(id => this._render(id))
+        // Held for dispose() — onTrackChange returns an unsubscribe fn.
+        this._offTrackChange = this.sound.onTrackChange(id => this._render(id))
+    }
+
+    /**
+     * Tear-down hook. Drops the Sound track-change subscription and
+     * detaches the chip. No document/window listeners are registered here.
+     */
+    dispose()
+    {
+        if(this._offTrackChange)
+        {
+            try { this._offTrackChange() } catch(_) {}
+            this._offTrackChange = null
+        }
+        try { this.el?.remove?.() } catch(_) {}
+        this.el = null
+        this.nameEl = null
+        this.attribEl = null
     }
 
     _render(id)
     {
+        if(!this.nameEl) return    // post-dispose subscription fire
         const track = this.sound.tracks.find(t => t.id === id) || this.sound.tracks[0]
         this.nameEl.textContent = track.name
         this.attribEl.textContent = track.attribution || ''

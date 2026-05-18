@@ -251,13 +251,44 @@ export default class FacetView
         this.handle.addEventListener('click',   () => this.toggleFull())
         this.ctaBtn.addEventListener('click',   () => this._openProfile())
 
-        document.addEventListener('keydown', (event) =>
+        this._onKeyDown = (event) =>
         {
             if(!this.isOpen) return
             if(event.key === 'Escape')   this.close()
             if(event.key === 'ArrowUp')   { this._setFull(true);  event.preventDefault() }
             if(event.key === 'ArrowDown') { this._setFull(false); event.preventDefault() }
-        })
+        }
+        document.addEventListener('keydown', this._onKeyDown)
+    }
+
+    /**
+     * Tear-down hook called from View.dispose(). Detaches the page-level
+     * keydown listener (the leak that survives root.remove()) and the
+     * sheet root. All other listeners are bound to descendants of root.
+     */
+    dispose()
+    {
+        if(this._onKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+            this._onKeyDown = null
+        }
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
+        this.scrim = null
+        this.sheet = null
+        this.handle = null
+        this.closeBtn = null
+        this.eyebrow = null
+        this.tag = null
+        this.titleEl = null
+        this.subtitleEl = null
+        this.rowMost = null
+        this.rowEmerge = null
+        this.detailTitle = null
+        this.detailBody = null
+        this.bentoEl = null
+        this.ctaBtn = null
     }
 
     /**

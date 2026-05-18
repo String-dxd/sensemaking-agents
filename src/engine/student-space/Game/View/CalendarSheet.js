@@ -85,11 +85,37 @@ export default class CalendarSheet
         this.todayBtn  = root.querySelector('.cal-today')
         this.gridEl    = root.querySelector('.calendar-sheet__grid')
 
-        root.addEventListener('click', (event) => this._onClick(event))
-        document.addEventListener('keydown', (event) =>
+        this._onRootClick = (event) => this._onClick(event)
+        root.addEventListener('click', this._onRootClick)
+
+        this._onKeyDown = (event) =>
         {
             if(this.isOpen && event.key === 'Escape') this.close()
-        })
+        }
+        document.addEventListener('keydown', this._onKeyDown)
+    }
+
+    /**
+     * Tear-down hook called from View.dispose(). Drops the document-level
+     * keydown listener, disposes the owned DayDetailCard (no other surface
+     * owns its lifetime), and detaches the sheet root.
+     */
+    dispose()
+    {
+        if(this._onKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+            this._onKeyDown = null
+        }
+        if(this._onRootClick && this.root)
+        {
+            try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
+            this._onRootClick = null
+        }
+        try { this.dayDetail?.dispose?.() } catch(_) {}
+        this.dayDetail = null
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
     }
 
     open()

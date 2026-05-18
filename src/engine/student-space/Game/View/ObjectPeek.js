@@ -188,17 +188,23 @@ export default class ObjectPeek
         this.pickupTalk.addEventListener('click', () => this._primary())
         this.pickupDetail.addEventListener('click', () => this._secondary())
         this.pickupClose.addEventListener('click', () => this.close())
-        document.addEventListener('keydown', (event) =>
+        // Document-level handlers held on `this` so dispose() can detach
+        // them; otherwise they outlive the detached peek/pickup roots and
+        // keep the whole subsystem alive across remounts.
+        this._onKeyDown = (event) =>
         {
             if(!this.isOpen) return
             if(event.key === 'Escape') this.close()
-        })
-        document.addEventListener('pointerdown', (event) =>
+        }
+        document.addEventListener('keydown', this._onKeyDown)
+
+        this._onDocPointerDown = (event) =>
         {
             if(!this.isOpen) return
             const inside = event.target.closest?.('.object-peek, .object-pickup, .kira-dialogue')
             if(!inside && event.target?.tagName === 'CANVAS') this.close()
-        })
+        }
+        document.addEventListener('pointerdown', this._onDocPointerDown)
 
         this.isOpen = false
         this.step = null              // 'peek' | 'pickup' | null
@@ -361,6 +367,60 @@ export default class ObjectPeek
         setTimeout(() => config.secondaryAction(target, this.view, this.state), 240)
     }
 
+    /**
+     * Tear-down hook called from View.dispose(). Detaches the document
+     * keydown + pointerdown listeners (the leak risks that survive root
+     * removal), bumps the typer id so any queued setTimeouts self-cancel,
+     * removes the pickup mesh from the scene if it's still mid-tween, and
+     * detaches both peek and pickup roots.
+     */
+    dispose()
+    {
+        if(this._onKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+            this._onKeyDown = null
+        }
+        if(this._onDocPointerDown)
+        {
+            try { document.removeEventListener('pointerdown', this._onDocPointerDown) } catch(_) {}
+            this._onDocPointerDown = null
+        }
+        // Bump so any queued type / close setTimeout chains short-circuit
+        // before touching detached nodes.
+        this.typerId += 1
+        if(this.pickupGroup)
+        {
+            try
+            {
+                if(this.pickupGroup.parent) this.pickupGroup.parent.remove(this.pickupGroup)
+                this.pickupGroup.traverse((node) =>
+                {
+                    if(node.geometry) { try { node.geometry.dispose() } catch(_) {} }
+                    if(node.material) { try { node.material.dispose() } catch(_) {} }
+                })
+            }
+            catch(_) {}
+            this.pickupGroup = null
+        }
+        this.pickupTween = null
+        try { this.peekEl?.remove?.() } catch(_) {}
+        try { this.pickupEl?.remove?.() } catch(_) {}
+        this.peekEl = null
+        this.pickupEl = null
+        this.peekEye = null
+        this.peekTitle = null
+        this.peekMean = null
+        this.peekCta = null
+        this.pickupText = null
+        this.pickupTalk = null
+        this.pickupDetail = null
+        this.pickupClose = null
+        this.isOpen = false
+        this.target = null
+        this.config = null
+    }
+
     close()
     {
         if(!this.isOpen) return
@@ -390,6 +450,7 @@ export default class ObjectPeek
 
     update()
     {
+        if(!this.peekEl) return    // post-dispose tick
         if(this.isOpen && this.step === 'peek' && this.target) this._anchorPeek()
 
         if(this.pickupTween && this.pickupGroup)

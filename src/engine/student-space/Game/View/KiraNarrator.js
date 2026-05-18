@@ -122,10 +122,39 @@ export default class KiraNarrator
 
         this.ctaEl.addEventListener('click', () => this._confirm())
         this.closeEl.addEventListener('click', () => this.close())
-        document.addEventListener('keydown', (event) =>
+        // Document keydown survives root removal; held on `this` so dispose
+        // can detach it.
+        this._onKeyDown = (event) =>
         {
             if(this.isActive && event.key === 'Escape') this.close()
-        })
+        }
+        document.addEventListener('keydown', this._onKeyDown)
+    }
+
+    /**
+     * Tear-down hook called from View.dispose(). Drops the page-level
+     * keydown listener, cancels any in-flight typewriter (so its setTimeout
+     * chain self-cancels on the next tick), and detaches the bubble root.
+     * The Kira yaw tween is on `update()` and ends when its mode resolves —
+     * no setTimeout id to clear.
+     */
+    dispose()
+    {
+        if(this._onKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+            this._onKeyDown = null
+        }
+        // Bumping the id makes any queued _scheduleType callback short-
+        // circuit instead of touching torn-down elements.
+        this.typerId += 1
+        this._kiraTurn = null
+        this._kiraRestYaw = null
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
+        this.textEl = null
+        this.ctaEl = null
+        this.closeEl = null
     }
 
     narrate(target)

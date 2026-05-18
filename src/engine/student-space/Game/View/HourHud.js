@@ -118,6 +118,27 @@ export default class HourHud
         // happens before this hud, so the references are already live.
         this.auroraBtn.addEventListener('click',  () => this._toggleSky(this.auroraBtn,  'aurora'))
         this.rainbowBtn.addEventListener('click', () => this._toggleSky(this.rainbowBtn, 'rainbow'))
+
+        // Root reference held for dispose(); all listeners attach to
+        // descendants of `wrap`, so root.remove() drops them with the tree.
+        this.root = wrap
+    }
+
+    /**
+     * Tear-down hook. Listeners are all bound to descendants of `root`, so
+     * detaching it drops the closure graph. No document/window listeners
+     * are registered here.
+     */
+    dispose()
+    {
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
+        this.slider = null
+        this.valueEl = null
+        this.realtimeBtn = null
+        this.rainBtn = null
+        this.auroraBtn = null
+        this.rainbowBtn = null
     }
 
     _companionSay(line)
@@ -143,6 +164,7 @@ export default class HourHud
 
     update()
     {
+        if(!this.slider) return    // post-dispose tick
         // In real-time mode, mirror the live hour into the slider so the UI doesn't drift from the cycle.
         // Skip while the slider is focused so we don't fight the user's drag.
         if(this.dayCycle.manualHour === null && document.activeElement !== this.slider)

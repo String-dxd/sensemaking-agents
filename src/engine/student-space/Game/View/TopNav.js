@@ -65,7 +65,11 @@ export default class TopNav
         document.body.appendChild(root)
         this.root = root
 
-        root.addEventListener('click', (event) =>
+        // Stored on `this` so dispose() can detach. The root-attached click
+        // would be GC'd with the detached root regardless, but keeping the
+        // pattern uniform across chrome subsystems makes the teardown read
+        // the same everywhere.
+        this._onRootClick = (event) =>
         {
             const chip = event.target.closest('.top-nav__chip')
             if(!chip) return
@@ -74,7 +78,23 @@ export default class TopNav
             // Tap the same chip while its sheet is open → close it
             if(controller.isOpen(sheet)) controller.close(sheet)
             else controller.open(sheet)
-        })
+        }
+        root.addEventListener('click', this._onRootClick)
+    }
+
+    /**
+     * Tear-down hook. Detaches the top-nav root from the body. No
+     * document/window listeners are registered.
+     */
+    dispose()
+    {
+        if(this._onRootClick && this.root)
+        {
+            try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
+            this._onRootClick = null
+        }
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
     }
 
     update() {}
