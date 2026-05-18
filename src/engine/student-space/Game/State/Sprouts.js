@@ -24,7 +24,7 @@
  */
 
 import Persistence from './Persistence.js'
-import { mergeArray, mergeSprout } from './schema.js'
+import { coercePosition, mergeArray, mergeSprout } from './schema.js'
 
 // Bloom threshold — number of captures required before a sprout is
 // ready to plant. v1.1: thresholds vary by species (tree=3, flower=3,
@@ -179,6 +179,12 @@ export default class Sprouts
             placementSeed: sprout.placementSeed,
             captureRefs:   [...sprout.captureRefs],
             dimension:     sprout.dimension,
+            // Carry the student-set position forward so a sprout the
+            // student moved blooms in place rather than snapping back
+            // to its seeded coordinate. Cloned so later mutations on
+            // the bloomedTree's position don't bleed into the dropped
+            // sprout reference.
+            position:      sprout.position ? { x: sprout.position.x, z: sprout.position.z } : null,
         }
         this.bloomedTrees.push(bloomedTree)
 
@@ -192,6 +198,59 @@ export default class Sprouts
     listBloomedTrees()
     {
         return this.bloomedTrees
+    }
+
+    /**
+     * Pick-and-plant: set or clear an explicit world position for an
+     * active sprout. The view treats an explicit position as
+     * authoritative; clearing (passing `null`) reverts to the seeded
+     * placement. Silent no-op on unknown id or invalid payload — matches
+     * the lenient posture of every other slice.
+     *
+     * @param {string} id
+     * @param {{ x: number, z: number } | null} position
+     * @returns {boolean} true if the sprout's position changed (or
+     *   cleared), false on unknown id or rejected payload.
+     */
+    setSproutPosition(id, position)
+    {
+        if(typeof id !== 'string' || id.length === 0) return false
+        // coercePosition returns null for both "explicit null clear" and
+        // "invalid payload". Distinguish them so an invalid payload is
+        // rejected without clearing existing data.
+        const coerced = coercePosition(position)
+        if(coerced === null && position !== null && position !== undefined) return false
+
+        const sprout = this.sprouts.find((s) => s.id === id)
+        if(!sprout) return false
+
+        sprout.position = coerced
+        this._invalidateCache()
+        this._fan({ type: 'moved', sprout })
+        this._persist()
+        return true
+    }
+
+    /**
+     * Pick-and-plant: set or clear an explicit world position for a
+     * bloomed object. Same contract as `setSproutPosition`. Fans a
+     * `'moved'` event carrying the bloomedTree (no `sprout` field) so
+     * subscribers can dispatch by shape.
+     */
+    setBloomedPosition(id, position)
+    {
+        if(typeof id !== 'string' || id.length === 0) return false
+        const coerced = coercePosition(position)
+        if(coerced === null && position !== null && position !== undefined) return false
+
+        const bloomedTree = this.bloomedTrees.find((t) => t.id === id)
+        if(!bloomedTree) return false
+
+        bloomedTree.position = coerced
+        this._invalidateCache()
+        this._fan({ type: 'moved', bloomedTree })
+        this._persist()
+        return true
     }
 
     /**
@@ -251,7 +310,12 @@ export default class Sprouts
     recent(n = 50)
     {
         if(this._recentCache.has(n)) return this._recentCache.get(n)
-        const snapshot = Object.freeze(this.sprouts.slice(-n).reverse().map((s) => Object.freeze({ ...s, captureRefs: Object.freeze([...s.captureRefs]) })))
+        const freezeOne = (s) => Object.freeze({
+            ...s,
+            captureRefs: Object.freeze([...s.captureRefs]),
+            position:    s.position ? Object.freeze({ x: s.position.x, z: s.position.z }) : null,
+        })
+        const snapshot = Object.freeze(this.sprouts.slice(-n).reverse().map(freezeOne))
         this._recentCache.set(n, snapshot)
         return snapshot
     }
@@ -265,7 +329,11 @@ export default class Sprouts
         if(this._activeCache !== null) return this._activeCache
         const found = this._activeSprout()
         this._activeCache = found
-            ? Object.freeze({ ...found, captureRefs: Object.freeze([...found.captureRefs]) })
+            ? Object.freeze({
+                ...found,
+                captureRefs: Object.freeze([...found.captureRefs]),
+                position:    found.position ? Object.freeze({ x: found.position.x, z: found.position.z }) : null,
+            })
             : null
         return this._activeCache
     }
@@ -324,7 +392,14 @@ export default class Sprouts
                 .map((t) => ({
                     species: 'tree',
                     dimension: null,
+                    position: null,
                     ...t,
+                    // Position is hydrated through coercePosition so a
+                    // corrupt entry (`{ x: NaN }` etc.) falls back to
+                    // null and the view re-seeds from placementSeed.
+                    // Applied after the spread so the spread can't
+                    // override the coerced result.
+                    ...{ position: coercePosition(t.position) },
                 }))
         }
         this._invalidateCache()
@@ -336,10 +411,15 @@ export default class Sprouts
 
     serialize()
     {
+        const cloneTree = (t) => ({
+            ...t,
+            captureRefs: [...t.captureRefs],
+            position:    t.position ? { x: t.position.x, z: t.position.z } : null,
+        })
         return {
             cycleIndex:    this.cycleIndex,
-            sprouts:       this.sprouts.map((s) => ({ ...s, captureRefs: [...s.captureRefs] })),
-            bloomedTrees:  this.bloomedTrees.map((t) => ({ ...t, captureRefs: [...t.captureRefs] })),
+            sprouts:       this.sprouts.map(cloneTree),
+            bloomedTrees:  this.bloomedTrees.map(cloneTree),
         }
     }
 
@@ -377,6 +457,10 @@ export default class Sprouts
             bloomedAt:     null,
             captureRefs:   [],
             dimension:     null,
+            // No explicit student-set position at spawn — view falls
+            // back to seededAngleAndRadius(placementSeed). The student
+            // can later move it via setSproutPosition.
+            position:      null,
         }
         this.sprouts.push(sprout)
         this.cycleIndex += 1

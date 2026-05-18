@@ -6,6 +6,11 @@
 export type SproutSpecies = 'pending' | 'tree' | 'flower' | 'butterfly' | 'fruit'
 export type SproutDimension = 'values' | 'interests' | 'personality' | 'skills'
 
+export interface SproutPosition {
+  readonly x: number
+  readonly z: number
+}
+
 export interface Sprout {
   readonly id: string
   readonly createdAt: string
@@ -19,6 +24,7 @@ export interface Sprout {
   readonly bloomedAt: string | null
   readonly captureRefs: readonly string[]
   readonly dimension: SproutDimension | null
+  readonly position: SproutPosition | null
 }
 
 export interface BloomedTree {
@@ -30,6 +36,7 @@ export interface BloomedTree {
   readonly placementSeed: number
   readonly captureRefs: readonly string[]
   readonly dimension: SproutDimension | null
+  readonly position: SproutPosition | null
 }
 
 export type SproutsEvent =
@@ -38,6 +45,8 @@ export type SproutsEvent =
   | { type: 'markedReady'; sprout: Sprout }
   | { type: 'speciesLocked'; sprout: Sprout }
   | { type: 'bloomed'; sprout: Sprout; bloomedTree: BloomedTree }
+  | { type: 'moved'; sprout: Sprout }
+  | { type: 'moved'; bloomedTree: BloomedTree }
 
 export interface CaptureRef {
   kind: 'capture' | 'mood'
@@ -64,6 +73,8 @@ export default class Sprouts {
   }
   bloom(id: string): { sprout: Sprout; bloomedTree: BloomedTree } | null
   setDimensionForFirstCapture(captureId: string, dimension: SproutDimension): boolean
+  setSproutPosition(id: string, position: SproutPosition | null): boolean
+  setBloomedPosition(id: string, position: SproutPosition | null): boolean
 
   recent(n?: number): readonly Sprout[]
   getActive(): Sprout | null

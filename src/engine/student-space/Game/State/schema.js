@@ -401,12 +401,35 @@ const defaultSprout = () => ({
     bloomedAt:     null,
     captureRefs:   [],
     dimension:     null,
+    // Explicit student-set position (pick-and-plant). When null, the view
+    // falls back to seededAngleAndRadius(placementSeed). Plain object —
+    // not frozen — because the slice may mutate it in place via
+    // setSproutPosition.
+    position:      null,
 })
 
 const KNOWN_SPROUT_KEYS = new Set([
     'id', 'createdAt', 'entryDate', 'species', 'treeSpecies', 'dimension',
     'placementSeed', 'threshold', 'count', 'readyToBloom', 'bloomedAt', 'captureRefs',
+    'position',
 ])
+
+/**
+ * Validate a `{ x, z }` position payload. Returns the cleaned position
+ * or `null` for any invalid shape. Used by both the schema merger and
+ * the slice's `setSproutPosition` / `setBloomedPosition` methods so the
+ * two paths can't drift.
+ */
+export function coercePosition(raw)
+{
+    if(raw === null || raw === undefined) return null
+    if(typeof raw !== 'object') return null
+    const x = raw.x
+    const z = raw.z
+    if(typeof x !== 'number' || typeof z !== 'number') return null
+    if(!Number.isFinite(x) || !Number.isFinite(z)) return null
+    return { x, z }
+}
 
 export function mergeSprout(raw, ctx = 'sprout')
 {
@@ -426,6 +449,16 @@ export function mergeSprout(raw, ctx = 'sprout')
         {
             if(!Array.isArray(v)) { warn(`${ctx}.captureRefs not array`); continue }
             out.captureRefs = v.filter((x) => typeof x === 'string')
+            continue
+        }
+        if(k === 'position')
+        {
+            const coerced = coercePosition(v)
+            if(coerced === null && v !== null && v !== undefined)
+            {
+                warn(`${ctx}.position invalid shape; defaulting to null`)
+            }
+            out.position = coerced
             continue
         }
         if((k === 'id' || k === 'entryDate' || k === 'createdAt') && !isString(v)) { warn(`${ctx}.${k} not string`); continue }
