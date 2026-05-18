@@ -1,6 +1,7 @@
 /**
  * CaptureTagPicker — modal that appears after each capture submit and
- * asks the student which V/I/P/S dimension it represents.
+ * asks the student which V/I/P/S dimension it represents, then
+ * optionally a finer-grained sub-claim from the VIPS taxonomy.
  *
  * Tested in isolation with a fake game (the real engine isn't booted
  * because GLSL imports aren't loadable under vitest's happy-dom).
@@ -11,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CaptureTagPicker } from '~/components/CaptureTagPicker'
 import type { Game } from '~/engine/student-space/Game'
 
-type Entry = { id: string; dimension?: string | null }
+type Entry = { id: string; dimension?: string | null; subClaimId?: string | null }
 type CapturesListener = (entry: Entry) => void
 
 interface FakeCaptures {
@@ -19,7 +20,7 @@ interface FakeCaptures {
   listeners: Set<CapturesListener>
   subscribe(cb: CapturesListener): () => void
   emitAdd(entry: Entry): void
-  patch(id: string, updates: { dimension: string }): void
+  patch(id: string, updates: { dimension?: string; subClaimId?: string | null }): void
 }
 
 interface FakeSprouts {
@@ -65,7 +66,7 @@ describe('CaptureTagPicker', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('appears on a new untagged capture and exposes the four V/I/P/S chips', () => {
+  it('step 1: appears on a new untagged capture and exposes the four V/I/P/S chips', () => {
     const { game, captures } = makeFakeGame()
     render(<CaptureTagPicker game={game} />)
     act(() => {
@@ -87,7 +88,26 @@ describe('CaptureTagPicker', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('on pick: patches the capture AND calls sprouts.setDimensionForFirstCapture, then closes', () => {
+  it('step 2: after picking dimension, sub-claim chips from VIPS_BY_FACET appear', () => {
+    const { game, captures } = makeFakeGame()
+    render(<CaptureTagPicker game={game} />)
+    act(() => {
+      captures.emitAdd({ id: 'cap-1' })
+    })
+    act(() => {
+      screen.getByRole('button', { name: /^interest/i }).click()
+    })
+    // Step 2 heading
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-step', 'subClaim')
+    // Interests facet has 6 RIASEC sub-claims
+    expect(screen.getByRole('button', { name: /^realistic$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^investigative$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^artistic$/i })).toBeInTheDocument()
+    // Skip affordance is present
+    expect(screen.getByRole('button', { name: /skip/i })).toBeInTheDocument()
+  })
+
+  it('sub-claim pick: patches dimension + subClaimId, calls sprouts.setDimensionForFirstCapture, closes', () => {
     const { game, captures, sprouts } = makeFakeGame()
     const patchSpy = vi.spyOn(captures, 'patch')
     render(<CaptureTagPicker game={game} />)
@@ -97,8 +117,32 @@ describe('CaptureTagPicker', () => {
     act(() => {
       screen.getByRole('button', { name: /^interest/i }).click()
     })
-    expect(patchSpy).toHaveBeenCalledWith('cap-1', { dimension: 'interests' })
+    act(() => {
+      screen.getByRole('button', { name: /^investigative$/i }).click()
+    })
+    expect(patchSpy).toHaveBeenCalledWith('cap-1', {
+      dimension: 'interests',
+      subClaimId: 'interests.investigative',
+    })
     expect(sprouts.setDimensionForFirstCapture).toHaveBeenCalledWith('cap-1', 'interests')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('skip sub-claim: patches dimension only, no subClaimId, closes', () => {
+    const { game, captures, sprouts } = makeFakeGame()
+    const patchSpy = vi.spyOn(captures, 'patch')
+    render(<CaptureTagPicker game={game} />)
+    act(() => {
+      captures.emitAdd({ id: 'cap-1' })
+    })
+    act(() => {
+      screen.getByRole('button', { name: /^value/i }).click()
+    })
+    act(() => {
+      screen.getByRole('button', { name: /skip/i }).click()
+    })
+    expect(patchSpy).toHaveBeenCalledWith('cap-1', { dimension: 'values' })
+    expect(sprouts.setDimensionForFirstCapture).toHaveBeenCalledWith('cap-1', 'values')
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
@@ -110,19 +154,29 @@ describe('CaptureTagPicker', () => {
       captures.emitAdd({ id: 'cap-2' })
       captures.emitAdd({ id: 'cap-3' })
     })
-    // Only one dialog at a time.
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    // Pick the first; the next pops automatically.
+    // First capture: pick Value → skip sub-claim.
     act(() => {
       screen.getByRole('button', { name: /^value/i }).click()
     })
+    act(() => {
+      screen.getByRole('button', { name: /skip/i }).click()
+    })
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    // Second: pick Personality → pick a sub-claim.
+    act(() => {
+      screen.getByRole('button', { name: /^personality/i }).click()
+    })
+    act(() => {
+      screen.getByRole('button', { name: /^extraversion$/i }).click()
+    })
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    // Third: pick Skill → skip.
     act(() => {
       screen.getByRole('button', { name: /^skill/i }).click()
     })
-    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     act(() => {
-      screen.getByRole('button', { name: /^personality/i }).click()
+      screen.getByRole('button', { name: /skip/i }).click()
     })
     expect(screen.queryByRole('dialog')).toBeNull()
   })

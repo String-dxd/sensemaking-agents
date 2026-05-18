@@ -194,6 +194,11 @@ const KNOWN_CAPTURE_KEYS = new Set([
     // Sprout dimension picked by the student post-capture (values /
     // interests / personality / skills). Drives sprout species.
     'dimension',
+    // Optional finer-grained claim id from the VIPS taxonomy (e.g.,
+    // 'values.contribution', 'skills.communication'). Recorded for
+    // future analysis + display; species is still derived from the
+    // top-level dimension above so this is purely additive.
+    'subClaimId',
 ])
 const CAPTURE_DIMENSIONS = new Set(['values', 'interests', 'personality', 'skills'])
 
@@ -283,6 +288,7 @@ export function mergeCapture(raw, ctx = 'capture')
         const v = raw[k]
         if(k === 'kind' && !CAPTURE_KIND.has(v)) { warn(`${ctx}.kind invalid`); continue }
         if(k === 'dimension' && v !== null && !CAPTURE_DIMENSIONS.has(v)) { warn(`${ctx}.dimension invalid: "${v}"`); continue }
+        if(k === 'subClaimId' && v !== null && !isCanonicalClaim(v)) { warn(`${ctx}.subClaimId not in taxonomy: "${v}"`); continue }
         if(k === 'reframe')
         {
             const rf = mergeReframe(v, ctx)
