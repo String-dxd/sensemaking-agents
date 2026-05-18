@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import type { Game } from '~/engine/student-space/Game'
+import { IslandProgressionOverlay } from './IslandProgressionOverlay'
 
 /**
  * Mounts the vendored Student Space engine. The engine is one-game-per-page;
@@ -18,6 +20,7 @@ import { useEffect, useRef, useState } from 'react'
 export function StudentSpaceHost({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [error, setError] = useState<Error | null>(null)
+  const [game, setGame] = useState<Game | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -30,7 +33,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
       try {
         const engine = await import('~/engine/student-space/Game')
         if (cancelled) return
-        const game = engine.createGame({
+        const live = engine.createGame({
           container,
           persistence: { storage: engine.localStorageAdapter() },
         })
@@ -38,10 +41,12 @@ export function StudentSpaceHost({ className }: { className?: string }) {
         // import the engine without bloating server bundles) can call
         // `dispose()` synchronously to drain Persistence before the
         // `ss:v1:*` localStorage wipe. The handle is cleared on unmount.
-        window.__studentSpaceGame = game
+        window.__studentSpaceGame = live
+        setGame(live)
         dispose = () => {
           window.__studentSpaceGame = null
-          game.dispose()
+          setGame(null)
+          live.dispose()
         }
       } catch (err) {
         console.error('[StudentSpaceHost] createGame failed', err)
@@ -59,7 +64,12 @@ export function StudentSpaceHost({ className }: { className?: string }) {
 
   if (error) return <EngineLoadFailure error={error} />
 
-  return <div ref={containerRef} className={className ?? 'fixed inset-0 h-svh w-svw'} />
+  return (
+    <>
+      <div ref={containerRef} className={className ?? 'fixed inset-0 h-svh w-svw'} />
+      {game ? <IslandProgressionOverlay game={game} /> : null}
+    </>
+  )
 }
 
 function EngineLoadFailure({ error }: { error: Error }) {

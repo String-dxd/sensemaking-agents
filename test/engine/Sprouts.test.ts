@@ -121,7 +121,7 @@ describe('Sprouts state slice', () => {
     const reborn = new Sprouts()
     reborn.hydrate(serialized)
     expect(reborn.listBloomedTrees()).toHaveLength(1)
-    expect(reborn.listBloomedTrees()[0].treeSpecies).toBe(ready.treeSpecies)
+    expect(reborn.listBloomedTrees()[0]!.treeSpecies).toBe(ready.treeSpecies)
   })
 
   it('recent(n) returns referentially stable arrays between mutations', () => {
