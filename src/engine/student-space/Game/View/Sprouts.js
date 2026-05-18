@@ -964,6 +964,17 @@ export default class Sprouts
         const node = this.nodes.get(sproutId)
         if(!node) return
 
+        // While the student is arranging the island, suppress the
+        // auto-fly cinematic — flying the camera around would yank them
+        // out of edit mode. State updates (badge, scale, glow) still
+        // happen; only the camera moment is skipped. Auto-bloom is
+        // intentionally NOT triggered here either: the threshold may
+        // re-cross on the next grow event after edit mode is off, and
+        // exiting edit mode shouldn't fire a deferred bloom they may
+        // have moved past mentally. The tap-on-ready escape hatch in
+        // _handlePointerUp keeps the bloom reachable.
+        if(this._editMode) return
+
         // Reduced-motion path: skip camera, flash, kick auto-bloom if
         // applicable. The dissolve/grow code already has reduced-motion
         // branches.
