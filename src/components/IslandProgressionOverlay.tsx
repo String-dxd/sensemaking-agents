@@ -40,17 +40,23 @@ type SproutSnapshot = {
 function getSproutsSlice(game: Game) {
   // Defensive: tests sometimes pass a partial game without a state surface.
   // Real engine boots always have state.sprouts; partial mocks must not crash.
-  const state = (game as unknown as { state?: { sprouts?: {
-    readyToBloom?(): readonly unknown[]
-    recent?(n: number): readonly unknown[]
-    subscribe?(cb: (event: { type: string }) => void): () => void
-  }}}).state
+  const state = (
+    game as unknown as {
+      state?: {
+        sprouts?: {
+          readyToBloom?(): readonly unknown[]
+          recent?(n: number): readonly unknown[]
+          subscribe?(cb: (event: { type: string }) => void): () => void
+        }
+      }
+    }
+  ).state
   return state?.sprouts ?? null
 }
 
 function buildSnapshot(game: Game): SproutSnapshot {
   const sprouts = getSproutsSlice(game)
-  if (!sprouts || !sprouts.readyToBloom || !sprouts.recent) {
+  if (!sprouts?.readyToBloom || !sprouts.recent) {
     return { readyCount: 0, activeCount: 0 }
   }
   return {
@@ -59,7 +65,7 @@ function buildSnapshot(game: Game): SproutSnapshot {
   }
 }
 
-let snapshotCache = new WeakMap<Game, SproutSnapshot>()
+const snapshotCache = new WeakMap<Game, SproutSnapshot>()
 
 function getSnapshot(game: Game): SproutSnapshot {
   // useSyncExternalStore requires a stable reference until subscribe
@@ -82,7 +88,7 @@ function getSnapshot(game: Game): SproutSnapshot {
 
 function subscribe(game: Game, onStoreChange: () => void): () => void {
   const sprouts = getSproutsSlice(game)
-  if (!sprouts || !sprouts.subscribe) return () => {}
+  if (!sprouts?.subscribe) return () => {}
   return sprouts.subscribe(() => {
     snapshotCache.delete(game)
     onStoreChange()
@@ -93,7 +99,7 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
   const snapshot = useSyncExternalStore(
     (onChange) => subscribe(game, onChange),
     () => getSnapshot(game),
-    () => ({ readyCount: 0, activeCount: 0 }),  // SSR fallback
+    () => ({ readyCount: 0, activeCount: 0 }), // SSR fallback
   )
 
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -101,11 +107,15 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
   useEffect(() => {
     let nextId = 1
     const sprouts = getSproutsSlice(game)
-    if (!sprouts || !sprouts.subscribe) return
+    if (!sprouts?.subscribe) return
     const unsubscribe = sprouts.subscribe((event) => {
       let entry: Toast | null = null
       if (event.type === 'spawned') {
-        entry = { id: nextId++, text: 'Heard. Something is growing on the island.', variant: 'grow' }
+        entry = {
+          id: nextId++,
+          text: 'Heard. Something is growing on the island.',
+          variant: 'grow',
+        }
       } else if (event.type === 'grew') {
         entry = { id: nextId++, text: 'Heard. The sprout grew.', variant: 'grow' }
       } else if (event.type === 'markedReady') {
@@ -114,10 +124,10 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
         entry = { id: nextId++, text: 'Planted. A new tree on the island.', variant: 'bloom' }
       }
       if (entry) {
-        const { id: thisId } = entry
-        setToasts((prev) => [...prev, entry!])
+        const fresh: Toast = entry
+        setToasts((prev) => [...prev, fresh])
         window.setTimeout(() => {
-          setToasts((prev) => prev.filter((t) => t.id !== thisId))
+          setToasts((prev) => prev.filter((t) => t.id !== fresh.id))
         }, TOAST_TTL_MS)
       }
     })
@@ -144,7 +154,7 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
           aria-label={`Ready to plant: ${snapshot.readyCount} sprouts`}
           style={{
             position: 'absolute',
-            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 92px)',  // above mood-hud band
+            bottom: 'calc(env(safe-area-inset-bottom, 0px) + 92px)', // above mood-hud band
             left: '50%',
             transform: 'translateX(-50%)',
             padding: '7px 14px',
@@ -177,9 +187,8 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
         </div>
       ) : null}
 
-      <div
+      <section
         // Toast stack — bottom-center, just above the tray slot.
-        role="region"
         aria-live="polite"
         aria-label="Island progression updates"
         style={{
@@ -212,7 +221,7 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
             {t.text}
           </div>
         ))}
-      </div>
+      </section>
     </div>
   )
 }

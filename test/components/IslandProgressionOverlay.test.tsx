@@ -86,10 +86,9 @@ describe('IslandProgressionOverlay', () => {
     expect(screen.getByText(/heard\. something is growing/i)).toBeInTheDocument()
     // TTL is 2.4s; we don't fast-forward timers here, just assert the
     // toast surfaces. Auto-dismiss is exercised by the e2e test.
-    await waitFor(
-      () => expect(screen.queryByText(/heard\. something is growing/i)).toBeNull(),
-      { timeout: 3000 },
-    )
+    await waitFor(() => expect(screen.queryByText(/heard\. something is growing/i)).toBeNull(), {
+      timeout: 3000,
+    })
   })
 
   it('renders bloom toast distinctly from grow', () => {

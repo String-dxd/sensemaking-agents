@@ -15,15 +15,12 @@
  *     abort fan-out or skip _persist)
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-
+import Persistence, { memoryAdapter } from '~/engine/student-space/Game/State/Persistence.js'
 import Sprouts, {
   BLOOM_THRESHOLD,
-  TREE_SPECIES_ROTATION,
   type SproutsEvent,
+  TREE_SPECIES_ROTATION,
 } from '~/engine/student-space/Game/State/Sprouts.js'
-import Persistence, {
-  memoryAdapter,
-} from '~/engine/student-space/Game/State/Persistence.js'
 
 function freshPersistence() {
   // Reset singletons so each test boots a clean slice + adapter.
@@ -50,10 +47,10 @@ describe('Sprouts state slice', () => {
     const result = sprouts.grow({ kind: 'capture', id: 'cap-1' })
     expect(result.didSpawn).toBe(true)
     expect(result.sprout).toBeTruthy()
-    expect(result.sprout!.count).toBe(1)
-    expect(result.sprout!.species).toBe('tree')
-    expect(result.sprout!.treeSpecies).toBe(TREE_SPECIES_ROTATION[0])
-    expect(result.sprout!.readyToBloom).toBe(false)
+    expect(result.sprout?.count).toBe(1)
+    expect(result.sprout?.species).toBe('tree')
+    expect(result.sprout?.treeSpecies).toBe(TREE_SPECIES_ROTATION[0])
+    expect(result.sprout?.readyToBloom).toBe(false)
   })
 
   it('BLOOM_THRESHOLD grows reach readyToBloom on the threshold-th call', () => {
@@ -62,8 +59,8 @@ describe('Sprouts state slice', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-2' })
     const third = sprouts.grow({ kind: 'capture', id: 'cap-3' })
     expect(third.didMarkReady).toBe(true)
-    expect(third.sprout!.readyToBloom).toBe(true)
-    expect(third.sprout!.count).toBe(3)
+    expect(third.sprout?.readyToBloom).toBe(true)
+    expect(third.sprout?.count).toBe(3)
   })
 
   it('grow() after threshold spawns a new sprout, cycling to next tree species', () => {
@@ -72,7 +69,7 @@ describe('Sprouts state slice', () => {
     }
     const next = sprouts.grow({ kind: 'capture', id: 'cap-x' })
     expect(next.didSpawn).toBe(true)
-    expect(next.sprout!.treeSpecies).toBe(TREE_SPECIES_ROTATION[1])
+    expect(next.sprout?.treeSpecies).toBe(TREE_SPECIES_ROTATION[1])
     expect(sprouts.recent(10)).toHaveLength(2)
   })
 
@@ -82,7 +79,7 @@ describe('Sprouts state slice', () => {
     expect(first.didSpawn).toBe(true)
     expect(second.didSpawn).toBe(false)
     expect(second.didMarkReady).toBe(false)
-    expect(sprouts.getActive()!.count).toBe(1)
+    expect(sprouts.getActive()?.count).toBe(1)
   })
 
   it('bloom() returns null when sprout is not ready', () => {
@@ -101,10 +98,10 @@ describe('Sprouts state slice', () => {
     sprouts.subscribe((ev: SproutsEvent) => events.push({ type: ev.type, id: ev.sprout.id }))
     const result = sprouts.bloom(ready.id)
     expect(result).toBeTruthy()
-    expect(result!.sprout.bloomedAt).not.toBeNull()
-    expect(result!.bloomedTree.id).toBe(ready.id)
-    expect(result!.bloomedTree.treeSpecies).toBe(ready.treeSpecies)
-    expect(result!.bloomedTree.placementSeed).toBe(ready.placementSeed)
+    expect(result?.sprout.bloomedAt).not.toBeNull()
+    expect(result?.bloomedTree.id).toBe(ready.id)
+    expect(result?.bloomedTree.treeSpecies).toBe(ready.treeSpecies)
+    expect(result?.bloomedTree.placementSeed).toBe(ready.placementSeed)
     expect(sprouts.recent(10)).toHaveLength(0)
     expect(sprouts.listBloomedTrees()).toHaveLength(1)
     expect(events).toEqual([{ type: 'bloomed', id: ready.id }])
@@ -121,7 +118,7 @@ describe('Sprouts state slice', () => {
     const reborn = new Sprouts()
     reborn.hydrate(serialized)
     expect(reborn.listBloomedTrees()).toHaveLength(1)
-    expect(reborn.listBloomedTrees()[0]!.treeSpecies).toBe(ready.treeSpecies)
+    expect(reborn.listBloomedTrees()[0]?.treeSpecies).toBe(ready.treeSpecies)
   })
 
   it('recent(n) returns referentially stable arrays between mutations', () => {
@@ -190,9 +187,9 @@ describe('Sprouts state slice', () => {
     const events: string[] = []
     reborn.subscribe((ev: SproutsEvent) => events.push(ev.type))
     reborn.hydrate(serialized)
-    expect(events).toEqual([])  // hydrate must not fan out
+    expect(events).toEqual([]) // hydrate must not fan out
     expect(reborn.recent(10)).toHaveLength(1)
-    expect(reborn.getActive()!.count).toBe(2)
+    expect(reborn.getActive()?.count).toBe(2)
   })
 
   it('persistence round-trip via memoryAdapter — sprouts survive flush + reload', () => {
@@ -202,7 +199,9 @@ describe('Sprouts state slice', () => {
 
     // Simulate full reload: dispose persistence, reinstantiate with the
     // same backing adapter so the saved data is still present.
-    const adapter = (persistence as unknown as { _storage: { getItem: (k: string) => string | null } })._storage
+    const adapter = (
+      persistence as unknown as { _storage: { getItem: (k: string) => string | null } }
+    )._storage
     persistence.dispose()
     ;(Sprouts as unknown as { instance: unknown }).instance = null
 
@@ -212,8 +211,8 @@ describe('Sprouts state slice', () => {
     reborn.hydrate(snapshot.sprouts as { cycleIndex?: number; sprouts?: unknown[] })
 
     expect(reborn.recent(10)).toHaveLength(1)
-    expect(reborn.getActive()!.count).toBe(2)
-    expect(reborn.getActive()!.captureRefs).toEqual(['cap-1', 'cap-2'])
+    expect(reborn.getActive()?.count).toBe(2)
+    expect(reborn.getActive()?.captureRefs).toEqual(['cap-1', 'cap-2'])
   })
 
   it('cycleIndex persists so freshly-spawned sprouts continue the rotation', () => {
@@ -227,6 +226,6 @@ describe('Sprouts state slice', () => {
     reborn.hydrate(serialized)
     const next = reborn.grow({ kind: 'capture', id: 'after-reload' })
     expect(next.didSpawn).toBe(true)
-    expect(next.sprout!.treeSpecies).toBe(TREE_SPECIES_ROTATION[1])
+    expect(next.sprout?.treeSpecies).toBe(TREE_SPECIES_ROTATION[1])
   })
 })

@@ -18,13 +18,12 @@
  *   - three captures grow to ready-to-bloom; a fourth opens a new sprout
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import Sprouts, { wireSproutsToCaptures } from '~/engine/student-space/Game/State/Sprouts.js'
-// @ts-expect-error — MoodPins.js is JS without a companion .d.ts.
-import MoodPins from '~/engine/student-space/Game/State/MoodPins.js'
 // @ts-expect-error — Captures.js is JS without a companion .d.ts.
 import Captures from '~/engine/student-space/Game/State/Captures.js'
+// @ts-expect-error — MoodPins.js is JS without a companion .d.ts.
+import MoodPins from '~/engine/student-space/Game/State/MoodPins.js'
 import Persistence, { memoryAdapter } from '~/engine/student-space/Game/State/Persistence.js'
+import Sprouts, { wireSproutsToCaptures } from '~/engine/student-space/Game/State/Sprouts.js'
 
 function resetSingletons() {
   ;(Persistence as unknown as { instance: unknown }).instance = null
@@ -56,7 +55,7 @@ describe('wireSproutsToCaptures', () => {
     expect(sprouts.recent(10)).toHaveLength(0)
     captures.add({ kind: 'ask', text: 'hello' })
     expect(sprouts.recent(10)).toHaveLength(1)
-    expect(sprouts.getActive()!.count).toBe(1)
+    expect(sprouts.getActive()?.count).toBe(1)
   })
 
   it('moodPins.add() grows the same active sprout that captures opened', () => {
@@ -69,11 +68,11 @@ describe('wireSproutsToCaptures', () => {
 
   it('moodPins.patch() (post-save cause/note re-fire) does NOT double-increment', () => {
     const pin = moodPins.add({ emotion: 'joy', intensity: 2 })
-    expect(sprouts.getActive()!.count).toBe(1)
+    expect(sprouts.getActive()?.count).toBe(1)
     moodPins.patch(pin.id, { cause: 'school' })
     // Re-fire from patch must not increment because the pin id is
     // already in captureRefs.
-    expect(sprouts.getActive()!.count).toBe(1)
+    expect(sprouts.getActive()?.count).toBe(1)
   })
 
   it('a throwing Sprouts.grow does NOT abort captures persistence (defense in depth)', () => {
@@ -85,10 +84,7 @@ describe('wireSproutsToCaptures', () => {
 
     captures.add({ kind: 'ask', text: 'survives' })
     expect(captures.entries).toHaveLength(1)
-    expect(warnSpy).toHaveBeenCalledWith(
-      '[sprouts] grow from capture failed',
-      expect.any(Error),
-    )
+    expect(warnSpy).toHaveBeenCalledWith('[sprouts] grow from capture failed', expect.any(Error))
 
     sprouts.grow = originalGrow
     warnSpy.mockRestore()
@@ -108,17 +104,17 @@ describe('wireSproutsToCaptures', () => {
     for (let i = 0; i < 3; i++) captures.add({ kind: 'ask', text: `${i}` })
     captures.add({ kind: 'ask', text: 'fourth' })
     expect(sprouts.recent(10)).toHaveLength(2)
-    expect(sprouts.getActive()!.count).toBe(1)
-    expect(sprouts.getActive()!.readyToBloom).toBe(false)
+    expect(sprouts.getActive()?.count).toBe(1)
+    expect(sprouts.getActive()?.readyToBloom).toBe(false)
   })
 
   it('unwire() detaches both subscriptions', () => {
     captures.add({ kind: 'ask', text: 'before' })
-    expect(sprouts.getActive()!.count).toBe(1)
+    expect(sprouts.getActive()?.count).toBe(1)
     unwire()
     captures.add({ kind: 'ask', text: 'after' })
     moodPins.add({ emotion: 'joy', intensity: 1 })
     // Counts must not change after unwire.
-    expect(sprouts.getActive()!.count).toBe(1)
+    expect(sprouts.getActive()?.count).toBe(1)
   })
 })

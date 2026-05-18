@@ -23,17 +23,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { IslandProgressionOverlay } from '~/components/IslandProgressionOverlay'
 import type { Game } from '~/engine/student-space/Game'
-import Sprouts, {
-  BLOOM_THRESHOLD,
-  wireSproutsToCaptures,
-} from '~/engine/student-space/Game/State/Sprouts.js'
-import Persistence, {
-  memoryAdapter,
-} from '~/engine/student-space/Game/State/Persistence.js'
 // @ts-expect-error — Captures.js is JS without a companion .d.ts.
 import Captures from '~/engine/student-space/Game/State/Captures.js'
 // @ts-expect-error — MoodPins.js is JS without a companion .d.ts.
 import MoodPins from '~/engine/student-space/Game/State/MoodPins.js'
+import Persistence, { memoryAdapter } from '~/engine/student-space/Game/State/Persistence.js'
+import Sprouts, {
+  BLOOM_THRESHOLD,
+  wireSproutsToCaptures,
+} from '~/engine/student-space/Game/State/Sprouts.js'
 
 function resetSingletons() {
   ;(Persistence as unknown as { instance: unknown }).instance = null
@@ -125,8 +123,8 @@ describe('island progression — captures → sprouts → overlay e2e', () => {
       bundle.captures.add({ kind: 'ask', text: 'after-bloom' })
     })
     expect(bundle.sprouts.recent(10)).toHaveLength(1)
-    expect(bundle.sprouts.getActive()!.count).toBe(1)
-    expect(bundle.sprouts.getActive()!.readyToBloom).toBe(false)
+    expect(bundle.sprouts.getActive()?.count).toBe(1)
+    expect(bundle.sprouts.getActive()?.readyToBloom).toBe(false)
     expect(bundle.sprouts.listBloomedTrees()).toHaveLength(1)
   })
 })
