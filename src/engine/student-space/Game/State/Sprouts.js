@@ -78,6 +78,11 @@ export default class Sprouts
         this.sprouts = []
         this.bloomedTrees = []
         this.cycleIndex = 0
+        // Pick-and-plant offsets for static decoration that the student
+        // considers theirs (the onboarding tree and flower). Keyed by
+        // placement index. A missing key means "use the authored
+        // placement coords"; an explicit `{x, z}` overrides them.
+        this.decorOffsets = { trees: {}, flowers: {} }
         this.subscribers = new Set()
 
         // Snapshot caches — invalidated on every mutation. React's
@@ -229,6 +234,39 @@ export default class Sprouts
         this._fan({ type: 'sproutMoved', sprout })
         this._persist()
         return true
+    }
+
+    /**
+     * Pick-and-plant: set or clear the position offset for an
+     * onboarding-spawned decoration (the static tree or flower
+     * placed at boot). `kind` is 'tree' or 'flower', `index` is the
+     * placement index, and `position` is `{x,z}` or null to revert.
+     *
+     * Fires a `'decorMoved'` event so the view can call into
+     * Tree.moveEntry / Flowers.moveInstance.
+     */
+    setDecorOffset(kind, index, position)
+    {
+        if(kind !== 'tree' && kind !== 'flower') return false
+        if(!Number.isInteger(index) || index < 0) return false
+        const coerced = coercePosition(position)
+        if(coerced === null && position !== null && position !== undefined) return false
+
+        const bucket = kind === 'tree' ? this.decorOffsets.trees : this.decorOffsets.flowers
+        if(coerced === null) delete bucket[index]
+        else bucket[index] = coerced
+
+        this._invalidateCache()
+        this._fan({ type: 'decorMoved', kind, index, position: coerced })
+        this._persist()
+        return true
+    }
+
+    /** Read the persisted offset for a decor entry, or null if none. */
+    getDecorOffset(kind, index)
+    {
+        const bucket = kind === 'tree' ? this.decorOffsets.trees : this.decorOffsets.flowers
+        return bucket?.[index] ?? null
     }
 
     /**
@@ -402,6 +440,26 @@ export default class Sprouts
                     ...{ position: coercePosition(t.position) },
                 }))
         }
+        if(snapshot.decorOffsets && typeof snapshot.decorOffsets === 'object')
+        {
+            const merge = (raw) =>
+            {
+                const out = {}
+                if(!raw || typeof raw !== 'object') return out
+                for(const [k, v] of Object.entries(raw))
+                {
+                    const idx = Number(k)
+                    if(!Number.isInteger(idx) || idx < 0) continue
+                    const pos = coercePosition(v)
+                    if(pos) out[idx] = pos
+                }
+                return out
+            }
+            this.decorOffsets = {
+                trees:   merge(snapshot.decorOffsets.trees),
+                flowers: merge(snapshot.decorOffsets.flowers),
+            }
+        }
         this._invalidateCache()
         // Bulk load is not a `spawned`/`grew` event. View subscribers
         // are written against post-add semantics; firing them on hydrate
@@ -416,10 +474,26 @@ export default class Sprouts
             captureRefs: [...t.captureRefs],
             position:    t.position ? { x: t.position.x, z: t.position.z } : null,
         })
+        const cloneOffsets = (bucket) =>
+        {
+            const out = {}
+            for(const [k, v] of Object.entries(bucket))
+            {
+                if(v && typeof v.x === 'number' && typeof v.z === 'number')
+                {
+                    out[k] = { x: v.x, z: v.z }
+                }
+            }
+            return out
+        }
         return {
             cycleIndex:    this.cycleIndex,
             sprouts:       this.sprouts.map(cloneTree),
             bloomedTrees:  this.bloomedTrees.map(cloneTree),
+            decorOffsets:  {
+                trees:   cloneOffsets(this.decorOffsets.trees),
+                flowers: cloneOffsets(this.decorOffsets.flowers),
+            },
         }
     }
 

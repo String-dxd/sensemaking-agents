@@ -465,6 +465,32 @@ export default class Flowers
     }
 
     /**
+     * Pick-and-plant: relocate a flower to (x, z), snap y to terrain,
+     * and update the flower's own x/z record so other systems reading
+     * `flower.x` (e.g., IslandReveal's camera anchor) stay in sync.
+     *
+     * Silent no-op on bad index.
+     */
+    moveInstance(flowerIndex, x, z, opts = {})
+    {
+        if(typeof x !== 'number' || typeof z !== 'number') return
+        const f = this.flowers[flowerIndex]
+        if(!f) return
+        const y = typeof opts.y === 'number' ? opts.y : this.island.heightAt(x, z)
+        f.group.position.set(x, y, z)
+        f.x = x
+        f.z = z
+    }
+
+    /** Read the live world XZ of a flower, or null if unavailable. */
+    getInstanceWorldXZ(flowerIndex)
+    {
+        const f = this.flowers[flowerIndex]
+        if(!f) return null
+        return { x: f.group.position.x, z: f.group.position.z }
+    }
+
+    /**
      * Reveal flower #flowerIndex by tweening its petalGroup scale 0 → 1.
      * Stem appears at full size immediately (root sprouts), petals bloom in
      * over `duration` ms. Reduced motion caps duration to 80ms.

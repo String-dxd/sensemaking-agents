@@ -186,6 +186,16 @@ export default class Sprouts
             this._spawnBloomedTree(tree)
         }
 
+        // Pick-and-plant: register hit targets for the onboarding tree
+        // and flower (Tree.js entries[0] / Flowers.js flowers[0]) so
+        // the drag flow treats them as student-owned. Apply persisted
+        // offsets so reloads land them where the student left them.
+        // Deferred a frame to give Tree.js / Flowers.js time to finish
+        // their async boot (templates load via fetch).
+        this._decorHits = { tree: null, flower: null }
+        this._decorReady = false
+        this._installDecorHitTargets()
+
         // Camera flow state — ensures only one flow runs at a time.
         // Rapid-fire captures during an in-flight flow are visualised
         // (badge, sprout scale tick) but don't enqueue another camera
@@ -296,6 +306,13 @@ export default class Sprouts
                     bNode.group.position.set(placement.x, placement.y, placement.z)
                 }
             }
+            else if(event.type === 'decorMoved')
+            {
+                // Onboarding-decor offset changed. Apply via Tree/Flowers'
+                // move methods and re-sync the hit-target's position so
+                // the next drag picks it up at its current spot.
+                this._applyDecorMove(event.kind, event.index, event.position)
+            }
         })
 
         // Click handler — raycast against sprout hit targets; ready
@@ -341,15 +358,32 @@ export default class Sprouts
         const target = this._raycastDraggable(e)
         if(!target) return
 
-        // Begin a pick-and-plant drag.
+        // Begin a pick-and-plant drag. Resolve the drag target's
+        // group depending on what was hit — sprout / bloomed Sprouts
+        // view nodes use the same key; decor uses the underlying
+        // Tree/Flowers view's group directly so the trunk + leaves (or
+        // stem + petals) move as one piece.
         const camera = this.view.camera
-        const node = target.kind === 'sprout'
-            ? this.nodes.get(target.id)
-            : this.bloomedNodes.get(target.id)
-        if(!node) return
+        let dragGroup = null
+        if(target.kind === 'sprout')
+        {
+            const node = this.nodes.get(target.id)
+            if(node) dragGroup = node.group
+        }
+        else if(target.kind === 'bloomed')
+        {
+            const node = this.bloomedNodes.get(target.id)
+            if(node) dragGroup = node.group
+        }
+        else if(target.kind === 'decor')
+        {
+            if(target.decorKind === 'tree') dragGroup = this.view.tree?.entries?.[target.decorIndex]?.group
+            else if(target.decorKind === 'flower') dragGroup = this.view.flowers?.flowers?.[target.decorIndex]?.group
+        }
+        if(!dragGroup) return
 
-        const originPos = node.group.position.clone()
-        const originScale = node.group.scale.x  // uniform scale assumed
+        const originPos = dragGroup.position.clone()
+        const originScale = dragGroup.scale.x  // uniform scale assumed
         const reduce = reduceMotion()
         const pickupGroundY = this.island.heightAt(originPos.x, originPos.z)
         const liftHeight = pickupGroundY + (reduce ? 0 : this._dragLiftOffset)
@@ -365,7 +399,9 @@ export default class Sprouts
         this._drag = {
             kind: target.kind,
             id: target.id,
-            group: node.group,
+            decorKind: target.decorKind,
+            decorIndex: target.decorIndex,
+            group: dragGroup,
             originPos,
             originScale,
             pickupGroundY,
@@ -378,8 +414,8 @@ export default class Sprouts
         // Lift by adjusting y to the plane height; multiply scale
         // slightly so the held object feels picked up (skipped under
         // reduced motion).
-        node.group.position.y = liftHeight
-        if(!reduce) node.group.scale.setScalar(originScale * 1.05)
+        dragGroup.position.y = liftHeight
+        if(!reduce) dragGroup.scale.setScalar(originScale * 1.05)
 
         if(camera?.controls) camera.controls.enabled = false
         if(this._canvasEl)
@@ -417,6 +453,8 @@ export default class Sprouts
         {
             if(node.parts?.hitTarget) targets.push(node.parts.hitTarget)
         }
+        if(this._decorHits.tree)   targets.push(this._decorHits.tree)
+        if(this._decorHits.flower) targets.push(this._decorHits.flower)
         if(targets.length === 0) return null
         const intersects = this._raycaster.intersectObjects(targets, false)
         const hit = intersects[0]
@@ -424,6 +462,7 @@ export default class Sprouts
         const ud = hit.object?.userData
         if(ud?.kind === 'sprout' && ud.sproutId) return { kind: 'sprout', id: ud.sproutId }
         if(ud?.kind === 'bloomed' && ud.bloomedId) return { kind: 'bloomed', id: ud.bloomedId }
+        if(ud?.kind === 'decor') return { kind: 'decor', decorKind: ud.decorKind, decorIndex: ud.decorIndex }
         return null
     }
 
@@ -450,7 +489,20 @@ export default class Sprouts
         // the ground at the actual heightAt of the drop point.
         const x = hit.x
         const z = hit.z
-        drag.group.position.set(x, drag.liftHeight, z)
+        if(drag.kind === 'decor' && drag.decorKind === 'tree')
+        {
+            // Route through Tree.moveEntry so the canopy InstancedMesh
+            // re-projects from the new trunk transform every frame.
+            this.view.tree?.moveEntry(drag.decorIndex, x, z, { y: drag.liftHeight })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'flower')
+        {
+            this.view.flowers?.moveInstance(drag.decorIndex, x, z, { y: drag.liftHeight })
+        }
+        else
+        {
+            drag.group.position.set(x, drag.liftHeight, z)
+        }
         drag.valid = this.island.isPlaceable(x, z)
 
         // Lightweight validity cue — tint a sprout's glow ring red on
@@ -529,6 +581,96 @@ export default class Sprouts
     }
 
     /**
+     * Build invisible hit-target spheres at the onboarding tree and
+     * flower positions, attached to the respective groups so they
+     * follow any future re-positioning automatically. Re-runs each
+     * frame in update() until Tree.js is ready (its templates load
+     * asynchronously).
+     */
+    _installDecorHitTargets()
+    {
+        if(this._decorReady) return
+        const tree = this.view.tree
+        const flowers = this.view.flowers
+        const treeReady = tree?.ready && tree?.entries?.[0]
+        const flowerReady = flowers?.flowers?.[0]
+        if(!treeReady && !flowerReady) return
+
+        // Apply any persisted offsets BEFORE attaching hit targets so
+        // the hits land at the moved positions, not the authored ones.
+        const treeOff = this.state.sprouts.getDecorOffset('tree', 0)
+        if(treeReady && treeOff) tree.moveEntry(0, treeOff.x, treeOff.z)
+        const flowerOff = this.state.sprouts.getDecorOffset('flower', 0)
+        if(flowerReady && flowerOff) flowers.moveInstance(0, flowerOff.x, flowerOff.z)
+
+        if(treeReady && !this._decorHits.tree)
+        {
+            const hit = new THREE.Mesh(
+                new THREE.SphereGeometry(0.55, 8, 6),
+                new THREE.MeshBasicMaterial({ visible: false }),
+            )
+            hit.position.y = 0.6  // mid-trunk
+            hit.userData = { kind: 'decor', decorKind: 'tree', decorIndex: 0 }
+            tree.entries[0].group.add(hit)
+            this._decorHits.tree = hit
+        }
+        if(flowerReady && !this._decorHits.flower)
+        {
+            const hit = new THREE.Mesh(
+                new THREE.SphereGeometry(0.25, 8, 6),
+                new THREE.MeshBasicMaterial({ visible: false }),
+            )
+            hit.position.y = 0.15
+            hit.userData = { kind: 'decor', decorKind: 'flower', decorIndex: 0 }
+            flowers.flowers[0].group.add(hit)
+            this._decorHits.flower = hit
+        }
+        this._decorReady = !!this._decorHits.tree && !!this._decorHits.flower
+    }
+
+    /**
+     * Apply a decor offset move via the appropriate view module. Called
+     * from the 'decorMoved' slice subscriber so reloads + remote
+     * mutations both flow through one code path.
+     */
+    _applyDecorMove(kind, index, position)
+    {
+        if(kind === 'tree' && this.view.tree?.moveEntry)
+        {
+            const pos = position ?? this._authoredTreeXZ(index)
+            if(pos) this.view.tree.moveEntry(index, pos.x, pos.z)
+        }
+        else if(kind === 'flower' && this.view.flowers?.moveInstance)
+        {
+            const pos = position ?? this._authoredFlowerXZ(index)
+            if(pos) this.view.flowers.moveInstance(index, pos.x, pos.z)
+        }
+    }
+
+    /** Lazily-cached authored placement for tree[index]. */
+    _authoredTreeXZ(index)
+    {
+        const tree = this.view.tree
+        const entry = tree?.entries?.[index]
+        if(!entry) return null
+        // entry.x/z carry the live coordinates; if offsets exist they've
+        // already overridden them. The authored coords are the constructor
+        // arguments — not stored separately on entry. For the v1 scope
+        // (only entry 0), the authored coord is (0, 0).
+        return index === 0 ? { x: 0, z: 0 } : { x: entry.x, z: entry.z }
+    }
+
+    /** Lazily-cached authored placement for flowers[index]. */
+    _authoredFlowerXZ(index)
+    {
+        const f = this.view.flowers?.flowers?.[index]
+        if(!f) return null
+        // For v1 scope (flower 0), Flowers.js seeds it deterministically.
+        // Return its current world XZ as a best-effort "authored" anchor.
+        return { x: f.x, z: f.z }
+    }
+
+    /**
      * Resolve an in-flight drag on pointerup. If the drop is valid,
      * commit the new position to the slice (which fires sproutMoved /
      * bloomedMoved and the subscriber re-positions cleanly without the
@@ -569,25 +711,43 @@ export default class Sprouts
         {
             const finalX = drag.group.position.x
             const finalZ = drag.group.position.z
-            const finalY = this.island.heightAt(finalX, finalZ)
-            drag.group.position.set(finalX, finalY, finalZ)
             // Commit to state — subscriber will re-position to the same
-            // place idempotently. Use the corresponding mutation method
-            // for the object's kind.
+            // place idempotently (and for decor will also snap to
+            // terrain via the moveEntry/moveInstance no-y path).
             if(drag.kind === 'sprout')
             {
+                drag.group.position.set(finalX, this.island.heightAt(finalX, finalZ), finalZ)
                 this.state.sprouts.setSproutPosition(drag.id, { x: finalX, z: finalZ })
             }
-            else
+            else if(drag.kind === 'bloomed')
             {
+                drag.group.position.set(finalX, this.island.heightAt(finalX, finalZ), finalZ)
                 this.state.sprouts.setBloomedPosition(drag.id, { x: finalX, z: finalZ })
+            }
+            else if(drag.kind === 'decor')
+            {
+                // The slice fires decorMoved → _applyDecorMove which
+                // calls moveEntry/moveInstance with no `y` opt so the
+                // terrain snap happens there in one place.
+                this.state.sprouts.setDecorOffset(drag.decorKind, drag.decorIndex, { x: finalX, z: finalZ })
             }
         }
         else
         {
             // Snap back — no slice mutation; the visual returns to
             // origin so the student sees "didn't take" feedback.
-            drag.group.position.copy(drag.originPos)
+            if(drag.kind === 'decor' && drag.decorKind === 'tree')
+            {
+                this.view.tree?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+            }
+            else if(drag.kind === 'decor' && drag.decorKind === 'flower')
+            {
+                this.view.flowers?.moveInstance(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+            }
+            else
+            {
+                drag.group.position.copy(drag.originPos)
+            }
         }
     }
 
@@ -608,7 +768,18 @@ export default class Sprouts
         const camera = this.view.camera
         if(camera?.controls) camera.controls.enabled = true
         drag.group.scale.setScalar(drag.originScale)
-        drag.group.position.copy(drag.originPos)
+        if(drag.kind === 'decor' && drag.decorKind === 'tree')
+        {
+            this.view.tree?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'flower')
+        {
+            this.view.flowers?.moveInstance(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else
+        {
+            drag.group.position.copy(drag.originPos)
+        }
         if(drag.kind === 'sprout')
         {
             const node = this.nodes.get(drag.id)
@@ -1189,6 +1360,10 @@ export default class Sprouts
 
         // Drive the per-capture camera-flow state machine.
         this._tickCameraFlow(now)
+
+        // Late-install decor hit targets once Tree.js finishes loading
+        // its async templates. No-op once installed.
+        if(!this._decorReady) this._installDecorHitTargets()
 
         const toDelete = []
 
