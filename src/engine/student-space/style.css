@@ -1318,7 +1318,8 @@ body.has-chooser        .bird-picker
     margin-top: 8px;
 }
 .ask-sheet__edit,
-.ask-sheet__talk-more
+.ask-sheet__talk-more,
+.ask-sheet__forget-draft
 {
     padding: 12px 18px;
     border-radius: 999px;
@@ -1331,10 +1332,16 @@ body.has-chooser        .bird-picker
     transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 .ask-sheet__edit:hover,
-.ask-sheet__talk-more:hover
+.ask-sheet__talk-more:hover,
+.ask-sheet__forget-draft:hover
 {
     background: rgba(0, 0, 0, 0.04);
     border-color: rgba(0, 0, 0, 0.18);
+}
+.ask-sheet__forget-draft
+{
+    border-color: rgba(137, 72, 55, 0.2);
+    color: #6a3428;
 }
 .ask-sheet__log--reframe
 {

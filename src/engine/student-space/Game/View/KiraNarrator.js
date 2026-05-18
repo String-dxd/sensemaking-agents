@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import View from './View.js'
 import State from '../State/State.js'
 import OverlayController from './OverlayController.js'
+import { latestEvidenceLine, metaphorLine, resolveElementEvidence } from './elementEvidence.js'
 
 /**
  * KiraNarrator — Animal-Crossing-style mediated dialogue.
@@ -62,9 +63,17 @@ function speciesIdOf(target)
     return raw?.id ?? raw?.species ?? ''
 }
 
-function narrationFor(target)
+function narrationFor(target, state)
 {
     if(target.kind === 'kira') return KIRA_NARRATION
+    const evidence = resolveElementEvidence(target, state?.profile)
+    if(evidence.claimId && ['tree', 'flower', 'fruit'].includes(target.kind))
+    {
+        const text = evidence.hasEvidence
+            ? `${metaphorLine(evidence)} ${latestEvidenceLine(evidence, 110)}`
+            : `${metaphorLine(evidence)} No noticings have landed here yet.`
+        return { text, cta: 'Open' }
+    }
     const sp = speciesIdOf(target)
     if(target.kind === 'tree')   return TREE_NARRATION[sp]   ?? { text: 'A tree.',   cta: 'Open' }
     if(target.kind === 'flower') return FLOWER_NARRATION[sp] ?? { text: 'A flower.', cta: 'Open' }
@@ -162,7 +171,7 @@ export default class KiraNarrator
         if(!target) return
         this.target = target
 
-        const narration = narrationFor(target)
+        const narration = narrationFor(target, this.state)
         this.ctaEl.firstChild.textContent = narration.cta + ' '
         // Defer the typewriter until after the bubble slide-in (180ms below)
         // so the characters don't start ticking against a still-hidden bubble.

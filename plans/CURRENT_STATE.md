@@ -35,11 +35,15 @@
 - `plans/_archive/voice-wiki.md` — archived historical plan.
 - `docs/plans/2026-05-18-001-feat-port-student-space-shell-plan.md` — completed; backend wiring deferral superseded by the bridge plan below.
 - `docs/plans/2026-05-18-002-feat-student-space-backend-bridge-plan.md` — completed in the current branch.
+- `docs/plans/2026-05-18-003-feat-student-space-demo-data-audio-plan.md` — completed in the current branch; extended by the Mirror-result decision plan below.
+- `docs/plans/2026-05-18-004-feat-mirror-result-log-forget-plan.md` — completed in the current branch.
+- `docs/plans/2026-05-18-005-feat-student-space-island-evidence-wiring-plan.md` — completed in the current branch.
 
 ## Current Product Shape
 
 - `/` is the current student-facing surface: `StudentSpaceHost` mounts the Student Space engine and hydrates backend-backed profile, reflection, mood, trajectory, calendar, letter, and identity snapshots.
-- Student Space Ask captures create local optimistic captures immediately. Typed captures submit transcripts directly; voice captures record audio with `MediaRecorder`, post `audioBase64`/`mimeType` through `submitStudentSpaceReflection`, use OpenAI transcription on the server, then run Mirror and `persistMirror`. Persisted entries start as pending raw reflections.
+- Student Space Ask captures prepare a Mirror draft before the durable write. Typed captures run Mirror against the transcript directly; voice captures record audio with `MediaRecorder`, post `audioBase64`/`mimeType` for OpenAI transcription, then run Mirror. The Kira reading screen shows the real Mirror result and offers `Log` or `Forget`: `Log` persists the draft as a pending raw reflection, while `Forget` discards it without adding corpus evidence.
+- Live island elements resolve to the hydrated backend profile at interaction time: flowers map to Interest claims, fruits to Skill claims, and supported trees to Value claims. Hover chips, Kira/object narration, half-sheet detail, and profile handoff use the same claim/evidence resolver, and empty claims are shown as no noticings yet rather than fabricated evidence.
 - Engine profile/calendar/letter seed files are offline/no-bridge fallbacks only. In bridged mode, visible identity, calendar events, and teacher letters come from the server-side demo/session snapshot.
 - The engine `StorageAdapter` remains local UI/cache persistence. Durable Mirror/VIPS/Cartographer operations use named bridge methods and server functions.
 - Connector runs from the shell calendar `Run Connector` action, the existing React review surface, or the scheduled evening pass; it processes confirmed reflections only, reports real batch counts in the shell, and auto-applies verifier-passing links into VIPS pages and timelines.

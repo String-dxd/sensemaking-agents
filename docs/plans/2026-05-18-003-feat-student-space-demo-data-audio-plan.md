@@ -7,15 +7,16 @@ origin: docs/brainstorms/2026-05-08-quiet-mirror-pivot-requirements.md
 related:
   - docs/brainstorms/2026-05-11-vips-wiki-pivot-requirements.md
   - docs/plans/2026-05-18-002-feat-student-space-backend-bridge-plan.md
+  - docs/plans/2026-05-18-004-feat-mirror-result-log-forget-plan.md
 ---
 
 # feat: Complete Student Space demo-data and audio wiring
 
 ## Summary
 
-The backend bridge is now the correct integration boundary for durable Mirror, Connector, VIPS, and Cartographer data. This follow-up closes the remaining gaps where the Student Space shell still behaves like a local demo app: browser-only speech recognition, random onboarding identity, seeded profile/calendar/letters, local Kira/reframe heuristics, and local trajectory fallbacks that can look more authoritative than they are.
+The backend bridge is now the correct integration boundary for durable Mirror, Connector, VIPS, and Cartographer data. This follow-up closed the remaining gaps where the Student Space shell still behaved like a local demo app: browser-only speech recognition, random onboarding identity, seeded profile/calendar/letters, local Kira/reframe heuristics, and local trajectory fallbacks that could look more authoritative than they were.
 
-The implementation should extend the existing bridge into one coherent backend session snapshot, then make voice captures use real in-browser audio recording that flows through the already-shipped OpenAI transcription helper before Mirror persistence.
+The follow-up plan `docs/plans/2026-05-18-004-feat-mirror-result-log-forget-plan.md` further refines the capture contract: Student Space now prepares a real Mirror draft first, shows it on the Kira reading screen, and only persists when the student chooses `Log`.
 
 ---
 

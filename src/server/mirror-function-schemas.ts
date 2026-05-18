@@ -39,3 +39,7 @@ export const submitStudentSpaceReflectionInputSchema = z
 export type SubmitStudentSpaceReflectionInput = z.output<
   typeof submitStudentSpaceReflectionInputSchema
 >
+
+export const prepareStudentSpaceReflectionInputSchema = submitStudentSpaceReflectionInputSchema
+
+export type PrepareStudentSpaceReflectionInput = SubmitStudentSpaceReflectionInput
