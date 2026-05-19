@@ -101,12 +101,7 @@ export async function buildConnectorContext(
     .slice(0, CONNECTOR_FTS_LIMIT)
 
   const pages = await listVipsPages(studentId, { ctx })
-  const timelineByDim = await Promise.all(
-    VIPS_DIMENSIONS.map((dim) =>
-      listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
-    ),
-  )
-  const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
+  const timeline = await listTimelineEntriesAcrossDimensions(studentId, ctx)
 
   return formatConnectorContext({
     mirror: {
@@ -166,12 +161,7 @@ export interface CartographerContextPayload {
 export async function buildCartographerContext(ctx: TenantContext): Promise<string> {
   const { studentId } = ctx
   const pages = await listVipsPages(studentId, { ctx })
-  const timelineByDim = await Promise.all(
-    VIPS_DIMENSIONS.map((dim) =>
-      listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
-    ),
-  )
-  const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
+  const timeline = await listTimelineEntriesAcrossDimensions(studentId, ctx)
 
   const queries = pages.map((p) => p.open_question.trim()).filter((q) => q.length > 0)
 
@@ -192,6 +182,19 @@ export async function buildCartographerContext(ctx: TenantContext): Promise<stri
     .slice(0, CARTOGRAPHER_FTS_LIMIT)
 
   return formatCartographerContext({ studentId, pages, timeline, pastMirrors })
+}
+
+async function listTimelineEntriesAcrossDimensions(
+  studentId: string,
+  ctx: TenantContext,
+): Promise<VipsTimelineEntryRow[]> {
+  const timeline: VipsTimelineEntryRow[] = []
+  for (const dim of VIPS_DIMENSIONS) {
+    timeline.push(
+      ...(await listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx })),
+    )
+  }
+  return timeline
 }
 
 /**
