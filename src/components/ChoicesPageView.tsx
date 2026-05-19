@@ -37,9 +37,9 @@ export interface DecisionEntry {
   id: string
   createdAt: string
   decision: string
-  options: string[]
+  options: readonly string[]
   chose: string
-  forces: DecisionForce[]
+  forces: readonly DecisionForce[]
   when: string
   note: string | null
   patternTag: DecisionPatternTag | null
@@ -73,6 +73,11 @@ export interface ChoicesPageViewProps {
   decisions: DecisionEntry[]
   intentions: ChangeIntention[]
   actions: ChoicesActions
+  /**
+   * Skip rendering the chrome (avatar + tab rail). Used when the view is
+   * embedded inside the engine ProfileSheet, which provides its own chrome.
+   */
+  omitChrome?: boolean
 }
 
 const FORCE_LABEL: Record<DecisionForce, string> = {
@@ -106,6 +111,7 @@ export function ChoicesPageView({
   decisions,
   intentions,
   actions,
+  omitChrome = false,
 }: ChoicesPageViewProps) {
   const header = PROFILE_TAB_HEADERS.choices
   const theme = getProfileTabTheme('choices')
@@ -115,20 +121,26 @@ export function ChoicesPageView({
 
   return (
     <section
-      className="mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-t-[1.75rem] bg-gradient-to-b from-[#fdfaf3] to-[#efe7d5] text-[#2b2620]"
+      className={
+        omitChrome
+          ? 'flex w-full flex-col text-[#2b2620]'
+          : 'mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-t-[1.75rem] bg-gradient-to-b from-[#fdfaf3] to-[#efe7d5] text-[#2b2620]'
+      }
       data-testid="choices-page"
     >
-      <ProfileStudentChrome
-        authMenu={authMenu}
-        studentProfile={studentProfile}
-        activeDimension="choices"
-        openSheet={openSheet ?? 'choices'}
-        onOpenSheet={onOpenSheet}
-        sheetPanelId={sheetPanelId}
-        disabled={disabled}
-      />
+      {omitChrome ? null : (
+        <ProfileStudentChrome
+          authMenu={authMenu}
+          studentProfile={studentProfile}
+          activeDimension="choices"
+          openSheet={openSheet ?? 'choices'}
+          onOpenSheet={onOpenSheet}
+          sheetPanelId={sheetPanelId}
+          disabled={disabled}
+        />
+      )}
 
-      <div className="mx-auto w-full max-w-[760px] px-6 py-5">
+      <div className={omitChrome ? 'w-full' : 'mx-auto w-full max-w-[760px] px-6 py-5'}>
         <header className="border-b border-[#e3d8c4] pb-6">
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">

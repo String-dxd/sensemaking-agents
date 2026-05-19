@@ -1,10 +1,9 @@
 /**
- * Engine ProfileSheet tab parity — U5 of
- * docs/plans/2026-05-19-002-feat-profile-relationships-choices-tabs-plan.md.
+ * Engine ProfileSheet tab parity for the six Profile tabs.
  *
- * Verifies that the engine-side sheet renders all six Profile tabs and that
- * clicks on the two non-VIPS tabs close the sheet and deep-link to the
- * React route via window.location.assign.
+ * The two non-VIPS tabs (relationships, choices) swap content inside the
+ * engine sheet — the engine hides its VIPS body and mounts a React subtree
+ * into the panel area, so the user experience matches the VIPS tabs.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,6 +23,18 @@ vi.mock('~/engine/student-space/Game/View/ThumbnailRenderer.js', () => ({
       return ''
     }
   },
+}))
+
+// Stub the React bridge module so we can observe mount/unmount without
+// dragging the full React render path into this unit test.
+const bridge = vi.hoisted(() => ({
+  mount: vi.fn(),
+  unmount: vi.fn(),
+}))
+
+vi.mock('~/engine/student-space/profile-tab-react-bridge.tsx', () => ({
+  mountProfileTabReactPanel: bridge.mount,
+  unmountProfileTabReactPanel: bridge.unmount,
 }))
 
 // @ts-expect-error internal JS engine modules are intentionally untyped.
@@ -51,9 +62,16 @@ function makeProfileStub() {
   }
 }
 
+async function flushMicrotasks() {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
 afterEach(() => {
   state.instance = null
   OverlayController.instance = null
+  bridge.mount.mockClear()
+  bridge.unmount.mockClear()
   document.body.innerHTML = ''
   document.body.className = ''
 })
@@ -78,70 +96,70 @@ describe('Engine ProfileSheet tab parity', () => {
     }
   })
 
-  it('clicking the Relationships tab closes the sheet and navigates to /library/relationships', () => {
+  it('opening directly to relationships hides the VIPS body and shows the React mount', async () => {
     state.instance = { profile: makeProfileStub(), backend: null }
     OverlayController.instance = new OverlayController()
     const sheet = new ProfileSheet() as ProfileSheetHandle
-    sheet.open({})
-    const assignMock = vi.fn()
-    const original = window.location
-    // happy-dom permits replacing location.assign directly without redefining.
-    window.location.assign = assignMock
     try {
-      const tab = document.querySelector<HTMLButtonElement>(
-        '.profile-tab[data-facet="relationships"]',
+      sheet.open({ tab: 'relationships' })
+      await flushMicrotasks()
+      const vipsBody = document.querySelector<HTMLElement>('.profile-sheet__vips-body')
+      const reactMount = document.querySelector<HTMLElement>('.profile-sheet__react-mount')
+      expect(vipsBody?.hidden).toBe(true)
+      expect(reactMount?.hidden).toBe(false)
+      expect(bridge.mount).toHaveBeenCalledWith('relationships', reactMount)
+    } finally {
+      sheet.dispose?.()
+    }
+  })
+
+  it('opening directly to choices mounts the choices panel', async () => {
+    state.instance = { profile: makeProfileStub(), backend: null }
+    OverlayController.instance = new OverlayController()
+    const sheet = new ProfileSheet() as ProfileSheetHandle
+    try {
+      sheet.open({ tab: 'choices' })
+      await flushMicrotasks()
+      expect(bridge.mount).toHaveBeenCalledWith(
+        'choices',
+        document.querySelector('.profile-sheet__react-mount'),
       )
-      expect(tab).not.toBeNull()
-      tab?.click()
-      expect(assignMock).toHaveBeenCalledWith('/library/relationships')
-      const root = document.querySelector('.profile-sheet')
-      expect(root?.getAttribute('aria-hidden')).toBe('true')
     } finally {
       sheet.dispose?.()
-      window.location.assign = original.assign
     }
   })
 
-  it('clicking the Choices tab navigates to /library/choices', () => {
+  it('clicking values from a relationships panel unmounts React and restores the VIPS body', async () => {
     state.instance = { profile: makeProfileStub(), backend: null }
     OverlayController.instance = new OverlayController()
-    const sheet = new ProfileSheet() as ProfileSheetHandle
-    sheet.open({})
-    const assignMock = vi.fn()
-    const original = window.location.assign
-    window.location.assign = assignMock
+    const sheet = new ProfileSheet() as ProfileSheetHandle & { activeFacet: string }
     try {
-      const tab = document.querySelector<HTMLButtonElement>('.profile-tab[data-facet="choices"]')
-      tab?.click()
-      expect(assignMock).toHaveBeenCalledWith('/library/choices')
-    } finally {
-      sheet.dispose?.()
-      window.location.assign = original
-    }
-  })
-
-  it('clicking the values tab still switches in-sheet (regression for the existing 4 tabs)', () => {
-    state.instance = { profile: makeProfileStub(), backend: null }
-    OverlayController.instance = new OverlayController()
-    const sheet = new ProfileSheet() as ProfileSheetHandle & {
-      activeFacet: string
-    }
-    sheet.open({ tab: 'interests' })
-    expect(sheet.activeFacet).toBe('interests')
-    const tab = document.querySelector<HTMLButtonElement>('.profile-tab[data-facet="values"]')
-    tab?.click()
-    // _switchTab uses a 110ms fade timer before swapping content; the
-    // active facet still updates synchronously, but the panel refresh is
-    // async. We assert the synchronous update only.
-    // The fade timer flips activeFacet inside its setTimeout; flush it.
-    vi.useFakeTimers()
-    try {
+      sheet.open({ tab: 'relationships' })
+      await flushMicrotasks()
+      vi.useFakeTimers()
+      const tab = document.querySelector<HTMLButtonElement>('.profile-tab[data-facet="values"]')
       tab?.click()
       vi.advanceTimersByTime(120)
-      expect(['values', 'interests']).toContain((sheet as { activeFacet: string }).activeFacet)
-    } finally {
       vi.useRealTimers()
+      await flushMicrotasks()
+      expect(sheet.activeFacet).toBe('values')
+      const vipsBody = document.querySelector<HTMLElement>('.profile-sheet__vips-body')
+      const reactMount = document.querySelector<HTMLElement>('.profile-sheet__react-mount')
+      expect(vipsBody?.hidden).toBe(false)
+      expect(reactMount?.hidden).toBe(true)
+      expect(bridge.unmount).toHaveBeenCalled()
+    } finally {
       sheet.dispose?.()
     }
+  })
+
+  it('dispose() unmounts the React panel if one is active', async () => {
+    state.instance = { profile: makeProfileStub(), backend: null }
+    OverlayController.instance = new OverlayController()
+    const sheet = new ProfileSheet() as ProfileSheetHandle
+    sheet.open({ tab: 'choices' })
+    await flushMicrotasks()
+    sheet.dispose?.()
+    expect(bridge.unmount).toHaveBeenCalled()
   })
 })

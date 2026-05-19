@@ -30,18 +30,17 @@ import { FACET_THEMES, FACET_HEADERS, applyFacetVars } from './facets.js'
 import { iconForClaim } from './claimIcons.js'
 import ThumbnailRenderer from './ThumbnailRenderer.js'
 import OverlayController from './OverlayController.js'
+import {
+    mountProfileTabReactPanel,
+    unmountProfileTabReactPanel,
+} from '../../profile-tab-react-bridge.tsx'
 
 const TAB_ORDER = ['values', 'interests', 'personality', 'skills', 'relationships', 'choices']
 
-// First-pass strategy for the two non-VIPS Profile tabs: close the engine
-// sheet and navigate to the React route. Native engine panels for these
-// surfaces are deferred to a follow-up plan (see
-// docs/plans/2026-05-19-002-feat-profile-relationships-choices-tabs-plan.md
-// — Scope Boundaries → Deferred to Follow-Up Work).
-const TAB_DEEP_LINKS = {
-    relationships: '/library/relationships',
-    choices:       '/library/choices',
-}
+// Tabs that render via a React subtree mounted into the engine sheet (instead
+// of the imperative VIPS bento + timeline). The bridge module owns mount /
+// unmount lifecycle and wires the engine state slices into the React views.
+const REACT_BACKED_TABS = new Set(['relationships', 'choices'])
 const TAB_LABELS_EXTRA = {
     relationships: 'Relationships',
     choices:       'Choices',
@@ -141,18 +140,25 @@ export default class ProfileSheet
                     <p class="profile-sheet__meta"></p>
                 </header>
 
-                <h3 class="profile-sheet__eyebrow">COLLECTION</h3>
-                <ul class="profile-sheet__bento" role="list"></ul>
+                <div class="profile-sheet__vips-body">
+                    <h3 class="profile-sheet__eyebrow">COLLECTION</h3>
+                    <ul class="profile-sheet__bento" role="list"></ul>
 
-                <h3 class="profile-sheet__eyebrow profile-sheet__timeline-eyebrow">
-                    TIMELINE<span class="profile-sheet__timeline-filter"></span>
-                </h3>
-                <ul class="profile-sheet__quote-list" role="list"></ul>
-                <p class="profile-sheet__empty" hidden>No noticings here yet — capture a few from the island.</p>
+                    <h3 class="profile-sheet__eyebrow profile-sheet__timeline-eyebrow">
+                        TIMELINE<span class="profile-sheet__timeline-filter"></span>
+                    </h3>
+                    <ul class="profile-sheet__quote-list" role="list"></ul>
+                    <p class="profile-sheet__empty" hidden>No noticings here yet — capture a few from the island.</p>
+                </div>
+                <div class="profile-sheet__react-mount" hidden></div>
             </section>
         `
         document.body.appendChild(root)
         this.root = root
+
+        this.headerEl    = root.querySelector('.profile-sheet__header')
+        this.vipsBodyEl  = root.querySelector('.profile-sheet__vips-body')
+        this.reactMountEl = root.querySelector('.profile-sheet__react-mount')
 
         this.idAvatarEl  = root.querySelector('.profile-id__avatar')
         this.idInitialEl = root.querySelector('.profile-id__initial')
@@ -205,6 +211,7 @@ export default class ProfileSheet
             try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
             this._onRootClick = null
         }
+        this._unmountReactPanel()
         try { this.root?.remove?.() } catch(_) {}
         this.root = null
     }
@@ -218,7 +225,8 @@ export default class ProfileSheet
      */
     open(opts = {})
     {
-        const targetTab = opts.tab && FACET_IDS.includes(opts.tab) ? opts.tab : this.activeFacet
+        const allowedTabs = new Set([...FACET_IDS, ...REACT_BACKED_TABS])
+        const targetTab = opts.tab && allowedTabs.has(opts.tab) ? opts.tab : this.activeFacet
         this.activeFacet     = targetTab
         this.selectedClaimId = opts.claimId || null
         this._render(true)
@@ -242,11 +250,30 @@ export default class ProfileSheet
 
     _render(syncTabs = false)
     {
+        this._renderIdentity()
+
+        if(syncTabs)
+        {
+            for(const tab of this.root.querySelectorAll('.profile-tab'))
+                tab.classList.toggle('is-active', tab.dataset.facet === this.activeFacet)
+        }
+
+        if(REACT_BACKED_TABS.has(this.activeFacet))
+        {
+            this._renderReactPanel(this.activeFacet)
+            return
+        }
+
         const facet = this.profile.getFacet(this.activeFacet)
         if(!facet) return
 
+        this._unmountReactPanel()
         applyFacetVars(this.root, this.activeFacet)
-        this._renderIdentity()
+
+        // The engine-managed header + VIPS body show again after the
+        // React-backed tab is swapped out.
+        if(this.headerEl)   this.headerEl.hidden   = false
+        if(this.vipsBodyEl) this.vipsBodyEl.hidden = false
 
         const header = FACET_HEADERS[this.activeFacet] || {}
         this.eyebrowEl.textContent  = header.eyebrow ?? ''
@@ -260,14 +287,28 @@ export default class ProfileSheet
         this.openTextEl.textContent = facet.openQuestion
         this.metaEl.textContent     = formatRefined(facet.lastRefinedAt)
 
-        if(syncTabs)
-        {
-            for(const tab of this.root.querySelectorAll('.profile-tab'))
-                tab.classList.toggle('is-active', tab.dataset.facet === this.activeFacet)
-        }
-
         this._renderBento()
         this._renderTimeline()
+    }
+
+    _renderReactPanel(tab)
+    {
+        // Hide the engine-managed VIPS body and header; the React view
+        // brings its own eyebrow + section headers.
+        if(this.headerEl)   this.headerEl.hidden   = true
+        if(this.vipsBodyEl) this.vipsBodyEl.hidden = true
+        if(!this.reactMountEl) return
+
+        this.reactMountEl.hidden = false
+        try { mountProfileTabReactPanel(tab, this.reactMountEl) }
+        catch(err) { console.warn('[ProfileSheet] react mount failed', err) }
+    }
+
+    _unmountReactPanel()
+    {
+        if(this.reactMountEl) this.reactMountEl.hidden = true
+        try { unmountProfileTabReactPanel() }
+        catch(err) { console.warn('[ProfileSheet] react unmount failed', err) }
     }
 
     /**
@@ -430,30 +471,7 @@ export default class ProfileSheet
         if(tab)
         {
             const facet = tab.dataset.facet
-            if(!facet) return
-            // Non-VIPS tabs (relationships, choices) deep-link out to the
-            // React route. Close the sheet first so the engine doesn't render
-            // a half-state in the background after navigation. Idempotent:
-            // double-clicks during the close → navigate sequence are absorbed
-            // by the `isOpen` guard in close() and the synchronous nav.
-            if(TAB_DEEP_LINKS[facet])
-            {
-                if(this._navigatingAway) return
-                this._navigatingAway = true
-                this.close()
-                try
-                {
-                    if(typeof window !== 'undefined' && window.location)
-                        window.location.assign(TAB_DEEP_LINKS[facet])
-                }
-                catch(err)
-                {
-                    console.warn('[ProfileSheet] deep-link nav failed', err)
-                    this._navigatingAway = false
-                }
-                return
-            }
-            if(facet !== this.activeFacet) this._switchTab(facet)
+            if(facet && facet !== this.activeFacet) this._switchTab(facet)
             return
         }
 

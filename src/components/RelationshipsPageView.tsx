@@ -79,6 +79,11 @@ export interface RelationshipsPageViewProps {
   /** VIPS self-side claims for §3 cross-tab comparison. Wired by U6. */
   selfSide?: VipsSelfSideClaim[]
   actions: RelationshipsActions
+  /**
+   * Skip rendering the chrome (avatar + tab rail). Used when the view is
+   * embedded inside the engine ProfileSheet, which provides its own chrome.
+   */
+  omitChrome?: boolean
 }
 
 const CATEGORY_LABEL: Record<RelationshipMapEntry['category'], string> = {
@@ -137,26 +142,33 @@ export function RelationshipsPageView({
   perspectives,
   selfSide,
   actions,
+  omitChrome = false,
 }: RelationshipsPageViewProps) {
   const header = PROFILE_TAB_HEADERS.relationships
   const theme = getProfileTabTheme('relationships')
 
   return (
     <section
-      className="mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-t-[1.75rem] bg-gradient-to-b from-[#fdfaf3] to-[#efe7d5] text-[#2b2620]"
+      className={
+        omitChrome
+          ? 'flex w-full flex-col text-[#2b2620]'
+          : 'mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-t-[1.75rem] bg-gradient-to-b from-[#fdfaf3] to-[#efe7d5] text-[#2b2620]'
+      }
       data-testid="relationships-page"
     >
-      <ProfileStudentChrome
-        authMenu={authMenu}
-        studentProfile={studentProfile}
-        activeDimension="relationships"
-        openSheet={openSheet ?? 'relationships'}
-        onOpenSheet={onOpenSheet}
-        sheetPanelId={sheetPanelId}
-        disabled={disabled}
-      />
+      {omitChrome ? null : (
+        <ProfileStudentChrome
+          authMenu={authMenu}
+          studentProfile={studentProfile}
+          activeDimension="relationships"
+          openSheet={openSheet ?? 'relationships'}
+          onOpenSheet={onOpenSheet}
+          sheetPanelId={sheetPanelId}
+          disabled={disabled}
+        />
+      )}
 
-      <div className="mx-auto w-full max-w-[760px] px-6 py-5">
+      <div className={omitChrome ? 'w-full' : 'mx-auto w-full max-w-[760px] px-6 py-5'}>
         <header className="border-b border-[#e3d8c4] pb-6">
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
