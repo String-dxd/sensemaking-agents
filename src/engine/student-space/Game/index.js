@@ -7,6 +7,7 @@
  *   const game = createGame({
  *     container,                       // HTMLElement that will host the canvas
  *     persistence: { storage },        // optional; defaults to localStorage
+ *     backend,                         // optional app-owned domain bridge
  *   })
  *
  *   game.dispose()                     // tear down on unmount
@@ -32,9 +33,12 @@
  *   - `trees/foliageSDF.png`
  *   - DRACO decoder from https://www.gstatic.com/draco/v1/decoders/
  *
- * Backend ports (placeholders — wire when integrating):
+ * Backend ports:
  *   - persistence.storage    StorageAdapter — host-pluggable byte store.
  *                            Default: localStorageAdapter().
+ *   - backend                Named app-domain operations (Mirror capture,
+ *                            review, profile forget, trajectory). This is
+ *                            intentionally separate from persistence storage.
  *   - (future) auth          per-request identity; wire into Profile.
  *   - (future) moodPinSync   server-side mood pin reconciliation.
  *   - (future) capturesSync  server-side captures sync.
@@ -85,6 +89,7 @@ export const HOST_BODY_CLASSES = Object.freeze([
  *   container?: HTMLElement,
  *   persistence?: { storage?: import('./State/Persistence.js').StorageAdapter },
  *   initialOverlay?: { name: string },
+ *   backend?: import('../../../lib/student-space/backend-bridge.ts').StudentSpaceBackendBridge,
  * }} [opts]
  * @returns {Game}
  */
@@ -111,7 +116,7 @@ export function createGame(opts = {})
         )
     }
 
-    const game = new Game({ persistence: opts.persistence })
+    const game = new Game({ persistence: opts.persistence, backend: opts.backend })
 
     // Mount the canvas. If the host passed a container, use it; otherwise
     // fall back to `.game` (the v1 default container in index.html) for

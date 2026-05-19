@@ -150,6 +150,16 @@ export default class Captures
 
     findById(id) { return this.entries.find((c) => c.id === id) ?? null }
 
+    patch(id, updates)
+    {
+        const entry = this.findById(id)
+        if(!entry) return null
+        Object.assign(entry, updates)
+        for(const cb of this.subscribers) cb(entry, this.entries)
+        this._persist()
+        return entry
+    }
+
     // ── Persistence ────────────────────────────────────────────────────────
 
     hydrate(snapshot)
@@ -160,7 +170,38 @@ export default class Captures
         // same reasoning. Subscribers read `this.entries` on demand.
     }
 
+    /**
+     * Merge backend-backed captures without persisting them as local authored
+     * state. Local unsynced captures stay in place; backend rows replace the
+     * previous backend snapshot by durable id.
+     */
+    upsertBackend(snapshot)
+    {
+        if(!Array.isArray(snapshot)) return
+        const backendEntries = mergeArray(snapshot, mergeCapture, 'capture.backend')
+        const backendKeys = new Set(
+            backendEntries.map((entry) => backendKey(entry)).filter(Boolean),
+        )
+        const localEntries = this.entries.filter((entry) =>
+        {
+            const key = backendKey(entry)
+            return !key || !backendKeys.has(key)
+        })
+        this.entries = [...localEntries, ...backendEntries].sort((a, b) =>
+            Date.parse(a.createdAt) - Date.parse(b.createdAt),
+        )
+        // Bulk backend load is not an add event; subscribers read `entries`
+        // when rendering and should not receive a synthetic capture payload.
+    }
+
     serialize() { return this.entries }
 
     _persist() { Persistence.getInstance()?.save('captures', this.serialize()) }
+}
+
+function backendKey(entry)
+{
+    if(entry.backendMirrorEntryId) return `mirror:${entry.backendMirrorEntryId}`
+    if(entry.backendCartographerOutputId) return `cartographer:${entry.backendCartographerOutputId}`
+    return null
 }

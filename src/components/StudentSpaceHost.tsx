@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import '~/engine/student-space/style.css'
 import type { Game } from '~/engine/student-space/Game'
+import { createStudentSpaceBackendBridge } from '~/lib/student-space/backend-bridge'
+import { applyStudentSpaceBackendSnapshot } from '~/lib/student-space/backend-snapshot'
+import { studentSpaceSurfaceFromLocation } from '~/lib/student-space/route-sheets'
 import { cn } from '~/lib/utils'
 import { CaptureTagPicker } from './CaptureTagPicker'
 import { IslandProgressionOverlay } from './IslandProgressionOverlay'
@@ -10,9 +13,10 @@ import { IslandProgressionOverlay } from './IslandProgressionOverlay'
  * `createGame` throws if called while a previous instance is live. React
  * StrictMode double-mount works via the documented `dispose()` lifecycle.
  *
- * Persistence currently uses the engine's default `localStorageAdapter()`.
- * Backend wiring (Postgres-backed StorageAdapter) is deferred — see plan
- * `docs/plans/2026-05-18-001-feat-port-student-space-shell-plan.md`.
+ * Persistence uses the engine's `localStorageAdapter()` for local shell
+ * state. Durable Mirror/VIPS/Cartographer operations are wired through a
+ * separate host-owned backend bridge so slice persistence does not become
+ * the domain integration layer.
  *
  * The engine is loaded via dynamic import inside `useEffect`. Static import
  * is unsafe under SSR: some engine modules read `window` / `document` at
@@ -23,6 +27,7 @@ import { IslandProgressionOverlay } from './IslandProgressionOverlay'
 export function StudentSpaceHost({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [error, setError] = useState<Error | null>(null)
+  const backend = useMemo(() => createStudentSpaceBackendBridge(), [])
   const [game, setGame] = useState<Game | null>(null)
 
   useEffect(() => {
@@ -43,6 +48,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
           container,
           persistence: { storage: engine.localStorageAdapter() },
           initialOverlay,
+          backend,
         })
         // Expose the live Game so the sign-out helper (which cannot static-
         // import the engine without bloating server bundles) can call
@@ -55,6 +61,25 @@ export function StudentSpaceHost({ className }: { className?: string }) {
           setGame(null)
           live.dispose()
         }
+        const routeSurface = studentSpaceSurfaceFromLocation(window.location)
+        let openedRouteBeforeHydration = false
+        if (routeSurface && routeSurface.surface !== 'trajectory') {
+          live.openSurface?.(routeSurface)
+          openedRouteBeforeHydration = true
+        }
+        void backend
+          .refreshSnapshot?.()
+          .then((snapshot) => {
+            if (cancelled) return
+            applyStudentSpaceBackendSnapshot(live, snapshot)
+            if (routeSurface) live.openSurface?.(routeSurface)
+          })
+          .catch((snapshotErr) => {
+            console.warn('[StudentSpaceHost] backend snapshot hydration failed', snapshotErr)
+            if (!cancelled && routeSurface && !openedRouteBeforeHydration) {
+              live.openSurface?.(routeSurface)
+            }
+          })
       } catch (err) {
         console.error('[StudentSpaceHost] createGame failed', err)
         if (!cancelled) {
@@ -68,7 +93,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
       dispose?.()
       document.body.classList.remove('student-space-shell')
     }
-  }, [])
+  }, [backend])
 
   if (error) return <EngineLoadFailure error={error} />
 

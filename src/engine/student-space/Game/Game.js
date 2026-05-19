@@ -32,6 +32,7 @@ import { HOST_BODY_CLASSES } from './index.js'
  *
  * @typedef {object} GameOptions
  * @property {{ storage?: import('./State/Persistence.js').StorageAdapter }} [persistence]
+ * @property {import('../../../lib/student-space/backend-bridge.ts').StudentSpaceBackendBridge} [backend]
  */
 export default class Game
 {
@@ -52,6 +53,7 @@ export default class Game
 
         this.seed = 'ss-v1'
         this._opts = opts
+        this.backend = opts.backend || null
         this._running = false
         this._rafId = null
         this._onResize = () => this.resize()
@@ -70,7 +72,7 @@ export default class Game
         try
         {
             this.debug = new Debug()
-            this.state = new State({ persistence: opts.persistence })
+            this.state = new State({ persistence: opts.persistence, backend: this.backend })
             this.view = new View()
         }
         catch(err)
@@ -149,6 +151,31 @@ export default class Game
     {
         this.state.resize()
         this.view.resize()
+    }
+
+    openSurface(input = {})
+    {
+        const surface = input.surface
+        if(!surface || !this.view?.overlayController) return
+        if(surface === 'reflections')
+        {
+            this.view.overlayController.open('calendar', input)
+            return
+        }
+        if(surface === 'trajectory')
+        {
+            this.view.overlayController.open('trajectory', input)
+            return
+        }
+        if(surface === 'profile')
+        {
+            this.view.overlayController.open('profile', input)
+            return
+        }
+        if(['values', 'interests', 'personality', 'skills'].includes(surface))
+        {
+            this.view.overlayController.open('profile', { ...input, tab: surface })
+        }
     }
 
     /**

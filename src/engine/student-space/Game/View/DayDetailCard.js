@@ -39,6 +39,7 @@ export default class DayDetailCard
     constructor()
     {
         this.state = State.getInstance()
+        this.backend = this.state.backend || null
 
         const root = document.createElement('aside')
         root.className = 'day-detail-card'
@@ -70,6 +71,20 @@ export default class DayDetailCard
 
         this._onRootClick = (event) =>
         {
+            const review = event.target.closest?.('[data-review-action]')
+            if(review)
+            {
+                event.preventDefault()
+                this._reviewReflection(review)
+                return
+            }
+            const retry = event.target.closest?.('[data-sync-action="retry"]')
+            if(retry)
+            {
+                event.preventDefault()
+                this._retryReflectionSync(retry)
+                return
+            }
             if(event.target.closest('.day-detail-card__close')) this.close()
         }
         root.addEventListener('click', this._onRootClick)
@@ -135,8 +150,9 @@ export default class DayDetailCard
         {
             const col = MOOD_HEX[p.emotion] || '#888'
             const dot = `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${col}"></span>`
-            const cause = p.cause ? ` · ${p.cause}` : ''
-            return renderRow(dot, `${p.emotion} (${p.intensity}/4)`, cause + (p.note ? ` · "${p.note}"` : ''))
+            const cause = p.cause ? ` · ${escapeHtml(p.cause)}` : ''
+            const note = p.note ? ` · "${escapeHtml(p.note)}"` : ''
+            return renderRow(dot, escapeHtml(`${p.emotion} (${p.intensity}/4)`), cause + note)
         }).join('')
 
         // Captures
@@ -144,20 +160,35 @@ export default class DayDetailCard
         {
             if(c.kind === 'ask')
             {
-                const text = (c.text || '').slice(0, 120)
-                return renderRow('✎', text || '<i>(empty)</i>', c.prompt ? `prompt: ${c.prompt}` : '')
+                const text = escapeHtml((c.text || '').slice(0, 120))
+                const status = c.reviewStatus ? `status: ${c.reviewStatus}` : ''
+                const sync = syncLine(c)
+                const prompt = c.prompt ? `prompt: ${escapeHtml(c.prompt)}` : ''
+                const actions = c.backendMirrorEntryId && c.reviewStatus === 'pending'
+                    ? `<div class="day-detail-row__actions">
+                        <button type="button" data-review-action="confirmed" data-entry-id="${c.backendMirrorEntryId}">Confirm</button>
+                        <button type="button" data-review-action="forgotten" data-entry-id="${c.backendMirrorEntryId}">Forget</button>
+                      </div>`
+                    : ''
+                const retry = c.syncStatus === 'failed' && this.backend?.submitReflection
+                    ? `<div class="day-detail-row__actions">
+                        <button type="button" data-sync-action="retry" data-capture-id="${escapeAttr(c.id)}">Retry sync</button>
+                      </div>`
+                    : ''
+                const sub = [status, sync, prompt, actions, retry].filter(Boolean).join(' ')
+                return renderRow('✎', text || '<i>(empty)</i>', sub)
             }
             if(c.kind === 'photo')
             {
-                const cap = c.caption ? c.caption.slice(0, 120) : '<i>(photo, no caption)</i>'
+                const cap = c.caption ? escapeHtml(c.caption.slice(0, 120)) : '<i>(photo, no caption)</i>'
                 return renderRow('📷', cap, '')
             }
-            return renderRow('•', c.kind, '')
+            return renderRow('•', escapeHtml(c.kind), '')
         }).join('')
 
         // Events
         sectionEls[2].querySelector('.day-detail-card__rows').innerHTML = evs.map((e) =>
-            renderRow('·', e.label, e.kind)
+            renderRow('·', escapeHtml(e.label), escapeHtml(e.kind))
         ).join('')
 
         // Hide empty sections and decide whether to show the global empty msg.
@@ -166,4 +197,82 @@ export default class DayDetailCard
         sectionEls[2].hidden = evs.length   === 0
         this.emptyEl.hidden = (moods.length + caps.length + evs.length) !== 0
     }
+
+    async _reviewReflection(button)
+    {
+        if(!this.backend?.updateReflectionReview) return
+        const entryId = parseInt(button.dataset.entryId || '', 10)
+        const status = button.dataset.reviewAction
+        if(!Number.isInteger(entryId) || (status !== 'confirmed' && status !== 'forgotten')) return
+        try
+        {
+            await this.backend.updateReflectionReview({ entryId, status })
+            const snapshot = await this.backend.refreshSnapshot?.()
+            if(snapshot) this.state.applyBackendSnapshot?.(snapshot)
+            else this.state.captures?.patch?.(`mirror:${entryId}`, { reviewStatus: status })
+            this._render()
+        }
+        catch(err)
+        {
+            console.warn('[DayDetailCard] reflection review failed', err)
+        }
+    }
+
+    async _retryReflectionSync(button)
+    {
+        if(!this.backend?.submitReflection) return
+        const captureId = button.dataset.captureId
+        if(!captureId) return
+        const capture = this.state.captures.findById?.(captureId)
+        if(!capture || capture.kind !== 'ask') return
+        try
+        {
+            this.state.captures.patch?.(capture.id, { syncStatus: 'syncing', syncError: '' })
+            const result = await this.backend.submitReflection({
+                localCaptureId: capture.id,
+                transcript: capture.text || '',
+                contextType: capture.contextType || 'school',
+            })
+            const mirror = result?.mirrorEntry
+            if(mirror)
+            {
+                this.state.captures.patch?.(capture.id, {
+                    backendMirrorEntryId: mirror.id,
+                    reviewStatus: mirror.reviewStatus || 'pending',
+                    syncStatus: 'synced',
+                    syncError: '',
+                    contextType: mirror.contextType || 'school',
+                    reframe: {
+                        headline: mirror.storyReframe || '',
+                        highlightPhrase: mirror.inferredMeaning || '',
+                        themes: [],
+                        needs: [],
+                        moods: [],
+                    },
+                })
+            }
+            this._render()
+        }
+        catch(err)
+        {
+            const message = err instanceof Error ? err.message : String(err)
+            console.warn('[DayDetailCard] reflection sync retry failed', err)
+            this.state.captures.patch?.(capture.id, { syncStatus: 'failed', syncError: message })
+            this._render()
+        }
+    }
+}
+
+function escapeHtml(value)
+{
+    return String(value || '').replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[ch])
+}
+
+function escapeAttr(value) { return escapeHtml(value) }
+
+function syncLine(c)
+{
+    if(c.syncStatus === 'failed') return `sync failed${c.syncError ? `: ${escapeHtml(c.syncError)}` : ''}`
+    if(c.syncStatus === 'syncing') return 'syncing...'
+    return ''
 }

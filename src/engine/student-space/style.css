@@ -1318,7 +1318,8 @@ body.has-chooser        .bird-picker
     margin-top: 8px;
 }
 .ask-sheet__edit,
-.ask-sheet__talk-more
+.ask-sheet__talk-more,
+.ask-sheet__forget-draft
 {
     padding: 12px 18px;
     border-radius: 999px;
@@ -1331,10 +1332,16 @@ body.has-chooser        .bird-picker
     transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
 .ask-sheet__edit:hover,
-.ask-sheet__talk-more:hover
+.ask-sheet__talk-more:hover,
+.ask-sheet__forget-draft:hover
 {
     background: rgba(0, 0, 0, 0.04);
     border-color: rgba(0, 0, 0, 0.18);
+}
+.ask-sheet__forget-draft
+{
+    border-color: rgba(137, 72, 55, 0.2);
+    color: #6a3428;
 }
 .ask-sheet__log--reframe
 {
@@ -3592,7 +3599,8 @@ body.has-chooser        .top-nav
 .cal-nav:hover { background: rgba(255, 255, 255, 0.85); }
 .cal-nav:active { transform: scale(0.96); }
 
-.cal-today
+.cal-today,
+.cal-connector
 {
     border: none;
     background: var(--facet-personality-soft);
@@ -3603,7 +3611,19 @@ body.has-chooser        .top-nav
     cursor: pointer;
     transition: background 160ms ease;
 }
-.cal-today:hover { background: var(--facet-personality-soft); filter: brightness(0.95); }
+.cal-connector
+{
+    background: rgba(255, 255, 255, 0.72);
+    color: #5b3519;
+    white-space: nowrap;
+}
+.cal-today:hover,
+.cal-connector:hover { filter: brightness(0.95); }
+.cal-connector:disabled
+{
+    cursor: wait;
+    opacity: 0.72;
+}
 
 .calendar-sheet__weekdays
 {
@@ -4053,6 +4073,22 @@ body.has-chooser        .top-nav
     font-size: 12.5px;
     color: rgba(43, 38, 32, 0.55);
     letter-spacing: 0.01em;
+}
+.trajectory-sheet__run
+{
+    margin-top: 14px;
+    border: 1px solid rgba(160, 118, 89, 0.30);
+    background: rgba(255, 255, 255, 0.70);
+    color: #5b3519;
+    font: 650 12px/1 inherit;
+    padding: 9px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.trajectory-sheet__run:disabled
+{
+    cursor: wait;
+    opacity: 0.72;
 }
 
 .trajectory-sheet__tabs

@@ -18,7 +18,7 @@
  *   - the toast sequence matches the slice's event order
  *   - the cross-slice subscription survives the React render cycle
  */
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { IslandProgressionOverlay } from '~/components/IslandProgressionOverlay'
@@ -57,6 +57,13 @@ function buildFakeGame(): FakeGameBundle {
     dispose() {},
   } as unknown as Game
   return { game, captures, sprouts }
+}
+
+function expectReadySprout(sprouts: Sprouts) {
+  const ready = sprouts.readyToBloom()[0]
+  expect(ready).toBeDefined()
+  if (!ready) throw new Error('Expected a ready sprout')
+  return ready
 }
 
 afterEach(() => {
@@ -100,7 +107,7 @@ describe('island progression — captures → sprouts → overlay e2e', () => {
         bundle.captures.add({ kind: 'ask', text: `c-${i}` })
       }
     })
-    const ready = bundle.sprouts.readyToBloom()[0]!
+    const ready = expectReadySprout(bundle.sprouts)
     act(() => {
       bundle.sprouts.bloom(ready.id)
     })
@@ -116,7 +123,7 @@ describe('island progression — captures → sprouts → overlay e2e', () => {
         bundle.captures.add({ kind: 'ask', text: `c-${i}` })
       }
     })
-    const ready = bundle.sprouts.readyToBloom()[0]!
+    const ready = expectReadySprout(bundle.sprouts)
     act(() => {
       bundle.sprouts.bloom(ready.id)
     })

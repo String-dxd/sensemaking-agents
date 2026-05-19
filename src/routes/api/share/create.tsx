@@ -41,6 +41,9 @@ async function handle(request: Request): Promise<Response> {
     if (err instanceof UnauthenticatedError) {
       return jsonError(401, 'unauthenticated', err.message)
     }
+    if (isZodValidationError(err)) {
+      return jsonError(400, 'invalid_input', 'Invalid share-create payload.')
+    }
     console.error('[api/share/create] failed', err)
     return jsonError(500, 'internal_error', 'Failed to create share token.')
   }
@@ -52,6 +55,10 @@ function isSameOriginRequest(request: Request): boolean {
   if (origin && origin !== requestUrl.origin) return false
   const fetchSite = request.headers.get('Sec-Fetch-Site')
   return fetchSite !== 'cross-site'
+}
+
+function isZodValidationError(err: unknown): boolean {
+  return err instanceof Error && err.name === 'ZodError'
 }
 
 function jsonError(status: number, code: string, message: string): Response {

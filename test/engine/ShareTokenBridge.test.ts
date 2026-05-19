@@ -142,6 +142,42 @@ describe('ShareTokenBridge state machine', () => {
     expect(bridge.errorCode).toBe('redactions_failed')
   })
 
+  it('retry after a redaction failure retries the toggle instead of revoking the link', async () => {
+    const fetchMock = makeFetchSequence([
+      {
+        ok: true,
+        body: { ok: true, token: 'AAAA1111BBBB2222CCCC33', url: '/share/AAAA1111BBBB2222CCCC33' },
+      },
+      {
+        ok: false,
+        status: 400,
+        body: { ok: false, error: { code: 'redactions_failed', message: 'no' } },
+      },
+      { ok: true, body: { ok: true, show_quotes: true } },
+    ])
+    vi.stubGlobal('fetch', fetchMock)
+
+    const bridge = new ShareTokenBridge()
+    await bridge.ensureToken()
+    await bridge.setShowQuotes(true)
+
+    expect(bridge.status).toBe('error')
+    expect(bridge.token).toBe('AAAA1111BBBB2222CCCC33')
+
+    await bridge.retry()
+
+    expect(bridge.status).toBe('ready')
+    expect(bridge.token).toBe('AAAA1111BBBB2222CCCC33')
+    expect(bridge.showQuotes).toBe(true)
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/api/share/redactions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ token: 'AAAA1111BBBB2222CCCC33', show_quotes: true }),
+      }),
+    )
+  })
+
   it('network error surfaces as error state', async () => {
     vi.stubGlobal(
       'fetch',

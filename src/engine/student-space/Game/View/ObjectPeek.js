@@ -4,6 +4,7 @@ import View from './View.js'
 import State from '../State/State.js'
 import OverlayController from './OverlayController.js'
 import { meaningForSpecies } from '../Data/flowerMeanings.js'
+import { elementTitle, latestEvidenceLine, metaphorLine, resolveElementEvidence } from './elementEvidence.js'
 
 /**
  * ObjectPeek — the two-step "peek, then companion" interaction shared by
@@ -59,14 +60,26 @@ function speciesColor(target)
 const KIND_CONFIG = {
     flower: {
         eyebrow: 'FLOWER',
-        title:   (target) => cap(speciesIdOf(target)) || 'Flower',
-        peekText: (target) =>
+        title:   (target, _view, state) =>
         {
+            const evidence = resolveElementEvidence(target, state?.profile)
+            return elementTitle(evidence, cap(speciesIdOf(target)) || 'Flower')
+        },
+        peekText: (target, _view, state) =>
+        {
+            const evidence = resolveElementEvidence(target, state?.profile)
+            if(evidence.claimId)
+                return `${metaphorLine(evidence)} ${latestEvidenceLine(evidence, 86)}`
             const m = meaningForSpecies(speciesIdOf(target))
             return m?.peek || 'A small interest in motion.'
         },
-        loreText: (target) =>
+        loreText: (target, _view, state) =>
         {
+            const evidence = resolveElementEvidence(target, state?.profile)
+            if(evidence.claimId && evidence.hasEvidence)
+                return `${evidence.definition} Latest noticing: “${evidence.latestQuoteText}”`
+            if(evidence.claimId)
+                return `${metaphorLine(evidence)} No noticings have landed here yet. When a noticing lands here, this bloom will open onto the matching timeline.`
             const m = meaningForSpecies(speciesIdOf(target))
             return m?.lore || 'A flower — small evidence of an interest still finding its shape.'
         },
@@ -78,10 +91,13 @@ const KIND_CONFIG = {
         pickup: true,
         primaryCta:   { label: 'Talk about it more' },
         secondaryCta: { label: 'Open detail page', icon: true },
-        primaryAction: (target) =>
+        primaryAction: (target, _view, state) =>
         {
+            const evidence = resolveElementEvidence(target, state?.profile)
             const m = meaningForSpecies(speciesIdOf(target))
-            const prompt = m?.ask || `Tell me about your interest in ${speciesIdOf(target) || 'this flower'}.`
+            const prompt = evidence.claimLabel
+                ? `Tell me about ${evidence.claimLabel.toLowerCase()} as an interest.`
+                : (m?.ask || `Tell me about your interest in ${speciesIdOf(target) || 'this flower'}.`)
             OverlayController.getInstance().open('ask', { prompt, dismissOnBack: true })
         },
         secondaryAction: (target, view) => view.facetView?.openFor(target),

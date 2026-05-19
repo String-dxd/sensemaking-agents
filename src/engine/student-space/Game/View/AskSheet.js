@@ -3,6 +3,11 @@ import OverlayController from './OverlayController.js'
 import { reframeFor } from './reframeHeuristics.js'
 import { kiraReplyFor } from './chatHeuristics.js'
 import { EMOTIONS, shapeSvg } from './MoodSheet.js'
+import {
+    blobToStudentSpaceAudioBase64,
+    canRecordStudentSpaceAudio,
+    startStudentSpaceAudioCapture,
+} from '../../../../lib/student-space/audio-capture.ts'
 
 /**
  * Open-ended capture. Three stages:
@@ -13,10 +18,9 @@ import { EMOTIONS, shapeSvg } from './MoodSheet.js'
  *   3. review    — static read of the final transcript. Log commits it as a
  *                  capture; Discard drops it and routes back to the chooser.
  *
- * Voice path: Web Speech API. Interim results stream into the captions
- * element so the user sees their voice transcribed in near real-time. When
- * the engine isn't available we hide the mic button and degrade to the
- * textarea path.
+ * Voice path: MediaRecorder audio. Web Speech is optional live-caption help.
+ * In bridged mode the backend prepares a Mirror draft from OpenAI transcription,
+ * then `Log` persists it and `Forget` discards the transient draft.
  *
  * Close behaviour: the × at the top is "back" (returns to the chooser, not
  * a hard dismiss). The chooser's own × is the only place that dismisses
@@ -58,6 +62,7 @@ export default class AskSheet
     {
         this.state = State.getInstance()
         this.captures = this.state.captures
+        this.backend = this.state.backend || null
 
         const root = document.createElement('div')
         root.className = 'ask-sheet'
@@ -167,6 +172,7 @@ export default class AskSheet
                     <div class="ask-sheet__row ask-sheet__row--reframe">
                         <button class="ask-sheet__edit" type="button">Edit</button>
                         <button class="ask-sheet__talk-more" type="button">Talk more</button>
+                        <button class="ask-sheet__forget-draft" type="button" hidden>Forget</button>
                         <button class="ask-sheet__log ask-sheet__log--reframe" type="button">
                             Log<span aria-hidden="true">→</span>
                         </button>
@@ -200,6 +206,7 @@ export default class AskSheet
         this.reframeProseEl  = root.querySelector('.ask-reframe__prose')
         this.editBtn         = root.querySelector('.ask-sheet__edit')
         this.talkMoreBtn     = root.querySelector('.ask-sheet__talk-more')
+        this.forgetDraftBtn  = root.querySelector('.ask-sheet__forget-draft')
         this.reframeLogBtn   = root.querySelector('.ask-sheet__log--reframe')
         this.chatThreadEl    = root.querySelector('.ask-sheet__stage--chat .ask-chat__thread')
         this.chatInputEl     = root.querySelector('.ask-chat__input')
@@ -212,13 +219,24 @@ export default class AskSheet
         this.stage       = 'compose'
         this.recCommitted = ''
         this.recInterim   = ''
+        this.audioCapture = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        this.pendingLocalCaptureId = null
+        this.preparedReflection = null
+        this.prepareInFlight = false
+        this.logInFlight = false
+        this.prepareId = 0
         this.reframe     = null   // {headline, highlightPhrase, themes, needs, moods, edited}
         this.thread      = null   // [{role, text}, …] — set by chat stage
         this.typerId     = 0
 
-        if(!SpeechRecognition)
+        if(!canRecordStudentSpaceAudio())
         {
             this.micBtn.hidden = true
+        }
+        if(!SpeechRecognition)
+        {
             this.chatMicBtn.hidden = true
         }
 
@@ -235,6 +253,7 @@ export default class AskSheet
         this.reframeCtaEl.addEventListener('click', () => this._goReframe())
         this.editBtn.addEventListener('click', () => this._editFromReframe())
         this.talkMoreBtn.addEventListener('click', () => this._talkMore())
+        this.forgetDraftBtn.addEventListener('click', () => this._forgetDraft())
         this.reframeLogBtn.addEventListener('click', () => this._logReframe())
         this.chatInputEl.addEventListener('keydown', (event) =>
         {
@@ -282,6 +301,15 @@ export default class AskSheet
             try { this.chatRecognition.abort?.() ?? this.chatRecognition.stop?.() } catch(_) {}
             this.chatRecognition = null
         }
+        this.audioCapture?.abort?.()
+        this.audioCapture = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        this.pendingLocalCaptureId = null
+        this.preparedReflection = null
+        this.prepareInFlight = false
+        this.logInFlight = false
+        this.prepareId += 1
         this.listening = false
         // Bump the typer id so any pending setTimeout chain self-cancels
         // when it next checks myId !== this.typerId.
@@ -322,6 +350,10 @@ export default class AskSheet
         this.thread = null
         this.recCommitted = ''
         this.recInterim = ''
+        this.audioCapture = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        if(this.reframeCtaRowEl) this.reframeCtaRowEl.hidden = false
         if(this.chatThreadEl) this.chatThreadEl.innerHTML = ''
         if(this.chatInputEl)  this.chatInputEl.value = ''
 
@@ -364,6 +396,13 @@ export default class AskSheet
         // aria-hidden=true from an ancestor.
         if(this.root.contains(document.activeElement)) document.activeElement.blur()
         if(this.listening) this._abortRecording()
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        this.pendingLocalCaptureId = null
+        this.preparedReflection = null
+        this.prepareInFlight = false
+        this.logInFlight = false
+        this.prepareId += 1
         if(this.chatRecognition)
         {
             try { this.chatRecognition.abort?.() ?? this.chatRecognition.stop?.() } catch(_) {}
@@ -392,6 +431,7 @@ export default class AskSheet
         // Read-only replay + Kira-direct entry both bypass the chooser
         // because there's no chooser context to return to.
         if(this.readOnly || this.dismissOnBack) { this.close(); return }
+        if(this._isBackendDraftMode()) { this._forgetDraft(); return }
         // From recording: stop the engine but DON'T review — bail to chooser.
         if(this.listening) this._abortRecording()
         // Default: route back to the chooser; OverlayController will close
@@ -418,7 +458,39 @@ export default class AskSheet
 
     /* ----- recording ----- */
 
-    _startRecording()
+    async _startRecording()
+    {
+        if(!canRecordStudentSpaceAudio() || this.listening) return
+
+        // Seed committed with any text the user has typed — recording adds
+        // onto it rather than replacing.
+        this.recCommitted = this.input.value.trim()
+        this.recInterim   = ''
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        this._paintCaptions()
+        this.hintLiveEl.hidden = true
+
+        this.listening = true
+        this._setStage('recording')
+        try
+        {
+            this.audioCapture = await startStudentSpaceAudioCapture()
+            this.recordedAudioMimeType = this.audioCapture.mimeType
+            this._startLiveCaptions()
+        }
+        catch(err)
+        {
+            this.listening = false
+            this.audioCapture = null
+            const message = err instanceof Error ? err.message : String(err)
+            this.hintEl.hidden = false
+            this.hintEl.textContent = friendlyMicError(message)
+            this._setStage('compose')
+        }
+    }
+
+    _startLiveCaptions()
     {
         if(!SpeechRecognition) return
         const rec = new SpeechRecognition()
@@ -426,12 +498,19 @@ export default class AskSheet
         rec.interimResults = true
         rec.continuous = true
 
-        // Seed committed with any text the user has typed — recording adds
-        // onto it rather than replacing.
-        this.recCommitted = this.input.value.trim()
-        this.recInterim   = ''
-        this._paintCaptions()
-        this.hintLiveEl.hidden = true
+        rec.addEventListener('end', () =>
+        {
+            this.recognition = null
+        })
+
+        rec.addEventListener('error', (event) =>
+        {
+            this.recognition = null
+            this.hintLiveEl.hidden = false
+            this.hintLiveEl.textContent = event.error === 'not-allowed'
+                ? 'Live captions unavailable. Recording still works.'
+                : `Live captions unavailable (${event.error}). Recording still works.`
+        })
 
         rec.addEventListener('result', (event) =>
         {
@@ -450,41 +529,15 @@ export default class AskSheet
             this._paintCaptions()
         })
 
-        rec.addEventListener('end', () =>
-        {
-            // Engine can self-end on long silences; advance to review only
-            // if we still believe we're listening (vs explicit user stop,
-            // which already routed us).
-            if(this.listening) this._goReview()
-        })
-
-        rec.addEventListener('error', (event) =>
-        {
-            this.listening = false
-            this.recognition = null
-            this.hintLiveEl.hidden = false
-            this.hintLiveEl.textContent = event.error === 'not-allowed'
-                ? 'Mic permission denied. Type instead.'
-                : `Voice input unavailable (${event.error}). Type instead.`
-            // Drop back to compose so the user can keep going by typing.
-            this._setStage('compose')
-        })
-
         this.recognition = rec
-        this.listening = true
-        this._setStage('recording')
         try { rec.start() }
-        catch(err)
+        catch(_)
         {
-            this.listening = false
             this.recognition = null
-            this.hintEl.hidden = false
-            this.hintEl.textContent = 'Could not start mic.'
-            this._setStage('compose')
         }
     }
 
-    _stopRecording()
+    async _stopRecording()
     {
         // Explicit user stop → advance to review with whatever we have.
         if(!this.listening) return
@@ -499,7 +552,29 @@ export default class AskSheet
                 : this.recInterim
             this.recInterim = ''
         }
-        this._goReview()
+
+        const audioCapture = this.audioCapture
+        this.audioCapture = null
+        try
+        {
+            const blob = await audioCapture?.stop?.()
+            if(!blob || blob.size === 0)
+            {
+                this._setStage('compose')
+                this.hintEl.hidden = false
+                this.hintEl.textContent = 'No audio was captured. Try again or type it.'
+                return
+            }
+            this.recordedAudioBlob = blob
+            this.recordedAudioMimeType = blob.type || this.recordedAudioMimeType || 'audio/webm'
+            this._goReview()
+        }
+        catch(err)
+        {
+            this._setStage('compose')
+            this.hintEl.hidden = false
+            this.hintEl.textContent = err instanceof Error ? err.message : 'Could not stop recording.'
+        }
     }
 
     _abortRecording()
@@ -508,6 +583,10 @@ export default class AskSheet
         this.listening = false
         try { this.recognition?.abort?.() ?? this.recognition?.stop?.() } catch(_) {}
         this.recognition = null
+        this.audioCapture?.abort?.()
+        this.audioCapture = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
     }
 
     _paintCaptions()
@@ -521,7 +600,8 @@ export default class AskSheet
     _goReview()
     {
         const text = this.recCommitted.trim()
-        if(!text)
+        const hasAudio = !!this.recordedAudioBlob
+        if(!text && !hasAudio)
         {
             // Nothing transcribed — return to compose, surface a hint.
             this._setStage('compose')
@@ -529,7 +609,13 @@ export default class AskSheet
             this.hintEl.textContent = "Didn't catch anything. Try again or type it."
             return
         }
-        this.reviewTextEl.textContent = text
+        if(this.backend?.prepareReflection && !this.readOnly)
+        {
+            void this._prepareMirrorDraft()
+            return
+        }
+        this.reviewTextEl.textContent = text || 'Audio recorded. Transcript will appear after Mirror listens.'
+        if(this.reframeCtaRowEl) this.reframeCtaRowEl.hidden = !text
         this._setStage('review')
     }
 
@@ -537,8 +623,13 @@ export default class AskSheet
     {
         // Raw path — student opted out of the reframe. Commit text only.
         const text = this.recCommitted.trim()
-        if(!text) return
-        this._commitCapture({ text })
+        if(!text && !this.recordedAudioBlob) return
+        this._commitCapture(
+            { text: text || 'Voice recording awaiting transcript...' },
+            this.recordedAudioBlob
+                ? { audioBlob: this.recordedAudioBlob, mimeType: this.recordedAudioMimeType }
+                : {},
+        )
         this.close()
     }
 
@@ -548,6 +639,13 @@ export default class AskSheet
         // back to the chooser.
         this.recCommitted = ''
         this.recInterim   = ''
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        this.pendingLocalCaptureId = null
+        this.preparedReflection = null
+        this.prepareInFlight = false
+        this.logInFlight = false
+        this.prepareId += 1
         this.reframe = null
         this.thread = null
         this._paintCaptions()
@@ -562,6 +660,11 @@ export default class AskSheet
 
     _goReframe()
     {
+        if(this.backend?.prepareReflection)
+        {
+            void this._prepareMirrorDraft()
+            return
+        }
         const text = (this.recCommitted || '').trim()
         if(!text) return
         // Re-run the heuristic each time we enter so the Edit path
@@ -571,7 +674,79 @@ export default class AskSheet
         const editedFlag = this.reframe?.edited === true
         this.reframe = { ...reframeFor(text), edited: editedFlag }
         this._renderReframe(this.reframe)
+        this._setReframeActionMode('offline')
         this._setStage('reframe')
+    }
+
+    async _prepareMirrorDraft()
+    {
+        const text = (this.recCommitted || '').trim()
+        const audioBlob = this.recordedAudioBlob
+        if(!text && !audioBlob)
+        {
+            this._setStage('compose')
+            this.hintEl.hidden = false
+            this.hintEl.textContent = "Didn't catch anything. Try again or type it."
+            return
+        }
+        if(!this.backend?.prepareReflection || this.prepareInFlight) return
+
+        const runId = ++this.prepareId
+        this.prepareInFlight = true
+        this.logInFlight = false
+        this.preparedReflection = null
+        this._renderReframe({
+            headline: audioBlob
+                ? 'Kira is listening to the recording.'
+                : 'Kira is reading this back carefully.',
+            highlightPhrase: text || 'Voice recording',
+            themes: [],
+            needs: [],
+            moods: ['ennui'],
+        })
+        this._setReframeActionMode('preparing')
+        this._setStage('reframe')
+
+        try
+        {
+            let audioBase64 = null
+            if(audioBlob)
+            {
+                if(audioBlob.size === 0) throw new Error('No audio was captured.')
+                audioBase64 = await blobToStudentSpaceAudioBase64(audioBlob)
+            }
+            if(runId !== this.prepareId || !this.isOpen) return
+            const prepared = await this.backend.prepareReflection({
+                localCaptureId: this._ensureDraftCaptureId(),
+                ...(audioBase64
+                    ? { audioBase64, mimeType: this.recordedAudioMimeType || audioBlob.type || 'audio/webm' }
+                    : { transcript: text }),
+                contextType: 'school',
+            })
+            if(runId !== this.prepareId || !this.isOpen) return
+            this.prepareInFlight = false
+            this.preparedReflection = prepared
+            this.recCommitted = prepared.transcript || text
+            this.reviewTextEl.textContent = this.recCommitted
+            this.reframe = this._reframeFromPrepared(prepared)
+            this._renderReframe(this.reframe)
+            this._setReframeActionMode('ready')
+        }
+        catch(err)
+        {
+            if(runId !== this.prepareId || !this.isOpen) return
+            const message = err instanceof Error ? err.message : String(err)
+            this.prepareInFlight = false
+            this.preparedReflection = null
+            this._renderReframe({
+                headline: `Kira could not prepare this reading yet. ${message}`,
+                highlightPhrase: text || 'Voice recording',
+                themes: [],
+                needs: [],
+                moods: ['ennui'],
+            })
+            this._setReframeActionMode('failed')
+        }
     }
 
     _renderReframe(rf)
@@ -579,7 +754,8 @@ export default class AskSheet
         // 1. Mood shapes — 1–2, drawn from MoodSheet's shapeSvg() so the
         //    typography of the surface stays consistent with the rest of
         //    the mood UI.
-        const moodIds = rf.moods.length > 0 ? rf.moods.slice(0, 2) : ['ennui']
+        const moods = Array.isArray(rf.moods) ? rf.moods : []
+        const moodIds = moods.length > 0 ? moods.slice(0, 2) : ['ennui']
         this.reframeShapesEl.innerHTML = moodIds.map((id) =>
         {
             const e = EMOTION_BY_ID[id] || EMOTION_BY_ID.ennui
@@ -589,15 +765,17 @@ export default class AskSheet
         // 2. Theme pills — theme on top, inferred need beneath. ~15% bg
         //    tinted by the first matching mood (anxiety-tinged for school,
         //    ennui-tinged for sleep, etc.).
-        if(rf.themes.length === 0)
+        const themes = Array.isArray(rf.themes) ? rf.themes : []
+        const needs = Array.isArray(rf.needs) ? rf.needs : []
+        if(themes.length === 0)
         {
             this.reframePillsEl.innerHTML = ''
         }
         else
         {
-            this.reframePillsEl.innerHTML = rf.themes.slice(0, 3).map((tid, i) =>
+            this.reframePillsEl.innerHTML = themes.slice(0, 3).map((tid, i) =>
             {
-                const t = THEME_PILL[tid] || { label: tid, need: rf.needs[i] || '', mood: 'ennui' }
+                const t = THEME_PILL[tid] || { label: tid, need: needs[i] || '', mood: 'ennui' }
                 const e = EMOTION_BY_ID[t.mood] || EMOTION_BY_ID.ennui
                 const bg = tintedBg(e.color, 0.15)
                 return `
@@ -614,6 +792,58 @@ export default class AskSheet
 
         // 4. Prose — typewriter at 32 chars/sec to match KiraNarrator.
         this._typeProse(rf.headline || '')
+    }
+
+    _reframeFromPrepared(prepared)
+    {
+        return {
+            headline: [
+                prepared.storyReframe,
+                prepared.validation,
+                prepared.inferredMeaning,
+            ].filter(Boolean).join('\n\n'),
+            highlightPhrase: prepared.transcript || '',
+            themes: prepared.contextType ? [prepared.contextType] : [],
+            needs: [],
+            moods: prepared.mood ? [prepared.mood] : [],
+            backend: true,
+        }
+    }
+
+    _setReframeActionMode(mode)
+    {
+        const backendMode = mode !== 'offline'
+        this.editBtn.hidden = backendMode && mode !== 'failed'
+        this.talkMoreBtn.hidden = backendMode
+        this.forgetDraftBtn.hidden = !backendMode
+        this.reframeLogBtn.hidden = backendMode && mode === 'failed'
+        this.reframeLogBtn.disabled = backendMode && mode !== 'ready'
+        this.forgetDraftBtn.disabled = mode === 'logging'
+    }
+
+    _ensureDraftCaptureId()
+    {
+        if(!this.pendingLocalCaptureId)
+            this.pendingLocalCaptureId = `ask-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+        return this.pendingLocalCaptureId
+    }
+
+    _isBackendDraftMode()
+    {
+        return !!(this.backend?.prepareReflection && (this.prepareInFlight || this.preparedReflection || this.stage === 'reframe'))
+    }
+
+    _forgetDraft()
+    {
+        this.prepareId += 1
+        this.prepareInFlight = false
+        this.logInFlight = false
+        this.preparedReflection = null
+        this.reframe = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        this.pendingLocalCaptureId = null
+        this.close()
     }
 
     _typeProse(text)
@@ -764,7 +994,12 @@ export default class AskSheet
     {
         const text = (this.recCommitted || '').trim()
         if(!text) return
-        this._commitCapture({ text, reframe: this.reframe, thread: this.thread })
+        this._commitCapture(
+            { text, reframe: this.reframe, thread: this.thread },
+            this.recordedAudioBlob
+                ? { audioBlob: this.recordedAudioBlob, mimeType: this.recordedAudioMimeType }
+                : {},
+        )
         this.close()
     }
 
@@ -823,10 +1058,84 @@ export default class AskSheet
 
     _logReframe()
     {
+        if(this.preparedReflection)
+        {
+            void this._logPreparedReframe()
+            return
+        }
         const text = (this.recCommitted || '').trim()
         if(!text) return
-        this._commitCapture({ text, reframe: this.reframe, thread: this.thread })
+        this._commitCapture(
+            { text, reframe: this.reframe, thread: this.thread },
+            this.recordedAudioBlob
+                ? { audioBlob: this.recordedAudioBlob, mimeType: this.recordedAudioMimeType }
+                : {},
+        )
         this.close()
+    }
+
+    async _logPreparedReframe()
+    {
+        if(this.logInFlight || !this.preparedReflection) return
+        const prepared = this.preparedReflection
+        const reframe = this.reframe
+        this.logInFlight = true
+        this._setReframeActionMode('logging')
+
+        const capture = this.captures.add({
+            id: prepared.localCaptureId,
+            kind: 'ask',
+            prompt: this.prompt,
+            text: prepared.transcript || '',
+            reframe,
+            syncStatus: this.backend?.logPreparedReflection ? 'syncing' : 'local',
+            contextType: prepared.contextType || 'school',
+        })
+
+        if(!this.backend?.logPreparedReflection)
+        {
+            this.close()
+            return
+        }
+
+        try
+        {
+            const result = await this.backend.logPreparedReflection(prepared)
+            const mirror = result?.mirrorEntry
+            if(mirror)
+            {
+                this.captures.patch?.(capture.id, {
+                    backendMirrorEntryId: mirror.id,
+                    text: mirror.transcript || capture.text || '',
+                    reviewStatus: mirror.reviewStatus || 'pending',
+                    syncStatus: 'synced',
+                    syncError: '',
+                    contextType: mirror.contextType || 'school',
+                    reframe: {
+                        headline: [
+                            mirror.storyReframe,
+                            mirror.validation,
+                            mirror.inferredMeaning,
+                        ].filter(Boolean).join('\n\n'),
+                        highlightPhrase: mirror.transcript || '',
+                        themes: mirror.contextType ? [mirror.contextType] : [],
+                        needs: [],
+                        moods: [],
+                    },
+                })
+            }
+            this.close()
+        }
+        catch(err)
+        {
+            const message = err instanceof Error ? err.message : String(err)
+            console.warn('[AskSheet] prepared reflection log failed', err)
+            this.captures.patch?.(capture.id, {
+                syncStatus: 'failed',
+                syncError: message,
+            })
+            this.close()
+        }
     }
 
     _renderReplayExtras()
@@ -887,16 +1196,65 @@ export default class AskSheet
         return String(s || '').replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[ch])
     }
 
-    _commitCapture(payload)
+    _commitCapture(payload, options = {})
     {
         // Single funnel so Raw-log, Reframe-log, and Chat-log share one
         // path. The mergeCapture schema is forward-additive (commit #4),
         // so extra fields here flow straight into persistence.
-        const entry = { kind: 'ask', prompt: this.prompt, ...payload }
+        const entry = { kind: 'ask', prompt: this.prompt, syncStatus: this.backend?.submitReflection ? 'syncing' : 'local', ...payload }
         // Strip empties so old-style captures stay { kind, text, prompt }.
         if(!entry.reframe) delete entry.reframe
         if(!entry.thread || entry.thread.length === 0) delete entry.thread
-        this.captures.add(entry)
+        const capture = this.captures.add(entry)
+        if(this.backend?.submitReflection)
+            this._submitBackendReflection(capture, options)
+    }
+
+    async _submitBackendReflection(capture, options = {})
+    {
+        try
+        {
+            const audioBlob = options.audioBlob
+            let audioBase64 = null
+            if(audioBlob)
+            {
+                if(audioBlob.size === 0) throw new Error('No audio was captured.')
+                audioBase64 = await blobToStudentSpaceAudioBase64(audioBlob)
+            }
+            const result = await this.backend.submitReflection({
+                localCaptureId: capture.id,
+                ...(audioBase64
+                    ? { audioBase64, mimeType: options.mimeType || audioBlob.type || 'audio/webm' }
+                    : { transcript: capture.text || '' }),
+                contextType: capture.contextType || 'school',
+            })
+            const mirror = result?.mirrorEntry
+            if(!mirror) return
+            this.captures.patch?.(capture.id, {
+                backendMirrorEntryId: mirror.id,
+                text: mirror.transcript || capture.text || '',
+                reviewStatus: mirror.reviewStatus || 'pending',
+                syncStatus: 'synced',
+                syncError: '',
+                contextType: mirror.contextType || 'school',
+                reframe: {
+                    headline: mirror.storyReframe || '',
+                    highlightPhrase: mirror.inferredMeaning || '',
+                    themes: [],
+                    needs: [],
+                    moods: [],
+                },
+            })
+        }
+        catch(err)
+        {
+            const message = err instanceof Error ? err.message : String(err)
+            console.warn('[AskSheet] backend reflection submit failed', err)
+            this.captures.patch?.(capture.id, {
+                syncStatus: 'failed',
+                syncError: message,
+            })
+        }
     }
 
     /* ----- stage routing ----- */
@@ -909,4 +1267,13 @@ export default class AskSheet
             el.hidden = el.dataset.stage !== stage
         if(stage !== 'compose') this.hintEl.hidden = true
     }
+}
+
+function friendlyMicError(message)
+{
+    if(/permission denied|not allowed|NotAllowedError/i.test(message))
+        return 'Mic permission denied. Type instead.'
+    if(/not found|NotFoundError/i.test(message))
+        return 'No microphone was found. Type instead.'
+    return `Could not start mic: ${message}`
 }

@@ -46,7 +46,14 @@ export async function persistMirrorHandler(
 ): Promise<PersistMirrorResult> {
   const parsed = persistMirrorInputSchema.parse(data)
   const { studentId } = await (deps.requireContext ?? requireCounselorContext)()
+  return persistMirrorForStudent(studentId, parsed, deps)
+}
 
+export async function persistMirrorForStudent(
+  studentId: string,
+  parsed: PersistMirrorInput,
+  deps: Omit<PersistMirrorDeps, 'requireContext'> = {},
+): Promise<PersistMirrorResult> {
   // Safety gate: reject diagnostic language at persistence time.
   const safety = checkPayloadForDiagnosticLanguage({
     validation: parsed.entry.validation,

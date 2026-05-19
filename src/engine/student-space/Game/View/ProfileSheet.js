@@ -58,6 +58,7 @@ export default class ProfileSheet
     {
         this.state    = State.getInstance()
         this.profile  = this.state.profile
+        this.backend  = this.state.backend || null
 
         this.activeFacet     = 'values'
         this.selectedClaimId = null
@@ -445,7 +446,7 @@ export default class ProfileSheet
                 ? `<a class="quote-card__source" href="#" data-capture-id="${q.sourceCaptureId}">see source reflection →</a>`
                 : `<span class="quote-card__source is-disabled" title="No source reflection — this insight was distilled from many.">see source reflection →</span>`
             return `
-                <li class="quote-card" data-quote-id="${q.id}">
+                <li class="quote-card" data-quote-id="${q.id}" ${q.backendTimelineEntryId ? `data-backend-timeline-entry-id="${q.backendTimelineEntryId}"` : ''}>
                     <p class="quote-card__text">${this._renderQuoteText(q.text)}</p>
                     <div class="quote-card__chips">
                         <span class="chip chip--claim">${claimLabel(q.canonicalClaimId)}</span>
@@ -548,15 +549,46 @@ export default class ProfileSheet
         const card = btn.closest('.quote-card')
         if(!card) return
         const quoteId = card.dataset.quoteId
+        const backendTimelineEntryId = parseInt(card.dataset.backendTimelineEntryId || '', 10)
         card.classList.add('is-forgotten')
         clearTimeout(this._armTimer)
         this._armedButton = null
         setTimeout(() =>
         {
-            this.profile.forgetQuote(this.activeFacet, quoteId)
-            // Re-render the whole panel so the bento count badge updates too.
-            this._render(false)
+            this._forgetQuote({ quoteId, backendTimelineEntryId })
         }, FORGET_FADE_MS)
+    }
+
+    async _forgetQuote({ quoteId, backendTimelineEntryId })
+    {
+        const hasBackendId = Number.isInteger(backendTimelineEntryId) && backendTimelineEntryId > 0
+        if(hasBackendId && this.backend?.forgetEvidence)
+        {
+            let refreshed = false
+            try
+            {
+                await this.backend.forgetEvidence({ timelineEntryId: backendTimelineEntryId })
+                const snapshot = await this.backend.refreshSnapshot?.()
+                if(snapshot)
+                {
+                    this.state.applyBackendSnapshot?.(snapshot)
+                    refreshed = true
+                }
+            }
+            catch(err)
+            {
+                console.warn('[ProfileSheet] backend evidence forget failed', err)
+                this._render(false)
+                return
+            }
+            if(!refreshed) this.profile.forgetQuote(this.activeFacet, quoteId)
+        }
+        else
+        {
+            this.profile.forgetQuote(this.activeFacet, quoteId)
+        }
+        // Re-render the whole panel so the bento count badge updates too.
+        this._render(false)
     }
 
     _disarmForget()

@@ -32,6 +32,12 @@ function resetSingletons() {
   ;(Captures as unknown as { instance: unknown }).instance = null
 }
 
+function expectPresent<T>(value: T | null | undefined): T {
+  expect(value).toBeDefined()
+  if (value === null || value === undefined) throw new Error('Expected value to be present')
+  return value
+}
+
 afterEach(() => {
   resetSingletons()
 })
@@ -61,7 +67,7 @@ describe('wireSproutsToCaptures', () => {
   it('moodPins.add() grows the same active sprout that captures opened', () => {
     captures.add({ kind: 'ask', text: 'hello' })
     moodPins.add({ emotion: 'joy', intensity: 2 })
-    const active = sprouts.getActive()!
+    const active = expectPresent(sprouts.getActive())
     expect(active.count).toBe(2)
     expect(active.captureRefs).toHaveLength(2)
   })
@@ -94,7 +100,7 @@ describe('wireSproutsToCaptures', () => {
     captures.add({ kind: 'ask', text: 'one' })
     captures.add({ kind: 'ask', text: 'two' })
     captures.add({ kind: 'ask', text: 'three' })
-    const sprout = sprouts.recent(10)[0]!
+    const sprout = expectPresent(sprouts.recent(10)[0])
     expect(sprout.count).toBe(3)
     expect(sprout.readyToBloom).toBe(true)
     expect(sprouts.readyToBloom()).toHaveLength(1)
@@ -110,7 +116,7 @@ describe('wireSproutsToCaptures', () => {
 
   it('mood pin auto-tags as personality on the sprout it spawned', () => {
     moodPins.add({ emotion: 'joy', intensity: 2 })
-    const active = sprouts.recent(1)[0]!
+    const active = expectPresent(sprouts.recent(1)[0])
     expect(active.species).toBe('butterfly')
     expect(active.dimension).toBe('personality')
   })
@@ -121,7 +127,7 @@ describe('wireSproutsToCaptures', () => {
     // (component-level) tags it. The mood-pin auto-tag runs only when
     // didSpawn is true; here it should join, not spawn.
     moodPins.add({ emotion: 'joy', intensity: 2 })
-    const active = sprouts.recent(1)[0]!
+    const active = expectPresent(sprouts.recent(1)[0])
     expect(active.species).toBe('pending')
     expect(active.dimension).toBeNull()
   })

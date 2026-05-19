@@ -90,6 +90,19 @@ export default class MoodPins
         // `this.pins` directly when they need it.
     }
 
+    upsertBackend(snapshot)
+    {
+        if(!Array.isArray(snapshot)) return
+        const backendPins = mergeArray(snapshot, mergeMoodPin, 'pin.backend')
+        const backendIds = new Set(backendPins.map((pin) => pin.id))
+        const localPins = this.pins.filter((pin) => !backendIds.has(pin.id))
+        this.pins = [...localPins, ...backendPins].sort((a, b) =>
+            Date.parse(a.createdAt) - Date.parse(b.createdAt),
+        )
+        // Bulk backend load is not an add/patch event; subscribers read
+        // `pins` on demand and should not receive a synthetic pin payload.
+    }
+
     serialize() { return this.pins }
 
     _persist() { Persistence.getInstance()?.save('moodPins', this.serialize()) }

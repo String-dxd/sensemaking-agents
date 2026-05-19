@@ -40,6 +40,8 @@ export default class ShareTokenBridge
         this.showQuotes    = false
         this.errorCode     = null
         this.errorMessage  = null
+        this.lastAction    = null
+        this.pendingShowQuotes = null
         this.subscribers   = new Set()
     }
 
@@ -103,6 +105,8 @@ export default class ShareTokenBridge
 
     async createToken()
     {
+        this.lastAction = 'create'
+        this.pendingShowQuotes = null
         this._setStatus('creating')
         try
         {
@@ -121,6 +125,7 @@ export default class ShareTokenBridge
             this.token = payload.token
             this.url   = payload.url
             this.showQuotes = false
+            this.lastAction = null
             this._setStatus('ready')
         }
         catch(err)
@@ -133,6 +138,8 @@ export default class ShareTokenBridge
     {
         if(!this.token) return
         const revoking = this.token
+        this.lastAction = 'revoke'
+        this.pendingShowQuotes = null
         this._setStatus('revoking')
         try
         {
@@ -152,6 +159,7 @@ export default class ShareTokenBridge
             this.token = null
             this.url   = null
             this.showQuotes = false
+            this.lastAction = null
             this._setStatus('idle')
         }
         catch(err)
@@ -168,6 +176,8 @@ export default class ShareTokenBridge
     async setShowQuotes(next)
     {
         if(!this.token) return
+        this.lastAction = 'redactions'
+        this.pendingShowQuotes = next
         const previous = this.showQuotes
         this.showQuotes = next
         this._notify()
@@ -191,7 +201,10 @@ export default class ShareTokenBridge
             if(typeof payload?.show_quotes === 'boolean')
             {
                 this.showQuotes = payload.show_quotes
-                this._notify()
+                this.lastAction = null
+                this.pendingShowQuotes = null
+                if(this.status === 'error') this._setStatus('ready')
+                else this._notify()
             }
         }
         catch(err)
@@ -204,7 +217,11 @@ export default class ShareTokenBridge
     /** Used by the dialog's "Try again" button after an error. */
     retry()
     {
-        if(this.token) return this.revokeToken()
+        if(this.token && this.lastAction === 'redactions')
+        {
+            return this.setShowQuotes(!!this.pendingShowQuotes)
+        }
+        if(this.token && this.lastAction === 'revoke') return this.revokeToken()
         return this.createToken()
     }
 

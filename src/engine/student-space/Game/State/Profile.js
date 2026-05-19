@@ -171,6 +171,29 @@ export default class Profile
         this._notify({ kind: 'hydrate' })
     }
 
+    /**
+     * Replace durable profile fields from the app backend without writing
+     * them back through local persistence. Local-only ceremony/identity
+     * fields stay in place unless the backend explicitly supplies identity.
+     */
+    hydrateBackend(snapshot)
+    {
+        if(!snapshot || typeof snapshot !== 'object') return
+        const facetsPart = snapshot.facets ?? snapshot
+        this.facets = mergeProfile(facetsPart)
+
+        if(snapshot.identity && typeof snapshot.identity === 'object')
+        {
+            const id = snapshot.identity
+            if(typeof id.name === 'string')          this.identity.name = id.name
+            if(typeof id.className === 'string')     this.identity.className = id.className
+            if(typeof id.avatarDataUrl === 'string' || id.avatarDataUrl === null)
+                this.identity.avatarDataUrl = id.avatarDataUrl
+        }
+
+        this._notify({ kind: 'backend-hydrate' })
+    }
+
     serialize() { return { facets: this.facets, identity: this.identity } }
 
     _persist() { Persistence.getInstance()?.save('profile', this.serialize()) }

@@ -24,13 +24,20 @@ export default class State
         return State.instance
     }
 
-    /** @param {{ persistence?: { storage?: import('./Persistence.js').StorageAdapter } }} [opts] */
+    /**
+     * @param {{
+     *   persistence?: { storage?: import('./Persistence.js').StorageAdapter },
+     *   backend?: import('../../../lib/student-space/backend-bridge.ts').StudentSpaceBackendBridge,
+     * }} [opts]
+     */
     constructor(opts = {})
     {
         if(State.instance)
             return State.instance
 
         State.instance = this
+        this.backend = opts.backend || null
+        this.backendActive = false
 
         // Persistence is the very first state thing constructed — every
         // persistent module reads `Persistence.getInstance()` inside its
@@ -89,6 +96,20 @@ export default class State
     resize()
     {
         this.viewport.resize()
+    }
+
+    applyBackendSnapshot(snapshot)
+    {
+        if(!snapshot || typeof snapshot !== 'object') return
+        this.backendActive = true
+        if(snapshot.profile) this.profile?.hydrateBackend?.(snapshot.profile)
+        const captures = snapshot.trajectory
+            ? [...(snapshot.reflections || []), snapshot.trajectory]
+            : (snapshot.reflections || [])
+        this.captures?.upsertBackend?.(captures)
+        this.moodPins?.upsertBackend?.(snapshot.recentMoods || [])
+        this.calendar?.hydrateBackend?.(snapshot.calendarEvents || [])
+        this.letters?.hydrateBackend?.(snapshot.teacherLetters || [])
     }
 
     update()

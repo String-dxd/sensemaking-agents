@@ -41,6 +41,13 @@ export default class CalendarEvents
         this._notify({ kind: 'hydrate' })
     }
 
+    hydrateBackend(snapshot)
+    {
+        if(!Array.isArray(snapshot)) return
+        this.events = mergeArray(snapshot, mergeCalendarEvent, 'event.backend')
+        this._notify({ kind: 'backend-hydrate' })
+    }
+
     serialize() { return this.events }
 
     _persist() { Persistence.getInstance()?.save('calendar', this.serialize()) }

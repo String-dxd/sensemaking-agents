@@ -29,6 +29,12 @@ function freshPersistence() {
   return new Persistence({ storage: memoryAdapter() })
 }
 
+function expectPresent<T>(value: T | null | undefined): T {
+  expect(value).toBeDefined()
+  if (value === null || value === undefined) throw new Error('Expected value to be present')
+  return value
+}
+
 afterEach(() => {
   ;(Persistence as unknown as { instance: unknown }).instance = null
   ;(Sprouts as unknown as { instance: unknown }).instance = null
@@ -59,7 +65,7 @@ describe('Sprouts state slice', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-2' })
     const changed = sprouts.setDimensionForFirstCapture('cap-1', 'interests')
     expect(changed).toBe(true)
-    const active = sprouts.getActive()!
+    const active = expectPresent(sprouts.getActive())
     expect(active.species).toBe('flower')
     expect(active.dimension).toBe('interests')
   })
@@ -88,7 +94,7 @@ describe('Sprouts state slice', () => {
     sprouts.subscribe((ev: SproutsEvent) => events.push(ev.type))
     sprouts.setDimensionForFirstCapture('cap-1', 'skills')
     // getActive() skips ready sprouts, so look at the readyToBloom set.
-    const ready = sprouts.readyToBloom()[0]!
+    const ready = expectPresent(sprouts.readyToBloom()[0])
     expect(ready.species).toBe('fruit')
     expect(ready.readyToBloom).toBe(true)
     expect(events).toContain('markedReady')
@@ -125,7 +131,7 @@ describe('Sprouts state slice', () => {
 
   it('bloom() returns null when sprout is not ready', () => {
     sprouts.grow({ kind: 'capture', id: 'cap-1' })
-    const active = sprouts.getActive()!
+    const active = expectPresent(sprouts.getActive())
     expect(sprouts.bloom(active.id)).toBeNull()
     expect(sprouts.recent(10)).toHaveLength(1)
   })
@@ -134,7 +140,7 @@ describe('Sprouts state slice', () => {
     for (let i = 0; i < BLOOM_THRESHOLD; i++) {
       sprouts.grow({ kind: 'capture', id: `cap-${i}` })
     }
-    const ready = sprouts.readyToBloom()[0]!
+    const ready = expectPresent(sprouts.readyToBloom()[0])
     const events: Array<{ type: string; id: string }> = []
     sprouts.subscribe((ev: SproutsEvent) =>
       events.push({
@@ -157,7 +163,7 @@ describe('Sprouts state slice', () => {
     for (let i = 0; i < BLOOM_THRESHOLD; i++) {
       sprouts.grow({ kind: 'capture', id: `cap-${i}` })
     }
-    const ready = sprouts.readyToBloom()[0]!
+    const ready = expectPresent(sprouts.readyToBloom()[0])
     sprouts.bloom(ready.id)
     const serialized = sprouts.serialize()
     ;(Sprouts as unknown as { instance: unknown }).instance = null

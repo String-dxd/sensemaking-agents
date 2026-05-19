@@ -12,8 +12,6 @@
  * and clients learn about it through neither this fn nor the library UI.
  */
 
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import type { Mood } from '~/agents/tools/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
@@ -26,6 +24,10 @@ import {
   type VipsPageRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
+import {
+  loadStudentSpaceShellData,
+  type StudentSpaceShellData,
+} from '~/lib/student-space/demo-shell-data.server'
 import { loadCounsellorBriefStatusForStudent } from './counsellor-brief.handler.server'
 import { type LoadVipsPagesInput, loadVipsPagesInputSchema } from './function-schemas'
 import { moodFromMirrorTags } from './mood-tags'
@@ -55,6 +57,8 @@ export interface LoadVipsPagesResult {
     unreadBriefCount: number
     lastBriefId: number | null
   }
+  /** Serialized Student Space shell data resolved server-side for the active student. */
+  student_space_shell: StudentSpaceShellData | null
   /** Count of non-forgotten timeline entries per dimension. */
   claim_count_by_dimension: Record<VipsDimension, number>
   /** Sum of `claim_count_by_dimension` — drives the 3-entry gate replacement (R24). */
@@ -108,14 +112,18 @@ export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<Lo
 
     const recentEntries = await listMirrorEntries(studentId, { ctx, limit: 7 })
     const worldMailbox = await loadCounsellorBriefStatusForStudent(studentId, { ctx })
+    const shellData = loadStudentSpaceShellData(studentId)
 
     return {
-      student_profile: loadSeedStudentProfileSummary(studentId),
+      student_profile: shellData
+        ? { name: shellData.identity.name, detail: shellData.identity.className || null }
+        : null,
       pages,
       timeline_by_dimension,
       recent_entries: recentEntries,
       recent_moods: deriveRecentMoodsFromMirrorEntries(recentEntries),
       world_mailbox: worldMailbox,
+      student_space_shell: shellData,
       claim_count_by_dimension,
       total_claim_count: total,
     }
@@ -140,39 +148,4 @@ export function deriveRecentMoodsFromMirrorEntries(
       ]
     })
     .slice(0, Math.max(0, limit))
-}
-
-function loadSeedStudentProfileSummary(
-  studentId: string,
-): { name: string; detail: string | null } | null {
-  try {
-    const raw = readFileSync(
-      resolve(process.cwd(), 'test/ablation/fixtures/seed-multistudent.json'),
-      'utf8',
-    )
-    const corpus = JSON.parse(raw) as {
-      students?: Array<{
-        student_id?: string
-        profile?: { name_handle?: string; year_level?: string }
-      }>
-    }
-    const profile = corpus.students?.find((student) => student.student_id === studentId)?.profile
-    if (!profile?.name_handle) return null
-    const parsed = parseNameHandle(profile.name_handle)
-    return {
-      name: parsed.name,
-      detail: parsed.detail ?? profile.year_level ?? null,
-    }
-  } catch {
-    return null
-  }
-}
-
-function parseNameHandle(value: string): { name: string; detail: string | null } {
-  const match = value.match(/^(.+?)\s*\((.+)\)$/)
-  if (!match) return { name: value.trim(), detail: null }
-  return {
-    name: match[1]?.trim() || value.trim(),
-    detail: match[2]?.trim() || null,
-  }
 }

@@ -52,6 +52,7 @@ export default class CalendarSheet
         this.moodPins = this.state.moodPins
         this.captures = this.state.captures
         this.calendar = this.state.calendar
+        this.backend  = this.state.backend || null
 
         const now = new Date()
         this.viewYear  = now.getFullYear()
@@ -73,6 +74,7 @@ export default class CalendarSheet
                 <h2 class="cal-title"></h2>
                 <button class="cal-nav" data-dir="1"  type="button" aria-label="Next month">›</button>
                 <button class="cal-today" type="button" hidden>Today</button>
+                <button class="cal-connector" type="button">Run Connector</button>
             </header>
             <div class="calendar-sheet__weekdays">
                 ${DAY_LABELS.map((d) => `<span>${d}</span>`).join('')}
@@ -83,7 +85,10 @@ export default class CalendarSheet
         this.root      = root
         this.titleEl   = root.querySelector('.cal-title')
         this.todayBtn  = root.querySelector('.cal-today')
+        this.connectorBtn = root.querySelector('.cal-connector')
         this.gridEl    = root.querySelector('.calendar-sheet__grid')
+        this.connectorRunning = false
+        this.connectorStatusText = ''
 
         this._onRootClick = (event) => this._onClick(event)
         root.addEventListener('click', this._onRootClick)
@@ -118,18 +123,20 @@ export default class CalendarSheet
         this.root = null
     }
 
-    open()
+    open(opts = {})
     {
-        // Whenever the sheet opens, snap back to current month so the user
-        // always lands on "today" first — month nav remembers across opens
-        // would be more powerful but easy to lose track of in v1.1.
-        const now = new Date()
+        const targetCapture = this._targetCapture(opts)
+        const anchorDate = targetCapture?.entryDate || (this.state.backendActive ? this._latestActivityDate() : null)
+        const now = anchorDate ? new Date(`${anchorDate}T00:00:00`) : new Date()
+        // Whenever the sheet opens, snap to the route target if provided;
+        // otherwise bridged mode lands on the latest backend activity month.
         this.viewYear  = now.getFullYear()
         this.viewMonth = now.getMonth()
         this._render()
         this.root.setAttribute('aria-hidden', 'false')
         this.root.classList.add('is-open')
         this.isOpen = true
+        if(targetCapture?.entryDate) this._openDayDetail(targetCapture.entryDate)
     }
 
     close()
@@ -140,7 +147,7 @@ export default class CalendarSheet
         this.isOpen = false
         // Closing Calendar also closes any open DayDetailCard — they share
         // semantic scope (day detail only makes sense over a month grid).
-        if(this.dayDetail.isOpen) OverlayController.getInstance().close('dayDetail')
+        if(this.dayDetail?.isOpen) this.dayDetail.close()
         OverlayController.getInstance().noteClosed('calendar')
     }
 
@@ -247,6 +254,8 @@ export default class CalendarSheet
                 </button>
             `
         }).join('')
+
+        this._renderConnectorButton()
     }
 
     _onClick(event)
@@ -270,13 +279,64 @@ export default class CalendarSheet
             return
         }
 
+        if(event.target.closest('.cal-connector'))
+        {
+            this._runConnector()
+            return
+        }
+
         const cell = event.target.closest('.calendar-day')
         if(cell && !cell.classList.contains('is-otherm'))
         {
             const date = cell.dataset.date
-            OverlayController.getInstance().open('dayDetail', { date })
+            this._openDayDetail(date)
             return
         }
+    }
+
+    _openDayDetail(date)
+    {
+        if(!date) return
+        this.dayDetail?.open?.({ date })
+    }
+
+    _targetCapture(opts = {})
+    {
+        const entries = Array.isArray(this.captures?.entries)
+            ? this.captures.entries.filter((capture) => capture.kind === 'ask')
+            : []
+        if(opts.entryId)
+        {
+            const id = Number(opts.entryId)
+            return entries.find((capture) =>
+                capture.backendMirrorEntryId === id || capture.id === `mirror:${id}`,
+            ) || null
+        }
+        if(opts.filter === 'need-review')
+        {
+            return entries
+                .filter((capture) => capture.reviewStatus === 'pending')
+                .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0] || null
+        }
+        return null
+    }
+
+    _latestActivityDate()
+    {
+        const dates = []
+        for(const c of this.captures?.entries || [])
+        {
+            if(c.entryDate) dates.push(c.entryDate)
+        }
+        for(const p of this.moodPins?.pins || [])
+        {
+            if(p.entryDate) dates.push(p.entryDate)
+        }
+        for(const e of this.calendar?.events || [])
+        {
+            if(e.date) dates.push(e.date)
+        }
+        return dates.sort().at(-1) || null
     }
 
     _shiftMonth(dir)
@@ -286,4 +346,79 @@ export default class CalendarSheet
         if(this.viewMonth > 11) { this.viewMonth = 0;  this.viewYear += 1 }
         this._render()
     }
+
+    async _runConnector()
+    {
+        if(!this.backend?.runConnector || this.connectorRunning) return
+        this.connectorRunning = true
+        this.connectorBtn.disabled = true
+        this.connectorBtn.textContent = 'Connecting...'
+        try
+        {
+            const result = await this.backend.runConnector()
+            const snapshot = await this.backend.refreshSnapshot?.()
+            if(snapshot) this.state.applyBackendSnapshot?.(snapshot)
+            this.connectorStatusText = connectorResultCopy(result)
+            this.connectorRunning = false
+            this._render()
+        }
+        catch(err)
+        {
+            console.warn('[CalendarSheet] connector run failed', err)
+            this.connectorStatusText = 'Connector failed'
+            this.connectorRunning = false
+            this._renderConnectorButton()
+        }
+        finally
+        {
+            setTimeout(() =>
+            {
+                if(!this.connectorBtn) return
+                this.connectorStatusText = ''
+                this._renderConnectorButton()
+            }, 1600)
+        }
+    }
+
+    _renderConnectorButton()
+    {
+        if(!this.connectorBtn) return
+        if(!this.backend?.runConnector)
+        {
+            this.connectorBtn.hidden = true
+            return
+        }
+        this.connectorBtn.hidden = false
+        if(this.connectorRunning)
+        {
+            this.connectorBtn.disabled = true
+            this.connectorBtn.textContent = 'Connecting...'
+            return
+        }
+        const confirmed = this._confirmedReflectionCount()
+        this.connectorBtn.disabled = confirmed === 0
+        this.connectorBtn.textContent = this.connectorStatusText
+            || (confirmed === 0 ? 'No confirmed reflections' : 'Run Connector')
+    }
+
+    _confirmedReflectionCount()
+    {
+        const entries = Array.isArray(this.captures?.entries) ? this.captures.entries : []
+        return entries.filter((capture) =>
+            capture.kind === 'ask' && capture.reviewStatus === 'confirmed' && capture.backendMirrorEntryId,
+        ).length
+    }
+}
+
+function connectorResultCopy(result)
+{
+    if(!result || typeof result !== 'object') return 'Connector done'
+    if(result.status === 'nothing_to_run') return 'Nothing to connect'
+    const processed = Number.isFinite(result.processed) ? result.processed : 0
+    const succeeded = Number.isFinite(result.succeeded) ? result.succeeded : 0
+    const failed = Number.isFinite(result.failed) ? result.failed : 0
+    const remaining = Number.isFinite(result.remaining) ? result.remaining : 0
+    if(failed > 0) return `Connector: ${succeeded}/${processed} applied, ${failed} failed`
+    if(remaining > 0) return `Connector: ${succeeded}/${processed} applied, ${remaining} left`
+    return processed > 0 ? `Connector: ${succeeded}/${processed} applied` : 'Connector done'
 }

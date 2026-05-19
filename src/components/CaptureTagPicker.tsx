@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { Game } from '~/engine/student-space/Game'
 // @ts-expect-error — vipsTaxonomy.js is JS without a companion .d.ts.
 import { VIPS_BY_FACET } from '~/engine/student-space/Game/Data/vipsTaxonomy.js'
-import type { Game } from '~/engine/student-space/Game'
 
 /**
  * Phase B of the species-from-content rule — a two-step picker that
@@ -29,10 +29,10 @@ import type { Game } from '~/engine/student-space/Game'
  */
 
 const CHIPS: Array<{ id: Dimension; label: string; hint: string }> = [
-  { id: 'values',      label: 'Value',       hint: 'Something you care about' },
-  { id: 'interests',   label: 'Interest',    hint: 'Something that caught you' },
+  { id: 'values', label: 'Value', hint: 'Something you care about' },
+  { id: 'interests', label: 'Interest', hint: 'Something that caught you' },
   { id: 'personality', label: 'Personality', hint: 'How you tend to be' },
-  { id: 'skills',      label: 'Skill',       hint: 'Something you are learning' },
+  { id: 'skills', label: 'Skill', hint: 'Something you are learning' },
 ]
 
 type Dimension = 'values' | 'interests' | 'personality' | 'skills'
@@ -50,7 +50,10 @@ function getCapturesSlice(game: Game) {
       state?: {
         captures?: {
           subscribe?(cb: (entry: { id: string; dimension?: string | null }) => void): () => void
-          patch?(id: string, updates: { dimension?: Dimension; subClaimId?: string | null }): unknown
+          patch?(
+            id: string,
+            updates: { dimension?: Dimension; subClaimId?: string | null },
+          ): unknown
         }
       }
     }
@@ -88,7 +91,9 @@ export function CaptureTagPicker({ game }: { game: Game }) {
 
   useEffect(() => {
     if (current === null && queue.length > 0) {
-      setCurrent(queue[0]!)
+      const next = queue[0]
+      if (!next) return
+      setCurrent(next)
       setStep('dimension')
       setChosenDimension(null)
       setQueue((q) => q.slice(1))
@@ -174,9 +179,7 @@ export function CaptureTagPicker({ game }: { game: Game }) {
           fontFamily: 'system-ui, sans-serif',
         }}
       >
-        {step === 'dimension' && (
-          <DimensionStep onPick={handlePickDimension} />
-        )}
+        {step === 'dimension' && <DimensionStep onPick={handlePickDimension} />}
         {step === 'subClaim' && chosenDimension && (
           <SubClaimStep
             dimension={chosenDimension}
@@ -222,12 +225,7 @@ function DimensionStep({ onPick }: { onPick: (d: Dimension) => void }) {
         }}
       >
         {CHIPS.map((chip) => (
-          <button
-            key={chip.id}
-            type="button"
-            onClick={() => onPick(chip.id)}
-            style={chipStyle}
-          >
+          <button key={chip.id} type="button" onClick={() => onPick(chip.id)} style={chipStyle}>
             <div>{chip.label}</div>
             <div style={chipHintStyle}>{chip.hint}</div>
           </button>
@@ -317,10 +315,14 @@ function SubClaimStep({
 
 function dimensionWord(d: Dimension): string {
   switch (d) {
-    case 'values':      return 'value'
-    case 'interests':   return 'interest'
-    case 'personality': return 'personality trait'
-    case 'skills':      return 'skill'
+    case 'values':
+      return 'value'
+    case 'interests':
+      return 'interest'
+    case 'personality':
+      return 'personality trait'
+    case 'skills':
+      return 'skill'
   }
 }
 
