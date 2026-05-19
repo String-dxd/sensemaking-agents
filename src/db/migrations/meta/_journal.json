@@ -12,8 +12,15 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1779156430680,
-      "tag": "0001_island_snapshots",
+      "when": 1779149152048,
+      "tag": "0001_share_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1779183307182,
+      "tag": "0002_friendly_gorgon",
       "breakpoints": true
     }
   ]

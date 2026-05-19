@@ -13,9 +13,8 @@ export const Route = createFileRoute('/api/growth/island-state-at')({
 
 async function handle(request: Request): Promise<Response> {
   const url = new URL(request.url)
-  const yearRaw = url.searchParams.get('year')
-  const year = yearRaw ? Number.parseInt(yearRaw, 10) : Number.NaN
-  if (!Number.isFinite(year)) {
+  const year = parseYearParam(url)
+  if (year === null) {
     return jsonError(400, 'invalid_year', 'year query param must be an integer.')
   }
   try {
@@ -25,9 +24,22 @@ async function handle(request: Request): Promise<Response> {
     if (err instanceof UnauthenticatedError) {
       return jsonError(401, 'unauthenticated', err.message)
     }
+    if (isZodValidationError(err)) {
+      return jsonError(400, 'invalid_year', 'year query param is outside the supported range.')
+    }
     console.error('[api/growth/island-state-at] failed', err)
     return jsonError(500, 'internal_error', 'Failed to load historical island state.')
   }
+}
+
+function parseYearParam(url: URL): number | null {
+  const yearRaw = url.searchParams.get('year')
+  if (!yearRaw || !/^\d+$/.test(yearRaw)) return null
+  return Number.parseInt(yearRaw, 10)
+}
+
+function isZodValidationError(err: unknown): boolean {
+  return err instanceof Error && err.name === 'ZodError'
 }
 
 function jsonError(status: number, code: string, message: string): Response {

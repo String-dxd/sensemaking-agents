@@ -1,13 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
-
 import { UnauthenticatedError } from '~/auth/identity'
 import {
-  GrowthDemoUnsupportedError,
-  GrowthUnknownStudentError,
-  persistIslandSnapshotHandler,
-} from '~/server/island-snapshot.handler.server'
+  createShareTokenHandler,
+  ShareDemoUnsupportedError,
+  ShareUnknownStudentError,
+} from '~/server/share-token.handler.server'
 
-export const Route = createFileRoute('/api/island/snapshot')({
+export const Route = createFileRoute('/api/share/create')({
   server: {
     handlers: {
       POST: ({ request }) => handle(request),
@@ -17,7 +16,7 @@ export const Route = createFileRoute('/api/island/snapshot')({
 
 async function handle(request: Request): Promise<Response> {
   if (!isSameOriginRequest(request)) {
-    return jsonError(403, 'cross_origin', 'Island snapshot must originate from this site.')
+    return jsonError(403, 'cross_origin', 'Share-create must originate from this site.')
   }
   let body: unknown = {}
   if (request.headers.get('content-type')?.includes('application/json')) {
@@ -29,23 +28,24 @@ async function handle(request: Request): Promise<Response> {
   }
 
   try {
-    await persistIslandSnapshotHandler(body as never)
-    return Response.json({ ok: true })
+    const requestOrigin = new URL(request.url).origin
+    const result = await createShareTokenHandler(body as never, { requestOrigin })
+    return Response.json({ ok: true, ...result })
   } catch (err) {
-    if (err instanceof GrowthDemoUnsupportedError) {
+    if (err instanceof ShareDemoUnsupportedError) {
       return jsonError(403, err.code, err.message)
     }
-    if (err instanceof GrowthUnknownStudentError) {
+    if (err instanceof ShareUnknownStudentError) {
       return jsonError(422, err.code, err.message)
     }
     if (err instanceof UnauthenticatedError) {
       return jsonError(401, 'unauthenticated', err.message)
     }
     if (isZodValidationError(err)) {
-      return jsonError(400, 'invalid_input', 'Invalid island snapshot payload.')
+      return jsonError(400, 'invalid_input', 'Invalid share-create payload.')
     }
-    console.error('[api/island/snapshot] failed', err)
-    return jsonError(500, 'internal_error', 'Failed to persist island snapshot.')
+    console.error('[api/share/create] failed', err)
+    return jsonError(500, 'internal_error', 'Failed to create share token.')
   }
 }
 

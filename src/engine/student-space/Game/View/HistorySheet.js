@@ -107,7 +107,6 @@ export default class HistorySheet
         this.activeTab    = 'growth'
         this.activeYear   = null
         this.years        = []
-        this._inFlight    = false
 
         this._onClick = (event) => this._handleClick(event)
         root.addEventListener('click', this._onClick)
@@ -282,9 +281,6 @@ export default class HistorySheet
         this.activeYear = year
         this._renderPills()
 
-        if(this._inFlight) return
-        this._inFlight = true
-
         Promise.all([
             this._fetchSummary(year),
             this._fetchIslandState(year),
@@ -296,9 +292,6 @@ export default class HistorySheet
         }).catch(err =>
         {
             console.warn('[HistorySheet] year load failed', err)
-        }).finally(() =>
-        {
-            this._inFlight = false
         })
     }
 

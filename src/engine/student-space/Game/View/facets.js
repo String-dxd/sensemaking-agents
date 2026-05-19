@@ -1,24 +1,41 @@
 /**
- * Shared facet theme catalog — the single source of truth for the four VIPS
- * facets' accent / soft / ink color tokens and human-facing eyebrow labels.
+ * Shared facet theme catalog — reads cross-surface tokens from the engine
+ * mirror of src/lib/profile-tokens.ts and composes them with engine-only
+ * pieces (the short "V — Values" legacy eyebrow tag, the applyFacetVars
+ * helper).
  *
- * Replaces the inline table that lived in FacetView.js (v1.0). Now consumed
- * by FacetView (legacy on-island pick card), ProfileSheet (the new four-tab
- * sheet), CalendarSheet (uses personality.accent for the today outline),
- * and LettersSheet (uses personality.accent for the unread dot).
+ * Consumed by FacetView (legacy on-island pick card), ProfileSheet (the
+ * four-tab sheet), CalendarSheet (personality.accent for today's outline),
+ * LettersSheet (personality.accent for unread dot).
  *
- * Personality was retired as an on-island facet in DESIGN.md v0.3 ("the
- * island as a whole"); v1.1 re-introduces it as the four-tab sheet's third
- * tab plus two ambient objects (Phase G). The lavender token below is the
- * only flora hue not yet load-bearing for another facet — pink belongs to
- * Interests, green to Skills, brown to Values.
+ * If you need to change the color or student-voice header for a facet, edit
+ * src/lib/profile-tokens.ts AND mirror it in profile-tokens.constants.js —
+ * the CI drift test will catch a one-sided edit.
  */
 
+import { PROFILE_COLORS, PROFILE_HEADERS } from './profile-tokens.constants.js'
+
+/**
+ * Engine-only short legacy tag (rendered in the on-island pick card). Not
+ * shared with the React surfaces — they use PROFILE_HEADERS[dim].tag instead.
+ */
+const FACET_LEGACY_TAGS = {
+    values:      'V — Values',
+    interests:   'I — Interests',
+    personality: 'P — Personality',
+    skills:      'S — Skills',
+}
+
+/**
+ * Public facet theme table — colors merged with the engine-only legacy tag.
+ * Backward-compatible shape: existing consumers reading {accent, soft, ink,
+ * eyebrow} continue to work.
+ */
 export const FACET_THEMES = {
-    values:        { accent: '#A07659', soft: '#EAD7BE', ink: '#6A4A26', eyebrow: 'V — Values' },
-    interests:     { accent: '#FF8E8E', soft: '#FDE0E0', ink: '#A84D4D', eyebrow: 'I — Interests' },
-    personality:   { accent: '#8E6FB8', soft: '#E8DDF2', ink: '#4C3470', eyebrow: 'P — Personality' },
-    skills:        { accent: '#82B16A', soft: '#DDEDC6', ink: '#3F6F2A', eyebrow: 'S — Skills' },
+    values:      { ...PROFILE_COLORS.values,      eyebrow: FACET_LEGACY_TAGS.values },
+    interests:   { ...PROFILE_COLORS.interests,   eyebrow: FACET_LEGACY_TAGS.interests },
+    personality: { ...PROFILE_COLORS.personality, eyebrow: FACET_LEGACY_TAGS.personality },
+    skills:      { ...PROFILE_COLORS.skills,      eyebrow: FACET_LEGACY_TAGS.skills },
     // Non-VIPS Profile tabs share the same engine theme channel so the
     // sheet's CSS color variables stay coherent when the React panel is
     // mounted. Hues mirror `PROFILE_TAB_THEMES` in src/data/profile-tabs.ts.
@@ -27,38 +44,10 @@ export const FACET_THEMES = {
 }
 
 /**
- * Student-voice header strings per facet. Used by the half-sheet
- * (FacetView) and the ProfileSheet tabs so both surfaces present the
- * facet in the student's language with the taxonomy word demoted to a
- * small tag chip — the eyebrow/tag/title/subtitle pattern from the v1.2
- * Values panel reference.
+ * Student-voice headers per facet — re-export of the shared PROFILE_HEADERS
+ * so engine callers keep their existing `import { FACET_HEADERS }` shape.
  */
-export const FACET_HEADERS = {
-    values: {
-        eyebrow:  'WHAT MATTERS TO ME',
-        tag:      'Values',
-        title:    'What you keep coming back to',
-        subtitle: 'A pattern across your touchstones',
-    },
-    interests: {
-        eyebrow:  'WHAT PULLS YOUR ATTENTION',
-        tag:      'Interests',
-        title:    'What lights you up',
-        subtitle: 'Small sparks across your week',
-    },
-    personality: {
-        eyebrow:  'HOW YOU TEND TO SHOW UP',
-        tag:      'Personality',
-        title:    'Who you are in the room',
-        subtitle: 'Patterns in how others recognise you',
-    },
-    skills: {
-        eyebrow:  'WHAT YOU’RE GETTING GOOD AT',
-        tag:      'Skills',
-        title:    'What’s growing in your hands',
-        subtitle: 'Things you’ve practised into shape',
-    },
-}
+export const FACET_HEADERS = PROFILE_HEADERS
 
 /** Convenience writer — sets the three CSS vars on an element from a facet id. */
 export function applyFacetVars(el, facetId)

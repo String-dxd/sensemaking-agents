@@ -1,6 +1,6 @@
 {
-  "id": "1bcb3e3d-ab95-4033-bee2-59fe352dee27",
-  "prevId": "fb33be7e-1f6c-43f6-bd47-5b13af140cb3",
+  "id": "10cdec62-aac7-4d92-b30a-4fa288e3548c",
+  "prevId": "1bcb3e3d-ab95-4033-bee2-59fe352dee27",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -992,6 +992,75 @@
           "value": "dimension IN ('values','interests','personality','skills')"
         }
       },
+      "isRLSEnabled": true
+    },
+    "public.vips_island_snapshots": {
+      "name": "vips_island_snapshots",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigserial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "student_id": {
+          "name": "student_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "payload_json": {
+          "name": "payload_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "idx_vips_island_snapshots_student": {
+          "name": "idx_vips_island_snapshots_student",
+          "columns": [
+            {
+              "expression": "student_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "captured_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "vips_island_snapshots_rls": {
+          "name": "vips_island_snapshots_rls",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": ["public"],
+          "using": "student_id = current_setting('app.student_id', true)",
+          "withCheck": "student_id = current_setting('app.student_id', true)"
+        }
+      },
+      "checkConstraints": {},
       "isRLSEnabled": true
     },
     "public.vips_pages": {

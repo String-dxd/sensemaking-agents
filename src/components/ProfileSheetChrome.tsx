@@ -6,10 +6,12 @@ import {
   PROFILE_TABS,
   type ProfileTab,
 } from '~/data/profile-tabs'
-import type { VipsDimension } from '~/data/vips-taxonomy'
 import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
+import { DIMENSION_LABEL, PROFILE_HEADERS, PROFILE_THEMES } from '~/lib/profile-tokens'
 import { signOutEngine } from '~/lib/sign-out-engine'
 import { cn } from '~/lib/utils'
+
+export { DIMENSION_LABEL, PROFILE_HEADERS, PROFILE_THEMES }
 
 /**
  * Signed-in/signed-out chrome state shared by the profile sheet and the
@@ -25,102 +27,6 @@ export type FloatingAuthMenuState =
       detail: string | null
       kind: 'workos' | 'demo' | 'dev-bypass'
     }
-
-/**
- * Per-VIPS-dimension label. Kept for backwards-compat with VipsPageView and
- * ProfileSheetView. New code that needs labels for any Profile tab should
- * use `PROFILE_TAB_LABEL` from `~/data/profile-tabs` instead.
- */
-export const DIMENSION_LABEL: Record<VipsDimension, string> = {
-  values: PROFILE_TAB_LABEL.values,
-  interests: PROFILE_TAB_LABEL.interests,
-  personality: PROFILE_TAB_LABEL.personality,
-  skills: PROFILE_TAB_LABEL.skills,
-}
-
-export interface ProfileHeader {
-  eyebrow: string
-  tag: string
-  title: string
-  subtitle: string
-}
-
-export const PROFILE_HEADERS: Record<VipsDimension, ProfileHeader> = {
-  values: {
-    eyebrow: 'WHAT MATTERS TO ME',
-    tag: 'Values',
-    title: 'What you keep coming back to',
-    subtitle: 'A pattern across your touchstones',
-  },
-  interests: {
-    eyebrow: 'WHAT PULLS YOUR ATTENTION',
-    tag: 'Interests',
-    title: 'What lights you up',
-    subtitle: 'Small sparks across your week',
-  },
-  personality: {
-    eyebrow: 'HOW YOU TEND TO SHOW UP',
-    tag: 'Personality',
-    title: 'Who you are in the room',
-    subtitle: 'Patterns in how others recognise you',
-  },
-  skills: {
-    eyebrow: "WHAT YOU'RE GETTING GOOD AT",
-    tag: 'Skills',
-    title: "What's growing in your hands",
-    subtitle: "Things you've practised into shape",
-  },
-}
-
-export const PROFILE_THEMES: Record<
-  VipsDimension,
-  {
-    accent: string
-    soft: string
-    ink: string
-    tab: string
-    callout: string
-    border: string
-    text: string
-  }
-> = {
-  values: {
-    accent: '#A07659',
-    soft: '#EAD7BE',
-    ink: '#6A4A26',
-    tab: 'border-[#A07659] bg-[#EAD7BE] text-[#6A4A26]',
-    callout: 'bg-[#EAD7BE] text-[#6A4A26]',
-    border: 'border-[#A07659]',
-    text: 'text-[#6A4A26]',
-  },
-  interests: {
-    accent: '#FF8E8E',
-    soft: '#FDE0E0',
-    ink: '#A84D4D',
-    tab: 'border-[#FF8E8E] bg-[#FDE0E0] text-[#A84D4D]',
-    callout: 'bg-[#FDE0E0] text-[#A84D4D]',
-    border: 'border-[#FF8E8E]',
-    text: 'text-[#A84D4D]',
-  },
-  personality: {
-    accent: '#8E6FB8',
-    soft: '#E8DDF2',
-    ink: '#4C3470',
-    tab: 'border-[#8E6FB8] bg-[#E8DDF2] text-[#4C3470]',
-    callout: 'bg-[#E8DDF2] text-[#4C3470]',
-    border: 'border-[#8E6FB8]',
-    text: 'text-[#4C3470]',
-  },
-  skills: {
-    accent: '#82B16A',
-    soft: '#DDEDC6',
-    ink: '#3F6F2A',
-    tab: 'border-[#82B16A] bg-[#DDEDC6] text-[#3F6F2A]',
-    callout: 'bg-[#DDEDC6] text-[#3F6F2A]',
-    border: 'border-[#82B16A]',
-    text: 'text-[#3F6F2A]',
-  },
-}
 
 export interface ProfileStudentIdentity {
   name: string

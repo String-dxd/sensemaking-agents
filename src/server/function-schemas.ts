@@ -79,6 +79,42 @@ export const searchPastMirrorsInputSchema = z.object({
 })
 export type SearchPastMirrorsServerInput = z.output<typeof searchPastMirrorsInputSchema>
 
+// ---------------------------------------------------------------------------
+// Share-token lifecycle (plan U5). Strict-mode Zod on every input — extra
+// fields are rejected so a client cannot smuggle a `showQuotes: true`
+// override into the public-profile loader or coerce the create handler.
+// ---------------------------------------------------------------------------
+
+export const createShareTokenInputSchema = z.object({}).strict()
+export type CreateShareTokenInput = z.output<typeof createShareTokenInputSchema>
+
+// 22-char base64url tokens (16 random bytes encoded). Length is fixed so
+// trailing-whitespace or typo input is rejected at the route layer.
+const SHARE_TOKEN_REGEX = /^[A-Za-z0-9_-]{22}$/
+export const shareTokenSchema = z.string().regex(SHARE_TOKEN_REGEX)
+
+export const revokeShareTokenInputSchema = z
+  .object({
+    token: shareTokenSchema,
+  })
+  .strict()
+export type RevokeShareTokenInput = z.output<typeof revokeShareTokenInputSchema>
+
+export const setShareRedactionsInputSchema = z
+  .object({
+    token: shareTokenSchema,
+    show_quotes: z.boolean(),
+  })
+  .strict()
+export type SetShareRedactionsInput = z.output<typeof setShareRedactionsInputSchema>
+
+export const loadPublicProfileInputSchema = z
+  .object({
+    token: shareTokenSchema,
+  })
+  .strict()
+export type LoadPublicProfileInput = z.output<typeof loadPublicProfileInputSchema>
+
 export const transcribeMirrorInputSchema = z.object({
   audioBase64: z.string().min(1),
   mimeType: z.string().min(1),
