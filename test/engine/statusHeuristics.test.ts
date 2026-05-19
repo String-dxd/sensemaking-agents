@@ -136,10 +136,10 @@ describe('statusFor', () => {
     expect(audit.commitment.band).toBe('high')
   })
 
-  it('treats a single Cartographer backend trajectory as a strong exploration signal (+3)', () => {
-    // No claims, no asks — only a backend Cartographer reading. Score = 3 →
-    // still in `emerging` band (< 4), but well above starter and likely
-    // diffused. Verifies the bump exists and is honest.
+  it('treats a single Cartographer backend trajectory as a strong exploration signal (+4)', () => {
+    // No claims, no asks — only a backend Cartographer reading. Score = 4
+    // crosses EXPLORATION_HIGH; a regression to +3 would silently misclassify
+    // a backend-active student as `diffused`, so we pin the exact value.
     const audit = statusFor({
       facets: {},
       captures: [
@@ -153,8 +153,9 @@ describe('statusFor', () => {
       dominantPatternTag: null,
     })
     expect(audit.exploration.inputs.hasBackendCartographer).toBe(true)
-    expect(audit.exploration.score).toBeGreaterThanOrEqual(3)
-    expect(audit.status).not.toBe('starter')
+    expect(audit.exploration.score).toBe(4)
+    expect(audit.exploration.band).toBe('high')
+    expect(audit.status).toBe('searching')
   })
 
   it('does not flip to "starter" just because one axis is zero (both must be zero)', () => {

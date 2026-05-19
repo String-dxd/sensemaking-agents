@@ -3634,12 +3634,18 @@ body.has-chooser        .top-nav
 /* Path Finder status-preview HUD — floating admin control mounted at body
    level by StatusPreviewHud.js. Visual posture matches .hour-hud / .zoom-hud
    on the island: dark glass panel, fixed positioning, cream text.
+   Anchored to the right rail just above HourHud (which is centered at
+   top: 50% and is roughly 280px tall) so it shares the weather control's
+   visibility zone without overlapping it.
    Plan: docs/plans/2026-05-19-003-feat-path-finder-cce-status-plan.md */
 .status-preview-hud
 {
     position: fixed;
-    top: 16px;
-    left: 16px;
+    right: 16px;
+    top: 50%;
+    /* Shift the toggle ~160px above the viewport centerline so it sits
+       just above HourHud with a small breathing gap. */
+    transform: translateY(calc(-50% - 160px));
     /* Above sheet overlays (which sit at z-index 30) so a teacher can flip
        quadrants while the Path Finder is open and watch it re-skin live. */
     z-index: 40;
@@ -3695,15 +3701,24 @@ body.has-chooser        .top-nav
 {
     font-size: 11px;
     color: rgba(244, 241, 234, 0.62);
+    /* Caret points up by default (menu opens upward). Rotate when open so
+       the affordance reads as "close" (toward the menu's exit direction). */
+    transform: rotate(180deg);
     transition: transform 160ms ease;
 }
 .status-preview-hud.is-open .status-preview-hud__caret
 {
-    transform: rotate(180deg);
+    transform: rotate(0deg);
 }
 .status-preview-hud__menu
 {
-    margin: 6px 0 0;
+    /* Open upward, right-aligned to the toggle. The root is position: fixed
+       so it gives us a positioning context. Opening up avoids overlapping
+       HourHud (which sits directly below this widget on the right rail). */
+    position: absolute;
+    bottom: calc(100% + 6px);
+    right: 0;
+    margin: 0;
     padding: 4px;
     list-style: none;
     border-radius: 12px;
@@ -3711,7 +3726,7 @@ body.has-chooser        .top-nav
     background: rgba(14, 17, 24, 0.86);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    min-width: 200px;
+    min-width: 220px;
     display: flex;
     flex-direction: column;
     gap: 1px;
@@ -3765,11 +3780,16 @@ body.has-chooser        .top-nav
 .status-preview-hud__dot[data-status-dot="foreclosed"]{ background: #db8e62; }
 .status-preview-hud__dot[data-status-dot="achieved"]  { background: #6cb389; }
 
-/* Tighten on narrow screens — collapse the eyebrow so the pill stays small. */
+/* Tighten on narrow screens — collapse the eyebrow so the pill stays small
+   and shift the right-rail offset to match a smaller HourHud on phone widths. */
 @media (max-width: 540px)
 {
     .status-preview-hud__eyebrow { display: none; }
-    .status-preview-hud { top: 12px; left: 12px; }
+    .status-preview-hud
+    {
+        right: 12px;
+        transform: translateY(calc(-50% - 150px));
+    }
 }
 
 .profile-sheet__header

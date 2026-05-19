@@ -262,6 +262,7 @@ export default class View
             this.calendarSheet,
             this.lettersSheet,
             this.historySheet,
+            this.trajectorySheet,
             this.facetView,
             this.hoverProbe,
             this.hoverCta,

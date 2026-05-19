@@ -4,9 +4,7 @@
 
 import type { IdentityStatusId } from '../View/statusHeuristics.js'
 
-export type OverrideEvent =
-  | { kind: 'set'; overrideId: IdentityStatusId | null }
-  | { kind: 'hydrate' }
+export type OverrideEvent = { kind: 'set'; overrideId: IdentityStatusId | null }
 
 export interface IdentityStatusOverrideSnapshot {
   overrideId: IdentityStatusId | null

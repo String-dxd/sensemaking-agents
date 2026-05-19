@@ -1,4 +1,5 @@
 import State from '../State/State.js'
+import { escapeAttr, escapeHtml } from '../util/html.js'
 import OverlayController from './OverlayController.js'
 import { trajectoryFor, traitChipOf, ecgChipOf } from './trajectoryHeuristics.js'
 import {
@@ -113,11 +114,20 @@ export default class TrajectorySheet
             }
         })
 
-        document.addEventListener('keydown', (event) =>
+        // Stored as a bound member so dispose() can detach it. Without this,
+        // every engine remount (HMR / sign-out / first-run replay) leaks a
+        // document-level keydown listener bound to a torn-down sheet.
+        this._onDocKeyDown = (event) =>
         {
             if(!this.isOpen) return
+            // When the floating StatusPreviewHud's menu is open, let it eat
+            // the Escape — its menu has a peer keydown handler that calls
+            // _closeMenu and stops propagation. We only close the sheet
+            // when the HUD menu isn't intercepting.
+            if(event.defaultPrevented) return
             if(event.key === 'Escape') this.close()
-        })
+        }
+        document.addEventListener('keydown', this._onDocKeyDown)
 
         // Re-render the sheet body when the override changes from elsewhere
         // (the StatusPreviewHud floating widget owns the UI; this sheet only
@@ -131,13 +141,36 @@ export default class TrajectorySheet
         }
     }
 
+    /**
+     * Tear-down hook called from View.dispose() via SUBSYSTEMS. Removes the
+     * page-level keydown listener and the override-slice subscription, then
+     * detaches the root. Without this, each engine remount leaks both —
+     * surfacing as ghost Escape handlers and stale-DOM re-renders fired
+     * by the slice's subscriber set.
+     */
+    dispose()
+    {
+        if(this._onDocKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onDocKeyDown) } catch(_) {}
+            this._onDocKeyDown = null
+        }
+        if(this._unwireStatusOverride)
+        {
+            try { this._unwireStatusOverride() } catch(_) {}
+            this._unwireStatusOverride = null
+        }
+        try { this.root?.remove?.() } catch(_) {}
+        this.root = null
+    }
+
     open()
     {
         // Recompute status fresh every open — never cached. A newly-logged
         // decision should move the student to the next quadrant on reopen.
         this.escapeHatch = false
         const audit = this._currentAudit()
-        const capture = this._needsBearings(audit.status) ? this._ensureCapture() : null
+        const capture = this._needsBearings(audit.status) ? this._ensureCapture(audit) : null
         this._renderForStatus(audit, capture)
 
         this.root.setAttribute('aria-hidden', 'false')
@@ -173,6 +206,12 @@ export default class TrajectorySheet
         // chosen quadrant *and* what the real evidence looks like.
         const overrideId = this.statusOverride?.current || null
         if(!overrideId) return inferred
+        // If the override happens to match what the evidence already infers,
+        // there's nothing to *override* — return the inferred audit so the
+        // pill doesn't read "PREVIEW · Searching · inferred Searching", which
+        // is tautological and signals a state that isn't actually being
+        // shadowed.
+        if(overrideId === inferred.status) return inferred
         return {
             ...inferred,
             status:        overrideId,
@@ -193,13 +232,27 @@ export default class TrajectorySheet
         return true
     }
 
-    _ensureCapture()
+    _ensureCapture(audit = null)
     {
         const existing = this._latestTrajectoryCapture()
         if(existing && existing.trajectory && Array.isArray(existing.trajectory.bearings) && existing.trajectory.bearings.length > 0)
             return existing
         if(this.state.backendActive) return null
+        // Don't mint a fresh trajectory capture for a preview-only flip. The
+        // override HUD is an admin affordance — writing to Captures would
+        // fan to Sprouts.grow and pollute the on-island state with bearings
+        // the student's real evidence never asked for. Return an in-memory
+        // capture so the panel still renders; nothing persists.
         const trajectory = trajectoryFor(this.profile?.facets, this.profile?.identity)
+        if(audit?.isOverride)
+        {
+            return {
+                kind:      'trajectory',
+                trajectory,
+                createdAt: new Date().toISOString(),
+                _previewOnly: true,
+            }
+        }
         const capture = this.captures.add({
             kind: 'trajectory',
             trajectory,
@@ -331,7 +384,7 @@ export default class TrajectorySheet
             escape.addEventListener('click', () =>
             {
                 this.escapeHatch = true
-                const capture = this._ensureCapture()
+                const capture = this._ensureCapture(audit)
                 this._renderForStatus(audit, capture)
             })
             this.headActionsEl.appendChild(escape)
@@ -347,7 +400,7 @@ export default class TrajectorySheet
             back.addEventListener('click', () =>
             {
                 this.escapeHatch = false
-                const capture = this._needsBearings(audit.status) ? this._ensureCapture() : null
+                const capture = this._needsBearings(audit.status) ? this._ensureCapture(audit) : null
                 this._renderForStatus(audit, capture)
             })
             this.headActionsEl.appendChild(back)
@@ -718,13 +771,8 @@ export default class TrajectorySheet
         if(!this.isOpen) return
         this.escapeHatch = false
         const audit = this._currentAudit()
-        const capture = this._needsBearings(audit.status) ? this._ensureCapture() : null
+        const capture = this._needsBearings(audit.status) ? this._ensureCapture(audit) : null
         this._renderForStatus(audit, capture)
     }
 }
 
-function escapeHtml(s)
-{
-    return String(s || '').replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[ch])
-}
-function escapeAttr(s) { return escapeHtml(s) }

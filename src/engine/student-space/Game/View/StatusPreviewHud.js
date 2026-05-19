@@ -1,4 +1,5 @@
 import State from '../State/State.js'
+import { escapeHtml } from '../util/html.js'
 import { STATUS_IDS, statusLabelOf } from './statusHeuristics.js'
 
 /**
@@ -69,7 +70,13 @@ export default class StatusPreviewHud
         }
         this._onKeyDown = (event) =>
         {
-            if(this.isOpen && event.key === 'Escape') this._closeMenu()
+            if(!this.isOpen || event.key !== 'Escape') return
+            this._closeMenu()
+            // Mark the event handled so TrajectorySheet's peer keydown
+            // listener doesn't also close the Path Finder sheet behind us.
+            // A single Escape press should dismiss exactly one layer.
+            event.preventDefault()
+            event.stopPropagation()
         }
 
         this.toggleEl.addEventListener('click', this._onToggleClick)
@@ -166,7 +173,3 @@ export default class StatusPreviewHud
     }
 }
 
-function escapeHtml(s)
-{
-    return String(s || '').replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[ch])
-}
