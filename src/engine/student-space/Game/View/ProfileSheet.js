@@ -31,7 +31,21 @@ import { iconForClaim } from './claimIcons.js'
 import ThumbnailRenderer from './ThumbnailRenderer.js'
 import OverlayController from './OverlayController.js'
 
-const TAB_ORDER = ['values', 'interests', 'personality', 'skills']
+const TAB_ORDER = ['values', 'interests', 'personality', 'skills', 'relationships', 'choices']
+
+// First-pass strategy for the two non-VIPS Profile tabs: close the engine
+// sheet and navigate to the React route. Native engine panels for these
+// surfaces are deferred to a follow-up plan (see
+// docs/plans/2026-05-19-002-feat-profile-relationships-choices-tabs-plan.md
+// — Scope Boundaries → Deferred to Follow-Up Work).
+const TAB_DEEP_LINKS = {
+    relationships: '/library/relationships',
+    choices:       '/library/choices',
+}
+const TAB_LABELS_EXTRA = {
+    relationships: 'Relationships',
+    choices:       'Choices',
+}
 
 const ARM_TIMEOUT_MS  = 3200
 const FORGET_FADE_MS  = 200
@@ -90,12 +104,16 @@ export default class ProfileSheet
                 </div>
             </header>
             <nav class="profile-sheet__tabs" role="tablist">
-                ${TAB_ORDER.map((f) => `
+                ${TAB_ORDER.map((f) => {
+                    const label = FACET_THEMES[f]
+                        ? (FACET_THEMES[f].eyebrow.split(' — ')[1] || f)
+                        : (TAB_LABELS_EXTRA[f] || f)
+                    return `
                     <button type="button"
                             class="profile-tab${f === 'values' ? ' is-active' : ''}"
                             role="tab"
-                            data-facet="${f}">${FACET_THEMES[f].eyebrow.split(' — ')[1] || f}</button>
-                `).join('')}
+                            data-facet="${f}">${label}</button>
+                `}).join('')}
             </nav>
             <section class="profile-sheet__panel">
                 <header class="profile-sheet__header">
@@ -412,7 +430,30 @@ export default class ProfileSheet
         if(tab)
         {
             const facet = tab.dataset.facet
-            if(facet && facet !== this.activeFacet) this._switchTab(facet)
+            if(!facet) return
+            // Non-VIPS tabs (relationships, choices) deep-link out to the
+            // React route. Close the sheet first so the engine doesn't render
+            // a half-state in the background after navigation. Idempotent:
+            // double-clicks during the close → navigate sequence are absorbed
+            // by the `isOpen` guard in close() and the synchronous nav.
+            if(TAB_DEEP_LINKS[facet])
+            {
+                if(this._navigatingAway) return
+                this._navigatingAway = true
+                this.close()
+                try
+                {
+                    if(typeof window !== 'undefined' && window.location)
+                        window.location.assign(TAB_DEEP_LINKS[facet])
+                }
+                catch(err)
+                {
+                    console.warn('[ProfileSheet] deep-link nav failed', err)
+                    this._navigatingAway = false
+                }
+                return
+            }
+            if(facet !== this.activeFacet) this._switchTab(facet)
             return
         }
 
