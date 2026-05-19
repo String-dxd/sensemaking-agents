@@ -1,8 +1,9 @@
 ---
 title: "feat: In-world auth wiring (sign-in, sign-out, demo) for the game world scene"
 type: feat
-status: active
+status: completed
 date: 2026-05-20
+completed: 2026-05-20
 origin: docs/ideation/2026-05-19-backend-wire-hardening-ideation.md
 ---
 
@@ -681,3 +682,82 @@ plus the manual agent-browser pass documented in U6.
 - `git diff --check` clean.
 - Agent-browser pass (U6) — four-mode matrix completed and noted in the
   plan's Completion Notes section.
+
+---
+
+## Completion Notes
+
+Shipped U1 through U6 on branch `feat/in-world-auth-wire`:
+
+- **U1** — `src/engine/student-space/Game/State/Auth.js` slice, threaded
+  through `State`, `Game`, `index.{js,d.ts}`, and `backend-bridge` so
+  `StudentSpaceHost` fetches `loadAuthMenu()` in parallel with the engine
+  dynamic import and passes the result into `createGame({ authMenu })`.
+- **U5** — `mapVipsPagesToStudentSpaceProfile()` accepts an optional
+  `authMenu` and prefers the auth label over the `'Me'` fallback when no
+  seed `student_profile` resolves; `refreshSnapshot` fetches the menu
+  alongside the other loaders so a post-sign-in refresh reads the new
+  label.
+- **U2** — `EdupassLogin` now renders three actions (Google / demo /
+  continue offline), drains the engine before any navigation, and
+  `OnboardingFlow.start()` auto-skips the `login` stage when the host
+  already resolved a signed-in session.
+- **U3** — Engine `ProfileSheet` identity header gains an auth slot
+  rendering Sign-in (signed-out) or Sign-out (signed-in), wired through
+  the existing engine-dispose → ss:v1:* wipe → POST `/api/auth/sign-out`
+  pattern. The sheet subscribes to `state.auth` so any external sign-in
+  flips the chrome live.
+- **U4** — `TopNav` appends a fifth Sign-in chip when signed-out, with a
+  chip-local popover hosting WorkOS Google + demo-cookie shortcuts. The
+  popover does NOT register with OverlayController. Subscribes to
+  `state.auth`; document-level click + Escape close the popover; dispose
+  detaches both listeners and the auth subscription.
+- **U6** — Eight-case unit coverage of `loadAuthMenuHandler` locking the
+  dev-bypass / WorkOS / demo cookie / signed-out branches and the
+  AuthKit-missing soft-fall-back.
+
+Verification (run while the live dev server was up under
+`DEV_BYPASS_AUTH=demo-a`):
+
+- `pnpm check` clean (Biome + tsc).
+- `pnpm test` adds 559 passing tests (4 unrelated failures live in three
+  untracked test files testing the stashed 2026-05-19-003 hardening work
+  that is not part of this PR).
+- `pnpm build` succeeds.
+- Live `agent-browser` matrix:
+  1. Fresh-boot under dev-bypass → engine skips `EdupassLogin` and lands
+     on the greeting beat directly (U1 + U2). Verified via DOM snapshot
+     showing the greeting without the Login surface.
+  2. `state.auth.menu` reads `{ status: 'signed-in', kind: 'dev-bypass',
+     label: 'Dev bypass', detail: 'demo-a' }` — the server-resolved
+     payload reached the engine slice (U1 wiring).
+  3. ProfileSheet renders the Sign-out button (U3, signed-in chrome).
+  4. TopNav renders 4 chips with no Sign-in chip (U4, signed-in chrome).
+  5. After `state.auth.setMenu({ status: 'signed-out' })`, the
+     ProfileSheet swaps the button for a Sign-in link
+     (`data-testid="profile-auth-signin"`) and the TopNav grows a fifth
+     Sign-in chip (`data-action="auth-signin"`) — confirms the
+     subscribe-driven re-renders work in both directions.
+
+The WorkOS path (`Sign in with Google` end-to-end) requires
+`WORKOS_*` environment variables that the dev server does not have
+configured locally. It is covered by the `loadAuthMenuHandler` unit
+tests and by the existing `test/auth/routes.test.ts` suite. The
+identical cookie-path test exists in `test/auth/routes.test.ts` and
+exercises the demo-cookie POST flow.
+
+Known caveats (documented during planning, no regression):
+
+- Under `DEV_BYPASS_AUTH`, clicking Sign out clears the demo cookie but
+  the next request still resolves via the env var. Restart the dev
+  server without that variable set to flip identity. This matches the
+  documented behavior of `src/auth/middleware.ts`.
+- The dummy "Edupass" wordmark stays on the onboarding surface; the
+  rename is cosmetic and was explicitly out of scope.
+
+Still out of scope (deferred to follow-ups, see Scope Boundaries):
+
+- Per-student localStorage key prefixing.
+- Real Edupass / SLS / Singpass integration.
+- Surfacing degraded `loadAuthMenu` errors as a visible banner rather
+  than silent signed-out fall-back.
