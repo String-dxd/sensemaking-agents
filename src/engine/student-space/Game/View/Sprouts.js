@@ -195,8 +195,15 @@ export default class Sprouts
         // Maps keyed by index (`decorIndex` in the hit's userData). Every
         // authored static decor instance gets its own hit target so the
         // student can arrange anything on the island, not just the
-        // onboarding pair.
-        this._decorHits = { tree: new Map(), flower: new Map() }
+        // onboarding pair. Butterflies are intentionally excluded — they
+        // move and the small target makes hit detection unreliable.
+        this._decorHits = {
+            tree:      new Map(),
+            flower:    new Map(),
+            fruit:     new Map(),
+            mailbox:   new Map(),
+            telescope: new Map(),
+        }
         this._decorReady = false
         this._installDecorHitTargets()
 
@@ -383,6 +390,9 @@ export default class Sprouts
         {
             if(target.decorKind === 'tree') dragGroup = this.view.tree?.entries?.[target.decorIndex]?.group
             else if(target.decorKind === 'flower') dragGroup = this.view.flowers?.flowers?.[target.decorIndex]?.group
+            else if(target.decorKind === 'fruit') dragGroup = this.view.fruits?.entries?.[target.decorIndex]?.group
+            else if(target.decorKind === 'mailbox') dragGroup = this.view.mailbox?.group
+            else if(target.decorKind === 'telescope') dragGroup = this.view.telescope?.group
         }
         if(!dragGroup) return
 
@@ -459,6 +469,9 @@ export default class Sprouts
         }
         for(const hit of this._decorHits.tree.values()) targets.push(hit)
         for(const hit of this._decorHits.flower.values()) targets.push(hit)
+        for(const hit of this._decorHits.fruit.values()) targets.push(hit)
+        for(const hit of this._decorHits.mailbox.values()) targets.push(hit)
+        for(const hit of this._decorHits.telescope.values()) targets.push(hit)
         if(targets.length === 0) return null
         const intersects = this._raycaster.intersectObjects(targets, false)
         const hit = intersects[0]
@@ -502,6 +515,18 @@ export default class Sprouts
         else if(drag.kind === 'decor' && drag.decorKind === 'flower')
         {
             this.view.flowers?.moveInstance(drag.decorIndex, x, z, { y: drag.liftHeight })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'fruit')
+        {
+            this.view.fruits?.moveEntry(drag.decorIndex, x, z, { y: drag.liftHeight })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'mailbox')
+        {
+            this.view.mailbox?.move(x, z, { y: drag.liftHeight })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'telescope')
+        {
+            this.view.telescope?.move(x, z, { y: drag.liftHeight })
         }
         else
         {
@@ -632,9 +657,60 @@ export default class Sprouts
             f.group.add(hit)
             this._decorHits.flower.set(i, hit)
         }
+        // Fruits — bushes are also draggable so the student can rearrange
+        // the whole island freely, not just trees + flowers.
+        const fruitEntries = this.view.fruits?.entries || []
+        for(let i = 0; i < fruitEntries.length; i++)
+        {
+            if(this._decorHits.fruit.has(i)) continue
+            const entry = fruitEntries[i]
+            if(!entry?.group) continue
+            const off = this.state.sprouts.getDecorOffset('fruit', i)
+            if(off) this.view.fruits?.moveEntry(i, off.x, off.z)
+            const hit = new THREE.Mesh(
+                new THREE.SphereGeometry(0.35, 8, 6),
+                new THREE.MeshBasicMaterial({ visible: false }),
+            )
+            hit.position.y = 0.25
+            hit.userData = { kind: 'decor', decorKind: 'fruit', decorIndex: i }
+            entry.group.add(hit)
+            this._decorHits.fruit.set(i, hit)
+        }
+
+        // Mailbox + telescope — singleton instances. Index always 0.
+        if(this.view.mailbox?.group && !this._decorHits.mailbox.has(0))
+        {
+            const off = this.state.sprouts.getDecorOffset('mailbox', 0)
+            if(off) this.view.mailbox.move(off.x, off.z)
+            const hit = new THREE.Mesh(
+                new THREE.SphereGeometry(0.35, 8, 6),
+                new THREE.MeshBasicMaterial({ visible: false }),
+            )
+            hit.position.y = 0.5
+            hit.userData = { kind: 'decor', decorKind: 'mailbox', decorIndex: 0 }
+            this.view.mailbox.group.add(hit)
+            this._decorHits.mailbox.set(0, hit)
+        }
+        if(this.view.telescope?.group && !this._decorHits.telescope.has(0))
+        {
+            const off = this.state.sprouts.getDecorOffset('telescope', 0)
+            if(off) this.view.telescope.move(off.x, off.z)
+            const hit = new THREE.Mesh(
+                new THREE.SphereGeometry(0.4, 8, 6),
+                new THREE.MeshBasicMaterial({ visible: false }),
+            )
+            hit.position.y = 0.4
+            hit.userData = { kind: 'decor', decorKind: 'telescope', decorIndex: 0 }
+            this.view.telescope.group.add(hit)
+            this._decorHits.telescope.set(0, hit)
+        }
+
         const treeReadyAll = treeEntries.length > 0 && this._decorHits.tree.size >= treeEntries.length
         const flowersReadyAll = flowerEntries.length > 0 && this._decorHits.flower.size >= flowerEntries.length
-        this._decorReady = treeReadyAll || flowersReadyAll
+        const fruitsReadyAll = fruitEntries.length > 0 && this._decorHits.fruit.size >= fruitEntries.length
+        const mailboxReady = this._decorHits.mailbox.size > 0
+        const telescopeReady = this._decorHits.telescope.size > 0
+        this._decorReady = treeReadyAll && flowersReadyAll && fruitsReadyAll && mailboxReady && telescopeReady
     }
 
     /**
@@ -653,6 +729,27 @@ export default class Sprouts
         {
             const pos = position ?? this._authoredFlowerXZ(index)
             if(pos) this.view.flowers.moveInstance(index, pos.x, pos.z)
+        }
+        else if(kind === 'fruit' && this.view.fruits?.moveEntry)
+        {
+            // Authored fruit position lives on the entry — fall back to it
+            // when the offset is cleared (clear-offset path passes null).
+            const entry = this.view.fruits.entries?.[index]
+            const pos = position ?? (entry ? { x: entry.x, z: entry.z } : null)
+            if(pos) this.view.fruits.moveEntry(index, pos.x, pos.z)
+        }
+        else if(kind === 'mailbox' && this.view.mailbox?.move)
+        {
+            // No authored fallback — mailbox.position carries the live coord.
+            const pos = position ?? this.view.mailbox.position ?? { x: -0.6, z: 2.5 }
+            this.view.mailbox.move(pos.x, pos.z)
+        }
+        else if(kind === 'telescope' && this.view.telescope?.move)
+        {
+            const pos = position ?? (this.view.telescope.group?.position
+                ? { x: this.view.telescope.group.position.x, z: this.view.telescope.group.position.z }
+                : null)
+            if(pos) this.view.telescope.move(pos.x, pos.z)
         }
     }
 
@@ -745,18 +842,35 @@ export default class Sprouts
         {
             // Snap back — no slice mutation; the visual returns to
             // origin so the student sees "didn't take" feedback.
-            if(drag.kind === 'decor' && drag.decorKind === 'tree')
-            {
-                this.view.tree?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
-            }
-            else if(drag.kind === 'decor' && drag.decorKind === 'flower')
-            {
-                this.view.flowers?.moveInstance(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
-            }
-            else
-            {
-                drag.group.position.copy(drag.originPos)
-            }
+            this._restoreDecorToOrigin(drag)
+        }
+    }
+
+    _restoreDecorToOrigin(drag)
+    {
+        if(drag.kind === 'decor' && drag.decorKind === 'tree')
+        {
+            this.view.tree?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'flower')
+        {
+            this.view.flowers?.moveInstance(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'fruit')
+        {
+            this.view.fruits?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'mailbox')
+        {
+            this.view.mailbox?.move(drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'telescope')
+        {
+            this.view.telescope?.move(drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else
+        {
+            drag.group.position.copy(drag.originPos)
         }
     }
 
@@ -777,18 +891,7 @@ export default class Sprouts
         const camera = this.view.camera
         if(camera?.controls) camera.controls.enabled = true
         drag.group.scale.setScalar(drag.originScale)
-        if(drag.kind === 'decor' && drag.decorKind === 'tree')
-        {
-            this.view.tree?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
-        }
-        else if(drag.kind === 'decor' && drag.decorKind === 'flower')
-        {
-            this.view.flowers?.moveInstance(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
-        }
-        else
-        {
-            drag.group.position.copy(drag.originPos)
-        }
+        this._restoreDecorToOrigin(drag)
         if(drag.kind === 'sprout')
         {
             const node = this.nodes.get(drag.id)

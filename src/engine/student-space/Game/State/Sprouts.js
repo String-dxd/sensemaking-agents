@@ -48,6 +48,17 @@ export const DIMENSION_TO_SPECIES = Object.freeze({
     skills:      'fruit',
 })
 
+// Decor kinds (per-instance arrange) → bucket-name inside `decorOffsets`.
+// Listed once here so `setDecorOffset` / `getDecorOffset` / serialize /
+// hydrate all agree on which kinds are supported.
+const DECOR_BUCKETS = Object.freeze({
+    tree:      'trees',
+    flower:    'flowers',
+    fruit:     'fruits',
+    mailbox:   'mailbox',
+    telescope: 'telescope',
+})
+
 export const THRESHOLD_BY_SPECIES = Object.freeze({
     pending:   3,
     tree:      3,
@@ -82,7 +93,11 @@ export default class Sprouts
         // considers theirs (the onboarding tree and flower). Keyed by
         // placement index. A missing key means "use the authored
         // placement coords"; an explicit `{x, z}` overrides them.
-        this.decorOffsets = { trees: {}, flowers: {} }
+        // Per-kind offset buckets — universal arrange ships trees, flowers,
+        // fruits, mailbox, telescope. Butterflies and other animated /
+        // ambient props stay non-draggable. Buckets are keyed by index
+        // (singleton kinds use { 0: {x,z} }).
+        this.decorOffsets = { trees: {}, flowers: {}, fruits: {}, mailbox: {}, telescope: {} }
         this.subscribers = new Set()
 
         // Snapshot caches — invalidated on every mutation. React's
@@ -247,12 +262,13 @@ export default class Sprouts
      */
     setDecorOffset(kind, index, position)
     {
-        if(kind !== 'tree' && kind !== 'flower') return false
+        const bucketName = DECOR_BUCKETS[kind]
+        if(!bucketName) return false
         if(!Number.isInteger(index) || index < 0) return false
         const coerced = coercePosition(position)
         if(coerced === null && position !== null && position !== undefined) return false
 
-        const bucket = kind === 'tree' ? this.decorOffsets.trees : this.decorOffsets.flowers
+        const bucket = this.decorOffsets[bucketName] || (this.decorOffsets[bucketName] = {})
         if(coerced === null) delete bucket[index]
         else bucket[index] = coerced
 
@@ -265,8 +281,9 @@ export default class Sprouts
     /** Read the persisted offset for a decor entry, or null if none. */
     getDecorOffset(kind, index)
     {
-        const bucket = kind === 'tree' ? this.decorOffsets.trees : this.decorOffsets.flowers
-        return bucket?.[index] ?? null
+        const bucketName = DECOR_BUCKETS[kind]
+        if(!bucketName) return null
+        return this.decorOffsets[bucketName]?.[index] ?? null
     }
 
     /**
@@ -456,8 +473,11 @@ export default class Sprouts
                 return out
             }
             this.decorOffsets = {
-                trees:   merge(snapshot.decorOffsets.trees),
-                flowers: merge(snapshot.decorOffsets.flowers),
+                trees:     merge(snapshot.decorOffsets.trees),
+                flowers:   merge(snapshot.decorOffsets.flowers),
+                fruits:    merge(snapshot.decorOffsets.fruits),
+                mailbox:   merge(snapshot.decorOffsets.mailbox),
+                telescope: merge(snapshot.decorOffsets.telescope),
             }
         }
         this._invalidateCache()
@@ -491,8 +511,11 @@ export default class Sprouts
             sprouts:       this.sprouts.map(cloneTree),
             bloomedTrees:  this.bloomedTrees.map(cloneTree),
             decorOffsets:  {
-                trees:   cloneOffsets(this.decorOffsets.trees),
-                flowers: cloneOffsets(this.decorOffsets.flowers),
+                trees:     cloneOffsets(this.decorOffsets.trees),
+                flowers:   cloneOffsets(this.decorOffsets.flowers),
+                fruits:    cloneOffsets(this.decorOffsets.fruits || {}),
+                mailbox:   cloneOffsets(this.decorOffsets.mailbox || {}),
+                telescope: cloneOffsets(this.decorOffsets.telescope || {}),
             },
         }
     }

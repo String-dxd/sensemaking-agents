@@ -215,6 +215,21 @@ export default class Mailbox
     }
 
     /**
+     * Pick-and-plant: relocate the mailbox to a new (x, z) on the plateau.
+     * `opts.y` allows the drag handler to hold the mesh at the lift plane
+     * height during a drag; on release it omits opts.y and we snap to the
+     * island's ground heightAt(x, z).
+     */
+    move(x, z, opts = {})
+    {
+        if(!this.group) return
+        const groundY = this.island?.heightAt?.(x, z) ?? 0
+        const y = (typeof opts.y === 'number') ? opts.y : groundY
+        this.group.position.set(x, y, z)
+        if(typeof opts.y !== 'number') this.position = { x, y: groundY, z }
+    }
+
+    /**
      * Tear-down hook called from View.dispose(). Drops the letters
      * subscription and removes the group from the scene. Geometries and
      * materials are disposed via a depth traversal so the GPU buffers
