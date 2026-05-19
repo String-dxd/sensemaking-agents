@@ -19,8 +19,6 @@ function makeFetchSequence(responses: Array<{ ok: boolean; status?: number; body
 
 describe('ShareTokenBridge state machine', () => {
   beforeEach(() => {
-    // Fresh singleton each test.
-    // biome-ignore lint/suspicious/noExplicitAny: test-only reset of the engine singleton.
     ;(ShareTokenBridge as unknown as { instance: unknown }).instance = null
   })
 
@@ -33,7 +31,14 @@ describe('ShareTokenBridge state machine', () => {
 
   it('transitions idle → creating → ready on successful create', async () => {
     const fetchMock = makeFetchSequence([
-      { ok: true, body: { ok: true, token: 'AAAA1111BBBB2222CCCC33', url: 'http://localhost/share/AAAA1111BBBB2222CCCC33' } },
+      {
+        ok: true,
+        body: {
+          ok: true,
+          token: 'AAAA1111BBBB2222CCCC33',
+          url: 'http://localhost/share/AAAA1111BBBB2222CCCC33',
+        },
+      },
     ])
     vi.stubGlobal('fetch', fetchMock)
 
@@ -55,7 +60,10 @@ describe('ShareTokenBridge state machine', () => {
       {
         ok: false,
         status: 403,
-        body: { ok: false, error: { code: 'share_demo_unsupported', message: 'Sign in to share.' } },
+        body: {
+          ok: false,
+          error: { code: 'share_demo_unsupported', message: 'Sign in to share.' },
+        },
       },
     ])
     vi.stubGlobal('fetch', fetchMock)
@@ -70,7 +78,10 @@ describe('ShareTokenBridge state machine', () => {
 
   it('revoke clears the in-memory token and returns to idle', async () => {
     const fetchMock = makeFetchSequence([
-      { ok: true, body: { ok: true, token: 'AAAA1111BBBB2222CCCC33', url: '/share/AAAA1111BBBB2222CCCC33' } },
+      {
+        ok: true,
+        body: { ok: true, token: 'AAAA1111BBBB2222CCCC33', url: '/share/AAAA1111BBBB2222CCCC33' },
+      },
       { ok: true, body: { ok: true } },
     ])
     vi.stubGlobal('fetch', fetchMock)
@@ -88,7 +99,10 @@ describe('ShareTokenBridge state machine', () => {
 
   it('setShowQuotes applies optimistically then trusts server echo', async () => {
     const fetchMock = makeFetchSequence([
-      { ok: true, body: { ok: true, token: 'AAAA1111BBBB2222CCCC33', url: '/share/AAAA1111BBBB2222CCCC33' } },
+      {
+        ok: true,
+        body: { ok: true, token: 'AAAA1111BBBB2222CCCC33', url: '/share/AAAA1111BBBB2222CCCC33' },
+      },
       { ok: true, body: { ok: true, show_quotes: true } },
     ])
     vi.stubGlobal('fetch', fetchMock)
@@ -107,7 +121,10 @@ describe('ShareTokenBridge state machine', () => {
 
   it('setShowQuotes snaps back when server returns 4xx', async () => {
     const fetchMock = makeFetchSequence([
-      { ok: true, body: { ok: true, token: 'AAAA1111BBBB2222CCCC33', url: '/share/AAAA1111BBBB2222CCCC33' } },
+      {
+        ok: true,
+        body: { ok: true, token: 'AAAA1111BBBB2222CCCC33', url: '/share/AAAA1111BBBB2222CCCC33' },
+      },
       {
         ok: false,
         status: 400,

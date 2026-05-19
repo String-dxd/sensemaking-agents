@@ -124,9 +124,6 @@ function DimensionSection({ dimension, body, nameSnapshot, showQuotes }: Dimensi
       className="scroll-mt-12"
       data-testid={`share-dimension-${dimension}`}
       style={{
-        // CSS custom properties drive the dimension-themed elements below
-        // without forcing a global className per dimension.
-        // biome-ignore lint/style/useNamingConvention: CSS variables follow kebab-case.
         ['--facet-accent' as string]: theme.accent,
         ['--facet-soft' as string]: theme.soft,
         ['--facet-ink' as string]: theme.ink,
