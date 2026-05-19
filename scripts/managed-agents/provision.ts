@@ -7,7 +7,7 @@
  *   1. Reads `.env`. If a `MANAGED_AGENT_*_ID` key already exists for a
  *      given agent (or for the environment), the corresponding create call is
  *      skipped and the existing id/version are reused.
- *   2. Creates the four managed agents — `mirror`, `connector`, `cartographer`,
+ *   2. Creates the Claude managed agents — `connector`, `cartographer`,
  *      `self_critique` — via `client.beta.agents.create`. Each loads its
  *      system prompt from `src/agents/<name>.prompt.md`; `self_critique` is
  *      the eval/safety reviewer for agent outputs.
@@ -24,8 +24,6 @@
  * Keys written/read in `.env`:
  *   ANTHROPIC_API_KEY=
  *   MANAGED_AGENT_ENV_ID=
- *   MANAGED_AGENT_MIRROR_ID=
- *   MANAGED_AGENT_MIRROR_VERSION=
  *   MANAGED_AGENT_CONNECTOR_ID=
  *   MANAGED_AGENT_CONNECTOR_VERSION=
  *   MANAGED_AGENT_CARTOGRAPHER_ID=
@@ -56,7 +54,7 @@ const AGENT_PROMPT_DIR = resolve(REPO_ROOT, 'src', 'agents')
 
 interface AgentSpec {
   /** Logical name; also used as the prefix for env-var keys. */
-  name: 'mirror' | 'connector' | 'cartographer' | 'self_critique'
+  name: 'connector' | 'cartographer' | 'self_critique'
   /** Anthropic model id. */
   model: string
   /** Max output tokens per invocation. */
@@ -72,12 +70,6 @@ function loadPrompt(name: string): string {
 
 function buildAgentSpecs(): AgentSpec[] {
   return [
-    {
-      name: 'mirror',
-      model: 'claude-sonnet-4-6',
-      maxTokens: 4096,
-      systemPrompt: loadPrompt('mirror'),
-    },
     {
       name: 'connector',
       model: 'claude-sonnet-4-6',
@@ -326,15 +318,10 @@ function parseUpdateExistingAgents(argv: string[]): ReadonlySet<AgentSpec['name'
 
   const raw = argv[flagIndex + 1]
   if (!raw || raw.startsWith('--') || raw === 'all') {
-    return new Set(['mirror', 'connector', 'cartographer', 'self_critique'])
+    return new Set(['connector', 'cartographer', 'self_critique'])
   }
 
-  const allowed = new Set<AgentSpec['name']>([
-    'mirror',
-    'connector',
-    'cartographer',
-    'self_critique',
-  ])
+  const allowed = new Set<AgentSpec['name']>(['connector', 'cartographer', 'self_critique'])
   const requested = raw
     .split(',')
     .map((name) => name.trim())

@@ -730,7 +730,6 @@ body.has-chooser        .bird-picker
    selector below instead. Nested in-context closes (day-detail-card,
    kira-dialogue) use a smaller variant further down. ---------- */
 .capture-chooser__close,
-.ask-sheet__close,
 .photo-sheet__close,
 .mood-sheet__close,
 .half-sheet__close,
@@ -757,7 +756,6 @@ body.has-chooser        .bird-picker
     transition: background 160ms ease, transform 160ms ease;
 }
 .capture-chooser__close:hover,
-.ask-sheet__close:hover,
 .photo-sheet__close:hover,
 .mood-sheet__close:hover,
 .half-sheet__close:hover,
@@ -766,7 +764,6 @@ body.has-chooser        .bird-picker
 .letters-sheet__close:hover,
 .trajectory-sheet__close:hover { background: rgba(0, 0, 0, 0.12); }
 .capture-chooser__close:active,
-.ask-sheet__close:active,
 .photo-sheet__close:active,
 .mood-sheet__close:active,
 .half-sheet__close:active,
@@ -894,9 +891,45 @@ body.has-chooser        .bird-picker
     .capture-stage__canvas { transition: none; }
 }
 
-/* Ask sheet — open-ended chat-style capture. Same slide-up posture as
-   mood-sheet but trimmed to a single panel since there are no steps. */
-.ask-sheet,
+/* Ask sheet — in-scene Kira conversation. The world remains visible behind
+   the composer so capture feels like talking to the bird, not leaving the
+   island for a separate form. */
+.ask-sheet
+{
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0) 28%, rgba(21, 35, 27, 0.18) 100%);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    transform: translateY(18px);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition:
+        opacity 220ms ease,
+        transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 360ms;
+    overflow: hidden;
+    padding: 0 18px 18px;
+    box-sizing: border-box;
+}
+.ask-sheet.is-open
+{
+    transform: translateY(0);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transition:
+        opacity 220ms ease,
+        transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0s;
+}
+
+/* Photo sheet keeps the full-viewport camera surface. */
 .photo-sheet
 {
     position: fixed;
@@ -911,13 +944,48 @@ body.has-chooser        .bird-picker
     padding: 24px 20px 48px;
     box-sizing: border-box;
 }
-.ask-sheet.is-open,
 .photo-sheet.is-open { transform: translateY(0); }
 
 /* ask-sheet / photo-sheet close styling is provided by the shared
    sheet-close grouped selector at the top of this file. */
 
-.ask-sheet__inner,
+.ask-sheet__inner
+{
+    position: relative;
+    width: min(720px, 100%);
+    max-height: min(78vh, 640px);
+    margin: 0 auto;
+    padding: 20px;
+    border-radius: 24px;
+    background: rgba(255, 253, 246, 0.94);
+    border: 1.5px solid rgba(255, 255, 255, 0.78);
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.24);
+    backdrop-filter: blur(14px) saturate(1.04);
+    -webkit-backdrop-filter: blur(14px) saturate(1.04);
+    overflow-y: auto;
+    box-sizing: border-box;
+}
+.ask-sheet__close
+{
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: none;
+    background: rgba(0, 0, 0, 0.06);
+    color: #2b2620;
+    font: 500 20px/1 inherit;
+    cursor: pointer;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 160ms ease, transform 160ms ease;
+}
+.ask-sheet__close:hover { background: rgba(0, 0, 0, 0.12); }
+.ask-sheet__close:active { transform: scale(0.94); }
 .photo-sheet__inner
 {
     max-width: 720px;
@@ -948,6 +1016,12 @@ body.has-chooser        .bird-picker
     line-height: 1.2;
     margin: 0 0 18px;
 }
+.ask-sheet__title
+{
+    font-size: 20px;
+    margin-bottom: 14px;
+    padding-right: 40px;
+}
 .ask-sheet__prompt
 {
     background: rgba(255, 255, 255, 0.7);
@@ -965,12 +1039,13 @@ body.has-chooser        .bird-picker
 {
     position: relative;
     display: flex;
+    flex-direction: column;
     align-items: stretch;
-    gap: 0;
-    background: rgba(255, 255, 255, 0.85);
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.88);
     border: 1.5px solid rgba(0, 0, 0, 0.06);
-    border-radius: 14px;
-    padding: 4px 4px 4px 14px;
+    border-radius: 18px;
+    padding: 12px;
     transition: border-color 160ms ease;
 }
 .ask-sheet__field:focus-within
@@ -979,22 +1054,31 @@ body.has-chooser        .bird-picker
 }
 .ask-sheet__input
 {
-    flex: 1;
+    width: 100%;
     border: none;
     background: transparent;
-    resize: vertical;
+    resize: none;
     font: 15px/1.5 inherit;
     color: inherit;
-    padding: 10px 0;
+    padding: 0;
     outline: none;
-    min-height: 80px;
+    min-height: 78px;
+    max-height: 180px;
 }
-.ask-sheet__mic
+.ask-sheet__tools
 {
-    width: 44px;
-    height: 44px;
-    align-self: flex-end;
-    margin: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.ask-sheet__tool,
+.ask-sheet__save
+{
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
     border-radius: 50%;
     border: 1px solid rgba(0, 0, 0, 0.08);
     background: #fff;
@@ -1005,7 +1089,19 @@ body.has-chooser        .bird-picker
     justify-content: center;
     transition: background 150ms ease, color 150ms ease, border-color 150ms ease, transform 150ms ease;
 }
-.ask-sheet__mic:hover { border-color: rgba(255, 138, 92, 0.55); }
+.ask-sheet__tool:hover { border-color: rgba(255, 138, 92, 0.55); transform: translateY(-1px); }
+.ask-sheet__tool.is-selected
+{
+    background: var(--emotion-color, rgba(255, 138, 92, 0.95));
+    border-color: transparent;
+    color: #fff;
+}
+.ask-sheet__image-trigger.is-selected
+{
+    background: rgba(255, 138, 92, 0.14);
+    border-color: rgba(255, 138, 92, 0.42);
+    color: #d86237;
+}
 .ask-sheet__mic.is-listening
 {
     background: #FF8A5C;
@@ -1017,6 +1113,73 @@ body.has-chooser        .bird-picker
 {
     0%, 100% { box-shadow: 0 0 0 0 rgba(255, 138, 92, 0.45); }
     50%      { box-shadow: 0 0 0 10px rgba(255, 138, 92, 0); }
+}
+
+.ask-sheet__image-preview
+{
+    position: relative;
+    width: 108px;
+    height: 78px;
+    border-radius: 14px;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.08);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+.ask-sheet__image
+{
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+}
+.ask-sheet__image-remove
+{
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.9);
+    color: #2b2620;
+    font: 600 17px/1 inherit;
+    cursor: pointer;
+}
+.ask-sheet__emoji-panel
+{
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding-top: 2px;
+}
+.ask-sheet__emoji-option
+{
+    min-height: 42px;
+    border-radius: 13px;
+    border: 1.5px solid rgba(0, 0, 0, 0.06);
+    background: rgba(255, 255, 255, 0.72);
+    color: #2b2620;
+    font: 600 12px/1.1 inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px;
+    padding: 7px 9px;
+    transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+.ask-sheet__emoji-option:hover,
+.ask-sheet__emoji-option.is-selected
+{
+    background: color-mix(in srgb, var(--emotion-color) 18%, #fff);
+    border-color: color-mix(in srgb, var(--emotion-color) 52%, rgba(0, 0, 0, 0.08));
+}
+.ask-sheet__emoji-option:active { transform: scale(0.98); }
+.ask-sheet__emoji-symbol
+{
+    font-size: 17px;
+    line-height: 1;
 }
 
 .ask-sheet__hint
@@ -1034,7 +1197,6 @@ body.has-chooser        .bird-picker
     margin-top: 18px;
 }
 
-.ask-sheet__save,
 .photo-sheet__save
 {
     display: inline-flex;
@@ -1049,6 +1211,15 @@ body.has-chooser        .bird-picker
     cursor: pointer;
     box-shadow: 0 4px 12px rgba(255, 138, 92, 0.32);
     transition: background 160ms ease, transform 160ms ease, opacity 160ms ease;
+}
+.ask-sheet__save
+{
+    margin-left: auto;
+    border: none;
+    background: #FF8A5C;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255, 138, 92, 0.32);
+    font: 700 18px/1 inherit;
 }
 .ask-sheet__save:hover,
 .photo-sheet__save:hover { background: #ff7842; transform: translateY(-1px); }
@@ -1090,15 +1261,127 @@ body.has-chooser        .bird-picker
     100% { box-shadow: 0 0 0 0   rgba(232, 84, 58, 0);    }
 }
 
+.ask-sheet__title--live
+{
+    margin-bottom: 6px;
+}
+
+.ask-sheet__session-note
+{
+    margin: 0 0 14px;
+    color: rgba(43, 38, 32, 0.62);
+    font-size: 16px;
+    line-height: 1.35;
+}
+
+.ask-live-chat
+{
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 18px 0 22px;
+    padding: 18px 20px;
+    min-height: min(34vh, 310px);
+    max-height: min(44vh, 390px);
+    overflow-y: auto;
+    border-radius: 24px;
+    background:
+        radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.76), transparent 28%),
+        rgba(223, 236, 169, 0.42);
+    border: 1.5px solid rgba(91, 113, 50, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+    scroll-behavior: smooth;
+}
+.ask-live-chat__empty
+{
+    margin: auto;
+    color: rgba(43, 38, 32, 0.44);
+    font-size: 18px;
+    font-style: italic;
+    line-height: 1.4;
+    text-align: center;
+}
+.ask-live-chat__bubble
+{
+    position: relative;
+    max-width: min(78%, 520px);
+    padding: 12px 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 250, 0.96);
+    border: 1px solid rgba(43, 38, 32, 0.05);
+    box-shadow: 0 8px 20px rgba(63, 74, 44, 0.08);
+    color: #3d352d;
+    transform-origin: bottom left;
+    animation: ask-live-bubble-in 180ms ease-out both;
+}
+.ask-live-chat__bubble--student
+{
+    align-self: flex-end;
+    background: rgba(255, 255, 250, 0.98);
+    transform-origin: bottom right;
+}
+.ask-live-chat__bubble--kira
+{
+    align-self: flex-start;
+    margin-top: 8px;
+}
+.ask-live-chat__bubble.is-streaming .ask-live-chat__text::after
+{
+    content: '';
+    display: inline-block;
+    width: 0.36em;
+    height: 0.36em;
+    margin-left: 0.3em;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.34;
+    vertical-align: middle;
+    animation: ask-live-thinking 1.1s ease-in-out infinite;
+}
+.ask-live-chat__name
+{
+    position: absolute;
+    top: -15px;
+    left: 14px;
+    padding: 2px 9px 3px;
+    border-radius: 999px;
+    background: #d94b91;
+    color: #fff;
+    font: 700 11px/1.1 inherit;
+    letter-spacing: 0;
+}
+.ask-live-chat__bubble--student .ask-live-chat__name
+{
+    left: auto;
+    right: 14px;
+    background: #ff8a5c;
+}
+.ask-live-chat__text
+{
+    margin: 0;
+    font-size: 18px;
+    line-height: 1.35;
+}
+@keyframes ask-live-bubble-in
+{
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ask-live-thinking
+{
+    0%, 100% { transform: translateY(0); opacity: 0.28; }
+    50%      { transform: translateY(-2px); opacity: 0.58; }
+}
+
 .ask-sheet__captions
 {
-    margin: 22px 0 28px;
+    margin: 18px 0 22px;
     padding: 22px 24px;
     border-radius: 18px;
     background: rgba(255, 255, 255, 0.78);
     border: 1.5px solid rgba(0, 0, 0, 0.06);
-    min-height: 36vh;
-    max-height: 50vh;
+    min-height: min(32vh, 260px);
+    max-height: min(42vh, 360px);
     overflow-y: auto;
     line-height: 1.5;
     font-size: 22px;
@@ -1114,7 +1397,7 @@ body.has-chooser        .bird-picker
 }
 .ask-sheet__captions-committed:empty + .ask-sheet__captions-interim:empty::before
 {
-    content: 'Start speaking…';
+    content: 'Start talking. Kira will answer when you pause.';
     color: rgba(43, 38, 32, 0.35);
     font-style: italic;
 }
@@ -1148,14 +1431,14 @@ body.has-chooser        .bird-picker
 
 .ask-sheet__review-card
 {
-    margin: 22px 0 28px;
+    margin: 18px 0 22px;
     padding: 22px 24px;
     border-radius: 18px;
     background: #fff;
     border: 1.5px solid rgba(0, 0, 0, 0.06);
     box-shadow: 0 6px 22px rgba(0, 0, 0, 0.05);
-    min-height: 26vh;
-    max-height: 55vh;
+    min-height: 150px;
+    max-height: min(40vh, 330px);
     overflow-y: auto;
 }
 .ask-sheet__review-text
@@ -1238,12 +1521,12 @@ body.has-chooser        .bird-picker
     display: flex;
     justify-content: center;
     gap: 18px;
-    margin: 24px 0 4px;
+    margin: 12px 0 0;
 }
 .ask-reframe__shape
 {
-    width: 120px;
-    height: 120px;
+    width: 92px;
+    height: 92px;
     display: inline-block;
     animation: askReframeBreath 4.2s ease-in-out infinite;
 }
@@ -1312,6 +1595,7 @@ body.has-chooser        .bird-picker
 .ask-sheet__row--reframe
 {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
     gap: 12px;
@@ -1363,6 +1647,7 @@ body.has-chooser        .bird-picker
     margin-top: 16px;
 }
 .ask-sheet__replay-reframe,
+.ask-sheet__replay-image,
 .ask-sheet__replay-thread
 {
     padding: 18px 18px 22px;
@@ -1372,6 +1657,18 @@ body.has-chooser        .bird-picker
     display: flex;
     flex-direction: column;
     gap: 12px;
+}
+.ask-sheet__replay-image
+{
+    padding: 0;
+    overflow: hidden;
+}
+.ask-sheet__replay-image img
+{
+    width: 100%;
+    max-height: 260px;
+    display: block;
+    object-fit: cover;
 }
 .ask-sheet__replay-reframe .ask-reframe__shapes { margin: 4px 0 0; }
 .ask-sheet__replay-reframe .ask-reframe__shape  { width: 88px; height: 88px; }
@@ -1384,7 +1681,7 @@ body.has-chooser        .bird-picker
     display: flex;
     flex-direction: column;
     gap: 14px;
-    min-height: calc(100vh - 120px);
+    min-height: min(52vh, 430px);
 }
 .ask-chat__header
 {
@@ -1408,7 +1705,7 @@ body.has-chooser        .bird-picker
     gap: 10px;
     padding: 8px 0 12px;
     overflow-y: auto;
-    max-height: 56vh;
+    max-height: min(36vh, 310px);
 }
 .ask-chat__bubble
 {
@@ -1681,8 +1978,30 @@ body.has-chooser        .bird-picker
 
 @media (max-width: 640px)
 {
-    .ask-sheet, .photo-sheet { padding: 24px 16px 40px; }
-    .ask-sheet__title, .photo-sheet__title { font-size: 20px; }
+    .ask-sheet { padding: 0 10px 10px; }
+    .ask-sheet__inner
+    {
+        max-height: 82vh;
+        padding: 16px;
+        border-radius: 22px;
+    }
+    .photo-sheet { padding: 24px 16px 40px; }
+    .ask-sheet__title { font-size: 18px; }
+    .photo-sheet__title { font-size: 20px; }
+    .ask-sheet__emoji-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ask-sheet__tools { gap: 6px; }
+    .ask-live-chat
+    {
+        min-height: min(36vh, 300px);
+        max-height: min(46vh, 360px);
+        padding: 16px 14px;
+    }
+    .ask-live-chat__bubble
+    {
+        max-width: 86%;
+        padding: 11px 15px;
+    }
+    .ask-live-chat__text { font-size: 16px; }
 }
 
 /* A single particle in the pin colour drifts up-and-right toward the

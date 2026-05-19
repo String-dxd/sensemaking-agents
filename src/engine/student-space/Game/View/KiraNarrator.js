@@ -48,7 +48,7 @@ const FRUIT_NARRATION = {
 }
 
 const KIRA_NARRATION = {
-    text: 'It’s me. If anything is on your mind, I’m here. Say it however feels easier, written or out loud.',
+    text: 'It’s me. If anything is on your mind, I’m here. Choose whatever feels easiest — words, voice, a feeling, or a picture.',
     cta:  'Talk to me',
 }
 
@@ -278,7 +278,6 @@ export default class KiraNarrator
             // returns to the island instead of detouring through the
             // capture chooser (which the student never opened).
             setTimeout(() => OverlayController.getInstance().open('ask', {
-                prompt: 'Tell me anything.',
                 dismissOnBack: true,
             }), 280)
             return

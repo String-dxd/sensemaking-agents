@@ -128,6 +128,7 @@ export default class View
         // click. Constructed after KiraDialogue so it can suppress the ambient
         // bubble during a narration beat.
         this.kiraNarrator = new KiraNarrator()
+        this.captureFab.setKiraNarrator(this.kiraNarrator)
         // BirdPicker is purely visual — depends on view.kira existing, which
         // it does by this point.
         this.birdPicker  = new BirdPicker()

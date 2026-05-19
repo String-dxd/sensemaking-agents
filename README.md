@@ -5,7 +5,7 @@ SenseMake is a student reflection app for turning lived school experiences into 
 Current product shape:
 
 - `/` is the recording surface: audio-only reflection in the island world, one primary voice action, then Mirror saves the raw thought into Library.
-- Mirror transcribes audio, reflects the transcript, infers a context tag, and saves the raw thought without waiting on Connector.
+- Mirror uses OpenAI Realtime to listen, transcribe, and reflect the thought, then saves the raw thought without waiting on Connector.
 - Connector runs from the Library `Run Connector` action or the scheduled evening pass, verifies proposed VIPS links, and applies verifier-passing links directly into the VIPS pages and timeline.
 - `/library` is the main review surface. By default it shows all recorded thoughts and VIPS pages; the `Need review` filter shows raw mirror thoughts that still need confirm/forget.
 - Cartographer runs manually from `/library` and generates the Trajectory page.
@@ -16,31 +16,31 @@ For the latest planning and merge status, see `plans/CURRENT_STATE.md`.
 ## Architecture
 
 - Frontend: TanStack Router/Start, React, Tailwind, shadcn-style local primitives, Base UI for accessible dialogs/drawers/radio groups.
-- Agents: Anthropic Managed Agents for Mirror, Connector, Cartographer, and the self-critique eval/safety reviewer.
-- Transcription: OpenAI Whisper via the `openai` package.
+- Agents: OpenAI Realtime for Mirror; Anthropic Managed Agents for Connector, Cartographer, and the self-critique eval/safety reviewer.
+- Transcription: OpenAI Realtime input transcription on the main Student Space voice path; the OpenAI transcription helper remains for legacy/support utilities.
 - Persistence: Postgres via Drizzle ORM and `pg`; every request is scoped through the `withStudent` tenancy envelope.
 - Auth: WorkOS AuthKit with Google sign-in, plus a local demo/dev bypass path.
 - Deployment target: Vercel.
 
 ## Agent Architecture
 
-The app uses three product-facing managed agents plus one eval/safety reviewer. The product agents create or synthesize student-facing sensemaking; the eval agent reviews those outputs. Persistence, verification, auth, and final policy decisions stay in application code.
+The app uses three product-facing agents plus one eval/safety reviewer. Mirror is an OpenAI Realtime agent; Connector, Cartographer, and self-critique are Claude-backed managed agents. Persistence, verification, auth, and final policy decisions stay in application code.
 
 | Agent | Role | Trigger | Writes student-facing state? | Default model |
 |---|---|---|---|---|
-| Mirror | Reflect one recorded thought back to the student | Immediately after transcription on `/` | Indirectly: app persists its parsed output as a raw mirror entry | `claude-sonnet-4-6` |
+| Mirror | Reflect one recorded thought back to the student | During Student Space voice/typed capture | Indirectly: app persists its parsed output as a raw mirror entry | `gpt-realtime-2` via `OPENAI_REALTIME_MIRROR_MODEL` |
 | Connector | Link recent mirror entries into canonical VIPS pages | Manual `Run Connector` button or 18:00 Singapore scheduled pass | Yes, but only after deterministic verifier gates proposed links | `claude-sonnet-4-6` |
 | Cartographer | Synthesize verified VIPS state into Trajectory | Manual `Run sense-making` button | Yes, writes the trajectory view | `claude-sonnet-4-6` |
 | self_critique | Eval/safety reviewer for other agent outputs | Best-effort review after Mirror, Connector, or Cartographer drafts | No | `claude-haiku-4-5` |
 
-Default models and hosted managed-agent provisioning live in `scripts/managed-agents/provision.ts`.
+Realtime Mirror defaults live in `src/agents/openai-realtime/config.ts`. Claude managed-agent provisioning for Connector, Cartographer, and self-critique lives in `scripts/managed-agents/provision.ts`.
 
 ### Handoff Flow
 
-1. The user records on `/`.
-2. The app transcribes audio with OpenAI Whisper.
+1. The user records in the Student Space scene on `/`.
+2. The browser opens a server-brokered OpenAI Realtime WebRTC session; the standard OpenAI API key never reaches the browser.
 3. The app infers a closed context tag: `school`, `family`, `peer`, `hobby`, or `civic`.
-4. Mirror receives the transcript and returns `validation`, `inferred_meaning`, and `story_reframe`.
+4. Mirror receives the live audio/typed transcript and returns `validation`, `inferred_meaning`, and `story_reframe`.
 5. `self_critique` reviews the Mirror draft for evidence grounding, safety, student agency, and specificity. This review is returned as `eval_review`; it does not block persistence.
 6. `persistMirror` writes the raw thought to `mirror_entries` in `pending` review state.
 7. Connector later runs from Library or the scheduled pass over recent unconnected reflections.
@@ -85,6 +85,7 @@ The eval call is best-effort. If the `self_critique` binding is missing or the m
 ### Source Of Truth
 
 - Agent prompts: `src/agents/mirror.prompt.md`, `src/agents/connector.prompt.md`, `src/agents/cartographer.prompt.md`, `src/agents/self_critique.prompt.md`
+- Realtime Mirror runtime: `src/agents/openai-realtime/*`, `src/server/openai-realtime-mirror-session.handler.server.ts`, `src/lib/student-space/realtime-mirror-client.ts`
 - Managed-agent binding and version lookup: `src/agents/config.ts`
 - Managed-agent transport: `src/agents/runner.ts`
 - Eval runner: `src/agents/self-critique-eval.ts`
@@ -99,16 +100,16 @@ In development builds, the header includes an `agent debug` drawer that shows th
 
 ## Setup
 
-Requires Node 22+, pnpm, Postgres/Neon connection details, Anthropic Managed Agent bindings, and an OpenAI API key for transcription.
+Requires Node 22+, pnpm, Postgres/Neon connection details, Anthropic Managed Agent bindings for Connector/Cartographer/self-critique, and an OpenAI API key for Mirror Realtime.
 
 Create `.env` with the environment variables your flow needs:
 
 ```bash
 DATABASE_URL=...
 OPENAI_API_KEY=...
+OPENAI_REALTIME_MIRROR_MODEL=gpt-realtime-2
 
 MANAGED_AGENT_ENV_ID=...
-MANAGED_AGENT_MIRROR_ID=...
 MANAGED_AGENT_CONNECTOR_ID=...
 MANAGED_AGENT_CARTOGRAPHER_ID=...
 MANAGED_AGENT_SELF_CRITIQUE_ID=...
@@ -157,7 +158,7 @@ Connector now defaults to `claude-sonnet-4-6`; adaptive Haiku/Sonnet routing is 
 2. Use the voice button.
 3. Allow microphone access. No camera or video element is used.
 4. Talk for a short reflection, then stop.
-5. The app transcribes, runs Mirror, and saves the raw thought.
+5. Realtime Mirror prepares Kira's reading; choose `Log` to save it or `Forget` to discard it.
 6. Review raw thoughts at `/library?filter=need-review`.
 7. Open `/library` to run Connector, inspect VIPS pages, and run Cartographer for Trajectory.
 
@@ -172,7 +173,7 @@ pnpm build
 Useful focused commands:
 
 ```bash
-pnpm smoke:managed-mirror
+pnpm smoke:mirror
 pnpm smoke:managed-connector
 pnpm smoke:managed-cartographer
 pnpm ablate:mirror
@@ -183,7 +184,7 @@ pnpm ablate:sensemake
 
 ```text
 src/
-  agents/       Managed Agent prompts, schemas, runner, context builders
+  agents/       Realtime Mirror/Managed Agent prompts, schemas, runner, context builders
   auth/         WorkOS, demo auth, identity helpers
   components/   World Studio, review, library, and UI primitives
   data/         VIPS and ECG taxonomy fixtures

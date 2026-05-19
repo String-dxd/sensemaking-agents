@@ -73,10 +73,238 @@ afterEach(() => {
   OverlayController.instance = null
   document.body.innerHTML = ''
   document.body.className = ''
+  Reflect.deleteProperty(globalThis, 'RTCPeerConnection')
   vi.restoreAllMocks()
 })
 
 describe('Student Space AskSheet audio capture', () => {
+  it('uses Realtime voice capture when the backend exposes a Realtime Mirror session', async () => {
+    class MockRTCPeerConnection {}
+    // @ts-expect-error happy-dom does not provide RTCPeerConnection.
+    globalThis.RTCPeerConnection = MockRTCPeerConnection
+
+    const prepared = {
+      localCaptureId: 'ask-realtime',
+      transcript: 'realtime transcript',
+      validation: 'That was heard live.',
+      inferredMeaning: 'Voice went straight through Realtime.',
+      storyReframe: 'Kira heard the Realtime session.',
+      contextType: 'school',
+      transcription: { provider: 'openai_realtime', transcript: 'realtime transcript' },
+    }
+    const stop = vi.fn(async () => prepared)
+    const abort = vi.fn()
+    const createRealtimeMirrorCapture = vi.fn(async (input: Record<string, unknown>) => {
+      const onConversationUpdate = input.onConversationUpdate as
+        | ((message: Record<string, unknown>) => void)
+        | undefined
+      onConversationUpdate?.({
+        id: 'student-1',
+        role: 'student',
+        text: 'Can you hear me?',
+        status: 'final',
+      })
+      onConversationUpdate?.({
+        id: 'kira-1',
+        role: 'kira',
+        text: 'I can hear you.',
+        status: 'final',
+      })
+      return { stop, abort }
+    })
+    const prepareReflection = vi.fn()
+    const logPreparedReflection = vi.fn(async (input: Record<string, unknown>) => ({
+      localCaptureId: input.localCaptureId,
+      mirrorEntry: {
+        id: 88,
+        transcript: 'realtime transcript',
+        validation: 'That was heard live.',
+        storyReframe: 'Kira heard the Realtime session.',
+        inferredMeaning: 'Voice went straight through Realtime.',
+        contextType: 'school',
+        reviewStatus: 'pending',
+      },
+    }))
+    const captures = makeCaptures()
+    state.instance = {
+      captures,
+      backend: { createRealtimeMirrorCapture, prepareReflection, logPreparedReflection },
+    }
+    OverlayController.instance = new OverlayController()
+
+    const sheet = new AskSheet() as { open: () => void; dispose: () => void }
+    sheet.open()
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__mic')?.click()
+    await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(document.querySelector('.ask-sheet__inner')).toHaveAttribute(
+        'data-stage',
+        'recording',
+      ),
+    )
+    expect(document.querySelector('.ask-sheet__eyebrow--live')?.textContent).toContain(
+      'Live with Kira',
+    )
+    expect(document.querySelector<HTMLButtonElement>('.ask-sheet__stop')?.textContent).toContain(
+      'Stop session',
+    )
+    expect(createRealtimeMirrorCapture).toHaveBeenCalledWith(
+      expect.objectContaining({
+        localCaptureId: expect.stringMatching(/^ask-/),
+        contextType: 'school',
+        onConversationUpdate: expect.any(Function),
+      }),
+    )
+    expect(document.querySelector('.ask-live-chat__bubble--student')?.textContent).toContain(
+      'Can you hear me?',
+    )
+    expect(document.querySelector('.ask-live-chat__bubble--kira')?.textContent).toContain(
+      'I can hear you.',
+    )
+    expect(document.querySelector('.ask-sheet__hint--live')?.textContent).toBe('')
+    expect(getUserMediaCalls).toEqual([])
+    expect(lastRecorder).toBeNull()
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__stop')?.click()
+
+    await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
+    await waitFor(
+      () =>
+        expect(document.querySelector('.ask-reframe__prose')?.textContent).toContain(
+          'Kira heard the Realtime session',
+        ),
+      { timeout: 2500 },
+    )
+    expect(prepareReflection).not.toHaveBeenCalled()
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__log--reframe')?.click()
+    await waitFor(() => expect(logPreparedReflection).toHaveBeenCalledTimes(1))
+    expect(logPreparedReflection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcript: 'realtime transcript',
+        transcription: { provider: 'openai_realtime', transcript: 'realtime transcript' },
+      }),
+    )
+    expect(captures.entries[0]).toMatchObject({
+      text: 'realtime transcript',
+      backendMirrorEntryId: 88,
+      syncStatus: 'synced',
+    })
+
+    sheet.dispose()
+  })
+
+  it('shows Log and Continue session when a Realtime reading fails', async () => {
+    class MockRTCPeerConnection {}
+    // @ts-expect-error happy-dom does not provide RTCPeerConnection.
+    globalThis.RTCPeerConnection = MockRTCPeerConnection
+
+    const stop = vi.fn(async () => {
+      throw new Error('Realtime Mirror timed out.')
+    })
+    const abort = vi.fn()
+    const createRealtimeMirrorCapture = vi.fn(async (input: Record<string, unknown>) => {
+      const onConversationUpdate = input.onConversationUpdate as
+        | ((message: Record<string, unknown>) => void)
+        | undefined
+      onConversationUpdate?.({
+        id: 'student-failed',
+        role: 'student',
+        text: 'Today we had a birthday celebration.',
+        status: 'final',
+      })
+      return { stop, abort }
+    })
+    const captures = makeCaptures()
+    state.instance = {
+      captures,
+      backend: { createRealtimeMirrorCapture, prepareReflection: vi.fn() },
+    }
+    OverlayController.instance = new OverlayController()
+
+    const sheet = new AskSheet() as { open: () => void; dispose: () => void }
+    sheet.open()
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__mic')?.click()
+    await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
+    document.querySelector<HTMLButtonElement>('.ask-sheet__stop')?.click()
+
+    await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(document.querySelector('.ask-sheet__inner')).toHaveAttribute('data-stage', 'reframe'),
+    )
+
+    const editButton = document.querySelector<HTMLButtonElement>('.ask-sheet__edit')
+    const continueButton = document.querySelector<HTMLButtonElement>('.ask-sheet__talk-more')
+    const forgetButton = document.querySelector<HTMLButtonElement>('.ask-sheet__forget-draft')
+    const logButton = document.querySelector<HTMLButtonElement>('.ask-sheet__log--reframe')
+    expect(editButton?.hidden).toBe(false)
+    expect(continueButton?.hidden).toBe(false)
+    expect(continueButton?.textContent).toContain('Continue session')
+    expect(forgetButton?.hidden).toBe(false)
+    expect(logButton?.hidden).toBe(false)
+    expect(logButton?.disabled).toBe(false)
+
+    logButton?.click()
+    expect(captures.entries[0]).toMatchObject({
+      text: 'Today we had a birthday celebration.',
+      syncStatus: 'local',
+    })
+
+    sheet.dispose()
+  })
+
+  it('continues a stopped Realtime session from the failed reading actions', async () => {
+    class MockRTCPeerConnection {}
+    // @ts-expect-error happy-dom does not provide RTCPeerConnection.
+    globalThis.RTCPeerConnection = MockRTCPeerConnection
+
+    const stop = vi.fn(async () => {
+      throw new Error('Realtime Mirror timed out.')
+    })
+    const abort = vi.fn()
+    const createRealtimeMirrorCapture = vi.fn(async (input: Record<string, unknown>) => {
+      const onConversationUpdate = input.onConversationUpdate as
+        | ((message: Record<string, unknown>) => void)
+        | undefined
+      onConversationUpdate?.({
+        id: `student-${createRealtimeMirrorCapture.mock.calls.length}`,
+        role: 'student',
+        text: 'Can you hear me?',
+        status: 'final',
+      })
+      return { stop, abort }
+    })
+    state.instance = {
+      captures: makeCaptures(),
+      backend: { createRealtimeMirrorCapture, prepareReflection: vi.fn() },
+    }
+    OverlayController.instance = new OverlayController()
+
+    const sheet = new AskSheet() as { open: () => void; dispose: () => void }
+    sheet.open()
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__mic')?.click()
+    await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
+    document.querySelector<HTMLButtonElement>('.ask-sheet__stop')?.click()
+    await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(document.querySelector('.ask-sheet__inner')).toHaveAttribute('data-stage', 'reframe'),
+    )
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__talk-more')?.click()
+
+    await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(2))
+    expect(createRealtimeMirrorCapture.mock.calls[1]?.[0]).toMatchObject({
+      initialTranscript: 'Can you hear me?',
+      contextType: 'school',
+    })
+    expect(document.querySelector('.ask-sheet__inner')).toHaveAttribute('data-stage', 'recording')
+
+    sheet.dispose()
+  })
+
   it('records audio, prepares a Mirror result, then logs only after the student chooses Log', async () => {
     const prepareReflection = vi.fn(async (input: Record<string, unknown>) => ({
       localCaptureId: input.localCaptureId,
@@ -275,6 +503,52 @@ describe('Student Space AskSheet audio capture', () => {
     )
     const preparedInput = prepareReflection.mock.calls[0]?.[0]
     expect(preparedInput).not.toHaveProperty('audioBase64')
+    expect(captures.entries).toHaveLength(0)
+
+    sheet.dispose()
+  })
+
+  it('offers multimodal composer actions and prepares a feeling-only reflection', async () => {
+    const prepareReflection = vi.fn(async (input: Record<string, unknown>) => ({
+      localCaptureId: input.localCaptureId,
+      transcript: input.transcript,
+      mood: input.mood,
+      validation: 'That feeling can be here.',
+      inferredMeaning: 'The student started with a feeling.',
+      storyReframe: 'Kira held the chosen feeling.',
+      contextType: 'school',
+    }))
+    const captures = makeCaptures()
+    state.instance = {
+      captures,
+      backend: { prepareReflection, logPreparedReflection: vi.fn() },
+    }
+    OverlayController.instance = new OverlayController()
+
+    const sheet = new AskSheet() as { open: () => void; dispose: () => void }
+    sheet.open()
+
+    expect(document.querySelector('[data-testid="kira-multimodal-composer"]')).not.toBeNull()
+    expect(document.querySelector<HTMLButtonElement>('.ask-sheet__save')?.disabled).toBe(true)
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__emoji-toggle')?.click()
+    document
+      .querySelector<HTMLButtonElement>('.ask-sheet__emoji-option[data-emotion="joy"]')
+      ?.click()
+
+    const saveButton = document.querySelector<HTMLButtonElement>('.ask-sheet__save')
+    expect(saveButton?.disabled).toBe(false)
+    saveButton?.click()
+
+    await waitFor(() => expect(prepareReflection).toHaveBeenCalledTimes(1))
+    expect(prepareReflection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        localCaptureId: expect.stringMatching(/^ask-/),
+        transcript: 'I feel joy.',
+        mood: 'joy',
+        contextType: 'school',
+      }),
+    )
     expect(captures.entries).toHaveLength(0)
 
     sheet.dispose()
