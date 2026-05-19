@@ -3631,6 +3631,147 @@ body.has-chooser        .top-nav
     transition: opacity 110ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* Path Finder status-preview HUD — floating admin control mounted at body
+   level by StatusPreviewHud.js. Visual posture matches .hour-hud / .zoom-hud
+   on the island: dark glass panel, fixed positioning, cream text.
+   Plan: docs/plans/2026-05-19-003-feat-path-finder-cce-status-plan.md */
+.status-preview-hud
+{
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    /* Above sheet overlays (which sit at z-index 30) so a teacher can flip
+       quadrants while the Path Finder is open and watch it re-skin live. */
+    z-index: 40;
+    color: #f4f1ea;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    user-select: none;
+    pointer-events: auto;
+}
+.status-preview-hud__toggle
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(20, 24, 32, 0.62);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease;
+}
+.status-preview-hud__toggle:hover
+{
+    background: rgba(20, 24, 32, 0.78);
+    border-color: rgba(255, 255, 255, 0.26);
+}
+.status-preview-hud[data-active="override"] .status-preview-hud__toggle
+{
+    border-color: rgba(255, 200, 130, 0.55);
+    background: rgba(56, 38, 18, 0.70);
+}
+.status-preview-hud__eyebrow
+{
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    font-size: 9.5px;
+    color: rgba(244, 241, 234, 0.62);
+}
+.status-preview-hud__current
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+}
+.status-preview-hud__caret
+{
+    font-size: 11px;
+    color: rgba(244, 241, 234, 0.62);
+    transition: transform 160ms ease;
+}
+.status-preview-hud.is-open .status-preview-hud__caret
+{
+    transform: rotate(180deg);
+}
+.status-preview-hud__menu
+{
+    margin: 6px 0 0;
+    padding: 4px;
+    list-style: none;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(14, 17, 24, 0.86);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.32);
+}
+.status-preview-hud__item
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 140ms ease;
+}
+.status-preview-hud__item:hover
+{
+    background: rgba(255, 255, 255, 0.08);
+}
+.status-preview-hud__item.is-on
+{
+    background: rgba(255, 255, 255, 0.12);
+}
+.status-preview-hud__item .status-preview-hud__label
+{
+    flex: 1 1 auto;
+    font-size: 12px;
+    font-weight: 500;
+}
+.status-preview-hud__item.is-on .status-preview-hud__label
+{
+    font-weight: 700;
+}
+.status-preview-hud__check
+{
+    font-size: 11px;
+    color: rgba(244, 241, 234, 0.78);
+}
+.status-preview-hud__dot
+{
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(244, 241, 234, 0.55);
+    flex-shrink: 0;
+}
+.status-preview-hud__dot[data-status-dot="auto"]      { background: rgba(244, 241, 234, 0.40); }
+.status-preview-hud__dot[data-status-dot="starter"]   { background: #d8b673; }
+.status-preview-hud__dot[data-status-dot="diffused"]  { background: #d39a72; }
+.status-preview-hud__dot[data-status-dot="searching"] { background: #6ea3da; }
+.status-preview-hud__dot[data-status-dot="foreclosed"]{ background: #db8e62; }
+.status-preview-hud__dot[data-status-dot="achieved"]  { background: #6cb389; }
+
+/* Tighten on narrow screens — collapse the eyebrow so the pill stays small. */
+@media (max-width: 540px)
+{
+    .status-preview-hud__eyebrow { display: none; }
+    .status-preview-hud { top: 12px; left: 12px; }
+}
+
 .profile-sheet__header
 {
     margin-bottom: 28px;
@@ -4825,11 +4966,431 @@ body.has-chooser        .top-nav
     transform: translateY(-1px);
 }
 
+/* ── CCE redesign (2026-05-19) ────────────────────────────────────────
+   The Path Finder now branches by Marcia identity status. The following
+   selectors render the per-status surfaces — status pill, starter card,
+   Diffused-quadrant nudges, Foreclosed framing, Achieved action cards.
+   Searching uses the existing .trajectory-sheet__panel / .trajectory-tab
+   styles above unchanged. */
+
+.trajectory-sheet__lead
+{
+    margin: 0 0 16px;
+    font-size: 15.5px;
+    line-height: 1.55;
+    color: rgba(43, 38, 32, 0.78);
+    max-width: 62ch;
+}
+
+.trajectory-sheet__status-row
+{
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 14px;
+}
+.trajectory-sheet__status-pill
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(43, 38, 32, 0.14);
+    background: rgba(255, 255, 255, 0.72);
+    color: rgba(43, 38, 32, 0.78);
+    font: 600 11px/1 inherit;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    user-select: none;
+}
+.trajectory-sheet__status-pill:focus-visible
+{
+    outline: 2px solid rgba(47, 102, 183, 0.55);
+    outline-offset: 2px;
+}
+.trajectory-sheet__status-dot
+{
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(43, 38, 32, 0.45);
+}
+/* Per-status accent on the pill dot. The data-status attribute is set on
+   .trajectory-sheet's root by _renderForStatus. */
+.trajectory-sheet[data-status="starter"]    .trajectory-sheet__status-dot { background: #c2a572; }
+.trajectory-sheet[data-status="diffused"]   .trajectory-sheet__status-dot { background: #b88660; }
+.trajectory-sheet[data-status="searching"]  .trajectory-sheet__status-dot { background: #4f8acb; }
+.trajectory-sheet[data-status="foreclosed"] .trajectory-sheet__status-dot { background: #c97a4e; }
+.trajectory-sheet[data-status="achieved"]   .trajectory-sheet__status-dot { background: #4f9b6a; }
+.trajectory-sheet__status-reason
+{
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: rgba(43, 38, 32, 0.65);
+    max-width: 52ch;
+}
+
+.trajectory-sheet__head-actions
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+.trajectory-sheet__escape
+{
+    border: 1px solid rgba(43, 38, 32, 0.18);
+    background: transparent;
+    color: rgba(43, 38, 32, 0.72);
+    font: 600 12px/1 inherit;
+    padding: 9px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.trajectory-sheet__escape:hover
+{
+    background: rgba(43, 38, 32, 0.05);
+    color: rgba(43, 38, 32, 0.92);
+}
+
+.trajectory-sheet__body
+{
+    max-width: 760px;
+    margin: 0 auto;
+}
+
+/* ── Starter ─────────────────────────────────────────────────────────── */
+.trajectory-sheet__starter
+{
+    margin: 24px auto 0;
+    max-width: 560px;
+}
+.trajectory-starter__card
+{
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(160, 118, 89, 0.22);
+    border-radius: 18px;
+    padding: 24px 22px;
+    box-shadow: 0 10px 28px rgba(43, 38, 32, 0.06);
+}
+.trajectory-starter__title
+{
+    margin: 0 0 8px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+.trajectory-starter__prompt
+{
+    margin: 0 0 18px;
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: rgba(43, 38, 32, 0.78);
+}
+.trajectory-starter__cta
+{
+    appearance: none;
+    border: none;
+    background: #2b2620;
+    color: #faf6ee;
+    border-radius: 999px;
+    padding: 11px 18px;
+    font: 600 13px/1 inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.trajectory-starter__cta:hover { background: #423a30; }
+
+/* ── Diffused ────────────────────────────────────────────────────────── */
+.trajectory-sheet__nudges
+{
+    margin: 16px auto 0;
+}
+.trajectory-nudges__label
+{
+    margin: 0 0 10px;
+    font: 600 11px/1 inherit;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+}
+.trajectory-nudges__list
+{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 12px;
+}
+.trajectory-nudge
+{
+    width: 100%;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(160, 118, 89, 0.22);
+    border-radius: 16px;
+    padding: 16px 18px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: background 160ms ease, transform 120ms ease;
+}
+.trajectory-nudge:hover
+{
+    background: rgba(255, 255, 255, 0.92);
+    transform: translateY(-1px);
+}
+.trajectory-nudge__title
+{
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(43, 38, 32, 0.92);
+}
+.trajectory-nudge__prompt
+{
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: rgba(43, 38, 32, 0.72);
+}
+.trajectory-nudge__cta
+{
+    margin-top: 4px;
+    font: 600 12px/1 inherit;
+    color: #5b3519;
+}
+
+/* ── Searching helpers (re-render path) ──────────────────────────────── */
+.trajectory-sheet__bearings .trajectory-sheet__throughline
+{
+    margin: 0 0 18px;
+}
+
+/* ── Empty (bearings status without a capture yet) ───────────────────── */
+.trajectory-sheet__empty
+{
+    margin: 24px auto 0;
+    max-width: 560px;
+    text-align: center;
+}
+.trajectory-empty__lead
+{
+    margin: 0 0 6px;
+    font-size: 15px;
+    color: rgba(43, 38, 32, 0.78);
+}
+.trajectory-empty__sub
+{
+    margin: 0;
+    font-size: 13px;
+    color: rgba(43, 38, 32, 0.55);
+}
+
+/* ── Foreclosed ──────────────────────────────────────────────────────── */
+.trajectory-sheet__foreclosed-frame
+{
+    margin: 16px auto 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.trajectory-foreclosed__label
+{
+    margin: 0 0 8px;
+    font: 600 11px/1 inherit;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+}
+.trajectory-foreclosed__direction
+{
+    background: rgba(201, 122, 78, 0.10);
+    border: 1px solid rgba(201, 122, 78, 0.28);
+    border-radius: 14px;
+    padding: 14px 16px;
+}
+.trajectory-foreclosed__direction-text
+{
+    margin: 0;
+    font-size: 15.5px;
+    line-height: 1.5;
+    font-weight: 600;
+    color: rgba(43, 38, 32, 0.92);
+}
+.trajectory-foreclosed__widen .trajectory-foreclosed__list
+{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+}
+.trajectory-foreclosed__item
+{
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(160, 118, 89, 0.22);
+    border-radius: 14px;
+    padding: 14px 16px;
+}
+.trajectory-foreclosed__title
+{
+    margin: 0 0 6px;
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(43, 38, 32, 0.92);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.trajectory-foreclosed__index
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(43, 38, 32, 0.10);
+    color: rgba(43, 38, 32, 0.75);
+    font-size: 11px;
+    font-weight: 700;
+}
+.trajectory-foreclosed__prompt
+{
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: rgba(43, 38, 32, 0.78);
+}
+.trajectory-foreclosed__challenge
+{
+    background: rgba(255, 255, 255, 0.50);
+    border-top: 1px solid rgba(43, 38, 32, 0.12);
+    padding-top: 16px;
+}
+.trajectory-foreclosed__challenge-q
+{
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: rgba(43, 38, 32, 0.92);
+}
+.trajectory-foreclosed__cta
+{
+    appearance: none;
+    border: 1px solid rgba(201, 122, 78, 0.55);
+    background: rgba(201, 122, 78, 0.10);
+    color: #5b3519;
+    border-radius: 999px;
+    padding: 9px 14px;
+    font: 600 13px/1 inherit;
+    cursor: pointer;
+}
+.trajectory-foreclosed__cta:hover
+{
+    background: rgba(201, 122, 78, 0.20);
+}
+
+/* ── Achieved ────────────────────────────────────────────────────────── */
+.trajectory-sheet__achieved .trajectory-achieved__list
+{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 14px;
+}
+.trajectory-achieved__item
+{
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(79, 155, 106, 0.30);
+    border-radius: 16px;
+    padding: 16px 18px;
+}
+.trajectory-achieved__head
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.trajectory-achieved__index
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    background: rgba(79, 155, 106, 0.18);
+    color: #1f6a3d;
+    font-size: 12px;
+    font-weight: 700;
+}
+.trajectory-achieved__title
+{
+    margin: 0;
+    font-size: 16.5px;
+    font-weight: 700;
+    color: rgba(43, 38, 32, 0.92);
+}
+.trajectory-achieved__prompt
+{
+    margin: 0 0 14px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: rgba(43, 38, 32, 0.78);
+}
+.trajectory-achieved__actions-label
+{
+    margin: 0 0 8px;
+    font: 600 11px/1 inherit;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+}
+.trajectory-achieved__actions
+{
+    margin: 0 0 14px;
+    padding: 0 0 0 18px;
+    display: grid;
+    gap: 6px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: rgba(43, 38, 32, 0.85);
+}
+.trajectory-achieved__actions li { padding-left: 2px; }
+.trajectory-achieved__cta
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 600 13px/1 inherit;
+    color: #2F66B7;
+    text-decoration: none;
+    padding: 8px 12px;
+    border: 1px solid rgba(47, 102, 183, 0.35);
+    border-radius: 999px;
+}
+.trajectory-achieved__cta:hover
+{
+    color: #1f4d8a;
+    border-color: rgba(31, 77, 138, 0.55);
+}
+
 @media (max-width: 779px)
 {
     .trajectory-sheet__title { font-size: 26px; }
     .trajectory-tab__label   { max-width: 16ch; }
     .trajectory-panel__title { font-size: 20px; }
+    .trajectory-sheet__status-reason { font-size: 12px; }
 }
 
 /* ============ object-peek (Step 1 of the peek-then-companion flow) ====

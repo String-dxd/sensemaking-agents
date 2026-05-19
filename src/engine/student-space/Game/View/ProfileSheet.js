@@ -282,6 +282,7 @@ export default class ProfileSheet
             this.close()
         }
         document.addEventListener('keydown', this._onKeyDown)
+
     }
 
     /**
@@ -613,6 +614,7 @@ export default class ProfileSheet
         }
     }
 
+
     _renderBreakdownRows()
     {
         const canonical = VIPS_BY_FACET[this.activeFacet] ?? []
@@ -803,6 +805,7 @@ export default class ProfileSheet
             this._openSource(source.dataset.captureId)
             return
         }
+
     }
 
     _switchTab(facet)

@@ -20,6 +20,7 @@ import Aurora from './Aurora.js'
 import Rainbow from './Rainbow.js'
 import Rain from './Rain.js'
 import HourHud from './HourHud.js'
+import StatusPreviewHud from './StatusPreviewHud.js'
 import ZoomHud from './ZoomHud.js'
 import Sound from './Sound.js'
 import CaptureFab from './CaptureFab.js'
@@ -100,6 +101,7 @@ export default class View
         this.rainbow     = new Rainbow()
         this.rain        = new Rain()
         this.hourHud     = new HourHud()
+        this.statusPreviewHud = new StatusPreviewHud()
         // Sound is constructed before ZoomHud so the mute button can read
         // the persisted preference and subscribe to mute-change events.
         this.sound       = new Sound()
@@ -253,6 +255,7 @@ export default class View
             this.zoomHud,
             this.fpsOverlay,
             this.hourHud,
+            this.statusPreviewHud,
             this.topNav,
             this.captureFab,
             this.profileSheet,
