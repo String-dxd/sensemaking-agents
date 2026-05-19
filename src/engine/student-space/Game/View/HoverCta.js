@@ -3,6 +3,7 @@ import State from '../State/State.js'
 import { FACET_HEADERS, FACET_THEMES } from './facets.js'
 import { VIPS_TAXONOMY } from '../Data/vipsTaxonomy.js'
 import ThumbnailRenderer from './ThumbnailRenderer.js'
+import { elementTitle, latestEvidenceLine, resolveElementEvidence, speciesIdOf } from './elementEvidence.js'
 
 /**
  * HoverCta — small floating chip the student sees when their pointer is
@@ -55,13 +56,6 @@ const CLAIM_ID_BY_SPECIES = (() =>
     }
     return map
 })()
-
-function speciesIdOf(target)
-{
-    const raw = target?.species
-    if(typeof raw === 'string') return raw
-    return raw?.id ?? raw?.species ?? ''
-}
 
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '' }
 
@@ -148,16 +142,19 @@ export default class HoverCta
         const facetId = KIND_TO_FACET[target.kind]
         const header  = facetId ? FACET_HEADERS[facetId] : null
         const sp = speciesIdOf(target)
+        const evidence = resolveElementEvidence(target, State.getInstance()?.profile)
 
         this._setHeader(
             header?.eyebrow ? cap(header.eyebrow.toLowerCase()) : '',
             header?.tag ?? '',
             facetId,
         )
-        this.titleEl.textContent = cap(sp) || 'Element'
-        this.lineEl.textContent  = SPECIES_LINE[sp] ?? ''
+        this.titleEl.textContent = elementTitle(evidence, cap(sp) || 'Element')
+        this.lineEl.textContent  = evidence.claimId
+            ? latestEvidenceLine(evidence, 72)
+            : (SPECIES_LINE[sp] ?? '')
 
-        const claimId = CLAIM_ID_BY_SPECIES[sp]
+        const claimId = evidence.claimId || CLAIM_ID_BY_SPECIES[sp]
         this._setThumb(claimId)
     }
 

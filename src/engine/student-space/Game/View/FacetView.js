@@ -3,6 +3,13 @@ import State from '../State/State.js'
 import { FACET_THEMES as VIPS_THEMES, FACET_HEADERS as VIPS_HEADERS } from './facets.js'
 import { VIPS_BY_FACET, claimLabel } from '../Data/vipsTaxonomy.js'
 import OverlayController from './OverlayController.js'
+import {
+    elementTitle,
+    evidenceCountText,
+    metaphorLine,
+    resolveElementEvidence,
+    speciesIdOf,
+} from './elementEvidence.js'
 
 /**
  * FacetView — bottom-rising half-sheet that opens when the student picks
@@ -78,16 +85,6 @@ function facetIdForTarget(target)
     return 'values'
 }
 
-// Some view layers (Tree.js) store species as a string id; others
-// (Flowers.js) store it as an object with an `id` field. Always reach the
-// string id through this helper so downstream lookups don't trip on shape.
-function speciesIdOf(target)
-{
-    const raw = target?.species
-    if(typeof raw === 'string') return raw
-    return raw?.id ?? raw?.species ?? ''
-}
-
 function elementTitleForTarget(target)
 {
     if(target.kind === 'kira') return 'Kira'
@@ -103,6 +100,15 @@ function elementBodyForTarget(target)
     if(target.kind === 'flower') return FLOWER_COPY[sp] ?? ''
     if(target.kind === 'fruit')  return FRUIT_COPY[sp]  ?? ''
     return ''
+}
+
+function elementBodyForEvidence(evidence, target)
+{
+    if(!evidence?.claimId) return elementBodyForTarget(target)
+    const line = metaphorLine(evidence)
+    if(evidence.hasEvidence)
+        return `${line} It is backed by ${evidenceCountText(evidence).toLowerCase()} in your profile timeline.`
+    return `${line} No saved noticings have landed here yet.`
 }
 
 // 8-compass bucket from world XZ.
@@ -245,6 +251,7 @@ export default class FacetView
         this.isOpen = false
         this.isFull = false
         this.activeFacetId = null
+        this.activeClaimId = null
 
         this.closeBtn.addEventListener('click', () => this.close())
         this.scrim.addEventListener('click',    () => this.close())
@@ -297,7 +304,8 @@ export default class FacetView
      */
     openFor(target)
     {
-        const facetId = facetIdForTarget(target)
+        const evidence = resolveElementEvidence(target, this.state.profile)
+        const facetId = evidence.facetId || facetIdForTarget(target)
         const theme   = FACET_THEMES[facetId]   ?? FACET_THEMES.values
         const header  = FACET_HEADERS[facetId]  ?? FACET_HEADERS.values
 
@@ -311,10 +319,11 @@ export default class FacetView
         this.subtitleEl.textContent = header.subtitle
 
         this._renderRows(facetId)
-        this._renderDetail(target, facetId)
-        this._renderCta(facetId, header)
+        this._renderDetail(target, facetId, evidence)
+        this._renderCta(facetId, header, evidence)
 
         this.activeFacetId = facetId
+        this.activeClaimId = evidence.claimId
 
         this.root.setAttribute('aria-hidden', 'false')
         this.root.classList.add('is-open')
@@ -376,10 +385,10 @@ export default class FacetView
         this.rowEmerge.textContent = ranked.quietlyEmerging.label
     }
 
-    _renderDetail(target, facetId)
+    _renderDetail(target, facetId, evidence = null)
     {
-        this.detailTitle.textContent = elementTitleForTarget(target)
-        this.detailBody.textContent  = elementBodyForTarget(target)
+        this.detailTitle.textContent = elementTitle(evidence, elementTitleForTarget(target))
+        this.detailBody.textContent  = elementBodyForEvidence(evidence, target)
 
         if(facetId === 'mood')
         {
@@ -401,6 +410,13 @@ export default class FacetView
         const place = compassBucket(target.x ?? 0, target.z ?? 0)
         const sp = speciesIdOf(target)
         const rows = []
+        if(evidence?.claimId)
+        {
+            rows.push(this._bentoRow('Claim', evidence.claimLabel))
+            rows.push(this._bentoRow('Evidence', evidenceCountText(evidence)))
+            if(evidence.latestQuoteText)
+                rows.push(this._bentoRow('Latest noticing', `“${truncate(evidence.latestQuoteText, 96)}”`))
+        }
         rows.push(this._bentoRow('Where it lives', place))
 
         const sameSpecies = (e) => speciesIdOf(e) === sp
@@ -428,8 +444,8 @@ export default class FacetView
     {
         return `
             <div class="bento bento--row">
-                <span class="bento__label">${label}</span>
-                <span class="bento__value">${value}</span>
+                <span class="bento__label">${escapeHtml(label)}</span>
+                <span class="bento__value">${escapeHtml(value)}</span>
             </div>
         `
     }
@@ -440,7 +456,7 @@ export default class FacetView
      * into the Interests tab of the ProfileSheet. Hidden for mood (Kira)
      * since the mood thread doesn't have a corresponding VIPS tab.
      */
-    _renderCta(facetId, header)
+    _renderCta(facetId, header, evidence = null)
     {
         if(!facetId || facetId === 'mood')
         {
@@ -449,7 +465,9 @@ export default class FacetView
         }
         const tag = (header?.tag || facetId).toLowerCase()
         this.ctaBtn.hidden = false
-        this.ctaBtn.textContent = `See all your ${tag} →`
+        this.ctaBtn.textContent = evidence?.claimLabel
+            ? `Open ${evidence.claimLabel} timeline →`
+            : `See all your ${tag} →`
         this.ctaBtn.dataset.facet = facetId
     }
 
@@ -460,7 +478,10 @@ export default class FacetView
         const controller = OverlayController.getInstance()
         // Close the half-sheet first so we don't leave two surfaces stacked.
         this.close()
-        controller.open('profile', { tab: facetId })
+        controller.open('profile', {
+            tab: facetId,
+            ...(this.activeClaimId ? { claimId: this.activeClaimId } : {}),
+        })
     }
 
     _pinColor(emotion)
@@ -489,4 +510,16 @@ function pluralize(word, n)
     if(/[^aeiou]y$/i.test(word)) return word.replace(/y$/i, 'ies')
     if(/(s|x|z|ch|sh)$/i.test(word)) return `${word}es`
     return `${word}s`
+}
+
+function truncate(text, maxLength)
+{
+    const clean = String(text || '').replace(/\s+/g, ' ').trim()
+    if(clean.length <= maxLength) return clean
+    return `${clean.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`
+}
+
+function escapeHtml(s)
+{
+    return String(s || '').replace(/[<>&"']/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' })[ch])
 }

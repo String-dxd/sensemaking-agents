@@ -41,11 +41,19 @@ const MIRROR_USER_PROMPT_PREFIX =
 export async function runMirrorHandler(data: RunMirrorInput, deps: RunMirrorHandlerDeps = {}) {
   const parsed = runMirrorInputSchema.parse(data)
   const { studentId } = await requireCounselorContext()
+  return runMirrorForStudent(studentId, parsed.transcript, deps)
+}
+
+export async function runMirrorForStudent(
+  studentId: string,
+  transcript: string,
+  deps: RunMirrorHandlerDeps = {},
+) {
   return withStudentLegacy(studentId, async (sid) => {
     try {
-      const out = await runMirrorOnTranscript(sid, parsed.transcript, deps)
+      const out = await runMirrorOnTranscript(sid, transcript, deps)
       const output = MirrorOutputSchema.parse(out)
-      const evalReview = await runMirrorEvalReview(output, parsed.transcript, deps.selfCritique)
+      const evalReview = await runMirrorEvalReview(output, transcript, deps.selfCritique)
       return { output, eval_review: evalReview }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)

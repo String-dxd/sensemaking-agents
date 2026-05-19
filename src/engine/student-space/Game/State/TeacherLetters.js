@@ -54,6 +54,14 @@ export default class TeacherLetters
         this._notify({ kind: 'hydrate' })
     }
 
+    hydrateBackend(snapshot)
+    {
+        if(!Array.isArray(snapshot)) return
+        this.letters = mergeArray(snapshot, mergeTeacherLetter, 'letter.backend')
+            .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
+        this._notify({ kind: 'backend-hydrate' })
+    }
+
     serialize() { return this.letters }
 
     _persist() { Persistence.getInstance()?.save('letters', this.serialize()) }

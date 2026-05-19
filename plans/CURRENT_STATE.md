@@ -1,6 +1,6 @@
 # Current State
 
-**Last updated:** 2026-05-13
+**Last updated:** 2026-05-18
 
 ## Repository Status
 
@@ -8,6 +8,7 @@
 - The active product line has moved past the historical v0.1 / quiet-mirror / staged-review plans.
 - The current app uses Anthropic Managed Agents for Mirror, Connector, Cartographer, and the self-critique eval/safety reviewer; OpenAI remains for transcription.
 - Persistence is Postgres/Drizzle with WorkOS-backed counselor/student tenancy and a local demo bypass path.
+- The Student Space engine is now the home shell at `/`; durable sense-making data flows through an explicit backend bridge rather than through the engine `StorageAdapter`.
 
 ## Recent PR Status
 
@@ -17,6 +18,9 @@
 - PR #4 `feat(managed-agents): cutover to Anthropic Managed Agents + Postgres + WorkOS` — merged.
 - PR #5 `chore(agents): cleanup — remove @openai/agents runtime + flag` — merged.
 - PR #6 `feat(world-studio): ship voice-first home surface` — merged.
+- PR #7 `feat(library): surface mirror sections and eval metadata` — merged.
+- PR #8 `feat(world): port Student Space visual assets` — merged.
+- PR #10 `feat: Student Space shell + pipeline review fixes` — merged.
 
 ## Plan Status
 
@@ -29,16 +33,25 @@
 - `plans/2026-05-12-003-chore-managed-agents-cleanup-plan.md` — completed by PR #5.
 - `plans/sensemaking-agents.md` — superseded historical product plan.
 - `plans/_archive/voice-wiki.md` — archived historical plan.
+- `docs/plans/2026-05-18-001-feat-port-student-space-shell-plan.md` — completed; backend wiring deferral superseded by the bridge plan below.
+- `docs/plans/2026-05-18-002-feat-student-space-backend-bridge-plan.md` — completed in the current branch.
+- `docs/plans/2026-05-18-003-feat-student-space-demo-data-audio-plan.md` — completed in the current branch; extended by the Mirror-result decision plan below.
+- `docs/plans/2026-05-18-004-feat-mirror-result-log-forget-plan.md` — completed in the current branch.
+- `docs/plans/2026-05-18-005-feat-student-space-island-evidence-wiring-plan.md` — completed in the current branch.
 
 ## Current Product Shape
 
-- `/reflect` is the current recording surface: audio-only capture, transcribe, Mirror reflection, and raw-thought persistence.
-- Mirror infers context from the transcript and saves every recorded thought into Library without waiting on Connector.
-- Connector runs from the manual Library `Run Connector` action or the scheduled evening pass, verifies proposed VIPS links, and auto-applies verifier-passing links into VIPS pages and timelines.
-- Users review raw recorded thoughts only: `/library` defaults to all recorded thoughts, and `/library?filter=need-review` shows thoughts that still need confirm/forget.
-- `/reflect/review` is a compatibility redirect to `/library?filter=need-review`.
-- `/library` shows VIPS pages first, then the manual `Run Connector` and `Run sense-making` actions, then recorded thoughts.
-- Mirror entry detail pages show verified VIPS timeline links connected to the source reflection; entries without a Connector pass show a calm empty state.
-- Cartographer runs manually from Library and writes `/library/trajectory`.
+- `/` is the current student-facing surface: `StudentSpaceHost` mounts the Student Space engine and hydrates backend-backed profile, reflection, mood, trajectory, calendar, letter, and identity snapshots.
+- Student Space Ask captures prepare a Mirror draft before the durable write. Typed captures run Mirror against the transcript directly; voice captures record audio with `MediaRecorder`, post `audioBase64`/`mimeType` for OpenAI transcription, then run Mirror. The Kira reading screen shows the real Mirror result and offers `Log` or `Forget`: `Log` persists the draft as a pending raw reflection, while `Forget` discards it without adding corpus evidence.
+- Live island elements resolve to the hydrated backend profile at interaction time: flowers map to Interest claims, fruits to Skill claims, and supported trees to Value claims. Hover chips, Kira/object narration, half-sheet detail, and profile handoff use the same claim/evidence resolver, and empty claims are shown as no noticings yet rather than fabricated evidence.
+- Engine profile/calendar/letter seed files are offline/no-bridge fallbacks only. In bridged mode, visible identity, calendar events, and teacher letters come from the server-side demo/session snapshot.
+- The engine `StorageAdapter` remains local UI/cache persistence. Durable Mirror/VIPS/Cartographer operations use named bridge methods and server functions.
+- Connector runs from the shell calendar `Run Connector` action, the existing React review surface, or the scheduled evening pass; it processes confirmed reflections only, reports real batch counts in the shell, and auto-applies verifier-passing links into VIPS pages and timelines.
+- Users review raw recorded thoughts only: shell calendar day detail and legacy `/library?filter=need-review` expose confirm/forget for pending reflections.
+- `/reflect` and `/reflect/review` are compatibility redirects into the Student Space shell or library review flow.
+- `/library` redirects to `/?sheet=reflections`; `StudentSpaceHost` opens matching shell surfaces for `?sheet=reflections`, `?sheet=trajectory`, and VIPS dimension sheets.
+- Mirror entry detail pages remain available and show verified VIPS timeline links connected to the source reflection.
+- Cartographer can run from the shell trajectory sheet or the legacy trajectory surface and writes `/library/trajectory` data. In bridged mode, the trajectory sheet shows Cartographer output or an honest run/empty state rather than minting a local heuristic trajectory.
 - The profile dropdown owns sign-in, demo account, and sign-out actions.
-- The agent debug drawer is developer-only (`import.meta.env.DEV`) and shows current-tab Mirror, Connector, and Cartographer run state.
+- The Cmd-K developer palette is developer-only (`import.meta.env.DEV`) and links UI mode, `/dev/pipeline`, legacy routes, and sign-out.
+- `/dev/pipeline` is the backend table view for inspecting mirror entries, proposed diff/audit rows, VIPS timeline entries, and Cartographer output.

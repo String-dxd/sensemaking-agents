@@ -57,6 +57,9 @@ const isISO    = (v) => isString(v) && !isNaN(Date.parse(v))
  * @property {'low'|'medium'|'high'} confidence
  * @property {string|null} sourceCaptureId   may match a row in Captures or MoodPins
  * @property {string} createdAt   ISO
+ * @property {number|null} [backendTimelineEntryId] durable VIPS timeline row id
+ * @property {number|null} [backendReflectionId] durable Mirror row id
+ * @property {'confirmed'|'pending'|'forgotten'} [evidenceState]
  */
 const defaultQuote = () => ({
     id:               '',
@@ -65,9 +68,17 @@ const defaultQuote = () => ({
     confidence:       'medium',
     sourceCaptureId:  null,
     createdAt:        new Date(0).toISOString(),
+    backendTimelineEntryId: null,
+    backendReflectionId:    null,
+    evidenceState:          'confirmed',
 })
 
-const KNOWN_QUOTE_KEYS = new Set(['id', 'text', 'canonicalClaimId', 'confidence', 'sourceCaptureId', 'createdAt'])
+const EVIDENCE_STATES = new Set(['confirmed', 'pending', 'forgotten'])
+
+const KNOWN_QUOTE_KEYS = new Set([
+    'id', 'text', 'canonicalClaimId', 'confidence', 'sourceCaptureId', 'createdAt',
+    'backendTimelineEntryId', 'backendReflectionId', 'evidenceState',
+])
 
 export function mergeQuote(raw, ctx = 'quote')
 {
@@ -92,6 +103,11 @@ export function mergeQuote(raw, ctx = 'quote')
         if(k === 'text'       && !isString(v))           { warn(`${ctx}.text not string`);   continue }
         if(k === 'id'         && !isString(v))           { warn(`${ctx}.id not string`);     continue }
         if(k === 'createdAt'  && !isISO(v))              { warn(`${ctx}.createdAt invalid`); continue }
+        if((k === 'backendTimelineEntryId' || k === 'backendReflectionId') && v !== null && !Number.isInteger(v))
+        {
+            warn(`${ctx}.${k} not integer`); continue
+        }
+        if(k === 'evidenceState' && !EVIDENCE_STATES.has(v)) { warn(`${ctx}.evidenceState invalid`); continue }
         if(k === 'sourceCaptureId' && v !== null && !isString(v))
         {
             warn(`${ctx}.sourceCaptureId not string`); continue
@@ -157,7 +173,7 @@ const defaultMoodPin = () => ({
     note:      null,
 })
 
-const KNOWN_PIN_KEYS = new Set(['id', 'createdAt', 'entryDate', 'emotion', 'intensity', 'cause', 'note'])
+const KNOWN_PIN_KEYS = new Set(['id', 'createdAt', 'entryDate', 'emotion', 'intensity', 'cause', 'note', 'backendMirrorEntryId'])
 
 export function mergeMoodPin(raw, ctx = 'pin')
 {
@@ -170,6 +186,7 @@ export function mergeMoodPin(raw, ctx = 'pin')
         if(k === 'emotion'   && !MOOD_EMOTION.has(v))   { warn(`${ctx}.emotion invalid`);   continue }
         if(k === 'intensity' && !MOOD_INTENSITY.has(v)) { warn(`${ctx}.intensity invalid`); continue }
         if(k === 'cause'     && v !== null && !MOOD_CAUSE.has(v)) { warn(`${ctx}.cause invalid`); continue }
+        if(k === 'backendMirrorEntryId' && v !== null && !Number.isInteger(v)) { warn(`${ctx}.backendMirrorEntryId not integer`); continue }
         out[k] = v
     }
     if(!out.id) return null   // refuse to hydrate an id-less pin; forget action would fail
@@ -187,13 +204,20 @@ const defaultCapture = () => ({
 const KNOWN_CAPTURE_KEYS = new Set([
     'id', 'createdAt', 'entryDate', 'kind', 'text', 'prompt',
     'dataUrl', 'caption',
+    // Backend bridge metadata. These fields identify durable rows while
+    // keeping local `ss:v1:*` persistence separate from server truth.
+    'backendMirrorEntryId', 'backendCartographerOutputId',
+    'reviewStatus', 'syncStatus', 'syncError', 'contextType',
     // Forward-additive reframe + dive-deeper chat (Open chat v1.2):
     'reframe', 'thread',
     // Path Finder — trajectory captures carry { throughLine, bearings }.
     'trajectory',
 ])
 
-const TRAJECTORY_BEARING_KEYS = new Set(['id', 'title', 'prompt', 'traitTags', 'ecgTags', 'risk'])
+const REVIEW_STATES = new Set(['pending', 'confirmed', 'forgotten'])
+const SYNC_STATES   = new Set(['local', 'syncing', 'synced', 'failed'])
+
+const TRAJECTORY_BEARING_KEYS = new Set(['id', 'title', 'prompt', 'traitTags', 'ecgTags', 'risk', 'msfUrl'])
 
 function mergeTrajectoryBearing(raw, ctx)
 {
@@ -209,6 +233,7 @@ function mergeTrajectoryBearing(raw, ctx)
             out[k] = v.filter((x) => typeof x === 'string')
             continue
         }
+        if(k === 'msfUrl' && v !== null && typeof v !== 'string') { warn(`${ctx}.msfUrl not string`); continue }
         if(typeof v !== 'string') { warn(`${ctx}.${k} not string`); continue }
         out[k] = v
     }
@@ -278,6 +303,14 @@ export function mergeCapture(raw, ctx = 'capture')
         if(!KNOWN_CAPTURE_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
         const v = raw[k]
         if(k === 'kind' && !CAPTURE_KIND.has(v)) { warn(`${ctx}.kind invalid`); continue }
+        if((k === 'backendMirrorEntryId' || k === 'backendCartographerOutputId') && v !== null && !Number.isInteger(v))
+        {
+            warn(`${ctx}.${k} not integer`); continue
+        }
+        if(k === 'reviewStatus' && !REVIEW_STATES.has(v)) { warn(`${ctx}.reviewStatus invalid`); continue }
+        if(k === 'syncStatus' && !SYNC_STATES.has(v)) { warn(`${ctx}.syncStatus invalid`); continue }
+        if(k === 'syncError' && typeof v !== 'string') { warn(`${ctx}.syncError not string`); continue }
+        if(k === 'contextType' && typeof v !== 'string') { warn(`${ctx}.contextType not string`); continue }
         if(k === 'reframe')
         {
             const rf = mergeReframe(v, ctx)
