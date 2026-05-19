@@ -10,6 +10,7 @@ import Onboarding from './State/Onboarding.js'
 import CalendarEvents from './State/CalendarEvents.js'
 import TeacherLetters from './State/TeacherLetters.js'
 import Sprouts from './State/Sprouts.js'
+import IslandSnapshotBridge from './State/IslandSnapshotBridge.js'
 import { HOST_BODY_CLASSES } from './index.js'
 
 /**
@@ -91,6 +92,11 @@ export default class Game
             document.addEventListener('visibilitychange', this._onVisibilityChange)
 
         this._running = true
+        // Boot snapshot — fire-and-forget. Throttled inside the bridge so
+        // rapid reloads don't spam the server. Server-side WorkOS gating
+        // means demo / dev-bypass sessions silently 403, which the bridge
+        // swallows.
+        try { this.state?.islandSnapshots?.captureNow?.('boot') } catch(_) {}
         // If the engine mounts while the tab is already backgrounded, skip
         // the first rAF — the visibilitychange listener will resume the loop
         // when the user comes back. Without this, hidden-tab mounts would
@@ -229,6 +235,8 @@ export default class Game
         CalendarEvents.instance = null
         TeacherLetters.instance = null
         Sprouts.instance = null
+        try { this.state?.islandSnapshots?.dispose?.() } catch(_) {}
+        IslandSnapshotBridge.instance = null
         Game.instance = null
     }
 }

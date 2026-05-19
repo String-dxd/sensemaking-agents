@@ -84,3 +84,11 @@ export const transcribeMirrorInputSchema = z.object({
   mimeType: z.string().min(1),
 })
 export type TranscribeMirrorInput = z.output<typeof transcribeMirrorInputSchema>
+
+// Island snapshot — wraps the engine's Sprouts.serialize() output as a JSON
+// string. The server never inspects the shape; it just persists it for U5's
+// hybrid reconstruction. We cap the byte size as a basic abuse guard.
+export const islandSnapshotInputSchema = z.object({
+  payload_json: z.string().min(1).max(1_000_000),
+})
+export type IslandSnapshotInput = z.output<typeof islandSnapshotInputSchema>
