@@ -8,13 +8,14 @@ import {
     canRecordStudentSpaceAudio,
     startStudentSpaceAudioCapture,
 } from '../../../../lib/student-space/audio-capture.ts'
+import { canCreateRealtimeMirrorCapture } from '../../../../lib/student-space/realtime-mirror-client.ts'
 
 /**
  * Open-ended capture. Three stages:
  *
  *   1. compose   — textarea + mic. Save commits the typed text.
- *   2. recording — full-screen live captions from SpeechRecognition. A big
- *                  Stop button freezes the transcript and advances to review.
+ *   2. recording — live voice session with Kira. Stop ends the session and
+ *                  asks Mirror to prepare the reading from the whole session.
  *   3. review    — static read of the final transcript. Log commits it as a
  *                  capture; Discard drops it and routes back to the chooser.
  *
@@ -37,6 +38,17 @@ const TYPER_STOP_MS  = 220
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const EMOTION_BY_ID = Object.fromEntries(EMOTIONS.map((e) => [e.id, e]))
+const EMOTION_EMOJI = {
+    joy: '🙂',
+    sadness: '😔',
+    anger: '😠',
+    fear: '😟',
+    disgust: '😖',
+    anxiety: '😬',
+    envy: '🫥',
+    embarrassment: '😳',
+    ennui: '😶',
+}
 
 const THEME_PILL = {
     school: { label: 'school', need: 'autonomy',  mood: 'anxiety' },
@@ -68,49 +80,72 @@ export default class AskSheet
         root.className = 'ask-sheet'
         root.setAttribute('aria-hidden', 'true')
         root.innerHTML = `
-            <button class="ask-sheet__close" type="button" aria-label="Back">×</button>
             <div class="ask-sheet__inner" data-stage="compose">
+                <button class="ask-sheet__close" type="button" aria-label="Back">×</button>
 
                 <!-- STAGE: compose -->
                 <section class="ask-sheet__stage" data-stage="compose">
-                    <p class="ask-sheet__eyebrow">Ask anything</p>
-                    <h2 class="ask-sheet__title">What's on your mind?</h2>
+                    <p class="ask-sheet__eyebrow">Talking to Kira</p>
+                    <h2 class="ask-sheet__title">What should I hold with you?</h2>
                     <p class="ask-sheet__prompt" hidden></p>
-                    <div class="ask-sheet__field">
+                    <div class="ask-sheet__field" data-testid="kira-multimodal-composer">
+                        <div class="ask-sheet__image-preview" hidden>
+                            <img class="ask-sheet__image" alt="" />
+                            <button class="ask-sheet__image-remove" type="button" aria-label="Remove image">×</button>
+                        </div>
                         <textarea
                             class="ask-sheet__input"
-                            rows="6"
-                            placeholder="Type or tap the mic to talk it out…"
+                            rows="3"
+                            placeholder="Write it here, or use voice, feeling, or image…"
                         ></textarea>
-                        <button class="ask-sheet__mic" type="button" aria-label="Start voice recording">
-                            <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-                                <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" fill="currentColor"/>
-                                <path d="M5 11a1 1 0 0 1 2 0 5 5 0 0 0 10 0 1 1 0 1 1 2 0 7 7 0 0 1-6 6.93V20a1 1 0 1 1-2 0v-2.07A7 7 0 0 1 5 11Z" fill="currentColor"/>
-                            </svg>
-                        </button>
+                        <div class="ask-sheet__tools" aria-label="Ways to talk to Kira">
+                            <button class="ask-sheet__tool ask-sheet__mic" type="button" aria-label="Start voice recording" title="Voice">
+                                <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
+                                    <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" fill="currentColor"/>
+                                    <path d="M5 11a1 1 0 0 1 2 0 5 5 0 0 0 10 0 1 1 0 1 1 2 0 7 7 0 0 1-6 6.93V20a1 1 0 1 1-2 0v-2.07A7 7 0 0 1 5 11Z" fill="currentColor"/>
+                                </svg>
+                            </button>
+                            <button class="ask-sheet__tool ask-sheet__emoji-toggle" type="button" aria-label="Pick a feeling" title="Feeling" aria-expanded="false" aria-pressed="false">
+                                <span aria-hidden="true">🙂</span>
+                            </button>
+                            <button class="ask-sheet__tool ask-sheet__image-trigger" type="button" aria-label="Upload image" title="Image">
+                                <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
+                                    <path d="M5 5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Zm0 11 4-4 3 3 2-2 5 5H5Z" fill="currentColor"/>
+                                    <circle cx="16.5" cy="8.5" r="1.5" fill="#fff"/>
+                                </svg>
+                            </button>
+                            <button class="ask-sheet__save" type="button" aria-label="Send to Kira" disabled>
+                                <span aria-hidden="true">→</span>
+                            </button>
+                            <input class="ask-sheet__image-input" type="file" accept="image/*" hidden />
+                        </div>
+                        <div class="ask-sheet__emoji-panel" hidden>
+                            ${EMOTIONS.map((e) => `
+                                <button class="ask-sheet__emoji-option" type="button" data-emotion="${e.id}" style="--emotion-color:${e.color}">
+                                    <span class="ask-sheet__emoji-symbol" aria-hidden="true">${EMOTION_EMOJI[e.id] || '•'}</span>
+                                    <span>${e.label}</span>
+                                </button>
+                            `).join('')}
+                        </div>
                     </div>
                     <p class="ask-sheet__hint" hidden></p>
-                    <div class="ask-sheet__row">
-                        <button class="ask-sheet__save" type="button" disabled>
-                            Save<span aria-hidden="true">→</span>
-                        </button>
-                    </div>
                 </section>
 
-                <!-- STAGE: recording — full-screen live captions -->
+                <!-- STAGE: recording — live voice session -->
                 <section class="ask-sheet__stage" data-stage="recording" hidden>
                     <p class="ask-sheet__eyebrow ask-sheet__eyebrow--live">
-                        <span class="ask-sheet__rec-dot" aria-hidden="true"></span> Listening
+                        <span class="ask-sheet__rec-dot" aria-hidden="true"></span> Live with Kira
                     </p>
-                    <div class="ask-sheet__captions" role="status" aria-live="polite">
-                        <p class="ask-sheet__captions-committed"></p>
-                        <p class="ask-sheet__captions-interim"></p>
+                    <h2 class="ask-sheet__title ask-sheet__title--live">Talk with Kira.</h2>
+                    <p class="ask-sheet__session-note">Keep going until it feels complete.</p>
+                    <div class="ask-live-chat" role="log" aria-live="polite">
+                        <p class="ask-live-chat__empty">Start talking. Kira will answer when you pause.</p>
                     </div>
                     <p class="ask-sheet__hint ask-sheet__hint--live" hidden></p>
                     <div class="ask-sheet__row ask-sheet__row--rec">
-                        <button class="ask-sheet__stop" type="button">
+                        <button class="ask-sheet__stop" type="button" aria-label="Stop live session">
                             <span class="ask-sheet__stop-icon" aria-hidden="true"></span>
-                            Stop &amp; review
+                            Stop session
                         </button>
                     </div>
                 </section>
@@ -188,11 +223,17 @@ export default class AskSheet
         this.input       = root.querySelector('.ask-sheet__input')
         this.micBtn      = root.querySelector('.ask-sheet__mic')
         this.saveBtn     = root.querySelector('.ask-sheet__save')
+        this.emojiToggleBtn = root.querySelector('.ask-sheet__emoji-toggle')
+        this.emojiPanelEl   = root.querySelector('.ask-sheet__emoji-panel')
+        this.imageTriggerBtn = root.querySelector('.ask-sheet__image-trigger')
+        this.imageInputEl    = root.querySelector('.ask-sheet__image-input')
+        this.imagePreviewEl  = root.querySelector('.ask-sheet__image-preview')
+        this.imageEl         = root.querySelector('.ask-sheet__image')
+        this.imageRemoveBtn  = root.querySelector('.ask-sheet__image-remove')
         this.promptEl    = root.querySelector('.ask-sheet__prompt')
         this.hintEl      = root.querySelector('.ask-sheet__hint')
         this.hintLiveEl  = root.querySelector('.ask-sheet__hint--live')
-        this.captionsCommittedEl = root.querySelector('.ask-sheet__captions-committed')
-        this.captionsInterimEl   = root.querySelector('.ask-sheet__captions-interim')
+        this.liveThreadEl = root.querySelector('.ask-live-chat')
         this.stopBtn     = root.querySelector('.ask-sheet__stop')
         this.discardBtn  = root.querySelector('.ask-sheet__discard')
         this.logBtn      = root.querySelector('.ask-sheet__stage[data-stage="review"] .ask-sheet__log')
@@ -219,19 +260,26 @@ export default class AskSheet
         this.stage       = 'compose'
         this.recCommitted = ''
         this.recInterim   = ''
+        this.liveDialogue = []
+        this.liveDialogueEls = new Map()
         this.audioCapture = null
+        this.realtimeCapture = null
         this.recordedAudioBlob = null
         this.recordedAudioMimeType = null
+        this.selectedMood = null
+        this.uploadedImageDataUrl = null
+        this.replayImageDataUrl = null
         this.pendingLocalCaptureId = null
         this.preparedReflection = null
         this.prepareInFlight = false
         this.logInFlight = false
         this.prepareId = 0
         this.reframe     = null   // {headline, highlightPhrase, themes, needs, moods, edited}
+        this.reframeActionMode = 'offline'
         this.thread      = null   // [{role, text}, …] — set by chat stage
         this.typerId     = 0
 
-        if(!canRecordStudentSpaceAudio())
+        if(!canRecordStudentSpaceAudio() && !canCreateRealtimeMirrorCapture())
         {
             this.micBtn.hidden = true
         }
@@ -247,6 +295,11 @@ export default class AskSheet
         this.input.addEventListener('input', () => this._refreshSave())
         this.saveBtn.addEventListener('click', () => this._saveTyped())
         this.micBtn.addEventListener('click', () => this._startRecording())
+        this.emojiToggleBtn.addEventListener('click', () => this._toggleEmojiPanel())
+        this.emojiPanelEl.addEventListener('click', (event) => this._selectEmotion(event))
+        this.imageTriggerBtn.addEventListener('click', () => this.imageInputEl.click())
+        this.imageInputEl.addEventListener('change', () => this._handleImageUpload())
+        this.imageRemoveBtn.addEventListener('click', () => this._clearImage())
         this.stopBtn.addEventListener('click', () => this._stopRecording())
         this.discardBtn.addEventListener('click', () => this._discardReview())
         this.logBtn.addEventListener('click', () => this._logReview())
@@ -303,12 +356,18 @@ export default class AskSheet
         }
         this.audioCapture?.abort?.()
         this.audioCapture = null
+        this.realtimeCapture?.abort?.()
+        this.realtimeCapture = null
         this.recordedAudioBlob = null
         this.recordedAudioMimeType = null
+        this.selectedMood = null
+        this.uploadedImageDataUrl = null
+        this.replayImageDataUrl = null
         this.pendingLocalCaptureId = null
         this.preparedReflection = null
         this.prepareInFlight = false
         this.logInFlight = false
+        this.reframeActionMode = 'offline'
         this.prepareId += 1
         this.listening = false
         // Bump the typer id so any pending setTimeout chain self-cancels
@@ -322,6 +381,7 @@ export default class AskSheet
     {
         this.prompt        = prompt || null
         this.readOnly      = !!readOnly
+        this.replayImageDataUrl = this.readOnly && capture?.dataUrl ? capture.dataUrl : null
         // dismissOnBack: when AskSheet is opened directly (e.g. from Kira's
         // "Talk to me" CTA, not from the capture chooser), the × should
         // dismiss instead of routing back to a chooser the student never
@@ -347,12 +407,20 @@ export default class AskSheet
 
         // Reset transient state — a fresh open starts clean.
         this.reframe = null
+        this.reframeActionMode = 'offline'
         this.thread = null
         this.recCommitted = ''
         this.recInterim = ''
+        this._resetLiveDialogue()
         this.audioCapture = null
+        this.realtimeCapture = null
         this.recordedAudioBlob = null
         this.recordedAudioMimeType = null
+        this.selectedMood = null
+        this.uploadedImageDataUrl = null
+        this.replayImageDataUrl = null
+        this.imageInputEl.value = ''
+        this._renderComposerMeta()
         if(this.reframeCtaRowEl) this.reframeCtaRowEl.hidden = false
         if(this.chatThreadEl) this.chatThreadEl.innerHTML = ''
         if(this.chatInputEl)  this.chatInputEl.value = ''
@@ -398,10 +466,15 @@ export default class AskSheet
         if(this.listening) this._abortRecording()
         this.recordedAudioBlob = null
         this.recordedAudioMimeType = null
+        this.selectedMood = null
+        this.uploadedImageDataUrl = null
+        this.imageInputEl.value = ''
+        this._renderComposerMeta()
         this.pendingLocalCaptureId = null
         this.preparedReflection = null
         this.prepareInFlight = false
         this.logInFlight = false
+        this.reframeActionMode = 'offline'
         this.prepareId += 1
         if(this.chatRecognition)
         {
@@ -420,6 +493,7 @@ export default class AskSheet
         this.thread = null
         if(this.chatThreadEl) this.chatThreadEl.innerHTML = ''
         if(this.chatInputEl)  this.chatInputEl.value = ''
+        this._resetLiveDialogue()
         this._setStage('compose')
         OverlayController.getInstance().noteClosed('ask')
     }
@@ -443,12 +517,12 @@ export default class AskSheet
 
     _refreshSave()
     {
-        this.saveBtn.disabled = this.input.value.trim().length === 0
+        this.saveBtn.disabled = !this._hasComposerInput()
     }
 
     _saveTyped()
     {
-        const text = this.input.value.trim()
+        const text = this._composeText()
         if(!text) return
         // Promote typed text into the review stage so Save and voice-stop
         // share one review surface (and one "See Kira's reading" entry).
@@ -460,21 +534,41 @@ export default class AskSheet
 
     async _startRecording()
     {
-        if(!canRecordStudentSpaceAudio() || this.listening) return
+        const useRealtimeVoice = this._shouldUseRealtimeVoice()
+        if((!useRealtimeVoice && !canRecordStudentSpaceAudio()) || this.listening) return
 
         // Seed committed with any text the user has typed — recording adds
         // onto it rather than replacing.
         this.recCommitted = this.input.value.trim()
         this.recInterim   = ''
+        this.realtimeCapture = null
         this.recordedAudioBlob = null
         this.recordedAudioMimeType = null
-        this._paintCaptions()
+        this._resetLiveDialogue()
+        if(this.recCommitted)
+            this._upsertLiveDialogue({
+                id: 'typed-preface',
+                role: 'student',
+                text: this.recCommitted,
+                status: 'final',
+            })
         this.hintLiveEl.hidden = true
 
         this.listening = true
         this._setStage('recording')
         try
         {
+            if(useRealtimeVoice)
+            {
+                this.realtimeCapture = await this.backend.createRealtimeMirrorCapture({
+                    localCaptureId: this._ensureDraftCaptureId(),
+                    ...(this.recCommitted ? { initialTranscript: this.recCommitted } : {}),
+                    contextType: 'school',
+                    ...(this.selectedMood ? { mood: this.selectedMood } : {}),
+                    onConversationUpdate: (message) => this._handleRealtimeConversationUpdate(message),
+                })
+                return
+            }
             this.audioCapture = await startStudentSpaceAudioCapture()
             this.recordedAudioMimeType = this.audioCapture.mimeType
             this._startLiveCaptions()
@@ -483,6 +577,8 @@ export default class AskSheet
         {
             this.listening = false
             this.audioCapture = null
+            this.realtimeCapture?.abort?.()
+            this.realtimeCapture = null
             const message = err instanceof Error ? err.message : String(err)
             this.hintEl.hidden = false
             this.hintEl.textContent = friendlyMicError(message)
@@ -553,6 +649,53 @@ export default class AskSheet
             this.recInterim = ''
         }
 
+        const realtimeCapture = this.realtimeCapture
+        if(realtimeCapture)
+        {
+            this.realtimeCapture = null
+            const runId = ++this.prepareId
+            this.prepareInFlight = true
+            this.logInFlight = false
+            this.preparedReflection = null
+            this._renderReframe({
+                headline: 'Kira is mirroring and summarising the session.',
+                highlightPhrase: this.recCommitted || 'Voice reflection',
+                themes: [],
+                needs: [],
+                moods: this.selectedMood ? [this.selectedMood] : ['ennui'],
+            })
+            this._setReframeActionMode('preparing')
+            this._setStage('reframe')
+            try
+            {
+                const prepared = await realtimeCapture.stop()
+                if(runId !== this.prepareId || !this.isOpen) return
+                this.prepareInFlight = false
+                this.preparedReflection = prepared
+                this.recCommitted = prepared.transcript || this.recCommitted
+                this.reviewTextEl.textContent = this.recCommitted
+                this.reframe = this._reframeFromPrepared(prepared)
+                this._renderReframe(this.reframe)
+                this._setReframeActionMode('ready')
+            }
+            catch(err)
+            {
+                if(runId !== this.prepareId || !this.isOpen) return
+                const message = err instanceof Error ? err.message : String(err)
+                this.prepareInFlight = false
+                this.preparedReflection = null
+                this._renderReframe({
+                    headline: `Kira could not prepare this reading yet. ${message}`,
+                    highlightPhrase: this.recCommitted || 'Voice reflection',
+                    themes: [],
+                    needs: [],
+                    moods: ['ennui'],
+                })
+                this._setReframeActionMode('failed')
+            }
+            return
+        }
+
         const audioCapture = this.audioCapture
         this.audioCapture = null
         try
@@ -583,6 +726,8 @@ export default class AskSheet
         this.listening = false
         try { this.recognition?.abort?.() ?? this.recognition?.stop?.() } catch(_) {}
         this.recognition = null
+        this.realtimeCapture?.abort?.()
+        this.realtimeCapture = null
         this.audioCapture?.abort?.()
         this.audioCapture = null
         this.recordedAudioBlob = null
@@ -591,8 +736,70 @@ export default class AskSheet
 
     _paintCaptions()
     {
-        this.captionsCommittedEl.textContent = this.recCommitted
-        this.captionsInterimEl.textContent   = this.recInterim
+        const text = [this.recCommitted, this.recInterim].filter(Boolean).join(' ').trim()
+        this._upsertLiveDialogue({
+            id: 'speech-caption',
+            role: 'student',
+            text,
+            status: this.recInterim ? 'streaming' : 'final',
+        })
+    }
+
+    _handleRealtimeConversationUpdate(message)
+    {
+        if(!message || !this.isOpen) return
+        this._upsertLiveDialogue(message)
+        if(message.role === 'student') this._syncLiveStudentTranscript()
+    }
+
+    _resetLiveDialogue()
+    {
+        this.liveDialogue = []
+        this.liveDialogueEls = new Map()
+        if(!this.liveThreadEl) return
+        this.liveThreadEl.innerHTML = '<p class="ask-live-chat__empty">Start talking. Kira will answer when you pause.</p>'
+    }
+
+    _upsertLiveDialogue(message)
+    {
+        if(!this.liveThreadEl) return
+        const text = (message.text || '').trim()
+        if(!text) return
+        const role = message.role === 'kira' ? 'kira' : 'student'
+        const id = message.id || `${role}-${Date.now()}`
+        this.liveThreadEl.querySelector('.ask-live-chat__empty')?.remove()
+
+        let el = this.liveDialogueEls.get(id)
+        if(!el)
+        {
+            el = document.createElement('article')
+            el.className = `ask-live-chat__bubble ask-live-chat__bubble--${role}`
+            el.dataset.role = role
+            el.dataset.messageId = id
+            el.innerHTML = `
+                <span class="ask-live-chat__name">${role === 'kira' ? 'Kira' : 'You'}</span>
+                <p class="ask-live-chat__text"></p>
+            `
+            this.liveDialogueEls.set(id, el)
+            this.liveThreadEl.appendChild(el)
+            this.liveDialogue.push({ id, role })
+        }
+        el.classList.toggle('is-streaming', message.status === 'streaming')
+        const textEl = el.querySelector('.ask-live-chat__text')
+        if(textEl) textEl.textContent = text
+        this.liveThreadEl.scrollTop = this.liveThreadEl.scrollHeight
+    }
+
+    _syncLiveStudentTranscript()
+    {
+        const parts = []
+        for(const item of this.liveDialogue)
+        {
+            if(item.role !== 'student') continue
+            const text = this.liveDialogueEls.get(item.id)?.querySelector('.ask-live-chat__text')?.textContent?.trim()
+            if(text) parts.push(text)
+        }
+        this.recCommitted = parts.join(' ').trim()
     }
 
     /* ----- review ----- */
@@ -641,6 +848,10 @@ export default class AskSheet
         this.recInterim   = ''
         this.recordedAudioBlob = null
         this.recordedAudioMimeType = null
+        this.selectedMood = null
+        this.uploadedImageDataUrl = null
+        this.imageInputEl.value = ''
+        this._renderComposerMeta()
         this.pendingLocalCaptureId = null
         this.preparedReflection = null
         this.prepareInFlight = false
@@ -680,7 +891,7 @@ export default class AskSheet
 
     async _prepareMirrorDraft()
     {
-        const text = (this.recCommitted || '').trim()
+        const text = (this.recCommitted || this._composeText()).trim()
         const audioBlob = this.recordedAudioBlob
         if(!text && !audioBlob)
         {
@@ -722,6 +933,7 @@ export default class AskSheet
                     ? { audioBase64, mimeType: this.recordedAudioMimeType || audioBlob.type || 'audio/webm' }
                     : { transcript: text }),
                 contextType: 'school',
+                ...(this.selectedMood ? { mood: this.selectedMood } : {}),
             })
             if(runId !== this.prepareId || !this.isOpen) return
             this.prepareInFlight = false
@@ -805,19 +1017,26 @@ export default class AskSheet
             highlightPhrase: prepared.transcript || '',
             themes: prepared.contextType ? [prepared.contextType] : [],
             needs: [],
-            moods: prepared.mood ? [prepared.mood] : [],
+            moods: prepared.mood ? [prepared.mood] : (this.selectedMood ? [this.selectedMood] : []),
             backend: true,
         }
     }
 
     _setReframeActionMode(mode)
     {
+        this.reframeActionMode = mode
         const backendMode = mode !== 'offline'
-        this.editBtn.hidden = backendMode && mode !== 'failed'
-        this.talkMoreBtn.hidden = backendMode
+        const failedMode = mode === 'failed'
+        const canLogTranscript = !!(this.recCommitted || '').trim()
+
+        this.editBtn.hidden = backendMode && !failedMode
+        this.talkMoreBtn.hidden = backendMode && !failedMode
+        this.talkMoreBtn.textContent = failedMode ? 'Continue session' : 'Talk more'
         this.forgetDraftBtn.hidden = !backendMode
-        this.reframeLogBtn.hidden = backendMode && mode === 'failed'
-        this.reframeLogBtn.disabled = backendMode && mode !== 'ready'
+        this.reframeLogBtn.hidden = false
+        this.reframeLogBtn.disabled =
+            (backendMode && mode !== 'ready' && !failedMode) ||
+            (failedMode && !canLogTranscript)
         this.forgetDraftBtn.disabled = mode === 'logging'
     }
 
@@ -830,7 +1049,10 @@ export default class AskSheet
 
     _isBackendDraftMode()
     {
-        return !!(this.backend?.prepareReflection && (this.prepareInFlight || this.preparedReflection || this.stage === 'reframe'))
+        return !!(
+            (this.backend?.prepareReflection || this.backend?.createRealtimeMirrorCapture) &&
+            (this.prepareInFlight || this.preparedReflection || this.stage === 'reframe')
+        )
     }
 
     _forgetDraft()
@@ -840,8 +1062,14 @@ export default class AskSheet
         this.logInFlight = false
         this.preparedReflection = null
         this.reframe = null
+        this.realtimeCapture?.abort?.()
+        this.realtimeCapture = null
         this.recordedAudioBlob = null
         this.recordedAudioMimeType = null
+        this.selectedMood = null
+        this.uploadedImageDataUrl = null
+        this.imageInputEl.value = ''
+        this._renderComposerMeta()
         this.pendingLocalCaptureId = null
         this.close()
     }
@@ -894,7 +1122,26 @@ export default class AskSheet
 
     _talkMore()
     {
+        if(this.reframeActionMode === 'failed')
+        {
+            this._continueStoppedSession()
+            return
+        }
         this._openChat()
+    }
+
+    _continueStoppedSession()
+    {
+        const transcript = (this.recCommitted || this.reviewTextEl.textContent || '').trim()
+        if(transcript) this.input.value = transcript
+        this.input.disabled = false
+        this.prepareInFlight = false
+        this.logInFlight = false
+        this.preparedReflection = null
+        this.reframe = null
+        this.thread = null
+        this._refreshSave()
+        void this._startRecording()
     }
 
     /* ----- chat ----- */
@@ -1090,6 +1337,7 @@ export default class AskSheet
             reframe,
             syncStatus: this.backend?.logPreparedReflection ? 'syncing' : 'local',
             contextType: prepared.contextType || 'school',
+            ...(this.uploadedImageDataUrl ? { dataUrl: this.uploadedImageDataUrl } : {}),
         })
 
         if(!this.backend?.logPreparedReflection)
@@ -1143,11 +1391,19 @@ export default class AskSheet
         // Read-only replay shows reframe + thread stacked below the raw
         // review-card. Hidden in live mode — there the actions live on the
         // reframe stage itself.
-        const showExtras = this.readOnly && (this.reframe || (this.thread && this.thread.length > 0))
+        const showExtras = this.readOnly && (this.replayImageDataUrl || this.reframe || (this.thread && this.thread.length > 0))
         this.replayExtrasEl.hidden = !showExtras
         if(!showExtras) { this.replayExtrasEl.innerHTML = ''; return }
 
         let html = ''
+        if(this.replayImageDataUrl)
+        {
+            html += `
+                <section class="ask-sheet__replay-image">
+                    <img src="${this._escape(this.replayImageDataUrl)}" alt="" />
+                </section>
+            `
+        }
         const rf = this.reframe
         if(rf)
         {
@@ -1201,13 +1457,21 @@ export default class AskSheet
         // Single funnel so Raw-log, Reframe-log, and Chat-log share one
         // path. The mergeCapture schema is forward-additive (commit #4),
         // so extra fields here flow straight into persistence.
-        const entry = { kind: 'ask', prompt: this.prompt, syncStatus: this.backend?.submitReflection ? 'syncing' : 'local', ...payload }
+        const mood = this.selectedMood
+        const dataUrl = this.uploadedImageDataUrl
+        const entry = {
+            kind: 'ask',
+            prompt: this.prompt,
+            syncStatus: this.backend?.submitReflection ? 'syncing' : 'local',
+            ...(dataUrl ? { dataUrl } : {}),
+            ...payload,
+        }
         // Strip empties so old-style captures stay { kind, text, prompt }.
         if(!entry.reframe) delete entry.reframe
         if(!entry.thread || entry.thread.length === 0) delete entry.thread
         const capture = this.captures.add(entry)
         if(this.backend?.submitReflection)
-            this._submitBackendReflection(capture, options)
+            this._submitBackendReflection(capture, { ...options, mood })
     }
 
     async _submitBackendReflection(capture, options = {})
@@ -1227,6 +1491,7 @@ export default class AskSheet
                     ? { audioBase64, mimeType: options.mimeType || audioBlob.type || 'audio/webm' }
                     : { transcript: capture.text || '' }),
                 contextType: capture.contextType || 'school',
+                ...(options.mood ? { mood: options.mood } : {}),
             })
             const mirror = result?.mirrorEntry
             if(!mirror) return
@@ -1267,6 +1532,112 @@ export default class AskSheet
             el.hidden = el.dataset.stage !== stage
         if(stage !== 'compose') this.hintEl.hidden = true
     }
+
+    _hasComposerInput()
+    {
+        return !!(this.input.value.trim() || this.selectedMood || this.uploadedImageDataUrl)
+    }
+
+    _composeText()
+    {
+        const text = this.input.value.trim()
+        if(text) return text
+        if(this.selectedMood)
+        {
+            const emotion = EMOTION_BY_ID[this.selectedMood]
+            const label = emotion?.label?.toLowerCase?.() || this.selectedMood
+            return `I feel ${label}.`
+        }
+        if(this.uploadedImageDataUrl) return 'I added a picture for this reflection.'
+        return ''
+    }
+
+    _shouldUseRealtimeVoice()
+    {
+        return !!(this.backend?.createRealtimeMirrorCapture && canCreateRealtimeMirrorCapture())
+    }
+
+    _toggleEmojiPanel()
+    {
+        this.emojiPanelEl.hidden = !this.emojiPanelEl.hidden
+        this.emojiToggleBtn.setAttribute('aria-expanded', String(!this.emojiPanelEl.hidden))
+    }
+
+    _selectEmotion(event)
+    {
+        const btn = event.target.closest?.('.ask-sheet__emoji-option')
+        if(!btn) return
+        this.selectedMood = btn.dataset.emotion || null
+        this.emojiPanelEl.hidden = true
+        this.emojiToggleBtn.setAttribute('aria-expanded', 'false')
+        this._renderComposerMeta()
+        this._refreshSave()
+    }
+
+    async _handleImageUpload()
+    {
+        const file = this.imageInputEl.files?.[0]
+        if(!file) return
+        if(!file.type?.startsWith('image/'))
+        {
+            this.hintEl.hidden = false
+            this.hintEl.textContent = 'Choose an image file.'
+            return
+        }
+        try
+        {
+            this.uploadedImageDataUrl = await readImageAsDataUrl(file)
+            this._renderComposerMeta()
+            this._refreshSave()
+        }
+        catch(err)
+        {
+            this.hintEl.hidden = false
+            this.hintEl.textContent = err instanceof Error ? err.message : 'Could not read that image.'
+        }
+    }
+
+    _clearImage()
+    {
+        this.uploadedImageDataUrl = null
+        this.imageInputEl.value = ''
+        this._renderComposerMeta()
+        this._refreshSave()
+    }
+
+    _renderComposerMeta()
+    {
+        const emotion = this.selectedMood ? EMOTION_BY_ID[this.selectedMood] : null
+        this.emojiToggleBtn.classList.toggle('is-selected', !!emotion)
+        this.emojiToggleBtn.setAttribute('aria-pressed', emotion ? 'true' : 'false')
+        this.emojiToggleBtn.style.setProperty('--emotion-color', emotion?.color || 'rgba(255, 138, 92, 0.95)')
+        const symbol = this.emojiToggleBtn.querySelector('span')
+        if(symbol) symbol.textContent = emotion ? (EMOTION_EMOJI[emotion.id] || '•') : '🙂'
+
+        this.imagePreviewEl.hidden = !this.uploadedImageDataUrl
+        this.imageTriggerBtn.classList.toggle('is-selected', !!this.uploadedImageDataUrl)
+        if(this.uploadedImageDataUrl) this.imageEl.src = this.uploadedImageDataUrl
+        else this.imageEl.removeAttribute('src')
+
+        for(const option of this.emojiPanelEl.querySelectorAll('.ask-sheet__emoji-option'))
+            option.classList.toggle('is-selected', option.dataset.emotion === this.selectedMood)
+    }
+}
+
+function readImageAsDataUrl(file)
+{
+    return new Promise((resolve, reject) =>
+    {
+        const reader = new FileReader()
+        reader.onerror = () => reject(new Error('Could not read that image.'))
+        reader.onload = () =>
+        {
+            const dataUrl = typeof reader.result === 'string' ? reader.result : ''
+            if(!dataUrl) { reject(new Error('Could not read that image.')); return }
+            resolve(dataUrl)
+        }
+        reader.readAsDataURL(file)
+    })
 }
 
 function friendlyMicError(message)

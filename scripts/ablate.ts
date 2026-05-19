@@ -2,9 +2,9 @@
 /**
  * Ablation runner — `pnpm ablate:mirror` or `pnpm ablate:sensemake`.
  *
- * Drives the managed-agents Mirror + Connector path against the seeded
+ * Drives the OpenAI Realtime Mirror + Claude managed-agent Connector path against the seeded
  * multi-student fixture corpus and emits a structured JSON report plus a
- * markdown scaffold under `test/ablation/reports/<date>-managed-<surface>.json`
+ * markdown scaffold under `test/ablation/reports/<date>-realtime-<surface>.json`
  * for human Likert scoring.
  *
  * Per-row semantics:
@@ -15,9 +15,9 @@
  *     post-processes Connector output. Cartographer is not invoked — its
  *     cost outweighs the signal at this scale.
  *
- * Live mode requires `ANTHROPIC_API_KEY` plus the managed-agent bindings
- * (`MANAGED_AGENT_MIRROR_ID`, `MANAGED_AGENT_CONNECTOR_ID`,
- * `MANAGED_AGENT_ENV_ID`). Without them, the script emits a placeholder
+ * Live Mirror mode requires `OPENAI_API_KEY`. Sensemake mode also requires
+ * `ANTHROPIC_API_KEY` plus the Connector managed-agent binding
+ * (`MANAGED_AGENT_CONNECTOR_ID`, `MANAGED_AGENT_ENV_ID`). Without them, the script emits a placeholder
  * JSON + markdown (rows with `error: "no-api-key"`) so CI can verify wiring
  * without burning tokens.
  *
@@ -34,8 +34,13 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { getManagedAgentBinding } from '~/agents/config'
 import { buildConnectorContext } from '~/agents/context'
+import {
+  getOpenAIRealtimeMirrorConfig,
+  OPENAI_REALTIME_MIRROR_DEFAULT_MODEL,
+} from '~/agents/openai-realtime/config'
+import { runOpenAIRealtimeMirror } from '~/agents/openai-realtime/mirror-runner'
 import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
-import { type ConnectorDiffDraft, ConnectorDiffSchema, MirrorOutputSchema } from '~/agents/schemas'
+import { type ConnectorDiffDraft, ConnectorDiffSchema } from '~/agents/schemas'
 import { verifyProposedDiff } from '~/agents/verifier'
 import { withStudent as withStudentDb } from '~/db/client'
 import { listMirrorEntries } from '~/db/queries'
@@ -118,14 +123,11 @@ function loadReflectionsInScope(
   return limit === undefined ? flat : flat.slice(0, limit)
 }
 
-const MIRROR_USER_PROMPT_PREFIX =
-  'The student spoke this transcript while looking into a webcam mirror. They are no longer present. Reflect what was said back in three parts.\n\nTranscript:\n\n'
-
 async function runMirrorForRow(
   row: ReflectionWithMeta,
 ): Promise<{ stats: AgentRunStats; rawOutput: string | null }> {
   const startedAt = Date.now()
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     return {
       stats: {
         agent: 'mirror',
@@ -139,25 +141,20 @@ async function runMirrorForRow(
     }
   }
   try {
-    const binding = getManagedAgentBinding('mirror')
-    const result = await runManagedAgent({
-      agentId: binding.agentId,
-      ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
-      environmentId: binding.environmentId,
-      prompt: `${MIRROR_USER_PROMPT_PREFIX}${row.transcript}`,
-      outputSchema: MirrorOutputSchema,
-      sessionTitle: `ablate:mirror:${row.student_id}`,
+    const output = await runOpenAIRealtimeMirror({
+      studentId: row.student_id,
+      transcript: row.transcript,
     })
     return {
       stats: {
         agent: 'mirror',
         latency_ms: Date.now() - startedAt,
-        input_tokens: result.usage.inputTokens,
-        output_tokens: result.usage.outputTokens,
+        input_tokens: null,
+        output_tokens: null,
         output_parsed: true,
         parse_error: null,
       },
-      rawOutput: result.rawText,
+      rawOutput: JSON.stringify(output),
     }
   } catch (err) {
     const message =
@@ -435,15 +432,14 @@ async function main() {
   const filenameSuffix = student ? `-${student}` : ''
   const jsonPath = resolve(
     'test/ablation/reports',
-    `${date}-managed-${surface}${filenameSuffix}.json`,
+    `${date}-realtime-${surface}${filenameSuffix}.json`,
   )
-  const mdPath = resolve('test/ablation/reports', `${date}-managed-${surface}${filenameSuffix}.md`)
+  const mdPath = resolve('test/ablation/reports', `${date}-realtime-${surface}${filenameSuffix}.md`)
   mkdirSync(resolve('test/ablation/reports'), { recursive: true })
 
-  // For managed agents the runtime model is pinned by the agent version on
-  // Anthropic's side, so the report records the agent id/version rather
-  // than a local model id.
-  function managedIdentity(name: 'mirror' | 'connector'): string {
+  // Connector's runtime model is pinned by the agent version on Anthropic's side;
+  // Mirror records the configured Realtime model id.
+  function managedIdentity(name: 'connector'): string {
     try {
       const b = getManagedAgentBinding(name)
       return b.agentVersion !== undefined ? `${b.agentId}:v${b.agentVersion}` : b.agentId
@@ -451,19 +447,29 @@ async function main() {
       return `managed-${name}:unprovisioned`
     }
   }
-  const mirrorIdentity = managedIdentity('mirror')
+  function openAIRealtimeMirrorIdentity(): string {
+    try {
+      return getOpenAIRealtimeMirrorConfig().model
+    } catch {
+      return process.env.OPENAI_REALTIME_MIRROR_MODEL || OPENAI_REALTIME_MIRROR_DEFAULT_MODEL
+    }
+  }
+  const mirrorIdentity = openAIRealtimeMirrorIdentity()
   const connectorIdentity = surface === 'sensemake' ? managedIdentity('connector') : null
-  const hasKey = process.env.ANTHROPIC_API_KEY !== undefined && process.env.ANTHROPIC_API_KEY !== ''
+  const hasMirrorKey = process.env.OPENAI_API_KEY !== undefined && process.env.OPENAI_API_KEY !== ''
+  const hasConnectorKey =
+    process.env.ANTHROPIC_API_KEY !== undefined && process.env.ANTHROPIC_API_KEY !== ''
+  const hasKey = surface === 'sensemake' ? hasMirrorKey && hasConnectorKey : hasMirrorKey
   const liveModelLabel =
     surface === 'sensemake'
-      ? `${mirrorIdentity} (Mirror) / ${connectorIdentity ?? 'managed'} (Connector)`
-      : mirrorIdentity
+      ? `${mirrorIdentity} (OpenAI Realtime Mirror) / ${connectorIdentity ?? 'managed'} (Claude Connector)`
+      : `${mirrorIdentity} (OpenAI Realtime Mirror)`
   const structuredNote = hasKey
     ? `Live run against ${liveModelLabel}. Cartographer skipped — see plan §9.3 step 3 for the manual review surface.`
-    : `Placeholder run — ANTHROPIC_API_KEY not set; every row carries error="no-api-key". Set the key to populate real metrics.`
+    : `Placeholder run — required provider keys not set; rows carry error="no-api-key". Set OPENAI_API_KEY for Mirror and ANTHROPIC_API_KEY for Connector sensemake runs.`
 
   const structured = buildStructuredReport({
-    runner: 'managed',
+    runner: 'openai-realtime',
     surface,
     ran_at: ranAt,
     model: mirrorIdentity,
@@ -496,7 +502,7 @@ async function main() {
       },
       notes: hasKey
         ? `Live run against ${liveModelLabel}. ${studentNote}`
-        : `Placeholder run — ANTHROPIC_API_KEY not set. ${studentNote}`,
+        : `Placeholder run — required provider keys not set. ${studentNote}`,
     }),
     'utf8',
   )

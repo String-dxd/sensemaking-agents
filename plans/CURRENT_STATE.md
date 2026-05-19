@@ -1,12 +1,12 @@
 # Current State
 
-**Last updated:** 2026-05-18
+**Last updated:** 2026-05-19
 
 ## Repository Status
 
 - `main` is the integration branch for the shipped product.
 - The active product line has moved past the historical v0.1 / quiet-mirror / staged-review plans.
-- The current app uses Anthropic Managed Agents for Mirror, Connector, Cartographer, and the self-critique eval/safety reviewer; OpenAI remains for transcription.
+- The current app uses OpenAI Realtime for Mirror and Anthropic Managed Agents for Connector, Cartographer, and the self-critique eval/safety reviewer.
 - Persistence is Postgres/Drizzle with WorkOS-backed counselor/student tenancy and a local demo bypass path.
 - The Student Space engine is now the home shell at `/`; durable sense-making data flows through an explicit backend bridge rather than through the engine `StorageAdapter`.
 
@@ -38,11 +38,12 @@
 - `docs/plans/2026-05-18-003-feat-student-space-demo-data-audio-plan.md` — completed in the current branch; extended by the Mirror-result decision plan below.
 - `docs/plans/2026-05-18-004-feat-mirror-result-log-forget-plan.md` — completed in the current branch.
 - `docs/plans/2026-05-18-005-feat-student-space-island-evidence-wiring-plan.md` — completed in the current branch.
+- `docs/plans/2026-05-19-001-feat-openai-realtime-mirror-plan.md` — implemented in the current branch: Mirror reflection generation uses OpenAI Realtime while Connector stays on Claude Managed Agents.
 
 ## Current Product Shape
 
 - `/` is the current student-facing surface: `StudentSpaceHost` mounts the Student Space engine and hydrates backend-backed profile, reflection, mood, trajectory, calendar, letter, and identity snapshots.
-- Student Space Ask captures prepare a Mirror draft before the durable write. Typed captures run Mirror against the transcript directly; voice captures record audio with `MediaRecorder`, post `audioBase64`/`mimeType` for OpenAI transcription, then run Mirror. The Kira reading screen shows the real Mirror result and offers `Log` or `Forget`: `Log` persists the draft as a pending raw reflection, while `Forget` discards it without adding corpus evidence.
+- Student Space Ask captures prepare a Mirror draft before the durable write. Typed captures run Mirror against the transcript through the OpenAI Realtime Mirror runner; bridged voice captures open a server-brokered OpenAI Realtime WebRTC session and stop/commit into the same Kira reading screen. `Log` persists the draft as a pending raw reflection, while `Forget` discards it without adding corpus evidence. The legacy blob transcription helper remains for non-Realtime fallback/support paths only.
 - Live island elements resolve to the hydrated backend profile at interaction time: flowers map to Interest claims, fruits to Skill claims, and supported trees to Value claims. Hover chips, Kira/object narration, half-sheet detail, and profile handoff use the same claim/evidence resolver, and empty claims are shown as no noticings yet rather than fabricated evidence.
 - Engine profile/calendar/letter seed files are offline/no-bridge fallbacks only. In bridged mode, visible identity, calendar events, and teacher letters come from the server-side demo/session snapshot.
 - The engine `StorageAdapter` remains local UI/cache persistence. Durable Mirror/VIPS/Cartographer operations use named bridge methods and server functions.

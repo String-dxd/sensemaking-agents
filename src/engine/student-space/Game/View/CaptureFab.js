@@ -64,6 +64,7 @@ export default class CaptureFab
         this.chooser    = new CaptureChooser({
             routes: { ask: this.askSheet, mood: this.moodSheet, photo: this.photoSheet },
         })
+        this.kiraNarrator = null
 
         // Hand each capture surface to OverlayController so opening any
         // other sheet (Profile / Calendar / Letters) auto-closes whatever
@@ -76,6 +77,12 @@ export default class CaptureFab
 
         fab.addEventListener('click', () =>
         {
+            if(this.kiraNarrator)
+            {
+                if(controller.isOpen('chooser')) controller.close('chooser')
+                this.kiraNarrator.narrate({ kind: 'kira', source: 'capture-fab' })
+                return
+            }
             if(controller.isOpen('chooser')) controller.close('chooser')
             else controller.open('chooser')
         })
@@ -142,8 +149,14 @@ export default class CaptureFab
         this.askSheet = null
         this.photoSheet = null
         this.chooser = null
+        this.kiraNarrator = null
         try { this.el?.remove?.() } catch(_) {}
         this.el = null
+    }
+
+    setKiraNarrator(kiraNarrator)
+    {
+        this.kiraNarrator = kiraNarrator || null
     }
 
     _tint(colour)

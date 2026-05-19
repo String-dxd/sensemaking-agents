@@ -20,6 +20,7 @@
     "ablate:mirror": "tsx scripts/ablate.ts --surface=mirror",
     "ablate:sensemake": "tsx scripts/ablate.ts --surface=sensemake",
     "provision:managed-agents": "tsx scripts/managed-agents/provision.ts",
+    "smoke:mirror": "tsx scripts/managed-agents/smoke-mirror.ts",
     "smoke:managed-mirror": "tsx scripts/managed-agents/smoke-mirror.ts",
     "smoke:managed-connector": "tsx scripts/managed-agents/smoke-connector.ts",
     "smoke:managed-cartographer": "tsx scripts/managed-agents/smoke-cartographer.ts",

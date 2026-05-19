@@ -1,11 +1,11 @@
 /**
- * Managed Agents — env-var accessors for the four agent bindings provisioned
- * by `scripts/managed-agents/provision.ts`. Agent versions pin the runtime
- * model on Anthropic's side; this process never overrides it. Accessors
- * read `process.env` at call time so test setup sees the latest values.
+ * Managed Agents — env-var accessors for the Claude-backed agent bindings
+ * provisioned by `scripts/managed-agents/provision.ts`. Mirror now runs on
+ * OpenAI Realtime, so this accessor is intentionally limited to Connector,
+ * Cartographer, and self-critique.
  */
 
-export type ManagedAgentName = 'mirror' | 'connector' | 'cartographer' | 'self_critique'
+export type ManagedAgentName = 'connector' | 'cartographer' | 'self_critique'
 
 export interface ManagedAgentBinding {
   agentId: string

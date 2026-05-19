@@ -19,6 +19,11 @@ import type { RunConnectorResult } from '~/server/run-connector.handler.server'
 import { submitStudentSpaceReflection } from '~/server/submit-student-space-reflection.functions'
 import type { SubmitStudentSpaceReflectionResult } from '~/server/submit-student-space-reflection.handler.server'
 import { updateMirrorReview } from '~/server/update-mirror-review.functions'
+import {
+  createRealtimeMirrorCapture,
+  type StudentSpaceRealtimeConversationUpdate,
+  type StudentSpaceRealtimeMirrorCapture,
+} from './realtime-mirror-client'
 
 export type StudentSpaceSurface =
   | 'profile'
@@ -31,12 +36,14 @@ export type StudentSpaceSurface =
 
 export interface StudentSpaceReflectionInput {
   localCaptureId: string
+  initialTranscript?: string
   transcript?: string
   audioBase64?: string
   mimeType?: string
   mood?: Mood
   contextType?: VipsContextType
   createdAt?: string
+  onConversationUpdate?: (update: StudentSpaceRealtimeConversationUpdate) => void
 }
 
 export interface StudentSpaceMirrorEntrySummary {
@@ -85,6 +92,9 @@ export interface StudentSpaceOpenSurfaceInput {
 export interface StudentSpaceBackendBridge {
   version: 1
   refreshSnapshot?: () => Promise<StudentSpaceBackendSnapshot>
+  createRealtimeMirrorCapture?: (
+    input: StudentSpaceReflectionInput,
+  ) => Promise<StudentSpaceRealtimeMirrorCapture>
   prepareReflection?: (
     input: StudentSpaceReflectionInput,
   ) => Promise<StudentSpacePreparedReflection>
@@ -113,6 +123,14 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
       ])
       return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory })
     },
+    createRealtimeMirrorCapture: async (input) =>
+      createRealtimeMirrorCapture({
+        localCaptureId: input.localCaptureId,
+        contextType: input.contextType,
+        mood: input.mood,
+        initialTranscript: input.initialTranscript ?? input.transcript,
+        onConversationUpdate: input.onConversationUpdate,
+      }),
     prepareReflection: async (input) => {
       const result = (await prepareStudentSpaceReflection({
         data: {

@@ -210,7 +210,7 @@ export interface AgentTotals {
 }
 
 export interface AblationStructuredReport {
-  runner: 'openai' | 'managed'
+  runner: 'openai' | 'managed' | 'openai-realtime'
   surface: 'mirror' | 'sensemake'
   ran_at: string
   /** Model id that Mirror/Connector/Cartographer ran against (env-resolved). */
@@ -298,7 +298,7 @@ export function buildClaimIdDistribution(rows: PerFixtureRow[]): Record<string, 
 }
 
 export interface BuildStructuredReportInput {
-  runner: 'openai' | 'managed'
+  runner: 'openai' | 'managed' | 'openai-realtime'
   surface: 'mirror' | 'sensemake'
   ran_at: string
   model: string
