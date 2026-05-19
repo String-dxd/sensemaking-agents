@@ -164,9 +164,7 @@ function mountSheet(menu: AuthMenu) {
 describe('ProfileSheet auth slot', () => {
   it('renders a Sign in link when state.auth is signed-out', () => {
     const { sheet } = mountSheet({ status: 'signed-out' })
-    const link = document.querySelector(
-      '[data-testid="profile-auth-signin"]',
-    ) as HTMLAnchorElement
+    const link = document.querySelector('[data-testid="profile-auth-signin"]') as HTMLAnchorElement
     expect(link).toBeTruthy()
     expect(link.getAttribute('href')).toBe('/api/auth/sign-in?returnPathname=/?sheet=profile')
     sheet.dispose?.()
@@ -185,9 +183,7 @@ describe('ProfileSheet auth slot', () => {
     expect(form).toBeTruthy()
     expect(form.action.endsWith('/api/auth/sign-out')).toBe(true)
     expect(form.method).toBe('post')
-    const btn = document.querySelector(
-      '[data-testid="profile-auth-signout"]',
-    ) as HTMLButtonElement
+    const btn = document.querySelector('[data-testid="profile-auth-signout"]') as HTMLButtonElement
     expect(btn).toBeTruthy()
     expect(btn.textContent?.trim()).toBe('Sign out')
     sheet.dispose?.()
@@ -204,9 +200,7 @@ describe('ProfileSheet auth slot', () => {
     window.localStorage.setItem('ss:v1:captures', '[]')
     window.localStorage.setItem('unrelated', 'keep-me')
 
-    const btn = document.querySelector(
-      '[data-testid="profile-auth-signout"]',
-    ) as HTMLButtonElement
+    const btn = document.querySelector('[data-testid="profile-auth-signout"]') as HTMLButtonElement
     btn.closest('form')?.addEventListener('submit', (e) => e.preventDefault())
     btn.click()
 
@@ -246,9 +240,7 @@ describe('ProfileSheet auth slot', () => {
 
   it('signing in via the link drains the engine before navigation', () => {
     const { sheet } = mountSheet({ status: 'signed-out' })
-    const link = document.querySelector(
-      '[data-testid="profile-auth-signin"]',
-    ) as HTMLAnchorElement
+    const link = document.querySelector('[data-testid="profile-auth-signin"]') as HTMLAnchorElement
     link.addEventListener('click', (e) => e.preventDefault())
     link.click()
     expect(dispose).toHaveBeenCalledTimes(1)

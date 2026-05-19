@@ -1,8 +1,10 @@
 // @vitest-environment happy-dom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import EdupassLogin from '~/engine/student-space/Game/View/Onboarding/EdupassLogin.js'
+// @ts-expect-error vendored JS module is intentionally untyped.
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
+// @ts-expect-error vendored JS module is intentionally untyped.
+import EdupassLogin from '~/engine/student-space/Game/View/Onboarding/EdupassLogin.js'
 
 interface MockCtx {
   copy: typeof ONBOARDING_COPY
@@ -68,9 +70,7 @@ describe('EdupassLogin (real auth surface)', () => {
     // The form for the demo path must POST to the demo sign-in route.
     const demoForm = root.querySelector('[data-action="demo"]') as HTMLFormElement
     expect(demoForm.getAttribute('method')).toBe('post')
-    expect(demoForm.getAttribute('action')).toBe(
-      '/api/auth/sign-in?demo=1&returnPathname=/',
-    )
+    expect(demoForm.getAttribute('action')).toBe('/api/auth/sign-in?demo=1&returnPathname=/')
     // The Google CTA is a real link to the WorkOS sign-in route.
     const google = root.querySelector('[data-action="google"]') as HTMLAnchorElement
     expect(google.getAttribute('href')).toBe('/api/auth/sign-in?returnPathname=/')

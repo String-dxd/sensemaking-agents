@@ -136,11 +136,11 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
         loadVipsPages({ data: {} }),
         loadWiki({ data: {} }),
         loadTrajectory({ data: {} }),
-        loadAuthMenu({ data: {} }).catch(() => null),
+        loadAuthMenu().catch(() => null),
       ])
       return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory, authMenu })
     },
-    loadAuthMenu: async () => loadAuthMenu({ data: {} }),
+    loadAuthMenu: async () => loadAuthMenu(),
     createRealtimeMirrorCapture: async (input) =>
       createRealtimeMirrorCapture({
         localCaptureId: input.localCaptureId,

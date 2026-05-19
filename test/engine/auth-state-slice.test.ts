@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+// @ts-expect-error vendored JS module is intentionally untyped.
 import Auth from '~/engine/student-space/Game/State/Auth.js'
 
 afterEach(() => {

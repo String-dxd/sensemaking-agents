@@ -219,15 +219,12 @@ describe('Student Space backend snapshot mappers', () => {
     })
 
     it('uses authMenu.label + detail when student_profile is null and signed-in', () => {
-      const profile = mapVipsPagesToStudentSpaceProfile(
-        vipsSnapshot({ student_profile: null }),
-        {
-          status: 'signed-in',
-          label: 'Reza Ilmi',
-          detail: 'reza@example.com',
-          kind: 'workos',
-        },
-      )
+      const profile = mapVipsPagesToStudentSpaceProfile(vipsSnapshot({ student_profile: null }), {
+        status: 'signed-in',
+        label: 'Reza Ilmi',
+        detail: 'reza@example.com',
+        kind: 'workos',
+      })
       expect(profile.identity).toEqual({
         name: 'Reza Ilmi',
         className: 'reza@example.com',
@@ -236,10 +233,12 @@ describe('Student Space backend snapshot mappers', () => {
     })
 
     it('coerces null detail to empty className when student_profile is null', () => {
-      const profile = mapVipsPagesToStudentSpaceProfile(
-        vipsSnapshot({ student_profile: null }),
-        { status: 'signed-in', label: 'Reza Ilmi', detail: null, kind: 'workos' },
-      )
+      const profile = mapVipsPagesToStudentSpaceProfile(vipsSnapshot({ student_profile: null }), {
+        status: 'signed-in',
+        label: 'Reza Ilmi',
+        detail: null,
+        kind: 'workos',
+      })
       expect(profile.identity).toEqual({
         name: 'Reza Ilmi',
         className: '',
@@ -248,33 +247,34 @@ describe('Student Space backend snapshot mappers', () => {
     })
 
     it('falls back to "Me" when student_profile is null and authMenu is signed-out', () => {
-      const profile = mapVipsPagesToStudentSpaceProfile(
-        vipsSnapshot({ student_profile: null }),
-        { status: 'signed-out' },
-      )
+      const profile = mapVipsPagesToStudentSpaceProfile(vipsSnapshot({ student_profile: null }), {
+        status: 'signed-out',
+      })
       expect(profile.identity).toEqual({ name: 'Me', className: '', avatarDataUrl: null })
     })
 
     it('falls back to "Me" when no authMenu is supplied', () => {
-      const profile = mapVipsPagesToStudentSpaceProfile(
-        vipsSnapshot({ student_profile: null }),
-      )
+      const profile = mapVipsPagesToStudentSpaceProfile(vipsSnapshot({ student_profile: null }))
       expect(profile.identity).toEqual({ name: 'Me', className: '', avatarDataUrl: null })
     })
 
     it('falls back to "Me" when authMenu.label is whitespace-only', () => {
-      const profile = mapVipsPagesToStudentSpaceProfile(
-        vipsSnapshot({ student_profile: null }),
-        { status: 'signed-in', label: '   ', detail: null, kind: 'workos' },
-      )
+      const profile = mapVipsPagesToStudentSpaceProfile(vipsSnapshot({ student_profile: null }), {
+        status: 'signed-in',
+        label: '   ',
+        detail: null,
+        kind: 'workos',
+      })
       expect(profile.identity).toEqual({ name: 'Me', className: '', avatarDataUrl: null })
     })
 
     it('surfaces a dev-bypass label when student_profile is null', () => {
-      const profile = mapVipsPagesToStudentSpaceProfile(
-        vipsSnapshot({ student_profile: null }),
-        { status: 'signed-in', label: 'Dev bypass', detail: 'demo-a', kind: 'dev-bypass' },
-      )
+      const profile = mapVipsPagesToStudentSpaceProfile(vipsSnapshot({ student_profile: null }), {
+        status: 'signed-in',
+        label: 'Dev bypass',
+        detail: 'demo-a',
+        kind: 'dev-bypass',
+      })
       expect(profile.identity).toMatchObject({ name: 'Dev bypass', className: 'demo-a' })
     })
   })

@@ -68,11 +68,9 @@ describe('StudentSpaceHost', () => {
   })
 
   it('boots with authMenu=null when loadAuthMenu rejects', async () => {
-    ;(backendBridge as { loadAuthMenu?: () => Promise<unknown> }).loadAuthMenu = vi.fn(
-      async () => {
-        throw new Error('boom')
-      },
-    )
+    ;(backendBridge as { loadAuthMenu?: () => Promise<unknown> }).loadAuthMenu = vi.fn(async () => {
+      throw new Error('boom')
+    })
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     render(<StudentSpaceHost />)
     await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
