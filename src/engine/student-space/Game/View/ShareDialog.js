@@ -74,7 +74,7 @@ export default class ShareDialog
                 </div>
 
                 <footer class="share-dialog__footer" data-block="footer" hidden>
-                    <a class="share-dialog__action share-dialog__action--download" type="button" data-action="download" target="_blank" rel="noopener" hidden>Download as PDF</a>
+                    <span class="share-dialog__footer-spacer"></span>
                     <button class="share-dialog__action share-dialog__action--revoke" type="button" data-action="revoke">Revoke link</button>
                 </footer>
             </section>
@@ -95,7 +95,6 @@ export default class ShareDialog
         this.redactionHintEl = root.querySelector('[data-redaction-hint]')
         this.toggleEl      = root.querySelector('[data-action="toggle-quotes"]')
         this.footerEl      = root.querySelector('[data-block="footer"]')
-        this.downloadEl    = root.querySelector('[data-action="download"]')
         this.revokeEl      = root.querySelector('[data-action="revoke"]')
 
         this._onClick = (event) => this._handleClick(event)
@@ -177,14 +176,10 @@ export default class ShareDialog
             this.retryEl.hidden = isAuthError
         }
 
-        // Footer actions: Download visible only when token exists.
+        // Footer actions: Revoke only in v1; PDF download lands in a later
+        // unit (plan U7) once the @react-pdf/renderer wiring is in place.
         if(showFooter)
         {
-            this.downloadEl.hidden = !b.token
-            if(b.token)
-            {
-                this.downloadEl.setAttribute('href', `/api/share.pdf/${encodeURIComponent(b.token)}`)
-            }
             this.revokeEl.disabled = status === 'revoking'
             this.revokeEl.textContent = status === 'revoking'
                 ? 'Revoking…'
@@ -231,10 +226,6 @@ export default class ShareDialog
             case 'toggle-quotes':
                 event.preventDefault()
                 this.bridge.setShowQuotes(!this.bridge.showQuotes).catch(() => {})
-                return
-
-            case 'download':
-                // Default anchor behavior opens the PDF in a new tab.
                 return
 
             case 'revoke':
