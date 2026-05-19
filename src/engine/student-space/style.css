@@ -6543,12 +6543,15 @@ body.is-onboarding .kira-bubble
     width: 36px;
     height: 36px;
     border: none;
-    background: rgba(43, 38, 32, 0.06);
+    background: rgba(253, 250, 243, 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     color: #2b2620;
     font-size: 22px;
     border-radius: 50%;
     cursor: pointer;
     line-height: 1;
+    box-shadow: 0 2px 8px rgba(43, 38, 32, 0.08);
 }
 
 .history-sheet__close:hover { background: rgba(43, 38, 32, 0.12); }
@@ -6557,7 +6560,12 @@ body.is-onboarding .kira-bubble
 {
     max-width: 720px;
     margin: 0 auto 18px;
-    padding-top: 4px;
+    padding: 16px 20px 14px;
+    background: rgba(253, 250, 243, 0.82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(43, 38, 32, 0.06);
 }
 
 .history-sheet__eyebrow
@@ -6592,6 +6600,12 @@ body.is-onboarding .kira-bubble
 {
     max-width: 720px;
     margin: 0 auto 20px;
+    padding: 12px 16px;
+    background: rgba(253, 250, 243, 0.82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 16px;
+    box-shadow: 0 2px 12px rgba(43, 38, 32, 0.06);
 }
 
 .history-sheet__scrubber-empty
@@ -6650,12 +6664,43 @@ body.is-onboarding .kira-bubble
     border-color: #2b2620;
 }
 
+.history-sheet__pill
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.history-sheet__pill-dot
+{
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: transparent;
+}
+
+.history-sheet__pill.has-data .history-sheet__pill-dot
+{
+    background: rgba(43, 38, 32, 0.4);
+}
+
+.history-sheet__pill.has-data.is-active .history-sheet__pill-dot
+{
+    background: rgba(253, 250, 243, 0.85);
+}
+
+.history-sheet__pill.is-empty:not(.is-active)
+{
+    color: rgba(43, 38, 32, 0.5);
+}
+
 .history-sheet__body
 {
     max-width: 1100px;
     margin: 0 auto;
     display: grid;
     grid-template-columns: 1fr;
+    align-items: start;
     gap: 20px;
 }
 
@@ -6667,20 +6712,75 @@ body.is-onboarding .kira-bubble
     }
 }
 
+/* Island slot — a self-contained mini-viewport with its own Three.js
+ * renderer + camera + OrbitControls. Shares the engine's scene, so the
+ * year scrubber's setTimelapseSubset call drives which bloomed trees are
+ * visible. Independent camera means users can rotate and zoom this
+ * preview without disturbing the main game view behind the sheet.
+ * Fixed height so right-column drill-down expansions never resize the
+ * left. */
 .history-sheet__island
 {
     position: relative;
-    min-height: 280px;
-    background: rgba(43, 38, 32, 0.03);
+    height: 360px;
+    background: linear-gradient(180deg, rgba(180, 210, 240, 0.18), rgba(253, 250, 243, 0.35));
+    border: 1px solid rgba(43, 38, 32, 0.12);
     border-radius: 16px;
-    padding: 16px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-end;
+    overflow: hidden;
+    cursor: grab;
+}
+
+.history-sheet__island:active { cursor: grabbing; }
+
+.history-sheet__island-canvas
+{
+    position: absolute;
+    inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+}
+
+.history-sheet__island-art-slot
+{
+    position: absolute;
+    inset: 0;
+    display: none;
+}
+
+.history-sheet__island-art
+{
+    width: 100%;
+    max-width: 340px;
+    height: auto;
+    display: block;
+    opacity: 0.85;
+}
+
+.history-sheet__island-placeholder
+{
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    margin: 0;
+    text-align: center;
+    color: rgba(43, 38, 32, 0.7);
+    font-size: 12px;
+    line-height: 1.5;
+    pointer-events: none;
+    background: rgba(253, 250, 243, 0.78);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    padding: 6px 12px;
+    border-radius: 10px;
 }
 
 .history-sheet__source-label
 {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0.04em;
@@ -6692,10 +6792,14 @@ body.is-onboarding .kira-bubble
 
 .history-sheet__summary
 {
-    background: rgba(253, 250, 243, 0.9);
+    background: rgba(253, 250, 243, 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border: 1px solid rgba(43, 38, 32, 0.08);
     border-radius: 16px;
     padding: 20px;
+    box-shadow: 0 2px 12px rgba(43, 38, 32, 0.06);
+    align-self: start;
 }
 
 .history-sheet__narrative
@@ -6705,6 +6809,32 @@ body.is-onboarding .kira-bubble
     line-height: 1.5;
     color: #2b2620;
     font-style: italic;
+}
+
+.history-sheet__narrative.is-placeholder
+{
+    color: rgba(43, 38, 32, 0.55);
+}
+
+.history-sheet__footnote
+{
+    max-width: 720px;
+    margin: 20px auto 0;
+    padding: 10px 16px;
+    text-align: center;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: rgba(43, 38, 32, 0.55);
+    background: rgba(253, 250, 243, 0.82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 14px;
+}
+
+.history-sheet__footnote em
+{
+    font-style: italic;
+    color: rgba(43, 38, 32, 0.72);
 }
 
 .history-sheet__stats
@@ -6719,14 +6849,31 @@ body.is-onboarding .kira-bubble
 
 .history-sheet__stat
 {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
+    display: block;
     padding-bottom: 8px;
     border-bottom: 1px solid rgba(43, 38, 32, 0.06);
 }
 
 .history-sheet__stat:last-child { border-bottom: none; }
+
+.history-sheet__stat-toggle
+{
+    appearance: none;
+    border: none;
+    background: transparent;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto 14px;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+    cursor: pointer;
+    text-align: left;
+    color: inherit;
+    transition: opacity 120ms ease;
+}
+
+.history-sheet__stat-toggle:hover { opacity: 0.85; }
 
 .history-sheet__stat-label
 {
@@ -6740,6 +6887,215 @@ body.is-onboarding .kira-bubble
     font-weight: 600;
     color: #2b2620;
     text-transform: capitalize;
+}
+
+.history-sheet__stat-chevron
+{
+    font-size: 18px;
+    line-height: 1;
+    color: rgba(43, 38, 32, 0.4);
+    transform: rotate(90deg);
+    transition: transform 160ms ease, color 160ms ease;
+}
+
+.history-sheet__stat.is-open .history-sheet__stat-chevron
+{
+    transform: rotate(270deg);
+    color: rgba(43, 38, 32, 0.65);
+}
+
+.history-sheet__stat-details
+{
+    margin-top: 10px;
+    padding-bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.history-sheet__entry-card
+{
+    background: rgba(253, 250, 243, 0.85);
+    border: 1px solid rgba(43, 38, 32, 0.08);
+    border-radius: 10px;
+    padding: 10px 12px;
+}
+
+.history-sheet__entry-card--preview
+{
+    background: transparent;
+    border: 1.5px dashed rgba(43, 38, 32, 0.22);
+    color: rgba(43, 38, 32, 0.5);
+}
+
+.history-sheet__entry-card--loading
+{
+    text-align: center;
+    color: rgba(43, 38, 32, 0.45);
+    font-size: 12.5px;
+    padding: 16px 12px;
+}
+
+.history-sheet__entry-meta
+{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+    font-size: 11.5px;
+}
+
+.history-sheet__entry-date
+{
+    font-weight: 600;
+    color: rgba(43, 38, 32, 0.65);
+    letter-spacing: 0.02em;
+}
+
+.history-sheet__entry-card--preview .history-sheet__entry-date
+{
+    color: rgba(43, 38, 32, 0.45);
+}
+
+.history-sheet__entry-ctx
+{
+    color: rgba(43, 38, 32, 0.55);
+    background: rgba(43, 38, 32, 0.06);
+    padding: 1px 8px;
+    border-radius: 999px;
+    text-transform: capitalize;
+}
+
+.history-sheet__entry-quote
+{
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #2b2620;
+}
+
+.history-sheet__entry-card--preview .history-sheet__entry-quote
+{
+    color: rgba(43, 38, 32, 0.55);
+    font-style: italic;
+}
+
+.history-sheet__entry-held
+{
+    font-size: 11px;
+    color: rgba(43, 38, 32, 0.5);
+    font-style: italic;
+}
+
+.history-sheet__preview-caption
+{
+    margin: 0;
+    text-align: center;
+    font-size: 11.5px;
+    color: rgba(43, 38, 32, 0.45);
+    line-height: 1.5;
+}
+
+.history-sheet__more
+{
+    margin: 4px 0 0;
+    text-align: center;
+    font-size: 11.5px;
+    color: rgba(43, 38, 32, 0.55);
+}
+
+/* Dimension chip — colored pill rendering one of the four VIPS dimensions.
+   Style values come from PROFILE_THEMES (canonical) mirrored as inline
+   style attributes from HistorySheet.js so the same palette stays in sync
+   with the Profile sheet's tab colors. */
+.history-sheet__dim-chip
+{
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid;
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.history-sheet__dim-chip.is-preview
+{
+    opacity: 0.55;
+}
+
+.history-sheet__strength
+{
+    display: inline-flex;
+    gap: 3px;
+    align-items: center;
+}
+
+.history-sheet__strength span
+{
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(43, 38, 32, 0.18);
+}
+
+.history-sheet__strength span.is-filled
+{
+    background: rgba(43, 38, 32, 0.5);
+}
+
+.history-sheet__dim-bars
+{
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 2px;
+}
+
+.history-sheet__dim-row
+{
+    display: grid;
+    grid-template-columns: 78px 1fr 24px;
+    align-items: center;
+    gap: 8px;
+}
+
+.history-sheet__dim-row-label
+{
+    font-size: 11.5px;
+    font-weight: 500;
+}
+
+.history-sheet__dim-row.is-dominant .history-sheet__dim-row-label
+{
+    font-weight: 700;
+}
+
+.history-sheet__dim-row-bar
+{
+    position: relative;
+    height: 6px;
+    background: rgba(43, 38, 32, 0.08);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.history-sheet__dim-row-fill
+{
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: 999px;
+    transition: width 220ms ease;
+}
+
+.history-sheet__dim-row-count
+{
+    font-size: 11.5px;
+    font-weight: 600;
+    color: rgba(43, 38, 32, 0.65);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-reduced-motion: reduce)
@@ -6762,9 +7118,12 @@ body.is-onboarding .kira-bubble
     margin: 0 auto 18px;
     display: flex;
     gap: 6px;
-    background: rgba(43, 38, 32, 0.05);
+    background: rgba(253, 250, 243, 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border-radius: 999px;
     padding: 4px;
+    box-shadow: 0 2px 8px rgba(43, 38, 32, 0.06);
 }
 
 .history-sheet__tab
