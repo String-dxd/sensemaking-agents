@@ -23,11 +23,11 @@ const CHIPS = [
         </svg>`,
     },
     {
-        id:    'calendar',
-        label: 'Calendar',
+        id:    'history',
+        label: 'History',
         icon: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <rect x="3.5" y="5.5" width="17" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
-            <path d="M8 3v4M16 3v4M3.5 10h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>`,
     },
     {
@@ -45,15 +45,6 @@ const CHIPS = [
             <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
             <path d="M12 6.5l2.5 5.5L12 17.5 9.5 12z" fill="currentColor" stroke="none"/>
             <circle cx="12" cy="12" r="1.1" fill="#faf6ee" stroke="none"/>
-        </svg>`,
-    },
-    {
-        id:    'growth',
-        label: 'Growth',
-        icon: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <path d="M4 19h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M7 19V14M12 19V9M17 19V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M5 9l3-3 3 4 4-6 4 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>`,
     },
 ]

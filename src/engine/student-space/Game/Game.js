@@ -163,9 +163,13 @@ export default class Game
     {
         const surface = input.surface
         if(!surface || !this.view?.overlayController) return
-        if(surface === 'reflections')
+        // Reflections and Calendar both legacy-route into the History sheet's
+        // Timeline tab (event-stream view). The Calendar grid is the v1
+        // primary affordance for that data; we keep its open path alive but
+        // tunnel through History so the IA stays unified.
+        if(surface === 'reflections' || surface === 'calendar')
         {
-            this.view.overlayController.open('calendar', input)
+            this.view.overlayController.open('history', { ...input, tab: 'timeline' })
             return
         }
         if(surface === 'trajectory')
@@ -178,9 +182,9 @@ export default class Game
             this.view.overlayController.open('profile', input)
             return
         }
-        if(surface === 'growth')
+        if(surface === 'growth' || surface === 'history')
         {
-            this.view.overlayController.open('growth', input)
+            this.view.overlayController.open('history', { ...input, tab: 'growth' })
             return
         }
         if(['values', 'interests', 'personality', 'skills'].includes(surface))

@@ -16,10 +16,22 @@ function makeLocation(search: string, hash = ''): Pick<Location, 'hash' | 'pathn
   return { hash, pathname: '/', search }
 }
 
-describe('studentSpaceSurfaceFromLocation — growth', () => {
-  it('routes ?sheet=growth to the growth surface', () => {
+describe('studentSpaceSurfaceFromLocation — history routing', () => {
+  it('routes ?sheet=growth to the growth surface (History sheet, Growth tab)', () => {
     expect(studentSpaceSurfaceFromLocation(makeLocation('?sheet=growth'))).toEqual({
       surface: 'growth',
+    })
+  })
+
+  it('routes ?sheet=history to the history surface', () => {
+    expect(studentSpaceSurfaceFromLocation(makeLocation('?sheet=history'))).toEqual({
+      surface: 'history',
+    })
+  })
+
+  it('keeps ?sheet=calendar routing to reflections (now folded into History/Timeline)', () => {
+    expect(studentSpaceSurfaceFromLocation(makeLocation('?sheet=calendar'))).toEqual({
+      surface: 'reflections',
     })
   })
 
