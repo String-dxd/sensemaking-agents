@@ -30,6 +30,7 @@ import { FACET_THEMES, FACET_HEADERS, applyFacetVars } from './facets.js'
 import { iconForClaim } from './claimIcons.js'
 import ThumbnailRenderer from './ThumbnailRenderer.js'
 import OverlayController from './OverlayController.js'
+import ShareDialog from './ShareDialog.js'
 
 const TAB_ORDER = ['values', 'interests', 'personality', 'skills']
 
@@ -149,6 +150,7 @@ export default class ProfileSheet
         this.idNameEl    = root.querySelector('.profile-id__name')
         this.idClassEl   = root.querySelector('.profile-id__class')
         this.shareSlotEl = root.querySelector('[data-share-slot]')
+        this._mountShareButton()
 
         this.titleEl     = root.querySelector('.profile-sheet__title')
         this.eyebrowEl   = root.querySelector('.profile-sheet__panel-eyebrow')
@@ -199,8 +201,37 @@ export default class ProfileSheet
             try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
             this._onRootClick = null
         }
+        try { this.shareDialog?.dispose?.() } catch(_) {}
+        this.shareDialog = null
         try { this.root?.remove?.() } catch(_) {}
         this.root = null
+    }
+
+    /**
+     * Constructs the Share button inside the identity header slot. Lazy-
+     * creates the ShareDialog on first click so the dialog's DOM doesn't
+     * sit in the document until the student actually wants to share.
+     */
+    _mountShareButton()
+    {
+        if(!this.shareSlotEl) return
+        const btn = document.createElement('button')
+        btn.type = 'button'
+        btn.className = 'profile-share-button'
+        btn.dataset.testid = 'profile-share-button'
+        btn.innerHTML = `
+            <span class="profile-share-button__icon" aria-hidden="true">↗</span>
+            <span class="profile-share-button__label">Share</span>
+        `
+        btn.addEventListener('click', () => this._openShareDialog())
+        this.shareSlotEl.appendChild(btn)
+        this.shareButtonEl = btn
+    }
+
+    _openShareDialog()
+    {
+        if(!this.shareDialog) this.shareDialog = new ShareDialog()
+        this.shareDialog.open()
     }
 
     // ── Open / close ──────────────────────────────────────────────────────
