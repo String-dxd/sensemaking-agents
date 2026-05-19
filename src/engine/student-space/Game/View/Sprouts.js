@@ -791,6 +791,64 @@ export default class Sprouts
         }
     }
 
+    /**
+     * Replace the visible bloomed objects with a historical subset, or
+     * restore the live slice state when called with null.
+     *
+     * Used by GrowthSheet (timelapse mode) to render the island as it was
+     * at the end of a chosen year. Diffs against `this.bloomedNodes` by id
+     * so only the delta (additions + removals) touches the scene — no full
+     * reconcile, no THREE allocations for unchanged nodes.
+     *
+     * CRITICAL INVARIANT: this method never calls slice mutators
+     * (`state.sprouts.bloom`, `.hydrate`, `.add`, `.markReady`, etc.).
+     * Scrubbing through past years must not destroy real present-day state.
+     *
+     * @param {Array | null} bloomedTrees
+     *   - Array: bloomed-tree shapes (same fields as `state.sprouts.listBloomedTrees()`).
+     *     Anything present in `bloomedNodes` but not in this array is removed; anything in
+     *     this array but not in `bloomedNodes` is spawned (no animation — historical state
+     *     doesn't grow in front of the user).
+     *   - null: restores live slice state by re-reading `state.sprouts.listBloomedTrees()`.
+     */
+    setTimelapseSubset(bloomedTrees)
+    {
+        const target = bloomedTrees === null
+            ? this.state.sprouts.listBloomedTrees()
+            : bloomedTrees
+
+        const targetIds = new Set()
+        for(const tree of target) targetIds.add(tree.id)
+
+        // Remove nodes not in the target set.
+        for(const id of Array.from(this.bloomedNodes.keys()))
+        {
+            if(!targetIds.has(id)) this._disposeBloomedNode(id)
+        }
+
+        // Spawn nodes present in the target set but missing from the scene.
+        for(const tree of target)
+        {
+            if(!this.bloomedNodes.has(tree.id)) this._spawnBloomedTree(tree, /*animate=*/ false)
+        }
+    }
+
+    _disposeBloomedNode(id)
+    {
+        const node = this.bloomedNodes.get(id)
+        if(!node) return
+        if(node.group)
+        {
+            try { this.root?.remove(node.group) } catch(_) {}
+            node.group.traverse((obj) =>
+            {
+                if(obj.geometry) { try { obj.geometry.dispose() } catch(_) {} }
+                if(obj.material) { try { obj.material.dispose() } catch(_) {} }
+            })
+        }
+        this.bloomedNodes.delete(id)
+    }
+
     _spawnBloomedTree(tree, animate = false)
     {
         // Renamed semantically: dispatches mesh construction by sprout
@@ -1565,17 +1623,7 @@ export default class Sprouts
         }
         for(const id of Array.from(this.bloomedNodes.keys()))
         {
-            const bn = this.bloomedNodes.get(id)
-            if(bn?.group)
-            {
-                this.root?.remove(bn.group)
-                bn.group.traverse((obj) =>
-                {
-                    if(obj.geometry) { try { obj.geometry.dispose() } catch(_) {} }
-                    if(obj.material) { try { obj.material.dispose() } catch(_) {} }
-                })
-            }
-            this.bloomedNodes.delete(id)
+            this._disposeBloomedNode(id)
         }
         if(this.root)
         {
