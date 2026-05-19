@@ -81,3 +81,10 @@ When adding entries here:
 
 Move entries OUT of this file when fixed — link the commit/PR in the section
 header for archaeology, or delete outright. This file should stay short.
+
+## ~~Camera flow needs holistic review across all consumers~~ (resolved 2026-05-18)
+
+Fixed via owner-keyed save stack in `Camera.zoomTo/restoreZoom`. Each
+consumer now passes `{ owner: '...' }`; the camera holds a `Map<owner,
+{pos, target}>` so interleaved zooms restore in LIFO order. Tests in
+`test/engine/Camera.test.ts` cover the failing pre-fix scenarios.

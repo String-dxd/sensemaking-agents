@@ -55,8 +55,48 @@ export interface Game {
     captures: {
       subscribe(listener: (event: unknown, context: unknown) => void): () => void
     }
+    sprouts: {
+      subscribe(listener: (event: SproutsEvent, sprouts: readonly Sprout[]) => void): () => void
+      recent(n?: number): readonly Sprout[]
+      getActive(): Sprout | null
+      readyToBloom(): readonly Sprout[]
+      grow(captureRef: { kind: 'capture' | 'mood'; id: string }): {
+        sprout: Sprout | null
+        didSpawn: boolean
+        didMarkReady: boolean
+      }
+      bloom(id: string): Sprout | null
+    }
   }
 }
+
+/**
+ * Sprout descriptor — a growing-but-not-yet-bloomed thing on the island.
+ * Captures attach to the active sprout until it crosses the bloom
+ * threshold; on bloom the sprout is removed from the active list and
+ * the view spawns a real Tree at the sprout's placementSeed.
+ *
+ * v1 ships single-species (`species: 'tree'`). v2 widens the enum.
+ */
+export interface Sprout {
+  readonly id: string
+  readonly createdAt: string
+  readonly entryDate: string
+  readonly species: 'tree'
+  readonly treeSpecies: 'oak' | 'cherry'
+  readonly placementSeed: number
+  readonly threshold: number
+  readonly count: number
+  readonly readyToBloom: boolean
+  readonly bloomedAt: string | null
+  readonly captureRefs: readonly string[]
+}
+
+export type SproutsEvent =
+  | { type: 'spawned'; sprout: Sprout }
+  | { type: 'grew'; sprout: Sprout }
+  | { type: 'markedReady'; sprout: Sprout }
+  | { type: 'bloomed'; sprout: Sprout }
 
 export function createGame(opts?: GameOptions): Game
 export default createGame

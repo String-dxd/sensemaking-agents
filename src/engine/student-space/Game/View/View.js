@@ -10,6 +10,7 @@ import Grass from './Grass.js'
 import Tree from './Tree.js'
 import Flowers from './Flowers.js'
 import Fruits from './Fruits.js'
+import Sprouts from './Sprouts.js'
 import Butterflies from './Butterflies.js'
 import Fireflies from './Fireflies.js'
 import Particles from './Particles.js'
@@ -72,6 +73,7 @@ export default class View
         this.tree        = new Tree()
         this.flowers     = new Flowers()
         this.fruits      = new Fruits()
+        this.sprouts     = new Sprouts()
         this.butterflies = new Butterflies()
         this.fireflies   = new Fireflies()
         this.particles   = new Particles()
@@ -173,6 +175,7 @@ export default class View
         this.tree.update()
         this.flowers.update()
         this.fruits.update()
+        this.sprouts.update()
         this.butterflies.update()
         this.fireflies.update()
         this.particles.update()
@@ -244,6 +247,7 @@ export default class View
             this.trackPicker,
             this.mailbox,
             this.telescope,
+            this.sprouts,
         ]
         for(const sub of SUBSYSTEMS)
         {

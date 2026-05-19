@@ -212,7 +212,16 @@ const KNOWN_CAPTURE_KEYS = new Set([
     'reframe', 'thread',
     // Path Finder — trajectory captures carry { throughLine, bearings }.
     'trajectory',
+    // Sprout dimension picked by the student post-capture (values /
+    // interests / personality / skills). Drives sprout species.
+    'dimension',
+    // Optional finer-grained claim id from the VIPS taxonomy (e.g.,
+    // 'values.contribution', 'skills.communication'). Recorded for
+    // future analysis + display; species is still derived from the
+    // top-level dimension above so this is purely additive.
+    'subClaimId',
 ])
+const CAPTURE_DIMENSIONS = new Set(['values', 'interests', 'personality', 'skills'])
 
 const REVIEW_STATES = new Set(['pending', 'confirmed', 'forgotten'])
 const SYNC_STATES   = new Set(['local', 'syncing', 'synced', 'failed'])
@@ -311,6 +320,8 @@ export function mergeCapture(raw, ctx = 'capture')
         if(k === 'syncStatus' && !SYNC_STATES.has(v)) { warn(`${ctx}.syncStatus invalid`); continue }
         if(k === 'syncError' && typeof v !== 'string') { warn(`${ctx}.syncError not string`); continue }
         if(k === 'contextType' && typeof v !== 'string') { warn(`${ctx}.contextType not string`); continue }
+        if(k === 'dimension' && v !== null && !CAPTURE_DIMENSIONS.has(v)) { warn(`${ctx}.dimension invalid: "${v}"`); continue }
+        if(k === 'subClaimId' && v !== null && !isCanonicalClaim(v)) { warn(`${ctx}.subClaimId not in taxonomy: "${v}"`); continue }
         if(k === 'reframe')
         {
             const rf = mergeReframe(v, ctx)
@@ -380,6 +391,110 @@ export function mergeCalendarEvent(raw, ctx = 'event')
         if(!KNOWN_EVENT_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
         const v = raw[k]
         if(k === 'kind' && !EVENT_KINDS.has(v)) { warn(`${ctx}.kind invalid`); continue }
+        out[k] = v
+    }
+    if(!out.id) return null
+    return out
+}
+
+// ── Sprout ─────────────────────────────────────────────────────────────────
+/**
+ * @typedef {Object} Sprout
+ * @property {string} id
+ * @property {string} createdAt ISO
+ * @property {string} entryDate YYYY-MM-DD
+ * @property {'tree'} species v1 fixed to tree; v2 widens to flower/fruit
+ * @property {string} treeSpecies engine tree variety (oak, cherry, ...)
+ * @property {number} placementSeed deterministic seed → island position
+ * @property {number} threshold captures required to mark ready
+ * @property {number} count captures attached so far
+ * @property {boolean} readyToBloom threshold crossed, awaiting student tap
+ * @property {string|null} bloomedAt ISO; non-null once bloomed (sprout is then removed from active list anyway)
+ * @property {string[]} captureRefs capture/mood ids contributing to this sprout
+ */
+// Species widened in v1.1: 'pending' is the holding state until the
+// student tags the sprout's first capture; the picker then maps the
+// dimension → species (value=tree, interest=flower, personality=
+// butterfly, skill=fruit). Tree variety (oak/cherry) cycles within
+// the 'tree' species.
+const SPROUT_SPECIES = new Set(['pending', 'tree', 'flower', 'butterfly', 'fruit'])
+const SPROUT_TREE_SPECIES = new Set(['oak', 'cherry'])  // matches Tree.js PLACEMENTS
+const SPROUT_DIMENSIONS = new Set(['values', 'interests', 'personality', 'skills'])
+
+const defaultSprout = () => ({
+    id:            '',
+    createdAt:     new Date(0).toISOString(),
+    entryDate:     '1970-01-01',
+    species:       'pending',
+    treeSpecies:   'oak',
+    placementSeed: 0,
+    threshold:     3,
+    count:         0,
+    readyToBloom:  false,
+    bloomedAt:     null,
+    captureRefs:   [],
+    dimension:     null,
+    // Explicit student-set position (pick-and-plant). When null, the view
+    // falls back to seededAngleAndRadius(placementSeed). Plain object —
+    // not frozen — because the slice may mutate it in place via
+    // setSproutPosition.
+    position:      null,
+})
+
+const KNOWN_SPROUT_KEYS = new Set([
+    'id', 'createdAt', 'entryDate', 'species', 'treeSpecies', 'dimension',
+    'placementSeed', 'threshold', 'count', 'readyToBloom', 'bloomedAt', 'captureRefs',
+    'position',
+])
+
+/**
+ * Validate a `{ x, z }` position payload. Returns the cleaned position
+ * or `null` for any invalid shape. Used by both the schema merger and
+ * the slice's `setSproutPosition` / `setBloomedPosition` methods so the
+ * two paths can't drift.
+ */
+export function coercePosition(raw)
+{
+    if(raw === null || raw === undefined) return null
+    if(typeof raw !== 'object') return null
+    const x = raw.x
+    const z = raw.z
+    if(typeof x !== 'number' || typeof z !== 'number') return null
+    if(!Number.isFinite(x) || !Number.isFinite(z)) return null
+    return { x, z }
+}
+
+export function mergeSprout(raw, ctx = 'sprout')
+{
+    if(!raw || typeof raw !== 'object') { warn(`${ctx}: not an object`); return null }
+    const out = defaultSprout()
+    for(const k of Object.keys(raw))
+    {
+        if(!KNOWN_SPROUT_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
+        const v = raw[k]
+        if(k === 'species' && !SPROUT_SPECIES.has(v)) { warn(`${ctx}.species invalid: "${v}"`); continue }
+        if(k === 'treeSpecies' && !SPROUT_TREE_SPECIES.has(v)) { warn(`${ctx}.treeSpecies invalid: "${v}"`); continue }
+        if(k === 'dimension' && v !== null && !SPROUT_DIMENSIONS.has(v)) { warn(`${ctx}.dimension invalid: "${v}"`); continue }
+        if((k === 'placementSeed' || k === 'threshold' || k === 'count') && typeof v !== 'number') { warn(`${ctx}.${k} not number`); continue }
+        if(k === 'readyToBloom' && !isBool(v)) { warn(`${ctx}.readyToBloom not bool`); continue }
+        if(k === 'bloomedAt' && v !== null && !isISO(v)) { warn(`${ctx}.bloomedAt invalid`); continue }
+        if(k === 'captureRefs')
+        {
+            if(!Array.isArray(v)) { warn(`${ctx}.captureRefs not array`); continue }
+            out.captureRefs = v.filter((x) => typeof x === 'string')
+            continue
+        }
+        if(k === 'position')
+        {
+            const coerced = coercePosition(v)
+            if(coerced === null && v !== null && v !== undefined)
+            {
+                warn(`${ctx}.position invalid shape; defaulting to null`)
+            }
+            out.position = coerced
+            continue
+        }
+        if((k === 'id' || k === 'entryDate' || k === 'createdAt') && !isString(v)) { warn(`${ctx}.${k} not string`); continue }
         out[k] = v
     }
     if(!out.id) return null

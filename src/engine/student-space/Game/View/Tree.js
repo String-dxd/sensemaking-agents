@@ -559,6 +559,48 @@ export default class Tree
         folder.add(this, 'windRotation', 0, 3, 0.05).name('leaf flutter')
     }
 
+    /**
+     * Pick-and-plant: relocate a placement to (x, z), snap y to terrain,
+     * and re-project this entry's leaf instances so the canopy follows
+     * the trunk. Used by the Sprouts view to honor student-set decor
+     * offsets at boot and after a commit.
+     *
+     * Idempotent. Silent no-op on bad index or before this.ready.
+     */
+    moveEntry(index, x, z, opts = {})
+    {
+        if(!this.ready) return
+        if(typeof x !== 'number' || typeof z !== 'number') return
+        const entry = this.entries[index]
+        if(!entry) return
+        // `opts.y` lets the drag handler keep a lifted y while the
+        // student is holding the tree; bare calls (commit, hydrate-
+        // apply) fall back to terrain snap.
+        const y = typeof opts.y === 'number' ? opts.y : this.island.heightAt(x, z)
+        entry.group.position.set(x, y, z)
+        entry.x = x
+        entry.z = z
+        entry.group.updateMatrixWorld(true)
+        const mesh = this._leafMeshBySpecies[entry.species]
+        if(mesh)
+        {
+            for(let i = 0; i < entry.leafLocals.length; i++)
+            {
+                this._tmpM.multiplyMatrices(entry.group.matrixWorld, entry.leafLocals[i])
+                mesh.setMatrixAt(entry.leafStart + i, this._tmpM)
+            }
+            mesh.instanceMatrix.needsUpdate = true
+        }
+    }
+
+    /** Read the live world XZ of a placement, or null if unavailable. */
+    getEntryWorldXZ(index)
+    {
+        const entry = this.entries[index]
+        if(!entry) return null
+        return { x: entry.group.position.x, z: entry.group.position.z }
+    }
+
     update()
     {
         if(!this.ready) return

@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import '~/engine/student-space/style.css'
+import type { Game } from '~/engine/student-space/Game'
 import { createStudentSpaceBackendBridge } from '~/lib/student-space/backend-bridge'
 import { applyStudentSpaceBackendSnapshot } from '~/lib/student-space/backend-snapshot'
 import { studentSpaceSurfaceFromLocation } from '~/lib/student-space/route-sheets'
 import { cn } from '~/lib/utils'
+import { CaptureTagPicker } from './CaptureTagPicker'
+import { IslandProgressionOverlay } from './IslandProgressionOverlay'
 
 /**
  * Mounts the vendored Student Space engine. The engine is one-game-per-page;
@@ -25,6 +28,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const backend = useMemo(() => createStudentSpaceBackendBridge(), [])
+  const [game, setGame] = useState<Game | null>(null)
 
   useEffect(() => {
     const container = containerRef.current
@@ -38,7 +42,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
       try {
         const engine = await import('~/engine/student-space/Game')
         if (cancelled) return
-        const game = engine.createGame({
+        const live = engine.createGame({
           container,
           persistence: { storage: engine.localStorageAdapter() },
           backend,
@@ -47,28 +51,30 @@ export function StudentSpaceHost({ className }: { className?: string }) {
         // import the engine without bloating server bundles) can call
         // `dispose()` synchronously to drain Persistence before the
         // `ss:v1:*` localStorage wipe. The handle is cleared on unmount.
-        window.__studentSpaceGame = game
+        window.__studentSpaceGame = live
+        setGame(live)
         dispose = () => {
           window.__studentSpaceGame = null
-          game.dispose()
+          setGame(null)
+          live.dispose()
         }
         const routeSurface = studentSpaceSurfaceFromLocation(window.location)
         let openedRouteBeforeHydration = false
         if (routeSurface && routeSurface.surface !== 'trajectory') {
-          game.openSurface?.(routeSurface)
+          live.openSurface?.(routeSurface)
           openedRouteBeforeHydration = true
         }
         void backend
           .refreshSnapshot?.()
           .then((snapshot) => {
             if (cancelled) return
-            applyStudentSpaceBackendSnapshot(game, snapshot)
-            if (routeSurface) game.openSurface?.(routeSurface)
+            applyStudentSpaceBackendSnapshot(live, snapshot)
+            if (routeSurface) live.openSurface?.(routeSurface)
           })
           .catch((snapshotErr) => {
             console.warn('[StudentSpaceHost] backend snapshot hydration failed', snapshotErr)
             if (!cancelled && routeSurface && !openedRouteBeforeHydration) {
-              game.openSurface?.(routeSurface)
+              live.openSurface?.(routeSurface)
             }
           })
       } catch (err) {
@@ -88,7 +94,17 @@ export function StudentSpaceHost({ className }: { className?: string }) {
 
   if (error) return <EngineLoadFailure error={error} />
 
-  return <div ref={containerRef} className={cn('game fixed inset-0 h-svh w-svw', className)} />
+  return (
+    <>
+      <div ref={containerRef} className={cn('game fixed inset-0 h-svh w-svw', className)} />
+      {game ? (
+        <>
+          <IslandProgressionOverlay game={game} />
+          <CaptureTagPicker game={game} />
+        </>
+      ) : null}
+    </>
+  )
 }
 
 function EngineLoadFailure({ error }: { error: Error }) {
