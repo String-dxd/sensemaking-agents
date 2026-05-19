@@ -2973,26 +2973,77 @@ body.has-chooser        .top-nav
 
 .profile-sheet.is-open { transform: translateY(0); }
 
+/* Atmospheric hero — sits behind the identity header and tab row. The wash
+   layer reads --facet-soft (set by applyFacetVars on open / tab switch); the
+   shimmer is a low-opacity radial gradient that drifts to evoke the engine's
+   ambient day/night cycle without coupling to the canvas. Both layers are
+   pointer-events: none so clicks still hit the identity header / tabs / close
+   above them. */
+.profile-sheet__hero
+{
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: clamp(360px, 50vh, 520px);
+    pointer-events: none;
+    z-index: 0;
+}
+.profile-sheet__hero-wash
+{
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(ellipse at 50% -20%, color-mix(in srgb, var(--facet-soft) 88%, #fff) 0%, transparent 60%),
+        linear-gradient(180deg,
+            color-mix(in srgb, var(--facet-soft) 55%, #fdfaf3) 0%,
+            #fdfaf3 78%);
+    transition: background 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.profile-sheet__hero-shimmer
+{
+    position: absolute;
+    inset: -10% -20% auto -20%;
+    height: 70%;
+    background:
+        radial-gradient(circle at 18% 38%, color-mix(in srgb, var(--facet-accent) 14%, transparent) 0%, transparent 38%),
+        radial-gradient(circle at 78% 22%, color-mix(in srgb, var(--facet-accent) 9%, transparent) 0%, transparent 42%);
+    filter: blur(28px);
+    opacity: 0.85;
+    animation: profile-hero-drift 16s ease-in-out infinite alternate;
+}
+
+@keyframes profile-hero-drift
+{
+    0%   { transform: translate3d(-2%, 0, 0) scale(1);    }
+    100% { transform: translate3d(2%, -1%, 0) scale(1.04); }
+}
+
+/* All children except the hero get a stacking context above it. */
+.profile-sheet > :not(.profile-sheet__hero)
+{
+    position: relative;
+    z-index: 1;
+}
+
 /* profile-sheet close styling is provided by the shared sheet-close
    grouped selector at the top of this file. */
 
-/* Identity header — name, class, and avatar above the VIPS tabs. The
-   avatar placeholder uses the existing cream/coral palette so a student
-   without an uploaded photo still gets a person-shaped slot. */
+/* Identity header — name, class, avatar, and a Share-button slot (U4 mounts
+   the button into [data-share-slot]; the slot reserves space in the layout
+   even when empty so the header doesn't shift on first Share render). */
 .profile-id
 {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 56px 24px 16px;
+    padding: 72px 24px 20px;
     max-width: 760px;
     margin: 0 auto;
     box-sizing: border-box;
 }
 .profile-id__avatar
 {
-    width: 64px;
-    height: 64px;
+    width: 76px;
+    height: 76px;
     border-radius: 50%;
     flex-shrink: 0;
     background-color: #FAE1CE;
@@ -3002,23 +3053,353 @@ body.has-chooser        .top-nav
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font: 600 26px/1 var(--font-sans);
+    font: 600 30px/1 var(--font-sans);
     letter-spacing: -0.02em;
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04), inset 0 -2px 0 rgba(0, 0, 0, 0.04);
+    box-shadow:
+        0 1px 0 rgba(0, 0, 0, 0.04),
+        inset 0 -2px 0 rgba(0, 0, 0, 0.04),
+        0 0 0 6px color-mix(in srgb, var(--facet-accent) 14%, transparent);
+    transition: box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.profile-id__actions
+{
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 36px;
+}
+
+/* Share button — lives inside the identity-header actions slot. Opens the
+   ShareDialog. The button is always rendered; auth-kind gating happens
+   inside the dialog's create flow (demo / dev-bypass receives 403 from
+   the server and the dialog surfaces a sign-in CTA). */
+.profile-share-button
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--facet-accent) 45%, transparent);
+    background: rgba(255, 255, 255, 0.65);
+    color: var(--facet-ink);
+    font: 500 13.5px/1 var(--font-sans);
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease,
+                box-shadow 160ms ease;
+}
+.profile-share-button:hover
+{
+    background: color-mix(in srgb, var(--facet-soft) 75%, #fff);
+    border-color: var(--facet-accent);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px -10px color-mix(in srgb, var(--facet-accent) 60%, transparent);
+}
+.profile-share-button:focus-visible
+{
+    outline: 2px solid var(--facet-accent);
+    outline-offset: 2px;
+}
+.profile-share-button__icon
+{
+    font-size: 14px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+}
+
+/* Share dialog — overlays the open profile sheet. Not registered with
+   OverlayController; it sits visually above ProfileSheet rather than
+   replacing it. Scrim + centered card; ESC closes; tap on scrim closes. */
+.share-dialog
+{
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.share-dialog.is-open
+{
+    opacity: 1;
+    pointer-events: auto;
+}
+.share-dialog__scrim
+{
+    position: absolute;
+    inset: 0;
+    background: rgba(43, 38, 32, 0.42);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+}
+.share-dialog__card
+{
+    position: relative;
+    width: min(520px, 100%);
+    background: #fdfaf3;
+    border-radius: 20px;
+    padding: 24px 24px 20px;
+    box-shadow: 0 30px 60px -20px rgba(43, 38, 32, 0.32),
+                0 12px 24px -10px rgba(43, 38, 32, 0.18);
+    color: #2b2620;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    transform: translateY(10px);
+    transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.share-dialog.is-open .share-dialog__card { transform: translateY(0); }
+
+.share-dialog__header
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.share-dialog__title
+{
+    margin: 0;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+.share-dialog__close
+{
+    border: 0;
+    background: transparent;
+    color: rgba(43, 38, 32, 0.55);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 999px;
+}
+.share-dialog__close:hover { background: rgba(0, 0, 0, 0.05); color: #2b2620; }
+
+.share-dialog__lede
+{
+    margin: 0;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: rgba(43, 38, 32, 0.7);
+}
+
+.share-dialog__placeholder
+{
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(43, 38, 32, 0.04);
+    color: rgba(43, 38, 32, 0.7);
+    font-size: 13.5px;
+}
+.share-dialog__spinner
+{
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid rgba(43, 38, 32, 0.18);
+    border-top-color: rgba(43, 38, 32, 0.55);
+    animation: share-dialog-spin 720ms linear infinite;
+}
+@keyframes share-dialog-spin { to { transform: rotate(360deg); } }
+
+.share-dialog__field-label
+{
+    display: block;
+    font-size: 11px;
+    letter-spacing: 0.10em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: rgba(43, 38, 32, 0.55);
+    margin-bottom: 6px;
+}
+.share-dialog__url-row
+{
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+.share-dialog__url
+{
+    flex: 1;
+    min-width: 0;
+    height: 38px;
+    border-radius: 10px;
+    border: 1px solid rgba(43, 38, 32, 0.16);
+    padding: 0 12px;
+    font: 13px/1 ui-monospace, SFMono-Regular, "JetBrains Mono", monospace;
+    background: #fff;
+    color: #2b2620;
+}
+.share-dialog__url-block.is-revoking .share-dialog__url
+{
+    text-decoration: line-through;
+    color: rgba(43, 38, 32, 0.45);
+}
+
+.share-dialog__action
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 38px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font: 500 13px/1 var(--font-sans, system-ui);
+    cursor: pointer;
+    background: #2b2620;
+    color: #fdfaf3;
+    text-decoration: none;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.share-dialog__action:hover { background: rgba(43, 38, 32, 0.85); }
+.share-dialog__action--copy { white-space: nowrap; }
+.share-dialog__action--copy.is-flashed { background: #6a8a4a; }
+.share-dialog__action--download
+{
+    background: rgba(43, 38, 32, 0.06);
+    color: #2b2620;
+    border-color: rgba(43, 38, 32, 0.16);
+}
+.share-dialog__action--download:hover { background: rgba(43, 38, 32, 0.12); }
+.share-dialog__action--revoke
+{
+    background: transparent;
+    color: rgba(43, 38, 32, 0.65);
+    border-color: rgba(43, 38, 32, 0.18);
+}
+.share-dialog__action--revoke:hover { color: #2b2620; }
+.share-dialog__action--revoke.is-armed
+{
+    color: var(--facet-accent, #A07659);
+    border-color: var(--facet-accent, #A07659);
+}
+.share-dialog__action--signin
+{
+    background: var(--facet-accent, #A07659);
+    color: #fdfaf3;
+}
+.share-dialog__action--signin:hover { background: color-mix(in srgb, var(--facet-accent, #A07659) 85%, #000); }
+.share-dialog__action:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.share-dialog__error
+{
+    background: rgba(184, 86, 86, 0.08);
+    border: 1px solid rgba(184, 86, 86, 0.25);
+    border-radius: 14px;
+    padding: 14px 16px;
+}
+.share-dialog__error-text
+{
+    margin: 0 0 10px;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: rgba(43, 38, 32, 0.9);
+}
+.share-dialog__error-actions
+{
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.share-dialog__redaction
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0 4px;
+    border-top: 1px solid rgba(43, 38, 32, 0.08);
+}
+.share-dialog__redaction-label
+{
+    font-size: 14px;
+    font-weight: 600;
+    color: #2b2620;
+}
+.share-dialog__redaction-hint
+{
+    margin: 4px 0 0;
+    font-size: 12.5px;
+    color: rgba(43, 38, 32, 0.6);
+}
+.share-dialog__toggle
+{
+    flex-shrink: 0;
+    width: 44px;
+    height: 26px;
+    border-radius: 999px;
+    border: 0;
+    background: rgba(43, 38, 32, 0.18);
+    position: relative;
+    cursor: pointer;
+    transition: background 160ms ease;
+}
+.share-dialog__toggle::after
+{
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fdfaf3;
+    transition: transform 160ms ease;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+}
+.share-dialog__toggle.is-on
+{
+    background: var(--facet-accent, #A07659);
+}
+.share-dialog__toggle.is-on::after { transform: translateX(18px); }
+
+.share-dialog__footer
+{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding-top: 6px;
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .share-dialog,
+    .share-dialog__card,
+    .share-dialog__toggle,
+    .share-dialog__toggle::after { transition: none; }
+    .share-dialog__spinner { animation: none; }
 }
 .profile-id__avatar.has-photo .profile-id__initial { display: none; }
 .profile-id__text { display: flex; flex-direction: column; }
 .profile-id__name
 {
     margin: 0 0 2px;
-    font: 600 22px/1.15 var(--font-sans);
-    letter-spacing: -0.01em;
+    font: 600 26px/1.15 var(--font-sans);
+    letter-spacing: -0.02em;
     color: #2b2620;
 }
 .profile-id__class
 {
     margin: 0;
-    font-size: 13px;
+    font-size: 13.5px;
     color: rgba(43, 38, 32, 0.62);
     letter-spacing: 0.02em;
 }
@@ -3027,32 +3408,40 @@ body.has-chooser        .top-nav
 {
     position: sticky;
     top: 0;
-    z-index: 1;
+    z-index: 2;
     display: flex;
     gap: 6px;
-    padding-block: 12px;
+    padding-block: 14px;
     /* Match the centered 760px column used by .profile-id and .profile-sheet__panel
        so the tab pills line up with the page title. Bar itself stays full-width
        so the sticky gradient + backdrop blur still spans the viewport. */
     padding-inline: max(24px, calc((100% - 760px) / 2 + 24px));
-    background: linear-gradient(180deg, rgba(253,250,243,0.96) 0%, rgba(253,250,243,0.8) 100%);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    background: linear-gradient(180deg, rgba(253,250,243,0.92) 0%, rgba(253,250,243,0.72) 100%);
+    backdrop-filter: blur(10px) saturate(115%);
+    -webkit-backdrop-filter: blur(10px) saturate(115%);
 }
 
 .profile-tab
 {
-    height: 32px;
-    padding: 0 14px;
+    height: 34px;
+    padding: 0 16px;
     border-radius: 999px;
     border: 1px solid transparent;
-    background: transparent;
-    color: rgba(43, 38, 32, 0.55);
-    font: 500 13px/1 inherit;
+    background: rgba(255, 255, 255, 0.45);
+    color: rgba(43, 38, 32, 0.58);
+    font: 500 13.5px/1 inherit;
     cursor: pointer;
     transition: background 180ms cubic-bezier(0.22, 1, 0.36, 1),
                 color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-                border-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+                border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+                transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.profile-tab:hover
+{
+    background: rgba(255, 255, 255, 0.78);
+    color: #2b2620;
 }
 
 .profile-tab.is-active
@@ -3060,6 +3449,8 @@ body.has-chooser        .top-nav
     background: var(--facet-soft);
     color: var(--facet-ink);
     border-color: var(--facet-accent);
+    box-shadow: 0 4px 14px -8px color-mix(in srgb, var(--facet-accent) 60%, transparent);
+    transform: translateY(-1px);
 }
 
 .profile-sheet__panel
@@ -3102,11 +3493,12 @@ body.has-chooser        .top-nav
 }
 .profile-sheet__title
 {
-    font-size: clamp(26px, 3.6vw, 32px);
-    line-height: 1.15;
-    margin: 0 0 6px;
+    font-size: clamp(28px, 4.2vw, 38px);
+    line-height: 1.1;
+    margin: 0 0 8px;
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
+    color: #2b2620;
 }
 .profile-sheet__panel-subtitle
 {
@@ -3211,35 +3603,41 @@ body.has-chooser        .top-nav
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
-    padding: 14px 10px 12px;
-    border-radius: 14px;
+    gap: 6px;
+    padding: 18px 12px 14px;
+    border-radius: 18px;
     border: 1.5px solid transparent;
-    background: rgba(255, 255, 255, 0.55);
+    background: rgba(255, 255, 255, 0.62);
     cursor: pointer;
     text-align: center;
-    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
 .bento-tile:hover
 {
-    background: rgba(255, 255, 255, 0.85);
-    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.92);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px -12px color-mix(in srgb, var(--facet-accent) 60%, transparent);
 }
 
 .bento-tile.is-selected
 {
     background: var(--facet-soft);
     border-color: var(--facet-accent);
+    box-shadow: 0 8px 22px -14px color-mix(in srgb, var(--facet-accent) 70%, transparent);
 }
 
-.bento-tile.is-empty .bento-tile__icon { opacity: 0.35; }
-.bento-tile.is-empty .bento-tile__count { opacity: 0.45; }
+/* Per the world-stage doctrine: pending/unseen claims read translucent; the
+   styling shouldn't punish a still-growing read, so the empty treatment is
+   muted not greyed out. */
+.bento-tile.is-empty { opacity: 0.65; }
+.bento-tile.is-empty .bento-tile__icon { opacity: 0.4; }
+.bento-tile.is-empty .bento-tile__count { opacity: 0.55; }
 
 .bento-tile__icon
 {
-    width: 72px;
-    height: 72px;
+    width: clamp(108px, 18vw, 160px);
+    height: clamp(108px, 18vw, 160px);
     color: var(--facet-accent);
     display: inline-flex;
     align-items: center;
@@ -3267,6 +3665,58 @@ body.has-chooser        .top-nav
 {
     font-size: 11px;
     color: rgba(43, 38, 32, 0.55);
+}
+
+/* Dimension-level empty state — shown when the active VIPS dimension has
+   zero noticings across all canonical claims. Replaces the COLLECTION
+   eyebrow and bento grid with a single quiet paragraph in the dimension's
+   accent ink. Share button (when present) stays enabled because the share
+   page handles its own empty state independently. */
+.profile-sheet__dimension-empty
+{
+    margin: 12px 0 24px;
+    padding: 22px 24px;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--facet-soft) 50%, rgba(255,255,255,0.65));
+    border: 1px dashed color-mix(in srgb, var(--facet-accent) 50%, transparent);
+}
+.profile-sheet__dimension-empty-text
+{
+    margin: 0;
+    font-size: 14.5px;
+    line-height: 1.55;
+    color: var(--facet-ink);
+    font-style: italic;
+}
+
+/* Reduced-motion handling for the profile sheet:
+   - Slide-up animation collapses to a 180ms fade with no transform.
+   - Hero shimmer drift animation pauses (kept visible, static).
+   - Bento and tab transitions become instant. */
+@media (prefers-reduced-motion: reduce)
+{
+    .profile-sheet
+    {
+        transform: none;
+        opacity: 0;
+        transition: opacity 180ms ease;
+    }
+    .profile-sheet.is-open
+    {
+        opacity: 1;
+    }
+    .profile-sheet__hero-shimmer
+    {
+        animation: none;
+    }
+    .profile-sheet__panel,
+    .profile-tab,
+    .bento-tile,
+    .profile-id__avatar
+    {
+        transition: none;
+    }
+    .bento-tile:hover { transform: none; }
 }
 
 /* Quote list — newest first. Each card has italic quote text, chips,
