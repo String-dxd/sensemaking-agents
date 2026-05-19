@@ -267,7 +267,7 @@ export default class ObjectPeek
             target.z + unitZ * dist,
         )
         const camLook = new THREE.Vector3(target.x, anchor.y + lookLift, target.z)
-        this.view.camera.zoomTo(camPos, camLook, ZOOM_DURATION)
+        this.view.camera.zoomTo(camPos, camLook, ZOOM_DURATION, { owner: 'object-peek' })
 
         // Populate + show the peek popover.
         this.peekEye.textContent   = config.eyebrow
@@ -314,7 +314,7 @@ export default class ObjectPeek
                 perch.z + unitZ * dist,
             )
             const camLook = new THREE.Vector3(perch.x, perch.y + 0.85, perch.z)
-            this.view.camera.zoomTo(camPos, camLook, ZOOM_DURATION)
+            this.view.camera.zoomTo(camPos, camLook, ZOOM_DURATION, { owner: 'object-peek' })
             if(config.pickup) this._spawnPickup(kira)
         }
 
@@ -449,7 +449,7 @@ export default class ObjectPeek
         this.pickupEl.classList.remove('is-open')
         this.pickupEl.setAttribute('aria-hidden', 'true')
 
-        this.view.camera.restoreZoom(ZOOM_DURATION)
+        this.view.camera.restoreZoom(ZOOM_DURATION, { owner: 'object-peek' })
         this._despawnPickup()
 
         setTimeout(() =>

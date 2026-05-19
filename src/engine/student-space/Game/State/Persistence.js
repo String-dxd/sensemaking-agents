@@ -31,16 +31,19 @@ import Debug from '../Debug/Debug.js'
 
 const NS = 'ss:v1'
 const KEY = {
-    version:    `${NS}:_v`,
-    moodPins:   `${NS}:moodPins`,
-    captures:   `${NS}:captures`,
-    profile:    `${NS}:profile`,
-    letters:    `${NS}:letters`,
-    calendar:   `${NS}:calendar`,
-    onboarding: `${NS}:onboarding`,
+    version:       `${NS}:_v`,
+    moodPins:      `${NS}:moodPins`,
+    captures:      `${NS}:captures`,
+    profile:       `${NS}:profile`,
+    letters:       `${NS}:letters`,
+    calendar:      `${NS}:calendar`,
+    onboarding:    `${NS}:onboarding`,
+    sprouts:       `${NS}:sprouts`,
+    relationships: `${NS}:relationships`,
+    choices:       `${NS}:choices`,
 }
 
-const SLICES = ['moodPins', 'captures', 'profile', 'letters', 'calendar', 'onboarding']
+const SLICES = ['moodPins', 'captures', 'profile', 'letters', 'calendar', 'onboarding', 'sprouts', 'relationships', 'choices']
 const DEBOUNCE_MS = 250
 
 /**
@@ -227,7 +230,7 @@ export default class Persistence
      */
     load()
     {
-        const empty = { moodPins: [], captures: [], profile: null, letters: [], calendar: [], onboarding: null }
+        const empty = { moodPins: [], captures: [], profile: null, letters: [], calendar: [], onboarding: null, sprouts: null, relationships: null, choices: null }
         if(!this._available) return empty
 
         let storedV = 0

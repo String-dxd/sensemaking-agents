@@ -160,6 +160,18 @@ export default class Telescope
     }
 
     /**
+     * Pick-and-plant: relocate the telescope to a new (x, z). `opts.y` is
+     * the lift-plane height during a drag; on release we snap to ground.
+     */
+    move(x, z, opts = {})
+    {
+        if(!this.group) return
+        const groundY = this.island?.heightAt?.(x, z) ?? 0
+        const y = (typeof opts.y === 'number') ? opts.y : groundY
+        this.group.position.set(x, y, z)
+    }
+
+    /**
      * Tear-down hook. Removes the prop group from the scene and disposes
      * its geometries + materials so GPU buffers release.
      */

@@ -1,18 +1,20 @@
-import type { VipsDimension } from '~/data/vips-taxonomy'
+import { PROFILE_TAB_LABEL, type ProfileTab } from '~/data/profile-tabs'
 import { cn } from '~/lib/utils'
 
-export type SheetKey = VipsDimension | 'profile' | 'reflections' | 'trajectory'
+export type SheetKey = ProfileTab | 'profile' | 'reflections' | 'trajectory'
 
-const ENTRIES: { key: VipsDimension; label: string }[] = [
-  { key: 'values', label: 'Values' },
-  { key: 'interests', label: 'Interests' },
-  { key: 'personality', label: 'Personality' },
-  { key: 'skills', label: 'Skills' },
+const ENTRIES: { key: ProfileTab; label: string }[] = [
+  { key: 'values', label: PROFILE_TAB_LABEL.values },
+  { key: 'interests', label: PROFILE_TAB_LABEL.interests },
+  { key: 'personality', label: PROFILE_TAB_LABEL.personality },
+  { key: 'skills', label: PROFILE_TAB_LABEL.skills },
+  { key: 'relationships', label: PROFILE_TAB_LABEL.relationships },
+  { key: 'choices', label: PROFILE_TAB_LABEL.choices },
 ]
 
 export interface SheetEntryRailProps {
   openSheet: SheetKey | null
-  onOpenSheet: (key: VipsDimension) => void
+  onOpenSheet: (key: ProfileTab) => void
   /** Id of the BottomSheet panel — wired to aria-controls. */
   sheetPanelId: string
   /** When true, every entry is non-interactive (e.g., during voice mode). */

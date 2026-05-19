@@ -79,10 +79,18 @@ export const HOST_BODY_CLASSES = Object.freeze([
  * Throws if a Game is already mounted. The engine is one-instance-per-
  * page; the second mount must call `game.dispose()` first.
  *
+ * `initialOverlay` opens a registered surface immediately after the game
+ * boots — used by hosts to land users on a specific sheet after a redirect
+ * (e.g. `/me` → `/?sheet=profile`). Only honored when onboarding has
+ * finished; during onboarding the OverlayController is owned by the
+ * ceremony and any host-supplied initial overlay would fight it.
+ *
  * @param {{
  *   container?: HTMLElement,
  *   persistence?: { storage?: import('./State/Persistence.js').StorageAdapter },
+ *   initialOverlay?: { name: string },
  *   backend?: import('../../../lib/student-space/backend-bridge.ts').StudentSpaceBackendBridge,
+ *   initialOverlay?: string,
  * }} [opts]
  * @returns {Game}
  */
@@ -111,6 +119,24 @@ export function createGame(opts = {})
 
     const game = new Game({ persistence: opts.persistence, backend: opts.backend })
 
+    // Deep-link surface open on mount. Hosts pass `initialOverlay: 'growth'`
+    // (read from a `?sheet=growth` URL param) and the engine routes through
+    // the existing OverlayController.open path — same effect as tapping the
+    // chip, just driven from the URL. Unknown overlay names silently no-op
+    // so a stale URL doesn't surface a console error to the student.
+    if(opts.initialOverlay)
+    {
+        try
+        {
+            const overlayController = game.view?.overlayController
+            if(overlayController?.surfaces?.has?.(opts.initialOverlay))
+            {
+                overlayController.open(opts.initialOverlay)
+            }
+        }
+        catch(_) { /* defensive: never block boot on a deep-link failure */ }
+    }
+
     // Mount the canvas. If the host passed a container, use it; otherwise
     // fall back to `.game` (the v1 default container in index.html) for
     // backward compat.
@@ -126,6 +152,30 @@ export function createGame(opts = {})
             'fallback found in DOM — canvas was constructed but is not ' +
             'mounted. The rAF loop is running into a detached canvas.',
         )
+    }
+
+    // Honor `initialOverlay` only when onboarding has finished — during
+    // onboarding the ceremony owns the overlay surface. The open() call is
+    // deferred a microtask so any synchronous boot-time overlay opens
+    // settle first.
+    const overlayName = opts.initialOverlay?.name
+    if(overlayName)
+    {
+        const onb = game.state?.onboarding
+        if(onb && onb.stage === 'done' && game.view?.overlayController)
+        {
+            queueMicrotask(() =>
+            {
+                try { game.view.overlayController.open(overlayName) }
+                catch(err)
+                {
+                    console.warn(
+                        `[engine] initialOverlay '${overlayName}' failed to open`,
+                        err,
+                    )
+                }
+            })
+        }
     }
 
     return game

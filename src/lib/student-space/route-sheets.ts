@@ -8,6 +8,10 @@ const SURFACES = new Set<StudentSpaceSurface>([
   'interests',
   'personality',
   'skills',
+  'relationships',
+  'choices',
+  'growth',
+  'history',
 ])
 
 export function studentSpaceSurfaceFromLocation(
@@ -29,7 +33,10 @@ export function studentSpaceSurfaceFromLocation(
 
 function normalizeSurface(value: string): StudentSpaceSurface | null {
   if (SURFACES.has(value as StudentSpaceSurface)) return value as StudentSpaceSurface
-  if (value === 'calendar' || value === 'library') return 'reflections'
+  // 'calendar' deep links now route into History (Timeline tab), preserving
+  // existing bookmarks after the Calendar chip was folded into History.
+  if (value === 'calendar') return 'reflections'
+  if (value === 'library') return 'reflections'
   return null
 }
 

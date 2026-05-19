@@ -47,6 +47,20 @@ export default class HoverProbe
 
         this._buildRing()
         this._bindPointer()
+
+        // Suspend hover/pick in arrange mode — when the student opens
+        // pick-and-plant they want to move objects, not see tooltips. The
+        // edit-mode dispatcher lives in Sprouts.js (`ss:edit-mode` window
+        // event with `detail.on`).
+        this._onEditMode = (event) =>
+        {
+            const next = !!(event && event.detail && event.detail.on)
+            this.setEnabled(!next)
+        }
+        if(typeof window !== 'undefined')
+        {
+            window.addEventListener('ss:edit-mode', this._onEditMode)
+        }
     }
 
     setEnabled(on)
@@ -174,6 +188,11 @@ export default class HoverProbe
      */
     dispose()
     {
+        if(this._onEditMode && typeof window !== 'undefined')
+        {
+            try { window.removeEventListener('ss:edit-mode', this._onEditMode) } catch(_) {}
+            this._onEditMode = null
+        }
         if(this._onDocPointerDown)
         {
             try { document.removeEventListener('pointerdown', this._onDocPointerDown) } catch(_) {}
