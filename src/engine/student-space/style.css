@@ -5271,3 +5271,29 @@ body.is-onboarding .kira-bubble
 {
     .history-sheet__tab { transition: none; }
 }
+
+/* Embedded calendar inside History/Timeline tab — strips the standalone
+ * overlay chrome so the calendar grid sits flush in the history pane. */
+.history-sheet__timeline-slot
+{
+    display: block;
+    width: 100%;
+}
+
+.calendar-sheet.calendar-sheet--embedded
+{
+    position: static;
+    inset: auto;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 0;
+    opacity: 1;
+    display: block;
+    z-index: auto;
+}
+
+.calendar-sheet.calendar-sheet--embedded .calendar-sheet__close
+{
+    display: none;
+}

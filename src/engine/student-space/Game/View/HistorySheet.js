@@ -27,7 +27,6 @@ import State from '../State/State.js'
 import View from './View.js'
 
 const HISTORY_API = {
-    timeline:      '/api/growth/timeline',
     summary:       '/api/growth/summary',
     islandStateAt: '/api/growth/island-state-at',
 }
@@ -60,11 +59,7 @@ export default class HistorySheet
             </nav>
 
             <section class="history-sheet__pane history-sheet__pane--timeline" data-pane="timeline" hidden>
-                <div class="history-sheet__timeline-empty" data-timeline-empty hidden>
-                    <p>Your first <em>voice</em> reflection will show up here.</p>
-                    <p class="history-sheet__hint">Mood pins and photo / ask captures live on this device and don't show in History yet.</p>
-                </div>
-                <ul class="history-sheet__timeline" data-timeline-list></ul>
+                <div class="history-sheet__timeline-slot" data-timeline-slot></div>
             </section>
 
             <section class="history-sheet__pane history-sheet__pane--growth" data-pane="growth" hidden>
@@ -93,20 +88,26 @@ export default class HistorySheet
         this.tabEls            = Array.from(root.querySelectorAll('.history-sheet__tab'))
         this.paneTimelineEl    = root.querySelector('[data-pane="timeline"]')
         this.paneGrowthEl      = root.querySelector('[data-pane="growth"]')
-        this.timelineEmptyEl   = root.querySelector('[data-timeline-empty]')
-        this.timelineListEl    = root.querySelector('[data-timeline-list]')
+        this.timelineSlotEl    = root.querySelector('[data-timeline-slot]')
         this.emptyEl           = root.querySelector('[data-empty]')
         this.pillsEl           = root.querySelector('[data-pills]')
         this.sourceLabelEl     = root.querySelector('[data-source]')
         this.narrativeEl       = root.querySelector('[data-narrative]')
         this.statsEl           = root.querySelector('[data-stats]')
 
+        // CalendarSheet embedding — when Timeline tab is active we reparent
+        // the existing CalendarSheet's root DOM into this sheet's timeline
+        // slot so we get the full day-grid + day-detail UI for free without
+        // duplicating its logic. Original parent is captured here so the
+        // restore-on-close path always returns the calendar to its native
+        // overlay position.
+        this._calendarOriginalParent = null
+
         this.isOpen       = false
         this.activeTab    = 'growth'
         this.activeYear   = null
         this.years        = []
         this._inFlight    = false
-        this._timelineLoaded = false
 
         this._onClick = (event) => this._handleClick(event)
         root.addEventListener('click', this._onClick)
@@ -121,6 +122,7 @@ export default class HistorySheet
     dispose()
     {
         if(this.isOpen) this._restoreLiveIsland()
+        this._restoreCalendarToOverlay()
         try { this.root.removeEventListener('click', this._onClick) } catch(_) {}
         try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
         try { this.root.remove() } catch(_) {}
@@ -150,6 +152,7 @@ export default class HistorySheet
         this.root.classList.remove('is-open')
         this.isOpen = false
         this._restoreLiveIsland()
+        this._restoreCalendarToOverlay()
         try { this.view?.overlayController?.noteClosed?.('history') } catch(_) {}
     }
 
@@ -166,8 +169,43 @@ export default class HistorySheet
         this.paneTimelineEl.hidden = tab !== 'timeline'
         this.paneGrowthEl.hidden   = tab !== 'growth'
 
-        if(tab === 'timeline' && !this._timelineLoaded) this._loadTimeline().catch(() => {})
+        if(tab === 'timeline') this._embedCalendar()
+        else this._restoreCalendarToOverlay()
+
         if(tab === 'growth' && this.years.length === 0) this._loadYears().catch(() => {})
+    }
+
+    // ── Calendar embed (Timeline tab) ───────────────────────────────────
+    //
+    // The Timeline tab shows the full calendar grid by reparenting the
+    // existing CalendarSheet's root DOM into the timeline slot. This gives
+    // us the day-grid, mood pins, capture markers, and DayDetailCard for
+    // free. When the tab switches away or this sheet closes, the calendar
+    // is moved back to its original parent (document.body) and closed.
+
+    _embedCalendar()
+    {
+        const calendarSheet = this.view?.calendarSheet
+        if(!calendarSheet?.root || !this.timelineSlotEl) return
+        if(this._calendarOriginalParent) return  // already embedded
+
+        this._calendarOriginalParent = calendarSheet.root.parentNode || document.body
+        calendarSheet.root.classList.add('calendar-sheet--embedded')
+        try { calendarSheet.open() } catch(_) {}
+        this.timelineSlotEl.appendChild(calendarSheet.root)
+    }
+
+    _restoreCalendarToOverlay()
+    {
+        if(!this._calendarOriginalParent) return
+        const calendarSheet = this.view?.calendarSheet
+        if(calendarSheet?.root)
+        {
+            try { calendarSheet.close() } catch(_) {}
+            calendarSheet.root.classList.remove('calendar-sheet--embedded')
+            try { this._calendarOriginalParent.appendChild(calendarSheet.root) } catch(_) {}
+        }
+        this._calendarOriginalParent = null
     }
 
     _handleClick(event)
@@ -191,54 +229,6 @@ export default class HistorySheet
             const year = Number.parseInt(pill.dataset.year, 10)
             if(Number.isFinite(year)) this._selectYear(year)
         }
-    }
-
-    // ── Timeline tab ────────────────────────────────────────────────────
-
-    async _loadTimeline()
-    {
-        try
-        {
-            const response = await fetch(HISTORY_API.timeline, { credentials: 'same-origin' })
-            if(!response.ok) throw new Error(`timeline ${response.status}`)
-            const payload = await response.json()
-            this._timelineLoaded = true
-            this._renderTimeline(payload)
-        }
-        catch(err)
-        {
-            console.warn('[HistorySheet] loadTimeline failed', err)
-            this._renderTimeline({ kind: 'empty' })
-        }
-    }
-
-    _renderTimeline(payload)
-    {
-        if(!payload || payload.kind === 'empty')
-        {
-            this.timelineEmptyEl.hidden = false
-            this.timelineListEl.innerHTML = ''
-            return
-        }
-        this.timelineEmptyEl.hidden = true
-        const entries = Array.isArray(payload.entries) ? payload.entries : []
-        this.timelineListEl.innerHTML = entries.map(entry =>
-        {
-            const date = entry.createdAt
-                ? new Date(entry.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                : ''
-            const ctx = entry.contextType ? `<span class="history-sheet__timeline-ctx">${entry.contextType}</span>` : ''
-            const text = String(entry.storyReframe || '').slice(0, 240)
-            return `
-                <li class="history-sheet__timeline-item">
-                    <div class="history-sheet__timeline-meta">
-                        <span class="history-sheet__timeline-date">${date}</span>
-                        ${ctx}
-                    </div>
-                    <p class="history-sheet__timeline-text">${text}</p>
-                </li>
-            `
-        }).join('')
     }
 
     // ── Growth tab ──────────────────────────────────────────────────────

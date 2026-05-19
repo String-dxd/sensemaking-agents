@@ -192,7 +192,11 @@ export default class Sprouts
         // offsets so reloads land them where the student left them.
         // Deferred a frame to give Tree.js / Flowers.js time to finish
         // their async boot (templates load via fetch).
-        this._decorHits = { tree: null, flower: null }
+        // Maps keyed by index (`decorIndex` in the hit's userData). Every
+        // authored static decor instance gets its own hit target so the
+        // student can arrange anything on the island, not just the
+        // onboarding pair.
+        this._decorHits = { tree: new Map(), flower: new Map() }
         this._decorReady = false
         this._installDecorHitTargets()
 
@@ -453,8 +457,8 @@ export default class Sprouts
         {
             if(node.parts?.hitTarget) targets.push(node.parts.hitTarget)
         }
-        if(this._decorHits.tree)   targets.push(this._decorHits.tree)
-        if(this._decorHits.flower) targets.push(this._decorHits.flower)
+        for(const hit of this._decorHits.tree.values()) targets.push(hit)
+        for(const hit of this._decorHits.flower.values()) targets.push(hit)
         if(targets.length === 0) return null
         const intersects = this._raycaster.intersectObjects(targets, false)
         const hit = intersects[0]
@@ -592,40 +596,45 @@ export default class Sprouts
         if(this._decorReady) return
         const tree = this.view.tree
         const flowers = this.view.flowers
-        const treeReady = tree?.ready && tree?.entries?.[0]
-        const flowerReady = flowers?.flowers?.[0]
-        if(!treeReady && !flowerReady) return
+        const treeEntries = tree?.ready ? (tree?.entries || []) : []
+        const flowerEntries = flowers?.flowers || []
+        if(treeEntries.length === 0 && flowerEntries.length === 0) return
 
-        // Apply any persisted offsets BEFORE attaching hit targets so
-        // the hits land at the moved positions, not the authored ones.
-        const treeOff = this.state.sprouts.getDecorOffset('tree', 0)
-        if(treeReady && treeOff) tree.moveEntry(0, treeOff.x, treeOff.z)
-        const flowerOff = this.state.sprouts.getDecorOffset('flower', 0)
-        if(flowerReady && flowerOff) flowers.moveInstance(0, flowerOff.x, flowerOff.z)
-
-        if(treeReady && !this._decorHits.tree)
+        for(let i = 0; i < treeEntries.length; i++)
         {
+            if(this._decorHits.tree.has(i)) continue
+            const entry = treeEntries[i]
+            if(!entry?.group) continue
+            const off = this.state.sprouts.getDecorOffset('tree', i)
+            if(off) tree.moveEntry(i, off.x, off.z)
             const hit = new THREE.Mesh(
                 new THREE.SphereGeometry(0.55, 8, 6),
                 new THREE.MeshBasicMaterial({ visible: false }),
             )
-            hit.position.y = 0.6  // mid-trunk
-            hit.userData = { kind: 'decor', decorKind: 'tree', decorIndex: 0 }
-            tree.entries[0].group.add(hit)
-            this._decorHits.tree = hit
+            hit.position.y = 0.6
+            hit.userData = { kind: 'decor', decorKind: 'tree', decorIndex: i }
+            entry.group.add(hit)
+            this._decorHits.tree.set(i, hit)
         }
-        if(flowerReady && !this._decorHits.flower)
+        for(let i = 0; i < flowerEntries.length; i++)
         {
+            if(this._decorHits.flower.has(i)) continue
+            const f = flowerEntries[i]
+            if(!f?.group) continue
+            const off = this.state.sprouts.getDecorOffset('flower', i)
+            if(off) flowers.moveInstance(i, off.x, off.z)
             const hit = new THREE.Mesh(
                 new THREE.SphereGeometry(0.25, 8, 6),
                 new THREE.MeshBasicMaterial({ visible: false }),
             )
             hit.position.y = 0.15
-            hit.userData = { kind: 'decor', decorKind: 'flower', decorIndex: 0 }
-            flowers.flowers[0].group.add(hit)
-            this._decorHits.flower = hit
+            hit.userData = { kind: 'decor', decorKind: 'flower', decorIndex: i }
+            f.group.add(hit)
+            this._decorHits.flower.set(i, hit)
         }
-        this._decorReady = !!this._decorHits.tree && !!this._decorHits.flower
+        const treeReadyAll = treeEntries.length > 0 && this._decorHits.tree.size >= treeEntries.length
+        const flowersReadyAll = flowerEntries.length > 0 && this._decorHits.flower.size >= flowerEntries.length
+        this._decorReady = treeReadyAll || flowersReadyAll
     }
 
     /**
