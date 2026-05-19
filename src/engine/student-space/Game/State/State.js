@@ -14,6 +14,9 @@ import Weather from './Weather.js'
 import Wind from './Wind.js'
 import Onboarding from './Onboarding.js'
 import Sprouts, { wireSproutsToCaptures } from './Sprouts.js'
+import Relationships from './Relationships.js'
+import Choices from './Choices.js'
+import IslandSnapshotBridge from './IslandSnapshotBridge.js'
 
 export default class State
 {
@@ -63,6 +66,8 @@ export default class State
         this.letters  = new TeacherLetters()
         this.calendar = new CalendarEvents()
         this.sprouts  = new Sprouts()
+        this.relationships = new Relationships()
+        this.choices       = new Choices()
         this.weather = new Weather()
         this.wind = new Wind()
 
@@ -77,6 +82,8 @@ export default class State
         this.letters.hydrate(snapshot.letters)
         this.calendar.hydrate(snapshot.calendar)
         this.sprouts.hydrate(snapshot.sprouts)
+        this.relationships.hydrate(snapshot.relationships)
+        this.choices.hydrate(snapshot.choices)
 
         // Cross-slice wiring — Sprouts subscribes to Captures and MoodPins so
         // every new capture/mood grows the active sprout. The helper wraps
@@ -84,6 +91,15 @@ export default class State
         // host-slice fan-out or skip its debounced _persist. See
         // wireSproutsToCaptures in ./Sprouts.js for the boundary rationale.
         this._unwireSprouts = wireSproutsToCaptures(this.captures, this.moodPins, this.sprouts)
+
+        // Island snapshot bridge — POSTs the Sprouts payload to the server on
+        // 'bloomed' / 'decorMoved' so the year-over-year growth timelapse has
+        // server-authoritative history to reconstruct from. WorkOS-only at the
+        // server layer; demo / dev-bypass sessions silently receive 403 and
+        // the bridge swallows it. Boot-trigger throttle (1/hour) lives in the
+        // bridge itself; Game.js calls captureNow('boot') after construction.
+        this.islandSnapshots = new IslandSnapshotBridge()
+        this.islandSnapshots.attach(this.sprouts)
 
         // Player shim — Bruno's Sky/Grass/etc read `state.player.position.current`
         // to centre their world around the moving player. We don't have a player,

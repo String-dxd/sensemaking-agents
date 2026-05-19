@@ -120,3 +120,24 @@ export const transcribeMirrorInputSchema = z.object({
   mimeType: z.string().min(1),
 })
 export type TranscribeMirrorInput = z.output<typeof transcribeMirrorInputSchema>
+
+// Island snapshot — wraps the engine's Sprouts.serialize() output as a JSON
+// string. The server never inspects the shape; it just persists it for U5's
+// hybrid reconstruction. We cap the byte size as a basic abuse guard.
+export const islandSnapshotInputSchema = z.object({
+  payload_json: z.string().min(1).max(1_000_000),
+})
+export type IslandSnapshotInput = z.output<typeof islandSnapshotInputSchema>
+
+// Year-bucket reads — accept only realistic 4-digit calendar years so a
+// typo or stale URL doesn't trigger an out-of-range Postgres timestamp
+// computation.
+export const growthSummaryInputSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+})
+export type GrowthSummaryInput = z.output<typeof growthSummaryInputSchema>
+
+export const islandStateAtInputSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+})
+export type IslandStateAtInput = z.output<typeof islandStateAtInputSchema>

@@ -25,6 +25,8 @@ export default class Persistence {
     calendar: unknown[]
     onboarding: unknown
     sprouts: unknown
+    relationships: unknown
+    choices: unknown
   }
   save(slice: string, value: unknown): void
   flush(): void

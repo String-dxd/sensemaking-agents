@@ -192,7 +192,18 @@ export default class Sprouts
         // offsets so reloads land them where the student left them.
         // Deferred a frame to give Tree.js / Flowers.js time to finish
         // their async boot (templates load via fetch).
-        this._decorHits = { tree: null, flower: null }
+        // Maps keyed by index (`decorIndex` in the hit's userData). Every
+        // authored static decor instance gets its own hit target so the
+        // student can arrange anything on the island, not just the
+        // onboarding pair. Butterflies are intentionally excluded — they
+        // move and the small target makes hit detection unreliable.
+        this._decorHits = {
+            tree:      new Map(),
+            flower:    new Map(),
+            fruit:     new Map(),
+            mailbox:   new Map(),
+            telescope: new Map(),
+        }
         this._decorReady = false
         this._installDecorHitTargets()
 
@@ -379,6 +390,9 @@ export default class Sprouts
         {
             if(target.decorKind === 'tree') dragGroup = this.view.tree?.entries?.[target.decorIndex]?.group
             else if(target.decorKind === 'flower') dragGroup = this.view.flowers?.flowers?.[target.decorIndex]?.group
+            else if(target.decorKind === 'fruit') dragGroup = this.view.fruits?.entries?.[target.decorIndex]?.group
+            else if(target.decorKind === 'mailbox') dragGroup = this.view.mailbox?.group
+            else if(target.decorKind === 'telescope') dragGroup = this.view.telescope?.group
         }
         if(!dragGroup) return
 
@@ -453,8 +467,11 @@ export default class Sprouts
         {
             if(node.parts?.hitTarget) targets.push(node.parts.hitTarget)
         }
-        if(this._decorHits.tree)   targets.push(this._decorHits.tree)
-        if(this._decorHits.flower) targets.push(this._decorHits.flower)
+        for(const hit of this._decorHits.tree.values()) targets.push(hit)
+        for(const hit of this._decorHits.flower.values()) targets.push(hit)
+        for(const hit of this._decorHits.fruit.values()) targets.push(hit)
+        for(const hit of this._decorHits.mailbox.values()) targets.push(hit)
+        for(const hit of this._decorHits.telescope.values()) targets.push(hit)
         if(targets.length === 0) return null
         const intersects = this._raycaster.intersectObjects(targets, false)
         const hit = intersects[0]
@@ -498,6 +515,18 @@ export default class Sprouts
         else if(drag.kind === 'decor' && drag.decorKind === 'flower')
         {
             this.view.flowers?.moveInstance(drag.decorIndex, x, z, { y: drag.liftHeight })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'fruit')
+        {
+            this.view.fruits?.moveEntry(drag.decorIndex, x, z, { y: drag.liftHeight })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'mailbox')
+        {
+            this.view.mailbox?.move(x, z, { y: drag.liftHeight })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'telescope')
+        {
+            this.view.telescope?.move(x, z, { y: drag.liftHeight })
         }
         else
         {
@@ -592,40 +621,96 @@ export default class Sprouts
         if(this._decorReady) return
         const tree = this.view.tree
         const flowers = this.view.flowers
-        const treeReady = tree?.ready && tree?.entries?.[0]
-        const flowerReady = flowers?.flowers?.[0]
-        if(!treeReady && !flowerReady) return
+        const treeEntries = tree?.ready ? (tree?.entries || []) : []
+        const flowerEntries = flowers?.flowers || []
+        if(treeEntries.length === 0 && flowerEntries.length === 0) return
 
-        // Apply any persisted offsets BEFORE attaching hit targets so
-        // the hits land at the moved positions, not the authored ones.
-        const treeOff = this.state.sprouts.getDecorOffset('tree', 0)
-        if(treeReady && treeOff) tree.moveEntry(0, treeOff.x, treeOff.z)
-        const flowerOff = this.state.sprouts.getDecorOffset('flower', 0)
-        if(flowerReady && flowerOff) flowers.moveInstance(0, flowerOff.x, flowerOff.z)
-
-        if(treeReady && !this._decorHits.tree)
+        for(let i = 0; i < treeEntries.length; i++)
         {
+            if(this._decorHits.tree.has(i)) continue
+            const entry = treeEntries[i]
+            if(!entry?.group) continue
+            const off = this.state.sprouts.getDecorOffset('tree', i)
+            if(off) tree.moveEntry(i, off.x, off.z)
             const hit = new THREE.Mesh(
                 new THREE.SphereGeometry(0.55, 8, 6),
                 new THREE.MeshBasicMaterial({ visible: false }),
             )
-            hit.position.y = 0.6  // mid-trunk
-            hit.userData = { kind: 'decor', decorKind: 'tree', decorIndex: 0 }
-            tree.entries[0].group.add(hit)
-            this._decorHits.tree = hit
+            hit.position.y = 0.6
+            hit.userData = { kind: 'decor', decorKind: 'tree', decorIndex: i }
+            entry.group.add(hit)
+            this._decorHits.tree.set(i, hit)
         }
-        if(flowerReady && !this._decorHits.flower)
+        for(let i = 0; i < flowerEntries.length; i++)
         {
+            if(this._decorHits.flower.has(i)) continue
+            const f = flowerEntries[i]
+            if(!f?.group) continue
+            const off = this.state.sprouts.getDecorOffset('flower', i)
+            if(off) flowers.moveInstance(i, off.x, off.z)
             const hit = new THREE.Mesh(
                 new THREE.SphereGeometry(0.25, 8, 6),
                 new THREE.MeshBasicMaterial({ visible: false }),
             )
             hit.position.y = 0.15
-            hit.userData = { kind: 'decor', decorKind: 'flower', decorIndex: 0 }
-            flowers.flowers[0].group.add(hit)
-            this._decorHits.flower = hit
+            hit.userData = { kind: 'decor', decorKind: 'flower', decorIndex: i }
+            f.group.add(hit)
+            this._decorHits.flower.set(i, hit)
         }
-        this._decorReady = !!this._decorHits.tree && !!this._decorHits.flower
+        // Fruits — bushes are also draggable so the student can rearrange
+        // the whole island freely, not just trees + flowers.
+        const fruitEntries = this.view.fruits?.entries || []
+        for(let i = 0; i < fruitEntries.length; i++)
+        {
+            if(this._decorHits.fruit.has(i)) continue
+            const entry = fruitEntries[i]
+            if(!entry?.group) continue
+            const off = this.state.sprouts.getDecorOffset('fruit', i)
+            if(off) this.view.fruits?.moveEntry(i, off.x, off.z)
+            const hit = new THREE.Mesh(
+                new THREE.SphereGeometry(0.35, 8, 6),
+                new THREE.MeshBasicMaterial({ visible: false }),
+            )
+            hit.position.y = 0.25
+            hit.userData = { kind: 'decor', decorKind: 'fruit', decorIndex: i }
+            entry.group.add(hit)
+            this._decorHits.fruit.set(i, hit)
+        }
+
+        // Mailbox + telescope — singleton instances. Index always 0.
+        if(this.view.mailbox?.group && !this._decorHits.mailbox.has(0))
+        {
+            const off = this.state.sprouts.getDecorOffset('mailbox', 0)
+            if(off) this.view.mailbox.move(off.x, off.z)
+            const hit = new THREE.Mesh(
+                new THREE.SphereGeometry(0.35, 8, 6),
+                new THREE.MeshBasicMaterial({ visible: false }),
+            )
+            hit.position.y = 0.5
+            hit.userData = { kind: 'decor', decorKind: 'mailbox', decorIndex: 0 }
+            this.view.mailbox.group.add(hit)
+            this._decorHits.mailbox.set(0, hit)
+        }
+        if(this.view.telescope?.group && !this._decorHits.telescope.has(0))
+        {
+            const off = this.state.sprouts.getDecorOffset('telescope', 0)
+            if(off) this.view.telescope.move(off.x, off.z)
+            const hit = new THREE.Mesh(
+                new THREE.SphereGeometry(0.4, 8, 6),
+                new THREE.MeshBasicMaterial({ visible: false }),
+            )
+            hit.position.y = 0.4
+            hit.userData = { kind: 'decor', decorKind: 'telescope', decorIndex: 0 }
+            this.view.telescope.group.add(hit)
+            this._decorHits.telescope.set(0, hit)
+        }
+
+        const treeReadyAll = treeEntries.length > 0 && this._decorHits.tree.size >= treeEntries.length
+        const flowersReadyAll = flowerEntries.length > 0 && this._decorHits.flower.size >= flowerEntries.length
+        const fruitsReadyAll = fruitEntries.length > 0 && this._decorHits.fruit.size >= fruitEntries.length
+        const mailboxReady = this._decorHits.mailbox.size > 0
+        const telescopeReady = this._decorHits.telescope.size > 0
+        this._decorReady = treeReadyAll && flowersReadyAll && fruitsReadyAll && mailboxReady && telescopeReady
     }
 
     /**
@@ -644,6 +729,27 @@ export default class Sprouts
         {
             const pos = position ?? this._authoredFlowerXZ(index)
             if(pos) this.view.flowers.moveInstance(index, pos.x, pos.z)
+        }
+        else if(kind === 'fruit' && this.view.fruits?.moveEntry)
+        {
+            // Authored fruit position lives on the entry — fall back to it
+            // when the offset is cleared (clear-offset path passes null).
+            const entry = this.view.fruits.entries?.[index]
+            const pos = position ?? (entry ? { x: entry.x, z: entry.z } : null)
+            if(pos) this.view.fruits.moveEntry(index, pos.x, pos.z)
+        }
+        else if(kind === 'mailbox' && this.view.mailbox?.move)
+        {
+            // No authored fallback — mailbox.position carries the live coord.
+            const pos = position ?? this.view.mailbox.position ?? { x: -0.6, z: 2.5 }
+            this.view.mailbox.move(pos.x, pos.z)
+        }
+        else if(kind === 'telescope' && this.view.telescope?.move)
+        {
+            const pos = position ?? (this.view.telescope.group?.position
+                ? { x: this.view.telescope.group.position.x, z: this.view.telescope.group.position.z }
+                : null)
+            if(pos) this.view.telescope.move(pos.x, pos.z)
         }
     }
 
@@ -736,18 +842,35 @@ export default class Sprouts
         {
             // Snap back — no slice mutation; the visual returns to
             // origin so the student sees "didn't take" feedback.
-            if(drag.kind === 'decor' && drag.decorKind === 'tree')
-            {
-                this.view.tree?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
-            }
-            else if(drag.kind === 'decor' && drag.decorKind === 'flower')
-            {
-                this.view.flowers?.moveInstance(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
-            }
-            else
-            {
-                drag.group.position.copy(drag.originPos)
-            }
+            this._restoreDecorToOrigin(drag)
+        }
+    }
+
+    _restoreDecorToOrigin(drag)
+    {
+        if(drag.kind === 'decor' && drag.decorKind === 'tree')
+        {
+            this.view.tree?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'flower')
+        {
+            this.view.flowers?.moveInstance(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'fruit')
+        {
+            this.view.fruits?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'mailbox')
+        {
+            this.view.mailbox?.move(drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else if(drag.kind === 'decor' && drag.decorKind === 'telescope')
+        {
+            this.view.telescope?.move(drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
+        }
+        else
+        {
+            drag.group.position.copy(drag.originPos)
         }
     }
 
@@ -768,18 +891,7 @@ export default class Sprouts
         const camera = this.view.camera
         if(camera?.controls) camera.controls.enabled = true
         drag.group.scale.setScalar(drag.originScale)
-        if(drag.kind === 'decor' && drag.decorKind === 'tree')
-        {
-            this.view.tree?.moveEntry(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
-        }
-        else if(drag.kind === 'decor' && drag.decorKind === 'flower')
-        {
-            this.view.flowers?.moveInstance(drag.decorIndex, drag.originPos.x, drag.originPos.z, { y: drag.originPos.y })
-        }
-        else
-        {
-            drag.group.position.copy(drag.originPos)
-        }
+        this._restoreDecorToOrigin(drag)
         if(drag.kind === 'sprout')
         {
             const node = this.nodes.get(drag.id)
@@ -789,6 +901,64 @@ export default class Sprouts
                 node.parts.glow.material.color.setHex(speciesHint?.glow ?? COLORS.glow)
             }
         }
+    }
+
+    /**
+     * Replace the visible bloomed objects with a historical subset, or
+     * restore the live slice state when called with null.
+     *
+     * Used by GrowthSheet (timelapse mode) to render the island as it was
+     * at the end of a chosen year. Diffs against `this.bloomedNodes` by id
+     * so only the delta (additions + removals) touches the scene — no full
+     * reconcile, no THREE allocations for unchanged nodes.
+     *
+     * CRITICAL INVARIANT: this method never calls slice mutators
+     * (`state.sprouts.bloom`, `.hydrate`, `.add`, `.markReady`, etc.).
+     * Scrubbing through past years must not destroy real present-day state.
+     *
+     * @param {Array | null} bloomedTrees
+     *   - Array: bloomed-tree shapes (same fields as `state.sprouts.listBloomedTrees()`).
+     *     Anything present in `bloomedNodes` but not in this array is removed; anything in
+     *     this array but not in `bloomedNodes` is spawned (no animation — historical state
+     *     doesn't grow in front of the user).
+     *   - null: restores live slice state by re-reading `state.sprouts.listBloomedTrees()`.
+     */
+    setTimelapseSubset(bloomedTrees)
+    {
+        const target = bloomedTrees === null
+            ? this.state.sprouts.listBloomedTrees()
+            : bloomedTrees
+
+        const targetIds = new Set()
+        for(const tree of target) targetIds.add(tree.id)
+
+        // Remove nodes not in the target set.
+        for(const id of Array.from(this.bloomedNodes.keys()))
+        {
+            if(!targetIds.has(id)) this._disposeBloomedNode(id)
+        }
+
+        // Spawn nodes present in the target set but missing from the scene.
+        for(const tree of target)
+        {
+            if(!this.bloomedNodes.has(tree.id)) this._spawnBloomedTree(tree, /*animate=*/ false)
+        }
+    }
+
+    _disposeBloomedNode(id)
+    {
+        const node = this.bloomedNodes.get(id)
+        if(!node) return
+        if(node.group)
+        {
+            try { this.root?.remove(node.group) } catch(_) {}
+            node.group.traverse((obj) =>
+            {
+                if(obj.geometry) { try { obj.geometry.dispose() } catch(_) {} }
+                if(obj.material) { try { obj.material.dispose() } catch(_) {} }
+            })
+        }
+        this.bloomedNodes.delete(id)
     }
 
     _spawnBloomedTree(tree, animate = false)
@@ -1565,17 +1735,7 @@ export default class Sprouts
         }
         for(const id of Array.from(this.bloomedNodes.keys()))
         {
-            const bn = this.bloomedNodes.get(id)
-            if(bn?.group)
-            {
-                this.root?.remove(bn.group)
-                bn.group.traverse((obj) =>
-                {
-                    if(obj.geometry) { try { obj.geometry.dispose() } catch(_) {} }
-                    if(obj.material) { try { obj.material.dispose() } catch(_) {} }
-                })
-            }
-            this.bloomedNodes.delete(id)
+            this._disposeBloomedNode(id)
         }
         if(this.root)
         {

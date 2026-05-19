@@ -562,3 +562,42 @@ export const vipsShareTokens = pgTable(
     }),
   ],
 ).enableRLS()
+
+// ---------------------------------------------------------------------------
+// vips_island_snapshots — periodic server-side snapshots of the engine's
+// Sprouts slice payload, for the year-over-year growth timelapse.
+//
+// Today the engine's `Sprouts.bloomedTrees` lives in localStorage only — wipe
+// local state and the island resets to its seed. A timelapse over years
+// requires server-authoritative history, so this table starts logging now;
+// the growth view falls back to claim-history synthesis for any year before
+// snapshotting began. See docs/plans/2026-05-19-001-feat-year-over-year-
+// growth-monitoring-plan.md U2 + U5.
+//
+// `payload_json` is the verbatim output of `Sprouts.serialize()` — slice
+// owns the shape, the migration row is a transport container. No projection,
+// no per-row tables for individual bloomed trees: that would couple the
+// schema to the engine's evolving in-memory model.
+// ---------------------------------------------------------------------------
+
+export const vipsIslandSnapshots = pgTable(
+  'vips_island_snapshots',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    studentId: text('student_id').notNull(),
+    capturedAt: timestamp('captured_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    payloadJson: text('payload_json').notNull(),
+  },
+  (t) => [
+    index('idx_vips_island_snapshots_student').on(t.studentId, t.capturedAt.desc()),
+    pgPolicy('vips_island_snapshots_rls', {
+      as: 'permissive',
+      for: 'all',
+      to: 'public',
+      using: RLS_STUDENT_PREDICATE,
+      withCheck: RLS_STUDENT_PREDICATE,
+    }),
+  ],
+).enableRLS()

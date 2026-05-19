@@ -242,6 +242,25 @@ export default class Fruits
         }
         this._hidden = true
     }
+
+    /**
+     * Pick-and-plant: relocate the bush at `index` to a new (x, z). Mirrors
+     * Tree.moveEntry / Flowers.moveInstance — `opts.y` holds at the drag
+     * lift plane during a drag, omitted on release to snap to ground.
+     */
+    moveEntry(index, x, z, opts = {})
+    {
+        const entry = this.entries?.[index]
+        if(!entry?.group) return
+        const groundY = this.island?.heightAt?.(x, z) ?? 0
+        const y = (typeof opts.y === 'number') ? opts.y : groundY
+        entry.group.position.set(x, y, z)
+        if(typeof opts.y !== 'number')
+        {
+            entry.x = x
+            entry.z = z
+        }
+    }
 }
 
 // Tiny deterministic RNG — same seed → same sequence — so a bush's berries

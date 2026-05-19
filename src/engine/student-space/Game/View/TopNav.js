@@ -23,11 +23,11 @@ const CHIPS = [
         </svg>`,
     },
     {
-        id:    'calendar',
-        label: 'Calendar',
+        id:    'history',
+        label: 'History',
         icon: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-            <rect x="3.5" y="5.5" width="17" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/>
-            <path d="M8 3v4M16 3v4M3.5 10h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+            <path d="M12 7v5l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>`,
     },
     {

@@ -20,6 +20,8 @@
  * WebGL/audio engine code; the sign-out path runs only client-side, where
  * the host has already loaded the engine module.
  */
+import { resetProfileTabBoot } from '~/lib/student-space/profile-tab-state'
+
 declare global {
   interface Window {
     __studentSpaceGame?: { dispose(): void } | null
@@ -34,5 +36,14 @@ export function signOutEngine(): void {
     window.__studentSpaceGame = null
   } catch (err) {
     console.warn('[sign-out] engine dispose failed', err)
+  }
+  // Reset the module-level boot flag in profile-tab-state so a fresh boot
+  // hydrates from disk (now empty) rather than skipping hydrate because a
+  // previous student's session already booted. The slice singletons
+  // themselves are nulled inside Game.dispose() above.
+  try {
+    resetProfileTabBoot()
+  } catch (err) {
+    console.warn('[sign-out] reset boot flag failed', err)
   }
 }

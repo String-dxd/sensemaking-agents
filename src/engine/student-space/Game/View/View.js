@@ -37,6 +37,7 @@ import ProfileSheet from './ProfileSheet.js'
 import CalendarSheet from './CalendarSheet.js'
 import LettersSheet from './LettersSheet.js'
 import TrajectorySheet from './TrajectorySheet.js'
+import HistorySheet from './HistorySheet.js'
 import ObjectPeek from './ObjectPeek.js'
 import State from '../State/State.js'
 import OnboardingFlow from './Onboarding/OnboardingFlow.js'
@@ -115,6 +116,8 @@ export default class View
         this.overlayController.register('letters', this.lettersSheet)
         this.trajectorySheet = new TrajectorySheet()
         this.overlayController.register('trajectory', this.trajectorySheet)
+        this.historySheet = new HistorySheet()
+        this.overlayController.register('history', this.historySheet)
         // ObjectPeek is the shared peek-then-companion interaction for
         // every clickable island object (flowers, mailbox, telescope).
         // No overlay registration — it does not own the viewport.
@@ -239,6 +242,7 @@ export default class View
             this.profileSheet,
             this.calendarSheet,
             this.lettersSheet,
+            this.historySheet,
             this.facetView,
             this.hoverProbe,
             this.hoverCta,

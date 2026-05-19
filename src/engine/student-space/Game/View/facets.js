@@ -36,6 +36,11 @@ export const FACET_THEMES = {
     interests:   { ...PROFILE_COLORS.interests,   eyebrow: FACET_LEGACY_TAGS.interests },
     personality: { ...PROFILE_COLORS.personality, eyebrow: FACET_LEGACY_TAGS.personality },
     skills:      { ...PROFILE_COLORS.skills,      eyebrow: FACET_LEGACY_TAGS.skills },
+    // Non-VIPS Profile tabs share the same engine theme channel so the
+    // sheet's CSS color variables stay coherent when the React panel is
+    // mounted. Hues mirror `PROFILE_TAB_THEMES` in src/data/profile-tabs.ts.
+    relationships: { accent: '#D08A4A', soft: '#F6E4CC', ink: '#7A4413', eyebrow: 'R — Relationships' },
+    choices:       { accent: '#5C8FB0', soft: '#DDEAF3', ink: '#2F5773', eyebrow: 'C — Choices' },
 }
 
 /**

@@ -90,6 +90,7 @@ export const HOST_BODY_CLASSES = Object.freeze([
  *   persistence?: { storage?: import('./State/Persistence.js').StorageAdapter },
  *   initialOverlay?: { name: string },
  *   backend?: import('../../../lib/student-space/backend-bridge.ts').StudentSpaceBackendBridge,
+ *   initialOverlay?: string,
  * }} [opts]
  * @returns {Game}
  */
@@ -117,6 +118,24 @@ export function createGame(opts = {})
     }
 
     const game = new Game({ persistence: opts.persistence, backend: opts.backend })
+
+    // Deep-link surface open on mount. Hosts pass `initialOverlay: 'growth'`
+    // (read from a `?sheet=growth` URL param) and the engine routes through
+    // the existing OverlayController.open path — same effect as tapping the
+    // chip, just driven from the URL. Unknown overlay names silently no-op
+    // so a stale URL doesn't surface a console error to the student.
+    if(opts.initialOverlay)
+    {
+        try
+        {
+            const overlayController = game.view?.overlayController
+            if(overlayController?.surfaces?.has?.(opts.initialOverlay))
+            {
+                overlayController.open(opts.initialOverlay)
+            }
+        }
+        catch(_) { /* defensive: never block boot on a deep-link failure */ }
+    }
 
     // Mount the canvas. If the host passed a container, use it; otherwise
     // fall back to `.game` (the v1 default container in index.html) for

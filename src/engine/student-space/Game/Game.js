@@ -10,6 +10,9 @@ import Onboarding from './State/Onboarding.js'
 import CalendarEvents from './State/CalendarEvents.js'
 import TeacherLetters from './State/TeacherLetters.js'
 import Sprouts from './State/Sprouts.js'
+import Relationships from './State/Relationships.js'
+import Choices from './State/Choices.js'
+import IslandSnapshotBridge from './State/IslandSnapshotBridge.js'
 import { HOST_BODY_CLASSES } from './index.js'
 
 /**
@@ -91,6 +94,11 @@ export default class Game
             document.addEventListener('visibilitychange', this._onVisibilityChange)
 
         this._running = true
+        // Boot snapshot — fire-and-forget. Throttled inside the bridge so
+        // rapid reloads don't spam the server. Server-side WorkOS gating
+        // means demo / dev-bypass sessions silently 403, which the bridge
+        // swallows.
+        try { this.state?.islandSnapshots?.captureNow?.('boot') } catch(_) {}
         // If the engine mounts while the tab is already backgrounded, skip
         // the first rAF — the visibilitychange listener will resume the loop
         // when the user comes back. Without this, hidden-tab mounts would
@@ -157,9 +165,13 @@ export default class Game
     {
         const surface = input.surface
         if(!surface || !this.view?.overlayController) return
-        if(surface === 'reflections')
+        // Reflections and Calendar both legacy-route into the History sheet's
+        // Timeline tab (event-stream view). The Calendar grid is the v1
+        // primary affordance for that data; we keep its open path alive but
+        // tunnel through History so the IA stays unified.
+        if(surface === 'reflections' || surface === 'calendar')
         {
-            this.view.overlayController.open('calendar', input)
+            this.view.overlayController.open('history', { ...input, tab: 'timeline' })
             return
         }
         if(surface === 'trajectory')
@@ -172,7 +184,12 @@ export default class Game
             this.view.overlayController.open('profile', input)
             return
         }
-        if(['values', 'interests', 'personality', 'skills'].includes(surface))
+        if(surface === 'growth' || surface === 'history')
+        {
+            this.view.overlayController.open('history', { ...input, tab: 'growth' })
+            return
+        }
+        if(['values', 'interests', 'personality', 'skills', 'relationships', 'choices'].includes(surface))
         {
             this.view.overlayController.open('profile', { ...input, tab: surface })
         }
@@ -229,6 +246,10 @@ export default class Game
         CalendarEvents.instance = null
         TeacherLetters.instance = null
         Sprouts.instance = null
+        Relationships.instance = null
+        Choices.instance = null
+        try { this.state?.islandSnapshots?.dispose?.() } catch(_) {}
+        IslandSnapshotBridge.instance = null
         Game.instance = null
     }
 }
