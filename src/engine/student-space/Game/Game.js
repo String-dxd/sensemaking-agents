@@ -13,6 +13,7 @@ import Sprouts from './State/Sprouts.js'
 import Relationships from './State/Relationships.js'
 import Choices from './State/Choices.js'
 import IslandSnapshotBridge from './State/IslandSnapshotBridge.js'
+import Auth from './State/Auth.js'
 import { HOST_BODY_CLASSES } from './index.js'
 
 /**
@@ -36,6 +37,7 @@ import { HOST_BODY_CLASSES } from './index.js'
  * @typedef {object} GameOptions
  * @property {{ storage?: import('./State/Persistence.js').StorageAdapter }} [persistence]
  * @property {import('../../../lib/student-space/backend-bridge.ts').StudentSpaceBackendBridge} [backend]
+ * @property {{ status: 'signed-out' } | { status: 'signed-in', label: string, detail: string | null, kind: 'workos' | 'demo' | 'dev-bypass' } | null} [authMenu]
  */
 export default class Game
 {
@@ -75,7 +77,11 @@ export default class Game
         try
         {
             this.debug = new Debug()
-            this.state = new State({ persistence: opts.persistence, backend: this.backend })
+            this.state = new State({
+                persistence: opts.persistence,
+                backend: this.backend,
+                authMenu: opts.authMenu ?? null,
+            })
             this.view = new View()
         }
         catch(err)
@@ -248,6 +254,7 @@ export default class Game
         Sprouts.instance = null
         Relationships.instance = null
         Choices.instance = null
+        Auth.instance = null
         try { this.state?.islandSnapshots?.dispose?.() } catch(_) {}
         IslandSnapshotBridge.instance = null
         Game.instance = null

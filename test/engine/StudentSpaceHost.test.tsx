@@ -34,6 +34,7 @@ afterEach(() => {
   localStorageAdapter.mockClear()
   createGame.mockImplementation(() => ({ dispose, openSurface }))
   delete (backendBridge as { refreshSnapshot?: unknown }).refreshSnapshot
+  delete (backendBridge as { loadAuthMenu?: unknown }).loadAuthMenu
   window.history.pushState({}, '', '/')
 })
 
@@ -47,6 +48,46 @@ describe('StudentSpaceHost', () => {
     }
     expect(arg.container).toBe(container.firstElementChild)
     expect(arg.backend).toMatchObject({ version: 1 })
+  })
+
+  it('passes the resolved authMenu through to createGame', async () => {
+    const menu = {
+      status: 'signed-in',
+      label: 'Demo account',
+      detail: 'demo-a',
+      kind: 'demo',
+    }
+    ;(backendBridge as { loadAuthMenu?: () => Promise<unknown> }).loadAuthMenu = vi.fn(
+      async () => menu,
+    )
+
+    render(<StudentSpaceHost />)
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    const arg = createGame.mock.calls[0]?.[0] as { authMenu?: unknown }
+    expect(arg.authMenu).toEqual(menu)
+  })
+
+  it('boots with authMenu=null when loadAuthMenu rejects', async () => {
+    ;(backendBridge as { loadAuthMenu?: () => Promise<unknown> }).loadAuthMenu = vi.fn(
+      async () => {
+        throw new Error('boom')
+      },
+    )
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    render(<StudentSpaceHost />)
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    const arg = createGame.mock.calls[0]?.[0] as { authMenu?: unknown }
+    expect(arg.authMenu).toBeNull()
+    warnSpy.mockRestore()
+  })
+
+  it('boots with authMenu=null when the bridge has no loadAuthMenu method', async () => {
+    // backendBridge has no loadAuthMenu set in this case (the afterEach in
+    // this file deletes it). Confirm the host still boots cleanly.
+    render(<StudentSpaceHost />)
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    const arg = createGame.mock.calls[0]?.[0] as { authMenu?: unknown }
+    expect(arg.authMenu).toBeNull()
   })
 
   it('disposes the game when unmounted', async () => {

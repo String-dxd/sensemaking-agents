@@ -26,6 +26,21 @@ export interface StorageAdapter {
   removeItem(key: string): void
 }
 
+/**
+ * Server-resolved auth menu shape — matches `loadAuthMenuHandler`'s return
+ * type. Hosts fetch this via `backend.loadAuthMenu()` once during boot and
+ * pass it through to `createGame({ authMenu })`. The engine never refetches
+ * it itself; reload re-runs the host's boot path.
+ */
+export type AuthMenuState =
+  | { status: 'signed-out' }
+  | {
+      status: 'signed-in'
+      label: string
+      detail: string | null
+      kind: 'workos' | 'demo' | 'dev-bypass'
+    }
+
 export interface GameOptions {
   container?: HTMLElement
   persistence?: { storage?: StorageAdapter }
@@ -36,6 +51,12 @@ export interface GameOptions {
    */
   initialOverlay?: { name: string }
   backend?: StudentSpaceBackendBridge
+  /**
+   * Server-resolved auth menu, captured by the host once during boot. The
+   * engine builds its `state.auth` slice from this and surfaces auth state
+   * in chrome (TopNav, ProfileSheet, the onboarding login surface).
+   */
+  authMenu?: AuthMenuState | null
 }
 
 export interface Game {
@@ -60,6 +81,13 @@ export interface Game {
     }
     captures: {
       subscribe(listener: (event: unknown, context: unknown) => void): () => void
+    }
+    auth: {
+      menu: AuthMenuState
+      isSignedIn: boolean
+      isSignedOut: boolean
+      setMenu(menu: AuthMenuState | null | undefined): AuthMenuState
+      subscribe(listener: (menu: AuthMenuState) => void): () => void
     }
     sprouts: {
       subscribe(listener: (event: SproutsEvent, sprouts: readonly Sprout[]) => void): () => void

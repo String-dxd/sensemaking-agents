@@ -42,13 +42,28 @@ export function StudentSpaceHost({ className }: { className?: string }) {
 
     void (async () => {
       try {
-        const engine = await import('~/engine/student-space/Game')
+        // Fetch the server-resolved auth menu in parallel with the engine
+        // dynamic import so onboarding can decide whether to skip the dummy
+        // login surface and chrome can render the right sign-in / sign-out
+        // affordance from the first paint. A rejection here is non-fatal —
+        // the engine boots with the default signed-out menu, matching what
+        // a truly signed-out visitor would see.
+        const [engine, authMenu] = await Promise.all([
+          import('~/engine/student-space/Game'),
+          backend.loadAuthMenu
+            ? backend.loadAuthMenu().catch((err) => {
+                console.warn('[StudentSpaceHost] loadAuthMenu failed', err)
+                return null
+              })
+            : Promise.resolve(null),
+        ])
         if (cancelled) return
         const live = engine.createGame({
           container,
           persistence: { storage: engine.localStorageAdapter() },
           initialOverlay,
           backend,
+          authMenu: authMenu ?? null,
         })
         // Expose the live Game so the sign-out helper (which cannot static-
         // import the engine without bloating server bundles) can call
