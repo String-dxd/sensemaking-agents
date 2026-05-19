@@ -15,10 +15,15 @@
  */
 
 export const FACET_THEMES = {
-    values:      { accent: '#A07659', soft: '#EAD7BE', ink: '#6A4A26', eyebrow: 'V — Values' },
-    interests:   { accent: '#FF8E8E', soft: '#FDE0E0', ink: '#A84D4D', eyebrow: 'I — Interests' },
-    personality: { accent: '#8E6FB8', soft: '#E8DDF2', ink: '#4C3470', eyebrow: 'P — Personality' },
-    skills:      { accent: '#82B16A', soft: '#DDEDC6', ink: '#3F6F2A', eyebrow: 'S — Skills' },
+    values:        { accent: '#A07659', soft: '#EAD7BE', ink: '#6A4A26', eyebrow: 'V — Values' },
+    interests:     { accent: '#FF8E8E', soft: '#FDE0E0', ink: '#A84D4D', eyebrow: 'I — Interests' },
+    personality:   { accent: '#8E6FB8', soft: '#E8DDF2', ink: '#4C3470', eyebrow: 'P — Personality' },
+    skills:        { accent: '#82B16A', soft: '#DDEDC6', ink: '#3F6F2A', eyebrow: 'S — Skills' },
+    // Non-VIPS Profile tabs share the same engine theme channel so the
+    // sheet's CSS color variables stay coherent when the React panel is
+    // mounted. Hues mirror `PROFILE_TAB_THEMES` in src/data/profile-tabs.ts.
+    relationships: { accent: '#D08A4A', soft: '#F6E4CC', ink: '#7A4413', eyebrow: 'R — Relationships' },
+    choices:       { accent: '#5C8FB0', soft: '#DDEAF3', ink: '#2F5773', eyebrow: 'C — Choices' },
 }
 
 /**

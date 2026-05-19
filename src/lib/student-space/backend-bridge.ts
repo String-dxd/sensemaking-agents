@@ -28,6 +28,8 @@ export type StudentSpaceSurface =
   | 'interests'
   | 'personality'
   | 'skills'
+  | 'relationships'
+  | 'choices'
   | 'growth'
   | 'history'
 

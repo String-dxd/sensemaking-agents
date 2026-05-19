@@ -8,6 +8,8 @@ const SURFACES = new Set<StudentSpaceSurface>([
   'interests',
   'personality',
   'skills',
+  'relationships',
+  'choices',
   'growth',
   'history',
 ])

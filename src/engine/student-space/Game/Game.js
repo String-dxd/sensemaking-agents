@@ -10,6 +10,8 @@ import Onboarding from './State/Onboarding.js'
 import CalendarEvents from './State/CalendarEvents.js'
 import TeacherLetters from './State/TeacherLetters.js'
 import Sprouts from './State/Sprouts.js'
+import Relationships from './State/Relationships.js'
+import Choices from './State/Choices.js'
 import IslandSnapshotBridge from './State/IslandSnapshotBridge.js'
 import { HOST_BODY_CLASSES } from './index.js'
 
@@ -187,7 +189,7 @@ export default class Game
             this.view.overlayController.open('history', { ...input, tab: 'growth' })
             return
         }
-        if(['values', 'interests', 'personality', 'skills'].includes(surface))
+        if(['values', 'interests', 'personality', 'skills', 'relationships', 'choices'].includes(surface))
         {
             this.view.overlayController.open('profile', { ...input, tab: surface })
         }
@@ -244,6 +246,8 @@ export default class Game
         CalendarEvents.instance = null
         TeacherLetters.instance = null
         Sprouts.instance = null
+        Relationships.instance = null
+        Choices.instance = null
         try { this.state?.islandSnapshots?.dispose?.() } catch(_) {}
         IslandSnapshotBridge.instance = null
         Game.instance = null

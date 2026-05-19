@@ -201,6 +201,13 @@ export default class ProfileSheet
      */
     dispose()
     {
+        // Cancel any deferred timers before tearing down the DOM. Without
+        // this, the 110ms _switchTab fade callback can fire against a null
+        // root and — worse, since this branch added the React mount —
+        // attempt to spin up createRoot + QueryClient on a detached node.
+        if(this._panelTimer) { clearTimeout(this._panelTimer); this._panelTimer = null }
+        if(this._armTimer)   { clearTimeout(this._armTimer);   this._armTimer   = null }
+
         if(this._onKeyDown)
         {
             try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
@@ -293,6 +300,11 @@ export default class ProfileSheet
 
     _renderReactPanel(tab)
     {
+        // Keep the sheet's CSS color channel in sync with the active tab —
+        // otherwise the non-VIPS panels render against the prior VIPS tab's
+        // accent/soft/ink vars.
+        applyFacetVars(this.root, tab)
+
         // Hide the engine-managed VIPS body and header; the React view
         // brings its own eyebrow + section headers.
         if(this.headerEl)   this.headerEl.hidden   = true
