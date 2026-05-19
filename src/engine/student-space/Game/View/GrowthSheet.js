@@ -50,7 +50,8 @@ export default class GrowthSheet
 
             <nav class="growth-sheet__scrubber" role="tablist" aria-label="Year">
                 <div class="growth-sheet__scrubber-empty" data-empty hidden>
-                    <p>Tracking starts when you record your first reflection.</p>
+                    <p>Year-by-year tracking starts after your first <em>voice</em> reflection.</p>
+                    <p class="growth-sheet__scrubber-empty-hint">Mood pins and photo / ask captures don't count yet — they live only on this device. Voice reflections persist on the server, which is what this view needs to look across time.</p>
                 </div>
                 <div class="growth-sheet__scrubber-pills" data-pills></div>
             </nav>
