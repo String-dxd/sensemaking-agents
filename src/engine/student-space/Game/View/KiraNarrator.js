@@ -210,7 +210,7 @@ export default class KiraNarrator
         // feet at the ~0.81 group scale). The old short Kira sat at 0.35;
         // keeping that for the taller bird put the framing at her belly.
         const camLook = new THREE.Vector3(perch.x, perch.y + 0.85, perch.z)
-        this.view.camera.zoomTo(camPos, camLook, ZOOM_DURATION)
+        this.view.camera.zoomTo(camPos, camLook, ZOOM_DURATION, { owner: 'kira-narrator' })
 
         // Turn Kira to face the destination camera position. The standing
         // build (Flame Bower) is authored with head/beak along local +X,
@@ -294,7 +294,7 @@ export default class KiraNarrator
         this.typerId += 1               // cancel any in-flight typewriter
         this.root.classList.remove('is-open')
         this.root.setAttribute('aria-hidden', 'true')
-        this.view.camera.restoreZoom(ZOOM_DURATION)
+        this.view.camera.restoreZoom(ZOOM_DURATION, { owner: 'kira-narrator' })
 
         // Turn Kira back to her resting yaw alongside the camera restore.
         if(this._kiraRestYaw !== null)

@@ -4894,3 +4894,12 @@ body.is-onboarding .kira-bubble
         animation-iteration-count: 1 !important;
     }
 }
+
+/* ── Pick-and-plant edit mode ───────────────────────────────────────── */
+/* While the student is arranging the island, give every sprout's count
+   chip a dashed outline so it's clear which objects respond to drag. */
+.sprouts-badge-layer.edit-mode .sprout-badge
+{
+    outline: 1px dashed rgba(60, 88, 36, 0.85);
+    outline-offset: 2px;
+}

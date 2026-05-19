@@ -101,6 +101,18 @@ export default class Island
     }
 
     /**
+     * Pick-and-plant drop test — does the (x,z) cell sit comfortably
+     * inside the plateau silhouette with a small inset away from the
+     * cliff rim? `inset` is in metres; the default (0.3m) keeps dropped
+     * objects from clipping the cliff lip during the bloom or while
+     * being moved. Larger insets reserve more breathing room.
+     */
+    isPlaceable(x, z, inset = 0.3)
+    {
+        return Math.hypot(x, z) < this.radiusAt(x, z) - inset
+    }
+
+    /**
      * Surface normal at world XZ via central-difference gradient. Returns
      * a length-1 vec3 (xyz). On steep edge/water we return a horizontal
      * normal so the grass shader's slopeScale rejects blades.

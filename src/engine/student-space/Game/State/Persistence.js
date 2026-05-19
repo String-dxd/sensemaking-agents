@@ -38,9 +38,10 @@ const KEY = {
     letters:    `${NS}:letters`,
     calendar:   `${NS}:calendar`,
     onboarding: `${NS}:onboarding`,
+    sprouts:    `${NS}:sprouts`,
 }
 
-const SLICES = ['moodPins', 'captures', 'profile', 'letters', 'calendar', 'onboarding']
+const SLICES = ['moodPins', 'captures', 'profile', 'letters', 'calendar', 'onboarding', 'sprouts']
 const DEBOUNCE_MS = 250
 
 /**
@@ -227,7 +228,7 @@ export default class Persistence
      */
     load()
     {
-        const empty = { moodPins: [], captures: [], profile: null, letters: [], calendar: [], onboarding: null }
+        const empty = { moodPins: [], captures: [], profile: null, letters: [], calendar: [], onboarding: null, sprouts: null }
         if(!this._available) return empty
 
         let storedV = 0
