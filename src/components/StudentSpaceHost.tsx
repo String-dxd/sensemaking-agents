@@ -33,6 +33,8 @@ export function StudentSpaceHost({ className }: { className?: string }) {
     let dispose: (() => void) | null = null
     let cancelled = false
 
+    const initialOverlay = readInitialOverlayFromLocation()
+
     void (async () => {
       try {
         const engine = await import('~/engine/student-space/Game')
@@ -40,6 +42,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
         const live = engine.createGame({
           container,
           persistence: { storage: engine.localStorageAdapter() },
+          initialOverlay,
         })
         // Expose the live Game so the sign-out helper (which cannot static-
         // import the engine without bloating server bundles) can call
@@ -80,6 +83,21 @@ export function StudentSpaceHost({ className }: { className?: string }) {
       ) : null}
     </>
   )
+}
+
+const KNOWN_INITIAL_OVERLAYS = new Set(['profile', 'calendar', 'letters', 'trajectory'])
+
+/**
+ * Parse `?sheet=…` from the current URL and return an `initialOverlay` arg
+ * for `engine.createGame` when it matches a known overlay. The `/me` route
+ * redirects to `/?sheet=profile`; this is the consumer that turns that
+ * search param into an actual sheet-open after the engine boots.
+ */
+function readInitialOverlayFromLocation(): { name: string } | undefined {
+  if (typeof window === 'undefined') return undefined
+  const sheet = new URLSearchParams(window.location.search).get('sheet')
+  if (!sheet || !KNOWN_INITIAL_OVERLAYS.has(sheet)) return undefined
+  return { name: sheet }
 }
 
 function EngineLoadFailure({ error }: { error: Error }) {

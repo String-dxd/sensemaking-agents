@@ -25,6 +25,12 @@ export interface StorageAdapter {
 export interface GameOptions {
   container?: HTMLElement
   persistence?: { storage?: StorageAdapter }
+  /**
+   * Open a registered overlay surface immediately after boot. Honored only
+   * when onboarding has finished. Used by hosts to land users on a specific
+   * sheet after a redirect (e.g. `/me` → `/?sheet=profile`).
+   */
+  initialOverlay?: { name: string }
 }
 
 export interface Game {

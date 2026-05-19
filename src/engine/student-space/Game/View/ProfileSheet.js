@@ -78,6 +78,10 @@ export default class ProfileSheet
         root.className = 'profile-sheet'
         root.setAttribute('aria-hidden', 'true')
         root.innerHTML = `
+            <div class="profile-sheet__hero" aria-hidden="true">
+                <div class="profile-sheet__hero-wash"></div>
+                <div class="profile-sheet__hero-shimmer"></div>
+            </div>
             <button class="profile-sheet__close" type="button" aria-label="Close">×</button>
             <header class="profile-id">
                 <div class="profile-id__avatar" role="img" aria-label="Profile picture">
@@ -87,13 +91,14 @@ export default class ProfileSheet
                     <h1 class="profile-id__name"></h1>
                     <p  class="profile-id__class"></p>
                 </div>
+                <div class="profile-id__actions" data-share-slot></div>
             </header>
             <nav class="profile-sheet__tabs" role="tablist">
                 ${TAB_ORDER.map((f) => `
                     <button type="button"
                             class="profile-tab${f === 'values' ? ' is-active' : ''}"
                             role="tab"
-                            data-facet="${f}">${FACET_THEMES[f].eyebrow.split(' — ')[1] || f}</button>
+                            data-facet="${f}">${FACET_HEADERS[f]?.tag || f}</button>
                 `).join('')}
             </nav>
             <section class="profile-sheet__panel">
@@ -122,7 +127,11 @@ export default class ProfileSheet
                     <p class="profile-sheet__meta"></p>
                 </header>
 
-                <h3 class="profile-sheet__eyebrow">COLLECTION</h3>
+                <div class="profile-sheet__dimension-empty" hidden data-testid="profile-dimension-empty">
+                    <p class="profile-sheet__dimension-empty-text"></p>
+                </div>
+
+                <h3 class="profile-sheet__eyebrow profile-sheet__collection-eyebrow">COLLECTION</h3>
                 <ul class="profile-sheet__bento" role="list"></ul>
 
                 <h3 class="profile-sheet__eyebrow profile-sheet__timeline-eyebrow">
@@ -139,6 +148,7 @@ export default class ProfileSheet
         this.idInitialEl = root.querySelector('.profile-id__initial')
         this.idNameEl    = root.querySelector('.profile-id__name')
         this.idClassEl   = root.querySelector('.profile-id__class')
+        this.shareSlotEl = root.querySelector('[data-share-slot]')
 
         this.titleEl     = root.querySelector('.profile-sheet__title')
         this.eyebrowEl   = root.querySelector('.profile-sheet__panel-eyebrow')
@@ -150,6 +160,9 @@ export default class ProfileSheet
         this.openTextEl  = root.querySelector('.profile-sheet__open-text')
         this.metaEl      = root.querySelector('.profile-sheet__meta')
         this.bentoEl     = root.querySelector('.profile-sheet__bento')
+        this.collectionEyebrowEl = root.querySelector('.profile-sheet__collection-eyebrow')
+        this.dimensionEmptyEl = root.querySelector('.profile-sheet__dimension-empty')
+        this.dimensionEmptyTextEl = root.querySelector('.profile-sheet__dimension-empty-text')
         this.filterEl    = root.querySelector('.profile-sheet__timeline-filter')
         this.quoteListEl = root.querySelector('.profile-sheet__quote-list')
         this.emptyEl     = root.querySelector('.profile-sheet__empty')
@@ -321,6 +334,21 @@ export default class ProfileSheet
     {
         const claims = VIPS_BY_FACET[this.activeFacet] || []
         const counts = this.profile.countByClaim(this.activeFacet)
+        const totalNoticings = claims.reduce((sum, c) => sum + (counts[c.id] || 0), 0)
+        const dimensionLabel = FACET_HEADERS[this.activeFacet]?.tag || this.activeFacet
+
+        if(totalNoticings === 0)
+        {
+            this.bentoEl.innerHTML = ''
+            this.collectionEyebrowEl.hidden = true
+            this.dimensionEmptyEl.hidden = false
+            this.dimensionEmptyTextEl.textContent =
+                `Your ${dimensionLabel} read grows as you reflect. Capture a few from the island, and tiles will fill in here.`
+            return
+        }
+
+        this.collectionEyebrowEl.hidden = false
+        this.dimensionEmptyEl.hidden = true
         this.bentoEl.innerHTML = claims.map((c) =>
         {
             const count = counts[c.id] || 0
@@ -339,6 +367,15 @@ export default class ProfileSheet
                 </li>
             `
         }).join('')
+    }
+
+    /**
+     * Returns the DOM slot in the identity header where U4's ShareDialog will
+     * mount its Share button. Returns null when the sheet has been disposed.
+     */
+    getShareSlot()
+    {
+        return this.shareSlotEl ?? null
     }
 
     _renderTimeline()
