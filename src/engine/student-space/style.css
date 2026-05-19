@@ -3113,6 +3113,45 @@ body.has-chooser        .top-nav
     height: 14px;
 }
 
+/* Auth button — lives in the same identity-header actions slot as Share.
+   Sign-out (signed-in) is a small cream pill; Sign-in (signed-out) keeps
+   the same shape so the slot doesn't reflow as auth state changes. */
+.profile-auth-form { margin: 0; }
+.profile-auth-button
+{
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(43, 38, 32, 0.10);
+    background: rgba(241, 237, 229, 0.95);
+    color: rgba(43, 38, 32, 0.78);
+    font: 500 13px/1 var(--font-sans);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.profile-auth-button:hover
+{
+    color: #2b2620;
+    background: #fff;
+    transform: translateY(-1px);
+}
+.profile-auth-button:focus-visible
+{
+    outline: 2px solid var(--facet-accent);
+    outline-offset: 2px;
+}
+.profile-auth-button.is-loading { opacity: 0.5; pointer-events: none; }
+.profile-auth-button--signin
+{
+    background: #2b2620;
+    color: #fdfaf3;
+    border-color: transparent;
+}
+.profile-auth-button--signin:hover { background: rgba(43, 38, 32, 0.90); color: #fdfaf3; }
+
 /* Share dialog — overlays the open profile sheet. Not registered with
    OverlayController; it sits visually above ProfileSheet rather than
    replacing it. Scrim + centered card; ESC closes; tap on scrim closes. */

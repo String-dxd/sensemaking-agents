@@ -51,6 +51,31 @@ const ARM_TIMEOUT_MS  = 3200
 const FORGET_FADE_MS  = 200
 const TAB_FADE_MS     = 110         // half of the 220ms total cross-fade
 
+/**
+ * Inline twin of `~/lib/clear-student-space-local-state.ts`. The TS helper
+ * lives outside the engine module graph and pulling it in here would couple
+ * vendored JS to host TS. Sign-out flows that originate from this sheet
+ * still need to drain `ss:v1:*` keys before the cookie clear, so we inline
+ * the same six lines here.
+ */
+function clearStudentSpaceLocalStateInline()
+{
+    if(typeof window === 'undefined') return
+    try
+    {
+        const storage = window.localStorage
+        if(!storage) return
+        const keys = []
+        for(let i = 0; i < storage.length; i++)
+        {
+            const key = storage.key(i)
+            if(key && key.indexOf('ss:v1:') === 0) keys.push(key)
+        }
+        for(const key of keys) storage.removeItem(key)
+    }
+    catch(_) { /* unavailable (private mode); nothing to clear */ }
+}
+
 const formatRefined = (iso) =>
 {
     if(!iso) return ''
@@ -106,7 +131,10 @@ export default class ProfileSheet
                     <h1 class="profile-id__name"></h1>
                     <p  class="profile-id__class"></p>
                 </div>
-                <div class="profile-id__actions" data-share-slot></div>
+                <div class="profile-id__actions">
+                    <span class="profile-id__share-slot" data-share-slot></span>
+                    <span class="profile-id__auth-slot" data-auth-slot></span>
+                </div>
             </header>
             <nav class="profile-sheet__tabs" role="tablist">
                 ${TAB_ORDER.map((f) => {
@@ -175,7 +203,13 @@ export default class ProfileSheet
         this.idNameEl    = root.querySelector('.profile-id__name')
         this.idClassEl   = root.querySelector('.profile-id__class')
         this.shareSlotEl = root.querySelector('[data-share-slot]')
+        this.authSlotEl  = root.querySelector('[data-auth-slot]')
         this._mountShareButton()
+        this._renderAuthButton()
+        // Re-render the auth slot whenever the host updates state.auth (sign-
+        // in or sign-out reflected back into the engine). Stored on `this`
+        // so dispose() can detach it.
+        this._unsubAuth = this.state?.auth?.subscribe?.(() => this._renderAuthButton())
 
         this.titleEl     = root.querySelector('.profile-sheet__title')
         this.eyebrowEl   = root.querySelector('.profile-sheet__panel-eyebrow')
@@ -233,6 +267,11 @@ export default class ProfileSheet
             try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
             this._onRootClick = null
         }
+        if(this._unsubAuth)
+        {
+            try { this._unsubAuth() } catch(_) {}
+            this._unsubAuth = null
+        }
         this._unmountReactPanel()
         try { this.shareDialog?.dispose?.() } catch(_) {}
         this.shareDialog = null
@@ -259,6 +298,98 @@ export default class ProfileSheet
         btn.addEventListener('click', () => this._openShareDialog())
         this.shareSlotEl.appendChild(btn)
         this.shareButtonEl = btn
+    }
+
+    /**
+     * Mount or refresh the auth slot. Reads the live `state.auth.menu` and
+     * renders either:
+     *   - a Sign-out button (signed-in) that drains the engine, wipes the
+     *     `ss:v1:*` localStorage, then POSTs to `/api/auth/sign-out`.
+     *   - a Sign-in link (signed-out) that drains the engine and navigates
+     *     to `/api/auth/sign-in?returnPathname=/?sheet=profile` so the user
+     *     returns to the same profile context after WorkOS callback.
+     *
+     * Idempotent — replaces the slot contents on every call so re-renders
+     * triggered by Auth.subscribe() don't pile up stale nodes.
+     */
+    _renderAuthButton()
+    {
+        if(!this.authSlotEl) return
+        this.authSlotEl.innerHTML = ''
+        const menu = this.state?.auth?.menu
+        if(!menu) return
+        if(menu.status === 'signed-in')
+        {
+            const form = document.createElement('form')
+            form.action = '/api/auth/sign-out'
+            form.method = 'post'
+            form.className = 'profile-auth-form'
+            form.dataset.testid = 'profile-auth-signout-form'
+            const btn = document.createElement('button')
+            btn.type = 'submit'
+            btn.className = 'profile-auth-button profile-auth-button--signout'
+            btn.dataset.testid = 'profile-auth-signout'
+            btn.textContent = 'Sign out'
+            btn.addEventListener('click', (event) => this._onSignOutClick(event, form))
+            form.appendChild(btn)
+            // Avoid double-firing if the form submit bubbles up while the
+            // sign-out button's click handler is still draining the engine.
+            form.addEventListener('submit', (event) => this._onSignOutSubmit(event))
+            this.authSlotEl.appendChild(form)
+        }
+        else
+        {
+            const link = document.createElement('a')
+            link.href = '/api/auth/sign-in?returnPathname=/?sheet=profile'
+            link.className = 'profile-auth-button profile-auth-button--signin'
+            link.dataset.testid = 'profile-auth-signin'
+            link.textContent = 'Sign in'
+            link.addEventListener('click', (event) => this._onSignInClick(event, link))
+            this.authSlotEl.appendChild(link)
+        }
+    }
+
+    _onSignInClick(_event, link)
+    {
+        if(this._authNavigating) return
+        this._authNavigating = true
+        try { window.__studentSpaceGame?.dispose?.() } catch(_) {}
+        // Honor the link's default navigation. Engine dispose runs synchronously
+        // before the browser leaves; Persistence has already flushed.
+        try { link.classList.add('is-loading') } catch(_) {}
+    }
+
+    _onSignOutClick(event, form)
+    {
+        // Drain the engine and wipe `ss:v1:*` BEFORE the form's native POST
+        // fires. Doing it on the click handler (which runs before submit)
+        // lets Persistence's 250 ms debounce flush cleanly without racing
+        // the cookie clear.
+        if(this._authNavigating)
+        {
+            event.preventDefault()
+            return
+        }
+        this._authNavigating = true
+        try { window.__studentSpaceGame?.dispose?.() } catch(_) {}
+        clearStudentSpaceLocalStateInline()
+        // Allow native form submit to continue.
+        void form
+    }
+
+    _onSignOutSubmit(event)
+    {
+        // If the click handler already drained the engine, this is the
+        // browser-native form POST and we just let it proceed. If neither
+        // ran yet (e.g. keyboard-submit on the button), do the same drain.
+        if(!this._authNavigating)
+        {
+            this._authNavigating = true
+            try { window.__studentSpaceGame?.dispose?.() } catch(_) {}
+            clearStudentSpaceLocalStateInline()
+        }
+        // Do not preventDefault — we want the form to post.
+        void event
     }
 
     _openShareDialog()
