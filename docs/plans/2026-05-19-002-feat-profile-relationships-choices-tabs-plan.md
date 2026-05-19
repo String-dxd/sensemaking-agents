@@ -5,6 +5,19 @@ status: active
 date: 2026-05-19
 ---
 
+> **Scope expansion landed during execution (2026-05-19):** The plan's
+> Key Technical Decision #2 specified a deep-link first pass for the
+> engine ProfileSheet — close the sheet and `router.push('/library/...')`
+> for the two non-VIPS tabs. During implementation review the user rejected
+> that UX as inconsistent with how VIPS tabs swap content under the rail.
+> Commit `00c55c2 feat(engine): Relationships + Choices swap in-sheet like
+> VIPS` promoted the tabs to native engine panels by mounting a React
+> subtree inside the engine `ProfileSheet` panel area (see
+> `src/engine/student-space/profile-tab-react-bridge.tsx` and the new
+> `omitChrome` prop on both page views). The "Engine-side rich panels for
+> the two tabs" item in **Deferred to Follow-Up Work** is therefore
+> resolved by this PR rather than a follow-up plan.
+
 # feat: Add Relationships and Choices tabs to Profile (same level as VIPS)
 
 ## Overview
