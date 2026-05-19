@@ -564,3 +564,270 @@ export function mergeOnboarding(raw, ctx = 'onboarding')
     }
     return out
 }
+
+// ── Relationships ──────────────────────────────────────────────────────────
+/**
+ * Three lists under one slice — keep them together so a single hydrate() and
+ * a single _persist() cover the whole "who is in my life" surface.
+ *
+ * @typedef {Object} RelationshipMapEntry
+ * @property {string} id
+ * @property {string} createdAt ISO
+ * @property {string} name
+ * @property {'family'|'cca'|'close-friend'|'teacher'|'other'} category
+ * @property {'rely-on'|'give-to'|'mutual'|'uncertain'|null} quality
+ * @property {string|null} note
+ *
+ * @typedef {Object} BelongingEntry
+ * @property {string} id
+ * @property {string} createdAt ISO
+ * @property {'cca'|'class'|'school'|'society'|'other'} groupKind
+ * @property {string} groupName
+ * @property {'belong'|'participate'|'edge'} belongLevel
+ * @property {string|null} note
+ *
+ * @typedef {Object} OutsidePerspectiveEntry
+ * @property {string} id
+ * @property {string} createdAt ISO
+ * @property {'peer'|'teacher'|'coach'|'family'|'other'} source
+ * @property {string|null} sourceLabel
+ * @property {string} observation
+ * @property {'values'|'interests'|'personality'|'skills'|null} vipsDimensionRef
+ * @property {'matches'|'partly'|'differs'|'unknown'} agreementSelf
+ */
+
+const RELATIONSHIP_CATEGORIES = new Set(['family', 'cca', 'close-friend', 'teacher', 'other'])
+const RELATIONSHIP_QUALITIES = new Set(['rely-on', 'give-to', 'mutual', 'uncertain'])
+const BELONG_GROUP_KINDS = new Set(['cca', 'class', 'school', 'society', 'other'])
+const BELONG_LEVELS = new Set(['belong', 'participate', 'edge'])
+const PERSPECTIVE_SOURCES = new Set(['peer', 'teacher', 'coach', 'family', 'other'])
+const PERSPECTIVE_AGREEMENTS = new Set(['matches', 'partly', 'differs', 'unknown'])
+const VIPS_DIM_SET = new Set(['values', 'interests', 'personality', 'skills'])
+
+const KNOWN_RELATIONSHIP_MAP_KEYS = new Set(['id', 'createdAt', 'name', 'category', 'quality', 'note'])
+const KNOWN_BELONGING_KEYS = new Set(['id', 'createdAt', 'groupKind', 'groupName', 'belongLevel', 'note'])
+const KNOWN_PERSPECTIVE_KEYS = new Set([
+    'id', 'createdAt', 'source', 'sourceLabel', 'observation', 'vipsDimensionRef', 'agreementSelf',
+])
+
+const defaultRelationshipMapEntry = () => ({
+    id:        '',
+    createdAt: new Date(0).toISOString(),
+    name:      '',
+    category:  'other',
+    quality:   null,
+    note:      null,
+})
+
+export function mergeRelationshipMapEntry(raw, ctx = 'relationship')
+{
+    if(!raw || typeof raw !== 'object') { warn(`${ctx}: not an object`); return null }
+    const out = defaultRelationshipMapEntry()
+    for(const k of Object.keys(raw))
+    {
+        if(!KNOWN_RELATIONSHIP_MAP_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
+        const v = raw[k]
+        if(k === 'category' && !RELATIONSHIP_CATEGORIES.has(v)) { warn(`${ctx}.category invalid: "${v}"`); continue }
+        if(k === 'quality' && v !== null && !RELATIONSHIP_QUALITIES.has(v)) { warn(`${ctx}.quality invalid: "${v}"`); continue }
+        if(k === 'note' && v !== null && !isString(v)) { warn(`${ctx}.note not string`); continue }
+        if(k === 'name' && !isString(v)) { warn(`${ctx}.name not string`); continue }
+        if(k === 'id' && !isString(v)) { warn(`${ctx}.id not string`); continue }
+        if(k === 'createdAt' && !isISO(v)) { warn(`${ctx}.createdAt invalid`); continue }
+        out[k] = v
+    }
+    if(!out.id || !out.name) return null
+    return out
+}
+
+const defaultBelongingEntry = () => ({
+    id:          '',
+    createdAt:   new Date(0).toISOString(),
+    groupKind:   'other',
+    groupName:   '',
+    belongLevel: 'participate',
+    note:        null,
+})
+
+export function mergeBelongingEntry(raw, ctx = 'belonging')
+{
+    if(!raw || typeof raw !== 'object') { warn(`${ctx}: not an object`); return null }
+    const out = defaultBelongingEntry()
+    for(const k of Object.keys(raw))
+    {
+        if(!KNOWN_BELONGING_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
+        const v = raw[k]
+        if(k === 'groupKind' && !BELONG_GROUP_KINDS.has(v)) { warn(`${ctx}.groupKind invalid: "${v}"`); continue }
+        if(k === 'belongLevel' && !BELONG_LEVELS.has(v)) { warn(`${ctx}.belongLevel invalid: "${v}"`); continue }
+        if(k === 'note' && v !== null && !isString(v)) { warn(`${ctx}.note not string`); continue }
+        if(k === 'groupName' && !isString(v)) { warn(`${ctx}.groupName not string`); continue }
+        if(k === 'id' && !isString(v)) { warn(`${ctx}.id not string`); continue }
+        if(k === 'createdAt' && !isISO(v)) { warn(`${ctx}.createdAt invalid`); continue }
+        out[k] = v
+    }
+    if(!out.id || !out.groupName) return null
+    return out
+}
+
+const defaultPerspectiveEntry = () => ({
+    id:               '',
+    createdAt:        new Date(0).toISOString(),
+    source:           'peer',
+    sourceLabel:      null,
+    observation:      '',
+    vipsDimensionRef: null,
+    agreementSelf:    'unknown',
+})
+
+export function mergeOutsidePerspectiveEntry(raw, ctx = 'perspective')
+{
+    if(!raw || typeof raw !== 'object') { warn(`${ctx}: not an object`); return null }
+    const out = defaultPerspectiveEntry()
+    for(const k of Object.keys(raw))
+    {
+        if(!KNOWN_PERSPECTIVE_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
+        const v = raw[k]
+        if(k === 'source' && !PERSPECTIVE_SOURCES.has(v)) { warn(`${ctx}.source invalid: "${v}"`); continue }
+        if(k === 'agreementSelf' && !PERSPECTIVE_AGREEMENTS.has(v)) { warn(`${ctx}.agreementSelf invalid: "${v}"`); continue }
+        if(k === 'vipsDimensionRef' && v !== null && !VIPS_DIM_SET.has(v)) { warn(`${ctx}.vipsDimensionRef invalid: "${v}"`); continue }
+        if(k === 'sourceLabel' && v !== null && !isString(v)) { warn(`${ctx}.sourceLabel not string`); continue }
+        if(k === 'observation' && !isString(v)) { warn(`${ctx}.observation not string`); continue }
+        if(k === 'id' && !isString(v)) { warn(`${ctx}.id not string`); continue }
+        if(k === 'createdAt' && !isISO(v)) { warn(`${ctx}.createdAt invalid`); continue }
+        out[k] = v
+    }
+    if(!out.id || !out.observation) return null
+    return out
+}
+
+const defaultRelationships = () => ({
+    map:          [],
+    belonging:    [],
+    perspectives: [],
+})
+
+export function mergeRelationships(raw)
+{
+    const out = defaultRelationships()
+    if(!raw || typeof raw !== 'object') return out
+    if(Array.isArray(raw.map))          out.map          = mergeArray(raw.map,          mergeRelationshipMapEntry,    'relationships.map')
+    if(Array.isArray(raw.belonging))    out.belonging    = mergeArray(raw.belonging,    mergeBelongingEntry,          'relationships.belonging')
+    if(Array.isArray(raw.perspectives)) out.perspectives = mergeArray(raw.perspectives, mergeOutsidePerspectiveEntry, 'relationships.perspectives')
+    return out
+}
+
+// ── Choices ────────────────────────────────────────────────────────────────
+/**
+ * @typedef {Object} DecisionEntry
+ * @property {string} id
+ * @property {string} createdAt ISO
+ * @property {string} decision    headline of the choice (eg "CCA captain election")
+ * @property {string[]} options   alternatives the student considered
+ * @property {string} chose       which option was taken
+ * @property {Array<'consequential'|'peer-acceptance'|'values'|'family'|'gut'|'other'>} forces
+ * @property {string} when        free-form date or "last term"
+ * @property {string|null} note
+ * @property {'avoidant'|'impulsive'|'deliberate'|null} patternTag
+ *
+ * @typedef {Object} ChangeIntention
+ * @property {string} id
+ * @property {string} createdAt ISO
+ * @property {string} current      the pattern or behaviour the student sees today
+ * @property {string} change       what they want to do differently
+ * @property {string|null} byWhen
+ * @property {'avoidant'|'impulsive'|'deliberate'|null} linkedPatternTag
+ */
+
+const DECISION_FORCES = new Set(['consequential', 'peer-acceptance', 'values', 'family', 'gut', 'other'])
+const DECISION_PATTERN_TAGS = new Set(['avoidant', 'impulsive', 'deliberate'])
+
+const KNOWN_DECISION_KEYS = new Set([
+    'id', 'createdAt', 'decision', 'options', 'chose', 'forces', 'when', 'note', 'patternTag',
+])
+const KNOWN_INTENTION_KEYS = new Set([
+    'id', 'createdAt', 'current', 'change', 'byWhen', 'linkedPatternTag',
+])
+
+const defaultDecision = () => ({
+    id:         '',
+    createdAt:  new Date(0).toISOString(),
+    decision:   '',
+    options:    [],
+    chose:      '',
+    forces:     [],
+    when:       '',
+    note:       null,
+    patternTag: null,
+})
+
+export function mergeDecisionEntry(raw, ctx = 'decision')
+{
+    if(!raw || typeof raw !== 'object') { warn(`${ctx}: not an object`); return null }
+    const out = defaultDecision()
+    for(const k of Object.keys(raw))
+    {
+        if(!KNOWN_DECISION_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
+        const v = raw[k]
+        if(k === 'options')
+        {
+            if(!Array.isArray(v)) { warn(`${ctx}.options not array`); continue }
+            out.options = v.filter((x) => typeof x === 'string')
+            continue
+        }
+        if(k === 'forces')
+        {
+            if(!Array.isArray(v)) { warn(`${ctx}.forces not array`); continue }
+            out.forces = v.filter((x) => DECISION_FORCES.has(x))
+            continue
+        }
+        if(k === 'patternTag' && v !== null && !DECISION_PATTERN_TAGS.has(v)) { warn(`${ctx}.patternTag invalid: "${v}"`); continue }
+        if(k === 'note' && v !== null && !isString(v)) { warn(`${ctx}.note not string`); continue }
+        if((k === 'decision' || k === 'chose' || k === 'when') && !isString(v)) { warn(`${ctx}.${k} not string`); continue }
+        if(k === 'id' && !isString(v)) { warn(`${ctx}.id not string`); continue }
+        if(k === 'createdAt' && !isISO(v)) { warn(`${ctx}.createdAt invalid`); continue }
+        out[k] = v
+    }
+    if(!out.id || !out.decision) return null
+    return out
+}
+
+const defaultIntention = () => ({
+    id:               '',
+    createdAt:        new Date(0).toISOString(),
+    current:          '',
+    change:           '',
+    byWhen:           null,
+    linkedPatternTag: null,
+})
+
+export function mergeChangeIntention(raw, ctx = 'intention')
+{
+    if(!raw || typeof raw !== 'object') { warn(`${ctx}: not an object`); return null }
+    const out = defaultIntention()
+    for(const k of Object.keys(raw))
+    {
+        if(!KNOWN_INTENTION_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
+        const v = raw[k]
+        if(k === 'linkedPatternTag' && v !== null && !DECISION_PATTERN_TAGS.has(v)) { warn(`${ctx}.linkedPatternTag invalid: "${v}"`); continue }
+        if(k === 'byWhen' && v !== null && !isString(v)) { warn(`${ctx}.byWhen not string`); continue }
+        if((k === 'current' || k === 'change') && !isString(v)) { warn(`${ctx}.${k} not string`); continue }
+        if(k === 'id' && !isString(v)) { warn(`${ctx}.id not string`); continue }
+        if(k === 'createdAt' && !isISO(v)) { warn(`${ctx}.createdAt invalid`); continue }
+        out[k] = v
+    }
+    if(!out.id || !out.change) return null
+    return out
+}
+
+const defaultChoices = () => ({
+    decisions:  [],
+    intentions: [],
+})
+
+export function mergeChoices(raw)
+{
+    const out = defaultChoices()
+    if(!raw || typeof raw !== 'object') return out
+    if(Array.isArray(raw.decisions))  out.decisions  = mergeArray(raw.decisions,  mergeDecisionEntry,     'choices.decisions')
+    if(Array.isArray(raw.intentions)) out.intentions = mergeArray(raw.intentions, mergeChangeIntention,   'choices.intentions')
+    return out
+}
