@@ -19,6 +19,25 @@
 import OverlayController from './OverlayController.js'
 import State from '../State/State.js'
 
+/**
+ * Build a fresh hidden form on `document.body` and submit it. The body
+ * survives engine `dispose()` (which removes the TopNav root containing
+ * the original visible form). Without this indirection, a form-scoped
+ * native POST can be aborted by the browser when its ancestor is removed
+ * mid-handler — the documented DevPalette pattern at
+ * `src/components/DevPalette.tsx`.
+ */
+function submitBodyScopedAuthForm(action, method = 'post')
+{
+    if(typeof document === 'undefined') return
+    const form = document.createElement('form')
+    form.method = method
+    form.action = action
+    form.style.display = 'none'
+    document.body.appendChild(form)
+    form.submit()
+}
+
 const CHIPS = [
     {
         id:    'letters',
@@ -100,7 +119,6 @@ export default class TopNav
         // auth (sign-in / sign-out from any other surface) updates the chip
         // without re-mounting the nav.
         this._state = State.getInstance?.() ?? null
-        this._authSlot = null
         this._popoverEl = null
         this._popoverOpen = false
         this._mountAuthChipIfSignedOut()
@@ -146,9 +164,9 @@ export default class TopNav
 
     _mountAuthChipIfSignedOut()
     {
-        const isSignedOut = this._state?.auth?.isSignedOut !== false && !this._state?.auth?.isSignedIn
+        const isSignedIn = this._state?.auth?.isSignedIn === true
         const hasChip = !!this.root?.querySelector('[data-action="auth-signin"]')
-        if(isSignedOut && !hasChip)
+        if(!isSignedIn && !hasChip)
         {
             const tpl = document.createElement('template')
             tpl.innerHTML = SIGNIN_CHIP_HTML.trim()
@@ -156,13 +174,16 @@ export default class TopNav
             while(tpl.content.firstChild) this.root.appendChild(tpl.content.firstChild)
             this._popoverEl = this.root.querySelector('[data-signin-popover]')
         }
-        else if(!isSignedOut && hasChip)
+        else if(isSignedIn && hasChip)
         {
+            // Close any open popover before removing its DOM so the
+            // chip-local state machine never leaves `_popoverOpen=true`
+            // pointing at a node that is about to be detached.
+            this._closeSignInPopover()
             const chip = this.root.querySelector('[data-action="auth-signin"]')
             chip?.remove()
             this._popoverEl?.remove()
             this._popoverEl = null
-            this._popoverOpen = false
         }
     }
 
@@ -181,12 +202,15 @@ export default class TopNav
         const demoForm = event.target.closest('[data-signin-demo]')
         if(demoForm)
         {
-            // Submit button inside the form — drain engine; native submit
-            // continues. The button itself triggers the form's submit
-            // listener below which fires the engine dispose if the click
-            // path skipped it.
+            // preventDefault the in-place form so the browser-native POST
+            // does not race with the synchronous engine dispose (which
+            // removes the TopNav root mid-handler and would otherwise
+            // cancel the navigation). Submit through a body-scoped form
+            // instead — the body survives dispose.
+            event.preventDefault()
             try { window.__studentSpaceGame?.dispose?.() } catch(_) {}
-            return false
+            submitBodyScopedAuthForm(demoForm.action, demoForm.method || 'post')
+            return true
         }
         const signinChip = event.target.closest('[data-action="auth-signin"]')
         if(signinChip)

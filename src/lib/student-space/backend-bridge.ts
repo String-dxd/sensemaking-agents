@@ -131,12 +131,19 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
       // Auth menu is fetched alongside the snapshot data so identity
       // hydration can use the WorkOS label when the seed-resolved
       // `student_profile` is null. A rejection is non-fatal — the snapshot
-      // mapper falls back to the seed name or "Me".
+      // mapper falls back to the seed name or "Me". We log the swallow so
+      // ops can correlate identity flicker with an upstream auth-menu fault.
       const [vips, wiki, trajectory, authMenu] = await Promise.all([
         loadVipsPages({ data: {} }),
         loadWiki({ data: {} }),
         loadTrajectory({ data: {} }),
-        loadAuthMenu().catch(() => null),
+        loadAuthMenu().catch((err) => {
+          console.warn(
+            '[backend-bridge] refreshSnapshot loadAuthMenu failed; identity may flicker to placeholder',
+            err,
+          )
+          return null
+        }),
       ])
       return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory, authMenu })
     },

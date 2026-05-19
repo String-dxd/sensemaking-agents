@@ -162,11 +162,16 @@ function mountSheet(menu: AuthMenu) {
 }
 
 describe('ProfileSheet auth slot', () => {
-  it('renders a Sign in link when state.auth is signed-out', () => {
+  it('renders a Sign in link with URL-encoded returnPathname when signed-out', () => {
     const { sheet } = mountSheet({ status: 'signed-out' })
     const link = document.querySelector('[data-testid="profile-auth-signin"]') as HTMLAnchorElement
     expect(link).toBeTruthy()
-    expect(link.getAttribute('href')).toBe('/api/auth/sign-in?returnPathname=/?sheet=profile')
+    // returnPathname must be URL-encoded so the nested `?sheet=profile` query
+    // survives the WorkOS callback round-trip (raw `?` is the start-of-query
+    // delimiter and would otherwise be dropped from the value).
+    expect(link.getAttribute('href')).toBe(
+      `/api/auth/sign-in?returnPathname=${encodeURIComponent('/?sheet=profile')}`,
+    )
     sheet.dispose?.()
   })
 
@@ -189,7 +194,8 @@ describe('ProfileSheet auth slot', () => {
     sheet.dispose?.()
   })
 
-  it('signing out drains the engine and wipes ss:v1:* localStorage', () => {
+  it('signing out drains the engine, wipes ss:v1:*, and POSTs through a body-scoped form', () => {
+    const submitSpy = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
     const { sheet } = mountSheet({
       status: 'signed-in',
       label: 'Demo account',
@@ -201,13 +207,41 @@ describe('ProfileSheet auth slot', () => {
     window.localStorage.setItem('unrelated', 'keep-me')
 
     const btn = document.querySelector('[data-testid="profile-auth-signout"]') as HTMLButtonElement
-    btn.closest('form')?.addEventListener('submit', (e) => e.preventDefault())
     btn.click()
 
     expect(dispose).toHaveBeenCalledTimes(1)
     expect(window.localStorage.getItem('ss:v1:moodPins')).toBeNull()
     expect(window.localStorage.getItem('ss:v1:captures')).toBeNull()
     expect(window.localStorage.getItem('unrelated')).toBe('keep-me')
+    // The body-scoped form is the one that actually POSTs; the in-place
+    // form's native submit was preventDefaulted so the browser cannot
+    // abort it when engine dispose detaches the .profile-sheet root.
+    expect(submitSpy).toHaveBeenCalledTimes(1)
+    const submitted = submitSpy.mock.instances[0] as unknown as HTMLFormElement
+    expect(submitted.action.endsWith('/api/auth/sign-out')).toBe(true)
+    expect(submitted.method.toLowerCase()).toBe('post')
+    expect(submitted.parentElement).toBe(document.body)
+    submitSpy.mockRestore()
+    sheet.dispose?.()
+  })
+
+  it('keyboard-Enter submit also routes through the body-scoped form', () => {
+    const submitSpy = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
+    const { sheet } = mountSheet({
+      status: 'signed-in',
+      label: 'Reza Ilmi',
+      detail: 'reza@example.com',
+      kind: 'workos',
+    })
+    const form = document.querySelector(
+      '[data-testid="profile-auth-signout-form"]',
+    ) as HTMLFormElement
+    // Simulate keyboard-Enter submit (no click first).
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+
+    expect(dispose).toHaveBeenCalledTimes(1)
+    expect(submitSpy).toHaveBeenCalledTimes(1)
+    submitSpy.mockRestore()
     sheet.dispose?.()
   })
 

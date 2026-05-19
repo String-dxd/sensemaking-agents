@@ -88,18 +88,53 @@ describe('EdupassLogin (real auth surface)', () => {
     expect(assignSpy).toHaveBeenCalledWith('/api/auth/sign-in?returnPathname=/')
   })
 
-  it('demo form submit disposes the engine before navigation', async () => {
+  it('demo form submit disposes the engine and submits via a body-scoped form', async () => {
     const dispose = vi.fn()
     ;(window as { __studentSpaceGame?: unknown }).__studentSpaceGame = { dispose }
+    // Spy on every HTMLFormElement.submit() call so we can verify the
+    // navigation actually fires through a fresh body-scoped form (the
+    // engine dispose detaches the in-place form before its native POST
+    // would run — see ProfileSheet.js submitBodyScopedAuthForm).
+    const submitSpy = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
     const { root } = await mountLogin()
     const form = root.querySelector('[data-action="demo"]') as HTMLFormElement
-    // happy-dom dispatches the submit event on .submit() and on a button
-    // click inside a form — fire the event directly so the handler runs
-    // and we can observe the dispose side effect without depending on the
-    // jsdom-flavored submit fallback.
     const submitEvent = new Event('submit', { bubbles: true, cancelable: true })
     form.dispatchEvent(submitEvent)
     expect(dispose).toHaveBeenCalledTimes(1)
+    expect(submitEvent.defaultPrevented).toBe(true)
+    // The body-scoped form is appended and submitted; the original form
+    // (about to be detached by dispose) never reaches the native POST.
+    expect(submitSpy).toHaveBeenCalledTimes(1)
+    const submitted = submitSpy.mock.instances[0] as unknown as HTMLFormElement
+    expect(submitted.action.endsWith('/api/auth/sign-in?demo=1&returnPathname=/')).toBe(true)
+    expect(submitted.method.toLowerCase()).toBe('post')
+    expect(submitted.parentElement).toBe(document.body)
+    submitSpy.mockRestore()
+  })
+
+  it('offline path timer is cancelled when the surface unmounts mid-connecting', async () => {
+    vi.useFakeTimers()
+    const ctx = buildCtx({ state: { backend: undefined } })
+    const root = document.createElement('div')
+    root.className = 'onboarding-root'
+    document.body.appendChild(root)
+    const surface = new EdupassLogin({ view: undefined })
+    const advance = vi.fn()
+    surface.setAdvance(advance)
+    await surface.mount(root, ctx)
+
+    const offline = root.querySelector('[data-action="offline"]') as HTMLButtonElement
+    offline.click()
+    // Fire unmount without awaiting (its internal `await wait(EXIT_MS)` is a
+    // setTimeout that fake timers must drive). Run all pending timers so
+    // both the offline-path 600 ms timer and the unmount's exit-anim timer
+    // resolve — the offline timer should be cleared by unmount before it
+    // fires, while the exit-anim timer flushes the unmount promise.
+    const unmountPromise = surface.unmount()
+    await vi.runAllTimersAsync()
+    await unmountPromise
+    expect(ctx.profile.setIdentity).not.toHaveBeenCalled()
+    expect(advance).not.toHaveBeenCalled()
   })
 
   it('offline click sets a random identity from OFFLINE_DEMO_STUDENTS and advances', async () => {

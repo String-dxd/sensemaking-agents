@@ -22,9 +22,19 @@ const SIGNED_OUT = Object.freeze({ status: 'signed-out' })
 function freezeMenu(menu)
 {
     if(!menu || menu.status !== 'signed-in') return SIGNED_OUT
-    const kind = menu.kind === 'workos' || menu.kind === 'demo' || menu.kind === 'dev-bypass'
-        ? menu.kind
-        : 'workos'
+    let kind = menu.kind
+    if(kind !== 'workos' && kind !== 'demo' && kind !== 'dev-bypass')
+    {
+        // Unknown kind signals server-side schema drift (e.g. a new
+        // identity provider added but the engine type wasn't refreshed).
+        // Coerce to 'workos' so chrome still renders something sensible,
+        // but warn so the drift is observable instead of silent.
+        if(kind !== undefined)
+        {
+            console.warn(`[Auth] unknown menu kind "${String(kind)}"; coercing to "workos"`)
+        }
+        kind = 'workos'
+    }
     return Object.freeze({
         status: 'signed-in',
         label: typeof menu.label === 'string' ? menu.label : '',

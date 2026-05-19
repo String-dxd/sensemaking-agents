@@ -226,21 +226,32 @@ function identityFromSnapshot(
   authMenu: AuthMenuState | null | undefined,
 ): StudentSpaceProfileSnapshot['identity'] {
   // Seed-resolved profile (demo-a / demo-b / …) always wins — it carries the
-  // name the seed corpus and ablation fixtures expect.
+  // name the seed corpus and ablation fixtures expect. We still guard
+  // against an empty seed name slipping through (fixture drift, future
+  // crosswalk import) so the chrome never shows an empty identity row.
   if (snapshot.student_profile) {
-    return {
-      name: snapshot.student_profile.name,
-      className: snapshot.student_profile.detail ?? '',
-      avatarDataUrl: null,
+    const seedName = snapshot.student_profile.name.trim()
+    if (seedName.length > 0) {
+      return {
+        name: seedName,
+        className: snapshot.student_profile.detail ?? '',
+        avatarDataUrl: null,
+      }
     }
   }
   // Real WorkOS users (and demo cookie sessions without a seed match) take
   // the auth menu label so the ProfileSheet identity header reflects who is
-  // actually signed in, not the placeholder "Me".
-  if (authMenu?.status === 'signed-in' && authMenu.label.trim().length > 0) {
+  // actually signed in, not the placeholder "Me". Guard against malformed
+  // payloads in case the menu reaches this mapper without first going
+  // through the engine `Auth` slice (which coerces non-string labels to '').
+  if (
+    authMenu?.status === 'signed-in' &&
+    typeof authMenu.label === 'string' &&
+    authMenu.label.trim().length > 0
+  ) {
     return {
       name: authMenu.label,
-      className: authMenu.detail ?? '',
+      className: typeof authMenu.detail === 'string' ? authMenu.detail : '',
       avatarDataUrl: null,
     }
   }

@@ -146,7 +146,8 @@ describe('TopNav Sign-in chip', () => {
     nav.dispose?.()
   })
 
-  it('Demo option POSTs to /api/auth/sign-in?demo=1 and drains the engine', () => {
+  it('Demo option submits via a body-scoped form so engine dispose cannot abort the POST', () => {
+    const submitSpy = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
     const { nav } = mountTopNav({ status: 'signed-out' })
     const signin = document.querySelector('[data-action="auth-signin"]') as HTMLButtonElement
     signin.click()
@@ -154,11 +155,14 @@ describe('TopNav Sign-in chip', () => {
     expect(form.getAttribute('action')).toBe('/api/auth/sign-in?demo=1&returnPathname=/')
     expect(form.getAttribute('method')).toBe('post')
     const btn = form.querySelector('button') as HTMLButtonElement
-    // Stop the native form POST from navigating in test env, but assert that
-    // the click path drains the engine.
-    form.addEventListener('submit', (e) => e.preventDefault())
     btn.click()
     expect(dispose).toHaveBeenCalledTimes(1)
+    expect(submitSpy).toHaveBeenCalledTimes(1)
+    const submitted = submitSpy.mock.instances[0] as unknown as HTMLFormElement
+    expect(submitted.action.endsWith('/api/auth/sign-in?demo=1&returnPathname=/')).toBe(true)
+    expect(submitted.method.toLowerCase()).toBe('post')
+    expect(submitted.parentElement).toBe(document.body)
+    submitSpy.mockRestore()
     nav.dispose?.()
   })
 

@@ -34,6 +34,10 @@ describe('Auth state slice', () => {
   })
 
   it('coerces malformed signed-in payloads to safe defaults', () => {
+    // The unknown-kind path warns so server-side drift surfaces in dev
+    // tools; silence the spy here since the coercion behavior is what
+    // we are pinning.
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const auth = new Auth({
       status: 'signed-in',
       label: 42 as unknown as string,
@@ -46,6 +50,8 @@ describe('Auth state slice', () => {
       detail: null,
       kind: 'workos',
     })
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown menu kind'))
+    warnSpy.mockRestore()
   })
 
   it('coerces unknown status to signed-out', () => {

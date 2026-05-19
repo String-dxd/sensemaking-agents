@@ -52,6 +52,41 @@ const FORGET_FADE_MS  = 200
 const TAB_FADE_MS     = 110         // half of the 220ms total cross-fade
 
 /**
+ * Build a fresh hidden form on `document.body` and submit it. The body
+ * survives engine `dispose()` (which removes the in-engine sheet root
+ * containing the original form). Without this indirection, a form-scoped
+ * native POST can be aborted by the browser when its ancestor is removed
+ * mid-handler — the documented DevPalette pattern at
+ * `src/components/DevPalette.tsx` lines 79-86.
+ *
+ * `extras` lets the caller include additional inputs (e.g. CSRF tokens
+ * in a future iteration). Right now no auth route needs them.
+ */
+function submitBodyScopedAuthForm(action, method = 'post', extras = null)
+{
+    if(typeof document === 'undefined') return
+    const form = document.createElement('form')
+    form.method = method
+    form.action = action
+    // Hide it visually so the in-flight POST does not flash a stale form
+    // while the navigation is in flight.
+    form.style.display = 'none'
+    if(extras && typeof extras === 'object')
+    {
+        for(const [name, value] of Object.entries(extras))
+        {
+            const input = document.createElement('input')
+            input.type = 'hidden'
+            input.name = name
+            input.value = String(value)
+            form.appendChild(input)
+        }
+    }
+    document.body.appendChild(form)
+    form.submit()
+}
+
+/**
  * Inline twin of `~/lib/clear-student-space-local-state.ts`. The TS helper
  * lives outside the engine module graph and pulling it in here would couple
  * vendored JS to host TS. Sign-out flows that originate from this sheet
@@ -316,10 +351,21 @@ export default class ProfileSheet
     {
         if(!this.authSlotEl) return
         this.authSlotEl.innerHTML = ''
+        // Reset the per-flow navigation guard whenever the slot is rebuilt —
+        // a previous click that started a sign-in / sign-out flow may have
+        // left this true even though the browser ended up not navigating
+        // (network failure, captive portal, server 500). Re-rendering means
+        // the user is back and clicks should work again.
+        this._authNavigating = false
         const menu = this.state?.auth?.menu
         if(!menu) return
         if(menu.status === 'signed-in')
         {
+            // We render the form purely for visual layout and accessibility.
+            // The actual POST goes through a fresh `document.body`-scoped
+            // form built at click time so engine dispose (which removes the
+            // .profile-sheet root and detaches this form) cannot abort the
+            // navigation. See `_onSignOutClick` for the choreography.
             const form = document.createElement('form')
             form.action = '/api/auth/sign-out'
             form.method = 'post'
@@ -330,17 +376,22 @@ export default class ProfileSheet
             btn.className = 'profile-auth-button profile-auth-button--signout'
             btn.dataset.testid = 'profile-auth-signout'
             btn.textContent = 'Sign out'
-            btn.addEventListener('click', (event) => this._onSignOutClick(event, form))
+            // Intercept BOTH paths: pointer click and keyboard Enter that
+            // dispatches submit. Both must route through the body-scoped
+            // POST so the form detachment can't abort the navigation.
+            btn.addEventListener('click', (event) => this._onSignOutAction(event))
+            form.addEventListener('submit', (event) => this._onSignOutAction(event))
             form.appendChild(btn)
-            // Avoid double-firing if the form submit bubbles up while the
-            // sign-out button's click handler is still draining the engine.
-            form.addEventListener('submit', (event) => this._onSignOutSubmit(event))
             this.authSlotEl.appendChild(form)
         }
         else
         {
             const link = document.createElement('a')
-            link.href = '/api/auth/sign-in?returnPathname=/?sheet=profile'
+            // `returnPathname` is a query value — the `?` of any nested
+            // query string must be URL-encoded so it survives the WorkOS
+            // callback round-trip. Without this, the second `?` is parsed
+            // as the path-end and `sheet=profile` is dropped.
+            link.href = `/api/auth/sign-in?returnPathname=${encodeURIComponent('/?sheet=profile')}`
             link.className = 'profile-auth-button profile-auth-button--signin'
             link.dataset.testid = 'profile-auth-signin'
             link.textContent = 'Sign in'
@@ -359,37 +410,20 @@ export default class ProfileSheet
         try { link.classList.add('is-loading') } catch(_) {}
     }
 
-    _onSignOutClick(event, form)
+    _onSignOutAction(event)
     {
-        // Drain the engine and wipe `ss:v1:*` BEFORE the form's native POST
-        // fires. Doing it on the click handler (which runs before submit)
-        // lets Persistence's 250 ms debounce flush cleanly without racing
-        // the cookie clear.
-        if(this._authNavigating)
-        {
-            event.preventDefault()
-            return
-        }
+        // Single entry point for click + keyboard-submit. preventDefault the
+        // in-place form so a browser-native POST does not race with our
+        // synchronous engine dispose (which removes this form from the DOM
+        // mid-handler and would otherwise cancel the navigation, leaving the
+        // user with wiped `ss:v1:*` state but a live auth cookie). The
+        // body-scoped form below survives dispose.
+        try { event.preventDefault?.() } catch(_) {}
+        if(this._authNavigating) return
         this._authNavigating = true
         try { window.__studentSpaceGame?.dispose?.() } catch(_) {}
         clearStudentSpaceLocalStateInline()
-        // Allow native form submit to continue.
-        void form
-    }
-
-    _onSignOutSubmit(event)
-    {
-        // If the click handler already drained the engine, this is the
-        // browser-native form POST and we just let it proceed. If neither
-        // ran yet (e.g. keyboard-submit on the button), do the same drain.
-        if(!this._authNavigating)
-        {
-            this._authNavigating = true
-            try { window.__studentSpaceGame?.dispose?.() } catch(_) {}
-            clearStudentSpaceLocalStateInline()
-        }
-        // Do not preventDefault — we want the form to post.
-        void event
+        submitBodyScopedAuthForm('/api/auth/sign-out', 'post')
     }
 
     _openShareDialog()

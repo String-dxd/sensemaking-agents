@@ -34,6 +34,25 @@ function disposeEngineForNavigation()
     catch(err) { console.warn('[EdupassLogin] engine dispose before navigation failed', err) }
 }
 
+/**
+ * Build a fresh hidden form on `document.body` and submit it. The body
+ * survives engine `dispose()` (which removes the .onboarding-root that
+ * holds the original visible form). Without this indirection a form-scoped
+ * native POST can be aborted by the browser when its ancestor is removed
+ * mid-handler — the documented DevPalette pattern at
+ * `src/components/DevPalette.tsx`.
+ */
+function submitBodyScopedAuthForm(action, method = 'post')
+{
+    if(typeof document === 'undefined') return
+    const form = document.createElement('form')
+    form.method = method
+    form.action = action
+    form.style.display = 'none'
+    document.body.appendChild(form)
+    form.submit()
+}
+
 export default class EdupassLogin
 {
     constructor(flow)
@@ -93,7 +112,7 @@ export default class EdupassLogin
         this._el = el
         this._buttons = el.querySelector('.onb-login__actions')
         this._onClickRoot = (event) => this._onClick(event, ctx)
-        this._onSubmitRoot = (event) => this._onSubmit(event)
+        this._onSubmitRoot = (event) => this._onSubmit(event, ctx)
         this._buttons.addEventListener('click', this._onClickRoot)
         this._buttons.addEventListener('submit', this._onSubmitRoot)
 
@@ -134,6 +153,15 @@ export default class EdupassLogin
         if(!this._el) return
         const el = this._el
         this._el = null
+        // Cancel any in-flight offline-path setTimeout so its callback does
+        // not fire `setIdentity`/`_advance` against torn-down state.
+        if(this._offlineTimer != null)
+        {
+            try { clearTimeout(this._offlineTimer) } catch(_) {}
+            this._offlineTimer = null
+        }
+        // Reset the connecting guard so a future remount can interact again.
+        this._connecting = false
         if(this._buttons)
         {
             if(this._onClickRoot)  this._buttons.removeEventListener('click', this._onClickRoot)
@@ -174,8 +202,13 @@ export default class EdupassLogin
         {
             event.preventDefault()
             this._beginConnecting(offline, ctx)
-            setTimeout(() =>
+            this._offlineTimer = setTimeout(() =>
             {
+                this._offlineTimer = null
+                // The surface may have been unmounted (engine dispose,
+                // host route change) during the 600 ms wait — guard
+                // against firing against torn-down state.
+                if(!this._el) return
                 if(!ctx.state?.backend)
                 {
                     const pick = OFFLINE_DEMO_STUDENTS[Math.floor(Math.random() * OFFLINE_DEMO_STUDENTS.length)]
@@ -187,17 +220,19 @@ export default class EdupassLogin
         }
     }
 
-    _onSubmit(event)
+    _onSubmit(event, ctx)
     {
         if(this._connecting) { event.preventDefault(); return }
         const form = event.target.closest('[data-action="demo"]')
         if(!form) return
-        // Let the browser POST the form to /api/auth/sign-in?demo=1, but
-        // drain the engine first so Persistence's debounced writes flush
-        // before the navigation tears the page down.
-        this._beginConnecting(form.querySelector('button'))
+        // preventDefault the in-place form so the browser-native POST does
+        // not race with our synchronous engine dispose (which removes the
+        // .onboarding-root mid-handler and would otherwise cancel the
+        // navigation). Submit through a body-scoped form instead.
+        event.preventDefault()
+        this._beginConnecting(form.querySelector('button'), ctx)
         disposeEngineForNavigation()
-        // Allow the native form submit to proceed.
+        submitBodyScopedAuthForm(form.action, form.method || 'post')
     }
 
     /**
