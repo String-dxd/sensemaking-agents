@@ -178,6 +178,11 @@ export default class Game
             this.view.overlayController.open('profile', input)
             return
         }
+        if(surface === 'growth')
+        {
+            this.view.overlayController.open('growth', input)
+            return
+        }
         if(['values', 'interests', 'personality', 'skills'].includes(surface))
         {
             this.view.overlayController.open('profile', { ...input, tab: surface })

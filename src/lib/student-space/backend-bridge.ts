@@ -28,6 +28,7 @@ export type StudentSpaceSurface =
   | 'interests'
   | 'personality'
   | 'skills'
+  | 'growth'
 
 export interface StudentSpaceReflectionInput {
   localCaptureId: string

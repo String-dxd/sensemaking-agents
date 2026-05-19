@@ -4903,3 +4903,232 @@ body.is-onboarding .kira-bubble
     outline: 1px dashed rgba(60, 88, 36, 0.85);
     outline-offset: 2px;
 }
+
+/* ============ growth-sheet ============ */
+
+.growth-sheet
+{
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    pointer-events: auto;
+    background: linear-gradient(180deg, rgba(253, 250, 243, 0.55) 0%, rgba(253, 250, 243, 0.92) 75%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 24px 20px 32px;
+    overflow-y: auto;
+    transition: opacity 200ms ease;
+    opacity: 0;
+}
+
+.growth-sheet.is-open
+{
+    display: block;
+    opacity: 1;
+}
+
+.growth-sheet__close
+{
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: rgba(43, 38, 32, 0.06);
+    color: #2b2620;
+    font-size: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.growth-sheet__close:hover { background: rgba(43, 38, 32, 0.12); }
+
+.growth-sheet__header
+{
+    max-width: 720px;
+    margin: 0 auto 18px;
+    padding-top: 4px;
+}
+
+.growth-sheet__eyebrow
+{
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+    margin-bottom: 8px;
+}
+
+.growth-sheet__title
+{
+    margin: 0 0 4px;
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: #2b2620;
+    line-height: 1.15;
+}
+
+.growth-sheet__subtitle
+{
+    margin: 0;
+    font-size: 14px;
+    color: rgba(43, 38, 32, 0.65);
+}
+
+.growth-sheet__scrubber
+{
+    max-width: 720px;
+    margin: 0 auto 20px;
+}
+
+.growth-sheet__scrubber-empty p
+{
+    margin: 0;
+    font-size: 14px;
+    color: rgba(43, 38, 32, 0.7);
+    text-align: center;
+    padding: 16px;
+    background: rgba(43, 38, 32, 0.04);
+    border-radius: 12px;
+}
+
+.growth-sheet__scrubber-pills
+{
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.growth-sheet__pill
+{
+    appearance: none;
+    border: 1px solid rgba(43, 38, 32, 0.15);
+    background: rgba(255, 255, 255, 0.7);
+    color: rgba(43, 38, 32, 0.75);
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.growth-sheet__pill:hover { background: rgba(255, 255, 255, 0.95); }
+
+.growth-sheet__pill.is-active
+{
+    background: #2b2620;
+    color: #fdfaf3;
+    border-color: #2b2620;
+}
+
+.growth-sheet__body
+{
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+@media (min-width: 720px)
+{
+    .growth-sheet__body
+    {
+        grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+    }
+}
+
+.growth-sheet__island
+{
+    position: relative;
+    min-height: 280px;
+    background: rgba(43, 38, 32, 0.03);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+}
+
+.growth-sheet__source-label
+{
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: rgba(43, 38, 32, 0.55);
+    background: rgba(253, 250, 243, 0.85);
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+
+.growth-sheet__summary
+{
+    background: rgba(253, 250, 243, 0.9);
+    border: 1px solid rgba(43, 38, 32, 0.08);
+    border-radius: 16px;
+    padding: 20px;
+}
+
+.growth-sheet__narrative
+{
+    margin: 0 0 16px;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #2b2620;
+    font-style: italic;
+}
+
+.growth-sheet__stats
+{
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.growth-sheet__stat
+{
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(43, 38, 32, 0.06);
+}
+
+.growth-sheet__stat:last-child { border-bottom: none; }
+
+.growth-sheet__stat-label
+{
+    font-size: 12px;
+    color: rgba(43, 38, 32, 0.6);
+}
+
+.growth-sheet__stat-value
+{
+    font-size: 16px;
+    font-weight: 600;
+    color: #2b2620;
+    text-transform: capitalize;
+}
+
+@media (prefers-reduced-motion: reduce)
+{
+    .growth-sheet
+    {
+        transition: none;
+    }
+    .growth-sheet__pill
+    {
+        transition: none;
+    }
+}

@@ -8,6 +8,7 @@ const SURFACES = new Set<StudentSpaceSurface>([
   'interests',
   'personality',
   'skills',
+  'growth',
 ])
 
 export function studentSpaceSurfaceFromLocation(

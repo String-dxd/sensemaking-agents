@@ -47,6 +47,15 @@ const CHIPS = [
             <circle cx="12" cy="12" r="1.1" fill="#faf6ee" stroke="none"/>
         </svg>`,
     },
+    {
+        id:    'growth',
+        label: 'Growth',
+        icon: `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M4 19h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M7 19V14M12 19V9M17 19V11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            <path d="M5 9l3-3 3 4 4-6 4 3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`,
+    },
 ]
 
 export default class TopNav

@@ -22,6 +22,7 @@ const SHEET_OVERLAY_CLASS = {
     calendar:   'has-overlay',
     letters:    'has-overlay',
     trajectory: 'has-overlay',
+    growth:     'has-overlay',
     mood:       'has-capture-sheet',
     ask:        'has-capture-sheet',
     photo:      'has-capture-sheet',
