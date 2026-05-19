@@ -20,36 +20,16 @@ import type { SheetKey } from '~/components/SheetEntryRail'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { PROFILE_TAB_HEADERS } from '~/data/profile-tabs'
-import type { VipsDimension } from '~/data/vips-taxonomy'
+import type {
+  BelongingEntry,
+  OutsidePerspectiveEntry,
+  RelationshipMapEntry,
+} from '~/engine/student-space/Game/State/Relationships.js'
+import type { VipsSelfSideClaim } from '~/lib/student-space/vips-self-side'
 import { cn } from '~/lib/utils'
 
-export interface RelationshipMapEntry {
-  id: string
-  createdAt: string
-  name: string
-  category: 'family' | 'cca' | 'close-friend' | 'teacher' | 'other'
-  quality: 'rely-on' | 'give-to' | 'mutual' | 'uncertain' | null
-  note: string | null
-}
-
-export interface BelongingEntry {
-  id: string
-  createdAt: string
-  groupKind: 'cca' | 'class' | 'school' | 'society' | 'other'
-  groupName: string
-  belongLevel: 'belong' | 'participate' | 'edge'
-  note: string | null
-}
-
-export interface OutsidePerspectiveEntry {
-  id: string
-  createdAt: string
-  source: 'peer' | 'teacher' | 'coach' | 'family' | 'other'
-  sourceLabel: string | null
-  observation: string
-  vipsDimensionRef: VipsDimension | null
-  agreementSelf: 'matches' | 'partly' | 'differs' | 'unknown'
-}
+// Re-export so existing imports from this view keep working.
+export type { BelongingEntry, OutsidePerspectiveEntry, RelationshipMapEntry, VipsSelfSideClaim }
 
 export interface RelationshipsActions {
   addPerson: (p: Partial<RelationshipMapEntry>) => RelationshipMapEntry | null
@@ -58,11 +38,6 @@ export interface RelationshipsActions {
   removeBelonging: (id: string) => string | null
   addPerspective: (p: Partial<OutsidePerspectiveEntry>) => OutsidePerspectiveEntry | null
   removePerspective: (id: string) => string | null
-}
-
-export interface VipsSelfSideClaim {
-  dimension: VipsDimension
-  topClaimLabel: string
 }
 
 export interface RelationshipsPageViewProps {

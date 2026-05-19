@@ -7,7 +7,7 @@
  *
  * Data lives in the engine `Choices` state slice (singleton + persist).
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   type FloatingAuthMenuState,
   getProfileTabTheme,
@@ -18,8 +18,22 @@ import type { SheetKey } from '~/components/SheetEntryRail'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { PROFILE_TAB_HEADERS } from '~/data/profile-tabs'
+import type {
+  ChangeIntention,
+  DecisionEntry,
+  DecisionForce,
+  DecisionPatternTag,
+} from '~/engine/student-space/Game/State/Choices.js'
+import { DECISION_PATTERN_TAGS } from '~/engine/student-space/Game/State/Choices.js'
 import { cn } from '~/lib/utils'
 
+// Re-export so existing imports from this view keep working.
+export type { ChangeIntention, DecisionEntry, DecisionForce, DecisionPatternTag }
+
+// The picker order for the §1 force toggles. The slice itself does not need
+// to know about UI ordering — schema.js validates against its own private
+// set, and Choices.js exposes pattern tags only. Keeping this tuple here
+// localises form chrome decisions to the view.
 export const DECISION_FORCE_VALUES = [
   'consequential',
   'peer-acceptance',
@@ -27,32 +41,11 @@ export const DECISION_FORCE_VALUES = [
   'family',
   'gut',
   'other',
-] as const
-export type DecisionForce = (typeof DECISION_FORCE_VALUES)[number]
+] as const satisfies readonly DecisionForce[]
 
-export const DECISION_PATTERN_TAG_VALUES = ['avoidant', 'impulsive', 'deliberate'] as const
-export type DecisionPatternTag = (typeof DECISION_PATTERN_TAG_VALUES)[number]
-
-export interface DecisionEntry {
-  id: string
-  createdAt: string
-  decision: string
-  options: readonly string[]
-  chose: string
-  forces: readonly DecisionForce[]
-  when: string
-  note: string | null
-  patternTag: DecisionPatternTag | null
-}
-
-export interface ChangeIntention {
-  id: string
-  createdAt: string
-  current: string
-  change: string
-  byWhen: string | null
-  linkedPatternTag: DecisionPatternTag | null
-}
+// Alias the slice-side constant so existing call sites keep reading the
+// same name.
+export const DECISION_PATTERN_TAG_VALUES = DECISION_PATTERN_TAGS
 
 export interface ChoicesActions {
   addDecision: (p: Partial<DecisionEntry>) => DecisionEntry | null
@@ -714,6 +707,13 @@ function IntentionForm({
   const [linkedPatternTag, setLinkedPatternTag] = useState<DecisionPatternTag | null>(
     defaultPatternTag,
   )
+  // Keep the select mirroring the dominant pattern tag while the user
+  // hasn't explicitly picked a value. If the user tags a decision in §1
+  // while the form is open, the pre-select updates accordingly.
+  const [userTouchedPattern, setUserTouchedPattern] = useState(false)
+  useEffect(() => {
+    if (!userTouchedPattern) setLinkedPatternTag(defaultPatternTag)
+  }, [defaultPatternTag, userTouchedPattern])
   const valid = change.trim().length > 0
   return (
     <form
@@ -758,9 +758,10 @@ function IntentionForm({
           Linked pattern (optional)
           <select
             value={linkedPatternTag ?? ''}
-            onChange={(e) =>
+            onChange={(e) => {
+              setUserTouchedPattern(true)
               setLinkedPatternTag((e.target.value || null) as DecisionPatternTag | null)
-            }
+            }}
             className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
             data-testid="choices-intention-form-pattern"
           >

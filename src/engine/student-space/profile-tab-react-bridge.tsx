@@ -14,14 +14,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { ChoicesPageView } from '~/components/ChoicesPageView'
-import {
-  RelationshipsPageView,
-  type VipsSelfSideClaim,
-} from '~/components/RelationshipsPageView'
-import { VIPS_DIMENSIONS, VIPS_TAXONOMY, type VipsDimension } from '~/data/vips-taxonomy'
+import { RelationshipsPageView } from '~/components/RelationshipsPageView'
 import Choices from '~/engine/student-space/Game/State/Choices.js'
 import Relationships from '~/engine/student-space/Game/State/Relationships.js'
 import { bootProfileTabSlices } from '~/lib/student-space/profile-tab-state'
+import { buildVipsSelfSide } from '~/lib/student-space/vips-self-side'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
 
 type ProfileTabSurface = 'relationships' | 'choices'
@@ -90,13 +87,7 @@ function RelationshipsPanelContainer() {
     queryFn: () => loadVipsPages({ data: {} }),
   })
 
-  const selfSide = useMemo<VipsSelfSideClaim[]>(() => {
-    if (!vipsData) return []
-    return VIPS_DIMENSIONS.map((dimension) => ({
-      dimension,
-      topClaimLabel: topClaimLabelFor(vipsData, dimension),
-    }))
-  }, [vipsData])
+  const selfSide = useMemo(() => buildVipsSelfSide(vipsData), [vipsData])
 
   return (
     <RelationshipsPageView
@@ -157,24 +148,3 @@ function useEngineSliceVersion(slice: Relationships | Choices | Subscribable | n
   }, [slice])
 }
 
-interface VipsPagesShape {
-  pages: Array<{ dimension: string; compiled_truth: string }>
-  timeline_by_dimension: Record<string, Array<{ canonical_claim_id: string }>>
-}
-
-function topClaimLabelFor(data: VipsPagesShape | undefined, dimension: VipsDimension): string {
-  if (!data) return 'No signal yet'
-  const timeline = data.timeline_by_dimension?.[dimension] ?? []
-  if (timeline.length === 0) {
-    const page = data.pages.find((p) => p.dimension === dimension)
-    return page?.compiled_truth?.trim() ? 'See VIPS page' : 'No signal yet'
-  }
-  const counts = new Map<string, number>()
-  for (const entry of timeline) {
-    counts.set(entry.canonical_claim_id, (counts.get(entry.canonical_claim_id) ?? 0) + 1)
-  }
-  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]
-  if (!top) return 'No signal yet'
-  const canonical = VIPS_TAXONOMY.find((c) => c.id === top[0])
-  return canonical?.label ?? top[0]
-}

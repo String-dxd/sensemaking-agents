@@ -4,13 +4,7 @@
  * Data is engine-side + locally persisted. No server fetch required.
  */
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import {
-  type ChangeIntention,
-  type ChoicesActions,
-  ChoicesPageView,
-  type DecisionEntry,
-  type DecisionPatternTag,
-} from '~/components/ChoicesPageView'
+import { type ChoicesActions, ChoicesPageView } from '~/components/ChoicesPageView'
 import type { SheetKey } from '~/components/SheetEntryRail'
 import { Button } from '~/components/ui/button'
 import { isVipsDimension } from '~/data/vips-taxonomy'
@@ -27,15 +21,14 @@ function ChoicesPage() {
   const slices = bootProfileTabSlices()
   const choices = useEngineSlice(slices?.choices ?? null)
 
-  const decisions = (choices?.listDecisions() ?? []) as DecisionEntry[]
-  const intentions = (choices?.listIntentions() ?? []) as ChangeIntention[]
+  const decisions = choices?.listDecisions() ?? []
+  const intentions = choices?.listIntentions() ?? []
 
   const actions: ChoicesActions = {
-    addDecision: (p) => (choices?.addDecision(p) as DecisionEntry | null) ?? null,
+    addDecision: (p) => choices?.addDecision(p) ?? null,
     removeDecision: (id) => choices?.removeDecision(id) ?? null,
-    tagDecisionPattern: (id, tag) =>
-      (choices?.tagDecisionPattern(id, tag) as DecisionEntry | null) ?? null,
-    addChangeIntention: (p) => (choices?.addChangeIntention(p) as ChangeIntention | null) ?? null,
+    tagDecisionPattern: (id, tag) => choices?.tagDecisionPattern(id, tag) ?? null,
+    addChangeIntention: (p) => choices?.addChangeIntention(p) ?? null,
     removeChangeIntention: (id) => choices?.removeChangeIntention(id) ?? null,
   }
 
@@ -77,7 +70,3 @@ function PageBackLink() {
     </Link>
   )
 }
-
-// Type assertion helper used internally — keeps TS happy when the slice's
-// .js exports are typed as `unknown` at the boundary.
-export type { DecisionPatternTag }
