@@ -128,12 +128,17 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
   return {
     version: 1,
     refreshSnapshot: async () => {
-      const [vips, wiki, trajectory] = await Promise.all([
+      // Auth menu is fetched alongside the snapshot data so identity
+      // hydration can use the WorkOS label when the seed-resolved
+      // `student_profile` is null. A rejection is non-fatal — the snapshot
+      // mapper falls back to the seed name or "Me".
+      const [vips, wiki, trajectory, authMenu] = await Promise.all([
         loadVipsPages({ data: {} }),
         loadWiki({ data: {} }),
         loadTrajectory({ data: {} }),
+        loadAuthMenu({ data: {} }).catch(() => null),
       ])
-      return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory })
+      return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory, authMenu })
     },
     loadAuthMenu: async () => loadAuthMenu({ data: {} }),
     createRealtimeMirrorCapture: async (input) =>

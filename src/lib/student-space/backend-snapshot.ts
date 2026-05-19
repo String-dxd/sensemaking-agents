@@ -1,5 +1,6 @@
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import type { CartographerOutputRow, MirrorEntryRow, VipsTimelineEntryRow } from '~/db/queries'
+import type { AuthMenuState } from '~/server/auth-menu.handler.server'
 import type { LoadTrajectoryResult } from '~/server/load-trajectory.handler.server'
 import type { LoadVipsPagesResult } from '~/server/load-vips-pages.handler.server'
 import type { WikiSnapshot } from '~/server/load-wiki.handler.server'
@@ -113,6 +114,13 @@ interface SnapshotInput {
   vips: LoadVipsPagesResult
   wiki: WikiSnapshot
   trajectory: LoadTrajectoryResult
+  /**
+   * Optional auth menu from `loadAuthMenu()`. Used as a fallback identity
+   * label when the seed-resolved `student_profile` is null (real WorkOS
+   * users without a fixture row). Seeded demo students always take their
+   * seed name first.
+   */
+  authMenu?: AuthMenuState | null
 }
 
 interface GameLike {
@@ -148,9 +156,10 @@ export function createStudentSpaceBackendSnapshot({
   vips,
   wiki,
   trajectory,
+  authMenu,
 }: SnapshotInput): StudentSpaceBackendSnapshot {
   return {
-    profile: mapVipsPagesToStudentSpaceProfile(vips),
+    profile: mapVipsPagesToStudentSpaceProfile(vips, authMenu),
     reflections: mapWikiSnapshotToStudentSpaceReflections(wiki),
     trajectory: mapTrajectoryResultToStudentSpaceCapture(trajectory),
     recentMoods: mapRecentMoodsToStudentSpacePins(vips),
@@ -189,6 +198,7 @@ export function applyStudentSpaceBackendSnapshot(
 
 export function mapVipsPagesToStudentSpaceProfile(
   snapshot: LoadVipsPagesResult,
+  authMenu?: AuthMenuState | null,
 ): StudentSpaceProfileSnapshot {
   const pagesByDimension = new Map(snapshot.pages.map((page) => [page.dimension, page]))
   const facets = {} as Record<VipsDimension, StudentSpaceProfileFacetSnapshot>
@@ -207,12 +217,37 @@ export function mapVipsPagesToStudentSpaceProfile(
 
   return {
     facets,
-    identity: {
-      name: snapshot.student_profile?.name ?? 'Me',
-      className: snapshot.student_profile?.detail ?? '',
-      avatarDataUrl: null,
-    },
+    identity: identityFromSnapshot(snapshot, authMenu),
   }
+}
+
+function identityFromSnapshot(
+  snapshot: LoadVipsPagesResult,
+  authMenu: AuthMenuState | null | undefined,
+): StudentSpaceProfileSnapshot['identity'] {
+  // Seed-resolved profile (demo-a / demo-b / …) always wins — it carries the
+  // name the seed corpus and ablation fixtures expect.
+  if (snapshot.student_profile) {
+    return {
+      name: snapshot.student_profile.name,
+      className: snapshot.student_profile.detail ?? '',
+      avatarDataUrl: null,
+    }
+  }
+  // Real WorkOS users (and demo cookie sessions without a seed match) take
+  // the auth menu label so the ProfileSheet identity header reflects who is
+  // actually signed in, not the placeholder "Me".
+  if (authMenu?.status === 'signed-in' && authMenu.label.trim().length > 0) {
+    return {
+      name: authMenu.label,
+      className: authMenu.detail ?? '',
+      avatarDataUrl: null,
+    }
+  }
+  // Signed-out engines never reach this path through the live bridge (the
+  // server functions throw `UnauthenticatedError` first), but tests and
+  // future offline modes need a defined fallback.
+  return { name: 'Me', className: '', avatarDataUrl: null }
 }
 
 export function mapWikiSnapshotToStudentSpaceReflections(
