@@ -4963,6 +4963,59 @@ body.is-onboarding .hover-cta
     color: rgba(255, 255, 255, 0.78);
     text-shadow: 0 1px 2px rgba(7, 18, 36, 0.35);
 }
+.onb-login__actions
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+.onb-login__cta--google { text-decoration: none; }
+.onb-login__cta.is-disabled { pointer-events: none; opacity: 0.5; }
+.onb-login__secondary-form { margin: 0; width: 100%; display: flex; justify-content: center; }
+.onb-login__secondary
+{
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--onb-ink-deep, #2b2620);
+    border: 1px solid rgba(43, 38, 32, 0.08);
+    border-radius: 12px;
+    padding: 0 18px;
+    min-height: 44px;
+    font-size: 14px;
+    cursor: pointer;
+    max-width: 320px;
+    width: 100%;
+    transition: background 180ms ease, transform 180ms var(--onb-ease), box-shadow 180ms ease;
+    box-shadow: 0 1px 2px rgba(43, 38, 32, 0.05);
+}
+.onb-login__secondary:hover
+{
+    transform: translateY(-1px);
+    background: #fff;
+    box-shadow: 0 3px 8px rgba(43, 38, 32, 0.10);
+}
+.onb-login__secondary:disabled { opacity: 0.55; cursor: progress; }
+.onb-login__secondary:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+}
+.onb-login__secondary--ghost
+{
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.92);
+}
+.onb-login__secondary--ghost:hover
+{
+    background: rgba(255, 255, 255, 0.10);
+}
+.onb-login--landing .onb-login__secondary
+{
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--onb-ink-deep, #2b2620);
+}
 
 /* ── Greeting ───────────────────────────────────────────────────────── */
 

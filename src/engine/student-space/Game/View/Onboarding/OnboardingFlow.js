@@ -93,6 +93,15 @@ export default class OnboardingFlow
         let stage = this.onb.stage
         if(stage === 'pending') stage = this._setStage('login')
 
+        // Skip the dummy Edupass login when the host already resolved an
+        // authenticated session (WorkOS, demo cookie, or dev-bypass). The
+        // login surface exists for first-arrival sign-in; a returning
+        // signed-in student should land at the greeting beat directly.
+        if(stage === 'login' && this.state.auth?.isSignedIn)
+        {
+            stage = this._setStage('greeting')
+        }
+
         // Cinematic stages replay from start if interrupted; configuration
         // stages resume in-state.
         const CINEMATIC = new Set(['egg-hatch', 'first-grow', 'tree-narration', 'closing'])

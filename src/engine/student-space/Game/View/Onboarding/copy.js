@@ -12,7 +12,12 @@ export const ONBOARDING_COPY = Object.freeze({
         tagline:    'a place that listens',
         cta:        'Login with Edupass',
         connecting: 'Connecting',
-        demoNote:   'Demo login. No real authentication.',
+        demoNote:   'Demo login.',
+        actions:    {
+            google:  'Sign in with Google',
+            demo:    'Use a demo account',
+            offline: 'Continue offline',
+        },
     },
 
     greeting: {
