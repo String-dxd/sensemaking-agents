@@ -1,5 +1,12 @@
 import type { SheetKey } from '~/components/SheetEntryRail'
-import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
+import {
+  isNonVipsProfileTab,
+  PROFILE_TAB_LABEL,
+  PROFILE_TAB_THEMES,
+  PROFILE_TABS,
+  type ProfileTab,
+} from '~/data/profile-tabs'
+import type { VipsDimension } from '~/data/vips-taxonomy'
 import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
 import { signOutEngine } from '~/lib/sign-out-engine'
 import { cn } from '~/lib/utils'
@@ -19,17 +26,26 @@ export type FloatingAuthMenuState =
       kind: 'workos' | 'demo' | 'dev-bypass'
     }
 
+/**
+ * Per-VIPS-dimension label. Kept for backwards-compat with VipsPageView and
+ * ProfileSheetView. New code that needs labels for any Profile tab should
+ * use `PROFILE_TAB_LABEL` from `~/data/profile-tabs` instead.
+ */
 export const DIMENSION_LABEL: Record<VipsDimension, string> = {
-  values: 'Values',
-  interests: 'Interests',
-  personality: 'Personality',
-  skills: 'Skills',
+  values: PROFILE_TAB_LABEL.values,
+  interests: PROFILE_TAB_LABEL.interests,
+  personality: PROFILE_TAB_LABEL.personality,
+  skills: PROFILE_TAB_LABEL.skills,
 }
 
-export const PROFILE_HEADERS: Record<
-  VipsDimension,
-  { eyebrow: string; tag: string; title: string; subtitle: string }
-> = {
+export interface ProfileHeader {
+  eyebrow: string
+  tag: string
+  title: string
+  subtitle: string
+}
+
+export const PROFILE_HEADERS: Record<VipsDimension, ProfileHeader> = {
   values: {
     eyebrow: 'WHAT MATTERS TO ME',
     tag: 'Values',
@@ -111,10 +127,24 @@ export interface ProfileStudentIdentity {
   detail: string | null
 }
 
+/**
+ * Resolve the theme for any ProfileTab — VIPS dimensions read from
+ * PROFILE_THEMES, the two non-VIPS tabs (Relationships / Choices) read from
+ * PROFILE_TAB_THEMES. The two record types are shape-compatible.
+ */
+export function getProfileTabTheme(tab: ProfileTab) {
+  return isNonVipsProfileTab(tab) ? PROFILE_TAB_THEMES[tab] : PROFILE_THEMES[tab]
+}
+
 export interface ProfileStudentChromeProps {
   authMenu?: FloatingAuthMenuState
   studentProfile?: ProfileStudentIdentity | null
-  activeDimension: VipsDimension
+  /**
+   * Tab currently considered active. Accepts any `ProfileTab` (VIPS dimension
+   * or one of the non-VIPS tabs) so the chrome can highlight Relationships /
+   * Choices the same way as Values / Interests / etc.
+   */
+  activeDimension: ProfileTab
   openSheet?: SheetKey | null
   onOpenSheet?: (key: SheetKey) => void
   sheetPanelId?: string
@@ -158,25 +188,28 @@ export function ProfileStudentChrome({
         className="mx-auto flex w-full max-w-[760px] gap-2 overflow-x-auto px-6 py-3"
         data-testid="profile-tabs"
       >
-        {VIPS_DIMENSIONS.map((dimension) => {
-          const isActive = openSheet ? openSheet === dimension : activeDimension === dimension
+        {PROFILE_TABS.map((tab) => {
+          const isActive = openSheet ? openSheet === tab : activeDimension === tab
+          const activeThemeClass = isNonVipsProfileTab(tab)
+            ? PROFILE_TAB_THEMES[tab].tab
+            : PROFILE_THEMES[tab].tab
           return (
             <button
-              key={dimension}
+              key={tab}
               type="button"
-              onClick={() => onOpenSheet?.(dimension)}
+              onClick={() => onOpenSheet?.(tab)}
               disabled={disabled}
               aria-expanded={isActive}
               aria-controls={sheetPanelId}
-              data-testid={`profile-tab-${dimension}`}
+              data-testid={`profile-tab-${tab}`}
               className={cn(
                 'h-8 shrink-0 rounded-full border border-transparent px-3.5 text-sm font-medium text-[#2b2620]/55 transition-colors',
                 'hover:bg-white/60 hover:text-[#2b2620] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                isActive && PROFILE_THEMES[dimension].tab,
+                isActive && activeThemeClass,
                 disabled && 'cursor-not-allowed opacity-50 hover:bg-transparent',
               )}
             >
-              {DIMENSION_LABEL[dimension]}
+              {PROFILE_TAB_LABEL[tab]}
             </button>
           )
         })}
