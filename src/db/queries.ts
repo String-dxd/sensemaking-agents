@@ -479,10 +479,8 @@ async function listUnconnectedMirrorEntriesInner(
   ctx: TenantContext,
   limit: number | undefined,
 ): Promise<MirrorEntryRow[]> {
-  const [entries, proposedDiffs] = await Promise.all([
-    listMirrorEntriesInner(ctx, undefined, false),
-    listVipsProposedDiffsInner(ctx, undefined),
-  ])
+  const entries = await listMirrorEntriesInner(ctx, undefined, false)
+  const proposedDiffs = await listVipsProposedDiffsInner(ctx, undefined)
   const attemptedMirrorIds = new Set(proposedDiffs.map((diff) => diff.mirror_entry_id))
   const unconnected = entries.filter(
     (entry) => entry.review_status === 'confirmed' && !attemptedMirrorIds.has(entry.id),

@@ -56,25 +56,20 @@ export async function loadPipelineTraceHandler(): Promise<PipelineTraceResult> {
     const pages = await listVipsPages(studentId, { ctx })
     const cartographer = await latestCartographerOutput(studentId, { ctx })
 
-    // The dimension fan-out stays parallel: it is a single-shape map of
-    // independent reads, not the mixed-shape pattern pg@9 warns about.
-    // `allSettled` (not `all`) so a single failing dimension query degrades
-    // to an empty list for that dimension instead of aborting the whole
-    // trace — this is the dev pipeline view; a partial render with one
-    // dimension missing is strictly more useful than a 500.
-    const timelinePerDim = await Promise.allSettled(
-      VIPS_DIMENSIONS.map((d) =>
-        listVipsTimelineEntries(studentId, d, { ctx, includeForgotten: true, limit: 200 }),
-      ),
-    )
-    const timeline: VipsTimelineEntryRow[] = timelinePerDim.flatMap((result, i) => {
-      if (result.status === 'fulfilled') return result.value
-      console.warn(
-        `[pipeline-trace] dimension "${VIPS_DIMENSIONS[i]}" query failed; rendering empty`,
-        result.reason,
-      )
-      return []
-    })
+    const timeline: VipsTimelineEntryRow[] = []
+    for (const dim of VIPS_DIMENSIONS) {
+      try {
+        timeline.push(
+          ...(await listVipsTimelineEntries(studentId, dim, {
+            ctx,
+            includeForgotten: true,
+            limit: 200,
+          })),
+        )
+      } catch (err) {
+        console.warn(`[pipeline-trace] dimension "${dim}" query failed; rendering empty`, err)
+      }
+    }
 
     const diffsByMirror = new Map<number, VipsProposedDiffRow[]>()
     for (const d of diffs) {

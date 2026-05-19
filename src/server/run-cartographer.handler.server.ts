@@ -18,6 +18,8 @@
  *   5. Persists the validated payload via `insertCartographerOutput` AND
  *      writes an `agent_traces` row with `agent='cartographer'`.
  */
+import { waitUntil } from '@vercel/functions'
+
 import { getManagedAgentBinding } from '~/agents/config'
 import { buildCartographerContext } from '~/agents/context'
 import {
@@ -110,10 +112,19 @@ export interface RunCartographerDeps {
   selfCritique?: SelfCritiqueReviewDeps
 }
 
+interface CartographerMemoryAppendJob {
+  studentId: string
+  outputId: number
+  pedagogicalSummary: string
+  exploratorySummary: string
+  transport?: MemoryStoreTransport
+}
+
 /** Pre-computed set of valid `cluster.*` IDs from the ECG taxonomy fixture. */
 const VALID_CLUSTER_IDS: ReadonlySet<string> = new Set(
   ECG_TAXONOMY.filter((e) => e.category === 'cluster').map((e) => e.id),
 )
+const MEMORY_APPEND_ATTEMPTS = 2
 
 export async function runCartographerHandler(
   data: RunCartographerInput,
@@ -130,12 +141,12 @@ export async function runCartographerHandler(
   return withStudent(studentId, async (ctx) => {
     // ── Read context ───────────────────────────────────────────────────────
     const pages = await listVipsPages(studentId, { ctx })
-    const timelineByDim = await Promise.all(
-      VIPS_DIMENSIONS.map((dim) =>
-        listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
-      ),
-    )
-    const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
+    const timeline: VipsTimelineEntryRow[] = []
+    for (const dim of VIPS_DIMENSIONS) {
+      timeline.push(
+        ...(await listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx })),
+      )
+    }
 
     // ── Invoke Cartographer (managed runner or test stub) ──────────────────
     emit({ type: 'agent_started', agent: 'cartographer' })
@@ -323,22 +334,13 @@ export async function runCartographerHandler(
     // independently caught.
     const pedagogicalSummary = formatPedagogicalState(draft, row.id)
     const exploratorySummary = formatExploratoryThreads(keptPathways, row.id)
-    await Promise.all([
-      appendMemoryBestEffort(
-        studentId,
-        MEMORY_FILE_PATHS.pedagogicalState,
-        pedagogicalSummary,
-        `cartographer#${row.id}/pedagogical`,
-        deps.memoryTransport,
-      ),
-      appendMemoryBestEffort(
-        studentId,
-        MEMORY_FILE_PATHS.exploratoryThreads,
-        exploratorySummary,
-        `cartographer#${row.id}/exploratory`,
-        deps.memoryTransport,
-      ),
-    ])
+    scheduleCartographerMemoryAppends({
+      studentId,
+      outputId: row.id,
+      pedagogicalSummary,
+      exploratorySummary,
+      transport: deps.memoryTransport,
+    })
 
     return {
       ok: true as const,
@@ -454,6 +456,41 @@ function formatExploratoryThreads(
   return lines.join('\n')
 }
 
+function scheduleCartographerMemoryAppends(job: CartographerMemoryAppendJob): void {
+  const task = appendCartographerMemoryBestEffort(job).catch((err) => {
+    // eslint-disable-next-line no-console -- defensive ops signal for unexpected scheduler failures
+    console.warn('[run-cartographer] background memory append task failed unexpectedly', {
+      studentId: job.studentId,
+      outputId: job.outputId,
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+  })
+  waitUntil(task)
+}
+
+async function appendCartographerMemoryBestEffort({
+  studentId,
+  outputId,
+  pedagogicalSummary,
+  exploratorySummary,
+  transport,
+}: CartographerMemoryAppendJob): Promise<void> {
+  await appendMemoryBestEffort(
+    studentId,
+    MEMORY_FILE_PATHS.pedagogicalState,
+    pedagogicalSummary,
+    `cartographer#${outputId}/pedagogical`,
+    transport,
+  )
+  await appendMemoryBestEffort(
+    studentId,
+    MEMORY_FILE_PATHS.exploratoryThreads,
+    exploratorySummary,
+    `cartographer#${outputId}/exploratory`,
+    transport,
+  )
+}
+
 /**
  * Append to a memory file, swallowing all errors except `DIAGNOSTIC_LANGUAGE`
  * (which is logged but still not propagated — the Cartographer row has
@@ -466,18 +503,35 @@ async function appendMemoryBestEffort(
   source: string,
   transport: MemoryStoreTransport | undefined,
 ): Promise<void> {
-  try {
-    await appendStudentMemory(studentId, filePath, appendIfNovel(content, { source }), transport)
-  } catch (err) {
-    const tag =
-      err instanceof MemoryWriteError && err.code === 'DIAGNOSTIC_LANGUAGE'
-        ? 'diagnostic-language gate'
-        : 'transport error'
-    // eslint-disable-next-line no-console -- ops triage signal
-    console.warn(`[run-cartographer] ${filePath} append failed (${tag}); continuing`, {
-      studentId,
-      source,
-      error: err instanceof Error ? { name: err.name, message: err.message } : err,
-    })
+  for (let attempt = 1; attempt <= MEMORY_APPEND_ATTEMPTS; attempt++) {
+    try {
+      await appendStudentMemory(studentId, filePath, appendIfNovel(content, { source }), transport)
+      return
+    } catch (err) {
+      if (isRetryableMemoryAppendError(err) && attempt < MEMORY_APPEND_ATTEMPTS) {
+        await delay(250 * attempt)
+        continue
+      }
+      const tag =
+        err instanceof MemoryWriteError && err.code === 'DIAGNOSTIC_LANGUAGE'
+          ? 'diagnostic-language gate'
+          : 'transport error'
+      // eslint-disable-next-line no-console -- ops triage signal
+      console.warn(`[run-cartographer] ${filePath} append failed (${tag}); continuing`, {
+        studentId,
+        source,
+        attempt,
+        error: err instanceof Error ? { name: err.name, message: err.message } : err,
+      })
+      return
+    }
   }
+}
+
+function isRetryableMemoryAppendError(err: unknown): boolean {
+  return err instanceof MemoryWriteError && err.code === 'TRANSPORT_ERROR'
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

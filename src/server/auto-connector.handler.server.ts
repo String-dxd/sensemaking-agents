@@ -159,12 +159,12 @@ export async function runAutoConnectorAfterMirror(
     }
 
     const pages = await listVipsPages(studentId, { ctx })
-    const timelineByDim = await Promise.all(
-      VIPS_DIMENSIONS.map((dim) =>
-        listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
-      ),
-    )
-    const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
+    const timeline: VipsTimelineEntryRow[] = []
+    for (const dim of VIPS_DIMENSIONS) {
+      timeline.push(
+        ...(await listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx })),
+      )
+    }
 
     // ── Step 3: invoke Connector with a managed-agent soft timeout. ──
     // Pass an AbortController.signal through so a timeout actually CANCELS
