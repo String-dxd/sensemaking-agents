@@ -92,3 +92,16 @@ export const islandSnapshotInputSchema = z.object({
   payload_json: z.string().min(1).max(1_000_000),
 })
 export type IslandSnapshotInput = z.output<typeof islandSnapshotInputSchema>
+
+// Year-bucket reads — accept only realistic 4-digit calendar years so a
+// typo or stale URL doesn't trigger an out-of-range Postgres timestamp
+// computation.
+export const growthSummaryInputSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+})
+export type GrowthSummaryInput = z.output<typeof growthSummaryInputSchema>
+
+export const islandStateAtInputSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+})
+export type IslandStateAtInput = z.output<typeof islandStateAtInputSchema>
