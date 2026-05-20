@@ -11,7 +11,7 @@ import {
     STARTER_PROMPT,
     FORECLOSED_CHALLENGE_PROMPT,
 } from './statusHeuristics.js'
-import { disclosureHTML, bindDisclosureToggles } from './visualPrimitives.js'
+import { disclosureHTML, bindDisclosureToggles, statTileRowHTML } from './visualPrimitives.js'
 import { _auditEcgAffinities } from '../Data/ecgClusters.js'
 
 /**
@@ -436,8 +436,31 @@ export default class TrajectorySheet
         const when = new Date(capture.createdAt)
         const dateStr = `${when.toLocaleDateString()}, ${when.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
         const count = bearings.length === 1 ? '1 pathway' : `${bearings.length} pathways`
+        // Stat tile row replaces the flat meta line — gives the cold open
+        // visual rhythm. Screen readers still get the count + date via the
+        // tile labels and the sr-only fallback paragraph.
         this.metaEl.hidden = false
-        this.metaEl.textContent = `Generated ${dateStr} · ${count}`
+        this.metaEl.innerHTML = statTileRowHTML([
+            { value: String(bearings.length), label: 'Pathways' },
+            { value: this._relativeTime(when), label: 'Last generated' },
+        ]) + `<span class="sr-only">Generated ${dateStr} · ${count}</span>`
+    }
+
+    /**
+     * Compact "N ago" relative-time formatter for the Last generated tile.
+     * Falls back to the local date string for anything older than a week.
+     */
+    _relativeTime(date)
+    {
+        const ms = Date.now() - date.getTime()
+        const mins = Math.round(ms / 60000)
+        if(mins < 1)   return 'Just now'
+        if(mins < 60)  return `${mins}m ago`
+        const hours = Math.round(mins / 60)
+        if(hours < 24) return `${hours}h ago`
+        const days = Math.round(hours / 24)
+        if(days < 7)   return `${days}d ago`
+        return date.toLocaleDateString()
     }
 
     _renderStarter()

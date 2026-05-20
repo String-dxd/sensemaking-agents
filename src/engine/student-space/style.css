@@ -7943,6 +7943,21 @@ body.is-onboarding .kira-bubble
     color: rgba(43, 38, 32, 0.92);
 }
 
+/* Accessibility — visually hidden span used as a fallback meta line
+   under stat-tile-rows so screen readers still get the full sentence. */
+.sr-only
+{
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 /* Profile sheet — TIMELINE expand toggle. Sits as the last <li> in
    .profile-sheet__quote-list when there are more than 3 quotes and no
    filter is active. */

@@ -30,7 +30,7 @@ import { FACET_THEMES, FACET_HEADERS, applyFacetVars } from './facets.js'
 import { iconForClaim } from './claimIcons.js'
 import ThumbnailRenderer from './ThumbnailRenderer.js'
 import SheetChrome from './SheetChrome.js'
-import { tldrHeroHTML, bindDisclosureToggles } from './visualPrimitives.js'
+import { tldrHeroHTML, bindDisclosureToggles, statTileRowHTML } from './visualPrimitives.js'
 import {
     mountProfileTabReactPanel,
     unmountProfileTabReactPanel,
@@ -597,12 +597,33 @@ export default class ProfileSheet
 
         this.summaryEl.textContent  = facet.paragraph
         this.openTextEl.textContent = facet.openQuestion
-        this.metaEl.textContent     = formatRefined(facet.lastRefinedAt)
+        this._renderMetaTiles(facet)
 
         this._renderTldrHero()
         this._applyMoreDisclosureState(this.activeFacet)
         this._renderBento()
         this._renderTimeline()
+    }
+
+    /**
+     * Replace the flat meta line with a stat-tile-row (noticings + voiced
+     * claims). The original "last refined" date now lives in the TLDR
+     * hero's meta footer. The bottom meta is two stat tiles that anchor
+     * the panel header visually.
+     */
+    _renderMetaTiles(facet)
+    {
+        if(!this.metaEl) return
+        const claims = VIPS_BY_FACET[this.activeFacet] || []
+        const counts = this.profile.countByClaim(this.activeFacet)
+        const total  = claims.reduce((sum, c) => sum + (counts[c.id] || 0), 0)
+        const voiced = claims.filter((c) => (counts[c.id] || 0) > 0).length
+
+        const refined = formatRefined(facet?.lastRefinedAt)
+        this.metaEl.innerHTML = statTileRowHTML([
+            { value: String(total),  label: total === 1 ? 'Noticing' : 'Noticings' },
+            { value: String(voiced), label: voiced === 1 ? 'Voiced claim' : 'Voiced claims' },
+        ]) + (refined ? `<span class="sr-only">${refined}</span>` : '')
     }
 
     /**
