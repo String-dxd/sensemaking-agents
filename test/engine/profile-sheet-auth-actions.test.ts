@@ -77,7 +77,6 @@ vi.mock('~/engine/student-space/profile-tab-react-bridge.tsx', () => ({
   unmountProfileTabReactPanel: vi.fn(),
 }))
 
-// @ts-expect-error vendored JS module is intentionally untyped.
 import OverlayController from '~/engine/student-space/Game/View/OverlayController.js'
 // @ts-expect-error vendored JS module is intentionally untyped.
 import ProfileSheet from '~/engine/student-space/Game/View/ProfileSheet.js'

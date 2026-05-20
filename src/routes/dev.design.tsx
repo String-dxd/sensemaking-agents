@@ -15,13 +15,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CartographerPathwayDraft } from '~/agents/schemas'
 import { ChoicesPageView } from '~/components/ChoicesPageView'
-import { EmotionChip, EmotionConnector } from '~/components/EmotionChip'
-import {
-  type FloatingAuthMenuState,
-  ProfileStudentChrome,
-  type ProfileStudentIdentity,
-} from '~/components/ProfileSheetChrome'
-import { TrajectoryPageView } from '~/components/TrajectoryPageView'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -51,7 +44,6 @@ import {
 } from '~/components/ui/drawer'
 import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group'
 import { Textarea } from '~/components/ui/textarea'
-import { VoiceButton } from '~/components/VoiceButton'
 import {
   DIMENSION_LABEL,
   PROFILE_COLORS,
@@ -1242,7 +1234,6 @@ function ShadowSwatch({
 
 // Stable no-op handlers for sample views. Memoising at module scope avoids
 // triggering ChoicesPageView's internal effects on every render of the parent.
-const NOOP_OPEN_SHEET = (_: unknown) => {}
 const NOOP_CHOICES_ACTIONS = {
   addDecision: () => null,
   removeDecision: () => null,
@@ -1250,14 +1241,6 @@ const NOOP_CHOICES_ACTIONS = {
   addChangeIntention: () => null,
   removeChangeIntention: () => null,
 } as const
-
-const SAMPLE_AUTH_MENU: FloatingAuthMenuState = {
-  status: 'signed-in',
-  label: 'Mei Tan',
-  detail: 'Sec 3B',
-  kind: 'demo',
-}
-const SAMPLE_IDENTITY: ProfileStudentIdentity = { name: 'Mei Tan', detail: 'Sec 3B' }
 
 // ─── Components, organized by type (shadcn / Material convention) ───────
 // Each section surfaces every variant that exists in this codebase — both
@@ -1350,30 +1333,6 @@ function ButtonsSection() {
           </div>
         </ComponentBlock>
 
-        <ComponentBlock
-          title="<VoiceButton>  ·  product"
-          file="src/components/VoiceButton.tsx"
-          blurb="Primary capture affordance — idle / recording (with volume halo) / working / disabled. Wraps the shadcn icon Button at h-14 w-14 rounded-full with a halo span on recording."
-        >
-          <div className="flex items-end gap-8">
-            <div className="flex flex-col items-center gap-2">
-              <VoiceButton phase="idle" onPress={() => {}} />
-              <p className="font-mono text-[10px] text-muted-foreground">idle</p>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <VoiceButton phase="recording" amplitude={0.6} onPress={() => {}} />
-              <p className="font-mono text-[10px] text-muted-foreground">recording @ 0.6</p>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <VoiceButton phase="working" />
-              <p className="font-mono text-[10px] text-muted-foreground">working</p>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <VoiceButton phase="disabled" />
-              <p className="font-mono text-[10px] text-muted-foreground">disabled</p>
-            </div>
-          </div>
-        </ComponentBlock>
       </div>
     </SectionShell>
   )
@@ -1440,43 +1399,6 @@ function PillsSection() {
             <span aria-hidden className="size-2 rounded-full bg-emerald-500" />
             PREVIEW · ACHIEVED
           </span>
-        </ComponentBlock>
-
-        <ComponentBlock
-          title="<EmotionChip>  ·  product"
-          file="src/components/EmotionChip.tsx"
-          blurb="Mirror's read (inferred) vs the student's tag (user). Renders as a Badge by default; `asButton` switches to a tap-target."
-        >
-          <div className="flex flex-wrap items-center gap-3">
-            <EmotionChip mood="joy" variant="inferred" />
-            <EmotionChip mood="anxiety" variant="user" />
-            <EmotionChip mood="sadness" variant="inferred" asButton onClick={() => {}} />
-            <EmotionChip mood="anger" variant="user" asButton onClick={() => {}} />
-          </div>
-        </ComponentBlock>
-
-        <ComponentBlock
-          title="<EmotionConnector>  ·  product"
-          file="src/components/EmotionChip.tsx"
-          blurb="Italic connector text between two EmotionChips — reports same / aligned / different based on a small neighbor-group lookup."
-        >
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-3">
-              <EmotionChip mood="joy" variant="inferred" />
-              <EmotionConnector inferred="joy" user="joy" />
-              <EmotionChip mood="joy" variant="user" />
-            </div>
-            <div className="flex items-center gap-3">
-              <EmotionChip mood="sadness" variant="inferred" />
-              <EmotionConnector inferred="sadness" user="ennui" />
-              <EmotionChip mood="ennui" variant="user" />
-            </div>
-            <div className="flex items-center gap-3">
-              <EmotionChip mood="anger" variant="inferred" />
-              <EmotionConnector inferred="anger" user="joy" />
-              <EmotionChip mood="joy" variant="user" />
-            </div>
-          </div>
         </ComponentBlock>
 
         <ComponentBlock
@@ -2133,60 +2055,17 @@ function ComposedViewsSection() {
     >
       <div className="flex flex-col gap-6">
         <ComponentBlock
-          title="<ProfileStudentChrome>"
-          file="src/components/ProfileSheetChrome.tsx"
-          blurb="Avatar + name + dimension tab rail. Used at the top of the Profile sheet and every per-dimension page (Choices, Relationships, VIPS dimensions). Composed from Avatar + Tabs primitives above."
-        >
-          <div className="overflow-hidden rounded-2xl border border-[#e6dcc9]">
-            <ProfileStudentChrome
-              authMenu={SAMPLE_AUTH_MENU}
-              studentProfile={SAMPLE_IDENTITY}
-              activeDimension="choices"
-              openSheet="choices"
-              onOpenSheet={NOOP_OPEN_SHEET}
-              sheetPanelId="design-system-sample-panel"
-              disabled
-            />
-          </div>
-        </ComponentBlock>
-
-        <ComponentBlock
           title="<ChoicesPageView> (omitChrome, empty state)"
           file="src/components/ChoicesPageView.tsx"
           blurb="The Choices tab content. Rendered with omitChrome (no avatar/tabs) + empty decisions/intentions + no-op actions — what a brand-new student sees the first time they tap Choices."
         >
           <div className="overflow-hidden rounded-2xl border border-[#e3d8c4]">
             <ChoicesPageView
-              authMenu={SAMPLE_AUTH_MENU}
-              studentProfile={SAMPLE_IDENTITY}
-              openSheet="choices"
-              onOpenSheet={NOOP_OPEN_SHEET}
-              sheetPanelId="design-system-sample-panel"
               decisions={[]}
               intentions={[]}
               actions={NOOP_CHOICES_ACTIONS}
               omitChrome
               disabled
-            />
-          </div>
-        </ComponentBlock>
-
-        <ComponentBlock
-          title="<TrajectoryPageView> (Achieved, 3 pathways)"
-          file="src/components/TrajectoryPageView.tsx"
-          blurb="Complete Trajectory page with mock pathways, an Achieved status audit, the open-questions + disclaimer collapsibles, and the CompassBearingMap. The status pill expands when clicked to show the reason line."
-        >
-          <div className="-mx-2 rounded-xl border border-border p-2">
-            <TrajectoryPageView
-              trajectoryParagraph="Mei's recent reflections cluster around helping others learn — tutoring sessions, peer study groups, an interest in how unfamiliar problems get broken down. The path now carries near-term actions you can actually take this term."
-              pathways={SAMPLE_PATHWAYS}
-              openQuestions={[
-                'Which of these felt energising vs. obligatory?',
-                'What did you change about your approach between session 1 and session 4?',
-              ]}
-              disclaimer="Cartographer pathways are computed from your own confirmed reflections — they shift as you add more. This is a snapshot of the pattern as of the timestamp above."
-              createdAt="2026-05-20T08:23:00.000Z"
-              statusAudit={SAMPLE_STATUS_AUDIT}
             />
           </div>
         </ComponentBlock>
