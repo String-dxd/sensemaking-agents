@@ -8,16 +8,9 @@
  * Data lives in the engine `Choices` state slice (singleton + persist).
  */
 import { useEffect, useMemo, useState } from 'react'
-import {
-  type FloatingAuthMenuState,
-  getProfileTabTheme,
-  ProfileStudentChrome,
-  type ProfileStudentIdentity,
-} from '~/components/ProfileSheetChrome'
-import type { SheetKey } from '~/components/SheetEntryRail'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import { PROFILE_TAB_HEADERS } from '~/data/profile-tabs'
+import { PROFILE_TAB_HEADERS, PROFILE_TAB_THEMES } from '~/data/profile-tabs'
 import type {
   ChangeIntention,
   DecisionEntry,
@@ -57,18 +50,13 @@ export interface ChoicesActions {
 
 export interface ChoicesPageViewProps {
   studentId?: string
-  authMenu?: FloatingAuthMenuState
-  studentProfile?: ProfileStudentIdentity | null
-  openSheet?: SheetKey | null
-  onOpenSheet?: (key: SheetKey) => void
-  sheetPanelId?: string
   disabled?: boolean
   decisions: DecisionEntry[]
   intentions: ChangeIntention[]
   actions: ChoicesActions
   /**
-   * Skip rendering the chrome (avatar + tab rail). Used when the view is
-   * embedded inside the engine ProfileSheet, which provides its own chrome.
+   * @deprecated Always rendered without the legacy avatar+tab-rail chrome.
+   * Kept on the type for callers that pass it; ignored at runtime.
    */
   omitChrome?: boolean
 }
@@ -95,45 +83,20 @@ const PATTERN_TAG_DESCRIPTION: Record<DecisionPatternTag, string> = {
 }
 
 export function ChoicesPageView({
-  authMenu,
-  studentProfile,
-  openSheet,
-  onOpenSheet,
-  sheetPanelId,
   disabled = false,
   decisions,
   intentions,
   actions,
-  omitChrome = false,
 }: ChoicesPageViewProps) {
   const header = PROFILE_TAB_HEADERS.choices
-  const theme = getProfileTabTheme('choices')
+  const theme = PROFILE_TAB_THEMES.choices
 
   const patternCounts = useMemo(() => computePatternCounts(decisions), [decisions])
   const dominantPatternTag = useMemo(() => computeDominantPattern(patternCounts), [patternCounts])
 
   return (
-    <section
-      className={
-        omitChrome
-          ? 'flex w-full flex-col text-[#2b2620]'
-          : 'mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-t-[1.75rem] bg-gradient-to-b from-[#fdfaf3] to-[#efe7d5] text-[#2b2620]'
-      }
-      data-testid="choices-page"
-    >
-      {omitChrome ? null : (
-        <ProfileStudentChrome
-          authMenu={authMenu}
-          studentProfile={studentProfile}
-          activeDimension="choices"
-          openSheet={openSheet ?? 'choices'}
-          onOpenSheet={onOpenSheet}
-          sheetPanelId={sheetPanelId}
-          disabled={disabled}
-        />
-      )}
-
-      <div className={omitChrome ? 'w-full' : 'mx-auto w-full max-w-[760px] px-6 py-5'}>
+    <section className="flex w-full flex-col text-[#2b2620]" data-testid="choices-page">
+      <div className="w-full">
         <header className="border-b border-[#e3d8c4] pb-6">
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
@@ -182,7 +145,7 @@ function SectionDecisions({
   actions,
 }: {
   decisions: DecisionEntry[]
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['choices']
   disabled: boolean
   actions: ChoicesActions
 }) {
@@ -368,7 +331,7 @@ function DecisionForm({
   onSubmit,
   onCancel,
 }: {
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['choices']
   onSubmit: (payload: Partial<DecisionEntry>) => void
   onCancel: () => void
 }) {
@@ -522,7 +485,7 @@ function SectionPatterns({
   decisions: DecisionEntry[]
   counts: Record<DecisionPatternTag, number>
   dominantPatternTag: DecisionPatternTag | null
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['choices']
 }) {
   const taggedCount = Object.values(counts).reduce((a, b) => a + b, 0)
   return (
@@ -592,7 +555,7 @@ function SectionIntentions({
   dominantPatternTag,
 }: {
   intentions: ChangeIntention[]
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['choices']
   disabled: boolean
   actions: ChoicesActions
   dominantPatternTag: DecisionPatternTag | null
@@ -696,7 +659,7 @@ function IntentionForm({
   onCancel,
   defaultPatternTag,
 }: {
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['choices']
   onSubmit: (payload: Partial<ChangeIntention>) => void
   onCancel: () => void
   defaultPatternTag: DecisionPatternTag | null

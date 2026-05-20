@@ -106,7 +106,12 @@ export default class AskSheet
                                 </svg>
                             </button>
                             <button class="ask-sheet__tool ask-sheet__emoji-toggle" type="button" aria-label="Pick a feeling" title="Feeling" aria-expanded="false" aria-pressed="false">
-                                <span aria-hidden="true">🙂</span>
+                                <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/>
+                                    <circle cx="9" cy="10.5" r="1.1" fill="currentColor"/>
+                                    <circle cx="15" cy="10.5" r="1.1" fill="currentColor"/>
+                                    <path d="M8.5 14.2c1 1.2 2.2 1.8 3.5 1.8s2.5-.6 3.5-1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                </svg>
                             </button>
                             <button class="ask-sheet__tool ask-sheet__image-trigger" type="button" aria-label="Upload image" title="Image">
                                 <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">

@@ -13,8 +13,14 @@ export const ONBOARDING_COPY = Object.freeze({
         cta:        'Login with Edupass',
         connecting: 'Connecting',
         demoNote:   'Demo login.',
+        // The primary action keeps the "Edupass" wordmark for the
+        // Singapore-school cue while the click routes to real WorkOS
+        // auth (Google as the social provider in v0.2). The dummy
+        // behaviour from before U2 has been removed; the button now
+        // hits `/api/auth/sign-in` which delegates the OAuth dance to
+        // the WorkOS hosted login page.
         actions:    {
-            google:  'Sign in with Google',
+            edupass: 'Sign in with Edupass',
             demo:    'Use a demo account',
             offline: 'Continue offline',
         },

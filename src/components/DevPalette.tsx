@@ -45,19 +45,6 @@ export function DevPalette() {
         run: go('/dev/pipeline'),
       },
       {
-        id: 'legacy-library',
-        label: 'Open legacy library',
-        hint: '/library',
-        run: go('/library'),
-      },
-      {
-        id: 'legacy-reflect',
-        label: 'Open legacy reflect flow',
-        hint: '/reflect',
-        run: go('/reflect'),
-      },
-      { id: 'legacy-me', label: 'Open legacy profile (/me)', hint: '/me', run: go('/me') },
-      {
         id: 'signout',
         label: 'Sign out',
         hint: '/api/auth/sign-out',

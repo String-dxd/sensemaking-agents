@@ -2,10 +2,12 @@
  * "Login with Edupass" surface, now an explicit three-action picker.
  *
  * Visual identity (wordmark, sky orbit) is preserved — the change is
- * behavioral: clicking the primary CTA now starts a real WorkOS Google
- * sign-in; a secondary "Use a demo account" button POSTs to the demo cookie
- * route; "Continue offline" preserves the legacy random OFFLINE_DEMO_STUDENTS
- * pick so a developer with no auth env still has a path into the world.
+ * behavioral: clicking the primary "Sign in with Edupass" CTA starts a
+ * real WorkOS sign-in (WorkOS routes to its configured social provider —
+ * Google in v0.2). A secondary "Use a demo account" button POSTs to the
+ * demo cookie route. "Continue offline" preserves the legacy random
+ * OFFLINE_DEMO_STUDENTS pick so a developer with no WorkOS env still has
+ * a path into the world.
  *
  * Returning signed-in students never see this surface — `OnboardingFlow.start()`
  * auto-skips the `login` stage when `state.auth.status === 'signed-in'`.
@@ -80,8 +82,8 @@ export default class EdupassLogin
             </div>
             <div class="onb-login__footer">
                 <div class="onb-login__actions" role="group" aria-label="Sign in">
-                    <a class="onb-login__cta onb-login__cta--google"
-                       data-action="google"
+                    <a class="onb-login__cta onb-login__cta--edupass"
+                       data-action="edupass"
                        href="/api/auth/sign-in?returnPathname=/">
                         <span class="onb-login__edupass-mark" aria-hidden="true">
                             <svg viewBox="0 0 24 24" width="20" height="20">
@@ -89,7 +91,7 @@ export default class EdupassLogin
                                 <circle cx="12" cy="12" r="4" fill="#ff8a5c"/>
                             </svg>
                         </span>
-                        <span class="onb-login__cta-label">${escapeHtml(ctx.copy.login.actions.google)}</span>
+                        <span class="onb-login__cta-label">${escapeHtml(ctx.copy.login.actions.edupass)}</span>
                     </a>
                     <form class="onb-login__secondary-form"
                           data-action="demo"
@@ -144,7 +146,7 @@ export default class EdupassLogin
 
         // Park focus on the primary CTA after the entry animation. Keyboard
         // users can hit Enter without tabbing in from the splash.
-        const primary = this._buttons.querySelector('[data-action="google"]')
+        const primary = this._buttons.querySelector('[data-action="edupass"]')
         try { primary?.focus({ preventScroll: true }) } catch(_) { /* link focus may not be supported */ }
     }
 
@@ -184,7 +186,7 @@ export default class EdupassLogin
     {
         if(this._connecting) return
 
-        const link = event.target.closest('[data-action="google"]')
+        const link = event.target.closest('[data-action="edupass"]')
         if(link)
         {
             event.preventDefault()

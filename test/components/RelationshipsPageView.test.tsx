@@ -62,12 +62,6 @@ describe('RelationshipsPageView', () => {
     expect(screen.getByTestId('relationships-perspectives-empty')).toBeInTheDocument()
   })
 
-  it('renders Relationships chrome tab as active', () => {
-    renderView({})
-    const tab = screen.getByTestId('profile-tab-relationships')
-    expect(tab).toHaveAttribute('aria-expanded', 'true')
-  })
-
   it('renders a relationship-map entry with name, category, and quality', () => {
     renderView({
       map: [

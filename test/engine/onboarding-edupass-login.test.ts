@@ -62,27 +62,29 @@ async function mountLogin(ctxOverrides: Partial<MockCtx> = {}) {
 }
 
 describe('EdupassLogin (real auth surface)', () => {
-  it('renders the three actions (Google, demo, offline)', async () => {
+  it('renders the three actions (Edupass, demo, offline)', async () => {
     const { root } = await mountLogin()
-    expect(root.querySelector('[data-action="google"]')).toBeTruthy()
+    expect(root.querySelector('[data-action="edupass"]')).toBeTruthy()
     expect(root.querySelector('[data-action="demo"]')).toBeTruthy()
     expect(root.querySelector('[data-action="offline"]')).toBeTruthy()
     // The form for the demo path must POST to the demo sign-in route.
     const demoForm = root.querySelector('[data-action="demo"]') as HTMLFormElement
     expect(demoForm.getAttribute('method')).toBe('post')
     expect(demoForm.getAttribute('action')).toBe('/api/auth/sign-in?demo=1&returnPathname=/')
-    // The Google CTA is a real link to the WorkOS sign-in route.
-    const google = root.querySelector('[data-action="google"]') as HTMLAnchorElement
-    expect(google.getAttribute('href')).toBe('/api/auth/sign-in?returnPathname=/')
+    // The Edupass CTA is a real link to the WorkOS sign-in route — WorkOS
+    // routes to its configured social provider (Google in v0.2) under the
+    // hood; the "Edupass" wordmark is preserved as the Singapore-school cue.
+    const edupass = root.querySelector('[data-action="edupass"]') as HTMLAnchorElement
+    expect(edupass.getAttribute('href')).toBe('/api/auth/sign-in?returnPathname=/')
   })
 
-  it('Google click disposes the engine and navigates to sign-in', async () => {
+  it('Edupass click disposes the engine and navigates to sign-in', async () => {
     const dispose = vi.fn()
     ;(window as { __studentSpaceGame?: unknown }).__studentSpaceGame = { dispose }
     const { root } = await mountLogin()
 
-    const google = root.querySelector('[data-action="google"]') as HTMLAnchorElement
-    google.click()
+    const edupass = root.querySelector('[data-action="edupass"]') as HTMLAnchorElement
+    edupass.click()
 
     expect(dispose).toHaveBeenCalledTimes(1)
     expect(assignSpy).toHaveBeenCalledWith('/api/auth/sign-in?returnPathname=/')
@@ -185,10 +187,10 @@ describe('EdupassLogin (real auth surface)', () => {
     const dispose = vi.fn()
     ;(window as { __studentSpaceGame?: unknown }).__studentSpaceGame = { dispose }
     const { root } = await mountLogin()
-    const google = root.querySelector('[data-action="google"]') as HTMLAnchorElement
-    google.click()
-    google.click()
-    google.click()
+    const edupass = root.querySelector('[data-action="edupass"]') as HTMLAnchorElement
+    edupass.click()
+    edupass.click()
+    edupass.click()
     expect(assignSpy).toHaveBeenCalledTimes(1)
     expect(dispose).toHaveBeenCalledTimes(1)
   })

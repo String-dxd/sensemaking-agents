@@ -66,12 +66,6 @@ describe('ChoicesPageView', () => {
     expect(screen.getByTestId('choices-intentions-empty')).toBeInTheDocument()
   })
 
-  it('renders Choices chrome tab as active', () => {
-    renderView({})
-    const tab = screen.getByTestId('profile-tab-choices')
-    expect(tab).toHaveAttribute('aria-expanded', 'true')
-  })
-
   it('renders a decision card with chosen + rejected options + force chips', () => {
     renderView({ decisions: [makeDecision()] })
     const row = screen.getByTestId('choices-decision-entry-d_1')
