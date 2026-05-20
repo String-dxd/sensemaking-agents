@@ -42,7 +42,13 @@ export default async function handler(
     for await (const chunk of req) {
       chunks.push(chunk as Buffer)
     }
-    body = Buffer.concat(chunks).buffer.slice(0) as ArrayBuffer
+    // Buffer.concat uses allocUnsafe, which can return a pooled Buffer
+    // whose underlying ArrayBuffer is the entire pool (e.g. 8 KB) with the
+    // real bytes at `byteOffset`. `.buffer.slice(0)` would copy pool
+    // garbage — corrupting payloads like the WebRTC SDP offer sent to
+    // OpenAI Realtime. Slice to the actual byte range.
+    const buf = Buffer.concat(chunks)
+    body = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
   }
 
   const request = new Request(url, {

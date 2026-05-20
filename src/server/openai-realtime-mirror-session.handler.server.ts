@@ -79,6 +79,8 @@ async function createRealtimeMirrorSession(
     body: form,
   })
   if (!upstream.ok) {
+    const errorBody = await upstream.text().catch(() => '')
+    console.error('[openai-realtime-mirror] upstream error', upstream.status, errorBody)
     throw new OpenAIRealtimeMirrorSessionError(
       `OpenAI Realtime session setup failed with status ${upstream.status}.`,
       502,
