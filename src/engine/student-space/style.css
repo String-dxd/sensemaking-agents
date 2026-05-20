@@ -807,6 +807,76 @@ body.has-chooser        .bird-picker
     min-height: 100%;
 }
 
+/* Shared sheet header — every full-viewport sheet that opts into the
+   `header` SheetChrome option gets the SAME visual posture for its top
+   block: small uppercase-tracked eyebrow, large left-aligned title, muted
+   single-line subtitle. Mobbin survey (2026-05-20) confirmed this is the
+   dominant iOS pattern across high-quality content-forward modals: eyebrow
+   above title, body whitespace as separator (no divider), close-× pinned
+   top-right by the chrome itself. Per-sheet body content mounts in
+   `.sheet-chrome__body` directly below this header.
+   The header is a SOLID cream panel that spans the full sheet width — it
+   covers the chrome's translucent top band so the page title + description
+   never show the canvas behind through them. Horizontal padding uses a
+   `max()` trick to keep eyebrow/title/subtitle column-aligned to ~760px
+   without nesting an extra inner element. A 1px hairline marks the cut
+   from header to body. */
+.sheet-chrome__header
+{
+    box-sizing: border-box;
+    width: 100%;
+    background: #fdfaf3;
+    border-bottom: 1px solid rgba(43, 38, 32, 0.06);
+    color: #2b2620;
+    font-family: var(--font-sans);
+    padding: 56px max(24px, calc((100% - 760px) / 2 + 24px)) 18px;
+}
+.sheet-chrome__eyebrow
+{
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(43, 38, 32, 0.55);
+    margin-bottom: 10px;
+}
+.sheet-chrome__title
+{
+    margin: 0 0 6px;
+    font-size: clamp(1.75rem, 4.2vw, 2.25rem);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: #2b2620;
+    line-height: 1.12;
+}
+.sheet-chrome__subtitle
+{
+    margin: 0;
+    font-size: 14.5px;
+    line-height: 1.5;
+    color: rgba(43, 38, 32, 0.62);
+    max-width: 62ch;
+}
+/* Body container sits flush under the header. Per-sheet code targets
+   `.<sheet-name> .sheet-chrome__body` for its own padding / layout. Set
+   `position: relative` so per-sheet absolutely-positioned children (e.g.
+   the Profile hero wash) anchor to the body, not the chrome's outer root. */
+.sheet-chrome__body
+{
+    box-sizing: border-box;
+    position: relative;
+    min-height: 1px;
+}
+
+@media (max-width: 540px)
+{
+    .sheet-chrome__header
+    {
+        padding: 48px max(18px, calc((100% - 760px) / 2 + 18px)) 14px;
+    }
+}
+
 /* m-i-f-b typography pass — text wrapping inside sheet content. Balance on
    headings prevents lone-word last lines; pretty on body paragraphs prevents
    single-word orphans. Applies uniformly to every full-viewport sheet via
@@ -863,6 +933,17 @@ body.has-chooser        .bird-picker
 .sheet-chrome.is-open .sheet-chrome__content > :nth-child(1) { animation-delay: 0ms; }
 .sheet-chrome.is-open .sheet-chrome__content > :nth-child(2) { animation-delay: 80ms; }
 .sheet-chrome.is-open .sheet-chrome__content > :nth-child(3) { animation-delay: 160ms; }
+/* When the chrome owns a header + body pair, contentSlot only has two
+   direct children — the rule above still applies cleanly. We extend the
+   stagger one level deeper into bodySlot so the first two body children
+   (e.g. tabs + first pane) ride the same coherent enter animation rather
+   than thumping in together. */
+.sheet-chrome.is-open .sheet-chrome__body > :nth-child(-n+2)
+{
+    animation: sheet-stagger-in 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.sheet-chrome.is-open .sheet-chrome__body > :nth-child(1) { animation-delay: 120ms; }
+.sheet-chrome.is-open .sheet-chrome__body > :nth-child(2) { animation-delay: 200ms; }
 @keyframes sheet-stagger-in { from { opacity: 0 } to { opacity: 1 } }
 
 @media (prefers-reduced-motion: reduce)
@@ -871,7 +952,8 @@ body.has-chooser        .bird-picker
        Honors the m-i-f-b reduced-motion rule for every transition added in
        this audit. The existing per-sheet @media blocks elsewhere in this
        file remain authoritative for their own animations. */
-    .sheet-chrome.is-open .sheet-chrome__content > :nth-child(-n+3)
+    .sheet-chrome.is-open .sheet-chrome__content > :nth-child(-n+3),
+    .sheet-chrome.is-open .sheet-chrome__body > :nth-child(-n+2)
     {
         animation-duration: 80ms;
         animation-delay: 0ms !important;
@@ -3134,12 +3216,13 @@ body.has-chooser        .top-nav
 }
 
 /* ============ profile-sheet ============ */
-/* Chrome (backdrop / blur / fade / z-tier) is owned by SheetChrome. This
-   block scopes Profile's content typography, scroll containment, and
-   facet-themed CSS variables to its content slot. See CLAUDE.md
-   "Sheet chrome contract". */
-.profile-sheet .sheet-chrome__content
+/* Chrome (backdrop / blur / fade / z-tier / shared header) is owned by
+   SheetChrome. This block scopes Profile's body typography, scroll
+   containment, and facet-themed CSS variables to its bodySlot. See
+   CLAUDE.md "Sheet chrome contract". */
+.profile-sheet .sheet-chrome__body
 {
+    position: relative;
     color: #2b2620;
     font-family: var(--font-sans);
     overscroll-behavior: contain;
@@ -3202,12 +3285,12 @@ body.has-chooser        .top-nav
     100% { transform: translate3d(2%, -1%, 0) scale(1.04); }
 }
 
-/* All content-slot children except the hero get a stacking context above it.
-   The hero is `position: absolute` inset:0 inside .sheet-chrome__content
+/* All bodySlot children except the hero get a stacking context above it.
+   The hero is `position: absolute` inset:0 inside `.sheet-chrome__body`
    (which is `position: relative`), so siblings need z-index:1 to layer above
    the wash + shimmer. The shared sheet-close is owned by SheetChrome and
-   lives outside .sheet-chrome__content, so it doesn't need to be excluded. */
-.profile-sheet .sheet-chrome__content > :not(.profile-sheet__hero)
+   lives outside the body slot, so it doesn't need to be excluded. */
+.profile-sheet .sheet-chrome__body > :not(.profile-sheet__hero)
 {
     position: relative;
     z-index: 1;
@@ -3224,7 +3307,7 @@ body.has-chooser        .top-nav
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 72px 24px 20px;
+    padding: 12px 24px 20px;
     max-width: 760px;
     margin: 0 auto;
     box-sizing: border-box;
@@ -3791,9 +3874,11 @@ body.has-chooser        .top-nav
     /* Shift the toggle ~160px above the viewport centerline so it sits
        just above HourHud with a small breathing gap. */
     transform: translateY(calc(-50% - 160px));
-    /* Above sheet overlays (which sit at z-index 30) so a teacher can flip
-       quadrants while the Path Finder is open and watch it re-skin live. */
-    z-index: 40;
+    /* Above SheetChrome (z-index 60) so a teacher can flip quadrants while
+       the Path Finder sheet is open and watch it re-skin live. The HUD is a
+       dev/admin affordance — its dark-glass posture and fixed right-rail
+       position keep it out of the way of normal student-facing sheets. */
+    z-index: 70;
     color: #f4f1ea;
     font-family: var(--font-sans);
     font-size: 11px;
@@ -4706,23 +4791,30 @@ body.has-chooser        .top-nav
 }
 
 /* ============ letters-sheet ============ */
-/* Chrome (backdrop / blur / fade / z-tier) is owned by SheetChrome. This
-   block only scopes the inbox's two-pane grid layout to its content slot
-   and the typography defaults. See CLAUDE.md "Sheet chrome contract". */
-.letters-sheet .sheet-chrome__content
+/* Chrome (backdrop / blur / fade / z-tier / shared header) is owned by
+   SheetChrome. This block scopes the inbox's two-pane grid layout to its
+   bodySlot and the typography defaults. See CLAUDE.md "Sheet chrome contract". */
+.letters-sheet .sheet-chrome__body
+{
+    color: #2b2620;
+    font-family: var(--font-sans);
+}
+
+.letters-sheet__grid
 {
     display: grid;
     grid-template-columns: 320px 1fr;
     min-height: 100%;
-    color: #2b2620;
-    font-family: var(--font-sans);
+    max-width: 1100px;
+    margin: 0 auto;
+    border-top: 1px solid rgba(43, 38, 32, 0.08);
 }
 
 .letters-sheet__list
 {
     border-right: 1px solid rgba(0, 0, 0, 0.06);
     overflow-y: auto;
-    padding: 56px 8px 24px;
+    padding: 16px 8px 24px;
     background: rgba(253, 250, 243, 0.6);
 }
 
@@ -4781,7 +4873,7 @@ body.has-chooser        .top-nav
 .letters-sheet__panel
 {
     overflow-y: auto;
-    padding: 56px 40px 64px;
+    padding: 24px 40px 64px;
 }
 
 .letters-sheet__back
@@ -4841,7 +4933,7 @@ body.has-chooser        .top-nav
    letter is selected (.is-reading), list hides and panel shows the back btn. */
 @media (max-width: 779px)
 {
-    .letters-sheet .sheet-chrome__content { grid-template-columns: 1fr; }
+    .letters-sheet__grid { grid-template-columns: 1fr; }
     .letters-sheet__panel { display: none; }
     .letters-sheet.is-reading .letters-sheet__list  { display: none; }
     .letters-sheet.is-reading .letters-sheet__panel { display: block; }
@@ -4855,15 +4947,14 @@ body.has-chooser        .top-nav
 }
 
 /* ============ trajectory-sheet (Path Finder) ====================
-   Full-viewport overlay that mirrors the Profile-sheet posture:
-   centered summary header at the top, sticky tab bar in the middle,
-   and a single panel under the selected tab. Tabs are Path 1 / 2 / 3;
-   the panel renders the active bearing's title, exploration prompt,
-   trait + ECG region pills, and risks-and-tradeoffs prose. */
-/* Chrome (backdrop / blur / fade / z-tier) is owned by SheetChrome. This
-   block scopes Path Finder's content typography to its content slot. See
-   CLAUDE.md "Sheet chrome contract". */
-.trajectory-sheet .sheet-chrome__content
+   Full-viewport overlay built on SheetChrome. Chrome owns backdrop, blur,
+   fade, z-tier, the × button, AND the shared header (eyebrow + title +
+   subtitle). The header is dynamic per Marcia status — `_renderForStatus`
+   calls `chrome.setHeader(...)` each open. Body holds the status pill,
+   meta line, head-action buttons, and a per-status body section
+   (starter / diffused / searching / foreclosed / achieved).
+   See CLAUDE.md "Sheet chrome contract". */
+.trajectory-sheet .sheet-chrome__body
 {
     color: #2b2620;
     font-family: var(--font-sans);
@@ -4873,30 +4964,12 @@ body.has-chooser        .top-nav
 
 .trajectory-sheet__scroll
 {
-    padding: 32px 24px 96px;
+    padding: 4px 24px 96px;
 }
 .trajectory-sheet__head
 {
     max-width: 760px;
     margin: 0 auto 12px;
-    padding-top: 8px;
-}
-.trajectory-sheet__eyebrow
-{
-    font-size: 11px;
-    letter-spacing: 0.10em;
-    text-transform: uppercase;
-    color: rgba(43, 38, 32, 0.55);
-    font-weight: 600;
-    margin: 0 0 8px;
-}
-.trajectory-sheet__title
-{
-    font-size: 30px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    line-height: 1.15;
-    margin: 0 0 16px;
 }
 .trajectory-sheet__throughline
 {
@@ -5181,15 +5254,6 @@ body.has-chooser        .top-nav
    Diffused-quadrant nudges, Foreclosed framing, Achieved action cards.
    Searching uses the existing .trajectory-sheet__panel / .trajectory-tab
    styles above unchanged. */
-
-.trajectory-sheet__lead
-{
-    margin: 0 0 16px;
-    font-size: 15.5px;
-    line-height: 1.55;
-    color: rgba(43, 38, 32, 0.78);
-    max-width: 62ch;
-}
 
 .trajectory-sheet__status-row
 {
@@ -5648,7 +5712,6 @@ body.has-chooser        .top-nav
 
 @media (max-width: 779px)
 {
-    .trajectory-sheet__title { font-size: 26px; }
     .trajectory-tab__label   { max-width: 16ch; }
     .trajectory-panel__title { font-size: 20px; }
     .trajectory-sheet__status-reason { font-size: 12px; }
@@ -6754,52 +6817,12 @@ body.is-onboarding .kira-bubble
 
 /* ============ history-sheet ============ */
 
-/* Content padding — chrome (backdrop / blur / fade / z-tier / display
-   toggling) is owned by SheetChrome; this rule only scopes History's
-   inner padding to its content slot. See CLAUDE.md "Sheet chrome contract". */
-.history-sheet .sheet-chrome__content
+/* Body padding — chrome owns backdrop / blur / fade / z-tier / display
+   toggling AND the shared header. This rule only scopes History's body
+   padding to its bodySlot. See CLAUDE.md "Sheet chrome contract". */
+.history-sheet .sheet-chrome__body
 {
-    padding: 24px 20px 32px;
-}
-
-.history-sheet__header
-{
-    max-width: 720px;
-    margin: 0 auto 18px;
-    padding: 16px 20px 14px;
-    background: rgba(253, 250, 243, 0.82);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-radius: 16px;
-    box-shadow: 0 2px 12px rgba(43, 38, 32, 0.06);
-}
-
-.history-sheet__eyebrow
-{
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: rgba(43, 38, 32, 0.55);
-    margin-bottom: 8px;
-}
-
-.history-sheet__title
-{
-    margin: 0 0 4px;
-    font-size: clamp(1.6rem, 4vw, 2.2rem);
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    color: #2b2620;
-    line-height: 1.15;
-}
-
-.history-sheet__subtitle
-{
-    margin: 0;
-    font-size: 14px;
-    color: rgba(43, 38, 32, 0.65);
+    padding: 8px 20px 32px;
 }
 
 .history-sheet__scrubber
@@ -6914,7 +6937,7 @@ body.is-onboarding .kira-bubble
     color: rgba(43, 38, 32, 0.5);
 }
 
-.history-sheet__body
+.history-sheet__body-grid
 {
     max-width: 1100px;
     margin: 0 auto;
@@ -6926,7 +6949,7 @@ body.is-onboarding .kira-bubble
 
 @media (min-width: 720px)
 {
-    .history-sheet__body
+    .history-sheet__body-grid
     {
         grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
     }

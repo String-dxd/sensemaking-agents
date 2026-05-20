@@ -107,24 +107,22 @@ export default class HistorySheet
         this.state = State.getInstance()
         this.view  = View.getInstance()
 
-        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
-        // the Escape-to-close listener. History only owns the inner content
-        // and its tab/embed/year logic. See CLAUDE.md "Sheet chrome contract".
+        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, the
+        // Escape-to-close listener, AND the shared header (eyebrow + title +
+        // subtitle). History only owns its tab/embed/year logic inside
+        // chrome.bodySlot. See CLAUDE.md "Sheet chrome contract".
         this.chrome = new SheetChrome({
             key:            'history',
             sheetClassName: 'history-sheet',
             withCloseButton: true,
             closeOnBackdrop: false,
+            header: {
+                eyebrow:  'HISTORY',
+                title:    'Look back',
+                subtitle: 'A chronological feed of what you recorded, and a year-by-year read on how it\'s adding up.',
+            },
         })
-        this.chrome.root.setAttribute('role', 'dialog')
-        this.chrome.root.setAttribute('aria-labelledby', 'history-sheet-title')
-        this.chrome.contentSlot.innerHTML = `
-            <header class="history-sheet__header">
-                <span class="history-sheet__eyebrow">History</span>
-                <h1 class="history-sheet__title" id="history-sheet-title">Look back</h1>
-                <p class="history-sheet__subtitle">A chronological feed of what you recorded, and a year-by-year read on how it's adding up.</p>
-            </header>
-
+        this.chrome.bodySlot.innerHTML = `
             <nav class="history-sheet__tabs" role="tablist">
                 <button type="button" class="history-sheet__tab" data-tab="timeline" role="tab">Timeline</button>
                 <button type="button" class="history-sheet__tab" data-tab="growth" role="tab">Growth</button>
@@ -138,7 +136,7 @@ export default class HistorySheet
                 <nav class="history-sheet__scrubber" role="tablist" aria-label="Year">
                     <div class="history-sheet__scrubber-pills" data-pills></div>
                 </nav>
-                <div class="history-sheet__body">
+                <div class="history-sheet__body-grid">
                     <div class="history-sheet__island" data-island>
                         <div class="history-sheet__island-art-slot" data-island-art hidden></div>
                         <p class="history-sheet__island-placeholder" data-island-placeholder hidden></p>

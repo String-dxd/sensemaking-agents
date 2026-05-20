@@ -149,17 +149,24 @@ export default class ProfileSheet
             this._thumbs = null
         }
 
-        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
-        // the Escape-to-close listener. Profile's content (hero, identity
-        // header, tabs, panels) renders inside chrome.contentSlot. See
-        // CLAUDE.md "Sheet chrome contract".
+        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, the
+        // Escape-to-close listener, AND the shared header (eyebrow + title +
+        // subtitle). Profile's identity card / tabs / panels render inside
+        // chrome.bodySlot. The atmospheric hero is also moved into bodySlot
+        // so it overlays only the identity + tabs region, not the new
+        // page-title header. See CLAUDE.md "Sheet chrome contract".
         this.chrome = new SheetChrome({
             key:            'profile',
             sheetClassName: 'profile-sheet',
             withCloseButton: true,
             closeOnBackdrop: false,
+            header: {
+                eyebrow:  'PROFILE',
+                title:    'Your identity',
+                subtitle: 'The shape of your reflections so far — values, interests, personality, and skills.',
+            },
         })
-        this.chrome.contentSlot.innerHTML = `
+        this.chrome.bodySlot.innerHTML = `
             <div class="profile-sheet__hero" aria-hidden="true">
                 <div class="profile-sheet__hero-wash"></div>
                 <div class="profile-sheet__hero-shimmer"></div>

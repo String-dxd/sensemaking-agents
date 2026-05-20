@@ -49,22 +49,26 @@ export default class TrajectorySheet
         // before the first user open. The function only console.warns.
         _auditEcgAffinities()
 
-        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
-        // the Escape-to-close listener. Path Finder's content lives inside
-        // chrome.contentSlot. See CLAUDE.md "Sheet chrome contract".
+        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, the
+        // Escape-to-close listener, AND the shared header (eyebrow + title +
+        // subtitle). Path Finder's status pill / meta / head actions / body
+        // live inside chrome.bodySlot. The header text is dynamic per status
+        // and updated each open via chrome.setHeader(...). See CLAUDE.md
+        // "Sheet chrome contract".
         this.chrome = new SheetChrome({
             key:            'trajectory',
             sheetClassName: 'trajectory-sheet',
             withCloseButton: true,
             closeOnBackdrop: false,
+            header: {
+                eyebrow:  'PATH FINDER',
+                title:    'Trajectory compass',
+                subtitle: '',
+            },
         })
-        this.chrome.contentSlot.innerHTML = `
+        this.chrome.bodySlot.innerHTML = `
             <div class="trajectory-sheet__scroll">
                 <header class="trajectory-sheet__head">
-                    <p class="trajectory-sheet__eyebrow" data-role="eyebrow">PATH FINDER</p>
-                    <h2 class="trajectory-sheet__title" data-role="title">Trajectory compass</h2>
-                    <p class="trajectory-sheet__lead" data-role="lead"></p>
-
                     <div class="trajectory-sheet__status-row" data-role="status-row" hidden>
                         <span class="trajectory-sheet__status-pill" data-role="status-pill"
                               tabindex="0"
@@ -89,9 +93,6 @@ export default class TrajectorySheet
         this.root      = root
         // Chrome scrolls the viewport; we still reset its scrollTop on open.
         this.scrollEl  = root
-        this.eyebrowEl = root.querySelector('[data-role="eyebrow"]')
-        this.titleEl   = root.querySelector('[data-role="title"]')
-        this.leadEl    = root.querySelector('[data-role="lead"]')
         this.metaEl    = root.querySelector('[data-role="meta"]')
         this.statusRowEl    = root.querySelector('[data-role="status-row"]')
         this.statusPillEl   = root.querySelector('[data-role="status-pill"]')
@@ -299,10 +300,14 @@ export default class TrajectorySheet
         const status = this.escapeHatch ? 'searching' : audit.status
         const copy = statusCopyOf(status, this.profile?.identity)
 
-        // Header: eyebrow, title, lead, status pill, meta line, head actions.
-        this.eyebrowEl.textContent = copy.eyebrow
-        this.titleEl.textContent   = copy.title
-        this.leadEl.textContent    = copy.lead
+        // Header: eyebrow + title + subtitle live in the shared SheetChrome
+        // header. Status pill, meta line, and head actions stay in Path
+        // Finder's own body header below the chrome header.
+        this.chrome?.setHeader?.({
+            eyebrow:  copy.eyebrow,
+            title:    copy.title,
+            subtitle: copy.lead,
+        })
 
         // Status pill is always shown (even on escape) so the student can
         // see what status they were classified as. The label tracks the

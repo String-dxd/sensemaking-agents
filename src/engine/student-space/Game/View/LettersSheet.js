@@ -35,27 +35,36 @@ export default class LettersSheet
         this.letters = this.state.letters
         this.selectedId = null
 
-        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
-        // the Escape-to-close listener. See CLAUDE.md "Sheet chrome contract".
+        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, the
+        // Escape-to-close listener, AND the shared header. Letters only owns
+        // the two-pane inbox grid inside chrome.bodySlot. See CLAUDE.md
+        // "Sheet chrome contract".
         this.chrome = new SheetChrome({
             key:            'letters',
             sheetClassName: 'letters-sheet',
             withCloseButton: true,
             closeOnBackdrop: false,
+            header: {
+                eyebrow:  'LETTERS',
+                title:    'Inbox',
+                subtitle: 'Notes from your form teacher when they notice something worth saying.',
+            },
         })
-        this.chrome.contentSlot.innerHTML = `
-            <aside class="letters-sheet__list" role="list"></aside>
-            <section class="letters-sheet__panel">
-                <button class="letters-sheet__back" type="button">‹ all letters</button>
-                <article class="letters-sheet__body">
-                    <p class="letters-sheet__empty">Tap a letter to read it.</p>
-                </article>
-            </section>
+        this.chrome.bodySlot.innerHTML = `
+            <div class="letters-sheet__grid">
+                <aside class="letters-sheet__list" role="list"></aside>
+                <section class="letters-sheet__panel">
+                    <button class="letters-sheet__back" type="button">‹ all letters</button>
+                    <article class="letters-sheet__body" data-role="letter-body">
+                        <p class="letters-sheet__empty">Tap a letter to read it.</p>
+                    </article>
+                </section>
+            </div>
         `
         const root = this.chrome.root
         this.root    = root
         this.listEl  = root.querySelector('.letters-sheet__list')
-        this.bodyEl  = root.querySelector('.letters-sheet__body')
+        this.bodyEl  = root.querySelector('[data-role="letter-body"]')
 
         // Content-level click handler — letter rows, back button.
         // × button and Escape are owned by SheetChrome.

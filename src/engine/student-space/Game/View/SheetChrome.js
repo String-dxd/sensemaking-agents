@@ -29,17 +29,25 @@
  *       sheetClassName:   'profile-sheet',          // per-sheet class for content CSS
  *       withCloseButton:  true,                     // render the × button (default true)
  *       closeOnBackdrop:  false,                    // click-outside dismissal (default false to preserve current sheets' behavior)
+ *       header: {                                   // optional shared header block — eyebrow + title + subtitle
+ *           eyebrow:  'PROFILE',
+ *           title:    'Your identity',
+ *           subtitle: 'How your reflections have shaped you so far.',
+ *       },
  *       onOpen:           (opts) => { ... },        // fires after the chrome opens
  *       onClose:          () => { ... },            // fires after the chrome closes
  *   })
  *
  *   chrome.root           // outer DOM node — has body-class hook, sized to viewport
- *   chrome.contentSlot    // where the per-sheet content mounts
+ *   chrome.contentSlot    // outer slot — when `header` is provided, contains [header, bodySlot]
+ *   chrome.bodySlot       // per-sheet body container; falls back to contentSlot when no header
+ *   chrome.headerEl       // the shared header element (or null when no header)
  *   chrome.portalTarget   // where child overlays (DayDetailCard, popovers) mount
  *   chrome.closeBtn       // the × button (or null if withCloseButton is false)
  *
  *   chrome.open(opts)     // open the sheet (called by OverlayController)
  *   chrome.close()        // close the sheet (idempotent; safe to call twice)
+ *   chrome.setHeader({ eyebrow, title, subtitle })  // mutate the header text (for status-driven sheets)
  *   chrome.dispose()      // tear down DOM + listeners (called by View.dispose)
  *
  * Chrome registers itself with OverlayController under `key`, so the existing
@@ -56,6 +64,7 @@ export default class SheetChrome
         sheetClassName  = '',
         withCloseButton = true,
         closeOnBackdrop = false,
+        header          = null,
         onOpen,
         onClose,
     } = {})
@@ -97,18 +106,54 @@ export default class SheetChrome
             this.closeBtn = null
         }
 
-        // Content slot — every per-sheet body mounts here. Child overlays
-        // (DayDetailCard, future popovers) portal into `portalTarget` which
-        // is the same node, so they live inside this sheet's stacking context.
+        // Content slot — outermost mount point. When `header` is provided,
+        // contentSlot owns two siblings: the shared `.sheet-chrome__header`
+        // and a `.sheet-chrome__body` body container that per-sheet code
+        // fills via `chrome.bodySlot.innerHTML = ...`. When no header is
+        // provided, `bodySlot` aliases `contentSlot` so legacy sheets
+        // (Calendar) keep working unchanged.
+        //
+        // Child overlays (DayDetailCard, popovers) portal into `portalTarget`
+        // which stays at the root level so they sit above both header and
+        // body within this sheet's stacking context.
         const contentSlot = document.createElement('div')
         contentSlot.className = 'sheet-chrome__content'
         root.appendChild(contentSlot)
+
+        let headerEl = null
+        let bodySlot = contentSlot
+        if(header)
+        {
+            headerEl = document.createElement('header')
+            headerEl.className = 'sheet-chrome__header'
+            headerEl.innerHTML = `
+                <span class="sheet-chrome__eyebrow" data-role="eyebrow"></span>
+                <h1 class="sheet-chrome__title" data-role="title"></h1>
+                <p class="sheet-chrome__subtitle" data-role="subtitle"></p>
+            `
+            contentSlot.appendChild(headerEl)
+
+            bodySlot = document.createElement('div')
+            bodySlot.className = 'sheet-chrome__body'
+            contentSlot.appendChild(bodySlot)
+
+            // Wire ARIA — header's title acts as the sheet's accessible name.
+            const titleId = `sheet-chrome-title--${key}`
+            headerEl.querySelector('[data-role="title"]').id = titleId
+            root.setAttribute('role', 'dialog')
+            root.setAttribute('aria-labelledby', titleId)
+        }
 
         document.body.appendChild(root)
 
         this.root         = root
         this.contentSlot  = contentSlot
+        this.bodySlot     = bodySlot
+        this.headerEl     = headerEl
         this.portalTarget = root
+
+        // Paint the initial header text from the constructor option.
+        if(header) this.setHeader(header)
 
         // Click handler — × dismiss, optional backdrop-click dismiss. Routing
         // through `OverlayController.close(key)` (instead of `this.close()`
@@ -152,6 +197,37 @@ export default class SheetChrome
     _requestClose()
     {
         OverlayController.getInstance().close(this.key)
+    }
+
+    /**
+     * Update the shared header text. Safe to call before/after open. Empty
+     * strings collapse the corresponding sub-element by toggling `hidden`
+     * so the layout stays compact when (e.g.) a status sheet has no
+     * subtitle for the current quadrant.
+     *
+     * @param {{eyebrow?: string, title?: string, subtitle?: string}} parts
+     */
+    setHeader({ eyebrow, title, subtitle } = {})
+    {
+        if(!this.headerEl) return
+        const eyebrowEl  = this.headerEl.querySelector('[data-role="eyebrow"]')
+        const titleEl    = this.headerEl.querySelector('[data-role="title"]')
+        const subtitleEl = this.headerEl.querySelector('[data-role="subtitle"]')
+        if(eyebrowEl !== null && eyebrow !== undefined)
+        {
+            eyebrowEl.textContent = eyebrow ?? ''
+            eyebrowEl.hidden = !eyebrow
+        }
+        if(titleEl !== null && title !== undefined)
+        {
+            titleEl.textContent = title ?? ''
+            titleEl.hidden = !title
+        }
+        if(subtitleEl !== null && subtitle !== undefined)
+        {
+            subtitleEl.textContent = subtitle ?? ''
+            subtitleEl.hidden = !subtitle
+        }
     }
 
     /**
@@ -203,6 +279,8 @@ export default class SheetChrome
         try { this.root?.remove?.() } catch(_) {}
         this.root         = null
         this.contentSlot  = null
+        this.bodySlot     = null
+        this.headerEl     = null
         this.portalTarget = null
         this.closeBtn     = null
         this._onClick     = null

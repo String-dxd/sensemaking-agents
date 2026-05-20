@@ -8,7 +8,6 @@ vi.mock('~/engine/student-space/Game/State/State.js', () => ({
   },
 }))
 
-// @ts-expect-error internal JS engine modules are intentionally untyped.
 import OverlayController from '~/engine/student-space/Game/View/OverlayController.js'
 // @ts-expect-error internal JS engine modules are intentionally untyped.
 import TrajectorySheet from '~/engine/student-space/Game/View/TrajectorySheet.js'
