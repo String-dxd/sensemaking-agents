@@ -2417,12 +2417,6 @@ const ENGINE_SURFACES: EngineSurface[] = [
     blurb: 'Capture tier — bottom-anchored, NOT a SheetChrome consumer.',
   },
   {
-    key: 'photo',
-    label: 'Photo Sheet',
-    file: 'src/engine/student-space/Game/View/PhotoSheet.js',
-    blurb: 'Capture tier. Phone-style camera.',
-  },
-  {
     key: 'ask',
     label: 'Ask Sheet',
     file: 'src/engine/student-space/Game/View/AskSheet.js',

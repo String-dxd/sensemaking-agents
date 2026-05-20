@@ -130,13 +130,18 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
 
   return (
     <div
-      // The overlay layer covers the viewport so absolutely-positioned
-      // chips inside can anchor relative to it without touching the engine
-      // canvas. `pointer-events: none` so trace clicks fall through to the
-      // canvas by default; the tray button opts in to pointer events.
+      // The overlay layer covers the world FRAME (not the full viewport) so
+      // absolutely-positioned chips inside the overlay anchor to the same
+      // rounded surface the canvas lives in. Anchoring to the viewport
+      // instead would push the Arrange button + toast stack into the
+      // parchment surround below the frame — which was the source of the
+      // "weird white strip" at the bottom of the page.
       style={{
         position: 'fixed',
-        inset: 0,
+        top:    'var(--frame-inset, 0px)',
+        right:  'var(--frame-inset, 0px)',
+        bottom: 'var(--frame-inset, 0px)',
+        left:   'calc(var(--rail-width, 0px) + var(--frame-inset, 0px))',
         pointerEvents: 'none',
         zIndex: 22,
       }}

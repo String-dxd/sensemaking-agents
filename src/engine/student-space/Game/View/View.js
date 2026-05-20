@@ -33,7 +33,7 @@ import TrackPicker from './TrackPicker.js'
 import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
-import TopNav from './TopNav.js'
+import SideRail from './SideRail.js'
 import ProfileSheet from './ProfileSheet.js'
 import CalendarSheet from './CalendarSheet.js'
 import LettersSheet from './LettersSheet.js'
@@ -126,7 +126,10 @@ export default class View
         // every clickable island object (flowers, mailbox, telescope).
         // No overlay registration — it does not own the viewport.
         this.objectPeek    = new ObjectPeek()
-        this.topNav        = new TopNav()
+        // Vertical icon rail on the left — the primary navigation surface.
+        // Replaces the old TopNav pill cluster + standalone onboarding-restart
+        // chip; both have been folded into the rail. See SideRail.js.
+        this.sideRail      = new SideRail()
         // HoverCta + HoverProbe are constructed AFTER facetView so they can
         // route picks to it. The probe reads view.flowers/tree/kira refs
         // that are also already live above.
@@ -212,6 +215,7 @@ export default class View
         this.hoverProbe.update()
         this.hourHud.update()
         this.fpsOverlay.update()
+        this.sideRail.update()
         this.sound.update()
         this.camera.update()
         this.renderer.update()
@@ -256,7 +260,7 @@ export default class View
             this.fpsOverlay,
             this.hourHud,
             this.statusPreviewHud,
-            this.topNav,
+            this.sideRail,
             this.captureFab,
             this.profileSheet,
             this.calendarSheet,

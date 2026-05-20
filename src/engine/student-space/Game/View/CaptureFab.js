@@ -16,7 +16,6 @@
  */
 import MoodSheet from './MoodSheet.js'
 import AskSheet from './AskSheet.js'
-import PhotoSheet from './PhotoSheet.js'
 import CaptureChooser from './CaptureChooser.js'
 import OverlayController from './OverlayController.js'
 import State from '../State/State.js'
@@ -60,9 +59,8 @@ export default class CaptureFab
 
         this.moodSheet  = new MoodSheet()
         this.askSheet   = new AskSheet()
-        this.photoSheet = new PhotoSheet()
         this.chooser    = new CaptureChooser({
-            routes: { ask: this.askSheet, mood: this.moodSheet, photo: this.photoSheet },
+            routes: { ask: this.askSheet, mood: this.moodSheet },
         })
         this.kiraNarrator = null
 
@@ -73,7 +71,6 @@ export default class CaptureFab
         controller.register('chooser', this.chooser)
         controller.register('mood',    this.moodSheet)
         controller.register('ask',     this.askSheet)
-        controller.register('photo',   this.photoSheet)
 
         fab.addEventListener('click', () =>
         {
@@ -143,11 +140,9 @@ export default class CaptureFab
         // View.dispose() can speak about the FAB as a single unit.
         try { this.moodSheet?.dispose?.() }  catch(_) {}
         try { this.askSheet?.dispose?.() }   catch(_) {}
-        try { this.photoSheet?.dispose?.() } catch(_) {}
         try { this.chooser?.dispose?.() }    catch(_) {}
         this.moodSheet = null
         this.askSheet = null
-        this.photoSheet = null
         this.chooser = null
         this.kiraNarrator = null
         try { this.el?.remove?.() } catch(_) {}

@@ -133,6 +133,9 @@ export default class EdupassLogin
                     </button>
                 </div>
                 <p class="onb-login__demo-note">${escapeHtml(ctx.copy.login.demoNote)}</p>
+                <button type="button" class="onb-login__skip" aria-label="Skip onboarding (dev)">
+                    Skip onboarding (dev)
+                </button>
             </div>
         `
         root.appendChild(el)
@@ -142,6 +145,15 @@ export default class EdupassLogin
         this._onSubmitRoot = (event) => this._onSubmit(event, ctx)
         this._buttons.addEventListener('click', this._onClickRoot)
         this._buttons.addEventListener('submit', this._onSubmitRoot)
+        // Skip button lives OUTSIDE .onb-login__actions (it's a dev affordance,
+        // not an auth path) so it bypasses _beginConnecting and doesn't show
+        // up in the "Sign in" aria-grouped controls. Wire it directly.
+        this._skipBtn = el.querySelector('.onb-login__skip')
+        if(this._skipBtn)
+        {
+            this._onSkipClick = () => this._onSkip(ctx)
+            this._skipBtn.addEventListener('click', this._onSkipClick)
+        }
 
         // Reveal the 3D scene behind the surface. The body class flips
         // every onboarding-root child to transparent backgrounds so the
@@ -197,6 +209,12 @@ export default class EdupassLogin
         this._buttons = null
         this._onClickRoot = null
         this._onSubmitRoot = null
+        if(this._skipBtn && this._onSkipClick)
+        {
+            try { this._skipBtn.removeEventListener('click', this._onSkipClick) } catch(_) {}
+        }
+        this._skipBtn = null
+        this._onSkipClick = null
         // Snap the orbit back to the default static framing for greeting/
         // egg surfaces; clear the body class so cream panels read solid.
         document.body.classList.remove('is-onb-landing')
@@ -205,6 +223,41 @@ export default class EdupassLogin
         el.classList.add('is-leaving')
         await wait(EXIT_MS)
         el.remove()
+    }
+
+    /**
+     * Dev-only escape hatch. Marks onboarding as complete (so the next boot
+     * skips the ceremony), seeds a demo identity when there's no backend, then
+     * reloads. Surfaced on the landing as a small inline button beneath the
+     * Edupass CTA so test/dev flows don't have to sit through the full
+     * ceremony each run. No-ops gracefully if any singleton is missing.
+     */
+    _onSkip(ctx)
+    {
+        try
+        {
+            if(!ctx.state?.backend)
+            {
+                const pick = OFFLINE_DEMO_STUDENTS[Math.floor(Math.random() * OFFLINE_DEMO_STUDENTS.length)]
+                ctx.profile.setIdentity({ name: pick.name, className: pick.className })
+            }
+            ctx.state?.onboarding?.complete?.()
+            // Drain the 250ms persistence debounce SYNCHRONOUSLY so the new
+            // onboarding stage hits storage before we reload. Without this,
+            // the page reload races the debounce timer, the stage='done'
+            // write is lost, and the next boot replays the ceremony.
+            ctx.state?.persistence?.flush?.()
+            // Clear the `#onboarding` URL hash — Onboarding.hydrate() runs
+            // its replay-reset whenever it sees that hash on boot, which
+            // would re-wipe the `stage='done'` we just persisted. Without
+            // this, skip → reload would replay the ceremony every time.
+            if(typeof window !== 'undefined' && window.location.hash === '#onboarding')
+            {
+                window.history.replaceState(null, '', window.location.pathname + window.location.search)
+            }
+        }
+        catch(_) {}
+        try { window.location.reload() } catch(_) {}
     }
 
     _onClick(event, ctx)
