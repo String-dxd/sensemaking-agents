@@ -30,7 +30,7 @@ import { FACET_THEMES, FACET_HEADERS, applyFacetVars } from './facets.js'
 import { iconForClaim } from './claimIcons.js'
 import ThumbnailRenderer from './ThumbnailRenderer.js'
 import SheetChrome from './SheetChrome.js'
-import { tldrHeroHTML } from './visualPrimitives.js'
+import { tldrHeroHTML, bindDisclosureToggles } from './visualPrimitives.js'
 import {
     mountProfileTabReactPanel,
     unmountProfileTabReactPanel,
@@ -203,23 +203,33 @@ export default class ProfileSheet
                         <span class="profile-sheet__panel-eyebrow"></span>
                         <span class="profile-sheet__panel-tag"></span>
                     </div>
-                    <h2 class="profile-sheet__title"></h2>
-                    <p  class="profile-sheet__panel-subtitle"></p>
-                    <ul class="vips-rows vips-rows--profile" role="list">
-                        <li class="vips-row">
-                            <span class="vips-row__label">Most common</span>
-                            <p class="vips-row__body" data-row="most"></p>
-                        </li>
-                        <li class="vips-row">
-                            <span class="vips-row__label">Quietly emerging</span>
-                            <p class="vips-row__body" data-row="emerge"></p>
-                        </li>
-                    </ul>
-                    <p  class="profile-sheet__summary"></p>
-                    <aside class="profile-sheet__open-question">
-                        <span class="profile-sheet__open-eyebrow">Open question</span>
-                        <p class="profile-sheet__open-text"></p>
-                    </aside>
+                    <div class="profile-sheet__more disclosure" data-role="more-disclosure" data-expanded="true">
+                        <button class="disclosure__toggle profile-sheet__more-toggle"
+                                type="button"
+                                aria-expanded="true">
+                            <span class="disclosure__chevron" aria-hidden="true"></span>
+                            <span class="disclosure__summary">More about this dimension</span>
+                        </button>
+                        <div class="disclosure__panel">
+                            <h2 class="profile-sheet__title"></h2>
+                            <p  class="profile-sheet__panel-subtitle"></p>
+                            <ul class="vips-rows vips-rows--profile" role="list">
+                                <li class="vips-row">
+                                    <span class="vips-row__label">Most common</span>
+                                    <p class="vips-row__body" data-row="most"></p>
+                                </li>
+                                <li class="vips-row">
+                                    <span class="vips-row__label">Quietly emerging</span>
+                                    <p class="vips-row__body" data-row="emerge"></p>
+                                </li>
+                            </ul>
+                            <p  class="profile-sheet__summary"></p>
+                            <aside class="callout-strip profile-sheet__open-question" data-accent="">
+                                <p class="callout-strip__eyebrow profile-sheet__open-eyebrow">OPEN QUESTION</p>
+                                <p class="callout-strip__body profile-sheet__open-text"></p>
+                            </aside>
+                        </div>
+                    </div>
                     <p class="profile-sheet__meta"></p>
                 </header>
 
@@ -272,7 +282,29 @@ export default class ProfileSheet
         this.openTextEl  = root.querySelector('.profile-sheet__open-text')
         this.metaEl      = root.querySelector('.profile-sheet__meta')
         this.tldrSlotEl  = root.querySelector('[data-role="tldr-slot"]')
+        this.moreDisclosureEl = root.querySelector('[data-role="more-disclosure"]')
         this.bentoEl     = root.querySelector('.profile-sheet__bento')
+
+        /**
+         * Per-tab visit memory for the "More about this dimension" disclosure.
+         * On the first visit to a tab in a given sheet open, the disclosure
+         * stays expanded so the student sees the prose at least once. On the
+         * second visit (and beyond, in the same open), it defaults collapsed.
+         * Reset on dispose().
+         */
+        this._tabVisits = new Map()
+
+        /**
+         * Per-tab TIMELINE expand memory. Default behaviour: show the first
+         * 3 quote cards + a "Show all N more noticings" button. Once the
+         * student expands, the tab id is added to this set and stays expanded
+         * for the rest of the sheet open. Cleared on dispose().
+         */
+        this._timelineExpanded = new Set()
+
+        // Wire chevron toggles for the "More about this dimension" disclosure
+        // and any future disclosures rendered into the sheet's root.
+        this._unbindDisclosure = bindDisclosureToggles(root)
         this.collectionEyebrowEl = root.querySelector('.profile-sheet__collection-eyebrow')
         this.dimensionEmptyEl = root.querySelector('.profile-sheet__dimension-empty')
         this.dimensionEmptyTextEl = root.querySelector('.profile-sheet__dimension-empty-text')
@@ -323,6 +355,13 @@ export default class ProfileSheet
             try { this._unsubAuth() } catch(_) {}
             this._unsubAuth = null
         }
+        if(this._unbindDisclosure)
+        {
+            try { this._unbindDisclosure() } catch(_) {}
+            this._unbindDisclosure = null
+        }
+        this._tabVisits?.clear?.()
+        this._timelineExpanded?.clear?.()
         this._unmountReactPanel()
         try { this.shareDialog?.dispose?.() } catch(_) {}
         this.shareDialog = null
@@ -561,8 +600,31 @@ export default class ProfileSheet
         this.metaEl.textContent     = formatRefined(facet.lastRefinedAt)
 
         this._renderTldrHero()
+        this._applyMoreDisclosureState(this.activeFacet)
         this._renderBento()
         this._renderTimeline()
+    }
+
+    /**
+     * Set the "More about this dimension" disclosure's expanded state for
+     * the active facet. First-visit expanded; subsequent visits collapsed.
+     * Records the visit so the next render sees this tab as "seen".
+     */
+    _applyMoreDisclosureState(facet)
+    {
+        if(!this.moreDisclosureEl) return
+        const seen = this._tabVisits.get(facet) === true
+        const expanded = !seen
+        this.moreDisclosureEl.setAttribute('data-expanded', expanded ? 'true' : 'false')
+        const toggle = this.moreDisclosureEl.querySelector('.disclosure__toggle')
+        toggle?.setAttribute('aria-expanded', expanded ? 'true' : 'false')
+
+        // Apply facet accent to the embedded callout strip.
+        const callout = this.moreDisclosureEl.querySelector('.callout-strip')
+        callout?.setAttribute('data-accent', facet)
+
+        // Record the visit.
+        this._tabVisits.set(facet, true)
     }
 
     /**
@@ -814,9 +876,22 @@ export default class ProfileSheet
         // newest first — quotes are stored in the order they were captured.
         const sorted = quotes.slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
 
-        if(this.selectedClaimId)
+        const expanded   = this._timelineExpanded.has(this.activeFacet)
+        const showFilter = !!this.selectedClaimId
+        // Default cap: 3 cards. Hide the cap entirely when a filter is active
+        // and the filtered set is ≤ 3 (the button would have nothing to do).
+        const cap = 3
+        const total = sorted.length
+        const useCap = !expanded && total > cap && !(showFilter && total <= cap)
+        const visible = useCap ? sorted.slice(0, cap) : sorted
+
+        if(showFilter)
         {
             this.filterEl.textContent = ` · ${claimLabel(this.selectedClaimId)}`
+        }
+        else if(useCap)
+        {
+            this.filterEl.textContent = ` · showing ${visible.length} of ${total}`
         }
         else
         {
@@ -831,7 +906,7 @@ export default class ProfileSheet
         }
 
         this.emptyEl.hidden = true
-        this.quoteListEl.innerHTML = sorted.map((q) =>
+        const cardsHtml = visible.map((q) =>
         {
             const conf = (q.confidence || 'medium').toUpperCase()
             const source = q.sourceCaptureId
@@ -851,6 +926,15 @@ export default class ProfileSheet
                 </li>
             `
         }).join('')
+
+        const hiddenCount = total - visible.length
+        const expandBtn = (!showFilter && total > cap)
+            ? (expanded
+                ? `<li class="profile-sheet__timeline-toggle"><button type="button" class="timeline-expand-btn" data-action="timeline-collapse">Show fewer</button></li>`
+                : `<li class="profile-sheet__timeline-toggle"><button type="button" class="timeline-expand-btn" data-action="timeline-expand">Show all ${hiddenCount} more noticing${hiddenCount === 1 ? '' : 's'}</button></li>`)
+            : ''
+
+        this.quoteListEl.innerHTML = cardsHtml + expandBtn
     }
 
     _renderQuoteText(text)
@@ -924,6 +1008,18 @@ export default class ProfileSheet
         {
             event.preventDefault()
             this._openSource(source.dataset.captureId)
+            return
+        }
+
+        // Timeline expand/collapse — sits inside the quote list as its own <li>.
+        const timelineToggle = target.closest('[data-action^="timeline-"]')
+        if(timelineToggle)
+        {
+            event.preventDefault()
+            const action = timelineToggle.dataset.action
+            if(action === 'timeline-expand') this._timelineExpanded.add(this.activeFacet)
+            else                              this._timelineExpanded.delete(this.activeFacet)
+            this._renderTimeline()
             return
         }
 

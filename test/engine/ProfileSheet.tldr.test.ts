@@ -62,6 +62,28 @@ function profileWithValuesCounts(counts: Record<string, number>) {
   }
 }
 
+/** Build a profile with the given number of quotes on the values facet. */
+function profileWithValuesQuotes(n: number) {
+  const quotes = Array.from({ length: n }, (_, i) => ({
+    id: `q-${i + 1}`,
+    text: `Quote number ${i + 1}`,
+    canonicalClaimId: 'values.contribution',
+    confidence: 'medium' as const,
+    createdAt: new Date(2026, 4, 20 - i).toISOString(),
+    sourceCaptureId: null,
+    backendTimelineEntryId: null,
+  }))
+  return {
+    identity: { name: 'Mei', className: 'Sec 3B', avatarDataUrl: null },
+    getFacet: (facetId: string) => {
+      if (facetId !== 'values') return { paragraph: '', openQuestion: '', lastRefinedAt: '', quotes: [] }
+      return { paragraph: '', openQuestion: '', lastRefinedAt: '', quotes }
+    },
+    countByClaim: (facetId: string) => (facetId === 'values' ? { 'values.contribution': n } : {}),
+    forgetQuote: () => null,
+  }
+}
+
 afterEach(() => {
   state.instance = null
   OverlayController.instance = null
@@ -181,6 +203,122 @@ describe('ProfileSheet — TLDR hero', () => {
       expect(
         document.querySelector<HTMLElement>('.profile-sheet__tldr-slot .tldr-chip.is-selected'),
       ).toBeNull()
+    } finally {
+      sheet.dispose?.()
+    }
+  })
+
+  it('expands the "More about this dimension" disclosure on first tab visit', async () => {
+    state.instance = { profile: profileWithValuesCounts({ 'values.contribution': 1 }), backend: null }
+    OverlayController.instance = new OverlayController()
+    const sheet = new ProfileSheet() as ProfileSheetHandle
+    try {
+      sheet.open({ tab: 'values' })
+      await Promise.resolve()
+      const more = document.querySelector<HTMLElement>('[data-role="more-disclosure"]')
+      expect(more?.getAttribute('data-expanded')).toBe('true')
+      const toggle = more?.querySelector<HTMLElement>('.disclosure__toggle')
+      expect(toggle?.getAttribute('aria-expanded')).toBe('true')
+    } finally {
+      sheet.dispose?.()
+    }
+  })
+
+  it('collapses the "More" disclosure on second visit to the same tab within one open', async () => {
+    state.instance = { profile: profileWithValuesCounts({ 'values.contribution': 1 }), backend: null }
+    OverlayController.instance = new OverlayController()
+    const sheet = new ProfileSheet() as ProfileSheetHandle
+    try {
+      sheet.open({ tab: 'values' })
+      await Promise.resolve()
+      // Switch away then back; the visit memory now flags 'values' as seen.
+      const interestsTab = document.querySelector<HTMLElement>(
+        '.profile-tab[data-facet="interests"]',
+      )
+      interestsTab?.click()
+      await new Promise((r) => setTimeout(r, 150))
+      const valuesTab = document.querySelector<HTMLElement>(
+        '.profile-tab[data-facet="values"]',
+      )
+      valuesTab?.click()
+      await new Promise((r) => setTimeout(r, 150))
+      const more = document.querySelector<HTMLElement>('[data-role="more-disclosure"]')
+      expect(more?.getAttribute('data-expanded')).toBe('false')
+    } finally {
+      sheet.dispose?.()
+    }
+  })
+
+  it('applies the facet accent to the embedded Open Question callout strip', async () => {
+    state.instance = { profile: profileWithValuesCounts({ 'values.contribution': 1 }), backend: null }
+    OverlayController.instance = new OverlayController()
+    const sheet = new ProfileSheet() as ProfileSheetHandle
+    try {
+      sheet.open({ tab: 'values' })
+      await Promise.resolve()
+      const callout = document.querySelector<HTMLElement>(
+        '[data-role="more-disclosure"] .callout-strip',
+      )
+      expect(callout?.getAttribute('data-accent')).toBe('values')
+    } finally {
+      sheet.dispose?.()
+    }
+  })
+
+  it('caps the TIMELINE at 3 cards by default when there are more than 3 quotes', async () => {
+    state.instance = { profile: profileWithValuesQuotes(8), backend: null }
+    OverlayController.instance = new OverlayController()
+    const sheet = new ProfileSheet() as ProfileSheetHandle
+    try {
+      sheet.open({ tab: 'values' })
+      await Promise.resolve()
+      const cards = document.querySelectorAll<HTMLElement>('.profile-sheet__quote-list .quote-card')
+      expect(cards.length).toBe(3)
+      const expandBtn = document.querySelector<HTMLElement>(
+        '.timeline-expand-btn[data-action="timeline-expand"]',
+      )
+      expect(expandBtn?.textContent).toContain('Show all 5 more noticings')
+      // Eyebrow shows the count.
+      const filterEl = document.querySelector<HTMLElement>('.profile-sheet__timeline-filter')
+      expect(filterEl?.textContent).toContain('showing 3 of 8')
+    } finally {
+      sheet.dispose?.()
+    }
+  })
+
+  it('expands to show all quotes when the "Show all" button is clicked', async () => {
+    state.instance = { profile: profileWithValuesQuotes(8), backend: null }
+    OverlayController.instance = new OverlayController()
+    const sheet = new ProfileSheet() as ProfileSheetHandle
+    try {
+      sheet.open({ tab: 'values' })
+      await Promise.resolve()
+      const expand = document.querySelector<HTMLElement>(
+        '.timeline-expand-btn[data-action="timeline-expand"]',
+      )
+      expand?.click()
+      const cards = document.querySelectorAll<HTMLElement>('.profile-sheet__quote-list .quote-card')
+      expect(cards.length).toBe(8)
+      const collapse = document.querySelector<HTMLElement>(
+        '.timeline-expand-btn[data-action="timeline-collapse"]',
+      )
+      expect(collapse?.textContent).toContain('Show fewer')
+    } finally {
+      sheet.dispose?.()
+    }
+  })
+
+  it('renders all quotes without a button when total is at or below 3', async () => {
+    state.instance = { profile: profileWithValuesQuotes(2), backend: null }
+    OverlayController.instance = new OverlayController()
+    const sheet = new ProfileSheet() as ProfileSheetHandle
+    try {
+      sheet.open({ tab: 'values' })
+      await Promise.resolve()
+      expect(
+        document.querySelectorAll<HTMLElement>('.profile-sheet__quote-list .quote-card').length,
+      ).toBe(2)
+      expect(document.querySelector<HTMLElement>('.timeline-expand-btn')).toBeNull()
     } finally {
       sheet.dispose?.()
     }

@@ -7943,6 +7943,67 @@ body.is-onboarding .kira-bubble
     color: rgba(43, 38, 32, 0.92);
 }
 
+/* Profile sheet — TIMELINE expand toggle. Sits as the last <li> in
+   .profile-sheet__quote-list when there are more than 3 quotes and no
+   filter is active. */
+.profile-sheet__timeline-toggle
+{
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+}
+.timeline-expand-btn
+{
+    appearance: none;
+    border: 1px solid rgba(160, 118, 89, 0.32);
+    background: rgba(255, 255, 255, 0.55);
+    color: #5b3519;
+    font: 600 13px/1 var(--font-sans);
+    height: 36px;
+    padding: 0 18px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, transform 120ms ease;
+}
+.timeline-expand-btn:hover
+{
+    background: rgba(255, 255, 255, 0.90);
+    border-color: rgba(160, 118, 89, 0.55);
+}
+.timeline-expand-btn:active { transform: scale(0.96); }
+.timeline-expand-btn:focus-visible
+{
+    outline: 2px solid rgba(47, 102, 183, 0.55);
+    outline-offset: 2px;
+}
+
+/* Profile sheet — "More about this dimension" disclosure wrapping the
+   existing title + paragraph + Open Question callout. Default expanded
+   on first tab open; collapsed on subsequent in-session visits. */
+.profile-sheet__more
+{
+    margin: 0 0 14px;
+}
+.profile-sheet__more-toggle
+{
+    /* The whole disclosure toggle becomes the "More about this dimension"
+       affordance — small, low-prominence so the TLDR hero stays the lede. */
+    padding: 6px 0;
+    color: rgba(43, 38, 32, 0.55);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.profile-sheet__more-toggle:hover
+{
+    color: rgba(43, 38, 32, 0.78);
+}
+.profile-sheet__more .disclosure__panel
+{
+    padding-top: 4px;
+}
+
 /* Path Finder — "Why this status" disclosure slot beneath the head actions. */
 .trajectory-sheet__why-slot
 {
