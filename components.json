@@ -1,0 +1,21 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "_proposal_note": "PROPOSAL — not yet adopted. The repo already follows shadcn architectural patterns (cva, cn, owned components in src/components/ui/*, lucide, semantic Tailwind tokens) on a Base UI primitive layer (@base-ui-components/react). This file declares those choices in the shape the shadcn CLI expects, so a future `npx shadcn@latest add <name> --base base-ui` can install missing primitives against the canonical base-vega registry instead of hand-rolling. Do NOT run the shadcn CLI without first confirming the install will not overwrite the existing Base UI variants of button.tsx / dialog.tsx / drawer.tsx / etc. See /dev/design for context.",
+  "style": "new-york",
+  "rsc": false,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "src/styles.css",
+    "baseColor": "neutral",
+    "cssVariables": true
+  },
+  "aliases": {
+    "components": "~/components",
+    "ui": "~/components/ui",
+    "lib": "~/lib",
+    "utils": "~/lib/utils",
+    "hooks": "~/hooks"
+  },
+  "iconLibrary": "lucide"
+}
