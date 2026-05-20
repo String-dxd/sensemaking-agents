@@ -1488,6 +1488,124 @@ function CardsSection() {
             ))}
           </ol>
         </ComponentBlock>
+
+        <ComponentBlock
+          title="TLDR hero  ·  engine primitive"
+          file="src/engine/student-space/Game/View/visualPrimitives.js  ·  .tldr-hero in style.css"
+          blurb="Glanceable summary card at the top of a full-viewport sheet. Composes an uppercase eyebrow, a one-line headline, a chip row (each chip is a clickable filter), and a muted meta footer. Used by Profile (per-tab) and Path Finder (per-quadrant)."
+        >
+          <div
+            className="rounded-2xl border bg-white/55 p-5 shadow-[0_4px_14px_-10px_rgba(43,38,32,0.18)]"
+            style={{ borderColor: 'rgba(43, 38, 32, 0.10)' }}
+          >
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.16em] text-[#2b2620]/55">
+              TOP VOICES IN YOUR REFLECTIONS
+            </p>
+            <h2 className="mt-2 text-[18px] font-semibold leading-tight text-[#2b2620]/90">
+              Five values keep surfacing
+            </h2>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[
+                { label: 'BELONGING', accent: '#c2a572' },
+                { label: 'CURIOSITY', accent: '#b88660' },
+                { label: 'SERVICE', accent: '#4f8acb' },
+                { label: 'HONESTY', accent: '#4f9b6a' },
+                { label: 'FAMILY', accent: '#c97a4e' },
+              ].map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10.5px] font-semibold tracking-[0.06em]"
+                  style={{
+                    borderColor: 'rgba(43, 38, 32, 0.12)',
+                    background: 'rgba(43, 38, 32, 0.04)',
+                    color: 'rgba(43, 38, 32, 0.82)',
+                  }}
+                >
+                  <span
+                    aria-hidden
+                    className="size-[7px] rounded-full"
+                    style={{ background: chip.accent }}
+                  />
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 text-[12px] tabular-nums text-[#2b2620]/55">
+              12 noticings · last refined 2 days ago
+            </p>
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Disclosure  ·  engine primitive"
+          file="src/engine/student-space/Game/View/visualPrimitives.js  ·  .disclosure in style.css"
+          blurb="Chevron-driven collapsible. data-expanded='true|false' flips on the section root; aria-expanded mirrors on the toggle button. CSS animates the panel via grid-template-rows. Honors prefers-reduced-motion."
+        >
+          <div className="grid gap-3">
+            <details
+              className="rounded-lg border bg-white/40 px-3 py-2"
+              style={{ borderColor: 'rgba(43, 38, 32, 0.10)' }}
+            >
+              <summary className="cursor-pointer text-[13px] font-semibold text-[#2b2620]/80">
+                More about this dimension
+              </summary>
+              <p className="mt-2 text-[13px] leading-relaxed text-[#2b2620]/70">
+                Curiosity shows up across capture moments — when describing what energises you,
+                what drains you, and how you spent your free time last week.
+              </p>
+            </details>
+            <p className="text-[11px] text-muted-foreground">
+              Default: <code className="rounded bg-muted px-1">data-expanded="false"</code>. Toggle flips
+              both the section attribute and the toggle's <code className="rounded bg-muted px-1">aria-expanded</code>.
+            </p>
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Stat tile row  ·  engine primitive"
+          file="src/engine/student-space/Game/View/visualPrimitives.js  ·  .stat-tile-row in style.css"
+          blurb="2-up grid of stat tiles. Each tile is a big tabular-numeric value plus a small uppercase label plus an optional icon. Used wherever a flat meta line would otherwise carry the count — Profile (noticings · voiced claims) and Path Finder (pathways · last generated)."
+        >
+          <div className="grid grid-cols-2 gap-2.5">
+            {[
+              { value: '12', label: 'NOTICINGS', icon: '✶' },
+              { value: '5', label: 'VOICED CLAIMS', icon: '◐' },
+            ].map((t) => (
+              <div
+                key={t.label}
+                className="relative grid gap-1 rounded-2xl border bg-white/55 p-3.5"
+                style={{ borderColor: 'rgba(43, 38, 32, 0.08)' }}
+              >
+                <div className="text-[22px] font-bold leading-none tabular-nums tracking-tight text-[#2b2620]">
+                  {t.value}
+                </div>
+                <div className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-[#2b2620]/55">
+                  {t.label}
+                </div>
+                <div className="absolute right-3.5 top-3 text-[16px] opacity-55">{t.icon}</div>
+              </div>
+            ))}
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Callout strip  ·  engine primitive"
+          file="src/engine/student-space/Game/View/visualPrimitives.js  ·  .callout-strip in style.css"
+          blurb="Left-accent prompt block — 4px border in the facet accent color, soft tinted background, italic body. Replaces the inline 'Open Question' callout on Profile tabs and any future inline prompt that should read as a soft invitation, not a primary CTA."
+        >
+          <aside
+            className="rounded-xl border-l-4 bg-[#2b262008] p-3.5"
+            style={{ borderLeftColor: '#c2a572' }}
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#2b2620]/55">
+              OPEN QUESTION
+            </p>
+            <p className="mt-1 text-[14px] italic leading-snug text-[#2b2620]/80">
+              What part of school last week energised you, in a way that surprised you?
+            </p>
+          </aside>
+        </ComponentBlock>
       </div>
     </SectionShell>
   )
