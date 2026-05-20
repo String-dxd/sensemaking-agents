@@ -1,6 +1,6 @@
 import State from '../State/State.js'
 import { escapeAttr, escapeHtml } from '../util/html.js'
-import OverlayController from './OverlayController.js'
+import SheetChrome from './SheetChrome.js'
 import { trajectoryFor, traitChipOf, ecgChipOf } from './trajectoryHeuristics.js'
 import {
     statusFor,
@@ -49,11 +49,16 @@ export default class TrajectorySheet
         // before the first user open. The function only console.warns.
         _auditEcgAffinities()
 
-        const root = document.createElement('div')
-        root.className = 'trajectory-sheet'
-        root.setAttribute('aria-hidden', 'true')
-        root.innerHTML = `
-            <button class="trajectory-sheet__close" type="button" aria-label="Close">×</button>
+        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
+        // the Escape-to-close listener. Path Finder's content lives inside
+        // chrome.contentSlot. See CLAUDE.md "Sheet chrome contract".
+        this.chrome = new SheetChrome({
+            key:            'trajectory',
+            sheetClassName: 'trajectory-sheet',
+            withCloseButton: true,
+            closeOnBackdrop: false,
+        })
+        this.chrome.contentSlot.innerHTML = `
             <div class="trajectory-sheet__scroll">
                 <header class="trajectory-sheet__head">
                     <p class="trajectory-sheet__eyebrow" data-role="eyebrow">PATH FINDER</p>
@@ -80,9 +85,10 @@ export default class TrajectorySheet
             </div>
         `
 
-        document.body.appendChild(root)
+        const root = this.chrome.root
         this.root      = root
-        this.scrollEl  = root.querySelector('.trajectory-sheet__scroll')
+        // Chrome scrolls the viewport; we still reset its scrollTop on open.
+        this.scrollEl  = root
         this.eyebrowEl = root.querySelector('[data-role="eyebrow"]')
         this.titleEl   = root.querySelector('[data-role="title"]')
         this.leadEl    = root.querySelector('[data-role="lead"]')
@@ -93,14 +99,11 @@ export default class TrajectorySheet
         this.statusReasonEl = root.querySelector('[data-role="status-reason"]')
         this.headActionsEl  = root.querySelector('[data-role="head-actions"]')
         this.bodyEl    = root.querySelector('[data-role="body"]')
-        this.closeEl   = root.querySelector('.trajectory-sheet__close')
 
         this.isOpen      = false
         this.activeIndex = 0
         this.bearings    = []
         this.escapeHatch = false  // when true, force "Show me all paths" layout
-
-        this.closeEl.addEventListener('click', () => this.close())
 
         // Toggle the reason tooltip on pill click. Keyboard users get the same
         // affordance via Enter/Space (tabindex on the pill).
@@ -113,21 +116,6 @@ export default class TrajectorySheet
                 this._toggleStatusReason()
             }
         })
-
-        // Stored as a bound member so dispose() can detach it. Without this,
-        // every engine remount (HMR / sign-out / first-run replay) leaks a
-        // document-level keydown listener bound to a torn-down sheet.
-        this._onDocKeyDown = (event) =>
-        {
-            if(!this.isOpen) return
-            // When the floating StatusPreviewHud's menu is open, let it eat
-            // the Escape — its menu has a peer keydown handler that calls
-            // _closeMenu and stops propagation. We only close the sheet
-            // when the HUD menu isn't intercepting.
-            if(event.defaultPrevented) return
-            if(event.key === 'Escape') this.close()
-        }
-        document.addEventListener('keydown', this._onDocKeyDown)
 
         // Re-render the sheet body when the override changes from elsewhere
         // (the StatusPreviewHud floating widget owns the UI; this sheet only
@@ -142,30 +130,23 @@ export default class TrajectorySheet
     }
 
     /**
-     * Tear-down hook called from View.dispose() via SUBSYSTEMS. Removes the
-     * page-level keydown listener and the override-slice subscription, then
-     * detaches the root. Without this, each engine remount leaks both —
-     * surfacing as ghost Escape handlers and stale-DOM re-renders fired
-     * by the slice's subscriber set.
+     * Tear-down hook called from View.dispose() via SUBSYSTEMS.
      */
     dispose()
     {
-        if(this._onDocKeyDown)
-        {
-            try { document.removeEventListener('keydown', this._onDocKeyDown) } catch(_) {}
-            this._onDocKeyDown = null
-        }
         if(this._unwireStatusOverride)
         {
             try { this._unwireStatusOverride() } catch(_) {}
             this._unwireStatusOverride = null
         }
-        try { this.root?.remove?.() } catch(_) {}
+        try { this.chrome?.dispose?.() } catch(_) {}
+        this.chrome = null
         this.root = null
     }
 
     open()
     {
+        if(!this.chrome) return
         // Recompute status fresh every open — never cached. A newly-logged
         // decision should move the student to the next quadrant on reopen.
         this.escapeHatch = false
@@ -173,8 +154,7 @@ export default class TrajectorySheet
         const capture = this._needsBearings(audit.status) ? this._ensureCapture(audit) : null
         this._renderForStatus(audit, capture)
 
-        this.root.setAttribute('aria-hidden', 'false')
-        this.root.classList.add('is-open')
+        this.chrome.open()
         this.isOpen = true
         if(this.scrollEl) this.scrollEl.scrollTop = 0
     }
@@ -182,11 +162,9 @@ export default class TrajectorySheet
     close()
     {
         if(!this.isOpen) return
-        if(this.root.contains(document.activeElement)) document.activeElement.blur()
-        this.root.classList.remove('is-open')
-        this.root.setAttribute('aria-hidden', 'true')
+        if(this.root?.contains?.(document.activeElement)) document.activeElement.blur()
         this.isOpen = false
-        OverlayController.getInstance().noteClosed('trajectory')
+        try { this.chrome?.close?.() } catch(_) {}
     }
 
     // ── Status & data ─────────────────────────────────────────────────────

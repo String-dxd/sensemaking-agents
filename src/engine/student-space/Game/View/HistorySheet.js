@@ -28,6 +28,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 import State from '../State/State.js'
 import View from './View.js'
+import SheetChrome from './SheetChrome.js'
 
 const HISTORY_API = {
     summary:       '/api/growth/summary',
@@ -106,13 +107,18 @@ export default class HistorySheet
         this.state = State.getInstance()
         this.view  = View.getInstance()
 
-        const root = document.createElement('div')
-        root.className = 'history-sheet'
-        root.setAttribute('aria-hidden', 'true')
-        root.setAttribute('role', 'dialog')
-        root.setAttribute('aria-labelledby', 'history-sheet-title')
-        root.innerHTML = `
-            <button class="history-sheet__close" type="button" aria-label="Close">×</button>
+        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
+        // the Escape-to-close listener. History only owns the inner content
+        // and its tab/embed/year logic. See CLAUDE.md "Sheet chrome contract".
+        this.chrome = new SheetChrome({
+            key:            'history',
+            sheetClassName: 'history-sheet',
+            withCloseButton: true,
+            closeOnBackdrop: false,
+        })
+        this.chrome.root.setAttribute('role', 'dialog')
+        this.chrome.root.setAttribute('aria-labelledby', 'history-sheet-title')
+        this.chrome.contentSlot.innerHTML = `
             <header class="history-sheet__header">
                 <span class="history-sheet__eyebrow">History</span>
                 <h1 class="history-sheet__title" id="history-sheet-title">Look back</h1>
@@ -148,10 +154,9 @@ export default class HistorySheet
                 </p>
             </section>
         `
-        document.body.appendChild(root)
+        const root = this.chrome.root
         this.root = root
 
-        this.closeBtn          = root.querySelector('.history-sheet__close')
         this.tabEls            = Array.from(root.querySelectorAll('.history-sheet__tab'))
         this.paneTimelineEl    = root.querySelector('[data-pane="timeline"]')
         this.paneGrowthEl      = root.querySelector('[data-pane="growth"]')
@@ -190,14 +195,12 @@ export default class HistorySheet
         this._yearEntriesInFlight = new Map()
         this._defaultsAppliedFor = null
 
+        // Content-level click handler — tab switching, year pills, stat
+        // drilldowns, etc. The × button and Escape are owned by SheetChrome
+        // and route through OverlayController.close('history') which calls
+        // this.close() (see View.js registration override of chrome).
         this._onClick = (event) => this._handleClick(event)
         root.addEventListener('click', this._onClick)
-
-        this._onKeyDown = (event) =>
-        {
-            if(this.isOpen && event.key === 'Escape') this.close()
-        }
-        document.addEventListener('keydown', this._onKeyDown)
     }
 
     dispose()
@@ -205,9 +208,9 @@ export default class HistorySheet
         if(this.isOpen) this._restoreLiveIsland()
         this._restoreCalendarToOverlay()
         this._disposePreviewView()
-        try { this.root.removeEventListener('click', this._onClick) } catch(_) {}
-        try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
-        try { this.root.remove() } catch(_) {}
+        try { this.root?.removeEventListener?.('click', this._onClick) } catch(_) {}
+        try { this.chrome?.dispose?.() } catch(_) {}
+        this.chrome = null
         this.root = null
     }
 
@@ -219,9 +222,8 @@ export default class HistorySheet
      */
     open(opts = {})
     {
-        if(!this.root) return
-        this.root.setAttribute('aria-hidden', 'false')
-        this.root.classList.add('is-open')
+        if(!this.chrome) return
+        this.chrome.open(opts)
         this.isOpen = true
 
         const tab = opts.tab && TABS.includes(opts.tab) ? opts.tab : 'timeline'
@@ -231,13 +233,14 @@ export default class HistorySheet
     close()
     {
         if(!this.isOpen) return
-        this.root.setAttribute('aria-hidden', 'true')
-        this.root.classList.remove('is-open')
         this.isOpen = false
+        // Chrome closes the DOM (drops .is-open, sets aria-hidden, calls
+        // OverlayController.noteClosed). History only handles its own
+        // post-close cleanup.
+        try { this.chrome?.close?.() } catch(_) {}
         this._restoreLiveIsland()
         this._restoreCalendarToOverlay()
         this._disposePreviewView()
-        try { this.view?.overlayController?.noteClosed?.('history') } catch(_) {}
     }
 
     _setTab(tab)
@@ -302,12 +305,8 @@ export default class HistorySheet
 
     _handleClick(event)
     {
-        if(event.target === this.closeBtn || event.target.closest?.('.history-sheet__close'))
-        {
-            event.preventDefault()
-            this.close()
-            return
-        }
+        // × button and Escape are owned by SheetChrome — no per-sheet close
+        // handling needed here.
         const tabEl = event.target.closest?.('.history-sheet__tab')
         if(tabEl && tabEl.dataset?.tab)
         {
@@ -797,8 +796,8 @@ export default class HistorySheet
             if(this.islandPlaceholder)
             {
                 this.islandPlaceholder.textContent = islandState
-                    ? 'No claims bloomed this year — drag to rotate · scroll to zoom'
-                    : 'Drag to rotate · scroll to zoom · pills above scrub years'
+                    ? 'Nothing bloomed this year yet · drag to look around'
+                    : 'Drag · scroll · pick a year above'
                 this.islandPlaceholder.hidden = false
             }
             this.sourceLabelEl.hidden = true
@@ -813,7 +812,7 @@ export default class HistorySheet
 
         if(this.islandPlaceholder)
         {
-            this.islandPlaceholder.textContent = 'Drag to rotate · scroll to zoom'
+            this.islandPlaceholder.textContent = 'Drag · scroll'
             this.islandPlaceholder.hidden = false
         }
         try { sproutsView?.setTimelapseSubset?.(trees) }

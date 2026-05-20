@@ -12,7 +12,7 @@
  */
 
 import State from '../State/State.js'
-import OverlayController from './OverlayController.js'
+import SheetChrome from './SheetChrome.js'
 
 const formatSent = (iso) =>
 {
@@ -35,11 +35,15 @@ export default class LettersSheet
         this.letters = this.state.letters
         this.selectedId = null
 
-        const root = document.createElement('div')
-        root.className = 'letters-sheet'
-        root.setAttribute('aria-hidden', 'true')
-        root.innerHTML = `
-            <button class="letters-sheet__close" type="button" aria-label="Close">×</button>
+        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
+        // the Escape-to-close listener. See CLAUDE.md "Sheet chrome contract".
+        this.chrome = new SheetChrome({
+            key:            'letters',
+            sheetClassName: 'letters-sheet',
+            withCloseButton: true,
+            closeOnBackdrop: false,
+        })
+        this.chrome.contentSlot.innerHTML = `
             <aside class="letters-sheet__list" role="list"></aside>
             <section class="letters-sheet__panel">
                 <button class="letters-sheet__back" type="button">‹ all letters</button>
@@ -48,45 +52,35 @@ export default class LettersSheet
                 </article>
             </section>
         `
-        document.body.appendChild(root)
+        const root = this.chrome.root
         this.root    = root
         this.listEl  = root.querySelector('.letters-sheet__list')
         this.bodyEl  = root.querySelector('.letters-sheet__body')
 
-        // Root click is GC'd when root is removed; the document keydown
-        // outlives root.remove() and is the leak risk we need to detach.
+        // Content-level click handler — letter rows, back button.
+        // × button and Escape are owned by SheetChrome.
         this._onRootClick = (event) => this._onClick(event)
         root.addEventListener('click', this._onRootClick)
-
-        this._onKeyDown = (event) =>
-        {
-            if(this.isOpen && event.key === 'Escape') this.close()
-        }
-        document.addEventListener('keydown', this._onKeyDown)
     }
 
     /**
-     * Tear-down hook called from View.dispose(). Detaches the page-level
-     * keydown listener and the sheet root.
+     * Tear-down hook called from View.dispose().
      */
     dispose()
     {
-        if(this._onKeyDown)
-        {
-            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
-            this._onKeyDown = null
-        }
         if(this._onRootClick && this.root)
         {
             try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
             this._onRootClick = null
         }
-        try { this.root?.remove?.() } catch(_) {}
+        try { this.chrome?.dispose?.() } catch(_) {}
+        this.chrome = null
         this.root = null
     }
 
     open()
     {
+        if(!this.chrome) return
         // First time the inbox opens, snap to the newest unread letter (or
         // newest letter if all are read). Subsequent opens preserve the
         // selection across the session.
@@ -97,24 +91,33 @@ export default class LettersSheet
             if(first) this.selectedId = first.id
         }
         this._render()
-        this.root.setAttribute('aria-hidden', 'false')
-        this.root.classList.add('is-open')
+        this.chrome.open()
         this.isOpen = true
     }
 
     close()
     {
         if(!this.isOpen) return
-        this.root.classList.remove('is-open')
-        this.root.classList.remove('is-reading')
-        this.root.setAttribute('aria-hidden', 'true')
         this.isOpen = false
-        OverlayController.getInstance().noteClosed('letters')
+        // Drop the content-level reading state before chrome closes so the
+        // next open starts on the list pane (mobile-style router).
+        try { this.root?.classList?.remove?.('is-reading') } catch(_) {}
+        try { this.chrome?.close?.() } catch(_) {}
     }
 
     _render()
     {
         const sorted = [...this.letters.letters].sort((a, b) => (b.sentAt || '').localeCompare(a.sentAt || ''))
+
+        // First-run users have zero letters; without a placeholder the list
+        // pane reads as broken. Single short line + invitation, no CTA — the
+        // teacher is the one who writes here, not the student.
+        if(sorted.length === 0)
+        {
+            this.listEl.innerHTML = `<p class="letters-sheet__empty letters-sheet__empty--list">No letters yet. Your teacher will write when they notice something.</p>`
+            this.bodyEl.innerHTML = ''
+            return
+        }
 
         this.listEl.innerHTML = sorted.map((l) => `
             <button type="button"
@@ -152,7 +155,8 @@ export default class LettersSheet
 
     _onClick(event)
     {
-        if(event.target.closest('.letters-sheet__close')) { this.close(); return }
+        // × button and Escape are owned by SheetChrome — no per-sheet close
+        // handling needed here.
         if(event.target.closest('.letters-sheet__back'))
         {
             this.root.classList.remove('is-reading')

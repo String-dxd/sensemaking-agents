@@ -32,6 +32,9 @@ html, body
 
 body.student-space-shell
 {
+    /* Crisper text on macOS/Retina per m-i-f-b "font smoothing" principle. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     /* Tiny-Skies-style sky: three-stop linear gradient between CSS vars.
        Sky-haze + sky-rays sit above this for the highlight + god rays. */
     background: linear-gradient(
@@ -770,12 +773,126 @@ body.has-chooser        .bird-picker
     -webkit-overflow-scrolling: touch;
 }
 
+/* ============ SheetChrome — shared chrome primitive ============
+   Every full-viewport sheet (History, Profile, Letters, Path Finder,
+   Calendar) is built on `SheetChrome` and shares this baseline: translucent
+   blurred backdrop, opacity fade, z-60 tier. The per-sheet class is layered
+   on top (e.g. `.sheet-chrome.history-sheet`) so per-sheet content CSS still
+   applies. See `SheetChrome.js` and `CLAUDE.md` ("Sheet chrome contract")
+   for the durable rule. ---------- */
+.sheet-chrome
+{
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: none;
+    pointer-events: auto;
+    background: linear-gradient(180deg, rgba(253, 250, 243, 0.55) 0%, rgba(253, 250, 243, 0.92) 75%);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    overflow-y: auto;
+    transition: opacity 200ms ease;
+    opacity: 0;
+}
+.sheet-chrome.is-open
+{
+    display: block;
+    opacity: 1;
+}
+.sheet-chrome__content
+{
+    /* Per-sheet content classes can override padding / max-width / layout.
+       This is the minimal default so a sheet works without further CSS. */
+    position: relative;
+    min-height: 100%;
+}
+
+/* m-i-f-b typography pass — text wrapping inside sheet content. Balance on
+   headings prevents lone-word last lines; pretty on body paragraphs prevents
+   single-word orphans. Applies uniformly to every full-viewport sheet via
+   the shared `.sheet-chrome__content` slot. */
+.sheet-chrome__content h1,
+.sheet-chrome__content h2,
+.sheet-chrome__content h3
+{
+    text-wrap: balance;
+}
+.sheet-chrome__content p
+{
+    text-wrap: pretty;
+}
+
+/* tabular-nums for any dynamic numeric display — prevents width shift across
+   month-day rotations (1 → 11 → 31), year-pill scrubs, and the pathway count.
+   Limited to selectors that actually carry mutable numbers so static cream
+   labels keep their proportional metrics. */
+.calendar-day__num,
+.history-sheet__pill,
+.trajectory-sheet__meta,
+.profile-sheet__meta
+{
+    font-variant-numeric: tabular-nums;
+}
+
+/* m-i-f-b "scale on press" — exact 0.96, never below 0.95. Applied to the
+   interactive surfaces that lacked a press affordance. Group keeps the rule
+   discoverable; per-selector overrides further down in the file win on
+   specificity when needed. transition-property is explicit (transform) so we
+   never inherit a `transition: all`. */
+.bento-tile:active,
+.letter-row:active,
+.history-sheet__pill:active,
+.trajectory-sheet__status-pill:active,
+.trajectory-starter__cta:active
+{
+    transform: scale(0.96);
+    transition: transform 120ms ease;
+}
+
+/* m-i-f-b "split and stagger" sheet enter — the chrome's 200ms opacity
+   fade still owns the macro; this rule fades the top three direct children
+   of the content slot in sequence so the eye lands on the header first,
+   then tabs, then body. Each child uses the same 200ms ease-out curve, so
+   the perceived motion is one coherent breath rather than a thump. The
+   `animation-fill-mode: both` guard returns children to opacity:1 when the
+   sheet closes, so a re-open replays cleanly. */
+.sheet-chrome.is-open .sheet-chrome__content > :nth-child(-n+3)
+{
+    animation: sheet-stagger-in 200ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+.sheet-chrome.is-open .sheet-chrome__content > :nth-child(1) { animation-delay: 0ms; }
+.sheet-chrome.is-open .sheet-chrome__content > :nth-child(2) { animation-delay: 80ms; }
+.sheet-chrome.is-open .sheet-chrome__content > :nth-child(3) { animation-delay: 160ms; }
+@keyframes sheet-stagger-in { from { opacity: 0 } to { opacity: 1 } }
+
+@media (prefers-reduced-motion: reduce)
+{
+    /* Collapse the stagger + press feedback to ≤80ms when motion is reduced.
+       Honors the m-i-f-b reduced-motion rule for every transition added in
+       this audit. The existing per-sheet @media blocks elsewhere in this
+       file remain authoritative for their own animations. */
+    .sheet-chrome.is-open .sheet-chrome__content > :nth-child(-n+3)
+    {
+        animation-duration: 80ms;
+        animation-delay: 0ms !important;
+    }
+    .bento-tile:active,
+    .letter-row:active,
+    .history-sheet__pill:active,
+    .trajectory-sheet__status-pill:active,
+    .trajectory-starter__cta:active
+    {
+        transition-duration: 80ms;
+    }
+}
+
 /* ----- Shared sheet-close button --------------------------------
    Every full-viewport overlay closes through this exact button: same
    position, same diameter, same palette, same press-feedback. Don't
    add a per-sheet override of these properties — extend the grouped
    selector below instead. Nested in-context closes (day-detail-card,
    kira-dialogue) use a smaller variant further down. ---------- */
+.sheet-chrome__close,
 .capture-chooser__close,
 .photo-sheet__close,
 .mood-sheet__close,
@@ -800,8 +917,12 @@ body.has-chooser        .bird-picker
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    /* m-i-f-b optical alignment — × glyph sits ~1px above geometric center
+       due to typographic metrics. Nudge down so it reads as centered. */
+    padding-bottom: 2px;
     transition: background 160ms ease, transform 160ms ease;
 }
+.sheet-chrome__close:hover,
 .capture-chooser__close:hover,
 .photo-sheet__close:hover,
 .mood-sheet__close:hover,
@@ -810,6 +931,7 @@ body.has-chooser        .bird-picker
 .calendar-sheet__close:hover,
 .letters-sheet__close:hover,
 .trajectory-sheet__close:hover { background: rgba(0, 0, 0, 0.12); }
+.sheet-chrome__close:active,
 .capture-chooser__close:active,
 .photo-sheet__close:active,
 .mood-sheet__close:active,
@@ -817,7 +939,7 @@ body.has-chooser        .bird-picker
 .profile-sheet__close:active,
 .calendar-sheet__close:active,
 .letters-sheet__close:active,
-.trajectory-sheet__close:active { transform: scale(0.94); }
+.trajectory-sheet__close:active { transform: scale(0.96); }
 
 .capture-chooser__head
 {
@@ -1032,7 +1154,7 @@ body.has-chooser        .bird-picker
     transition: background 160ms ease, transform 160ms ease;
 }
 .ask-sheet__close:hover { background: rgba(0, 0, 0, 0.12); }
-.ask-sheet__close:active { transform: scale(0.94); }
+.ask-sheet__close:active { transform: scale(0.96); }
 .photo-sheet__inner
 {
     max-width: 720px;
@@ -1222,7 +1344,7 @@ body.has-chooser        .bird-picker
     background: color-mix(in srgb, var(--emotion-color) 18%, #fff);
     border-color: color-mix(in srgb, var(--emotion-color) 52%, rgba(0, 0, 0, 0.08));
 }
-.ask-sheet__emoji-option:active { transform: scale(0.98); }
+.ask-sheet__emoji-option:active { transform: scale(0.96); }
 .ask-sheet__emoji-symbol
 {
     font-size: 17px;
@@ -1546,19 +1668,21 @@ body.has-chooser        .bird-picker
 }
 .ask-sheet__reframe-cta
 {
+    /* DESIGN SYSTEM ROLE: Secondary CTA. Squircle. */
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 18px;
-    border-radius: 999px;
+    height: 44px;
+    padding: 0 20px;
+    border-radius: 14px;
     border: 1.5px solid rgba(160, 118, 89, 0.4);
     background: rgba(255, 255, 255, 0.7);
     color: #5e493a;
-    font: 500 13px/1 inherit;
+    font: 600 13.5px/1 inherit;
     cursor: pointer;
-    min-height: 44px;
-    transition: background 160ms ease, border-color 160ms ease;
+    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
 }
+.ask-sheet__reframe-cta:active { transform: scale(0.96); }
 .ask-sheet__reframe-cta:hover
 {
     background: rgba(255, 255, 255, 0.95);
@@ -1920,7 +2044,7 @@ body.has-chooser        .bird-picker
     padding: 0;
     transition: transform 140ms ease;
 }
-.photo-sheet__shutter:active { transform: scale(0.94); }
+.photo-sheet__shutter:active { transform: scale(0.96); }
 .photo-sheet__shutter-ring
 {
     position: absolute;
@@ -2828,7 +2952,7 @@ body.has-chooser        .bird-picker
     transition: background 160ms ease, transform 160ms ease;
 }
 .kira-dialogue__close:hover { background: rgba(0, 0, 0, 0.12); }
-.kira-dialogue__close:active { transform: scale(0.94); }
+.kira-dialogue__close:active { transform: scale(0.96); }
 .kira-dialogue__body
 {
     background: #FFFDF6;
@@ -2856,18 +2980,20 @@ body.has-chooser        .bird-picker
 }
 .kira-dialogue__cta
 {
+    /* DESIGN SYSTEM ROLE: Primary CTA (orange-warm variant for Kira). Squircle. */
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 10px 18px;
-    border-radius: 999px;
+    height: 44px;
+    padding: 0 22px;
+    border-radius: 14px;
     border: none;
     background: #FF8A5C;
     color: #fff;
     font: 600 14px/1 var(--font-sans);
     cursor: pointer;
-    box-shadow: 0 4px 12px rgba(255, 138, 92, 0.32);
-    transition: background 160ms ease, transform 160ms ease;
+    box-shadow: 0 1px 2px rgba(255, 110, 60, 0.16), 0 6px 18px -6px rgba(255, 138, 92, 0.44);
+    transition: background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 .kira-dialogue__cta:hover  { background: #ff7842; transform: translateY(-1px); }
 .kira-dialogue__cta:active { transform: translateY(0); }
@@ -3008,25 +3134,21 @@ body.has-chooser        .top-nav
 }
 
 /* ============ profile-sheet ============ */
-.profile-sheet
+/* Chrome (backdrop / blur / fade / z-tier) is owned by SheetChrome. This
+   block scopes Profile's content typography, scroll containment, and
+   facet-themed CSS variables to its content slot. See CLAUDE.md
+   "Sheet chrome contract". */
+.profile-sheet .sheet-chrome__content
 {
-    position: fixed;
-    inset: 0;
-    z-index: 30;
-    background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
     color: #2b2620;
     font-family: var(--font-sans);
-    transform: translateY(100%);
-    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
-    overflow-y: auto;
     overscroll-behavior: contain;
+    min-height: 100%;
     /* defaults — overridden by applyFacetVars on open */
     --facet-accent: #A07659;
     --facet-soft:   #EAD7BE;
     --facet-ink:    #6A4A26;
 }
-
-.profile-sheet.is-open { transform: translateY(0); }
 
 /* Atmospheric hero — sits behind the identity header and tab row. The wash
    layer reads --facet-soft (set by applyFacetVars on open / tab switch); the
@@ -3046,11 +3168,17 @@ body.has-chooser        .top-nav
 {
     position: absolute;
     inset: 0;
+    /* The whole hero must blend INTO the sheet's translucent backdrop —
+       not paint cream over it. The earlier U4 fix lowered the facet-tint
+       percentages but left `#fdfaf3 78%` as the linear-gradient end stop,
+       which kept the opaque-cream band that visibly cut through content.
+       Ending in `transparent` lets the sheet's own gradient + blur carry
+       the bottom 22%, killing the hard cut line. */
     background:
-        radial-gradient(ellipse at 50% -20%, color-mix(in srgb, var(--facet-soft) 88%, #fff) 0%, transparent 60%),
+        radial-gradient(ellipse at 50% -20%, color-mix(in srgb, var(--facet-soft) 55%, transparent) 0%, transparent 60%),
         linear-gradient(180deg,
-            color-mix(in srgb, var(--facet-soft) 55%, #fdfaf3) 0%,
-            #fdfaf3 78%);
+            color-mix(in srgb, var(--facet-soft) 28%, transparent) 0%,
+            transparent 78%);
     transition: background 320ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .profile-sheet__hero-shimmer
@@ -3062,7 +3190,9 @@ body.has-chooser        .top-nav
         radial-gradient(circle at 18% 38%, color-mix(in srgb, var(--facet-accent) 14%, transparent) 0%, transparent 38%),
         radial-gradient(circle at 78% 22%, color-mix(in srgb, var(--facet-accent) 9%, transparent) 0%, transparent 42%);
     filter: blur(28px);
-    opacity: 0.85;
+    /* 0.85 → 0.35 — hero wash should hint at facet color, not crown the sheet
+       in opaque cream. See U4 in 2026-05-20-002 plan. */
+    opacity: 0.35;
     animation: profile-hero-drift 16s ease-in-out infinite alternate;
 }
 
@@ -3072,15 +3202,12 @@ body.has-chooser        .top-nav
     100% { transform: translate3d(2%, -1%, 0) scale(1.04); }
 }
 
-/* All children except the hero (and the shared close button) get a
-   stacking context above it. The close button must stay out of this rule
-   because it relies on its OWN `position: fixed` (viewport-anchored) from
-   the grouped sheet-close selector at the top of this file. Folding it
-   into the `position: relative` rule below collapsed its top/right
-   anchors and shoved the button off into the corner where the
-   identity-header actions container ends up — leaving the X clipped at
-   the viewport edge instead of pinned to the top-right. */
-.profile-sheet > :not(.profile-sheet__hero):not(.profile-sheet__close)
+/* All content-slot children except the hero get a stacking context above it.
+   The hero is `position: absolute` inset:0 inside .sheet-chrome__content
+   (which is `position: relative`), so siblings need z-index:1 to layer above
+   the wash + shimmer. The shared sheet-close is owned by SheetChrome and
+   lives outside .sheet-chrome__content, so it doesn't need to be excluded. */
+.profile-sheet .sheet-chrome__content > :not(.profile-sheet__hero)
 {
     position: relative;
     z-index: 1;
@@ -3138,16 +3265,17 @@ body.has-chooser        .top-nav
    the server and the dialog surfaces a sign-in CTA). */
 .profile-share-button
 {
+    /* DESIGN SYSTEM ROLE: Secondary CTA. Squircle. */
     display: inline-flex;
     align-items: center;
     gap: 6px;
     height: 36px;
     padding: 0 14px;
-    border-radius: 999px;
+    border-radius: 12px;
     border: 1px solid color-mix(in srgb, var(--facet-accent) 45%, transparent);
-    background: rgba(255, 255, 255, 0.65);
+    background: rgba(255, 255, 255, 0.55);
     color: var(--facet-ink);
-    font: 500 13.5px/1 var(--font-sans);
+    font: 600 13px/1 var(--font-sans);
     cursor: pointer;
     transition: background 160ms ease, border-color 160ms ease, transform 160ms ease,
                 box-shadow 160ms ease;
@@ -3290,7 +3418,12 @@ body.has-chooser        .top-nav
 {
     position: fixed;
     inset: 0;
-    z-index: 40;
+    /* z-index 5 — small positive value within the active sheet's stacking
+       context (sheet root creates context via backdrop-filter). Beats sheet
+       content (auto z) but stays below the chrome's × button (z-32). Was
+       z-40 anchored to body; that lost to sheet-chrome z-60 the moment we
+       portaled into the sheet. See U3 in 2026-05-20-002 plan. */
+    z-index: 5;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -3423,20 +3556,23 @@ body.has-chooser        .top-nav
 
 .share-dialog__action
 {
+    /* DESIGN SYSTEM ROLE: Primary CTA (dialog Copy/Sign-in). Squircle 44/14. */
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 38px;
-    padding: 0 14px;
-    border-radius: 999px;
+    height: 44px;
+    padding: 0 18px;
+    border-radius: 14px;
     border: 1px solid transparent;
-    font: 500 13px/1 var(--font-sans, system-ui);
+    font: 600 13.5px/1 var(--font-sans, system-ui);
     cursor: pointer;
     background: #2b2620;
     color: #fdfaf3;
     text-decoration: none;
-    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+    box-shadow: 0 1px 2px rgba(43, 38, 32, 0.10), 0 4px 14px -6px rgba(43, 38, 32, 0.28);
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
+.share-dialog__action:active { transform: scale(0.96); }
 .share-dialog__action:hover { background: rgba(43, 38, 32, 0.85); }
 .share-dialog__action--copy { white-space: nowrap; }
 .share-dialog__action--copy.is-flashed { background: #6a8a4a; }
@@ -3586,26 +3722,35 @@ body.has-chooser        .top-nav
        so the tab pills line up with the page title. Bar itself stays full-width
        so the sticky gradient + backdrop blur still spans the viewport. */
     padding-inline: max(24px, calc((100% - 760px) / 2 + 24px));
-    background: linear-gradient(180deg, rgba(253,250,243,0.92) 0%, rgba(253,250,243,0.72) 100%);
-    backdrop-filter: blur(10px) saturate(115%);
-    -webkit-backdrop-filter: blur(10px) saturate(115%);
+    /* Nested over the sheet's 0.55–0.92 gradient — so this bar MUST stay
+       lower (Flighty/Moonlitt rule from the Mobbin audit). Previous values
+       0.92 / 0.72 made it read as a solid beige strip; backdrop-blur alone
+       carries the legibility job underneath. */
+    background: linear-gradient(180deg, rgba(253, 250, 243, 0.45) 0%, rgba(253, 250, 243, 0.12) 100%);
+    backdrop-filter: blur(14px) saturate(115%);
+    -webkit-backdrop-filter: blur(14px) saturate(115%);
 }
 
 .profile-tab
 {
-    height: 34px;
+    /* DESIGN SYSTEM ROLE: Tab — squircle (12px radius at 36 tall = 33%
+       ratio, clearly rounded-rect not pill). New shape grammar makes every
+       interactive element a squircle and reserves the pill for labels. */
+    height: 36px;
     padding: 0 16px;
-    border-radius: 999px;
+    border-radius: 12px;
     border: 1px solid transparent;
     background: rgba(255, 255, 255, 0.45);
     color: rgba(43, 38, 32, 0.58);
-    font: 500 13.5px/1 inherit;
+    font: 600 13.5px/1 inherit;
     cursor: pointer;
-    transition: background 180ms cubic-bezier(0.22, 1, 0.36, 1),
-                color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-                border-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-                box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
-                transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    display: inline-flex;
+    align-items: center;
+    transition: background 180ms cubic-bezier(0.2, 0, 0, 1),
+                color 180ms cubic-bezier(0.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(0.2, 0, 0, 1),
+                box-shadow 180ms cubic-bezier(0.2, 0, 0, 1),
+                transform 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .profile-tab:hover
@@ -3982,6 +4127,15 @@ body.has-chooser        .top-nav
     object-fit: contain;
     display: block;
     image-rendering: -webkit-optimize-contrast;
+    /* m-i-f-b "image outlines" — pure-black at 10% (never tinted) so the
+       thumb reads as "image on surface" rather than "image bleeding into
+       surface". Dark-mode override below switches to pure-white. */
+    outline: 1px solid rgba(0, 0, 0, 0.1);
+    outline-offset: -1px;
+}
+@media (prefers-color-scheme: dark)
+{
+    .bento-tile__thumb { outline-color: rgba(255, 255, 255, 0.1); }
 }
 
 .bento-tile__label
@@ -4199,24 +4353,17 @@ body.has-chooser        .top-nav
 }
 
 /* ============ calendar-sheet ============ */
-.calendar-sheet
+/* Chrome (backdrop / blur / fade / z-tier) is owned by SheetChrome. This
+   block scopes Calendar's content typography, scroll containment, and inner
+   padding to its content slot. See CLAUDE.md "Sheet chrome contract". */
+.calendar-sheet .sheet-chrome__content
 {
-    position: fixed;
-    inset: 0;
-    z-index: 30;
-    background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
     color: #2b2620;
     font-family: var(--font-sans);
-    transform: translateY(100%);
-    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
-    overflow-y: auto;
     overscroll-behavior: contain;
+    min-height: 100%;
     padding: 56px 24px 96px;
 }
-.calendar-sheet.is-open { transform: translateY(0); }
-
-/* calendar-sheet close styling is provided by the shared sheet-close
-   grouped selector at the top of this file. */
 
 .calendar-sheet__head
 {
@@ -4236,31 +4383,47 @@ body.has-chooser        .top-nav
 }
 .cal-nav
 {
-    width: 36px;
-    height: 36px;
+    /* m-i-f-b "minimum hit area" — visible element bumped to 40×40 (was 36×36)
+       so the rendered button is itself the full hit target. Single-line bump
+       avoids the ::before pseudo trick where padding alone would do. */
+    width: 40px;
+    height: 40px;
     border-radius: 999px;
     border: 1px solid rgba(0, 0, 0, 0.10);
     background: rgba(255, 255, 255, 0.55);
     color: #2b2620;
     font: 500 18px/1 inherit;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     transition: background 160ms ease, transform 160ms ease;
 }
+/* m-i-f-b optical alignment — chevron glyphs ‹/› are asymmetric and look
+   off-center when geometrically centered. Nudge each toward its own apex. */
+.cal-nav[data-dir="-1"] { text-indent: -2px; }
+.cal-nav[data-dir="1"]  { text-indent: 2px; }
 .cal-nav:hover { background: rgba(255, 255, 255, 0.85); }
 .cal-nav:active { transform: scale(0.96); }
 
 .cal-today,
 .cal-connector
 {
+    /* DESIGN SYSTEM ROLE: Secondary CTA. Squircle, 36 tall, 12 radius. */
     border: none;
     background: var(--facet-personality-soft);
     color: var(--facet-personality-ink);
-    font: 600 12px/1 inherit;
-    padding: 8px 12px;
-    border-radius: 999px;
+    font: 600 13px/1 inherit;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 12px;
     cursor: pointer;
-    transition: background 160ms ease;
+    display: inline-flex;
+    align-items: center;
+    transition: background 160ms ease, transform 160ms ease;
 }
+.cal-today:active,
+.cal-connector:active { transform: scale(0.96); }
 .cal-connector
 {
     background: rgba(255, 255, 255, 0.72);
@@ -4317,7 +4480,7 @@ body.has-chooser        .top-nav
     transition: background 160ms ease, transform 160ms ease;
 }
 .calendar-day:hover { background: rgba(255, 255, 255, 0.92); }
-.calendar-day:active { transform: scale(0.98); }
+.calendar-day:active { transform: scale(0.96); }
 .calendar-day.is-today  { outline: 1.5px solid var(--facet-personality-accent); outline-offset: -1.5px; }
 .calendar-day.is-otherm { opacity: 0.35; cursor: default; pointer-events: none; }
 
@@ -4404,6 +4567,11 @@ body.has-chooser        .top-nav
 }
 
 /* ============ day-detail-card ============ */
+/* z-index 32 is intentionally *inside* the parent sheet's stacking context —
+   DayDetailCard portals into the active sheet's root at open time (see
+   DayDetailCard.open()), so 32 only needs to beat CalendarSheet's z-30
+   among siblings. The card no longer competes with body-level z-indexes
+   like HistorySheet's z-60; DOM ancestry handles that. */
 .day-detail-card
 {
     position: fixed;
@@ -4445,7 +4613,7 @@ body.has-chooser        .top-nav
     transition: background 160ms ease, transform 160ms ease;
 }
 .day-detail-card__close:hover { background: rgba(0, 0, 0, 0.12); }
-.day-detail-card__close:active { transform: scale(0.94); }
+.day-detail-card__close:active { transform: scale(0.96); }
 
 .day-detail-card__head { margin-bottom: 18px; }
 .day-detail-card__eyebrow
@@ -4538,23 +4706,17 @@ body.has-chooser        .top-nav
 }
 
 /* ============ letters-sheet ============ */
-.letters-sheet
+/* Chrome (backdrop / blur / fade / z-tier) is owned by SheetChrome. This
+   block only scopes the inbox's two-pane grid layout to its content slot
+   and the typography defaults. See CLAUDE.md "Sheet chrome contract". */
+.letters-sheet .sheet-chrome__content
 {
-    position: fixed;
-    inset: 0;
-    z-index: 30;
     display: grid;
     grid-template-columns: 320px 1fr;
-    background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
+    min-height: 100%;
     color: #2b2620;
     font-family: var(--font-sans);
-    transform: translateY(100%);
-    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.letters-sheet.is-open { transform: translateY(0); }
-
-/* letters-sheet close styling is provided by the shared sheet-close
-   grouped selector at the top of this file. */
 
 .letters-sheet__list
 {
@@ -4666,12 +4828,20 @@ body.has-chooser        .top-nav
     text-align: center;
     margin-top: 24px;
 }
+/* First-run list-pane empty (no letters yet) — slightly more generous than
+   the "tap to read" placeholder above so it fills the empty list pane. */
+.letters-sheet__empty--list
+{
+    margin: 80px 20px 0;
+    font-size: 14px;
+    line-height: 1.5;
+}
 
 /* Narrow viewport: single-pane router. List shows by default; once a
    letter is selected (.is-reading), list hides and panel shows the back btn. */
 @media (max-width: 779px)
 {
-    .letters-sheet { grid-template-columns: 1fr; }
+    .letters-sheet .sheet-chrome__content { grid-template-columns: 1fr; }
     .letters-sheet__panel { display: none; }
     .letters-sheet.is-reading .letters-sheet__list  { display: none; }
     .letters-sheet.is-reading .letters-sheet__panel { display: block; }
@@ -4680,7 +4850,6 @@ body.has-chooser        .top-nav
 
 @media (prefers-reduced-motion: reduce)
 {
-    .letters-sheet,
     .letter-row,
     .letter-row__unread { transition-duration: 80ms; }
 }
@@ -4691,26 +4860,19 @@ body.has-chooser        .top-nav
    and a single panel under the selected tab. Tabs are Path 1 / 2 / 3;
    the panel renders the active bearing's title, exploration prompt,
    trait + ECG region pills, and risks-and-tradeoffs prose. */
-.trajectory-sheet
+/* Chrome (backdrop / blur / fade / z-tier) is owned by SheetChrome. This
+   block scopes Path Finder's content typography to its content slot. See
+   CLAUDE.md "Sheet chrome contract". */
+.trajectory-sheet .sheet-chrome__content
 {
-    position: fixed;
-    inset: 0;
-    z-index: 30;
-    background: linear-gradient(180deg, #faf6ee 0%, #f3eadd 100%);
     color: #2b2620;
     font-family: var(--font-sans);
-    transform: translateY(100%);
-    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    min-height: 100%;
     box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
 }
-.trajectory-sheet.is-open { transform: translateY(0); }
 
 .trajectory-sheet__scroll
 {
-    flex: 1 1 auto;
-    overflow-y: auto;
     padding: 32px 24px 96px;
 }
 .trajectory-sheet__head
@@ -4753,15 +4915,29 @@ body.has-chooser        .top-nav
 }
 .trajectory-sheet__run
 {
+    /* DESIGN SYSTEM ROLE: Secondary CTA. Squircle. */
     margin-top: 14px;
-    border: 1px solid rgba(160, 118, 89, 0.30);
-    background: rgba(255, 255, 255, 0.70);
+    border: 1px solid rgba(160, 118, 89, 0.32);
+    background: rgba(255, 255, 255, 0.65);
     color: #5b3519;
-    font: 650 12px/1 inherit;
-    padding: 9px 12px;
-    border-radius: 999px;
+    font: 600 13px/1 inherit;
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 12px;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 160ms cubic-bezier(0.2, 0, 0, 1),
+                border-color 160ms cubic-bezier(0.2, 0, 0, 1),
+                transform 160ms cubic-bezier(0.2, 0, 0, 1);
 }
+.trajectory-sheet__run:hover
+{
+    background: rgba(255, 255, 255, 0.90);
+    border-color: rgba(160, 118, 89, 0.55);
+}
+.trajectory-sheet__run:active { transform: scale(0.96); }
 .trajectory-sheet__run:disabled
 {
     cursor: wait;
@@ -4779,41 +4955,50 @@ body.has-chooser        .top-nav
     padding-block: 12px;
     /* Match the centered 760px column used elsewhere on this sheet. */
     padding-inline: max(24px, calc((100% - 760px) / 2 + 24px));
-    background: linear-gradient(180deg, rgba(253, 250, 243, 0.96) 0%, rgba(253, 250, 243, 0.8) 100%);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    /* Same nested-alpha-must-stay-below-sheet rule as profile-sheet__tabs.
+       96%/80% read as a solid panel obscuring the island; backdrop-blur
+       carries legibility, the gradient just hints at separation. */
+    background: linear-gradient(180deg, rgba(253, 250, 243, 0.45) 0%, rgba(253, 250, 243, 0.12) 100%);
+    backdrop-filter: blur(14px) saturate(115%);
+    -webkit-backdrop-filter: blur(14px) saturate(115%);
 }
 
 .trajectory-tab
 {
+    /* DESIGN SYSTEM ROLE: Numbered nav chip — squircle (10px radius at 32
+       tall = 31% ratio, clearly rounded-rect). Number circle stays fully
+       round to keep its character (the number IS the visual hook). */
     display: inline-flex;
     align-items: center;
     gap: 8px;
     height: 32px;
-    padding: 0 14px;
-    border-radius: 999px;
+    padding: 0 14px 0 6px;
+    border-radius: 10px;
     border: 1px solid transparent;
     background: transparent;
-    color: rgba(43, 38, 32, 0.55);
-    font: 500 13px/1 inherit;
+    color: rgba(43, 38, 32, 0.62);
+    font: 600 13px/1 inherit;
     cursor: pointer;
     max-width: 100%;
-    transition: background 180ms cubic-bezier(0.22, 1, 0.36, 1),
-                color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-                border-color 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition: background 180ms cubic-bezier(0.2, 0, 0, 1),
+                color 180ms cubic-bezier(0.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(0.2, 0, 0, 1),
+                transform 180ms cubic-bezier(0.2, 0, 0, 1);
 }
+.trajectory-tab:active { transform: scale(0.96); }
 .trajectory-tab__num
 {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     border-radius: 999px;
-    background: rgba(43, 38, 32, 0.10);
-    color: rgba(43, 38, 32, 0.75);
-    font-size: 11px;
-    font-weight: 600;
+    background: rgba(43, 38, 32, 0.08);
+    color: rgba(43, 38, 32, 0.72);
+    font-size: 11.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
 }
 .trajectory-tab__label
 {
@@ -4822,16 +5007,18 @@ body.has-chooser        .top-nav
     white-space: nowrap;
     max-width: 22ch;
 }
+.trajectory-tab:hover { background: rgba(43, 38, 32, 0.04); }
 .trajectory-tab.is-active
 {
-    background: rgba(82, 134, 201, 0.12);
+    /* Active raises elevation visually without changing size. */
+    background: rgba(82, 134, 201, 0.10);
     color: #2F66B7;
-    border-color: rgba(47, 102, 183, 0.32);
+    border-color: rgba(47, 102, 183, 0.28);
 }
 .trajectory-tab.is-active .trajectory-tab__num
 {
-    background: rgba(47, 102, 183, 0.18);
-    color: #2F66B7;
+    background: #2F66B7;
+    color: #fff;
 }
 
 .trajectory-sheet__panel
@@ -4901,23 +5088,25 @@ body.has-chooser        .top-nav
     gap: 6px;
 }
 
-/* Chip language mirrors ProfileSheet `.chip--claim`: sans-serif, mixed-case,
-   low-contrast soft background. The trajectory variant carries a kicker
-   (facet name) + label (claim name) joined by an arrow — "Interests → Social"
-   reads how the underlying id (`interests.social`) actually maps. */
+/* DESIGN SYSTEM ROLE: Metadata tag (non-interactive). Flat, no border, no
+   cursor pointer. The trait kicker + label arrow ("Interests → Social")
+   reads how the underlying id maps. Distinct from .trajectory-tab (chip)
+   by the absence of border and height. */
 .trajectory-chip
 {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 10px;
+    height: 26px;
+    padding: 0 10px;
     border-radius: 999px;
-    background: rgba(43, 38, 32, 0.06);
+    background: rgba(43, 38, 32, 0.05);
     color: rgba(43, 38, 32, 0.82);
     font-size: 12.5px;
     font-weight: 500;
-    line-height: 1.3;
+    line-height: 1;
     letter-spacing: 0;
+    cursor: default;
 }
 .trajectory-chip__kicker
 {
@@ -5012,19 +5201,26 @@ body.has-chooser        .top-nav
 }
 .trajectory-sheet__status-pill
 {
+    /* DESIGN SYSTEM ROLE: Status badge (non-interactive).
+       Previously presented as a bordered cream pill — read like a button but
+       did nothing. Border removed, background flattened, font tightened so
+       the badge is unmistakably a state label. The whole pill is still a
+       focus target (admin-override flow), so keyboard focus shows a ring.
+       See `docs/audit/design-system-2026-05-20.md`. */
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    height: 28px;
-    padding: 0 12px;
+    height: 26px;
+    padding: 0 12px 0 10px;
     border-radius: 999px;
-    border: 1px solid rgba(43, 38, 32, 0.14);
-    background: rgba(255, 255, 255, 0.72);
-    color: rgba(43, 38, 32, 0.78);
-    font: 600 11px/1 inherit;
-    letter-spacing: 0.08em;
+    border: none;
+    background: rgba(43, 38, 32, 0.05);
+    position: relative;
+    color: rgba(43, 38, 32, 0.65);
+    font: 700 10.5px/1 inherit;
+    letter-spacing: 0.10em;
     text-transform: uppercase;
-    cursor: pointer;
+    cursor: default;
     user-select: none;
 }
 .trajectory-sheet__status-pill:focus-visible
@@ -5064,14 +5260,24 @@ body.has-chooser        .top-nav
 }
 .trajectory-sheet__escape
 {
-    border: 1px solid rgba(43, 38, 32, 0.18);
-    background: transparent;
-    color: rgba(43, 38, 32, 0.72);
-    font: 600 12px/1 inherit;
-    padding: 9px 12px;
-    border-radius: 999px;
+    /* DESIGN SYSTEM ROLE: Secondary CTA — squircle, 36px tall, 12px radius
+       (33% ratio = clear rounded-rect, not pill). Outlined cream, the
+       lighter sibling of Primary CTA. */
+    appearance: none;
+    border: 1px solid rgba(43, 38, 32, 0.20);
+    background: rgba(255, 255, 255, 0.55);
+    color: rgba(43, 38, 32, 0.82);
+    font: 600 13px/1 inherit;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 12px;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: background 160ms cubic-bezier(0.2, 0, 0, 1),
+                transform 160ms cubic-bezier(0.2, 0, 0, 1);
 }
+.trajectory-sheet__escape:active { transform: scale(0.96); }
 .trajectory-sheet__escape:hover
 {
     background: rgba(43, 38, 32, 0.05);
@@ -5092,7 +5298,9 @@ body.has-chooser        .top-nav
 }
 .trajectory-starter__card
 {
-    background: rgba(255, 255, 255, 0.72);
+    /* 0.72 → 0.40 per U5; sheet chrome already provides the surface, this
+       card should sit on top as a soft glass panel, not an opaque block. */
+    background: rgba(255, 255, 255, 0.40);
     border: 1px solid rgba(160, 118, 89, 0.22);
     border-radius: 18px;
     padding: 24px 22px;
@@ -5114,19 +5322,39 @@ body.has-chooser        .top-nav
 }
 .trajectory-starter__cta
 {
+    /* DESIGN SYSTEM ROLE: Primary CTA — squircle shape (border-radius 14px
+       at 44px height ≈ 32% ratio reads as "rounded square," NOT pill). The
+       squircle/pill split is the new shape grammar: anything you tap to act
+       is a squircle, anything that's a label is a pill (999px). Subtle
+       drop-shadow lifts it off the surface so the eye lands on it first. */
     appearance: none;
     border: none;
     background: #2b2620;
     color: #faf6ee;
-    border-radius: 999px;
-    padding: 11px 18px;
-    font: 600 13px/1 inherit;
+    border-radius: 14px;
+    height: 44px;
+    padding: 0 22px;
+    font: 600 14px/1 inherit;
+    letter-spacing: -0.005em;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    box-shadow: 0 1px 2px rgba(43, 38, 32, 0.10), 0 4px 14px -6px rgba(43, 38, 32, 0.28);
+    transition: background 160ms cubic-bezier(0.2, 0, 0, 1),
+                transform 160ms cubic-bezier(0.2, 0, 0, 1),
+                box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
 }
-.trajectory-starter__cta:hover { background: #423a30; }
+.trajectory-starter__cta:hover
+{
+    background: #423a30;
+    box-shadow: 0 2px 4px rgba(43, 38, 32, 0.14), 0 8px 22px -8px rgba(43, 38, 32, 0.36);
+}
+.trajectory-starter__cta:active
+{
+    transform: scale(0.96);
+    box-shadow: 0 1px 2px rgba(43, 38, 32, 0.10);
+}
 
 /* ── Diffused ────────────────────────────────────────────────────────── */
 .trajectory-sheet__nudges
@@ -5153,7 +5381,8 @@ body.has-chooser        .top-nav
 {
     width: 100%;
     text-align: left;
-    background: rgba(255, 255, 255, 0.72);
+    /* 0.72 → 0.40 per U5. */
+    background: rgba(255, 255, 255, 0.40);
     border: 1px solid rgba(160, 118, 89, 0.22);
     border-radius: 16px;
     padding: 16px 18px;
@@ -5254,7 +5483,8 @@ body.has-chooser        .top-nav
 }
 .trajectory-foreclosed__item
 {
-    background: rgba(255, 255, 255, 0.72);
+    /* 0.72 → 0.40 per U5. */
+    background: rgba(255, 255, 255, 0.40);
     border: 1px solid rgba(160, 118, 89, 0.22);
     border-radius: 14px;
     padding: 14px 16px;
@@ -5304,19 +5534,23 @@ body.has-chooser        .top-nav
 }
 .trajectory-foreclosed__cta
 {
+    /* DESIGN SYSTEM ROLE: Secondary CTA, accent-colored variant. Squircle. */
     appearance: none;
     border: 1px solid rgba(201, 122, 78, 0.55);
     background: rgba(201, 122, 78, 0.10);
     color: #5b3519;
-    border-radius: 999px;
-    padding: 9px 14px;
+    border-radius: 12px;
+    height: 36px;
+    padding: 0 16px;
     font: 600 13px/1 inherit;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    transition: background 160ms cubic-bezier(0.2, 0, 0, 1),
+                transform 160ms cubic-bezier(0.2, 0, 0, 1);
 }
-.trajectory-foreclosed__cta:hover
-{
-    background: rgba(201, 122, 78, 0.20);
-}
+.trajectory-foreclosed__cta:hover { background: rgba(201, 122, 78, 0.20); }
+.trajectory-foreclosed__cta:active { transform: scale(0.96); }
 
 /* ── Achieved ────────────────────────────────────────────────────────── */
 .trajectory-sheet__achieved .trajectory-achieved__list
@@ -5329,7 +5563,8 @@ body.has-chooser        .top-nav
 }
 .trajectory-achieved__item
 {
-    background: rgba(255, 255, 255, 0.72);
+    /* 0.72 → 0.40 per U5. */
+    background: rgba(255, 255, 255, 0.40);
     border: 1px solid rgba(79, 155, 106, 0.30);
     border-radius: 16px;
     padding: 16px 18px;
@@ -5389,16 +5624,22 @@ body.has-chooser        .top-nav
 .trajectory-achieved__actions li { padding-left: 2px; }
 .trajectory-achieved__cta
 {
+    /* DESIGN SYSTEM ROLE: Secondary CTA (link-styled). Squircle. */
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    height: 36px;
+    padding: 0 14px;
     font: 600 13px/1 inherit;
     color: #2F66B7;
     text-decoration: none;
-    padding: 8px 12px;
     border: 1px solid rgba(47, 102, 183, 0.35);
-    border-radius: 999px;
+    border-radius: 12px;
+    transition: color 160ms cubic-bezier(0.2, 0, 0, 1),
+                border-color 160ms cubic-bezier(0.2, 0, 0, 1),
+                transform 160ms cubic-bezier(0.2, 0, 0, 1);
 }
+.trajectory-achieved__cta:active { transform: scale(0.96); }
 .trajectory-achieved__cta:hover
 {
     color: #1f4d8a;
@@ -6513,48 +6754,13 @@ body.is-onboarding .kira-bubble
 
 /* ============ history-sheet ============ */
 
-.history-sheet
+/* Content padding — chrome (backdrop / blur / fade / z-tier / display
+   toggling) is owned by SheetChrome; this rule only scopes History's
+   inner padding to its content slot. See CLAUDE.md "Sheet chrome contract". */
+.history-sheet .sheet-chrome__content
 {
-    position: fixed;
-    inset: 0;
-    z-index: 60;
-    display: none;
-    pointer-events: auto;
-    background: linear-gradient(180deg, rgba(253, 250, 243, 0.55) 0%, rgba(253, 250, 243, 0.92) 75%);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
     padding: 24px 20px 32px;
-    overflow-y: auto;
-    transition: opacity 200ms ease;
-    opacity: 0;
 }
-
-.history-sheet.is-open
-{
-    display: block;
-    opacity: 1;
-}
-
-.history-sheet__close
-{
-    position: absolute;
-    top: 12px;
-    right: 16px;
-    width: 36px;
-    height: 36px;
-    border: none;
-    background: rgba(253, 250, 243, 0.85);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    color: #2b2620;
-    font-size: 22px;
-    border-radius: 50%;
-    cursor: pointer;
-    line-height: 1;
-    box-shadow: 0 2px 8px rgba(43, 38, 32, 0.08);
-}
-
-.history-sheet__close:hover { background: rgba(43, 38, 32, 0.12); }
 
 .history-sheet__header
 {
@@ -6643,16 +6849,30 @@ body.is-onboarding .kira-bubble
 
 .history-sheet__pill
 {
+    /* DESIGN SYSTEM ROLE: Tab (year-scrubber filter). Squircle. Despite
+       the legacy class name "pill," the shape is rounded-rect per the new
+       grammar — anything interactive is a squircle. */
     appearance: none;
     border: 1px solid rgba(43, 38, 32, 0.15);
-    background: rgba(255, 255, 255, 0.7);
-    color: rgba(43, 38, 32, 0.75);
-    padding: 8px 16px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 500;
+    background: rgba(255, 255, 255, 0.55);
+    color: rgba(43, 38, 32, 0.72);
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 12px;
+    font: 600 13px/1 inherit;
+    font-variant-numeric: tabular-nums;
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    position: relative;
     transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+.history-sheet__pill::before
+{
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: inherit;
 }
 
 .history-sheet__pill:hover { background: rgba(255, 255, 255, 0.95); }
@@ -7246,6 +7466,11 @@ body.is-onboarding .kira-bubble
     width: 100%;
 }
 
+/* Embedded mode: Calendar lives inside History's Timeline tab. Override
+   SheetChrome's full-viewport posture so it flows as a normal block child
+   of History's content. The `--embedded` class is added by
+   HistorySheet._embedCalendar() when reparenting the chrome root into
+   History's timeline slot. */
 .calendar-sheet.calendar-sheet--embedded
 {
     position: static;
@@ -7253,13 +7478,18 @@ body.is-onboarding .kira-bubble
     background: transparent;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    padding: 0;
     opacity: 1;
     display: block;
     z-index: auto;
+    overflow: visible;
 }
 
-.calendar-sheet.calendar-sheet--embedded .calendar-sheet__close
+.calendar-sheet.calendar-sheet--embedded .sheet-chrome__content
+{
+    padding: 0;
+}
+
+.calendar-sheet.calendar-sheet--embedded .sheet-chrome__close
 {
     display: none;
 }

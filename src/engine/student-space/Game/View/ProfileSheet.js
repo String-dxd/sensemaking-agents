@@ -29,7 +29,7 @@ import { VIPS_BY_FACET, claimLabel, FACET_IDS } from '../Data/vipsTaxonomy.js'
 import { FACET_THEMES, FACET_HEADERS, applyFacetVars } from './facets.js'
 import { iconForClaim } from './claimIcons.js'
 import ThumbnailRenderer from './ThumbnailRenderer.js'
-import OverlayController from './OverlayController.js'
+import SheetChrome from './SheetChrome.js'
 import {
     mountProfileTabReactPanel,
     unmountProfileTabReactPanel,
@@ -149,15 +149,21 @@ export default class ProfileSheet
             this._thumbs = null
         }
 
-        const root = document.createElement('div')
-        root.className = 'profile-sheet'
-        root.setAttribute('aria-hidden', 'true')
-        root.innerHTML = `
+        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
+        // the Escape-to-close listener. Profile's content (hero, identity
+        // header, tabs, panels) renders inside chrome.contentSlot. See
+        // CLAUDE.md "Sheet chrome contract".
+        this.chrome = new SheetChrome({
+            key:            'profile',
+            sheetClassName: 'profile-sheet',
+            withCloseButton: true,
+            closeOnBackdrop: false,
+        })
+        this.chrome.contentSlot.innerHTML = `
             <div class="profile-sheet__hero" aria-hidden="true">
                 <div class="profile-sheet__hero-wash"></div>
                 <div class="profile-sheet__hero-shimmer"></div>
             </div>
-            <button class="profile-sheet__close" type="button" aria-label="Close">×</button>
             <header class="profile-id">
                 <div class="profile-id__avatar" role="img" aria-label="Profile picture">
                     <span class="profile-id__initial"></span>
@@ -226,7 +232,7 @@ export default class ProfileSheet
                 <div class="profile-sheet__react-mount" hidden></div>
             </section>
         `
-        document.body.appendChild(root)
+        const root = this.chrome.root
         this.root = root
 
         this.headerEl    = root.querySelector('.profile-sheet__header')
@@ -264,10 +270,8 @@ export default class ProfileSheet
         this.emptyEl     = root.querySelector('.profile-sheet__empty')
         this.panelEl     = root.querySelector('.profile-sheet__panel')
 
-        // Listener refs held on `this` so dispose() can detach them. The
-        // document-level keydown is the leak risk; the root-attached click
-        // would be GC'd with the detached root, but tracking it keeps the
-        // teardown pattern uniform across sheets.
+        // Content-level click handler — tabs, bento tiles, quote actions,
+        // forget arming. × button and Escape are owned by SheetChrome.
         this._onRootClick = (event) => this._onClick(event)
         root.addEventListener('click', this._onRootClick)
 
@@ -282,7 +286,6 @@ export default class ProfileSheet
             this.close()
         }
         document.addEventListener('keydown', this._onKeyDown)
-
     }
 
     /**
@@ -299,11 +302,6 @@ export default class ProfileSheet
         if(this._panelTimer) { clearTimeout(this._panelTimer); this._panelTimer = null }
         if(this._armTimer)   { clearTimeout(this._armTimer);   this._armTimer   = null }
 
-        if(this._onKeyDown)
-        {
-            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
-            this._onKeyDown = null
-        }
         if(this._onRootClick && this.root)
         {
             try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
@@ -317,7 +315,8 @@ export default class ProfileSheet
         this._unmountReactPanel()
         try { this.shareDialog?.dispose?.() } catch(_) {}
         this.shareDialog = null
-        try { this.root?.remove?.() } catch(_) {}
+        try { this.chrome?.dispose?.() } catch(_) {}
+        this.chrome = null
         this.root = null
     }
 
@@ -490,25 +489,23 @@ export default class ProfileSheet
      */
     open(opts = {})
     {
+        if(!this.chrome) return
         const allowedTabs = new Set([...FACET_IDS, ...REACT_BACKED_TABS])
         const targetTab = opts.tab && allowedTabs.has(opts.tab) ? opts.tab : this.activeFacet
         this.activeFacet     = targetTab
         this.selectedClaimId = opts.claimId || null
         this._render(true)
 
-        this.root.setAttribute('aria-hidden', 'false')
-        this.root.classList.add('is-open')
+        this.chrome.open(opts)
         this.isOpen = true
     }
 
     close()
     {
         if(!this.isOpen) return
-        this.root.classList.remove('is-open')
-        this.root.setAttribute('aria-hidden', 'true')
         this.isOpen = false
         this._disarmForget()
-        OverlayController.getInstance().noteClosed('profile')
+        try { this.chrome?.close?.() } catch(_) {}
     }
 
     // ── Rendering ─────────────────────────────────────────────────────────
@@ -769,8 +766,8 @@ export default class ProfileSheet
         }
         if(!target.closest('.profile-auth-menu')) this._setAuthMenuOpen(false)
 
-        if(target.closest('.profile-sheet__close')) { this.close(); return }
-
+        // × button and Escape are owned by SheetChrome — no per-sheet close
+        // handling needed here.
         const tab = target.closest('.profile-tab')
         if(tab)
         {

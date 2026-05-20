@@ -6,7 +6,8 @@
  * active, so we can never have two full-viewport sheets fighting for the
  * viewport. The exclusive set covers every modal-ish surface:
  *
- *   profile · calendar · letters       — the three new TopNav sheets
+ *   profile · calendar · letters · trajectory · history
+ *     — the five full-viewport sheets, all built on SheetChrome
  *   mood · ask · photo                  — the existing capture sheets
  *   chooser                             — the CaptureChooser popover
  *
@@ -15,6 +16,11 @@
  * are tall-but-bottom-anchored and do collide with the top chrome, so the
  * `has-chooser` and `has-capture-sheet` body classes give the CSS room to
  * hide TopNav for those too.
+ *
+ * Full-viewport sheets register via SheetChrome (see SheetChrome.js and
+ * CLAUDE.md "Sheet chrome contract"); `getActiveRoot()` returns the active
+ * sheet's `.root` so child overlays can portal into the active sheet's
+ * stacking context rather than `document.body`.
  */
 
 const SHEET_OVERLAY_CLASS = {
@@ -99,6 +105,23 @@ export default class OverlayController
 
     /** Read for visual debounce gates (e.g. "is anything full-screen?"). */
     isOpen(name) { return this.active === name }
+
+    /**
+     * Return the active surface's root DOM node, or null if nothing is open.
+     * Used by child overlays (DayDetailCard, future popovers) to portal
+     * themselves into the active sheet's stacking context instead of
+     * `document.body` — that way z-stacking falls out of DOM ancestry and
+     * children never get visually trapped behind a higher-z parent sheet.
+     * Every registered sheet surface exposes `.root`; non-sheet surfaces
+     * (capture/chooser tiers) may not, in which case this returns null and
+     * callers fall back to body.
+     */
+    getActiveRoot()
+    {
+        if(!this.active) return null
+        const surface = this.surfaces.get(this.active)
+        return surface?.root || null
+    }
 
     _writeBodyClass(name)
     {

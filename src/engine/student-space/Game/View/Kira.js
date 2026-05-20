@@ -366,6 +366,15 @@ export default class Kira
             this.group.position.set(this.perchX, this.perchY, this.perchZ)
             this.group.rotation.y = this.perchYaw
             this.facing = this.perchYaw
+            // Hide until FirstChat's flyTo reveals the bird mid-arc. Prevents
+            // a "bird at perch" flash before her landing animation begins.
+            this.group.visible = false
+        }
+        else
+        {
+            // Idempotent reveal — protects the resume path where a user
+            // re-enters past first-chat and flyTo never runs.
+            this.group.visible = true
         }
     }
 
@@ -418,6 +427,9 @@ export default class Kira
         this.group.rotation.y = travelYaw
         this.mode  = 'fly'
         this.modeT = 0
+        // Reveal AFTER the teleport so the first rendered frame shows the
+        // bird at the off-canvas start position, not at the perch.
+        this.group.visible = true
 
         return new Promise((resolve) =>
         {
