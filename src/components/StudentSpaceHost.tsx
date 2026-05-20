@@ -124,7 +124,10 @@ export function StudentSpaceHost({ className }: { className?: string }) {
 
   return (
     <>
-      <div ref={containerRef} className={cn('game fixed inset-0 h-svh w-svw', className)} />
+      {/* Engine owns positioning via `.game` (frame inset + rounded corners).
+          Inline Tailwind `fixed inset-0` utilities would override the inset
+          rules and the rounded frame would extend edge-to-edge. */}
+      <div ref={containerRef} className={cn('game', className)} />
       {game ? <IslandProgressionOverlay game={game} /> : null}
     </>
   )

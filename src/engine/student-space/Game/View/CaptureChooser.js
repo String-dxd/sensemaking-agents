@@ -34,12 +34,6 @@ const MODES = [
         sub:   'Just the loudest one.',
         build: () => buildHeart(),
     },
-    {
-        id:    'photo',
-        label: 'Snap a moment',
-        sub:   'Capture what is in front of you. Add words or skip.',
-        build: () => buildCamera(),
-    },
 ]
 
 /* ---------- mode-shape builders ----------
@@ -128,81 +122,6 @@ function buildHeart()
         metalness: 0.0,
     })
     return new THREE.Mesh(geo, mat)
-}
-
-function buildCamera()
-{
-    const group = new THREE.Group()
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x6E5BD8, roughness: 0.42, metalness: 0.10 })
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x2E1F58, roughness: 0.5 })
-    const glassMat = new THREE.MeshStandardMaterial({ color: 0xB7A8FF, roughness: 0.18, metalness: 0.4 })
-    const shineMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.1 })
-
-    // Body — wide rounded box (boxy retro-camera silhouette).
-    const body = new THREE.Mesh(
-        new THREE.BoxGeometry(1.7, 1.05, 0.85),
-        bodyMat,
-    )
-    group.add(body)
-
-    // Viewfinder bump on top.
-    const bump = new THREE.Mesh(
-        new THREE.BoxGeometry(0.55, 0.22, 0.55),
-        bodyMat,
-    )
-    bump.position.set(0, 0.6, 0)
-    group.add(bump)
-
-    // Shutter button (small cylinder on the top-left).
-    const shutter = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.10, 0.10, 0.10, 12),
-        darkMat,
-    )
-    shutter.position.set(-0.55, 0.58, 0)
-    group.add(shutter)
-
-    // Lens — three concentric cylinders for the toon retro look.
-    const lensOuter = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.48, 0.48, 0.45, 28),
-        darkMat,
-    )
-    lensOuter.rotation.x = Math.PI / 2
-    lensOuter.position.set(0.05, -0.05, 0.45)
-    group.add(lensOuter)
-
-    const lensMid = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.38, 0.38, 0.46, 24),
-        bodyMat,
-    )
-    lensMid.rotation.x = Math.PI / 2
-    lensMid.position.set(0.05, -0.05, 0.50)
-    group.add(lensMid)
-
-    const lensGlass = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.28, 0.28, 0.05, 22),
-        glassMat,
-    )
-    lensGlass.rotation.x = Math.PI / 2
-    lensGlass.position.set(0.05, -0.05, 0.70)
-    group.add(lensGlass)
-
-    // Catchlight on the lens glass for life.
-    const shine = new THREE.Mesh(
-        new THREE.SphereGeometry(0.06, 12, 10),
-        shineMat,
-    )
-    shine.position.set(-0.08, 0.06, 0.74)
-    group.add(shine)
-
-    // Flash window — small bright square on the right side.
-    const flash = new THREE.Mesh(
-        new THREE.BoxGeometry(0.18, 0.10, 0.04),
-        shineMat,
-    )
-    flash.position.set(0.62, 0.30, 0.43)
-    group.add(flash)
-
-    return group
 }
 
 export default class CaptureChooser

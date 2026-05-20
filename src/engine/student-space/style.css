@@ -7,6 +7,55 @@
     --sky-bottom: rgb(255, 240, 80);
     --ink: #1a2b3a;
     --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+    /* Shell layout — Gathertown-style side rail + rounded world frame.
+       The rail lives OUTSIDE the frame on the left; every HUD/sheet inside the
+       app is positioned relative to the viewport but offset by these tokens
+       so the world reads as a single recessed surface.
+         --rail-width    width of the left icon rail (full height)
+         --frame-inset   gap between viewport edge and the frame on top/right/bottom
+         --frame-radius  outer radius of the frame (sheets match this) */
+    --rail-width:   64px;
+    --frame-inset:  14px;
+    --frame-radius: 22px;
+    /* Outer chrome surround — Tailwind/shadcn `stone-50` (#FAFAF9). */
+    --outer-chrome-bg: #FAFAF9;
+    --frame-shadow:    0 18px 48px rgba(43, 38, 32, 0.18), 0 4px 14px rgba(43, 38, 32, 0.08);
+    --frame-border:    rgba(43, 38, 32, 0.18);
+    /* Inset 1px ring used to draw the rounded-corner cut on translucent
+       surfaces (sheets) where the body shadow alone doesn't read against a
+       bright canvas. `outline` would also work but its rounded-corner behavior
+       is inconsistent across older browsers; box-shadow always follows
+       border-radius. */
+    --frame-ring:      inset 0 0 0 1px rgba(43, 38, 32, 0.22);
+}
+
+@media (max-width: 520px)
+{
+    /* Mobile: rail collapses, frame hugs the viewport. */
+    :root { --rail-width: 0px; --frame-inset: 6px; --frame-radius: 14px; }
+}
+
+/* Onboarding + Edupass landing — the ceremony owns the viewport. We collapse
+   ALL shell tokens to 0 (rail width, frame inset, frame radius) so .game
+   reflows edge-to-edge and the rounded frame disappears for the duration of
+   the ceremony. The `.onboarding-root` panel is fixed `inset: 0` to the
+   viewport, so anything short of full-bleed produces an asymmetric strip
+   between the landing CTA and the frame's bottom edge. */
+body.is-onboarding,
+body.is-onb-landing
+{
+    --rail-width:   0px;
+    --frame-inset:  0px;
+    --frame-radius: 0px;
+}
+
+/* And drop the frame's shadow / ring during onboarding so the world reads
+   as one continuous surface rather than a rounded card-in-a-page. */
+body.is-onboarding   .game,
+body.is-onb-landing  .game
+{
+    box-shadow: none;
 }
 
 html, body, button, input, select, textarea
@@ -30,34 +79,54 @@ html, body
     height: 100%;
 }
 
+/* When the engine shell mounts, paint html AND body to the outer chrome color
+   so any peek-through (the project's `src/styles.css` defaults `html, body,
+   #root` to near-white) cannot leak past the frame. The `:has()` selector
+   keeps the rule scoped to engine-shell pages so non-shell routes keep their
+   default near-white background. */
+html:has(body.student-space-shell)
+{
+    background: var(--outer-chrome-bg);
+}
+
 body.student-space-shell
 {
     /* Crisper text on macOS/Retina per m-i-f-b "font smoothing" principle. */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* Tiny-Skies-style sky: three-stop linear gradient between CSS vars.
-       Sky-haze + sky-rays sit above this for the highlight + god rays. */
-    background: linear-gradient(
-        180deg,
-        var(--sky-top) 0%,
-        var(--sky-mid) 42%,
-        var(--sky-bottom) 100%
-    );
+    /* Outer chrome — the neutral surround that the rounded world frame
+       sits inside. The Tiny-Skies sky gradient moved to .game (the frame) so
+       only the frame interior carries the day/night palette; the rail and
+       surround stay a neutral craft surface. */
+    background: var(--outer-chrome-bg);
     color: var(--ink);
     transition: background 1800ms ease;
+    /* Clip the viewport so any chrome surface (half-sheet handle, render
+       artefact, etc.) that paints outside the frame can't show. Without
+       this, transforms-plus-overflow:hidden combos can produce a sub-pixel
+       leak below the bottom edge on retina displays. */
+    overflow: hidden;
 }
 
 body.student-space-shell.is-night
 {
     color: #f4f1ea;
+    --outer-chrome-bg: #2A2622;
 }
 
 /* Soft central haze — the bright spot the god-rays radiate from.
-   Sits below the canvas + UI but above the body gradient. */
+   Sits below the canvas + UI but above the frame's sky gradient. Anchored to
+   the world frame area (inset by rail width + frame inset) so the highlight
+   stays inside the rounded craft surface. */
 #sky-haze
 {
     position: fixed;
-    inset: 0;
+    top:    var(--frame-inset);
+    right:  var(--frame-inset);
+    bottom: var(--frame-inset);
+    left:   calc(var(--rail-width) + var(--frame-inset));
+    border-radius: var(--frame-radius);
+    overflow: hidden;
     pointer-events: none;
     z-index: 0;
     background: radial-gradient(
@@ -79,7 +148,12 @@ body.student-space-shell.is-night #sky-haze
 #sky-rays
 {
     position: fixed;
-    inset: 0;
+    top:    var(--frame-inset);
+    right:  var(--frame-inset);
+    bottom: var(--frame-inset);
+    left:   calc(var(--rail-width) + var(--frame-inset));
+    border-radius: var(--frame-radius);
+    overflow: hidden;
     pointer-events: none;
     z-index: 0;
     background: repeating-linear-gradient(
@@ -119,13 +193,31 @@ body.student-space-shell.is-night #sky-rays
 
 .game
 {
+    /* The world frame. The WebGL canvas is appended here; the rounded corners
+       clip the canvas via overflow:hidden. The sky gradient now lives on the
+       frame so the rail + surround stay neutral parchment. */
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100%;
+    top:    var(--frame-inset);
+    right:  var(--frame-inset);
+    bottom: var(--frame-inset);
+    left:   calc(var(--rail-width) + var(--frame-inset));
     touch-action: none;
     z-index: 1;
+    border-radius: var(--frame-radius);
+    overflow: hidden;
+    /* Combined: drop-shadow (outside) + inset ring (inside, follows the
+       rounded corner reliably). The inset ring is what makes the rounded
+       cut visible at the corners against any backdrop. */
+    box-shadow: var(--frame-shadow), var(--frame-ring);
+    /* Tiny-Skies-style sky: three-stop linear gradient between CSS vars.
+       Sky-haze + sky-rays float above this inside the same frame envelope. */
+    background: linear-gradient(
+        180deg,
+        var(--sky-top) 0%,
+        var(--sky-mid) 42%,
+        var(--sky-bottom) 100%
+    );
+    transition: background 1800ms ease;
 }
 
 .ui
@@ -284,7 +376,7 @@ body.student-space-shell.is-night #sky-rays
 {
     position: fixed;
     top: 50%;
-    right: 16px;
+    right: calc(var(--frame-inset) + 16px);
     transform: translateY(-50%);
     z-index: 10;
     display: flex;
@@ -421,8 +513,8 @@ body.student-space-shell.is-night #sky-rays
 .zoom-hud
 {
     position: fixed;
-    bottom: 16px;
-    right: 16px;
+    bottom: calc(var(--frame-inset) + 16px);
+    right:  calc(var(--frame-inset) + 16px);
     z-index: 10;
     display: flex;
     flex-direction: column;
@@ -472,8 +564,8 @@ body.student-space-shell.is-night #sky-rays
 .mood-hud
 {
     position: fixed;
-    bottom: 16px;
-    left: 50%;
+    bottom: calc(var(--frame-inset) + 16px);
+    left: calc(var(--rail-width) / 2 + 50%);  /* centred inside the frame, accounting for rail */
     transform: translateX(-50%);
     z-index: 10;
     display: flex;
@@ -554,8 +646,8 @@ body.student-space-shell.is-night #sky-rays
 .track-picker
 {
     position: fixed;
-    bottom: 70px;          /* sits above .bird-picker (22px + ~40 chip h) */
-    left: 16px;
+    bottom: calc(var(--frame-inset) + 70px);   /* sits above .bird-picker (22px + ~40 chip h) */
+    left:   calc(var(--rail-width) + var(--frame-inset) + 16px);
     z-index: 20;
     display: inline-flex;
     align-items: center;
@@ -629,12 +721,15 @@ body.student-space-shell.is-night #sky-rays
     flex-shrink: 0;
 }
 
-/* Hide along with the bird-picker when any sheet is open. */
+/* Hide along with the bird-picker when any sheet is open. visibility:hidden
+   guarantees the chip cannot peek through the rail edge mid-transition; the
+   opacity-only rule wasn't strong enough on translucent surfaces. */
 body.has-overlay        .track-picker,
 body.has-capture-sheet  .track-picker,
 body.has-chooser        .track-picker
 {
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
     transform: translateY(6px);
 }
@@ -647,8 +742,8 @@ body.has-chooser        .track-picker
 .bird-picker
 {
     position: fixed;
-    bottom: 22px;
-    left: 16px;
+    bottom: calc(var(--frame-inset) + 22px);
+    left:   calc(var(--rail-width) + var(--frame-inset) + 16px);
     z-index: 20;
     display: inline-flex;
     align-items: center;
@@ -707,13 +802,15 @@ body.has-chooser        .track-picker
     margin-left: 2px;
 }
 
-/* Hide the picker when any full sheet is open — same body-class hooks the
-   TopNav uses. */
+/* Hide the picker when any full sheet is open. visibility:hidden ensures the
+   chip is fully removed from the compositor so it can't peek through the
+   sheet's translucent backdrop. */
 body.has-overlay        .bird-picker,
 body.has-capture-sheet  .bird-picker,
 body.has-chooser        .bird-picker
 {
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
     transform: translateY(6px);
 }
@@ -721,8 +818,8 @@ body.has-chooser        .bird-picker
 .capture-fab
 {
     position: fixed;
-    bottom: 20px;
-    left: 50%;
+    bottom: calc(var(--frame-inset) + 20px);
+    left: calc(var(--rail-width) / 2 + 50%);   /* centred inside the frame */
     transform: translateX(-50%);
     z-index: 20;
     display: inline-flex;
@@ -753,7 +850,13 @@ body.has-chooser        .bird-picker
 .capture-chooser
 {
     position: fixed;
-    inset: 0;
+    top:    var(--frame-inset);
+    right:  var(--frame-inset);
+    bottom: var(--frame-inset);
+    left:   calc(var(--rail-width) + var(--frame-inset));
+    border-radius: var(--frame-radius);
+    box-shadow: var(--frame-ring);
+    overflow: hidden;
     z-index: 30;
     background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
     color: #2b2620;
@@ -782,8 +885,24 @@ body.has-chooser        .bird-picker
    for the durable rule. ---------- */
 .sheet-chrome
 {
+    /* Sheets sit INSIDE the rounded world frame so the rail stays visible at
+       all times (Gathertown-style). Geometry, border-radius and clipping all
+       match `.game`; only the inside surface differs (translucent cream wash
+       + blur instead of the sky).
+
+       The hairline outline + outline-offset:-1px draws a 1px border on the
+       *inside* of the rounded corner — without it, the translucent cream
+       background fades into a bright canvas behind the sheet and the rounded
+       cut becomes invisible. */
     position: fixed;
-    inset: 0;
+    top:    var(--frame-inset);
+    right:  var(--frame-inset);
+    bottom: var(--frame-inset);
+    left:   calc(var(--rail-width) + var(--frame-inset));
+    border-radius: var(--frame-radius);
+    /* Inset ring follows the rounded corners reliably; outline rendering was
+       inconsistent on translucent surfaces with overflow-y: auto. */
+    box-shadow: var(--frame-ring);
     z-index: 60;
     display: none;
     pointer-events: auto;
@@ -976,7 +1095,6 @@ body.has-chooser        .bird-picker
    kira-dialogue) use a smaller variant further down. ---------- */
 .sheet-chrome__close,
 .capture-chooser__close,
-.photo-sheet__close,
 .mood-sheet__close,
 .half-sheet__close,
 .profile-sheet__close,
@@ -985,8 +1103,8 @@ body.has-chooser        .bird-picker
 .trajectory-sheet__close
 {
     position: fixed;
-    top: 14px;
-    right: 14px;
+    top:   calc(var(--frame-inset) + 14px);
+    right: calc(var(--frame-inset) + 14px);
     width: 40px;
     height: 40px;
     border-radius: 999px;
@@ -1006,7 +1124,6 @@ body.has-chooser        .bird-picker
 }
 .sheet-chrome__close:hover,
 .capture-chooser__close:hover,
-.photo-sheet__close:hover,
 .mood-sheet__close:hover,
 .half-sheet__close:hover,
 .profile-sheet__close:hover,
@@ -1015,7 +1132,6 @@ body.has-chooser        .bird-picker
 .trajectory-sheet__close:hover { background: rgba(0, 0, 0, 0.12); }
 .sheet-chrome__close:active,
 .capture-chooser__close:active,
-.photo-sheet__close:active,
 .mood-sheet__close:active,
 .half-sheet__close:active,
 .profile-sheet__close:active,
@@ -1148,7 +1264,12 @@ body.has-chooser        .bird-picker
 .ask-sheet
 {
     position: fixed;
-    inset: 0;
+    top:    var(--frame-inset);
+    right:  var(--frame-inset);
+    bottom: var(--frame-inset);
+    left:   calc(var(--rail-width) + var(--frame-inset));
+    border-radius: var(--frame-radius);
+    box-shadow: var(--frame-ring);
     z-index: 30;
     display: flex;
     align-items: flex-end;
@@ -1180,25 +1301,8 @@ body.has-chooser        .bird-picker
         visibility 0s linear 0s;
 }
 
-/* Photo sheet keeps the full-viewport camera surface. */
-.photo-sheet
-{
-    position: fixed;
-    inset: 0;
-    z-index: 30;
-    background: linear-gradient(180deg, #faf6ee 0%, #f3eadd 100%);
-    color: #2b2620;
-    font-family: var(--font-sans);
-    transform: translateY(100%);
-    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
-    overflow-y: auto;
-    padding: 24px 20px 48px;
-    box-sizing: border-box;
-}
-.photo-sheet.is-open { transform: translateY(0); }
-
-/* ask-sheet / photo-sheet close styling is provided by the shared
-   sheet-close grouped selector at the top of this file. */
+/* (PhotoSheet removed — capture flow now only supports Ask + Mood. The
+   camera-stage CSS that used to live below has been purged with it.) */
 
 .ask-sheet__inner
 {
@@ -1237,19 +1341,11 @@ body.has-chooser        .bird-picker
 }
 .ask-sheet__close:hover { background: rgba(0, 0, 0, 0.12); }
 .ask-sheet__close:active { transform: scale(0.96); }
-.photo-sheet__inner
-{
-    max-width: 720px;
-    margin: 0 auto;
-    padding-top: 24px;
-}
-
 /* Eyebrow + title alignment — matches profile-sheet / half-sheet /
    day-detail-card so every sheet shares the same micro-typography.
    Eyebrow: 11px / 0.10em / 600 / ink-at-55%. Title: weight 600 with
    negative tracking on the larger sizes. */
-.ask-sheet__eyebrow,
-.photo-sheet__eyebrow
+.ask-sheet__eyebrow
 {
     font-size: 11px;
     letter-spacing: 0.10em;
@@ -1258,8 +1354,7 @@ body.has-chooser        .bird-picker
     font-weight: 600;
     margin: 0 0 6px;
 }
-.ask-sheet__title,
-.photo-sheet__title
+.ask-sheet__title
 {
     font-size: 24px;
     font-weight: 600;
@@ -1440,29 +1535,13 @@ body.has-chooser        .bird-picker
     color: rgba(43, 38, 32, 0.65);
 }
 
-.ask-sheet__row,
-.photo-sheet__row
+.ask-sheet__row
 {
     display: flex;
     justify-content: flex-end;
     margin-top: 18px;
 }
 
-.photo-sheet__save
-{
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 22px;
-    border-radius: 999px;
-    border: none;
-    background: #FF8A5C;
-    color: #fff;
-    font: 600 14px/1 inherit;
-    cursor: pointer;
-    box-shadow: 0 4px 12px rgba(255, 138, 92, 0.32);
-    transition: background 160ms ease, transform 160ms ease, opacity 160ms ease;
-}
 .ask-sheet__save
 {
     margin-left: auto;
@@ -1472,10 +1551,8 @@ body.has-chooser        .bird-picker
     box-shadow: 0 4px 12px rgba(255, 138, 92, 0.32);
     font: 700 18px/1 inherit;
 }
-.ask-sheet__save:hover,
-.photo-sheet__save:hover { background: #ff7842; transform: translateY(-1px); }
-.ask-sheet__save:disabled,
-.photo-sheet__save:disabled
+.ask-sheet__save:hover { background: #ff7842; transform: translateY(-1px); }
+.ask-sheet__save:disabled
 {
     opacity: 0.45;
     cursor: not-allowed;
@@ -1483,7 +1560,6 @@ body.has-chooser        .bird-picker
     box-shadow: none;
 }
 
-/* Photo sheet — file input drives a preview frame + caption */
 /* ---- AskSheet — multi-stage (compose / recording / review) ---- */
 
 .ask-sheet__stage { display: block; }
@@ -2076,166 +2152,7 @@ body.has-chooser        .bird-picker
     .ask-reframe__shape { animation: none; }
 }
 
-/* ---- PhotoSheet — live camera / review / denied ---- */
-
-.photo-sheet__stage { display: block; }
-.photo-sheet__stage[hidden] { display: none; }
-
-.photo-sheet__viewfinder
-{
-    margin: 18px 0 20px;
-    border-radius: 18px;
-    overflow: hidden;
-    background: #000;
-    aspect-ratio: 3 / 4;
-    max-height: 62vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
-}
-.photo-sheet__video
-{
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-.photo-sheet__hint--live
-{
-    margin: 0 0 14px;
-    font-size: 13px;
-    color: rgba(43, 38, 32, 0.7);
-    text-align: center;
-}
-
-.photo-sheet__row--shoot
-{
-    justify-content: center;
-    padding: 4px 0 20px;
-}
-.photo-sheet__shutter
-{
-    position: relative;
-    width: 78px;
-    height: 78px;
-    border-radius: 50%;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    padding: 0;
-    transition: transform 140ms ease;
-}
-.photo-sheet__shutter:active { transform: scale(0.96); }
-.photo-sheet__shutter-ring
-{
-    position: absolute;
-    inset: 0;
-    border-radius: 50%;
-    border: 4px solid rgba(43, 38, 32, 0.85);
-    background: transparent;
-}
-.photo-sheet__shutter-core
-{
-    position: absolute;
-    inset: 8px;
-    border-radius: 50%;
-    background: #fff;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-    transition: background 140ms ease;
-}
-.photo-sheet__shutter:hover .photo-sheet__shutter-core { background: #ffe8d8; }
-
-.photo-sheet__preview
-{
-    margin: 18px 0 20px;
-    border-radius: 18px;
-    overflow: hidden;
-    background: #000;
-    aspect-ratio: 3 / 4;
-    max-height: 62vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
-}
-.photo-sheet__image
-{
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-}
-
-.photo-sheet__caption
-{
-    width: 100%;
-    border: 1.5px solid rgba(0, 0, 0, 0.06);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.85);
-    padding: 12px 14px;
-    font: 15px/1.5 inherit;
-    color: inherit;
-    resize: vertical;
-    min-height: 72px;
-    outline: none;
-    transition: border-color 160ms ease;
-}
-.photo-sheet__caption:focus { border-color: rgba(255, 138, 92, 0.55); }
-
-.photo-sheet__row--review
-{
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    margin-top: 12px;
-}
-.photo-sheet__retry
-{
-    padding: 12px 22px;
-    border-radius: 999px;
-    border: 1.5px solid rgba(0, 0, 0, 0.1);
-    background: #fff;
-    color: #6a625a;
-    font: 500 14px/1 inherit;
-    cursor: pointer;
-    transition: background 160ms ease, color 160ms ease;
-}
-.photo-sheet__retry:hover { background: rgba(0, 0, 0, 0.04); color: #2b2620; }
-
-.photo-sheet__denied
-{
-    margin: 28px 0;
-    padding: 26px 24px;
-    border-radius: 18px;
-    background: rgba(255, 235, 220, 0.65);
-    border: 1.5px solid rgba(232, 84, 58, 0.25);
-    text-align: center;
-}
-.photo-sheet__denied-title
-{
-    margin: 0 0 8px;
-    font-size: 18px;
-    font-weight: 700;
-    color: #c45032;
-}
-.photo-sheet__denied-body
-{
-    margin: 0 0 18px;
-    font-size: 14.5px;
-    line-height: 1.5;
-    color: rgba(43, 38, 32, 0.75);
-}
-.photo-sheet__retry-perm
-{
-    padding: 10px 20px;
-    border-radius: 999px;
-    border: none;
-    background: #2b2620;
-    color: #fff;
-    font: 600 14px/1 inherit;
-    cursor: pointer;
-}
+/* (PhotoSheet CSS removed — see PhotoSheet feature removal in CaptureFab.) */
 
 @media (max-width: 640px)
 {
@@ -2246,9 +2163,7 @@ body.has-chooser        .bird-picker
         padding: 16px;
         border-radius: 22px;
     }
-    .photo-sheet { padding: 24px 16px 40px; }
     .ask-sheet__title { font-size: 18px; }
-    .photo-sheet__title { font-size: 20px; }
     .ask-sheet__emoji-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .ask-sheet__tools { gap: 6px; }
     .ask-live-chat
@@ -2282,11 +2197,16 @@ body.has-chooser        .bird-picker
     transition: transform 1400ms cubic-bezier(0.22, 1, 0.36, 1), opacity 1400ms ease-out;
 }
 
-/* Mood sheet — full-viewport slide-up from the bottom */
+/* Mood sheet — full-frame slide-up from the bottom (inset to the world frame). */
 .mood-sheet
 {
     position: fixed;
-    inset: 0;
+    top:    var(--frame-inset);
+    right:  var(--frame-inset);
+    bottom: var(--frame-inset);
+    left:   calc(var(--rail-width) + var(--frame-inset));
+    border-radius: var(--frame-radius);
+    box-shadow: var(--frame-ring);
     z-index: 30;
     background: linear-gradient(180deg, #faf6ee 0%, #f3eadd 100%);
     color: #2b2620;
@@ -2496,12 +2416,23 @@ body.has-chooser        .bird-picker
 .half-sheet
 {
     position: fixed;
-    inset: 0;
+    top:    var(--frame-inset);
+    right:  var(--frame-inset);
+    bottom: var(--frame-inset);
+    left:   calc(var(--rail-width) + var(--frame-inset));
+    border-radius: var(--frame-radius);
+    overflow: hidden;
     z-index: 25;
     pointer-events: none;
     color: var(--facet-ink, #2b2620);
     font-family: var(--font-sans);
+    /* Closed-state: fully hidden. Without this, the inner sheet's handle bar
+       (translated 100% below the half-sheet's bottom edge) can leak through
+       in browsers where overflow:hidden + transformed children produce
+       sub-pixel paint artefacts. Reveal happens via `.is-open` below. */
+    visibility: hidden;
 }
+.half-sheet.is-open { visibility: visible; }
 .half-sheet__scrim
 {
     position: absolute;
@@ -3103,102 +3034,217 @@ body.has-chooser        .bird-picker
     --facet-personality-ink:    #4C3470;
 }
 
-/* ============ top-nav ============ */
-.top-nav
+/* ============ side rail =====================================================
+   Left-edge vertical chrome — the primary navigation surface. Sits OUTSIDE
+   the rounded world frame, full viewport height, always visible (z-index 70,
+   above sheets at z-60 so it survives modal opens). Icon-only buttons with a
+   CSS tooltip that reveals on hover/focus. See `SideRail.js`. ---------- */
+.side-rail
 {
     position: fixed;
-    top: 12px;
-    right: 12px;     /* HourHud now lives on the mid-right edge, so this slot is free. */
-    z-index: 10;
-    display: inline-flex;
-    gap: 6px;
-    pointer-events: auto;
-    transition: opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
-                transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.top-nav__chip
-{
-    display: inline-flex;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--rail-width);
+    z-index: 70;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    gap: 8px;
-    height: 40px;
-    padding: 0 14px;
-    border-radius: 999px;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    background: rgba(253, 250, 243, 0.86);
-    color: #2b2620;
-    font: 500 13px/1 var(--font-sans);
-    cursor: pointer;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
+    /* Horizontal padding is asymmetric so the icons read as visually centered
+       in the parchment strip between viewport edge and frame edge — i.e. the
+       corridor of width (rail-width + frame-inset), not just the rail itself.
+       Adding padding-left equal to frame-inset shifts each button by half
+       that amount (since align-items:center centers in the remaining space).
+       Result: gap from viewport edge to icon == gap from icon to frame. */
+    padding: 14px 0 14px var(--frame-inset);
+    background: transparent;
+    pointer-events: auto;
+    user-select: none;
 }
 
-.top-nav__chip:hover  { transform: translateY(-1px); background: rgba(253, 250, 243, 0.96); }
-.top-nav__chip:active { transform: translateY(0); }
-
-.top-nav__icon
+.side-rail__group
 {
-    width: 20px;
-    height: 20px;
-    color: #7a6a55;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+}
+
+.side-rail__btn
+{
+    position: relative;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: rgba(43, 38, 32, 0.62);
+    cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 140ms ease;
+}
+
+.side-rail__btn:hover
+{
+    background: rgba(253, 250, 243, 0.85);
+    color: #2b2620;
+    border-color: rgba(43, 38, 32, 0.06);
+    transform: translateY(-1px);
+}
+
+.side-rail__btn:active { transform: translateY(0) scale(0.96); }
+
+.side-rail__btn:focus-visible
+{
+    outline: 2px solid rgba(43, 38, 32, 0.35);
+    outline-offset: 2px;
+}
+
+.side-rail__btn.is-active
+{
+    background: rgba(253, 250, 243, 0.95);
+    color: #2b2620;
+    border-color: rgba(43, 38, 32, 0.10);
+    box-shadow: 0 4px 14px rgba(43, 38, 32, 0.12);
+}
+
+/* Active button has no tooltip — the active styling already names where the
+   user is, and the tooltip duplicates the cue while colliding visually with
+   the active chip's outline. */
+.side-rail__btn.is-active .side-rail__tooltip
+{
+    display: none;
+}
+
+.side-rail__icon
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
     flex-shrink: 0;
 }
 
-.top-nav__label { letter-spacing: 0.01em; }
+/* CSS-driven tooltip — appears to the right of the button on hover/focus,
+   matches the Gathertown chrome posture. The label sits BEHIND the button
+   when collapsed (opacity 0, translate left a touch) and reveals into the
+   frame area on hover. */
+.side-rail__tooltip
+{
+    position: absolute;
+    left: calc(100% + 6px);
+    top: 50%;
+    transform: translate(-4px, -50%);
+    padding: 5px 9px;
+    border-radius: 8px;
+    background: rgba(20, 24, 32, 0.78);
+    color: #f4f1ea;
+    font: 500 11.5px/1 var(--font-sans);
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 140ms ease, transform 160ms ease;
+    z-index: 1;
+}
 
-/* Body-class hide rules: TopNav steps out of the way when anything full
-   sheet-style is open. Capture sheets cover the lower viewport, so we hide
-   it for those too even though they don't reach the top corner. */
-body.has-overlay        .top-nav,
-body.has-capture-sheet  .top-nav,
-body.has-chooser        .top-nav
+.side-rail__btn:hover .side-rail__tooltip,
+.side-rail__btn:focus-visible .side-rail__tooltip
+{
+    opacity: 1;
+    transform: translate(0, -50%);
+}
+
+/* Night-mode tints — the rail surround is dark, so flip the chip palette. */
+body.student-space-shell.is-night .side-rail__btn
+{
+    color: rgba(244, 241, 234, 0.62);
+}
+body.student-space-shell.is-night .side-rail__btn:hover,
+body.student-space-shell.is-night .side-rail__btn.is-active
+{
+    background: rgba(244, 241, 234, 0.10);
+    color: #f4f1ea;
+    border-color: rgba(244, 241, 234, 0.16);
+}
+
+/* During onboarding, suppress the rail along with the rest of the chrome —
+   the ceremony owns the viewport. */
+body.is-onboarding .side-rail,
+body.is-onb-landing .side-rail
 {
     opacity: 0;
     pointer-events: none;
-    transform: translateY(-6px);
 }
 
+/* Tablet/mobile fallback: collapse rail to a bottom strip when there's no
+   horizontal room. Buttons land in a row, tooltips drop above each button. */
 @media (max-width: 520px)
 {
-    .top-nav__label { display: none; }
-    .top-nav__chip { padding: 0 10px; }
+    .side-rail
+    {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 48px;
+        flex-direction: row;
+        justify-content: space-around;
+        padding: 0 12px;
+        background: rgba(253, 250, 243, 0.92);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        border-top: 1px solid rgba(43, 38, 32, 0.08);
+    }
+    .side-rail__group { flex-direction: row; gap: 4px; }
+    .side-rail__btn   { width: 40px; height: 40px; }
+    .side-rail__tooltip
+    {
+        left: 50%;
+        top: auto;
+        bottom: calc(100% + 6px);
+        transform: translate(-50%, 4px);
+    }
+    .side-rail__btn:hover .side-rail__tooltip,
+    .side-rail__btn:focus-visible .side-rail__tooltip
+    {
+        transform: translate(-50%, 0);
+    }
 }
 
 @media (prefers-reduced-motion: reduce)
 {
-    .top-nav,
-    .top-nav__chip { transition-duration: 80ms; }
+    .side-rail__btn,
+    .side-rail__tooltip { transition-duration: 80ms; }
 }
 
-/* ============ capture sheets — read-only mode shared by Ask/Photo/Mood ============
+/* (TopNav and OnboardingRestart chrome rules removed — both subsystems were
+   folded into `.side-rail` above. See SideRail.js.) */
+
+/* ============ capture sheets — read-only mode shared by Ask/Mood ============
    When opened from a Profile quote's "see source reflection →" link, the
    sheet renders in replay-mode: textarea/caption become disabled bystanders,
    the save row + mic row are hidden, the title's eyebrow swaps. */
 .ask-sheet.is-read-only .ask-sheet__row,
 .ask-sheet.is-read-only .ask-sheet__mic,
-.photo-sheet.is-read-only .photo-sheet__row,
-.photo-sheet.is-read-only .photo-sheet__shoot,
-.photo-sheet.is-read-only .photo-sheet__retry,
 .mood-sheet.is-read-only .mood-sheet__skip-row
 {
     display: none;
 }
 
-.ask-sheet.is-read-only .ask-sheet__input,
-.photo-sheet.is-read-only .photo-sheet__caption
+.ask-sheet.is-read-only .ask-sheet__input
 {
     opacity: 0.85;
     cursor: default;
 }
 
 .ask-sheet.is-read-only .ask-sheet__eyebrow::before,
-.photo-sheet.is-read-only .photo-sheet__eyebrow::before,
 .mood-sheet.is-read-only .mood-sheet__title::before
 {
     content: 'Replay · ';
@@ -5844,14 +5890,28 @@ body.has-capture-sheet .object-peek
    orchestrator toggles `body.is-onboarding` on start() and removes it in
    _finish(). The autonomous Kira bubble stays gated by its own onboarding
    mode flag; the orchestrator drives it via sayOnboarding(). */
-body.is-onboarding .top-nav,
+/* During the ceremony AND the Edupass landing, suppress every chrome surface
+   so the surface owns the viewport. The landing class is a sub-state of the
+   ceremony, but we list both explicitly so a refactor that drops one doesn't
+   silently leak chrome onto the other. */
+body.is-onboarding .side-rail,
 body.is-onboarding .capture-fab,
 body.is-onboarding .hour-hud,
 body.is-onboarding .zoom-hud,
 body.is-onboarding .bird-picker,
 body.is-onboarding .track-picker,
 body.is-onboarding .object-peek,
-body.is-onboarding .hover-cta
+body.is-onboarding .hover-cta,
+body.is-onboarding .half-sheet,
+body.is-onb-landing .side-rail,
+body.is-onb-landing .capture-fab,
+body.is-onb-landing .hour-hud,
+body.is-onb-landing .zoom-hud,
+body.is-onb-landing .bird-picker,
+body.is-onb-landing .track-picker,
+body.is-onb-landing .object-peek,
+body.is-onb-landing .hover-cta,
+body.is-onb-landing .half-sheet
 {
     pointer-events: none;
     opacity: 0;
@@ -6104,6 +6164,39 @@ body.is-dev-overlay-hidden .hour-hud
 {
     background: rgba(255, 255, 255, 0.92);
     color: var(--onb-ink-deep, #2b2620);
+}
+
+/* Dev escape hatch beneath the demo note — small, low-contrast so it reads as
+   a back-door rather than a peer of the Edupass CTA. Underlined on hover to
+   land closer to a text link than a chip. */
+.onb-login__skip
+{
+    margin-top: 6px;
+    padding: 4px 8px;
+    border: 0;
+    background: transparent;
+    color: rgba(43, 38, 32, 0.45);
+    font: 500 11px/1.2 var(--font-sans);
+    letter-spacing: 0.04em;
+    text-transform: lowercase;
+    cursor: pointer;
+    text-decoration: underline dotted transparent;
+    text-underline-offset: 3px;
+    transition: color 160ms ease, text-decoration-color 160ms ease;
+}
+.onb-login__skip:hover
+{
+    color: rgba(43, 38, 32, 0.78);
+    text-decoration-color: currentColor;
+}
+.onb-login--landing .onb-login__skip
+{
+    color: rgba(255, 255, 255, 0.55);
+    text-shadow: 0 1px 2px rgba(7, 18, 36, 0.35);
+}
+.onb-login--landing .onb-login__skip:hover
+{
+    color: rgba(255, 255, 255, 0.88);
 }
 
 /* ── Greeting ───────────────────────────────────────────────────────── */
