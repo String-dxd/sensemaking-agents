@@ -33,10 +33,15 @@ import { runConnector } from '~/server/run-connector.functions'
 import { runMirror } from '~/server/run-mirror.functions'
 
 export const Route = createFileRoute('/dev/pipeline')({
-  // Dev-only surface. In production the route 404s before the loader runs so
-  // verifier audit data is not reachable from a deployed app.
+  // Dev surface. Reachable in `vite dev` by default; in production builds it
+  // 404s before the loader runs unless `VITE_ENABLE_DEV_PALETTE=1` is set at
+  // build time. Vercel staging sets the flag so QA can audit the verifier
+  // trace; real production builds without the flag keep the route hidden so
+  // audit data is not reachable from a deployed app.
   beforeLoad: () => {
-    if (!import.meta.env.DEV) throw notFound()
+    if (!import.meta.env.DEV && import.meta.env.VITE_ENABLE_DEV_PALETTE !== '1') {
+      throw notFound()
+    }
   },
   loader: () => loadPipelineTrace({ data: {} }),
   component: PipelinePage,
