@@ -35,9 +35,13 @@ function RootComponent() {
             <Outlet />
           </main>
         </div>
-        {/* Dev-only Cmd-K palette. Tree-shaken out of production bundles so
-            the keybinding and developer commands do not ship to end users. */}
-        {import.meta.env.DEV ? <DevPalette /> : null}
+        {/* Cmd-K palette. On in dev by default; in production builds it is
+            included only when `VITE_ENABLE_DEV_PALETTE=1` is set at build
+            time. Vercel staging sets the flag so QA can reach `/dev/pipeline`
+            and the other developer commands. */}
+        {import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_PALETTE === '1' ? (
+          <DevPalette />
+        ) : null}
       </QueryClientProvider>
     </RootDocument>
   )
