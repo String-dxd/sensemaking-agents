@@ -1,7 +1,7 @@
 ---
 title: "refactor: Profile + Path Finder — TLDR, progressive disclosure, visual breaks"
 type: refactor
-status: active
+status: completed
 date: 2026-05-20
 ---
 
