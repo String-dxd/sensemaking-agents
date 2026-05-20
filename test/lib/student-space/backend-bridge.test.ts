@@ -5,6 +5,7 @@ const runConnectorMock = vi.hoisted(() => vi.fn())
 const submitStudentSpaceReflectionMock = vi.hoisted(() => vi.fn())
 const prepareStudentSpaceReflectionMock = vi.hoisted(() => vi.fn())
 const persistMirrorMock = vi.hoisted(() => vi.fn())
+const transcribeMirrorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('~/server/run-connector.functions', () => ({
   runConnector: (args: unknown) => runConnectorMock(args),
@@ -42,6 +43,10 @@ vi.mock('~/server/submit-student-space-reflection.functions', () => ({
   submitStudentSpaceReflection: (args: unknown) => submitStudentSpaceReflectionMock(args),
 }))
 
+vi.mock('~/server/transcribe-mirror.functions', () => ({
+  transcribeMirror: (args: unknown) => transcribeMirrorMock(args),
+}))
+
 vi.mock('~/server/update-mirror-review.functions', () => ({
   updateMirrorReview: vi.fn(),
 }))
@@ -51,6 +56,7 @@ afterEach(() => {
   submitStudentSpaceReflectionMock.mockReset()
   prepareStudentSpaceReflectionMock.mockReset()
   persistMirrorMock.mockReset()
+  transcribeMirrorMock.mockReset()
 })
 
 describe('createStudentSpaceBackendBridge', () => {
@@ -92,7 +98,7 @@ describe('createStudentSpaceBackendBridge', () => {
         inferred_meaning: 'meaning',
         story_reframe: 'story',
         context_type: 'school',
-        review_status: 'pending',
+        review_status: 'confirmed',
         created_at: '2026-05-18T08:00:00.000Z',
       },
     })
@@ -114,7 +120,7 @@ describe('createStudentSpaceBackendBridge', () => {
     })
     expect(result?.mirrorEntry).toMatchObject({
       transcript: 'open ai transcript',
-      reviewStatus: 'pending',
+      reviewStatus: 'confirmed',
     })
   })
 
@@ -159,7 +165,30 @@ describe('createStudentSpaceBackendBridge', () => {
     })
   })
 
-  it('logs a prepared reflection through the existing Mirror persistence function', async () => {
+  it('transcribes recorded audio through the OpenAI transcription server function', async () => {
+    transcribeMirrorMock.mockResolvedValueOnce({
+      transcript: 'open ai transcript',
+      durationMs: 22,
+    })
+
+    const result = await createStudentSpaceBackendBridge().transcribeReflectionAudio?.({
+      audioBase64: 'YXVkaW8=',
+      mimeType: 'audio/webm',
+    })
+
+    expect(transcribeMirrorMock).toHaveBeenCalledWith({
+      data: {
+        audioBase64: 'YXVkaW8=',
+        mimeType: 'audio/webm',
+      },
+    })
+    expect(result).toEqual({
+      transcript: 'open ai transcript',
+      durationMs: 22,
+    })
+  })
+
+  it('logs a prepared reflection as confirmed through Mirror persistence', async () => {
     persistMirrorMock.mockResolvedValueOnce({
       mirror_entry: {
         id: 42,
@@ -168,7 +197,7 @@ describe('createStudentSpaceBackendBridge', () => {
         inferred_meaning: 'meaning',
         story_reframe: 'story',
         context_type: 'school',
-        review_status: 'pending',
+        review_status: 'confirmed',
         created_at: '2026-05-18T08:00:00.000Z',
       },
     })
@@ -194,6 +223,7 @@ describe('createStudentSpaceBackendBridge', () => {
           story_reframe: 'story',
         },
         context_type: 'school',
+        review_status: 'confirmed',
         mood: 'joy',
         raw_output: {
           validation: 'valid',
@@ -215,8 +245,49 @@ describe('createStudentSpaceBackendBridge', () => {
       mirrorEntry: {
         id: 42,
         transcript: 'open ai transcript',
-        reviewStatus: 'pending',
+        reviewStatus: 'confirmed',
       },
+    })
+  })
+
+  it('persists a forgotten prepared reflection when the draft is explicitly forgotten', async () => {
+    persistMirrorMock.mockResolvedValueOnce({
+      mirror_entry: {
+        id: 43,
+        transcript: 'discarded transcript',
+        validation: 'valid',
+        inferred_meaning: 'meaning',
+        story_reframe: 'story',
+        context_type: 'school',
+        review_status: 'forgotten',
+        created_at: '2026-05-18T08:00:00.000Z',
+      },
+    })
+
+    const result = await createStudentSpaceBackendBridge().forgetPreparedReflection?.({
+      localCaptureId: 'local-forget',
+      transcript: 'discarded transcript',
+      validation: 'valid',
+      inferredMeaning: 'meaning',
+      storyReframe: 'story',
+      contextType: 'school',
+    })
+
+    expect(persistMirrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          review_status: 'forgotten',
+          trace: expect.objectContaining({
+            source: 'student-space',
+            local_capture_id: 'local-forget',
+            prepared: true,
+          }),
+        }),
+      }),
+    )
+    expect(result?.mirrorEntry).toMatchObject({
+      id: 43,
+      reviewStatus: 'forgotten',
     })
   })
 })

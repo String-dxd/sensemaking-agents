@@ -122,7 +122,7 @@ describe('Student Space AskSheet audio capture', () => {
         storyReframe: 'Kira heard the Realtime session.',
         inferredMeaning: 'Voice went straight through Realtime.',
         contextType: 'school',
-        reviewStatus: 'pending',
+        reviewStatus: 'confirmed',
       },
     }))
     const captures = makeCaptures()
@@ -305,6 +305,88 @@ describe('Student Space AskSheet audio capture', () => {
     sheet.dispose()
   })
 
+  it('uses direct OpenAI transcription before preparing MediaRecorder audio with Mirror', async () => {
+    const transcribeReflectionAudio = vi.fn(async () => ({
+      transcript: 'OpenAI heard the recording.',
+      durationMs: 19,
+    }))
+    const prepareReflection = vi.fn(async (input: Record<string, unknown>) => ({
+      localCaptureId: input.localCaptureId,
+      transcript: input.transcript,
+      validation: 'That was transcribed first.',
+      inferredMeaning: 'The transcript arrived before Mirror.',
+      storyReframe: 'Kira read the OpenAI transcript.',
+      contextType: 'school',
+    }))
+    const logPreparedReflection = vi.fn(async (prepared: Record<string, unknown>) => ({
+      localCaptureId: prepared.localCaptureId,
+      mirrorEntry: {
+        id: 79,
+        transcript: prepared.transcript,
+        validation: 'That was transcribed first.',
+        storyReframe: 'Kira read the OpenAI transcript.',
+        inferredMeaning: 'The transcript arrived before Mirror.',
+        contextType: 'school',
+        reviewStatus: 'confirmed',
+      },
+    }))
+    const captures = makeCaptures()
+    state.instance = {
+      captures,
+      backend: { transcribeReflectionAudio, prepareReflection, logPreparedReflection },
+    }
+    OverlayController.instance = new OverlayController()
+
+    const sheet = new AskSheet() as { open: () => void; dispose: () => void }
+    sheet.open()
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__mic')?.click()
+    await waitFor(() => expect(lastRecorder?.state).toBe('recording'))
+    expect(document.querySelector('.ask-sheet__hint--live')?.textContent).toContain(
+      'OpenAI will transcribe',
+    )
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__stop')?.click()
+
+    await waitFor(() => expect(transcribeReflectionAudio).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(prepareReflection).toHaveBeenCalledTimes(1))
+    expect(prepareReflection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        localCaptureId: expect.stringMatching(/^ask-/),
+        transcript: 'OpenAI heard the recording.',
+        contextType: 'school',
+      }),
+    )
+    const preparedInput = prepareReflection.mock.calls[0]?.[0]
+    expect(preparedInput).not.toHaveProperty('audioBase64')
+    expect(document.querySelector('.ask-live-chat__bubble--student')?.textContent).toContain(
+      'OpenAI heard the recording.',
+    )
+    await waitFor(
+      () =>
+        expect(document.querySelector('.ask-reframe__prose')?.textContent).toContain(
+          'Kira read the OpenAI transcript',
+        ),
+      { timeout: 2500 },
+    )
+
+    document.querySelector<HTMLButtonElement>('.ask-sheet__log--reframe')?.click()
+    await waitFor(() => expect(logPreparedReflection).toHaveBeenCalledTimes(1))
+    expect(logPreparedReflection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transcript: 'OpenAI heard the recording.',
+        transcription: { transcript: 'OpenAI heard the recording.', durationMs: 19 },
+      }),
+    )
+    expect(captures.entries[0]).toMatchObject({
+      text: 'OpenAI heard the recording.',
+      backendMirrorEntryId: 79,
+      syncStatus: 'synced',
+    })
+
+    sheet.dispose()
+  })
+
   it('records audio, prepares a Mirror result, then logs only after the student chooses Log', async () => {
     const prepareReflection = vi.fn(async (input: Record<string, unknown>) => ({
       localCaptureId: input.localCaptureId,
@@ -323,7 +405,7 @@ describe('Student Space AskSheet audio capture', () => {
         storyReframe: 'Mirror heard the recording.',
         inferredMeaning: 'Voice went through OpenAI first.',
         contextType: 'school',
-        reviewStatus: 'pending',
+        reviewStatus: 'confirmed',
       },
     }))
     const captures = makeCaptures()
@@ -392,7 +474,7 @@ describe('Student Space AskSheet audio capture', () => {
     sheet.dispose()
   })
 
-  it('forgets a prepared Mirror result without logging or saving a capture', async () => {
+  it('marks a prepared Mirror result forgotten without logging or saving a capture', async () => {
     const prepareReflection = vi.fn(async (input: Record<string, unknown>) => ({
       localCaptureId: input.localCaptureId,
       transcript: 'server transcript',
@@ -402,10 +484,23 @@ describe('Student Space AskSheet audio capture', () => {
       contextType: 'school',
     }))
     const logPreparedReflection = vi.fn()
+    const forgetPreparedReflection = vi.fn(async () => ({
+      localCaptureId: 'local-voice',
+      mirrorEntry: {
+        id: 78,
+        transcript: 'server transcript',
+        validation: 'That was recorded.',
+        inferredMeaning: 'Voice went through OpenAI first.',
+        storyReframe: 'Mirror heard the recording.',
+        contextType: 'school',
+        reviewStatus: 'forgotten',
+        createdAt: '2026-05-18T08:00:00.000Z',
+      },
+    }))
     const captures = makeCaptures()
     state.instance = {
       captures,
-      backend: { prepareReflection, logPreparedReflection },
+      backend: { prepareReflection, logPreparedReflection, forgetPreparedReflection },
     }
     OverlayController.instance = new OverlayController()
 
@@ -424,6 +519,7 @@ describe('Student Space AskSheet audio capture', () => {
 
     document.querySelector<HTMLButtonElement>('.ask-sheet__forget-draft')?.click()
 
+    await waitFor(() => expect(forgetPreparedReflection).toHaveBeenCalledTimes(1))
     expect(logPreparedReflection).not.toHaveBeenCalled()
     expect(captures.entries).toHaveLength(0)
 
@@ -564,10 +660,11 @@ describe('Student Space AskSheet audio capture', () => {
       contextType: 'school',
     }))
     const logPreparedReflection = vi.fn()
+    const forgetPreparedReflection = vi.fn()
     const captures = makeCaptures()
     state.instance = {
       captures,
-      backend: { prepareReflection, logPreparedReflection },
+      backend: { prepareReflection, logPreparedReflection, forgetPreparedReflection },
     }
     OverlayController.instance = new OverlayController()
 
@@ -590,6 +687,7 @@ describe('Student Space AskSheet audio capture', () => {
     document.querySelector<HTMLButtonElement>('.ask-sheet__close')?.click()
 
     expect(logPreparedReflection).not.toHaveBeenCalled()
+    expect(forgetPreparedReflection).not.toHaveBeenCalled()
     expect(captures.entries).toHaveLength(0)
 
     sheet.dispose()

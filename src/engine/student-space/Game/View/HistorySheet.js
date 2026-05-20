@@ -281,17 +281,30 @@ export default class HistorySheet
         this.activeYear = year
         this._renderPills()
 
-        Promise.all([
+        Promise.allSettled([
             this._fetchSummary(year),
             this._fetchIslandState(year),
-        ]).then(([summary, islandState]) =>
+        ]).then(([summaryResult, islandResult]) =>
         {
             if(this.activeYear !== year) return
-            this._renderSummary(summary)
-            this._renderIsland(islandState)
-        }).catch(err =>
-        {
-            console.warn('[HistorySheet] year load failed', err)
+            if(summaryResult.status === 'fulfilled') this._renderSummary(summaryResult.value)
+            else
+            {
+                console.warn('[HistorySheet] summary load failed', summaryResult.reason)
+                this._renderSummaryError()
+            }
+            if(islandResult.status === 'fulfilled') this._renderIsland(islandResult.value)
+            else
+            {
+                console.warn('[HistorySheet] island-state load failed', islandResult.reason)
+                this._renderIsland({
+                    source: 'empty',
+                    capturedAt: null,
+                    year,
+                    bloomedTrees: [],
+                    unavailable: true,
+                })
+            }
         })
     }
 
@@ -337,6 +350,12 @@ export default class HistorySheet
         `).join('')
     }
 
+    _renderSummaryError()
+    {
+        this.narrativeEl.textContent = 'Could not load this year yet.'
+        this.statsEl.innerHTML = ''
+    }
+
     _renderIsland(islandState)
     {
         if(!islandState)
@@ -348,7 +367,12 @@ export default class HistorySheet
         try { sproutsView?.setTimelapseSubset?.(islandState.bloomedTrees || []) }
         catch(err) { console.warn('[HistorySheet] setTimelapseSubset failed', err) }
 
-        if(islandState.source === 'snapshot')
+        if(islandState.unavailable)
+        {
+            this.sourceLabelEl.textContent = 'Island snapshot unavailable'
+            this.sourceLabelEl.hidden = false
+        }
+        else if(islandState.source === 'snapshot')
         {
             const date = islandState.capturedAt
                 ? new Date(islandState.capturedAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })

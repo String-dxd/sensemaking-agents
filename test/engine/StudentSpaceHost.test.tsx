@@ -7,6 +7,7 @@
  *  - renders a container that the engine can attach to
  *  - calls `dispose()` on unmount (React StrictMode double-mount lifecycle)
  *  - falls back to the `EngineLoadFailure` panel when `createGame` throws
+ *  - keeps capture classification owned by Connector/Mirror outcomes, not UI prompts
  */
 import { render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -141,6 +142,29 @@ describe('StudentSpaceHost', () => {
     expect(openSurface).toHaveBeenLastCalledWith(
       expect.objectContaining({ surface: 'reflections', filter: 'need-review', entryId: 7 }),
     )
+  })
+
+  it('does not subscribe to captures for manual classification prompts', async () => {
+    const captureSubscribe = vi.fn(
+      (_cb: (entry: { id: string; dimension?: string | null }) => void) => vi.fn(),
+    )
+    const setDimensionForFirstCapture = vi.fn()
+    createGame.mockImplementationOnce(() => ({
+      dispose,
+      openSurface,
+      state: {
+        captures: { subscribe: captureSubscribe },
+        sprouts: { setDimensionForFirstCapture },
+      },
+    }))
+
+    render(<StudentSpaceHost />)
+
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    expect(captureSubscribe).not.toHaveBeenCalled()
+    expect(setDimensionForFirstCapture).not.toHaveBeenCalled()
+    expect(screen.queryByText('What is this about?')).not.toBeInTheDocument()
+    expect(screen.queryByText('Which value?')).not.toBeInTheDocument()
   })
 
   it('waits for backend hydration before opening a route-targeted trajectory sheet', async () => {

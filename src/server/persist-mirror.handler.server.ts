@@ -6,7 +6,7 @@ import {
   MemoryWriteError,
 } from '~/agents/memory'
 import { requireCounselorContext } from '~/auth/identity'
-import { insertMirrorEntry, type MirrorEntryRow } from '~/db/queries'
+import { insertMirrorEntry, type MirrorEntryRow, updateMirrorEntryReviewStatus } from '~/db/queries'
 import { checkPayloadForDiagnosticLanguage } from '~/lib/safety'
 import { type PersistMirrorInput, persistMirrorInputSchema } from './mirror-function-schemas'
 import { mirrorMoodTag } from './mood-tags'
@@ -32,6 +32,7 @@ export interface PersistMirrorResult {
 export interface PersistMirrorDeps {
   requireContext?: typeof requireCounselorContext
   insertMirrorEntry?: typeof insertMirrorEntry
+  updateMirrorEntryReviewStatus?: typeof updateMirrorEntryReviewStatus
   appendStudentMemory?: typeof appendStudentMemoryDefault
   /**
    * Override the Anthropic memory-store transport. Default lazily wraps the
@@ -67,7 +68,7 @@ export async function persistMirrorForStudent(
   // transaction of its own.
   const insertMirrorEntryFn = deps.insertMirrorEntry ?? insertMirrorEntry
   const taggedMood = parsed.mood ?? null
-  const mirrorEntry = await insertMirrorEntryFn(studentId, {
+  let mirrorEntry = await insertMirrorEntryFn(studentId, {
     transcript: parsed.entry.transcript,
     validation: parsed.entry.validation,
     inferred_meaning: parsed.entry.inferred_meaning,
@@ -81,6 +82,11 @@ export async function persistMirrorForStudent(
     trace: parsed.trace,
     tags: taggedMood ? [mirrorMoodTag(taggedMood)] : undefined,
   })
+  if (parsed.review_status) {
+    const updateReviewStatus = deps.updateMirrorEntryReviewStatus ?? updateMirrorEntryReviewStatus
+    mirrorEntry =
+      (await updateReviewStatus(studentId, mirrorEntry.id, parsed.review_status)) ?? mirrorEntry
+  }
 
   // ── Student-voice memory append (best-effort, non-blocking) ──
   // The Mirror output passed the diagnostic-language gate above, so the

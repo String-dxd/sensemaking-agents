@@ -84,4 +84,33 @@ describe('persistMirrorHandler', () => {
       }),
     )
   })
+
+  it('can persist a Mirror row with a review status selected by the caller', async () => {
+    const requireContext = vi.fn(async () => ({ counselorId: 'counselor', studentId: 'demo' }))
+    const insertMirrorEntry = vi.fn(async () => mirrorEntry())
+    const confirmed = { ...mirrorEntry(), review_status: 'confirmed' as const }
+    const updateMirrorEntryReviewStatus = vi.fn(async () => confirmed)
+
+    const result = await persistMirrorHandler(
+      {
+        ...input(),
+        review_status: 'confirmed',
+      },
+      {
+        requireContext,
+        insertMirrorEntry,
+        updateMirrorEntryReviewStatus,
+        appendStudentMemory: vi.fn(async () => ({
+          filePath: MEMORY_FILE_PATHS.studentVoice,
+          skipped: false,
+          opCount: 1,
+          snapshotVersion: null,
+          memoryId: 'mem_1',
+        })),
+      },
+    )
+
+    expect(updateMirrorEntryReviewStatus).toHaveBeenCalledWith('demo', 42, 'confirmed')
+    expect(result.mirror_entry.review_status).toBe('confirmed')
+  })
 })

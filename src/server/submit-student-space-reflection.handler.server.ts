@@ -72,6 +72,7 @@ export async function submitStudentSpaceReflectionHandler(
       },
       context_type: parsed.context_type,
       mood: parsed.mood,
+      review_status: 'confirmed',
       raw_output: mirror.output,
       trace: {
         source: 'student-space',

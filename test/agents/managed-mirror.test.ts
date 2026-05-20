@@ -131,6 +131,24 @@ describe('U6 runManagedAgent — happy path', () => {
     })
     expect(result.output.validation).toMatch(/stayed long enough/)
   })
+
+  it('extracts JSON from wrapper text when the fence is not closed cleanly', async () => {
+    const transport = makeFakeTransport([
+      {
+        type: 'agent.message',
+        text: `\`\`\`json\n${VALID_MIRROR_JSON}\n\nI will stop here.`,
+      },
+      { type: 'session.status_idle', stopReason: 'end_turn' },
+    ])
+    const result = await runManagedAgent({
+      agentId: 'agt_mirror',
+      environmentId: 'env_x',
+      prompt: 'p',
+      outputSchema: MirrorOutputSchema,
+      transport,
+    })
+    expect(result.output.story_reframe).toContain('afternoon slipped')
+  })
 })
 
 describe('U6 runManagedAgent — failure modes', () => {

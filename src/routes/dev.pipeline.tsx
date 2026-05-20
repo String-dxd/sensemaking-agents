@@ -1,9 +1,21 @@
-import { createFileRoute, notFound } from '@tanstack/react-router'
-import { useMemo, useState } from 'react'
+import { createFileRoute, notFound, useRouter } from '@tanstack/react-router'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { RunStepEvent } from '~/agents/run-events'
 import type { CartographerOutputRow, MirrorReviewStatus, VipsProposedDiffRow } from '~/db/queries'
+import {
+  canCreateRealtimeMirrorCapture,
+  createRealtimeMirrorCapture,
+  type StudentSpaceRealtimeConversationUpdate,
+  type StudentSpaceRealtimeMirrorCapture,
+  type StudentSpaceRealtimePreparedReflection,
+} from '~/lib/student-space/realtime-mirror-client'
 import { cn } from '~/lib/utils'
 import { loadPipelineTrace } from '~/server/load-pipeline-trace.functions'
 import type { PipelineMirrorRow, PipelineTraceResult } from '~/server/load-pipeline-trace.types'
+import { persistMirror } from '~/server/persist-mirror.functions'
+import { runCartographer } from '~/server/run-cartographer.functions'
+import { runConnector } from '~/server/run-connector.functions'
+import { runMirror } from '~/server/run-mirror.functions'
 
 export const Route = createFileRoute('/dev/pipeline')({
   // Dev-only surface. In production the route 404s before the loader runs so
@@ -47,17 +59,72 @@ export function PipelinePageView({ data }: { data: PipelineTraceResult }) {
 
 function PipelinePage() {
   const data = Route.useLoaderData()
-  return <PipelinePageInner data={data} />
+  const router = useRouter()
+  return <PipelinePageInner data={data} onRefresh={() => void router.invalidate()} />
 }
 
-function PipelinePageInner({ data }: { data: PipelineTraceResult }) {
+type PipelineActionKey = 'realtime-transcript' | 'initial-chat' | 'connector' | 'sensemaking'
+type PipelineActionState = {
+  key: PipelineActionKey
+  status: 'idle' | 'running' | 'ok' | 'error'
+  message: string
+}
+
+type PipelineActionLogEntry = {
+  id: string
+  at: string
+  tone: 'info' | 'success' | 'error'
+  text: string
+}
+
+type PipelineActionTools = {
+  log: (text: string, tone?: PipelineActionLogEntry['tone']) => void
+  setWaitingLabel: (label: string) => void
+}
+
+type RealtimeTranscriptStage = 'idle' | 'connecting' | 'recording' | 'stopping'
+
+const DEFAULT_DEV_TRANSCRIPT =
+  'I helped my friend debug our robotics project after class and noticed I liked breaking the problem into small tests.'
+
+function PipelinePageInner({
+  data,
+  onRefresh,
+}: {
+  data: PipelineTraceResult
+  onRefresh?: () => void | Promise<void>
+}) {
   const [openIds, setOpenIds] = useState<Set<number>>(new Set())
   const [filter, setFilter] = useState<FilterState>('all')
+  const [transcript, setTranscript] = useState(DEFAULT_DEV_TRANSCRIPT)
+  const [realtimeStage, setRealtimeStage] = useState<RealtimeTranscriptStage>('idle')
+  const [realtimeConversation, setRealtimeConversation] = useState<
+    StudentSpaceRealtimeConversationUpdate[]
+  >([])
+  const [realtimePrepared, setRealtimePrepared] =
+    useState<StudentSpaceRealtimePreparedReflection | null>(null)
+  const realtimeCaptureRef = useRef<StudentSpaceRealtimeMirrorCapture | null>(null)
+  const [action, setAction] = useState<PipelineActionState>({
+    key: 'initial-chat',
+    status: 'idle',
+    message: 'Ready.',
+  })
+  const [actionLog, setActionLog] = useState<PipelineActionLogEntry[]>([
+    makeActionLogEntry('Ready.', 'info'),
+  ])
 
   const filteredMirrors = useMemo(() => {
     if (filter === 'all') return data.mirrors
     return data.mirrors.filter((m) => m.review_status === filter)
   }, [data.mirrors, filter])
+
+  useEffect(
+    () => () => {
+      realtimeCaptureRef.current?.abort()
+      realtimeCaptureRef.current = null
+    },
+    [],
+  )
 
   function toggleRow(id: number) {
     setOpenIds((prev) => {
@@ -67,6 +134,213 @@ function PipelinePageInner({ data }: { data: PipelineTraceResult }) {
       return next
     })
   }
+
+  function appendActionLog(text: string, tone: PipelineActionLogEntry['tone'] = 'info') {
+    setActionLog((prev) => [...prev, makeActionLogEntry(text, tone)])
+  }
+
+  function upsertRealtimeConversation(update: StudentSpaceRealtimeConversationUpdate) {
+    const text = update.text.trim()
+    if (!text) return
+    setRealtimeConversation((prev) => {
+      const existingIndex = prev.findIndex((item) => item.id === update.id)
+      if (existingIndex === -1) return [...prev, { ...update, text }]
+      const next = [...prev]
+      next[existingIndex] = { ...update, text }
+      return next
+    })
+    if (update.status === 'final') {
+      appendActionLog(
+        `Realtime ${update.role === 'kira' ? 'Kira' : 'student'}: ${truncateForLog(text)}`,
+      )
+    }
+  }
+
+  async function startRealtimeTranscriptTest() {
+    if (action.status === 'running' || realtimeStage !== 'idle') return
+    if (!canCreateRealtimeMirrorCapture()) {
+      const message = 'Realtime GPT transcript test is not available in this browser.'
+      setAction({ key: 'realtime-transcript', status: 'error', message })
+      setActionLog([makeActionLogEntry(message, 'error')])
+      return
+    }
+
+    setRealtimeStage('connecting')
+    setRealtimeConversation([])
+    setRealtimePrepared(null)
+    setAction({
+      key: 'realtime-transcript',
+      status: 'running',
+      message: 'Opening Realtime GPT transcript test...',
+    })
+    setActionLog([
+      makeActionLogEntry('Realtime: requesting microphone and GPT Realtime session.', 'info'),
+    ])
+
+    try {
+      const capture = await createRealtimeMirrorCapture({
+        localCaptureId: `dev-pipeline-realtime-${Date.now()}`,
+        contextType: 'school',
+        onConversationUpdate: upsertRealtimeConversation,
+      })
+      realtimeCaptureRef.current = capture
+      setRealtimeStage('recording')
+      appendActionLog('Realtime: connected. Speak into the mic, then stop session.', 'success')
+      setAction({
+        key: 'realtime-transcript',
+        status: 'running',
+        message: 'Realtime session live. Speak, then stop to finalize transcript.',
+      })
+    } catch (err) {
+      realtimeCaptureRef.current = null
+      setRealtimeStage('idle')
+      const message = err instanceof Error ? err.message : String(err)
+      appendActionLog(message, 'error')
+      setAction({ key: 'realtime-transcript', status: 'error', message })
+    }
+  }
+
+  async function stopRealtimeTranscriptTest() {
+    const capture = realtimeCaptureRef.current
+    if (!capture || realtimeStage !== 'recording') return
+
+    setRealtimeStage('stopping')
+    setAction({
+      key: 'realtime-transcript',
+      status: 'running',
+      message: 'Stopping Realtime GPT transcript test...',
+    })
+    appendActionLog('Realtime: stopping session and requesting final Mirror JSON.')
+
+    try {
+      const prepared = await capture.stop()
+      realtimeCaptureRef.current = null
+      setRealtimeStage('idle')
+      setRealtimePrepared(prepared)
+      setTranscript(prepared.transcript)
+      const message = `Realtime transcript captured (${wordCount(prepared.transcript)} words).`
+      appendActionLog('Realtime: transcript copied into the initial chat field.', 'success')
+      setAction({ key: 'realtime-transcript', status: 'ok', message })
+    } catch (err) {
+      realtimeCaptureRef.current = null
+      setRealtimeStage('idle')
+      const message = err instanceof Error ? err.message : String(err)
+      appendActionLog(message, 'error')
+      setAction({ key: 'realtime-transcript', status: 'error', message })
+    }
+  }
+
+  async function runPipelineAction(
+    key: PipelineActionKey,
+    initialWaitingLabel: string,
+    work: (tools: PipelineActionTools) => Promise<string>,
+  ) {
+    let waitingLabel = initialWaitingLabel
+    const startedAt = Date.now()
+    const log = (text: string, tone: PipelineActionLogEntry['tone'] = 'info') => {
+      setActionLog((prev) => [...prev, makeActionLogEntry(text, tone)])
+    }
+    const setWaitingLabel = (label: string) => {
+      waitingLabel = label
+    }
+    setAction({ key, status: 'running', message: `Running ${initialWaitingLabel}...` })
+    setActionLog([makeActionLogEntry(`Started ${initialWaitingLabel}.`, 'info')])
+    const heartbeat = window.setInterval(() => {
+      const elapsedSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000))
+      log(`Still waiting on ${waitingLabel} (${elapsedSeconds}s elapsed).`)
+    }, 5000)
+    try {
+      const message = await work({ log, setWaitingLabel })
+      window.clearInterval(heartbeat)
+      log(message, 'success')
+      setAction({ key, status: 'ok', message })
+      await onRefresh?.()
+    } catch (err) {
+      window.clearInterval(heartbeat)
+      const message = err instanceof Error ? err.message : String(err)
+      log(message, 'error')
+      setAction({
+        key,
+        status: 'error',
+        message,
+      })
+    }
+  }
+
+  async function runInitialChat() {
+    const cleanTranscript = transcript.trim()
+    if (!cleanTranscript) {
+      setAction({
+        key: 'initial-chat',
+        status: 'error',
+        message: 'Add a transcript before running the initial chat.',
+      })
+      return
+    }
+    await runPipelineAction('initial-chat', 'Mirror', async ({ log, setWaitingLabel }) => {
+      log('Mirror: sending transcript to OpenAI Realtime.')
+      const mirror = await runMirror({ data: { transcript: cleanTranscript } })
+      log('Mirror: output received and schema-checked.')
+
+      setWaitingLabel('Mirror persistence')
+      log('Persistence: saving Mirror entry as confirmed.')
+      const result = await persistMirror({
+        data: {
+          entry: {
+            transcript: cleanTranscript,
+            validation: mirror.output.validation,
+            inferred_meaning: mirror.output.inferred_meaning,
+            story_reframe: mirror.output.story_reframe,
+          },
+          context_type: 'school',
+          review_status: 'confirmed',
+          raw_output: {
+            ...mirror.output,
+            eval_review: mirror.eval_review,
+          },
+          trace: {
+            source: 'dev-pipeline',
+            initial_chat: true,
+          },
+        },
+      })
+      return `Mirror #${result.mirror_entry.id} recorded as ${result.mirror_entry.review_status}.`
+    })
+  }
+
+  async function runConnectorAction() {
+    await runPipelineAction('connector', 'Connector', async ({ log }) => {
+      log('Connector: scanning confirmed reflections that are not linked yet.')
+      const result = await runConnector({ data: { limit: 5 } })
+      for (const entry of result.entries) {
+        log(
+          `Connector: mirror #${entry.mirror_entry_id} -> ${entry.status}${
+            entry.staged_diff_id ? `, diff #${entry.staged_diff_id}` : ''
+          }.`,
+        )
+      }
+      return connectorStatusCopy(
+        result.status,
+        result.processed,
+        result.succeeded,
+        result.remaining,
+      )
+    })
+  }
+
+  async function runSensemakingAction() {
+    await runPipelineAction('sensemaking', 'Cartographer', async ({ log }) => {
+      log('Cartographer: reading VIPS pages and timeline evidence.')
+      const result = await runCartographer({ data: {} })
+      for (const event of result.events) {
+        log(`Cartographer event +${event.timestampMs}ms: ${summarizeRunEvent(event)}.`)
+      }
+      if (!result.ok) throw new Error(`Cartographer ${result.status}: ${result.error}`)
+      return `Cartographer #${result.cartographer_output_id} wrote ${result.trajectory.pathways.length} pathways.`
+    })
+  }
+
+  const actionRunning = action.status === 'running'
 
   return (
     <div className="font-mono text-xs leading-relaxed text-foreground">
@@ -81,6 +355,160 @@ function PipelinePageInner({ data }: { data: PipelineTraceResult }) {
         </div>
         <FilterPills filter={filter} onChange={setFilter} />
       </header>
+
+      <section className="mb-4 rounded border border-border bg-muted/30 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-sans text-sm font-semibold">End-to-end controls</h2>
+            <p className="mt-1 max-w-3xl text-muted-foreground">
+              Run a Mirror chat, link confirmed reflections, then write the trajectory.
+            </p>
+          </div>
+          <StatusBadge value={action.status} />
+        </div>
+        <label className="mt-3 block">
+          <span className="mb-1 block font-sans text-xs font-semibold">
+            Initial chat transcript
+          </span>
+          <textarea
+            value={transcript}
+            onChange={(event) => setTranscript(event.target.value)}
+            className="min-h-20 w-full rounded border border-border bg-background px-2 py-1 text-xs"
+          />
+        </label>
+        <div className="mt-3 rounded border border-border bg-background p-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-sans text-xs font-semibold">Realtime GPT transcript test</h3>
+              <p className="mt-1 text-muted-foreground">
+                Uses the same live Kira voice path as the island capture flow.
+              </p>
+            </div>
+            <StatusBadge value={realtimeStage} />
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void startRealtimeTranscriptTest()}
+              disabled={actionRunning || realtimeStage !== 'idle'}
+              className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
+            >
+              Start Realtime transcript
+            </button>
+            <button
+              type="button"
+              onClick={() => void stopRealtimeTranscriptTest()}
+              disabled={realtimeStage !== 'recording'}
+              className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
+            >
+              Stop Realtime transcript
+            </button>
+          </div>
+          <div
+            className="mt-2 grid min-h-16 gap-2 rounded border border-border bg-muted/20 px-2 py-1"
+            role="log"
+            aria-live="polite"
+            data-testid="realtime-transcript-log"
+          >
+            {realtimeConversation.length === 0 ? (
+              <p className="self-center text-muted-foreground">No live Realtime transcript yet.</p>
+            ) : (
+              realtimeConversation.map((message) => (
+                <article
+                  key={message.id}
+                  className={cn(
+                    'rounded border border-border bg-background px-2 py-1',
+                    message.status === 'streaming' ? 'opacity-75' : '',
+                  )}
+                >
+                  <span className="font-sans text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {message.role === 'kira' ? 'Kira' : 'You'}
+                    {message.status === 'streaming' ? ' · streaming' : ''}
+                  </span>
+                  <p>{message.text}</p>
+                </article>
+              ))
+            )}
+          </div>
+          {realtimePrepared ? (
+            <div className="mt-2 grid gap-1 text-muted-foreground sm:grid-cols-3">
+              <p>
+                <span className="font-semibold text-foreground">Validation:</span>{' '}
+                {realtimePrepared.validation}
+              </p>
+              <p>
+                <span className="font-semibold text-foreground">Meaning:</span>{' '}
+                {realtimePrepared.inferredMeaning}
+              </p>
+              <p>
+                <span className="font-semibold text-foreground">Reframe:</span>{' '}
+                {realtimePrepared.storyReframe}
+              </p>
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void runInitialChat()}
+            disabled={actionRunning}
+            className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
+          >
+            Run initial chat
+          </button>
+          <button
+            type="button"
+            onClick={() => void runConnectorAction()}
+            disabled={actionRunning}
+            className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
+          >
+            Run Connector
+          </button>
+          <button
+            type="button"
+            onClick={() => void runSensemakingAction()}
+            disabled={actionRunning}
+            className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
+          >
+            Run sense-making
+          </button>
+        </div>
+        <p
+          className={cn(
+            'mt-2',
+            action.status === 'error' ? 'text-warning' : 'text-muted-foreground',
+          )}
+          role={action.status === 'error' ? 'alert' : 'status'}
+        >
+          {action.message}
+        </p>
+        <div
+          className="mt-3 max-h-44 overflow-y-auto rounded border border-border bg-background px-2 py-1"
+          aria-live="polite"
+          data-testid="pipeline-action-log"
+        >
+          <ol className="space-y-1">
+            {actionLog.map((entry) => (
+              <li
+                key={entry.id}
+                className={cn(
+                  'grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2',
+                  entry.tone === 'success'
+                    ? 'text-emerald-700'
+                    : entry.tone === 'error'
+                      ? 'text-warning'
+                      : 'text-muted-foreground',
+                )}
+              >
+                <time dateTime={entry.at}>{formatClock(entry.at)}</time>
+                <span>{entry.text}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <ConnectorGraph mirrors={data.mirrors} />
 
       <section className="mb-4">
         <h2 className="mb-2 font-sans text-sm font-semibold">
@@ -156,6 +584,379 @@ function PipelinePageInner({ data }: { data: PipelineTraceResult }) {
       </p>
     </div>
   )
+}
+
+type ConnectorGraphMirrorNode = {
+  id: string
+  mirror: PipelineMirrorRow
+  x: number
+  y: number
+  linked: boolean
+}
+
+type ConnectorGraphClaimNode = {
+  id: string
+  key: string
+  dimension: string
+  claimId: string
+  label: string
+  x: number
+  y: number
+  count: number
+  mirrorIds: number[]
+}
+
+type ConnectorGraphEdge = {
+  id: string
+  source: string
+  target: string
+  sourceMirrorId: number
+  targetClaimKey: string
+  forgotten: boolean
+}
+
+type ConnectorGraphModel = {
+  mirrors: ConnectorGraphMirrorNode[]
+  claims: ConnectorGraphClaimNode[]
+  edges: ConnectorGraphEdge[]
+  linkedMirrorCount: number
+}
+
+const GRAPH_DIMENSIONS = ['values', 'interests', 'personality', 'skills'] as const
+const GRAPH_DIMENSION_COLORS: Record<string, string> = {
+  values: '#2f6b45',
+  interests: '#795f1b',
+  personality: '#6b5796',
+  skills: '#1e6384',
+}
+
+function ConnectorGraph({ mirrors }: { mirrors: PipelineMirrorRow[] }) {
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null)
+  const graph = useMemo(() => buildConnectorGraph(mirrors), [mirrors])
+  const activeEdges = useMemo(() => {
+    if (!activeNodeId) return new Set<string>()
+    return new Set(
+      graph.edges
+        .filter((edge) => edge.source === activeNodeId || edge.target === activeNodeId)
+        .map((edge) => edge.id),
+    )
+  }, [activeNodeId, graph.edges])
+  const hasLinks = graph.edges.length > 0
+
+  return (
+    <section className="mb-4 rounded border border-border bg-muted/30 p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-sans text-sm font-semibold">Connector graph</h2>
+          <p className="mt-1 max-w-3xl text-muted-foreground">
+            Mirror dots link to the VIPS claims created from Connector patterns.
+          </p>
+        </div>
+        <span className="rounded border border-border bg-background px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+          {graph.linkedMirrorCount}/{graph.mirrors.length} linked
+        </span>
+      </div>
+
+      <div className="mt-3 rounded border border-border bg-background p-2">
+        <svg
+          viewBox="0 0 1000 360"
+          role="img"
+          aria-label="Connector graph linking mirror entries to committed VIPS claims"
+          className="h-[360px] w-full"
+          data-testid="connector-graph"
+        >
+          <rect width="1000" height="360" rx="8" fill="transparent" />
+          <text x="92" y="35" className="fill-muted-foreground font-sans text-[13px] font-semibold">
+            mirrors
+          </text>
+          <text
+            x="665"
+            y="35"
+            className="fill-muted-foreground font-sans text-[13px] font-semibold"
+          >
+            connector outcomes
+          </text>
+          <line x1="500" y1="54" x2="500" y2="326" stroke="currentColor" className="text-border" />
+
+          {graph.edges.map((edge) => {
+            const source = graph.mirrors.find((node) => node.id === edge.source)
+            const target = graph.claims.find((node) => node.id === edge.target)
+            if (!source || !target) return null
+            const active = activeNodeId ? activeEdges.has(edge.id) : false
+            return (
+              <line
+                key={edge.id}
+                x1={source.x}
+                y1={source.y}
+                x2={target.x}
+                y2={target.y}
+                strokeWidth={active ? 3 : 1.5}
+                stroke={active ? '#27221c' : '#b9b2a6'}
+                strokeOpacity={activeNodeId && !active ? 0.18 : edge.forgotten ? 0.35 : 0.72}
+                strokeDasharray={edge.forgotten ? '5 5' : undefined}
+              >
+                <title>
+                  Mirror #{edge.sourceMirrorId} linked to {edge.targetClaimKey}
+                  {edge.forgotten ? ' (forgotten)' : ''}
+                </title>
+              </line>
+            )
+          })}
+
+          {graph.mirrors.map((node) => {
+            const active =
+              activeNodeId === node.id ||
+              graph.edges.some((edge) => activeEdges.has(edge.id) && edge.source === node.id)
+            return (
+              <a
+                key={node.id}
+                href={`#${node.id}`}
+                aria-label={`Mirror ${node.mirror.id}${node.linked ? ' linked' : ' unlinked'}`}
+                onMouseEnter={() => setActiveNodeId(node.id)}
+                onMouseLeave={() => setActiveNodeId(null)}
+                onFocus={() => setActiveNodeId(node.id)}
+                onBlur={() => setActiveNodeId(null)}
+                onClick={(event) => event.preventDefault()}
+                className="cursor-default outline-none"
+              >
+                <g>
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={active ? 11 : 8}
+                    fill={node.linked ? '#3b332b' : '#ddd8cf'}
+                    stroke={active ? '#8c6fe8' : node.linked ? '#3b332b' : '#b9b2a6'}
+                    strokeWidth={active ? 3 : 1.5}
+                    opacity={activeNodeId && !active && node.linked ? 0.35 : 1}
+                  />
+                  <text
+                    x={node.x}
+                    y={node.y + 24}
+                    textAnchor="middle"
+                    className="fill-foreground text-[11px]"
+                    opacity={activeNodeId && !active && node.linked ? 0.35 : 1}
+                  >
+                    #{node.mirror.id}
+                  </text>
+                  <title>
+                    Mirror #{node.mirror.id}: {node.mirror.transcript}
+                  </title>
+                </g>
+              </a>
+            )
+          })}
+
+          {graph.claims.map((node) => {
+            const active =
+              activeNodeId === node.id ||
+              graph.edges.some((edge) => activeEdges.has(edge.id) && edge.target === node.id)
+            const fill = GRAPH_DIMENSION_COLORS[node.dimension] ?? '#3b332b'
+            return (
+              <a
+                key={node.id}
+                href={`#${node.id}`}
+                aria-label={`${node.dimension} claim ${node.label}, ${node.count} links`}
+                onMouseEnter={() => setActiveNodeId(node.id)}
+                onMouseLeave={() => setActiveNodeId(null)}
+                onFocus={() => setActiveNodeId(node.id)}
+                onBlur={() => setActiveNodeId(null)}
+                onClick={(event) => event.preventDefault()}
+                className="cursor-default outline-none"
+              >
+                <g>
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={active ? 12 : 9}
+                    fill={fill}
+                    stroke={active ? '#27221c' : fill}
+                    strokeWidth={active ? 3 : 1.5}
+                    opacity={activeNodeId && !active ? 0.35 : 1}
+                  />
+                  <text
+                    x={node.x + 16}
+                    y={node.y - 2}
+                    className="fill-foreground text-[11px] font-semibold"
+                    opacity={activeNodeId && !active ? 0.35 : 1}
+                  >
+                    {node.label}
+                  </text>
+                  <text
+                    x={node.x + 16}
+                    y={node.y + 13}
+                    className="fill-muted-foreground text-[10px]"
+                    opacity={activeNodeId && !active ? 0.35 : 1}
+                  >
+                    {node.dimension} · {node.count} link{node.count === 1 ? '' : 's'}
+                  </text>
+                  <title>
+                    {node.dimension}.{node.claimId} from mirrors #{node.mirrorIds.join(', #')}
+                  </title>
+                </g>
+              </a>
+            )
+          })}
+
+          {!hasLinks ? (
+            <g>
+              <text
+                x="500"
+                y="170"
+                textAnchor="middle"
+                className="fill-muted-foreground font-sans text-[14px]"
+              >
+                No Connector links yet
+              </text>
+              <text
+                x="500"
+                y="194"
+                textAnchor="middle"
+                className="fill-muted-foreground text-[12px]"
+              >
+                Confirm Mirror entries, then run Connector.
+              </text>
+            </g>
+          ) : null}
+        </svg>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+        <span>Mirrors {graph.mirrors.length}</span>
+        <span>Claims {graph.claims.length}</span>
+        <span>Links {graph.edges.length}</span>
+        <span>Dashed lines are forgotten claims</span>
+      </div>
+      {graph.claims.length > 0 ? (
+        <ol className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-4">
+          {graph.claims.slice(0, 8).map((claim) => (
+            <li key={claim.id} className="rounded border border-border bg-background px-2 py-1">
+              <span className="font-semibold">{claim.dimension}</span> · {claim.label}
+              <span className="ml-1 text-muted-foreground">← #{claim.mirrorIds.join(', #')}</span>
+            </li>
+          ))}
+        </ol>
+      ) : null}
+    </section>
+  )
+}
+
+function buildConnectorGraph(mirrors: PipelineMirrorRow[]): ConnectorGraphModel {
+  const visibleMirrors = mirrors.slice(0, 40)
+  const claimMap = new Map<string, ConnectorGraphClaimNode>()
+  const edges: ConnectorGraphEdge[] = []
+  const mirrorPositions = radialPositions(visibleMirrors.length, 230, 185, 108)
+
+  const mirrorNodes = visibleMirrors.map((mirror, index) => ({
+    id: mirrorNodeId(mirror.id),
+    mirror,
+    x: mirrorPositions[index]?.x ?? 230,
+    y: mirrorPositions[index]?.y ?? 185,
+    linked: mirror.committed_timeline.length > 0,
+  }))
+
+  for (const mirror of visibleMirrors) {
+    for (const entry of mirror.committed_timeline) {
+      const key = connectorClaimKey(entry.dimension, entry.canonical_claim_id)
+      const id = claimNodeId(key)
+      const existing = claimMap.get(key)
+      if (existing) {
+        existing.count += 1
+        existing.mirrorIds.push(mirror.id)
+      } else {
+        claimMap.set(key, {
+          id,
+          key,
+          dimension: entry.dimension,
+          claimId: entry.canonical_claim_id,
+          label: shortClaimLabel(entry.canonical_claim_id),
+          x: 0,
+          y: 0,
+          count: 1,
+          mirrorIds: [mirror.id],
+        })
+      }
+      edges.push({
+        id: `${mirrorNodeId(mirror.id)}--${id}--${entry.id}`,
+        source: mirrorNodeId(mirror.id),
+        target: id,
+        sourceMirrorId: mirror.id,
+        targetClaimKey: key,
+        forgotten: Boolean(entry.forgotten_at),
+      })
+    }
+  }
+
+  const claims = [...claimMap.values()].sort((a, b) => {
+    const dimDelta = dimensionRank(a.dimension) - dimensionRank(b.dimension)
+    if (dimDelta !== 0) return dimDelta
+    return a.label.localeCompare(b.label)
+  })
+  const claimsByDimension = new Map<string, ConnectorGraphClaimNode[]>()
+  for (const claim of claims) {
+    const list = claimsByDimension.get(claim.dimension) ?? []
+    list.push(claim)
+    claimsByDimension.set(claim.dimension, list)
+  }
+  for (const [dimension, list] of claimsByDimension) {
+    const dimIndex = dimensionRank(dimension)
+    const column = dimIndex % 2
+    const row = Math.floor(dimIndex / 2)
+    const x = 620 + column * 190
+    const centerY = 120 + row * 135
+    const positions = verticalPositions(list.length, x, centerY, 28)
+    list.forEach((claim, index) => {
+      const point = positions[index]
+      claim.x = point?.x ?? x
+      claim.y = point?.y ?? centerY
+    })
+  }
+
+  return {
+    mirrors: mirrorNodes,
+    claims,
+    edges,
+    linkedMirrorCount: mirrorNodes.filter((node) => node.linked).length,
+  }
+}
+
+function radialPositions(count: number, centerX: number, centerY: number, radius: number) {
+  if (count === 0) return []
+  if (count === 1) return [{ x: centerX, y: centerY }]
+  return Array.from({ length: count }, (_, index) => {
+    const angle = -Math.PI / 2 + (index / count) * Math.PI * 2
+    return {
+      x: centerX + Math.cos(angle) * radius,
+      y: centerY + Math.sin(angle) * radius,
+    }
+  })
+}
+
+function verticalPositions(count: number, x: number, centerY: number, gap: number) {
+  if (count === 0) return []
+  const startY = centerY - ((count - 1) * gap) / 2
+  return Array.from({ length: count }, (_, index) => ({ x, y: startY + index * gap }))
+}
+
+function mirrorNodeId(id: number) {
+  return `mirror:${id}`
+}
+
+function claimNodeId(key: string) {
+  return `claim:${key}`
+}
+
+function connectorClaimKey(dimension: string, claimId: string) {
+  return `${dimension}:${claimId}`
+}
+
+function dimensionRank(dimension: string): number {
+  const index = GRAPH_DIMENSIONS.indexOf(dimension as (typeof GRAPH_DIMENSIONS)[number])
+  return index === -1 ? GRAPH_DIMENSIONS.length : index
+}
+
+function shortClaimLabel(claimId: string): string {
+  const tail = claimId.split('.').at(-1) ?? claimId
+  return tail.replace(/[_-]+/g, ' ')
 }
 
 function MirrorRow({
@@ -358,14 +1159,91 @@ function StatusBadge({ value }: { value: string }) {
   const tone =
     value === 'confirmed'
       ? 'bg-emerald-500/15 text-emerald-700'
-      : value === 'forgotten'
-        ? 'bg-zinc-500/15 text-zinc-700'
-        : 'bg-amber-500/15 text-amber-700'
+      : value === 'ok'
+        ? 'bg-emerald-500/15 text-emerald-700'
+        : value === 'running'
+          ? 'bg-blue-500/15 text-blue-700'
+          : value === 'error'
+            ? 'bg-warning/20 text-warning'
+            : value === 'forgotten'
+              ? 'bg-zinc-500/15 text-zinc-700'
+              : 'bg-amber-500/15 text-amber-700'
   return (
     <span className={cn('rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide', tone)}>
       {value}
     </span>
   )
+}
+
+function connectorStatusCopy(
+  status: string,
+  processed: number,
+  succeeded: number,
+  remaining: number,
+): string {
+  if (status === 'ok') {
+    return `Connector applied ${succeeded}/${processed} confirmed reflections.`
+  }
+  if (status === 'nothing_to_run') return 'Connector found no confirmed reflections to link.'
+  if (status === 'partial') return `Connector applied ${succeeded}/${processed}; ${remaining} left.`
+  if (status === 'timeout') return 'Connector timed out.'
+  if (status === 'schema_reject') return 'Connector returned an invalid diff.'
+  if (status === 'transport_error') return 'Connector transport failed.'
+  if (status === 'auth_error') return 'Connector auth failed.'
+  return `Connector finished with ${status}.`
+}
+
+function makeActionLogEntry(
+  text: string,
+  tone: PipelineActionLogEntry['tone'],
+): PipelineActionLogEntry {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    at: new Date().toISOString(),
+    tone,
+    text,
+  }
+}
+
+function formatClock(iso: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(iso))
+}
+
+function truncateForLog(text: string): string {
+  const clean = text.replace(/\s+/g, ' ').trim()
+  return clean.length > 96 ? `${clean.slice(0, 93)}...` : clean
+}
+
+function wordCount(text: string): number {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  return words.length
+}
+
+function summarizeRunEvent(event: RunStepEvent): string {
+  switch (event.type) {
+    case 'agent_started':
+      return `${event.agent} started`
+    case 'tool_call_started':
+      return `${event.agent} called ${event.toolName}`
+    case 'tool_call_completed':
+      return `${event.agent} finished ${event.toolName}`
+    case 'message_output':
+      return `${event.agent} output ${event.preview}`
+    case 'reasoning':
+      return `${event.agent} reasoning`
+    case 'handoff':
+      return `${event.from} handed off to ${event.to}`
+    case 'agent_completed':
+      return `${event.agent} completed`
+    case 'run_completed':
+      return event.partial ? 'run completed with partial output' : 'run completed'
+    case 'error':
+      return `${event.agent} error: ${event.message}`
+  }
 }
 
 function DetailBlock({

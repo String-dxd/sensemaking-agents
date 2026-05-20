@@ -199,6 +199,113 @@ describe('Student Space CalendarSheet backend routing', () => {
     })
   })
 
+  it('confirms a pending reflection and updates the day detail row from the backend result', async () => {
+    const entry = {
+      id: 'mirror:24',
+      kind: 'ask',
+      text: 'pending reflection',
+      entryDate: '2026-05-14',
+      createdAt: '2026-05-14T08:00:00.000Z',
+      backendMirrorEntryId: 24,
+      reviewStatus: 'pending',
+    }
+    const updateReflectionReview = vi.fn(async () => ({
+      id: 24,
+      transcript: 'pending reflection',
+      validation: 'valid',
+      inferredMeaning: 'meaning',
+      storyReframe: 'story',
+      contextType: 'school',
+      reviewStatus: 'confirmed',
+      createdAt: '2026-05-14T08:00:00.000Z',
+    }))
+    const refreshSnapshot = vi.fn(async () => ({ profile: {}, reflections: [] }))
+    const captures = {
+      entries: [entry],
+      patch: (id: string, updates: Record<string, unknown>) => {
+        const capture = captures.entries.find((item) => item.id === id)
+        if (!capture) return null
+        Object.assign(capture, updates)
+        return capture
+      },
+    }
+    state.instance = {
+      moodPins: { pins: [] },
+      captures,
+      calendar: { events: [] },
+      backend: { updateReflectionReview, refreshSnapshot },
+      applyBackendSnapshot: vi.fn(),
+    }
+    OverlayController.instance = new OverlayController()
+
+    const calendar = new CalendarSheet() as {
+      open: (opts?: unknown) => void
+      close: () => void
+      dispose?: () => void
+    }
+    sheet = calendar
+    calendar.open({ entryId: 24 })
+
+    document.querySelector<HTMLButtonElement>('[data-review-action="confirmed"]')?.click()
+
+    await waitFor(() => expect(updateReflectionReview).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(entry.reviewStatus).toBe('confirmed'))
+    expect(refreshSnapshot).toHaveBeenCalledTimes(1)
+    expect(document.querySelector('.day-detail-row__sub')).toHaveTextContent('status: confirmed')
+    expect(document.querySelector('[data-review-action="confirmed"]')).toBeNull()
+    expect(document.querySelector('[data-review-action="forgotten"]')).toBeNull()
+  })
+
+  it('keeps review actions available and shows an inline error when confirmation fails', async () => {
+    const entry = {
+      id: 'mirror:24',
+      kind: 'ask',
+      text: 'pending reflection',
+      entryDate: '2026-05-14',
+      createdAt: '2026-05-14T08:00:00.000Z',
+      backendMirrorEntryId: 24,
+      reviewStatus: 'pending',
+    }
+    const updateReflectionReview = vi.fn(async () => {
+      throw new Error('database unavailable')
+    })
+    const captures = {
+      entries: [entry],
+      patch: vi.fn(),
+    }
+    state.instance = {
+      moodPins: { pins: [] },
+      captures,
+      calendar: { events: [] },
+      backend: { updateReflectionReview },
+    }
+    OverlayController.instance = new OverlayController()
+
+    const calendar = new CalendarSheet() as {
+      open: (opts?: unknown) => void
+      close: () => void
+      dispose?: () => void
+    }
+    sheet = calendar
+    calendar.open({ entryId: 24 })
+
+    document.querySelector<HTMLButtonElement>('[data-review-action="confirmed"]')?.click()
+
+    await waitFor(() => expect(updateReflectionReview).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(document.querySelector('.day-detail-row__error')).toHaveTextContent(
+        'Review update failed: database unavailable',
+      ),
+    )
+    expect(entry.reviewStatus).toBe('pending')
+    expect(
+      document.querySelector<HTMLButtonElement>('[data-review-action="confirmed"]'),
+    ).not.toBeDisabled()
+    expect(
+      document.querySelector<HTMLButtonElement>('[data-review-action="forgotten"]'),
+    ).not.toBeDisabled()
+  })
+
   it('runs Connector from confirmed reflections and shows real batch counts', async () => {
     const runConnector = vi.fn(async () => ({
       status: 'partial',

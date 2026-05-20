@@ -13,6 +13,7 @@ export const persistMirrorInputSchema = z.object({
   entry: MirrorEntrySchema,
   context_type: VipsContextTypeSchema,
   mood: MoodSchema.nullable().optional(),
+  review_status: z.enum(['confirmed', 'forgotten']).optional(),
   raw_output: z.unknown(),
   trace: z.unknown().optional(),
 })
