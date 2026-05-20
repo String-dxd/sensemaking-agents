@@ -8,6 +8,7 @@ export default class Time
         this.start = Date.now() / 1000
         this.current = this.start
         this.elapsed = 0
+        this.rawDelta = 16 / 1000
         this.delta = 16 / 1000
     }
 
@@ -18,7 +19,8 @@ export default class Time
     {
         const current = Date.now() / 1000
 
-        this.delta = current - this.current
+        this.rawDelta = current - this.current
+        this.delta = this.rawDelta
         this.elapsed += this.delta
         this.current = current
 

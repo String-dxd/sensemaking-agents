@@ -6,6 +6,7 @@ export default class Viewport
 {
     constructor()
     {
+        this.pixelRatioCap = 2
         this.width = null
         this.height = null
         this.smallestSide = null
@@ -24,13 +25,20 @@ export default class Viewport
         }
     }
 
+    setPixelRatioCap(cap)
+    {
+        const next = Number.isFinite(Number(cap)) ? Number(cap) : 2
+        this.pixelRatioCap = Math.max(1, next)
+        this.clampedPixelRatio = Math.min(this.pixelRatio || 1, this.pixelRatioCap)
+    }
+
     resize()
     {
         this.width = window.innerWidth
         this.height = window.innerHeight
         this.smallestSide = this.width < this.height ? this.width : this.height
         this.biggestSide = this.width > this.height ? this.width : this.height
-        this.pixelRatio = window.devicePixelRatio
-        this.clampedPixelRatio = Math.min(this.pixelRatio, 2)
+        this.pixelRatio = window.devicePixelRatio || 1
+        this.setPixelRatioCap(this.pixelRatioCap)
     }
 }

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const OPENAI_REALTIME_MIRROR_DEFAULT_MODEL = 'gpt-realtime-2'
+export const OPENAI_REALTIME_MIRROR_DEFAULT_MODEL = 'gpt-realtime'
 export const OPENAI_REALTIME_CALLS_URL = 'https://api.openai.com/v1/realtime/calls'
 
 export class OpenAIRealtimeConfigError extends Error {

@@ -39,6 +39,7 @@ import LettersSheet from './LettersSheet.js'
 import TrajectorySheet from './TrajectorySheet.js'
 import HistorySheet from './HistorySheet.js'
 import ObjectPeek from './ObjectPeek.js'
+import FpsOverlay from './FpsOverlay.js'
 import State from '../State/State.js'
 import OnboardingFlow from './Onboarding/OnboardingFlow.js'
 
@@ -58,6 +59,7 @@ export default class View
 
         View.instance = this
 
+        this.state = State.getInstance()
         this.scene = new THREE.Scene()
 
         // Order matters: Camera before Renderer (Renderer reads it), Renderer
@@ -83,7 +85,7 @@ export default class View
         // constructor defaults to 'flame', so without this a returning
         // user (or a mid-ceremony resume at egg-hatch / first-chat /
         // later) would see the wrong plumage until the next picker tap.
-        const persistedSpecies = State.getInstance().profile?.identity?.companionSpecies
+        const persistedSpecies = this.state.profile?.identity?.companionSpecies
         if(persistedSpecies) this.kira.setSpecies(persistedSpecies)
         // Mailbox is a small static prop that sits on the plateau and acts
         // as the on-island door into LettersSheet. Constructed after Kira
@@ -140,23 +142,30 @@ export default class View
         // TrackPicker depends on view.sound existing and sits above the
         // BirdPicker chip in the dark-glass admin tier.
         this.trackPicker = new TrackPicker()
+        this.fpsOverlay = new FpsOverlay({ mount: this.hourHud.root })
 
         // First-run ceremony. Constructed last so it can hold every other
         // view subsystem (kira, kiraDialogue, camera, etc.). Skips itself
         // when state.onboarding.stage === 'done'. Fire-and-forget — the
         // orchestrator runs async; chrome is hidden via body.is-onboarding.
-        const onb = State.getInstance().onboarding
+        const onb = this.state.onboarding
         if(onb && onb.stage !== 'done')
         {
-            // Hide the world's flowers and trees so the reveal beats land
-            // dramatically (bare island → one flower → one tree). The
-            // grow/bloom APIs restore the directed entities during reveal.
-            // Tree's loader is async; tree.hideAll() handles the deferred
-            // case via a _hideAllPending flag. Fruits.hideAll() defers
-            // similarly until its first-tick placement runs.
-            this.flowers.hideAll()
-            this.tree.hideAll()
-            this.fruits.hideAll()
+            const completedSignInReturn = onb.stage === 'login' &&
+                onb.completedAt &&
+                this.state.auth?.isSignedIn
+            if(!completedSignInReturn)
+            {
+                // Hide the world's flowers and trees so the reveal beats land
+                // dramatically (bare island → one flower → one tree). The
+                // grow/bloom APIs restore the directed entities during reveal.
+                // Tree's loader is async; tree.hideAll() handles the deferred
+                // case via a _hideAllPending flag. Fruits.hideAll() defers
+                // similarly until its first-tick placement runs.
+                this.flowers.hideAll()
+                this.tree.hideAll()
+                this.fruits.hideAll()
+            }
             this.onboardingFlow = new OnboardingFlow(this)
             this.onboardingFlow.start().catch((e) => console.error('[onboarding] flow failed', e))
         }
@@ -179,9 +188,13 @@ export default class View
         this.flowers.update()
         this.fruits.update()
         this.sprouts.update()
-        this.butterflies.update()
-        this.fireflies.update()
-        this.particles.update()
+        const tickAmbient = this.state.performance?.shouldTickAmbient?.() ?? true
+        if(tickAmbient)
+        {
+            this.butterflies.update()
+            this.fireflies.update()
+            this.particles.update()
+        }
         this.kira.update()
         this.mailbox.update()
         this.telescope.update()
@@ -190,11 +203,13 @@ export default class View
         this.kiraNarrator.update()
         this.kiraDialogue.update()
         this.objectPeek.update()
-        this.aurora.update()
+        if(tickAmbient)
+            this.aurora.update()
         this.rainbow.update()
         this.rain.update()
         this.hoverProbe.update()
         this.hourHud.update()
+        this.fpsOverlay.update()
         this.sound.update()
         this.camera.update()
         this.renderer.update()
@@ -236,6 +251,7 @@ export default class View
             this.kiraDialogue,
             this.kiraNarrator,
             this.zoomHud,
+            this.fpsOverlay,
             this.hourHud,
             this.topNav,
             this.captureFab,

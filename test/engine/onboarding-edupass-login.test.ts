@@ -29,6 +29,7 @@ let originalAssign: typeof window.location.assign
 const assignSpy = vi.fn()
 
 beforeEach(() => {
+  window.history.replaceState({}, '', '/')
   originalAssign = window.location.assign
   Object.defineProperty(window.location, 'assign', {
     configurable: true,
@@ -70,12 +71,30 @@ describe('EdupassLogin (real auth surface)', () => {
     // The form for the demo path must POST to the demo sign-in route.
     const demoForm = root.querySelector('[data-action="demo"]') as HTMLFormElement
     expect(demoForm.getAttribute('method')).toBe('post')
-    expect(demoForm.getAttribute('action')).toBe('/api/auth/sign-in?demo=1&returnPathname=/')
+    expect(demoForm.getAttribute('action')).toBe('/api/auth/sign-in?demo=1&returnPathname=%2F')
     // The Edupass CTA is a real link to the WorkOS sign-in route — WorkOS
     // routes to its configured social provider (Google in v0.2) under the
     // hood; the "Edupass" wordmark is preserved as the Singapore-school cue.
     const edupass = root.querySelector('[data-action="edupass"]') as HTMLAnchorElement
-    expect(edupass.getAttribute('href')).toBe('/api/auth/sign-in?returnPathname=/')
+    expect(edupass.getAttribute('href')).toBe('/api/auth/sign-in?returnPathname=%2F')
+  })
+
+  it('passes through a profile returnPathname when opened as the profile sign-in page', async () => {
+    window.history.replaceState(
+      {},
+      '',
+      `/?auth=sign-in&returnPathname=${encodeURIComponent('/?sheet=profile')}#sign-in`,
+    )
+    const { root } = await mountLogin()
+    const edupass = root.querySelector('[data-action="edupass"]') as HTMLAnchorElement
+    const demoForm = root.querySelector('[data-action="demo"]') as HTMLFormElement
+
+    expect(edupass.getAttribute('href')).toBe(
+      `/api/auth/sign-in?returnPathname=${encodeURIComponent('/?sheet=profile')}`,
+    )
+    expect(demoForm.getAttribute('action')).toBe(
+      `/api/auth/sign-in?demo=1&returnPathname=${encodeURIComponent('/?sheet=profile')}`,
+    )
   })
 
   it('Edupass click disposes the engine and navigates to sign-in', async () => {
@@ -87,7 +106,7 @@ describe('EdupassLogin (real auth surface)', () => {
     edupass.click()
 
     expect(dispose).toHaveBeenCalledTimes(1)
-    expect(assignSpy).toHaveBeenCalledWith('/api/auth/sign-in?returnPathname=/')
+    expect(assignSpy).toHaveBeenCalledWith('/api/auth/sign-in?returnPathname=%2F')
   })
 
   it('demo form submit disposes the engine and submits via a body-scoped form', async () => {
@@ -108,7 +127,7 @@ describe('EdupassLogin (real auth surface)', () => {
     // (about to be detached by dispose) never reaches the native POST.
     expect(submitSpy).toHaveBeenCalledTimes(1)
     const submitted = submitSpy.mock.instances[0] as unknown as HTMLFormElement
-    expect(submitted.action.endsWith('/api/auth/sign-in?demo=1&returnPathname=/')).toBe(true)
+    expect(submitted.action.endsWith('/api/auth/sign-in?demo=1&returnPathname=%2F')).toBe(true)
     expect(submitted.method.toLowerCase()).toBe('post')
     expect(submitted.parentElement).toBe(document.body)
     submitSpy.mockRestore()

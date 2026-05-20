@@ -40,10 +40,13 @@ export default class HoverProbe
         this.ray = new THREE.Raycaster()
         this.pointer = new THREE.Vector2()
         this.tempScreen = new THREE.Vector3()
+        this._lastPickCameraPosition = new THREE.Vector3(Number.NaN, Number.NaN, Number.NaN)
+        this._lastPickCameraQuaternion = new THREE.Quaternion(Number.NaN, Number.NaN, Number.NaN, Number.NaN)
 
         this.hovered = null   // { kind, index, species, group, x, z }
         this.lastHovered = null
         this.enabled = true
+        this._pointerDirty = false
 
         this._buildRing()
         this._bindPointer()
@@ -99,7 +102,15 @@ export default class HoverProbe
         // survives Renderer teardown and would keep this whole probe alive.
         this._onPointerMove = (event) =>
         {
-            this._latestPointer = { x: event.clientX, y: event.clientY, type: event.pointerType }
+            const type = event.pointerType || 'mouse'
+            if(!this._latestPointer ||
+                this._latestPointer.x !== event.clientX ||
+                this._latestPointer.y !== event.clientY ||
+                this._latestPointer.type !== type)
+            {
+                this._pointerDirty = true
+            }
+            this._latestPointer = { x: event.clientX, y: event.clientY, type }
         }
         this.dom.addEventListener('pointermove', this._onPointerMove)
 
@@ -121,50 +132,7 @@ export default class HoverProbe
         this.dom.addEventListener('pointerdown', this._onDomPointerDown)
 
         this._onPointerUp = (event) =>
-        {
-            const dx = event.clientX - downX
-            const dy = event.clientY - downY
-            if(Math.hypot(dx, dy) > 6) return
-
-            // Touch: pointerup also acts as hover input (since touch has no
-            // hover). Re-pick at the up position so a tap lands on what was
-            // visually beneath the finger.
-            const hit = this._pick(event.clientX, event.clientY)
-            if(hit)
-            {
-                // On touch, first tap shows the chip; second tap on the chip
-                // opens the dialogue. Desktop with hover already has the chip
-                // visible, so any click on the element is a confirmed pick.
-                if(event.pointerType === 'touch' && (!this.lastHovered ||
-                   this.lastHovered.group !== hit.group))
-                {
-                    this._setHover(hit)
-                    return
-                }
-                this._setHover(hit)
-                        // Pick handoff. ObjectPeek owns the two-step "peek, then
-                // companion" interaction for flowers + mailbox + telescope.
-                // Everything else (kira, trees, fruits) still routes
-                // through KiraNarrator's single-bubble AC dialogue.
-                if(this.view.objectPeek && this.view.objectPeek.canHandle(hit))
-                {
-                    this.view.objectPeek.open(hit)
-                }
-                else if(this.view.kiraNarrator)
-                {
-                    this.view.kiraNarrator.narrate(hit)
-                }
-                else
-                {
-                    this.view.facetView.openFor(hit)
-                }
-            }
-            else
-            {
-                // Tap on empty space dismisses chip + ring.
-                this._setHover(null)
-            }
-        }
+            this._handlePointerUp(event, downX, downY)
         this.dom.addEventListener('pointerup', this._onPointerUp)
 
         // Tap outside the canvas (DOM CTA, etc) — dismiss hover.
@@ -222,17 +190,67 @@ export default class HoverProbe
         this.enabled = false
     }
 
+    _handlePointerUp(event, downX, downY)
+    {
+        const dx = event.clientX - downX
+        const dy = event.clientY - downY
+        if(Math.hypot(dx, dy) > 6) return
+
+        // Touch: pointerup also acts as hover input (since touch has no
+        // hover). Re-pick at the up position so a tap lands on what was
+        // visually beneath the finger.
+        const hit = this._pick(event.clientX, event.clientY)
+        this._latestPointer = { x: event.clientX, y: event.clientY, type: event.pointerType || 'mouse' }
+        this._pointerDirty = false
+        this._rememberPickCamera()
+        if(hit)
+        {
+            // On touch, first tap shows the chip; second tap on the chip
+            // opens the dialogue. Desktop with hover already has the chip
+            // visible, so any click on the element is a confirmed pick.
+            if(event.pointerType === 'touch' && (!this.lastHovered ||
+               this.lastHovered.group !== hit.group))
+            {
+                this._setHover(hit)
+                return
+            }
+            this._setHover(hit)
+            // Pick handoff. ObjectPeek owns the two-step "peek, then
+            // companion" interaction for flowers + mailbox + telescope.
+            // Everything else (kira, trees, fruits) still routes
+            // through KiraNarrator's single-bubble AC dialogue.
+            if(this.view.objectPeek && this.view.objectPeek.canHandle(hit))
+            {
+                this.view.objectPeek.open(hit)
+            }
+            else if(this.view.kiraNarrator)
+            {
+                this.view.kiraNarrator.narrate(hit)
+            }
+            else
+            {
+                this.view.facetView.openFor(hit)
+            }
+        }
+        else
+        {
+            // Tap on empty space dismisses chip + ring.
+            this._setHover(null)
+        }
+    }
+
     update()
     {
         if(!this.enabled || !this.ring) return    // post-dispose tick guard
 
-        // Continuous hover ray each frame using the latest pointer coords.
-        if(this._latestPointer)
+        // Continuous hover ray only when the pointer or camera changed.
+        if(this._latestPointer && this._latestPointer.type !== 'touch' &&
+           (this._pointerDirty || this._cameraChangedSincePick()))
         {
             const hit = this._pick(this._latestPointer.x, this._latestPointer.y)
-            // Only mouse moves drive hover; touch goes through pointerup.
-            if(this._latestPointer.type !== 'touch')
-                this._setHover(hit)
+            this._setHover(hit)
+            this._pointerDirty = false
+            this._rememberPickCamera()
         }
 
         // Pulse the ring opacity so it draws the eye without strobing.
@@ -249,6 +267,25 @@ export default class HoverProbe
             const pos = this._screenPos(this.hovered)
             this.view.hoverCta.setAnchor(pos.x, pos.y)
         }
+    }
+
+    _cameraChangedSincePick()
+    {
+        if(!this.camera || !this._lastPickCameraPosition || !this._lastPickCameraQuaternion)
+            return true
+        if(!Number.isFinite(this._lastPickCameraPosition.x))
+            return true
+        const moved = this.camera.position.distanceToSquared(this._lastPickCameraPosition) > 0.000001
+        const rotated = 1 - Math.abs(this.camera.quaternion.dot(this._lastPickCameraQuaternion)) > 0.000001
+        return moved || rotated
+    }
+
+    _rememberPickCamera()
+    {
+        if(!this.camera || !this._lastPickCameraPosition || !this._lastPickCameraQuaternion)
+            return
+        this._lastPickCameraPosition.copy(this.camera.position)
+        this._lastPickCameraQuaternion.copy(this.camera.quaternion)
     }
 
     _pick(clientX, clientY)

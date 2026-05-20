@@ -21,6 +21,29 @@ const CONNECTING_MS  = 600
 const ENTER_MS       = 320
 const EXIT_MS        = 240
 
+function safeReturnPathname(value, fallback = '/')
+{
+    const trimmed = value?.trim?.()
+    if(!trimmed) return fallback
+    if(!trimmed.startsWith('/') || trimmed.startsWith('//') || trimmed.includes('\\')) return fallback
+    return trimmed
+}
+
+function currentAuthReturnPathname()
+{
+    if(typeof window === 'undefined') return '/'
+    const raw = new URLSearchParams(window.location.search).get('returnPathname')
+    return safeReturnPathname(raw)
+}
+
+function authActionHref({ demo = false } = {})
+{
+    const search = new URLSearchParams()
+    if(demo) search.set('demo', '1')
+    search.set('returnPathname', currentAuthReturnPathname())
+    return `/api/auth/sign-in?${search.toString()}`
+}
+
 function disposeEngineForNavigation()
 {
     // Drain Persistence's debounced writes synchronously before any link or
@@ -70,6 +93,8 @@ export default class EdupassLogin
 
     async mount(root, ctx)
     {
+        const edupassHref = authActionHref()
+        const demoAction = authActionHref({ demo: true })
         const el = document.createElement('div')
         el.className = 'onb-login onb-login--landing'
         el.innerHTML = `
@@ -84,7 +109,7 @@ export default class EdupassLogin
                 <div class="onb-login__actions" role="group" aria-label="Sign in">
                     <a class="onb-login__cta onb-login__cta--edupass"
                        data-action="edupass"
-                       href="/api/auth/sign-in?returnPathname=/">
+                       href="${escapeHtml(edupassHref)}">
                         <span class="onb-login__edupass-mark" aria-hidden="true">
                             <svg viewBox="0 0 24 24" width="20" height="20">
                                 <rect x="3" y="3" width="18" height="18" rx="5" fill="#fff" opacity="0.95"/>
@@ -96,7 +121,7 @@ export default class EdupassLogin
                     <form class="onb-login__secondary-form"
                           data-action="demo"
                           method="post"
-                          action="/api/auth/sign-in?demo=1&returnPathname=/">
+                          action="${escapeHtml(demoAction)}">
                         <button type="submit" class="onb-login__secondary">
                             ${escapeHtml(ctx.copy.login.actions.demo)}
                         </button>

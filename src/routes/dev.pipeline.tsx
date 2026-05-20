@@ -1,6 +1,21 @@
 import { createFileRoute, notFound, useRouter } from '@tanstack/react-router'
+import {
+  Bot,
+  CheckCircle2,
+  Circle,
+  Database,
+  GitBranch,
+  Loader2,
+  type LucideIcon,
+  Mic,
+  Play,
+  RefreshCw,
+  Route as RouteIcon,
+  Square,
+} from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { RunStepEvent } from '~/agents/run-events'
+import { Button } from '~/components/ui/button'
 import type { CartographerOutputRow, MirrorReviewStatus, VipsProposedDiffRow } from '~/db/queries'
 import {
   canCreateRealtimeMirrorCapture,
@@ -63,7 +78,12 @@ function PipelinePage() {
   return <PipelinePageInner data={data} onRefresh={() => void router.invalidate()} />
 }
 
-type PipelineActionKey = 'realtime-transcript' | 'initial-chat' | 'connector' | 'sensemaking'
+type PipelineActionKey =
+  | 'realtime-transcript'
+  | 'initial-chat'
+  | 'connector'
+  | 'sensemaking'
+  | 'full-flow'
 type PipelineActionState = {
   key: PipelineActionKey
   status: 'idle' | 'running' | 'ok' | 'error'
@@ -83,6 +103,18 @@ type PipelineActionTools = {
 }
 
 type RealtimeTranscriptStage = 'idle' | 'connecting' | 'recording' | 'stopping'
+
+type PipelineStepStatus = 'passed' | 'ready' | 'waiting' | 'running'
+
+type PipelineHealthSummary = {
+  confirmedMirrors: number
+  pendingMirrors: number
+  linkedMirrors: number
+  unlinkedConfirmedMirrors: number
+  committedClaims: number
+  updatedPages: number
+  cartographerPathways: number
+}
 
 const DEFAULT_DEV_TRANSCRIPT =
   'I helped my friend debug our robotics project after class and noticed I liked breaking the problem into small tests.'
@@ -117,6 +149,7 @@ function PipelinePageInner({
     if (filter === 'all') return data.mirrors
     return data.mirrors.filter((m) => m.review_status === filter)
   }, [data.mirrors, filter])
+  const health = useMemo(() => summarizePipelineHealth(data), [data])
 
   useEffect(
     () => () => {
@@ -323,6 +356,7 @@ function PipelinePageInner({
         result.status,
         result.processed,
         result.succeeded,
+        result.failed,
         result.remaining,
       )
     })
@@ -340,72 +374,261 @@ function PipelinePageInner({
     })
   }
 
+  async function runFullFlowAction() {
+    const cleanTranscript = transcript.trim()
+    if (!cleanTranscript) {
+      setAction({
+        key: 'full-flow',
+        status: 'error',
+        message: 'Add a transcript before running the full backend flow.',
+      })
+      return
+    }
+
+    await runPipelineAction('full-flow', 'full backend flow', async ({ log, setWaitingLabel }) => {
+      log('Mirror: generating reflection output from the transcript.')
+      const mirror = await runMirror({ data: { transcript: cleanTranscript } })
+      log('Mirror: output received and schema-checked.')
+
+      setWaitingLabel('Mirror persistence')
+      log('Persistence: saving Mirror entry as confirmed.')
+      const persisted = await persistMirror({
+        data: {
+          entry: {
+            transcript: cleanTranscript,
+            validation: mirror.output.validation,
+            inferred_meaning: mirror.output.inferred_meaning,
+            story_reframe: mirror.output.story_reframe,
+          },
+          context_type: 'school',
+          review_status: 'confirmed',
+          raw_output: {
+            ...mirror.output,
+            eval_review: mirror.eval_review,
+          },
+          trace: {
+            source: 'dev-pipeline',
+            full_flow: true,
+          },
+        },
+      })
+      log(`Persistence: Mirror #${persisted.mirror_entry.id} recorded as confirmed.`, 'success')
+
+      setWaitingLabel('Connector')
+      log('Connector: linking confirmed reflections to VIPS evidence.')
+      const connector = await runConnector({ data: { limit: 5 } })
+      for (const entry of connector.entries) {
+        log(
+          `Connector: mirror #${entry.mirror_entry_id} -> ${entry.status}${
+            entry.staged_diff_id ? `, diff #${entry.staged_diff_id}` : ''
+          }.`,
+        )
+      }
+
+      const connectorCopy = connectorStatusCopy(
+        connector.status,
+        connector.processed,
+        connector.succeeded,
+        connector.failed,
+        connector.remaining,
+      )
+      if (connector.failed > 0 && connector.succeeded === 0) throw new Error(connectorCopy)
+
+      setWaitingLabel('Cartographer')
+      log('Cartographer: synthesizing the latest Trajectory page.')
+      const cartographer = await runCartographer({ data: {} })
+      for (const event of cartographer.events) {
+        log(`Cartographer event +${event.timestampMs}ms: ${summarizeRunEvent(event)}.`)
+      }
+      if (!cartographer.ok) {
+        throw new Error(`Cartographer ${cartographer.status}: ${cartographer.error}`)
+      }
+
+      const verdict = connector.status === 'ok' ? 'passed' : 'completed'
+      return `Full flow ${verdict}: Mirror #${persisted.mirror_entry.id}; ${connectorCopy} Cartographer #${cartographer.cartographer_output_id} wrote ${cartographer.trajectory.pathways.length} pathways.`
+    })
+  }
+
   const actionRunning = action.status === 'running'
 
   return (
-    <div className="font-mono text-xs leading-relaxed text-foreground">
-      <header className="mb-4 flex flex-wrap items-baseline justify-between gap-4 border-b border-border pb-3">
-        <div>
-          <h1 className="font-sans text-lg font-semibold">Agent pipeline trace</h1>
-          <p className="text-muted-foreground">
-            Student: <span className="text-foreground">{data.activeStudentId}</span> · Mirrors{' '}
-            {data.totals.mirrors} · Diffs {data.totals.diffs} · Committed{' '}
+    <div className="font-sans text-sm leading-relaxed text-foreground">
+      <header className="mb-4 flex flex-wrap items-start justify-between gap-4 border-b border-border pb-4">
+        <div className="min-w-0">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="rounded border border-border bg-muted px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              Dev only
+            </span>
+            <span className="rounded border border-border bg-background px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+              Cmd+K /dev/pipeline
+            </span>
+          </div>
+          <h1 className="text-2xl font-semibold tracking-normal">Agent pipeline test bench</h1>
+          <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+            Active student{' '}
+            <span className="font-medium text-foreground">{data.activeStudentId}</span> · mirrors{' '}
+            {data.totals.mirrors} · diffs {data.totals.diffs} · committed claims{' '}
             {data.totals.committed_timeline}
           </p>
         </div>
-        <FilterPills filter={filter} onChange={setFilter} />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void onRefresh?.()}
+            className="gap-2"
+          >
+            <RefreshCw className="size-3.5" aria-hidden="true" />
+            Refresh trace
+          </Button>
+          <FilterPills filter={filter} onChange={setFilter} />
+        </div>
       </header>
 
-      <section className="mb-4 rounded border border-border bg-muted/30 p-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-sans text-sm font-semibold">End-to-end controls</h2>
-            <p className="mt-1 max-w-3xl text-muted-foreground">
-              Run a Mirror chat, link confirmed reflections, then write the trajectory.
-            </p>
-          </div>
-          <StatusBadge value={action.status} />
-        </div>
-        <label className="mt-3 block">
-          <span className="mb-1 block font-sans text-xs font-semibold">
-            Initial chat transcript
-          </span>
-          <textarea
-            value={transcript}
-            onChange={(event) => setTranscript(event.target.value)}
-            className="min-h-20 w-full rounded border border-border bg-background px-2 py-1 text-xs"
-          />
-        </label>
-        <div className="mt-3 rounded border border-border bg-background p-2">
+      <PipelineHealthStrip health={health} action={action} />
+
+      <section className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <div className="rounded border border-border bg-muted/30 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h3 className="font-sans text-xs font-semibold">Realtime GPT transcript test</h3>
-              <p className="mt-1 text-muted-foreground">
-                Uses the same live Kira voice path as the island capture flow.
+              <h2 className="text-base font-semibold">End-to-end run</h2>
+              <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                Run the backend path in one pass, or trigger each agent stage independently.
+              </p>
+            </div>
+            <StatusBadge value={action.status} />
+          </div>
+
+          <label className="mt-4 block" htmlFor="pipeline-transcript">
+            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Initial chat transcript
+            </span>
+            <textarea
+              id="pipeline-transcript"
+              value={transcript}
+              onChange={(event) => setTranscript(event.target.value)}
+              className="min-h-28 w-full resize-y rounded border border-border bg-background px-3 py-2 font-mono text-xs leading-relaxed outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
+            />
+          </label>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              onClick={() => void runFullFlowAction()}
+              disabled={actionRunning}
+              size="sm"
+              className="gap-2"
+            >
+              <Play className="size-3.5" aria-hidden="true" />
+              Run full backend flow
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void runInitialChat()}
+              disabled={actionRunning}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <Bot className="size-3.5" aria-hidden="true" />
+              Run initial chat
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void runConnectorAction()}
+              disabled={actionRunning}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <GitBranch className="size-3.5" aria-hidden="true" />
+              Run Connector
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void runSensemakingAction()}
+              disabled={actionRunning}
+              variant="outline"
+              size="sm"
+              className="gap-2"
+            >
+              <RouteIcon className="size-3.5" aria-hidden="true" />
+              Run sense-making
+            </Button>
+          </div>
+
+          <p
+            className={cn(
+              'mt-3 text-sm',
+              action.status === 'error' ? 'text-warning' : 'text-muted-foreground',
+            )}
+            role={action.status === 'error' ? 'alert' : 'status'}
+          >
+            {action.message}
+          </p>
+          <div
+            className="mt-3 max-h-48 overflow-y-auto rounded border border-border bg-background px-3 py-2 font-mono text-xs"
+            aria-live="polite"
+            data-testid="pipeline-action-log"
+          >
+            <ol className="space-y-1">
+              {actionLog.map((entry) => (
+                <li
+                  key={entry.id}
+                  className={cn(
+                    'grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2',
+                    entry.tone === 'success'
+                      ? 'text-emerald-700'
+                      : entry.tone === 'error'
+                        ? 'text-warning'
+                        : 'text-muted-foreground',
+                  )}
+                >
+                  <time dateTime={entry.at}>{formatClock(entry.at)}</time>
+                  <span>{entry.text}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+
+        <div className="rounded border border-border bg-background p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold">Realtime transcript path</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Capture live Kira audio, then copy the final transcript into the backend run.
               </p>
             </div>
             <StatusBadge value={realtimeStage} />
           </div>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
               type="button"
               onClick={() => void startRealtimeTranscriptTest()}
               disabled={actionRunning || realtimeStage !== 'idle'}
-              className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
+              variant="outline"
+              size="sm"
+              className="gap-2"
             >
+              <Mic className="size-3.5" aria-hidden="true" />
               Start Realtime transcript
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => void stopRealtimeTranscriptTest()}
               disabled={realtimeStage !== 'recording'}
-              className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
+              variant="outline"
+              size="sm"
+              className="gap-2"
             >
+              <Square className="size-3.5" aria-hidden="true" />
               Stop Realtime transcript
-            </button>
+            </Button>
           </div>
           <div
-            className="mt-2 grid min-h-16 gap-2 rounded border border-border bg-muted/20 px-2 py-1"
+            className="mt-3 grid min-h-24 gap-2 rounded border border-border bg-muted/20 px-3 py-2 font-mono text-xs"
             role="log"
             aria-live="polite"
             data-testid="realtime-transcript-log"
@@ -431,7 +654,7 @@ function PipelinePageInner({
             )}
           </div>
           {realtimePrepared ? (
-            <div className="mt-2 grid gap-1 text-muted-foreground sm:grid-cols-3">
+            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
               <p>
                 <span className="font-semibold text-foreground">Validation:</span>{' '}
                 {realtimePrepared.validation}
@@ -447,64 +670,16 @@ function PipelinePageInner({
             </div>
           ) : null}
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void runInitialChat()}
-            disabled={actionRunning}
-            className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
-          >
-            Run initial chat
-          </button>
-          <button
-            type="button"
-            onClick={() => void runConnectorAction()}
-            disabled={actionRunning}
-            className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
-          >
-            Run Connector
-          </button>
-          <button
-            type="button"
-            onClick={() => void runSensemakingAction()}
-            disabled={actionRunning}
-            className="rounded border border-border bg-background px-2 py-1 hover:bg-muted disabled:opacity-50"
-          >
-            Run sense-making
-          </button>
-        </div>
-        <p
-          className={cn(
-            'mt-2',
-            action.status === 'error' ? 'text-warning' : 'text-muted-foreground',
-          )}
-          role={action.status === 'error' ? 'alert' : 'status'}
-        >
-          {action.message}
-        </p>
-        <div
-          className="mt-3 max-h-44 overflow-y-auto rounded border border-border bg-background px-2 py-1"
-          aria-live="polite"
-          data-testid="pipeline-action-log"
-        >
-          <ol className="space-y-1">
-            {actionLog.map((entry) => (
-              <li
-                key={entry.id}
-                className={cn(
-                  'grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2',
-                  entry.tone === 'success'
-                    ? 'text-emerald-700'
-                    : entry.tone === 'error'
-                      ? 'text-warning'
-                      : 'text-muted-foreground',
-                )}
-              >
-                <time dateTime={entry.at}>{formatClock(entry.at)}</time>
-                <span>{entry.text}</span>
-              </li>
-            ))}
-          </ol>
+      </section>
+
+      <section className="mb-4 rounded border border-border bg-background p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Trace evidence</h2>
+            <p className="mt-1 max-w-3xl text-muted-foreground">
+              The sections below show what the backend persisted after each agent stage.
+            </p>
+          </div>
         </div>
       </section>
 
@@ -584,6 +759,148 @@ function PipelinePageInner({
       </p>
     </div>
   )
+}
+
+function PipelineHealthStrip({
+  health,
+  action,
+}: {
+  health: PipelineHealthSummary
+  action: PipelineActionState
+}) {
+  const fullFlowRunning = action.status === 'running' && action.key === 'full-flow'
+  const mirrorStatus: PipelineStepStatus =
+    action.status === 'running' && (action.key === 'initial-chat' || fullFlowRunning)
+      ? 'running'
+      : health.confirmedMirrors > 0
+        ? 'passed'
+        : 'ready'
+  const connectorStatus: PipelineStepStatus =
+    action.status === 'running' && (action.key === 'connector' || fullFlowRunning)
+      ? 'running'
+      : health.linkedMirrors > 0
+        ? 'passed'
+        : health.confirmedMirrors > 0
+          ? 'ready'
+          : 'waiting'
+  const vipsStatus: PipelineStepStatus =
+    action.status === 'running' && (action.key === 'connector' || fullFlowRunning)
+      ? 'running'
+      : health.committedClaims > 0
+        ? 'passed'
+        : health.linkedMirrors > 0
+          ? 'ready'
+          : 'waiting'
+  const cartographerStatus: PipelineStepStatus =
+    action.status === 'running' && (action.key === 'sensemaking' || fullFlowRunning)
+      ? 'running'
+      : health.cartographerPathways > 0
+        ? 'passed'
+        : health.committedClaims > 0
+          ? 'ready'
+          : 'waiting'
+
+  return (
+    <section className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <PipelineHealthCard
+        icon={Bot}
+        title="Mirror"
+        status={mirrorStatus}
+        value={`${health.confirmedMirrors} confirmed`}
+        detail={`${health.pendingMirrors} pending review`}
+      />
+      <PipelineHealthCard
+        icon={GitBranch}
+        title="Connector"
+        status={connectorStatus}
+        value={`${health.linkedMirrors} linked mirrors`}
+        detail={`${health.unlinkedConfirmedMirrors} confirmed unlinked`}
+      />
+      <PipelineHealthCard
+        icon={Database}
+        title="VIPS evidence"
+        status={vipsStatus}
+        value={`${health.committedClaims} committed claims`}
+        detail={`${health.updatedPages} compiled pages updated`}
+      />
+      <PipelineHealthCard
+        icon={RouteIcon}
+        title="Cartographer"
+        status={cartographerStatus}
+        value={`${health.cartographerPathways} pathways`}
+        detail="latest trajectory output"
+      />
+    </section>
+  )
+}
+
+function PipelineHealthCard({
+  icon: Icon,
+  title,
+  status,
+  value,
+  detail,
+}: {
+  icon: LucideIcon
+  title: string
+  status: PipelineStepStatus
+  value: string
+  detail: string
+}) {
+  return (
+    <article className="rounded border border-border bg-background p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded border border-border bg-muted text-muted-foreground">
+            <Icon className="size-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold">{title}</h2>
+            <p className="truncate font-mono text-xs text-muted-foreground">{value}</p>
+          </div>
+        </div>
+        <StepStatusBadge status={status} />
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">{detail}</p>
+    </article>
+  )
+}
+
+function StepStatusBadge({ status }: { status: PipelineStepStatus }) {
+  const Icon = status === 'passed' ? CheckCircle2 : status === 'running' ? Loader2 : Circle
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide',
+        status === 'passed'
+          ? 'bg-emerald-500/15 text-emerald-700'
+          : status === 'running'
+            ? 'bg-blue-500/15 text-blue-700'
+            : status === 'ready'
+              ? 'bg-accent/15 text-accent'
+              : 'bg-zinc-500/15 text-zinc-600',
+      )}
+    >
+      <Icon className={cn('size-3', status === 'running' ? 'animate-spin' : '')} aria-hidden />
+      {status}
+    </span>
+  )
+}
+
+function summarizePipelineHealth(data: PipelineTraceResult): PipelineHealthSummary {
+  const confirmed = data.mirrors.filter((mirror) => mirror.review_status === 'confirmed')
+  const pending = data.mirrors.filter((mirror) => mirror.review_status === 'pending')
+  const linked = data.mirrors.filter((mirror) => mirror.committed_timeline.length > 0)
+  const unlinkedConfirmed = confirmed.filter((mirror) => mirror.committed_timeline.length === 0)
+  return {
+    confirmedMirrors: confirmed.length,
+    pendingMirrors: pending.length,
+    linkedMirrors: linked.length,
+    unlinkedConfirmedMirrors: unlinkedConfirmed.length,
+    committedClaims: data.totals.committed_timeline,
+    updatedPages: data.pages.filter((page) => page.compiled_truth.trim().length > 0).length,
+    cartographerPathways: data.cartographer?.pathways.length ?? 0,
+  }
 }
 
 type ConnectorGraphMirrorNode = {
@@ -1179,13 +1496,17 @@ function connectorStatusCopy(
   status: string,
   processed: number,
   succeeded: number,
+  failed: number,
   remaining: number,
 ): string {
   if (status === 'ok') {
     return `Connector applied ${succeeded}/${processed} confirmed reflections.`
   }
   if (status === 'nothing_to_run') return 'Connector found no confirmed reflections to link.'
-  if (status === 'partial') return `Connector applied ${succeeded}/${processed}; ${remaining} left.`
+  if (status === 'partial') {
+    const failureCopy = failed > 0 ? `; ${failed} failed` : ''
+    return `Connector applied ${succeeded}/${processed}${failureCopy}; ${remaining} left.`
+  }
   if (status === 'timeout') return 'Connector timed out.'
   if (status === 'schema_reject') return 'Connector returned an invalid diff.'
   if (status === 'transport_error') return 'Connector transport failed.'
