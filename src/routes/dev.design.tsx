@@ -13,6 +13,15 @@ import {
   Type,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CartographerPathwayDraft } from '~/agents/schemas'
+import { ChoicesPageView } from '~/components/ChoicesPageView'
+import { EmotionChip, EmotionConnector } from '~/components/EmotionChip'
+import {
+  type FloatingAuthMenuState,
+  ProfileStudentChrome,
+  type ProfileStudentIdentity,
+} from '~/components/ProfileSheetChrome'
+import { TrajectoryPageView } from '~/components/TrajectoryPageView'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -42,11 +51,13 @@ import {
 } from '~/components/ui/drawer'
 import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group'
 import { Textarea } from '~/components/ui/textarea'
+import { VoiceButton } from '~/components/VoiceButton'
 import {
   DIMENSION_LABEL,
   PROFILE_COLORS,
   PROFILE_HEADERS,
 } from '~/engine/student-space/Game/View/profile-tokens.constants.js'
+import type { IdentityStatusAudit, IdentityStatusId } from '~/lib/student-space/identity-status'
 import { cn } from '~/lib/utils'
 // Engine CSS is already loaded on `/` via StudentSpaceHost — re-importing here
 // makes the chrome classes (.sheet-chrome, .sheet-chrome__content) and engine
@@ -286,36 +297,83 @@ const ENGINE_TOKENS: TokenDef[] = [
 const SECTIONS = [
   { id: 'patterns', label: 'Pattern conventions', icon: Sparkles },
   { id: 'cli', label: 'shadcn CLI proposal', icon: FileJson },
+  // Tokens
   { id: 'react-color', label: 'Color — React stack', icon: Palette },
   { id: 'engine-color', label: 'Color — Engine stack', icon: Palette },
   { id: 'drift', label: 'Drift report', icon: AlertTriangle },
+  // Style
   { id: 'type', label: 'Typography', icon: Type },
   { id: 'space', label: 'Spacing & radii', icon: Ruler },
   { id: 'surface', label: 'Surfaces & elevation', icon: Layers },
-  { id: 'react-primitives', label: 'React primitives', icon: Component },
-  { id: 'engine-surfaces', label: 'Engine surfaces', icon: Box },
-  { id: 'vips', label: 'VIPS profile cards', icon: Sparkles },
   { id: 'icons', label: 'Iconography', icon: Sparkles },
   { id: 'motion', label: 'Motion', icon: Move },
+  // Components — type-based (shadcn / Material convention)
+  { id: 'buttons', label: 'Buttons', icon: Component },
+  { id: 'pills', label: 'Pills & badges', icon: Component },
+  { id: 'cards', label: 'Cards', icon: Component },
+  { id: 'inputs', label: 'Inputs', icon: Component },
+  { id: 'overlays', label: 'Overlays', icon: Layers },
+  { id: 'tabs', label: 'Tabs & navigation', icon: Component },
+  { id: 'avatars', label: 'Avatars', icon: Component },
+  { id: 'headers', label: 'Headers & metadata', icon: Type },
+  { id: 'empty', label: 'Empty states', icon: Component },
+  { id: 'viz', label: 'Data viz', icon: Component },
+  // Composed views (the assemblies that need data to demo)
+  { id: 'views', label: 'Composed views', icon: Component },
+  { id: 'vips', label: 'VIPS profile cards', icon: Sparkles },
+  { id: 'engine-surfaces', label: 'Engine surfaces', icon: Box },
+  // Reference
+  { id: 'inventory', label: 'Component inventory', icon: FileJson },
   { id: 'diff', label: 'Diff to apply', icon: FileJson },
 ] as const
 
+type SectionId = (typeof SECTIONS)[number]['id']
+
+const DEFAULT_SECTION: SectionId = 'patterns'
+
+function isSectionId(value: string): value is SectionId {
+  return SECTIONS.some((s) => s.id === value)
+}
+
+function readSectionFromHash(): SectionId {
+  if (typeof window === 'undefined') return DEFAULT_SECTION
+  const raw = window.location.hash.replace(/^#/, '')
+  return isSectionId(raw) ? raw : DEFAULT_SECTION
+}
+
 function DesignSystemPage() {
   // Live override buffer — every tweak writes to :root via useEffect and is
-  // tracked here so the diff section at the bottom can reproduce the changes.
+  // tracked here so the diff section can reproduce the changes.
   const [overrides, setOverrides] = useState<Record<string, string>>({})
+  // Active section in the right pane. SSR-safe default; client syncs to hash
+  // on mount and on hashchange.
+  const [activeId, setActiveId] = useState<SectionId>(DEFAULT_SECTION)
 
   useEffect(() => {
     const root = document.documentElement
     for (const [name, value] of Object.entries(overrides)) {
       root.style.setProperty(name, value)
     }
-    return () => {
-      // Cleanup is intentionally skipped: tweaks should persist while
-      // navigating around the page. To reset, the user clicks "Reset all"
-      // which clears overrides and removes the inline styles.
-    }
   }, [overrides])
+
+  // Read the hash on mount and keep state synced with back/forward navigation.
+  useEffect(() => {
+    setActiveId(readSectionFromHash())
+    const onHash = () => setActiveId(readSectionFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  // Mirror the active section back into the URL so the view is shareable.
+  // replaceState (not pushState) keeps the browser history shallow — clicking
+  // through every section shouldn't bury the user's previous page.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const next = `#${activeId}`
+    if (window.location.hash !== next) {
+      window.history.replaceState(null, '', next)
+    }
+  }, [activeId])
 
   function setToken(name: string, value: string) {
     setOverrides((prev) => ({ ...prev, [name]: value }))
@@ -335,56 +393,111 @@ function DesignSystemPage() {
     // otherwise swap the entire page font. Engine-content previews opt back
     // into Plus Jakarta Sans explicitly where they need it.
     <div
-      className="mx-auto w-full max-w-6xl pb-24"
+      className="mx-auto w-full max-w-6xl pb-12"
       style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
     >
       <PageHeader overrideCount={Object.keys(overrides).length} onReset={resetAll} />
-      <SectionNav />
-      <PatternConventions />
-      <CliProposal />
-      <ColorTokens
-        title="Color — React stack"
-        anchor="react-color"
-        tokens={REACT_TOKENS}
-        onTweak={setToken}
-        overrides={overrides}
-      />
-      <ColorTokens
-        title="Color — Engine stack"
-        anchor="engine-color"
-        tokens={ENGINE_TOKENS.filter((t) => t.name !== '--onb-shadow' && t.name !== '--onb-ease')}
-        onTweak={setToken}
-        overrides={overrides}
-      />
-      <DriftReport />
-      <Typography />
-      <SpacingAndRadii />
-      <SurfacesAndElevation />
-      <ReactPrimitivesGallery />
-      <EngineSurfacesStage />
-      <VipsCards />
-      <Iconography />
-      <Motion />
-      <DiffSection overrides={overrides} />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[220px_minmax(0,1fr)] md:gap-8">
+        <Sidebar activeId={activeId} onSelect={setActiveId} />
+        <main className="min-w-0">
+          <ActiveSection id={activeId} overrides={overrides} onTweak={setToken} />
+        </main>
+      </div>
     </div>
   )
 }
 
+interface ActiveSectionProps {
+  id: SectionId
+  overrides: Record<string, string>
+  onTweak: (name: string, value: string) => void
+}
+
+function ActiveSection({ id, overrides, onTweak }: ActiveSectionProps) {
+  switch (id) {
+    case 'patterns':
+      return <PatternConventions />
+    case 'cli':
+      return <CliProposal />
+    case 'react-color':
+      return (
+        <ColorTokens
+          title="Color — React stack"
+          anchor="react-color"
+          tokens={REACT_TOKENS}
+          onTweak={onTweak}
+          overrides={overrides}
+        />
+      )
+    case 'engine-color':
+      return (
+        <ColorTokens
+          title="Color — Engine stack"
+          anchor="engine-color"
+          tokens={ENGINE_TOKENS.filter((t) => t.name !== '--onb-shadow' && t.name !== '--onb-ease')}
+          onTweak={onTweak}
+          overrides={overrides}
+        />
+      )
+    case 'drift':
+      return <DriftReport />
+    case 'type':
+      return <Typography />
+    case 'space':
+      return <SpacingAndRadii />
+    case 'surface':
+      return <SurfacesAndElevation />
+    case 'buttons':
+      return <ButtonsSection />
+    case 'pills':
+      return <PillsSection />
+    case 'cards':
+      return <CardsSection />
+    case 'inputs':
+      return <InputsSection />
+    case 'overlays':
+      return <OverlaysSection />
+    case 'tabs':
+      return <TabsSection />
+    case 'avatars':
+      return <AvatarsSection />
+    case 'headers':
+      return <HeadersSection />
+    case 'empty':
+      return <EmptyStatesSection />
+    case 'viz':
+      return <DataVizSection />
+    case 'views':
+      return <ComposedViewsSection />
+    case 'engine-surfaces':
+      return <EngineSurfacesStage />
+    case 'vips':
+      return <VipsCards />
+    case 'inventory':
+      return <ComponentInventory />
+    case 'icons':
+      return <Iconography />
+    case 'motion':
+      return <Motion />
+    case 'diff':
+      return <DiffSection overrides={overrides} />
+  }
+}
+
 function PageHeader({ overrideCount, onReset }: { overrideCount: number; onReset: () => void }) {
   return (
-    <header className="border-b border-border pb-6 pt-8">
+    <header className="border-b border-border pb-5 pt-6 mb-6">
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Dev · design system
           </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-            shadcn/ui patterns on Base UI + Tailwind v4
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
+            Sensemaking · shadcn on Base UI + Tailwind v4
           </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            One canvas for every visual primitive in the Sensemaking Agents app. Tweaks update{' '}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">:root</code> live and the diff at
-            the bottom shows what to copy into the three token files.
+          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+            Pick a category on the left. Tweaks write to{' '}
+            <code className="rounded bg-muted px-1 py-0.5">:root</code> and feed the diff page.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -404,23 +517,81 @@ function PageHeader({ overrideCount, onReset }: { overrideCount: number; onReset
   )
 }
 
-function SectionNav() {
+/**
+ * Group the flat SECTIONS list into a labelled set of buckets for the left
+ * rail — easier to scan than 15 unbroken rows. Order preserved within each
+ * bucket; the buckets themselves are the natural reading order of the page.
+ */
+const NAV_GROUPS: { label: string; ids: SectionId[] }[] = [
+  { label: 'Foundations', ids: ['patterns', 'cli'] },
+  { label: 'Tokens', ids: ['react-color', 'engine-color', 'drift'] },
+  { label: 'Style', ids: ['type', 'space', 'surface', 'icons', 'motion'] },
+  {
+    label: 'Components',
+    ids: [
+      'buttons',
+      'pills',
+      'cards',
+      'inputs',
+      'overlays',
+      'tabs',
+      'avatars',
+      'headers',
+      'empty',
+      'viz',
+    ],
+  },
+  { label: 'Composed', ids: ['views', 'vips', 'engine-surfaces'] },
+  { label: 'Reference', ids: ['inventory', 'diff'] },
+]
+
+function Sidebar({
+  activeId,
+  onSelect,
+}: {
+  activeId: SectionId
+  onSelect: (id: SectionId) => void
+}) {
   return (
-    <nav className="sticky top-0 z-20 my-6 -mx-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
-      <ul className="flex flex-wrap gap-2 text-xs">
-        {SECTIONS.map((s) => (
-          <li key={s.id}>
-            <a
-              href={`#${s.id}`}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <s.icon className="size-3" />
-              {s.label}
-            </a>
-          </li>
+    <aside className="md:sticky md:top-4 md:self-start md:max-h-[calc(100vh-2rem)] md:overflow-y-auto">
+      <nav aria-label="Design system sections" className="flex flex-col gap-5">
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label} className="flex flex-col gap-1">
+            <p className="px-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              {group.label}
+            </p>
+            <ul className="flex flex-col gap-0.5">
+              {group.ids.map((id) => {
+                const section = SECTIONS.find((s) => s.id === id)
+                if (!section) return null
+                const isActive = id === activeId
+                return (
+                  <li key={id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(id)}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={cn(
+                        'inline-flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                        isActive
+                          ? 'bg-foreground text-background'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                      )}
+                    >
+                      <section.icon
+                        className={cn('size-3.5 shrink-0', isActive ? '' : 'opacity-70')}
+                      />
+                      <span className="truncate">{section.label}</span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
         ))}
-      </ul>
-    </nav>
+      </nav>
+    </aside>
   )
 }
 
@@ -436,7 +607,8 @@ function SectionShell({
   children: React.ReactNode
 }) {
   return (
-    <section id={id} className="scroll-mt-24 border-b border-border py-8">
+    // No border / scroll-margin — each section is its own right-pane view now.
+    <section id={id}>
       <header className="mb-5">
         <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
         {subtitle ? (
@@ -719,11 +891,19 @@ interface DriftRow {
 
 const DRIFT_ROWS: DriftRow[] = [
   {
+    topic: 'Product UI ignores both stacks',
+    react:
+      'src/components/*.tsx hard-codes inline hex: bg-[#fdfaf3], text-[#2b2620]/60, border-[#e3d8c4], bg-[#f1ede5]',
+    engine: 'engine sheets use --cta-*, --onb-*, --facet-* via CSS classes',
+    verdict: 'harmonize',
+    note: "The actual user-facing React surfaces (ProfileSheetView, ChoicesPageView, TrajectoryPageView) bypass BOTH shadcn semantic tokens and engine CSS vars. They hard-code warm hex literals inline. This is the real drift — neither stack's tokens flow through to the live product. Picking a token names + applying them across src/components/*.tsx is the harmonization work.",
+  },
+  {
     topic: 'Primary action color',
-    react: '--color-accent: oklch(0.6 0.18 256)  (cool blue)',
+    react: '--color-accent: oklch(0.6 0.18 256)  (cool blue, infrastructure only)',
     engine: '--cta-accent: #C99B73  (warm tan)',
     verdict: 'TBD',
-    note: 'React stack inherited a generic shadcn blue; engine is intentionally warm. Decide whether the React stack adopts the engine palette or stays neutral.',
+    note: 'React stack inherited a generic shadcn blue but it is invisible to users — the shadcn tokens only show up in dev surfaces. Engine is intentionally warm. Decide whether to retire the shadcn blue or document it as dev-only.',
   },
   {
     topic: 'Body font',
@@ -1060,15 +1240,45 @@ function ShadowSwatch({
   )
 }
 
-function ReactPrimitivesGallery() {
+// Stable no-op handlers for sample views. Memoising at module scope avoids
+// triggering ChoicesPageView's internal effects on every render of the parent.
+const NOOP_OPEN_SHEET = (_: unknown) => {}
+const NOOP_CHOICES_ACTIONS = {
+  addDecision: () => null,
+  removeDecision: () => null,
+  tagDecisionPattern: () => null,
+  addChangeIntention: () => null,
+  removeChangeIntention: () => null,
+} as const
+
+const SAMPLE_AUTH_MENU: FloatingAuthMenuState = {
+  status: 'signed-in',
+  label: 'Mei Tan',
+  detail: 'Sec 3B',
+  kind: 'demo',
+}
+const SAMPLE_IDENTITY: ProfileStudentIdentity = { name: 'Mei Tan', detail: 'Sec 3B' }
+
+// ─── Components, organized by type (shadcn / Material convention) ───────
+// Each section surfaces every variant that exists in this codebase — both
+// the shadcn primitive (src/components/ui/*.tsx) AND the product-specific
+// instances (inline JSX in src/components/*.tsx, engine DOM in
+// src/engine/student-space/*). One section per shape; consistency reviews
+// span the whole system.
+
+function ButtonsSection() {
   return (
     <SectionShell
-      id="react-primitives"
-      title="React primitives"
-      subtitle="Every src/components/ui/*.tsx in default + interactive states. Each card calls out which Base UI primitive it wraps."
+      id="buttons"
+      title="Buttons"
+      subtitle="Every button-shaped affordance in the system — shadcn primitive variants, the engine cream pill family, and the product-specific VoiceButton."
     >
-      <div className="grid gap-4 lg:grid-cols-2">
-        <PrimitiveBlock title="Button" basePrim="(no Base UI dependency — pure cva)">
+      <div className="flex flex-col gap-5">
+        <ComponentBlock
+          title="<Button>  ·  shadcn primitive"
+          file="src/components/ui/button.tsx"
+          blurb="cva variant matrix. 5 visual variants × 4 sizes. Used directly in dev surfaces and as composition inside the product views."
+        >
           <div className="flex flex-wrap gap-2">
             <Button>Default</Button>
             <Button variant="accent">Accent</Button>
@@ -1076,13 +1286,112 @@ function ReactPrimitivesGallery() {
             <Button variant="ghost">Ghost</Button>
             <Button variant="destructive">Destructive</Button>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Button size="sm">sm</Button>
             <Button size="default">default</Button>
             <Button size="lg">lg</Button>
+            <Button size="icon" aria-label="Icon button">
+              <ArrowRight aria-hidden className="size-4" />
+            </Button>
           </div>
-        </PrimitiveBlock>
-        <PrimitiveBlock title="Badge" basePrim="(no Base UI dependency — pure cva)">
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Cream pill action button  ·  product recipe"
+          file="ChoicesPageView.tsx · RelationshipsPageView.tsx (inline)"
+          blurb='"Log a decision" / "Add an intention" / "Share" — right-aligned form openers. Hard-coded with arbitrary hex (#e3d8c4 border, white fill) — strong candidate for an ActionPill primitive.'
+        >
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-4">
+            <button
+              type="button"
+              disabled
+              className="rounded-full border border-[#e3d8c4] bg-white px-4 py-2 text-sm font-medium text-[#2b2620] shadow-sm"
+            >
+              Log a decision
+            </button>
+            <button
+              type="button"
+              disabled
+              className="rounded-full border border-[#e3d8c4] bg-white px-4 py-2 text-sm font-medium text-[#2b2620] shadow-sm"
+            >
+              Add an intention
+            </button>
+            <button
+              type="button"
+              disabled
+              className="inline-flex items-center gap-1 rounded-full border border-[#e3d8c4] bg-white px-3 py-1.5 text-xs font-medium text-[#2b2620] shadow-sm"
+            >
+              <ArrowRight aria-hidden className="size-3" />
+              Share
+            </button>
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title='"Run sense-making" / "Show me all paths"  ·  engine recipe'
+          file="src/engine/student-space/Game/View/TrajectorySheet.js (DOM)"
+          blurb="The two Path Finder head actions. Solid cream for the primary action, outline for the escape hatch. Currently hand-rolled in engine DOM; product code mirrors the styling inline."
+        >
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-4">
+            <button
+              type="button"
+              disabled
+              className="rounded-full bg-[#f5e9d4] px-4 py-2 text-sm font-medium text-[#6a4a26] shadow-sm hover:bg-[#ead9bd]"
+            >
+              Run sense-making
+            </button>
+            <button
+              type="button"
+              disabled
+              className="rounded-full border border-[#e3d8c4] bg-white px-4 py-2 text-sm font-medium text-[#2b2620] shadow-sm"
+            >
+              Show me all paths
+            </button>
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="<VoiceButton>  ·  product"
+          file="src/components/VoiceButton.tsx"
+          blurb="Primary capture affordance — idle / recording (with volume halo) / working / disabled. Wraps the shadcn icon Button at h-14 w-14 rounded-full with a halo span on recording."
+        >
+          <div className="flex items-end gap-8">
+            <div className="flex flex-col items-center gap-2">
+              <VoiceButton phase="idle" onPress={() => {}} />
+              <p className="font-mono text-[10px] text-muted-foreground">idle</p>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <VoiceButton phase="recording" amplitude={0.6} onPress={() => {}} />
+              <p className="font-mono text-[10px] text-muted-foreground">recording @ 0.6</p>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <VoiceButton phase="working" />
+              <p className="font-mono text-[10px] text-muted-foreground">working</p>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <VoiceButton phase="disabled" />
+              <p className="font-mono text-[10px] text-muted-foreground">disabled</p>
+            </div>
+          </div>
+        </ComponentBlock>
+      </div>
+    </SectionShell>
+  )
+}
+
+function PillsSection() {
+  return (
+    <SectionShell
+      id="pills"
+      title="Pills & badges"
+      subtitle="Small chip-shaped affordances. Status indicators, emotion chips, dimension tags, override prefixes — every small rounded surface in the system."
+    >
+      <div className="flex flex-col gap-5">
+        <ComponentBlock
+          title="<Badge>  ·  shadcn primitive"
+          file="src/components/ui/badge.tsx"
+          blurb="cva matrix — 6 variants × 2 sizes × 2 radii. The infrastructure pill primitive."
+        >
           <div className="flex flex-wrap gap-2">
             <Badge>default</Badge>
             <Badge variant="secondary">secondary</Badge>
@@ -1091,8 +1400,123 @@ function ReactPrimitivesGallery() {
             <Badge variant="outline">outline</Badge>
             <Badge variant="warning">warning</Badge>
           </div>
-        </PrimitiveBlock>
-        <PrimitiveBlock title="Card" basePrim="(no Base UI dependency)">
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Badge size="sm">sm</Badge>
+            <Badge size="default">default</Badge>
+            <Badge radius="sm">square</Badge>
+            <Badge radius="pill">pill</Badge>
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="IdentityStatusPill — 5 statuses  ·  product"
+          file="src/components/TrajectoryPageView.tsx (internal · candidate for export)"
+          blurb="Click-to-reveal pill rendered next to the Trajectory eyebrow. The colored dot communicates Marcia quadrant — starter (amber) → diffused (orange) → searching (blue) → foreclosed (rose) → achieved (emerald)."
+        >
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(STATUS_DOT_CLASS) as IdentityStatusId[]).map((status) => (
+              <button
+                key={status}
+                type="button"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/30 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.10em] text-foreground/80 hover:bg-muted/60"
+                data-status={status}
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn('size-2 rounded-full', STATUS_DOT_CLASS[status])}
+                />
+                {STATUS_LABEL[status]}
+              </button>
+            ))}
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="PREVIEW · ACHIEVED override pill  ·  engine"
+          file="src/engine/student-space/Game/View/StatusPreviewHud.js"
+          blurb="The status pill grows a `PREVIEW ·` prefix when an identity-status override is active. Same dot color as the inferred status."
+        >
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/30 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.10em] text-foreground/80">
+            <span aria-hidden className="size-2 rounded-full bg-emerald-500" />
+            PREVIEW · ACHIEVED
+          </span>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="<EmotionChip>  ·  product"
+          file="src/components/EmotionChip.tsx"
+          blurb="Mirror's read (inferred) vs the student's tag (user). Renders as a Badge by default; `asButton` switches to a tap-target."
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <EmotionChip mood="joy" variant="inferred" />
+            <EmotionChip mood="anxiety" variant="user" />
+            <EmotionChip mood="sadness" variant="inferred" asButton onClick={() => {}} />
+            <EmotionChip mood="anger" variant="user" asButton onClick={() => {}} />
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="<EmotionConnector>  ·  product"
+          file="src/components/EmotionChip.tsx"
+          blurb="Italic connector text between two EmotionChips — reports same / aligned / different based on a small neighbor-group lookup."
+        >
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-3">
+              <EmotionChip mood="joy" variant="inferred" />
+              <EmotionConnector inferred="joy" user="joy" />
+              <EmotionChip mood="joy" variant="user" />
+            </div>
+            <div className="flex items-center gap-3">
+              <EmotionChip mood="sadness" variant="inferred" />
+              <EmotionConnector inferred="sadness" user="ennui" />
+              <EmotionChip mood="ennui" variant="user" />
+            </div>
+            <div className="flex items-center gap-3">
+              <EmotionChip mood="anger" variant="inferred" />
+              <EmotionConnector inferred="anger" user="joy" />
+              <EmotionChip mood="joy" variant="user" />
+            </div>
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Tag pill (next to eyebrow)  ·  product recipe"
+          file="ChoicesPageView.tsx · ProfileSheetView.tsx (inline)"
+          blurb='Small cream-soft pill ("Choices" / "Values" / etc.) sitting next to an uppercase eyebrow. Inlined across views with `bg-[#f1ede5] text-[#2b2620]/70` — candidate for extraction.'
+        >
+          <div className="flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/20 p-3">
+            <span className="rounded-full bg-[#f1ede5] px-2 py-0.5 text-[11px] font-semibold text-[#2b2620]/70">
+              Choices
+            </span>
+            <span className="rounded-full bg-[#f1ede5] px-2 py-0.5 text-[11px] font-semibold text-[#2b2620]/70">
+              Values
+            </span>
+            <span className="rounded-full bg-[#f1ede5] px-2 py-0.5 text-[11px] font-semibold text-[#2b2620]/70">
+              Personality
+            </span>
+            <span className="rounded-full bg-[#f1ede5] px-2 py-0.5 text-[11px] font-semibold text-[#2b2620]/70">
+              Relationships
+            </span>
+          </div>
+        </ComponentBlock>
+      </div>
+    </SectionShell>
+  )
+}
+
+function CardsSection() {
+  return (
+    <SectionShell
+      id="cards"
+      title="Cards"
+      subtitle="Surfaces that group content — the shadcn primitive plus product card recipes used inside the dimension views."
+    >
+      <div className="flex flex-col gap-5">
+        <ComponentBlock
+          title="<Card> / <CardHeader> / <CardContent>  ·  shadcn primitive"
+          file="src/components/ui/card.tsx"
+          blurb="The infrastructure card. Composes Header / Title / Description / Content / Footer with consistent gap + padding."
+        >
           <Card>
             <CardHeader>
               <CardTitle>Card title</CardTitle>
@@ -1100,13 +1524,136 @@ function ReactPrimitivesGallery() {
             </CardHeader>
             <CardContent>Body text rendered in --color-foreground.</CardContent>
           </Card>
-        </PrimitiveBlock>
-        <PrimitiveBlock title="Textarea" basePrim="(native textarea)">
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Cream surface card  ·  product recipe"
+          file="ChoicesPageView.tsx · TrajectoryPageView.tsx (inline)"
+          blurb="Repeated cream-tan card surround: `rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-6 text-[#2b2620]`. Wraps every Section row + empty state combo in the product views."
+        >
+          <div className="rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-6 text-[#2b2620]">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
+              DECISIONS I'VE MADE AND WHY
+            </p>
+            <p className="mt-3 text-sm italic leading-relaxed text-[#2b2620]/60">
+              Log a real choice — CCA leadership, subject combination, a conflict you handled. Name
+              your options and what pushed you.
+            </p>
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Numbered list card (pathway card)  ·  product"
+          file="src/components/TrajectoryPageView.tsx (PathwayCard)"
+          blurb="Each Cartographer pathway gets a numbered circle counter + label + exploration prompt + expandable evidence/tradeoffs. The numbered-list-card shape recurs in MirrorReflectionSections, PostMirrorReview."
+        >
+          <ol className="flex flex-col">
+            {SAMPLE_PATHWAYS.slice(0, 2).map((pathway, index) => (
+              <li
+                key={pathway.label}
+                className="border-t border-border/70 py-5 first:border-t-0 first:pt-0"
+              >
+                <div className="grid gap-4 sm:grid-cols-[2.25rem_minmax(0,1fr)]">
+                  <span className="flex size-8 items-center justify-center rounded-full bg-muted text-sm font-semibold text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-semibold tracking-tight">{pathway.label}</h3>
+                    <p className="mt-2 text-sm leading-relaxed">{pathway.exploration_prompt}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </ComponentBlock>
+      </div>
+    </SectionShell>
+  )
+}
+
+function InputsSection() {
+  return (
+    <SectionShell
+      id="inputs"
+      title="Inputs"
+      subtitle="Form controls — text + selection. The shadcn primitives that compose the product editors (EditableField, EmotionPicker, ContextTypePicker)."
+    >
+      <div className="flex flex-col gap-5">
+        <ComponentBlock
+          title="<Textarea>  ·  shadcn primitive"
+          file="src/components/ui/textarea.tsx"
+          blurb="Native textarea with shadcn border, focus ring (--color-accent), and disabled treatment. Used by EditableField and capture flows."
+        >
           <Textarea placeholder="Type something — focus ring uses --color-accent." />
-        </PrimitiveBlock>
-        <PrimitiveBlock
-          title="Dialog"
-          basePrim="@base-ui-components/react/dialog · uses data-[starting-style] for enter/exit"
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="<RadioGroup> / <RadioGroupItem>  ·  shadcn primitive (Base UI)"
+          file="src/components/ui/radio-group.tsx"
+          blurb="Base UI radio-group with data-[checked] styling. The product pickers (EmotionPicker, ContextTypePicker) render tile-style children inside RadioGroupItem to get the right tap-target shape."
+        >
+          <RadioGroup defaultValue="b" className="grid-cols-3 gap-2">
+            <RadioGroupItem value="a" className="px-3 py-2">
+              <span className="text-xs">Option A</span>
+            </RadioGroupItem>
+            <RadioGroupItem value="b" className="px-3 py-2">
+              <span className="text-xs">Option B</span>
+            </RadioGroupItem>
+            <RadioGroupItem value="c" className="px-3 py-2">
+              <span className="text-xs">Option C</span>
+            </RadioGroupItem>
+          </RadioGroup>
+        </ComponentBlock>
+
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-sm">Not yet rendered</CardTitle>
+            <CardDescription className="text-xs">
+              EditableField, EmotionPicker, ContextTypePicker, CaptureTagPicker — all listed in
+              Component inventory. Ask "render EditableField" and they migrate here.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    </SectionShell>
+  )
+}
+
+function ComponentBlock({
+  title,
+  file,
+  blurb,
+  children,
+}: {
+  title: string
+  file: string
+  blurb: string
+  children: React.ReactNode
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">{title}</CardTitle>
+        <CardDescription className="font-mono text-[10px]">{file}</CardDescription>
+        <p className="mt-1 text-xs text-muted-foreground">{blurb}</p>
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  )
+}
+
+function OverlaysSection() {
+  return (
+    <SectionShell
+      id="overlays"
+      title="Overlays"
+      subtitle="Modal surfaces — Dialog (centered), Drawer (bottom sheet), AlertDialog (destructive confirm). All built on Base UI's Dialog primitive with data-[starting-style] / data-[ending-style] for enter/exit. The engine SheetChrome (full-viewport vanilla-JS sheets) is documented under Surfaces & elevation."
+    >
+      <div className="grid gap-5 lg:grid-cols-2">
+        <ComponentBlock
+          title="<Dialog>  ·  shadcn primitive (Base UI)"
+          file="src/components/ui/dialog.tsx"
+          blurb="Centered modal with backdrop + ×. Base UI's Dialog under the hood. Click to open."
         >
           <Dialog>
             <DialogTrigger
@@ -1129,10 +1676,12 @@ function ReactPrimitivesGallery() {
               </p>
             </DialogContent>
           </Dialog>
-        </PrimitiveBlock>
-        <PrimitiveBlock
-          title="Drawer"
-          basePrim="@base-ui-components/react/dialog · slides up via data-[starting-style]:translate-y-full"
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="<Drawer>  ·  shadcn primitive (Base UI)"
+          file="src/components/ui/drawer.tsx"
+          blurb="Bottom-anchored sheet. Slides up via data-[starting-style]:translate-y-full. Used by capture flows + mobile picker surfaces."
         >
           <Drawer>
             <DrawerTrigger
@@ -1151,10 +1700,12 @@ function ReactPrimitivesGallery() {
               </p>
             </DrawerContent>
           </Drawer>
-        </PrimitiveBlock>
-        <PrimitiveBlock
-          title="AlertDialog"
-          basePrim="@base-ui-components/react/alert-dialog · destructive confirmation"
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="<AlertDialog>  ·  shadcn primitive (Base UI)"
+          file="src/components/ui/alert-dialog.tsx"
+          blurb="Focus-trapping confirm for destructive flows. Use this — not Dialog — when the action is irreversible."
         >
           <AlertDialog>
             <AlertDialogTrigger
@@ -1177,45 +1728,768 @@ function ReactPrimitivesGallery() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </PrimitiveBlock>
-        <PrimitiveBlock
-          title="RadioGroup"
-          basePrim="@base-ui-components/react/radio-group · uses data-[checked] not aria-checked alone"
-        >
-          <RadioGroup defaultValue="b" className="grid-cols-3 gap-2">
-            <RadioGroupItem value="a" className="px-3 py-2">
-              <span className="text-xs">Option A</span>
-            </RadioGroupItem>
-            <RadioGroupItem value="b" className="px-3 py-2">
-              <span className="text-xs">Option B</span>
-            </RadioGroupItem>
-            <RadioGroupItem value="c" className="px-3 py-2">
-              <span className="text-xs">Option C</span>
-            </RadioGroupItem>
-          </RadioGroup>
-        </PrimitiveBlock>
+        </ComponentBlock>
+
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-sm">SheetChrome (engine full-viewport)</CardTitle>
+            <CardDescription className="font-mono text-[10px]">
+              src/engine/student-space/Game/View/SheetChrome.js
+            </CardDescription>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The vanilla-JS full-viewport sheet primitive (History, Profile, Letters, Path Finder,
+              Calendar all build on this). Backdrop, 10px blur, 200ms fade, z-60. Live demo is in{' '}
+              <a className="underline" href="#surface">
+                Surfaces & elevation
+              </a>
+              .
+            </p>
+          </CardHeader>
+        </Card>
+
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-sm">Not yet rendered</CardTitle>
+            <CardDescription className="text-xs">
+              ConfirmDialog (lightweight wrapper around AlertDialog), BottomSheet (Drawer wrapper).
+              Listed in Component inventory.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       </div>
     </SectionShell>
   )
 }
 
-function PrimitiveBlock({
-  title,
-  basePrim,
-  children,
-}: {
-  title: string
-  basePrim: string
-  children: React.ReactNode
-}) {
+function TabsSection() {
+  // Mirror the ProfileStudentChrome tab rail without the avatar half. The
+  // engine uses these same tabs at the top of every dimension page.
+  const PROFILE_TABS = [
+    'values',
+    'interests',
+    'personality',
+    'skills',
+    'relationships',
+    'choices',
+  ] as const
+  const TAB_LABEL = {
+    values: 'Values',
+    interests: 'Interests',
+    personality: 'Personality',
+    skills: 'Skills',
+    relationships: 'Relationships',
+    choices: 'Choices',
+  } as const
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-sm">{title}</CardTitle>
-        <CardDescription className="font-mono text-[10px]">{basePrim}</CardDescription>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
+    <SectionShell
+      id="tabs"
+      title="Tabs & navigation"
+      subtitle="Horizontal tab rails. The profile dimension rail appears across every dimension page; the SheetEntryRail is its sibling for sheet triggers."
+    >
+      <div className="flex flex-col gap-5">
+        <ComponentBlock
+          title="Profile dimension tabs  ·  product"
+          file="src/components/ProfileSheetChrome.tsx (nav block)"
+          blurb="The active tab takes that dimension's theme color (per PROFILE_THEMES / PROFILE_TAB_THEMES). Inactive tabs are muted on a cream backdrop. This is the tab strip from the Profile sheet — same pattern shown standalone."
+        >
+          <nav
+            aria-label="Profile dimensions sample"
+            className="flex w-full gap-2 overflow-x-auto rounded-2xl border border-[#e6dcc9]/80 bg-[#fdfaf3]/90 px-4 py-3"
+          >
+            {PROFILE_TABS.map((tab) => {
+              const isActive = tab === 'choices'
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  disabled
+                  className={cn(
+                    'h-8 shrink-0 rounded-full border border-transparent px-3.5 text-sm font-medium transition-colors',
+                    isActive ? 'border-[#C99B73] bg-[#f5e9d4] text-[#6A4A26]' : 'text-[#2b2620]/55',
+                  )}
+                >
+                  {TAB_LABEL[tab]}
+                </button>
+              )
+            })}
+          </nav>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="<SheetEntryRail>  ·  product"
+          file="src/components/SheetEntryRail.tsx"
+          blurb="Same six tabs styled differently — outlined pills on a neutral background. Used at sheet trigger points (e.g. above an embedded BottomSheet)."
+        >
+          <nav
+            aria-label="Sheet entry rail sample"
+            className="flex w-full gap-2 overflow-x-auto py-1 sm:flex-wrap"
+          >
+            {PROFILE_TABS.map((tab) => {
+              const isActive = tab === 'choices'
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  disabled
+                  className={cn(
+                    'inline-flex shrink-0 items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors',
+                    isActive && 'bg-muted',
+                  )}
+                >
+                  {TAB_LABEL[tab]}
+                </button>
+              )
+            })}
+          </nav>
+        </ComponentBlock>
+      </div>
+    </SectionShell>
+  )
+}
+
+function AvatarsSection() {
+  return (
+    <SectionShell
+      id="avatars"
+      title="Avatars"
+      subtitle="The cream-circle initial avatar used across the profile chrome and share surfaces. Three sizes today — could use a real Avatar primitive (shadcn ships one we haven't installed)."
+    >
+      <div className="flex flex-col gap-5">
+        <ComponentBlock
+          title="Cream-circle initial avatar  ·  product recipe"
+          file="src/components/ProfileSheetChrome.tsx (inline JSX)"
+          blurb="Soft cream circle (#fae1ce) with a warm-tan initial (#b5532a) and an inset bottom shadow. Sizes are inlined per use site — small (size-10), default (size-16), large (size-20). Candidate for a shadcn Avatar install + theme."
+        >
+          <div className="flex items-end gap-6">
+            {[
+              { size: 'size-10', text: 'text-base', label: 'small (40)' },
+              { size: 'size-16', text: 'text-[26px]', label: 'default (64)' },
+              { size: 'size-20', text: 'text-3xl', label: 'large (80)' },
+            ].map((spec) => (
+              <div key={spec.label} className="flex flex-col items-center gap-2">
+                <div
+                  className={cn(
+                    'flex shrink-0 items-center justify-center rounded-full bg-[#fae1ce] font-semibold text-[#b5532a] shadow-[inset_0_-2px_0_rgba(0,0,0,0.04)]',
+                    spec.size,
+                    spec.text,
+                  )}
+                  role="img"
+                  aria-label="Mei avatar"
+                >
+                  M
+                </div>
+                <p className="font-mono text-[10px] text-muted-foreground">{spec.label}</p>
+              </div>
+            ))}
+          </div>
+        </ComponentBlock>
+      </div>
+    </SectionShell>
+  )
+}
+
+function HeadersSection() {
+  return (
+    <SectionShell
+      id="headers"
+      title="Headers & metadata"
+      subtitle="Page-opening eyebrow + tag + title patterns and the metadata lines that sit below. Repeated verbatim across every dimension page and the engine sheets — strong candidates for extraction into header primitives."
+    >
+      <div className="flex flex-col gap-5">
+        <ComponentBlock
+          title="Eyebrow + tag + display title  ·  product recipe"
+          file="ChoicesPageView.tsx · ProfileSheetView.tsx · TrajectoryPageView.tsx (inline)"
+          blurb="The pattern that opens every page — small uppercase eyebrow, optional pill tag, big display title, subtitle. Same shape on cream backgrounds for product views and on neutral for dev surfaces."
+        >
+          <div className="rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-6 text-[#2b2620]">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
+                WHAT I'VE CHOSEN, AND WHY
+              </p>
+              <span className="rounded-full bg-[#f1ede5] px-2 py-0.5 text-[11px] font-semibold text-[#2b2620]/70">
+                Choices
+              </span>
+            </div>
+            <h1 className="mt-2 text-[clamp(1.6rem,4vw,2rem)] font-semibold leading-tight tracking-tight">
+              What I've chosen, and why
+            </h1>
+            <p className="mt-2 text-sm text-[#2b2620]/60">
+              A log of real decisions and the patterns across them
+            </p>
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Status eyebrow recipe (PATH FINDER · status)  ·  engine"
+          file="src/engine/student-space/Game/View/statusHeuristics.js (eyebrow strings)"
+          blurb='The "PATH FINDER · ACHIEVED" eyebrow pattern — base label + bullet separator + status. Used at the top of the Trajectory sheet to communicate the current CCE quadrant at a glance. Includes a status dot.'
+        >
+          <div className="space-y-3 rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-6 text-[#2b2620]">
+            {(Object.keys(STATUS_LABEL) as IdentityStatusId[]).map((status) => (
+              <div key={status} className="flex items-baseline gap-3">
+                <span aria-hidden className={cn('size-2 rounded-full', STATUS_DOT_CLASS[status])} />
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#2b2620]/55">
+                  PATH FINDER · {STATUS_LABEL[status].toUpperCase()}
+                </p>
+              </div>
+            ))}
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Metadata line  ·  product / engine recipe"
+          file="TrajectorySheet.js · TrajectoryPageView.tsx"
+          blurb="Inline metadata line sitting below a display title. Engine uses a single line; the React route uses a <dl> grid — same information, different presentation."
+        >
+          <div className="rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-6">
+            <p className="text-sm text-[#2b2620]/60">Generated 5/20/2026, 8:23 AM · 3 pathways</p>
+          </div>
+        </ComponentBlock>
+      </div>
+    </SectionShell>
+  )
+}
+
+// ─── Path Finder / Trajectory components ─────────────────────────────────
+// Mirrors the screenshot the user shared: PREVIEW · ACHIEVED green-dot pill,
+// PATH FINDER · ACHIEVED eyebrow, numbered pathway cards, "Run sense-making"
+// + "Show me all paths" action pair, and the full TrajectoryPageView.
+
+// Local mirror of TrajectoryPageView's internal STATUS_DOT_CLASS so the inline
+// recipes below match the live component. If TrajectoryPageView exports this
+// later, swap to the imported version.
+const STATUS_DOT_CLASS: Record<IdentityStatusId, string> = {
+  starter: 'bg-amber-400',
+  diffused: 'bg-orange-500',
+  searching: 'bg-blue-500',
+  foreclosed: 'bg-rose-500',
+  achieved: 'bg-emerald-500',
+}
+
+const STATUS_LABEL: Record<IdentityStatusId, string> = {
+  starter: 'Starter',
+  diffused: 'Diffused',
+  searching: 'Searching',
+  foreclosed: 'Foreclosed',
+  achieved: 'Achieved',
+}
+
+const SAMPLE_STATUS_AUDIT: IdentityStatusAudit = {
+  status: 'achieved',
+  exploration: {
+    score: 0.82,
+    band: 'high',
+    inputs: {
+      distinctClaims: 14,
+      weightedQuotes: 11,
+      askCount: 8,
+      hasBackendCartographer: true,
+    },
+  },
+  commitment: {
+    score: 0.71,
+    band: 'high',
+    inputs: { decisionCount: 6, intentionCount: 3, dominantPatternTag: 'deliberate' },
+  },
+  reason:
+    'High exploration (distinct claims across all four dimensions) and high commitment (recurring deliberate-pattern decisions) — student has both searched and chosen.',
+}
+
+const SAMPLE_PATHWAYS: CartographerPathwayDraft[] = [
+  {
+    label: 'Teaching, tutoring, and community learning',
+    trait_combination: [
+      { claim_id: 'v.empathy', dimension: 'values' },
+      { claim_id: 's.explaining', dimension: 'skills' },
+    ],
+    ecg_region_tags: ['education', 'community-leadership'],
+    risks_tradeoffs:
+      'Risk: time pressure during exam terms can erode the routine — protect a small fixed slot rather than scaling up.',
+    exploration_prompt:
+      'Run a small recurring tutoring experiment for four weeks. After each session, note what energised or drained you, and whether asking before helping changed the quality of the help you gave.',
+  },
+  {
+    label: 'Designing for unfamiliar users',
+    trait_combination: [
+      { claim_id: 'p.curiosity', dimension: 'personality' },
+      { claim_id: 'i.systems', dimension: 'interests' },
+    ],
+    ecg_region_tags: ['human-centered-design', 'product'],
+    risks_tradeoffs:
+      'Risk: gravitating to familiar audiences. Tradeoff: deeper insight vs. broader reach.',
+    exploration_prompt:
+      'Pick one user group whose context you do not share. Spend an afternoon shadowing them; sketch three small interventions afterwards.',
+  },
+  {
+    label: 'Long-form writing as a sense-making tool',
+    trait_combination: [
+      { claim_id: 'v.honesty', dimension: 'values' },
+      { claim_id: 's.writing', dimension: 'skills' },
+    ],
+    ecg_region_tags: ['writing', 'reflection'],
+    risks_tradeoffs:
+      'Risk: writing becomes performance. Tradeoff: discipline of unpublished writing vs. feedback of publishing.',
+    exploration_prompt:
+      'Write a 600-word piece weekly for a month — half published, half kept private. Note which mode surfaced more honest thinking.',
+  },
+]
+
+function EmptyStatesSection() {
+  return (
+    <SectionShell
+      id="empty"
+      title="Empty states"
+      subtitle="The italic muted-copy pattern that fills every panel before the student logs content. Repeated across Choices, Relationships, VIPS, Path Finder — all the same italic + muted + leading-relaxed shape."
+    >
+      <div className="flex flex-col gap-5">
+        <ComponentBlock
+          title="Section-level italic empty copy  ·  product recipe"
+          file="ChoicesPageView.tsx · RelationshipsPageView.tsx (inline)"
+          blurb="Inside a cream surface card, after the eyebrow, before any logged content. Two common voices: invitational (telling the student what to log) and conditional (telling them what will appear once they do)."
+        >
+          <div className="rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-6 text-[#2b2620]">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
+              DECISIONS I'VE MADE AND WHY
+            </p>
+            <p className="mt-3 text-sm italic leading-relaxed text-[#2b2620]/60">
+              Log a real choice — CCA leadership, subject combination, a conflict you handled. Name
+              your options and what pushed you.
+            </p>
+            <hr className="my-5 border-t border-[#e3d8c4]" />
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
+              PATTERNS IN HOW I HANDLE HARD SITUATIONS
+            </p>
+            <p className="mt-3 text-sm italic leading-relaxed text-[#2b2620]/60">
+              Once you've logged a few decisions, tag each one so the pattern surfaces here.
+            </p>
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="Dimension panel empty copy  ·  product recipe"
+          file="src/components/ProfileSheetView.tsx (inline)"
+          blurb="Inside the active-dimension panel of the Profile sheet, when no compiled-truth has been generated yet. Same italic-muted treatment, sized to match body copy."
+        >
+          <div className="rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-6 text-[#2b2620]">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
+              WHAT MATTERS TO ME
+            </p>
+            <h2 className="mt-2 text-[clamp(1.6rem,4vw,2rem)] font-semibold leading-tight tracking-tight">
+              What you keep coming back to
+            </h2>
+            <p className="mt-6 text-sm italic leading-relaxed text-[#2b2620]/60">
+              Profile evidence will appear here after confirmed reflections are connected.
+            </p>
+          </div>
+        </ComponentBlock>
+      </div>
+    </SectionShell>
+  )
+}
+
+function DataVizSection() {
+  return (
+    <SectionShell
+      id="viz"
+      title="Data viz"
+      subtitle="Custom visualizations. Today: the CompassBearingMap in TrajectoryPageView. Future: AgentRunVisualizer event stream, ECG region maps."
+    >
+      <div className="flex flex-col gap-5">
+        <ComponentBlock
+          title="CompassBearingMap  ·  product"
+          file="src/components/TrajectoryPageView.tsx (internal · candidate for export)"
+          blurb="Circular compass with N/S/E/W cardinal marks + needle + numbered bearings. Each bearing is an anchor link to the matching numbered pathway card below. Rendered inside the full Trajectory view — see Composed views."
+        >
+          <p className="text-xs text-muted-foreground">
+            The compass is a function-local component in TrajectoryPageView.tsx — not exported. See
+            it in context via the{' '}
+            <a className="underline" href="#views">
+              Composed views
+            </a>{' '}
+            section (TrajectoryPageView with three mock pathways renders the compass).
+          </p>
+        </ComponentBlock>
+
+        <Card className="border-dashed">
+          <CardHeader>
+            <CardTitle className="text-sm">Not yet rendered</CardTitle>
+            <CardDescription className="text-xs">
+              AgentRunVisualizer (Cartographer event timeline), MirrorEvalReview (grader UX) — both
+              are listed in Component inventory.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    </SectionShell>
+  )
+}
+
+function ComposedViewsSection() {
+  return (
+    <SectionShell
+      id="views"
+      title="Composed views"
+      subtitle="Full page assemblies — the surfaces a user actually sees. Rendered with mock data so the parts compose, but disabled so clicks do not mutate state."
+    >
+      <div className="flex flex-col gap-6">
+        <ComponentBlock
+          title="<ProfileStudentChrome>"
+          file="src/components/ProfileSheetChrome.tsx"
+          blurb="Avatar + name + dimension tab rail. Used at the top of the Profile sheet and every per-dimension page (Choices, Relationships, VIPS dimensions). Composed from Avatar + Tabs primitives above."
+        >
+          <div className="overflow-hidden rounded-2xl border border-[#e6dcc9]">
+            <ProfileStudentChrome
+              authMenu={SAMPLE_AUTH_MENU}
+              studentProfile={SAMPLE_IDENTITY}
+              activeDimension="choices"
+              openSheet="choices"
+              onOpenSheet={NOOP_OPEN_SHEET}
+              sheetPanelId="design-system-sample-panel"
+              disabled
+            />
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="<ChoicesPageView> (omitChrome, empty state)"
+          file="src/components/ChoicesPageView.tsx"
+          blurb="The Choices tab content. Rendered with omitChrome (no avatar/tabs) + empty decisions/intentions + no-op actions — what a brand-new student sees the first time they tap Choices."
+        >
+          <div className="overflow-hidden rounded-2xl border border-[#e3d8c4]">
+            <ChoicesPageView
+              authMenu={SAMPLE_AUTH_MENU}
+              studentProfile={SAMPLE_IDENTITY}
+              openSheet="choices"
+              onOpenSheet={NOOP_OPEN_SHEET}
+              sheetPanelId="design-system-sample-panel"
+              decisions={[]}
+              intentions={[]}
+              actions={NOOP_CHOICES_ACTIONS}
+              omitChrome
+              disabled
+            />
+          </div>
+        </ComponentBlock>
+
+        <ComponentBlock
+          title="<TrajectoryPageView> (Achieved, 3 pathways)"
+          file="src/components/TrajectoryPageView.tsx"
+          blurb="Complete Trajectory page with mock pathways, an Achieved status audit, the open-questions + disclaimer collapsibles, and the CompassBearingMap. The status pill expands when clicked to show the reason line."
+        >
+          <div className="-mx-2 rounded-xl border border-border p-2">
+            <TrajectoryPageView
+              trajectoryParagraph="Mei's recent reflections cluster around helping others learn — tutoring sessions, peer study groups, an interest in how unfamiliar problems get broken down. The path now carries near-term actions you can actually take this term."
+              pathways={SAMPLE_PATHWAYS}
+              openQuestions={[
+                'Which of these felt energising vs. obligatory?',
+                'What did you change about your approach between session 1 and session 4?',
+              ]}
+              disclaimer="Cartographer pathways are computed from your own confirmed reflections — they shift as you add more. This is a snapshot of the pattern as of the timestamp above."
+              createdAt="2026-05-20T08:23:00.000Z"
+              statusAudit={SAMPLE_STATUS_AUDIT}
+            />
+          </div>
+        </ComponentBlock>
+      </div>
+    </SectionShell>
+  )
+}
+
+// ─── Component inventory ─────────────────────────────────────────────────
+// A flat list of every src/components/*.tsx file. Each row has a one-line
+// description and a status flag indicating whether it has a live render
+// elsewhere on this design page yet. When the user asks "show me X",
+// the next iteration moves it from "not rendered" → "rendered above".
+
+interface InventoryEntry {
+  file: string
+  name: string
+  summary: string
+  // Where this component is rendered on this design page (if at all).
+  renderedAt?: SectionId
+}
+
+const INVENTORY: InventoryEntry[] = [
+  // Profile / dimension surfaces
+  {
+    file: 'src/components/ProfileSheetChrome.tsx',
+    name: 'ProfileStudentChrome',
+    summary: 'Avatar + name + dimension tab rail used by every per-dimension page.',
+    renderedAt: 'views',
+  },
+  {
+    file: 'src/components/ProfileSheetView.tsx',
+    name: 'ProfileSheetView',
+    summary:
+      'Full profile sheet — chrome + active dimension panel + signed-out auth nag. Top-level wrapper for a dimension page inside the engine bottom sheet.',
+  },
+  {
+    file: 'src/components/ChoicesPageView.tsx',
+    name: 'ChoicesPageView',
+    summary:
+      'Choices tab — three MECE sections (decisions, patterns, intentions). Reads/writes the engine Choices state slice.',
+    renderedAt: 'views',
+  },
+  {
+    file: 'src/components/RelationshipsPageView.tsx',
+    name: 'RelationshipsPageView',
+    summary: 'Relationships tab — three MECE sections, parallel to ChoicesPageView.',
+  },
+  {
+    file: 'src/components/VipsPageView.tsx',
+    name: 'VipsPageView',
+    summary: 'One VIPS dimension page — identity chrome + ranked claim rows.',
+  },
+  {
+    file: 'src/components/TrajectoryPageView.tsx',
+    name: 'TrajectoryPageView',
+    summary:
+      'Cartographer lead-sheet output — trajectory paragraph, compass bearing map, pathway cards, open questions, disclaimer, warnings.',
+    renderedAt: 'views',
+  },
+  {
+    file: 'src/components/TrajectorySheetView.tsx',
+    name: 'TrajectorySheetView',
+    summary: 'Engine-side Trajectory sheet wrapper with empty-state copy.',
+  },
+  {
+    file: 'src/components/ReflectionsSheetView.tsx',
+    name: 'ReflectionsSheetView',
+    summary: 'Reflections list sheet — entries grouped by recency.',
+  },
+  // Mirror flow
+  {
+    file: 'src/components/MirrorSession.tsx',
+    name: 'MirrorSession',
+    summary:
+      'Voice-mode session controller. Audio-only; recording + transcription + reflection composer.',
+  },
+  {
+    file: 'src/components/MirrorReflectionSections.tsx',
+    name: 'MirrorReflectionSections',
+    summary: 'Three editable sections (validation, inferred meaning, caution) post-Mirror.',
+  },
+  {
+    file: 'src/components/PostMirrorReview.tsx',
+    name: 'PostMirrorReview',
+    summary:
+      'Post-Mirror review surface — staged diffs grouped by VIPS dimension with verified ✓ / aspirational ⚠ / discard chips.',
+  },
+  {
+    file: 'src/components/MirrorEvalReview.tsx',
+    name: 'MirrorEvalReview',
+    summary: 'Mirror evaluation review (eval grader UX).',
+  },
+  // Capture
+  {
+    file: 'src/components/CaptureTagPicker.tsx',
+    name: 'CaptureTagPicker',
+    summary: 'Two-step picker after each capture submit — species + tag refinement.',
+  },
+  {
+    file: 'src/components/CaptureActionMenu.tsx',
+    name: 'CaptureActionMenu',
+    summary: 'Action menu surfaced from the capture tier.',
+  },
+  {
+    file: 'src/components/ContextTypePicker.tsx',
+    name: 'ContextTypePicker',
+    summary: 'Picker for context-type tags during capture.',
+  },
+  {
+    file: 'src/components/EmotionPicker.tsx',
+    name: 'EmotionPicker',
+    summary:
+      '3×3 emotion picker — Joy / Sadness / Anger / Fear / Disgust / Anxiety / Envy / Embarrassed / Ennui.',
+  },
+  {
+    file: 'src/components/EmotionChip.tsx',
+    name: 'EmotionChip / EmotionConnector',
+    summary:
+      'Read-only chip (Mirror sensed / You felt) + a connector that says same / aligned / different.',
+    renderedAt: 'pills',
+  },
+  {
+    file: 'src/components/VoiceButton.tsx',
+    name: 'VoiceButton',
+    summary: 'Primary capture affordance — idle / recording (with halo) / working / disabled.',
+    renderedAt: 'buttons',
+  },
+  // Cards / fields
+  {
+    file: 'src/components/WikiEntryCard.tsx',
+    name: 'WikiEntryCard',
+    summary:
+      'Quiet-mirror reflection card — three editable lenses (validation, inferred meaning, caution).',
+  },
+  {
+    file: 'src/components/EditableField.tsx',
+    name: 'EditableField',
+    summary: 'Display ↔ textarea toggle with explicit Confirm / Cancel.',
+  },
+  {
+    file: 'src/components/ConfirmAndSave.tsx',
+    name: 'ConfirmAndSave',
+    summary: 'EditableField wrapped in a TanStack Query mutation.',
+  },
+  {
+    file: 'src/components/ConnectedVipsLinks.tsx',
+    name: 'ConnectedVipsLinks',
+    summary: 'Linked VIPS claims surfaced from an entry.',
+  },
+  // Chrome / nav
+  {
+    file: 'src/components/SheetEntryRail.tsx',
+    name: 'SheetEntryRail',
+    summary: 'Row of profile dimension trigger pills (similar to ProfileStudentChrome tabs).',
+  },
+  {
+    file: 'src/components/BottomSheet.tsx',
+    name: 'BottomSheet',
+    summary: 'Bottom-sheet wrapper around the Base UI Drawer.',
+  },
+  {
+    file: 'src/components/ConfirmDialog.tsx',
+    name: 'ConfirmDialog',
+    summary: 'Lightweight modal confirm built on Base UI AlertDialog.',
+  },
+  // World / engine integration
+  {
+    file: 'src/components/StudentSpaceHost.tsx',
+    name: 'StudentSpaceHost',
+    summary:
+      'Mounts the vendored engine on `/`. Dispatches dynamic import + adds the body.student-space-shell class.',
+  },
+  {
+    file: 'src/components/WorldHud.tsx',
+    name: 'WorldHud',
+    summary: 'Floating HUD over the engine canvas — capture corner anchor.',
+  },
+  {
+    file: 'src/components/WorldStage.tsx',
+    name: 'WorldStage',
+    summary: 'Engine stage shell — provides the container the engine mounts into.',
+  },
+  {
+    file: 'src/components/FloatingWorldActions.tsx',
+    name: 'FloatingWorldActions',
+    summary:
+      'Legacy floating action shell. Largely retired but kept for backwards-compat type re-export.',
+  },
+  {
+    file: 'src/components/IslandProgressionOverlay.tsx',
+    name: 'IslandProgressionOverlay',
+    summary: 'Toast overlay above the engine canvas — capture / grow / bloom events.',
+  },
+  // Agent debug
+  {
+    file: 'src/components/AgentDebugPanel.tsx',
+    name: 'AgentDebugPanel',
+    summary: 'Dev panel for live agent runs.',
+  },
+  {
+    file: 'src/components/AgentRunVisualizer.tsx',
+    name: 'AgentRunVisualizer',
+    summary: 'Live-ish visualization of the Cartographer sense-making run.',
+  },
+  {
+    file: 'src/components/EnvironmentPanel.tsx',
+    name: 'EnvironmentPanel',
+    summary: 'Environment / config inspector for dev surfaces.',
+  },
+  {
+    file: 'src/components/DevPalette.tsx',
+    name: 'DevPalette',
+    summary: 'Cmd-K developer palette — mounted in the root layout.',
+  },
+  // Share
+  {
+    file: 'src/components/share/PublicProfilePage.tsx',
+    name: 'PublicProfilePage',
+    summary: 'Public-facing share page. Reads a token, renders the owner-allowed profile slice.',
+  },
+  {
+    file: 'src/components/share/OwnerPreviewBanner.tsx',
+    name: 'OwnerPreviewBanner',
+    summary: 'Sticky banner shown on share pages when the viewer is the link owner.',
+  },
+  {
+    file: 'src/components/share/RevokedShareCard.tsx',
+    name: 'RevokedShareCard',
+    summary: 'Card shown when a share token has been revoked.',
+  },
+]
+
+function ComponentInventory() {
+  const rendered = INVENTORY.filter((e) => e.renderedAt)
+  const notRendered = INVENTORY.filter((e) => !e.renderedAt)
+  return (
+    <SectionShell
+      id="inventory"
+      title="Component inventory"
+      subtitle="Every src/components/*.tsx file. Components with a live render on this page are linked to their section; the rest are listed so you can ask for them by name."
+    >
+      <div className="flex flex-col gap-6">
+        <div>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Rendered on this page ({rendered.length})
+          </h3>
+          <InventoryTable entries={rendered} />
+        </div>
+        <div>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            Not yet rendered ({notRendered.length})
+          </h3>
+          <InventoryTable entries={notRendered} />
+        </div>
+      </div>
+    </SectionShell>
+  )
+}
+
+function InventoryTable({ entries }: { entries: InventoryEntry[] }) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <table className="w-full text-left text-xs">
+        <thead className="bg-muted/50 text-[11px] uppercase tracking-wider text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium">Name</th>
+            <th className="px-3 py-2 font-medium">File</th>
+            <th className="px-3 py-2 font-medium">Summary</th>
+            <th className="px-3 py-2 font-medium">Rendered</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map((entry) => {
+            const target = entry.renderedAt ? SECTIONS.find((s) => s.id === entry.renderedAt) : null
+            return (
+              <tr key={`${entry.file}-${entry.name}`} className="border-t border-border align-top">
+                <td className="px-3 py-2 font-medium text-foreground">{entry.name}</td>
+                <td className="px-3 py-2 font-mono text-[10px] text-muted-foreground">
+                  {entry.file}
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">{entry.summary}</td>
+                <td className="px-3 py-2">
+                  {target ? (
+                    <a
+                      href={`#${target.id}`}
+                      className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-foreground hover:bg-muted"
+                    >
+                      <ArrowRight className="size-3" />
+                      {target.label}
+                    </a>
+                  ) : (
+                    <Badge variant="secondary" size="sm">
+                      not yet
+                    </Badge>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
