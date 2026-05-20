@@ -1,4 +1,5 @@
 import {
+  buildRealtimeMirrorLiveInstructions,
   buildRealtimeMirrorRepairInput,
   buildRealtimeMirrorResponseInstructions,
   buildRealtimeMirrorUserInput,
@@ -129,6 +130,7 @@ export async function createRealtimeMirrorCapture(
   dataChannel.addEventListener('message', onMessage)
   dataChannel.addEventListener('error', onChannelError)
 
+  let sessionReady: Promise<void> = Promise.resolve()
   try {
     const offer = await peer.createOffer()
     await peer.setLocalDescription(offer)
@@ -146,6 +148,11 @@ export async function createRealtimeMirrorCapture(
       type: 'answer',
       sdp: await response.text(),
     })
+    sessionReady = sendRealtimeMirrorLiveSessionUpdateWhenOpen(dataChannel).catch((err) => {
+      const error = err instanceof Error ? err : new Error(String(err))
+      accumulator.fail(error)
+      throw error
+    })
   } catch (err) {
     teardownRealtimeCapture(peer, dataChannel, stream, remoteAudio)
     throw err
@@ -156,7 +163,7 @@ export async function createRealtimeMirrorCapture(
     stop: async () => {
       if (stopStarted) return accumulator.result
       stopStarted = true
-      await waitForDataChannelOpen(dataChannel)
+      await sessionReady
       stopStreamTracks(stream)
       try {
         const transcript =
@@ -449,6 +456,39 @@ export function createRealtimeMirrorAccumulator(
     accept,
     fail,
   }
+}
+
+async function sendRealtimeMirrorLiveSessionUpdateWhenOpen(
+  dataChannel: MinimalDataChannel,
+): Promise<void> {
+  await waitForDataChannelOpen(dataChannel)
+  dataChannel.send(
+    JSON.stringify({
+      type: 'session.update',
+      session: {
+        type: 'realtime',
+        instructions: buildRealtimeMirrorLiveInstructions(),
+        output_modalities: ['audio'],
+        audio: {
+          input: {
+            transcription: {
+              model: 'gpt-4o-mini-transcribe',
+              language: 'en',
+            },
+            noise_reduction: { type: 'near_field' },
+            turn_detection: {
+              type: 'semantic_vad',
+              create_response: true,
+              interrupt_response: true,
+              eagerness: 'auto',
+            },
+          },
+        },
+        tool_choice: 'none',
+        tools: [],
+      },
+    }),
+  )
 }
 
 function normalizeAccumulatorOptions(

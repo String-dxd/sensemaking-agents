@@ -4,6 +4,7 @@ import {
   safetyIdentifierForStudent,
 } from '~/agents/openai-realtime/config'
 import {
+  buildRealtimeMirrorCallSessionConfig,
   buildRealtimeMirrorInstructions,
   buildRealtimeMirrorSessionConfig,
 } from '~/agents/openai-realtime/mirror-prompt'
@@ -67,12 +68,7 @@ async function createRealtimeMirrorSession(
   const model = env.OPENAI_REALTIME_MIRROR_MODEL || OPENAI_REALTIME_MIRROR_DEFAULT_MODEL
   const form = new FormData()
   form.set('sdp', offer)
-  form.set(
-    'session',
-    JSON.stringify(
-      buildRealtimeMirrorSessionConfig({ model, mode: 'live_audio', safetyIdentifier }),
-    ),
-  )
+  form.set('session', JSON.stringify(buildRealtimeMirrorCallSessionConfig({ model })))
 
   const upstream = await (deps.fetch ?? fetch)(deps.callsUrl ?? DEFAULT_CALLS_URL, {
     method: 'POST',

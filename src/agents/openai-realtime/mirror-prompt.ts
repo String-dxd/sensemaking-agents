@@ -93,3 +93,19 @@ export function buildRealtimeMirrorSessionConfig({
       : null,
   }
 }
+
+export function buildRealtimeMirrorCallSessionConfig({
+  model = OPENAI_REALTIME_MIRROR_DEFAULT_MODEL,
+  voice = OPENAI_REALTIME_MIRROR_VOICE,
+}: {
+  model?: string
+  voice?: string
+} = {}): RealtimeSessionCreateRequest {
+  return {
+    type: 'realtime',
+    model,
+    audio: {
+      output: { voice },
+    },
+  }
+}

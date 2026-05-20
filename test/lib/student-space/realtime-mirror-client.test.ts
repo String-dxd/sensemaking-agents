@@ -56,7 +56,22 @@ describe('realtime-mirror-client', () => {
     const stopPromise = capture.stop()
     channel.open()
     await Promise.resolve()
-    expect(channel.sent).toEqual([])
+    expect(channel.sent.map((payload) => JSON.parse(payload).type)).toEqual(['session.update'])
+    const sessionUpdate = JSON.parse(channel.sent[0] ?? '{}').session
+    expect(sessionUpdate).toMatchObject({
+      type: 'realtime',
+      output_modalities: ['audio'],
+      audio: {
+        input: {
+          transcription: { model: 'gpt-4o-mini-transcribe', language: 'en' },
+          turn_detection: {
+            type: 'semantic_vad',
+            create_response: true,
+            interrupt_response: true,
+          },
+        },
+      },
+    })
     channel.message({
       type: 'conversation.item.input_audio_transcription.completed',
       item_id: 'student-1',
@@ -95,8 +110,11 @@ describe('realtime-mirror-client', () => {
     ])
     await Promise.resolve()
     await Promise.resolve()
-    expect(channel.sent.map((payload) => JSON.parse(payload).type)).toEqual(['response.create'])
-    const responseCreatePayload = channel.sent[0]
+    expect(channel.sent.map((payload) => JSON.parse(payload).type)).toEqual([
+      'session.update',
+      'response.create',
+    ])
+    const responseCreatePayload = channel.sent[1]
     expect(responseCreatePayload).toBeDefined()
     if (!responseCreatePayload) throw new Error('Realtime response was not requested.')
     const responseCreate = JSON.parse(responseCreatePayload).response
