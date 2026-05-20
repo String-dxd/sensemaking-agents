@@ -11,6 +11,7 @@
 
 import State from '../State/State.js'
 import OverlayController from './OverlayController.js'
+import SheetChrome from './SheetChrome.js'
 import DayDetailCard from './DayDetailCard.js'
 
 const MOOD_HEX = {
@@ -60,15 +61,24 @@ export default class CalendarSheet
 
         // DayDetailCard is a sibling overlay (not a child) — registered with
         // OverlayController under its own name. It's owned by CalendarSheet
-        // for lifetime but called via the controller for visibility.
+        // for lifetime but portals into whatever sheet is currently active
+        // at open time (history when embedded, calendar when standalone).
         this.dayDetail = new DayDetailCard()
         OverlayController.getInstance().register('dayDetail', this.dayDetail)
 
-        const root = document.createElement('div')
-        root.className = 'calendar-sheet'
-        root.setAttribute('aria-hidden', 'true')
-        root.innerHTML = `
-            <button class="calendar-sheet__close" type="button" aria-label="Close">×</button>
+        // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
+        // the Escape-to-close listener. Calendar's grid/header content lives
+        // inside chrome.contentSlot. When embedded inside History (Timeline
+        // tab), `.calendar-sheet--embedded` CSS overrides chrome's fixed
+        // position to make Calendar a normal block child of History.
+        // See CLAUDE.md "Sheet chrome contract".
+        this.chrome = new SheetChrome({
+            key:            'calendar',
+            sheetClassName: 'calendar-sheet',
+            withCloseButton: true,
+            closeOnBackdrop: false,
+        })
+        this.chrome.contentSlot.innerHTML = `
             <header class="calendar-sheet__head">
                 <button class="cal-nav" data-dir="-1" type="button" aria-label="Previous month">‹</button>
                 <h2 class="cal-title"></h2>
@@ -81,7 +91,7 @@ export default class CalendarSheet
             </div>
             <div class="calendar-sheet__grid" role="grid"></div>
         `
-        document.body.appendChild(root)
+        const root = this.chrome.root
         this.root      = root
         this.titleEl   = root.querySelector('.cal-title')
         this.todayBtn  = root.querySelector('.cal-today')
@@ -90,28 +100,18 @@ export default class CalendarSheet
         this.connectorRunning = false
         this.connectorStatusText = ''
 
+        // Content-level click handler — month nav, today button, connector,
+        // day-cell taps. × button and Escape are owned by SheetChrome.
         this._onRootClick = (event) => this._onClick(event)
         root.addEventListener('click', this._onRootClick)
-
-        this._onKeyDown = (event) =>
-        {
-            if(this.isOpen && event.key === 'Escape') this.close()
-        }
-        document.addEventListener('keydown', this._onKeyDown)
     }
 
     /**
-     * Tear-down hook called from View.dispose(). Drops the document-level
-     * keydown listener, disposes the owned DayDetailCard (no other surface
-     * owns its lifetime), and detaches the sheet root.
+     * Tear-down hook called from View.dispose(). Disposes DayDetailCard,
+     * then disposes the chrome (which removes the sheet root from DOM).
      */
     dispose()
     {
-        if(this._onKeyDown)
-        {
-            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
-            this._onKeyDown = null
-        }
         if(this._onRootClick && this.root)
         {
             try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
@@ -119,12 +119,14 @@ export default class CalendarSheet
         }
         try { this.dayDetail?.dispose?.() } catch(_) {}
         this.dayDetail = null
-        try { this.root?.remove?.() } catch(_) {}
+        try { this.chrome?.dispose?.() } catch(_) {}
+        this.chrome = null
         this.root = null
     }
 
     open(opts = {})
     {
+        if(!this.chrome) return
         const targetCapture = this._targetCapture(opts)
         const anchorDate = targetCapture?.entryDate || (this.state.backendActive ? this._latestActivityDate() : null)
         const now = anchorDate ? new Date(`${anchorDate}T00:00:00`) : new Date()
@@ -133,8 +135,7 @@ export default class CalendarSheet
         this.viewYear  = now.getFullYear()
         this.viewMonth = now.getMonth()
         this._render()
-        this.root.setAttribute('aria-hidden', 'false')
-        this.root.classList.add('is-open')
+        this.chrome.open(opts)
         this.isOpen = true
         if(targetCapture?.entryDate) this._openDayDetail(targetCapture.entryDate)
     }
@@ -142,13 +143,11 @@ export default class CalendarSheet
     close()
     {
         if(!this.isOpen) return
-        this.root.classList.remove('is-open')
-        this.root.setAttribute('aria-hidden', 'true')
         this.isOpen = false
         // Closing Calendar also closes any open DayDetailCard — they share
         // semantic scope (day detail only makes sense over a month grid).
         if(this.dayDetail?.isOpen) this.dayDetail.close()
-        OverlayController.getInstance().noteClosed('calendar')
+        try { this.chrome?.close?.() } catch(_) {}
     }
 
     _render()
@@ -260,8 +259,8 @@ export default class CalendarSheet
 
     _onClick(event)
     {
-        if(event.target.closest('.calendar-sheet__close')) { this.close(); return }
-
+        // × button and Escape are owned by SheetChrome — no per-sheet close
+        // handling needed here.
         const nav = event.target.closest('.cal-nav')
         if(nav)
         {
@@ -398,7 +397,7 @@ export default class CalendarSheet
         const confirmed = this._confirmedReflectionCount()
         this.connectorBtn.disabled = confirmed === 0
         this.connectorBtn.textContent = this.connectorStatusText
-            || (confirmed === 0 ? 'No confirmed reflections' : 'Run Connector')
+            || (confirmed === 0 ? 'Log a reflection to begin' : 'Run Connector')
     }
 
     _confirmedReflectionCount()

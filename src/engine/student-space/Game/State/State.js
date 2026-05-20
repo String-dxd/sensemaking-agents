@@ -17,6 +17,7 @@ import Onboarding from './Onboarding.js'
 import Sprouts, { wireSproutsToCaptures } from './Sprouts.js'
 import Relationships from './Relationships.js'
 import Choices from './Choices.js'
+import IdentityStatusOverride from './IdentityStatusOverride.js'
 import IslandSnapshotBridge from './IslandSnapshotBridge.js'
 import Auth from './Auth.js'
 
@@ -88,6 +89,7 @@ export default class State
         this.sprouts  = new Sprouts()
         this.relationships = new Relationships()
         this.choices       = new Choices()
+        this.identityStatusOverride = new IdentityStatusOverride()
         this.weather = new Weather()
         this.wind = new Wind()
 
@@ -104,6 +106,7 @@ export default class State
         this.sprouts.hydrate(snapshot.sprouts)
         this.relationships.hydrate(snapshot.relationships)
         this.choices.hydrate(snapshot.choices)
+        this.identityStatusOverride.hydrate(snapshot.identityStatusOverride)
 
         // Cross-slice wiring — Sprouts subscribes to Captures and MoodPins so
         // every new capture/mood grows the active sprout. The helper wraps

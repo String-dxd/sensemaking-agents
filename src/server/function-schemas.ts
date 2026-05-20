@@ -141,3 +141,8 @@ export const islandStateAtInputSchema = z.object({
   year: z.number().int().min(2000).max(2100),
 })
 export type IslandStateAtInput = z.output<typeof islandStateAtInputSchema>
+
+export const yearEntriesInputSchema = z.object({
+  year: z.number().int().min(2000).max(2100),
+})
+export type YearEntriesInput = z.output<typeof yearEntriesInputSchema>

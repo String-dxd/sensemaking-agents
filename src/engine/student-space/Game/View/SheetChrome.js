@@ -1,0 +1,289 @@
+/**
+ * SheetChrome — shared vanilla-JS primitive for every full-viewport sheet
+ * (History, Profile, Letters, Path Finder, Calendar).
+ *
+ * Owns the chrome contract: translucent backdrop (rgba 0.55 → 0.92), 10px
+ * blur, 200ms opacity fade, z-60, Escape-to-close, optional ×-button, optional
+ * backdrop-click-to-close, and a portal target for child overlays (e.g. the
+ * Day-Detail card that opens from inside History → Calendar).
+ *
+ * Why this exists
+ * ---------------
+ * Before SheetChrome, each sheet hand-rolled its own backdrop, transition,
+ * and z-index. That produced the History-vs-others visual split (translucent
+ * fade vs opaque slide-up) and a stacking bug where DayDetailCard sat behind
+ * History because its z-index was tuned for body, not for History's stacking
+ * context. The fix is *structural* — one chrome implementation, every sheet
+ * inherits — not a string of per-sheet adjustments.
+ *
+ * Guardrail
+ * ---------
+ * Every new full-viewport sheet MUST be built on this primitive. No new sheet
+ * may own its own backdrop, fade, or z-index. See `CLAUDE.md` (section:
+ * "Sheet chrome contract") for the durable rule.
+ *
+ * API
+ * ---
+ *   const chrome = new SheetChrome({
+ *       key:              'profile',                // exclusivity key for OverlayController
+ *       sheetClassName:   'profile-sheet',          // per-sheet class for content CSS
+ *       withCloseButton:  true,                     // render the × button (default true)
+ *       closeOnBackdrop:  false,                    // click-outside dismissal (default false to preserve current sheets' behavior)
+ *       header: {                                   // optional shared header block — eyebrow + title + subtitle
+ *           eyebrow:  'PROFILE',
+ *           title:    'Your identity',
+ *           subtitle: 'How your reflections have shaped you so far.',
+ *       },
+ *       onOpen:           (opts) => { ... },        // fires after the chrome opens
+ *       onClose:          () => { ... },            // fires after the chrome closes
+ *   })
+ *
+ *   chrome.root           // outer DOM node — has body-class hook, sized to viewport
+ *   chrome.contentSlot    // outer slot — when `header` is provided, contains [header, bodySlot]
+ *   chrome.bodySlot       // per-sheet body container; falls back to contentSlot when no header
+ *   chrome.headerEl       // the shared header element (or null when no header)
+ *   chrome.portalTarget   // where child overlays (DayDetailCard, popovers) mount
+ *   chrome.closeBtn       // the × button (or null if withCloseButton is false)
+ *
+ *   chrome.open(opts)     // open the sheet (called by OverlayController)
+ *   chrome.close()        // close the sheet (idempotent; safe to call twice)
+ *   chrome.setHeader({ eyebrow, title, subtitle })  // mutate the header text (for status-driven sheets)
+ *   chrome.dispose()      // tear down DOM + listeners (called by View.dispose)
+ *
+ * Chrome registers itself with OverlayController under `key`, so the existing
+ * exclusivity rules (one full-viewport sheet at a time, body.has-overlay class
+ * toggling) keep working unchanged.
+ */
+
+import OverlayController from './OverlayController.js'
+
+export default class SheetChrome
+{
+    constructor({
+        key,
+        sheetClassName  = '',
+        withCloseButton = true,
+        closeOnBackdrop = false,
+        header          = null,
+        onOpen,
+        onClose,
+    } = {})
+    {
+        if(!key) throw new Error('SheetChrome requires a `key`')
+
+        this.key             = key
+        this.closeOnBackdrop = closeOnBackdrop
+        this._onOpen         = onOpen
+        this._onClose        = onClose
+        this.isOpen          = false
+
+        // Outer root — owns the chrome (backdrop / blur / fade / z-tier).
+        // The per-sheet class (e.g. `.profile-sheet`) is layered on so existing
+        // per-sheet content CSS continues to apply unchanged.
+        const root = document.createElement('div')
+        const classes = ['sheet-chrome']
+        if(sheetClassName) classes.push(sheetClassName)
+        root.className = classes.join(' ')
+        root.dataset.sheetKey = key
+        root.setAttribute('aria-hidden', 'true')
+
+        // Optional × button — shares the existing `.sheet-chrome__close` style
+        // grouped with the other sheet closes in `style.css`. Sheets that want
+        // a bespoke close (different position, label) can pass
+        // `withCloseButton: false` and render their own inside `contentSlot`.
+        if(withCloseButton)
+        {
+            const closeBtn = document.createElement('button')
+            closeBtn.type = 'button'
+            closeBtn.className = 'sheet-chrome__close'
+            closeBtn.setAttribute('aria-label', 'Close')
+            closeBtn.textContent = '×'
+            root.appendChild(closeBtn)
+            this.closeBtn = closeBtn
+        }
+        else
+        {
+            this.closeBtn = null
+        }
+
+        // Content slot — outermost mount point. When `header` is provided,
+        // contentSlot owns two siblings: the shared `.sheet-chrome__header`
+        // and a `.sheet-chrome__body` body container that per-sheet code
+        // fills via `chrome.bodySlot.innerHTML = ...`. When no header is
+        // provided, `bodySlot` aliases `contentSlot` so legacy sheets
+        // (Calendar) keep working unchanged.
+        //
+        // Child overlays (DayDetailCard, popovers) portal into `portalTarget`
+        // which stays at the root level so they sit above both header and
+        // body within this sheet's stacking context.
+        const contentSlot = document.createElement('div')
+        contentSlot.className = 'sheet-chrome__content'
+        root.appendChild(contentSlot)
+
+        let headerEl = null
+        let bodySlot = contentSlot
+        if(header)
+        {
+            headerEl = document.createElement('header')
+            headerEl.className = 'sheet-chrome__header'
+            headerEl.innerHTML = `
+                <span class="sheet-chrome__eyebrow" data-role="eyebrow"></span>
+                <h1 class="sheet-chrome__title" data-role="title"></h1>
+                <p class="sheet-chrome__subtitle" data-role="subtitle"></p>
+            `
+            contentSlot.appendChild(headerEl)
+
+            bodySlot = document.createElement('div')
+            bodySlot.className = 'sheet-chrome__body'
+            contentSlot.appendChild(bodySlot)
+
+            // Wire ARIA — header's title acts as the sheet's accessible name.
+            const titleId = `sheet-chrome-title--${key}`
+            headerEl.querySelector('[data-role="title"]').id = titleId
+            root.setAttribute('role', 'dialog')
+            root.setAttribute('aria-labelledby', titleId)
+        }
+
+        document.body.appendChild(root)
+
+        this.root         = root
+        this.contentSlot  = contentSlot
+        this.bodySlot     = bodySlot
+        this.headerEl     = headerEl
+        this.portalTarget = root
+
+        // Paint the initial header text from the constructor option.
+        if(header) this.setHeader(header)
+
+        // Click handler — × dismiss, optional backdrop-click dismiss. Routing
+        // through `OverlayController.close(key)` (instead of `this.close()`
+        // directly) keeps the controller's `active` state and body class in
+        // sync — chrome.close() will run as the controller's surface.close()
+        // callback.
+        this._onClick = (event) =>
+        {
+            if(this.closeBtn && event.target === this.closeBtn)
+            {
+                event.preventDefault()
+                this._requestClose()
+                return
+            }
+            if(this.closeOnBackdrop && event.target === root)
+            {
+                this._requestClose()
+            }
+        }
+        root.addEventListener('click', this._onClick)
+
+        // Document-level Escape — the chrome owns this so per-sheet
+        // implementations don't duplicate it. Two guards:
+        //   1. `this.isOpen` filters chromes that aren't currently visible.
+        //   2. `OverlayController.isOpen(this.key)` filters chromes that ARE
+        //      visible but are *embedded* inside another active sheet (e.g.
+        //      Calendar inside History — both have chrome.isOpen=true, but
+        //      only History is the active surface). Without this guard,
+        //      Escape would fire twice and briefly desync the body class.
+        this._onKeyDown = (event) =>
+        {
+            if(!this.isOpen || event.key !== 'Escape') return
+            if(!OverlayController.getInstance().isOpen(this.key)) return
+            this._requestClose()
+        }
+        document.addEventListener('keydown', this._onKeyDown)
+
+        OverlayController.getInstance().register(key, this)
+    }
+
+    _requestClose()
+    {
+        OverlayController.getInstance().close(this.key)
+    }
+
+    /**
+     * Update the shared header text. Safe to call before/after open. Empty
+     * strings collapse the corresponding sub-element by toggling `hidden`
+     * so the layout stays compact when (e.g.) a status sheet has no
+     * subtitle for the current quadrant.
+     *
+     * @param {{eyebrow?: string, title?: string, subtitle?: string}} parts
+     */
+    setHeader({ eyebrow, title, subtitle } = {})
+    {
+        if(!this.headerEl) return
+        const eyebrowEl  = this.headerEl.querySelector('[data-role="eyebrow"]')
+        const titleEl    = this.headerEl.querySelector('[data-role="title"]')
+        const subtitleEl = this.headerEl.querySelector('[data-role="subtitle"]')
+        if(eyebrowEl !== null && eyebrow !== undefined)
+        {
+            eyebrowEl.textContent = eyebrow ?? ''
+            eyebrowEl.hidden = !eyebrow
+        }
+        if(titleEl !== null && title !== undefined)
+        {
+            titleEl.textContent = title ?? ''
+            titleEl.hidden = !title
+        }
+        if(subtitleEl !== null && subtitle !== undefined)
+        {
+            subtitleEl.textContent = subtitle ?? ''
+            subtitleEl.hidden = !subtitle
+        }
+    }
+
+    /**
+     * Open the chrome. Called by OverlayController. Per-sheet logic runs in
+     * the `onOpen` callback so the chrome stays generic.
+     */
+    open(opts)
+    {
+        if(this.isOpen) return
+        if(!this.root) return
+        this.root.setAttribute('aria-hidden', 'false')
+        this.root.classList.add('is-open')
+        this.isOpen = true
+        try { this._onOpen?.(opts) } catch(err) { console.warn(`[SheetChrome:${this.key}] onOpen threw`, err) }
+    }
+
+    /**
+     * Close the chrome. Idempotent. `OverlayController.noteClosed` keeps the
+     * controller's `active` + body class in sync regardless of whether this
+     * close was driven by the user (× / Escape / backdrop) or by exclusivity
+     * (another sheet opening).
+     */
+    close()
+    {
+        if(!this.isOpen) return
+        if(this.root)
+        {
+            this.root.setAttribute('aria-hidden', 'true')
+            this.root.classList.remove('is-open')
+        }
+        this.isOpen = false
+        try { this._onClose?.() } catch(err) { console.warn(`[SheetChrome:${this.key}] onClose threw`, err) }
+        try { OverlayController.getInstance().noteClosed(this.key) } catch(_) {}
+    }
+
+    /**
+     * Tear-down hook. Removes DOM + document listeners. Safe to call twice.
+     */
+    dispose()
+    {
+        if(this._onClick && this.root)
+        {
+            try { this.root.removeEventListener('click', this._onClick) } catch(_) {}
+        }
+        if(this._onKeyDown)
+        {
+            try { document.removeEventListener('keydown', this._onKeyDown) } catch(_) {}
+        }
+        try { this.root?.remove?.() } catch(_) {}
+        this.root         = null
+        this.contentSlot  = null
+        this.bodySlot     = null
+        this.headerEl     = null
+        this.portalTarget = null
+        this.closeBtn     = null
+        this._onClick     = null
+        this._onKeyDown   = null
+    }
+}

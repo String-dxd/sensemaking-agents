@@ -31,19 +31,20 @@ import Debug from '../Debug/Debug.js'
 
 const NS = 'ss:v1'
 const KEY = {
-    version:       `${NS}:_v`,
-    moodPins:      `${NS}:moodPins`,
-    captures:      `${NS}:captures`,
-    profile:       `${NS}:profile`,
-    letters:       `${NS}:letters`,
-    calendar:      `${NS}:calendar`,
-    onboarding:    `${NS}:onboarding`,
-    sprouts:       `${NS}:sprouts`,
-    relationships: `${NS}:relationships`,
-    choices:       `${NS}:choices`,
+    version:                  `${NS}:_v`,
+    moodPins:                 `${NS}:moodPins`,
+    captures:                 `${NS}:captures`,
+    profile:                  `${NS}:profile`,
+    letters:                  `${NS}:letters`,
+    calendar:                 `${NS}:calendar`,
+    onboarding:               `${NS}:onboarding`,
+    sprouts:                  `${NS}:sprouts`,
+    relationships:            `${NS}:relationships`,
+    choices:                  `${NS}:choices`,
+    identityStatusOverride:   `${NS}:identityStatusOverride`,
 }
 
-const SLICES = ['moodPins', 'captures', 'profile', 'letters', 'calendar', 'onboarding', 'sprouts', 'relationships', 'choices']
+const SLICES = ['moodPins', 'captures', 'profile', 'letters', 'calendar', 'onboarding', 'sprouts', 'relationships', 'choices', 'identityStatusOverride']
 const DEBOUNCE_MS = 250
 
 /**
@@ -230,7 +231,7 @@ export default class Persistence
      */
     load()
     {
-        const empty = { moodPins: [], captures: [], profile: null, letters: [], calendar: [], onboarding: null, sprouts: null, relationships: null, choices: null }
+        const empty = { moodPins: [], captures: [], profile: null, letters: [], calendar: [], onboarding: null, sprouts: null, relationships: null, choices: null, identityStatusOverride: null }
         if(!this._available) return empty
 
         let storedV = 0

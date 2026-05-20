@@ -12,6 +12,7 @@ import TeacherLetters from './State/TeacherLetters.js'
 import Sprouts from './State/Sprouts.js'
 import Relationships from './State/Relationships.js'
 import Choices from './State/Choices.js'
+import IdentityStatusOverride from './State/IdentityStatusOverride.js'
 import IslandSnapshotBridge from './State/IslandSnapshotBridge.js'
 import Auth from './State/Auth.js'
 import { HOST_BODY_CLASSES } from './index.js'
@@ -255,6 +256,7 @@ export default class Game
         Relationships.instance = null
         Choices.instance = null
         Auth.instance = null
+        IdentityStatusOverride.instance = null
         try { this.state?.islandSnapshots?.dispose?.() } catch(_) {}
         IslandSnapshotBridge.instance = null
         Game.instance = null

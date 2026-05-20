@@ -4,6 +4,104 @@ Non-blocking issues discovered during work that should be addressed later.
 Newest at the top. Each entry should carry enough detail that a future session
 (or reviewer) can pick it up without re-investigating.
 
+## 2026-05-19 — Path Finder CCE status code review residual items
+
+Findings deferred from the `/ce-code-review` pass on commit `3d20654`
+(plan: `docs/plans/2026-05-19-003-feat-path-finder-cce-status-plan.md`).
+The P1 leak cluster (TrajectorySheet.dispose, Game.dispose null, _ensureCapture
+guard) and a handful of safe-auto P3s landed in the same review pass. These
+items are deferred coverage debt + a couple of UX trade-offs.
+
+### 1. StatusPreviewHud has zero tests
+
+**Where:** `src/engine/student-space/Game/View/StatusPreviewHud.js` (no test
+file).
+**Why:** Most-iterated new surface in the PR. Document `click` + `keydown`
+listeners, outside-click logic, dispose teardown, override-subscribe
+re-render are all unverified. The slice it drives (`IdentityStatusOverride`)
+has unit coverage; the HUD's wiring to it doesn't.
+**Fix sketch:** vitest with happy-dom — construct the HUD against a stubbed
+`State.identityStatusOverride`, simulate toggle click, menu item click,
+outside-click close, Escape close, and verify `dispose()` removes the
+document listeners + calls the unwire fn.
+
+### 2. identity-status TS shim has zero tests
+
+**Where:** `src/lib/student-space/identity-status.ts`,
+`src/routes/library.trajectory.tsx` `useEngineIdentityStatus`.
+**Why:** The shim's documented null-engine fallback (`if (!profile) return null`)
+is the only thing keeping the /library/trajectory route from crashing on a
+cold direct hit. No test covers it. After the LFG fix, the shim also honours
+the override slice — the override-applied audit shape isn't asserted.
+**Fix sketch:** vitest with happy-dom, set up engine singletons via the
+existing `State` boot, assert `currentIdentityStatus()` returns null with
+no Profile, returns inferred with no override, returns override-shaped
+audit when override is set, and `setIdentityStatusOverride` round-trips.
+
+### 3. `_runBackendTrajectory` async hazards (timeout / cancel / de-dup)
+
+**Where:** `src/engine/student-space/Game/View/TrajectorySheet.js:242-272`.
+**Why:** The `setTimeout(..., 1600)` to reset button text isn't cancelled
+on close/dispose, there's no AbortSignal threaded into `backend.runTrajectory`,
+the success-path "Updated" label is immediately clobbered by `_renderForStatus`,
+and overlapping clicks don't serialize.
+**Fix sketch:** store the timeout id, clear in dispose; gate the success
+text update on `this.headActionsEl?.isConnected`; track an `_inFlightRun`
+boolean to drop concurrent clicks; wrap the call in `Promise.race` against
+a 30s timeout for a user-visible failure mode.
+
+### 4. Override flip silently revokes engaged escape-hatch
+
+**Where:** `TrajectorySheet.js _refreshFromOverride`.
+**Why:** A student who tapped "Show me all paths" then has a teacher flip
+the override jumps back to the new quadrant's body with no signal that
+their escape-hatch view was discarded.
+**Fix sketch:** either keep escape-hatch sticky across override changes
+(student wins), or preserve it but render a small notice "Status changed —
+view all paths" so the student isn't disoriented. UX call.
+
+### 5. Backend trajectory has no client-side timeout
+
+**Where:** `TrajectorySheet.js _runBackendTrajectory`.
+**Why:** Hung backend leaves the button perpetually "Running…" with no
+recovery path. Bundles with item 3.
+**Fix sketch:** `Promise.race([backend.runTrajectory(), timeout(30_000)])`.
+
+### 6. Coverage debt — engine-side untested paths
+
+- `statusHeuristics.actionsForCluster()` — per-cluster lookup + GENERIC_ACTIONS
+  fallback have zero tests.
+- `TrajectorySheet._readCommittedDirection()` — only the `intentions.change`
+  branch is exercised; `decisions[].chose` / `decisions[].decision` / null
+  return are all unverified.
+- `TrajectorySheet._refreshFromOverride()` escape-hatch reset path —
+  documented contract, no assertion.
+- `TrajectorySheet._renderEmptyBearings()` — 4 DOM messages × backendActive
+  × runTrajectory states, all unreachable in current tests.
+- `TrajectorySheet._runBackendTrajectory()` error / success / no-backend
+  branches.
+- `IdentityStatusOverride.dispose()` — singleton-clear path.
+
+### 7. Reason tooltip auto-closes on every override-driven re-render
+
+**Where:** `TrajectorySheet.js:285-286` — `statusReasonEl.hidden = true` is
+set unconditionally in `_renderForStatus`, hiding the tooltip mid-read on
+each override flip.
+**Fix sketch:** preserve `statusReasonEl.hidden` across the same-pill
+re-renders, or only reset it when the status id changes.
+
+### 8. Foreclosed bearings pick top-ranked, not adjacent to the committed direction
+
+**Where:** `TrajectorySheet.js _renderForeclosed`, `bearings.slice(0, 2)`.
+**Why:** Plan explicitly deferred smarter contrarian selection; v1 takes
+the top 2 by ranking. In the degenerate case where the committed direction
+matches the top bearing, the Foreclosed frame surfaces that same direction
+as the "widen the lens" suggestion — confusing.
+**Fix sketch:** rank by adjacency-to-committed instead of by absolute
+ranking; out-of-scope for v1 but worth a separate plan.
+
+---
+
 ## 2026-05-19 — Relationships + Choices tabs code review residual items
 
 Findings deferred from the `/ce-code-review` pass on commits `db2a8da` → `00c55c2`

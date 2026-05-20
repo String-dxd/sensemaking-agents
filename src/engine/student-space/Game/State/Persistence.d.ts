@@ -27,6 +27,7 @@ export default class Persistence {
     sprouts: unknown
     relationships: unknown
     choices: unknown
+    identityStatusOverride: unknown
   }
   save(slice: string, value: unknown): void
   flush(): void

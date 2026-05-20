@@ -3,9 +3,13 @@
  * the student taps a day cell; renders the mood pins, captures, and teacher
  * events for that day in the same row idiom FacetView uses.
  *
- * Lives at z 32 so it lands above CalendarSheet (z 30). Closing this card
- * does NOT close the parent calendar — they are independent overlays
- * sharing semantic scope. Closing the calendar closes both.
+ * Portals itself into the currently-active sheet's DOM at open-time (via
+ * OverlayController.getActiveRoot()) so it sits inside that sheet's stacking
+ * context. This is how it stays visible above History (z 60) when Calendar
+ * is embedded inside the History timeline tab — z-stacking falls out of DOM
+ * ancestry instead of hand-tuned z-index numbers. Closing this card does
+ * NOT close the parent calendar — they are independent overlays sharing
+ * semantic scope. Closing the calendar closes both.
  */
 
 import State from '../State/State.js'
@@ -114,6 +118,16 @@ export default class DayDetailCard
     open({ date } = {})
     {
         if(!date) return
+        // Portal into the currently-active sheet's root so DayDetail lives
+        // inside that sheet's stacking context. When History is open the
+        // active root is the history sheet; when Calendar is standalone the
+        // active root is the calendar sheet; if nothing is active we fall
+        // back to body (the original behavior).
+        const activeRoot = OverlayController.getInstance().getActiveRoot?.() || document.body
+        if(this.root && this.root.parentNode !== activeRoot)
+        {
+            try { activeRoot.appendChild(this.root) } catch(_) {}
+        }
         this.date = date
         this.titleEl.textContent = formatDate(date)
         this._render()

@@ -13,6 +13,7 @@
  */
 
 import ShareTokenBridge from '../State/ShareTokenBridge.js'
+import OverlayController from './OverlayController.js'
 
 const REVOKE_DISARM_MS = 4000
 
@@ -79,7 +80,7 @@ export default class ShareDialog
                 </footer>
             </section>
         `
-        document.body.appendChild(root)
+        // Portaling deferred to open() — see open() for the rationale.
         this.root = root
 
         this.urlBlockEl    = root.querySelector('[data-block="url"]')
@@ -120,6 +121,15 @@ export default class ShareDialog
 
     open()
     {
+        // Portal into the currently-active sheet's root so ShareDialog lives
+        // inside that sheet's stacking context — same mechanism DayDetailCard
+        // uses. Falls back to document.body if nothing is open. Re-portals on
+        // each open since the active sheet may have changed between opens.
+        const activeRoot = OverlayController.getInstance().getActiveRoot?.() || document.body
+        if(this.root && this.root.parentNode !== activeRoot)
+        {
+            try { activeRoot.appendChild(this.root) } catch(_) {}
+        }
         this.root.setAttribute('aria-hidden', 'false')
         this.root.classList.add('is-open')
         this.isOpen = true
