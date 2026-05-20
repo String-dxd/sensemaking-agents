@@ -5,6 +5,7 @@
 
 import { createFileRoute } from '@tanstack/react-router'
 import { DEFAULT_DEMO_STUDENT_ID, safeReturnPathname } from '~/auth/demo'
+import { isSameOriginRequest } from '~/auth/same-origin'
 
 export const Route = createFileRoute('/api/auth/sign-in')({
   server: {
@@ -50,9 +51,19 @@ export async function handleSignInPost({ request }: { request: Request }): Promi
   const urlParts = new URL(request.url)
   const returnPathname = safeReturnPathname(urlParts.searchParams.get('returnPathname'))
   if (urlParts.searchParams.get('demo') !== '1') return redirectTo(returnPathname)
-  const { demoCookieHeader } = await import('~/auth/demo-session.server')
+
+  const [{ demoCookieHeader, getDemoBypassAuthFromCookie }, { normalizeDemoStudentId }] =
+    await Promise.all([import('~/auth/demo-session.server'), import('~/auth/demo')])
+
+  // Preserve an existing valid demo selection so a second click on
+  // "Use a demo account" (or any flow that POSTs here) does not silently
+  // reset the active student to demo-a and orphan whatever data was
+  // captured against another demo id. If the cookie is missing or carries
+  // an unrecognised value, fall back to the default.
+  const existing = getDemoBypassAuthFromCookie()
+  const studentId = normalizeDemoStudentId(existing?.activeStudentId) ?? DEFAULT_DEMO_STUDENT_ID
   return redirectTo(returnPathname, 303, {
-    'Set-Cookie': demoCookieHeader(DEFAULT_DEMO_STUDENT_ID),
+    'Set-Cookie': demoCookieHeader(studentId),
   })
 }
 
@@ -63,13 +74,4 @@ function redirectTo(location: string, status = 303, headers?: HeadersInit): Resp
     status,
     headers: responseHeaders,
   })
-}
-
-function isSameOriginRequest(request: Request): boolean {
-  const requestUrl = new URL(request.url)
-  const origin = request.headers.get('Origin')
-  if (origin && origin !== requestUrl.origin) return false
-
-  const fetchSite = request.headers.get('Sec-Fetch-Site')
-  return fetchSite !== 'cross-site'
 }

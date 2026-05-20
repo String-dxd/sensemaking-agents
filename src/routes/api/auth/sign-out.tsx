@@ -2,6 +2,7 @@
 // redirects to WorkOS's logout URL, which then bounces back to '/'.
 
 import { createFileRoute, isRedirect } from '@tanstack/react-router'
+import { isSameOriginRequest } from '~/auth/same-origin'
 
 export const Route = createFileRoute('/api/auth/sign-out')({
   server: {
@@ -79,13 +80,4 @@ function redirectLocation(response: Response): string | null {
     return options.href ?? options.to ?? null
   }
   return null
-}
-
-function isSameOriginRequest(request: Request): boolean {
-  const requestUrl = new URL(request.url)
-  const origin = request.headers.get('Origin')
-  if (origin && origin !== requestUrl.origin) return false
-
-  const fetchSite = request.headers.get('Sec-Fetch-Site')
-  return fetchSite !== 'cross-site'
 }

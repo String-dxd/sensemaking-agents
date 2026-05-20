@@ -6,11 +6,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   bootstrapDemoStudentsForCounselor: vi.fn(),
   bootstrapPersonalStudentForCounselor: vi.fn(),
+  getCookie: vi.fn<(name: string) => string | undefined>(() => undefined),
   getSignInUrl: vi.fn(),
   handleCallbackRoute: vi.fn(),
   hasWorkosEnv: vi.fn(),
   isAuthBypassed: vi.fn(),
   signOut: vi.fn(),
+}))
+
+vi.mock('@tanstack/react-start/server', () => ({
+  getCookie: mocks.getCookie,
 }))
 
 vi.mock('~/auth/workos', () => ({
@@ -43,6 +48,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.hasWorkosEnv.mockReturnValue(true)
   mocks.isAuthBypassed.mockReturnValue(false)
+  mocks.getCookie.mockReturnValue(undefined)
 })
 
 function request(path: string, init: RequestInit = {}) {
@@ -85,6 +91,53 @@ describe('/api/auth/sign-in', () => {
 
     expect(response.status).toBe(403)
     expect(response.headers.get('Set-Cookie')).toBeNull()
+  })
+
+  it('rejects POSTs that send neither Origin nor Sec-Fetch-Site', async () => {
+    // curl-style requests cannot positively prove same-origin; refuse them so
+    // tools that strip fetch metadata cannot drive demo sign-in.
+    const response = await handleSignInPost({
+      request: request('/api/auth/sign-in?demo=1', { method: 'POST' }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(response.headers.get('Set-Cookie')).toBeNull()
+  })
+
+  it('preserves an existing valid demo cookie instead of resetting to demo-a', async () => {
+    mocks.getCookie.mockImplementation((name) =>
+      name === 'sensemaking-demo-student' ? 'demo-c' : undefined,
+    )
+
+    const response = await handleSignInPost({
+      request: request('/api/auth/sign-in?demo=1&returnPathname=/reflect', {
+        method: 'POST',
+        headers: { Origin: 'http://localhost', 'Sec-Fetch-Site': 'same-origin' },
+      }),
+    })
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('Set-Cookie')).toBe(
+      'sensemaking-demo-student=demo-c; Max-Age=604800; Path=/; HttpOnly; SameSite=Lax',
+    )
+  })
+
+  it('falls back to demo-a when the existing cookie is unrecognised', async () => {
+    mocks.getCookie.mockImplementation((name) =>
+      name === 'sensemaking-demo-student' ? 'demo-z' : undefined,
+    )
+
+    const response = await handleSignInPost({
+      request: request('/api/auth/sign-in?demo=1', {
+        method: 'POST',
+        headers: { Origin: 'http://localhost', 'Sec-Fetch-Site': 'same-origin' },
+      }),
+    })
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('Set-Cookie')).toBe(
+      'sensemaking-demo-student=demo-a; Max-Age=604800; Path=/; HttpOnly; SameSite=Lax',
+    )
   })
 
   it('preserves absent WorkOS returnPathname instead of forcing home', async () => {
@@ -171,6 +224,15 @@ describe('/api/auth/sign-out', () => {
         method: 'POST',
         headers: { Origin: 'https://evil.example', 'Sec-Fetch-Site': 'cross-site' },
       }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(mocks.signOut).not.toHaveBeenCalled()
+  })
+
+  it('rejects sign-out POSTs that send neither Origin nor Sec-Fetch-Site', async () => {
+    const response = await handleSignOutPost({
+      request: request('/api/auth/sign-out', { method: 'POST' }),
     })
 
     expect(response.status).toBe(403)
