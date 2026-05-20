@@ -7929,3 +7929,16 @@ body.is-onboarding .kira-bubble
 .callout-strip[data-accent="skills"]        { border-left-color: #4f9b6a; }
 .callout-strip[data-accent="relationships"] { border-left-color: #c97a4e; }
 .callout-strip[data-accent="choices"]       { border-left-color: #8a6cb3; }
+
+/* Profile sheet — TLDR slot placement between header and vips-body. */
+.profile-sheet__tldr-slot
+{
+    margin: 4px 0 18px;
+}
+.profile-sheet__tldr-slot[hidden] { display: none; }
+.profile-sheet__tldr-slot .tldr-chip.is-selected
+{
+    background: rgba(43, 38, 32, 0.10);
+    border-color: rgba(43, 38, 32, 0.22);
+    color: rgba(43, 38, 32, 0.92);
+}

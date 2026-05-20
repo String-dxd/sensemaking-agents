@@ -30,6 +30,7 @@ import { FACET_THEMES, FACET_HEADERS, applyFacetVars } from './facets.js'
 import { iconForClaim } from './claimIcons.js'
 import ThumbnailRenderer from './ThumbnailRenderer.js'
 import SheetChrome from './SheetChrome.js'
+import { tldrHeroHTML } from './visualPrimitives.js'
 import {
     mountProfileTabReactPanel,
     unmountProfileTabReactPanel,
@@ -222,6 +223,8 @@ export default class ProfileSheet
                     <p class="profile-sheet__meta"></p>
                 </header>
 
+                <div class="profile-sheet__tldr-slot" data-role="tldr-slot" hidden></div>
+
                 <div class="profile-sheet__vips-body">
                     <div class="profile-sheet__dimension-empty" hidden data-testid="profile-dimension-empty">
                         <p class="profile-sheet__dimension-empty-text"></p>
@@ -268,6 +271,7 @@ export default class ProfileSheet
         this.summaryEl   = root.querySelector('.profile-sheet__summary')
         this.openTextEl  = root.querySelector('.profile-sheet__open-text')
         this.metaEl      = root.querySelector('.profile-sheet__meta')
+        this.tldrSlotEl  = root.querySelector('[data-role="tldr-slot"]')
         this.bentoEl     = root.querySelector('.profile-sheet__bento')
         this.collectionEyebrowEl = root.querySelector('.profile-sheet__collection-eyebrow')
         this.dimensionEmptyEl = root.querySelector('.profile-sheet__dimension-empty')
@@ -556,8 +560,106 @@ export default class ProfileSheet
         this.openTextEl.textContent = facet.openQuestion
         this.metaEl.textContent     = formatRefined(facet.lastRefinedAt)
 
+        this._renderTldrHero()
         this._renderBento()
         this._renderTimeline()
+    }
+
+    /**
+     * TLDR hero — top voiced claims at a glance. Sits between the panel
+     * header and the COLLECTION bento for the four imperative VIPS tabs.
+     *
+     *   - 0 noticings on the facet → hero hidden (`.dimension-empty` handles it)
+     *   - 1-2 voiced claims        → hero shows empty-state copy, no chips
+     *   - 3+ voiced claims         → hero shows up to 5 chips (highest count first)
+     *
+     * Each chip carries the active claim id; clicking one routes through the
+     * same bento-tile click path so the TIMELINE filters identically.
+     */
+    _renderTldrHero()
+    {
+        if(!this.tldrSlotEl) return
+
+        const facet = this.activeFacet
+        const claims = VIPS_BY_FACET[facet] || []
+        const counts = this.profile.countByClaim(facet)
+        const total  = claims.reduce((sum, c) => sum + (counts[c.id] || 0), 0)
+
+        // Zero-noticings state is owned by .dimension-empty inside the bento.
+        if(total === 0)
+        {
+            this.tldrSlotEl.hidden = true
+            this.tldrSlotEl.innerHTML = ''
+            return
+        }
+
+        const facetData = this.profile.getFacet?.(facet) || {}
+        const tagLabel  = FACET_HEADERS[facet]?.tag || facet
+        const refined   = formatRefined(facetData.lastRefinedAt)
+        const metaParts = [`${total} noticing${total === 1 ? '' : 's'}`]
+        if(refined) metaParts.push(refined)
+
+        const voiced = claims
+            .map((c) => ({ id: c.id, label: c.label, count: counts[c.id] || 0 }))
+            .filter((c) => c.count > 0)
+            .sort((a, b) => b.count - a.count)
+
+        if(voiced.length < 3)
+        {
+            this.tldrSlotEl.hidden = false
+            this.tldrSlotEl.innerHTML = tldrHeroHTML({
+                eyebrow: `IN YOUR ${tagLabel.toUpperCase()}`,
+                title:   'Few noticings yet — capture a moment on the island to see what shows up.',
+                meta:    metaParts.join(' · '),
+                accent:  facet,
+            })
+            return
+        }
+
+        const top = voiced.slice(0, 5).map((c) => ({
+            id:     c.id,
+            label:  c.label.toUpperCase(),
+            accent: facet,
+        }))
+
+        this.tldrSlotEl.hidden = false
+        this.tldrSlotEl.innerHTML = tldrHeroHTML({
+            eyebrow: `TOP VOICES IN YOUR ${tagLabel.toUpperCase()}`,
+            title:   this._tldrHeadline(facet, voiced.length),
+            chips:   top,
+            meta:    metaParts.join(' · '),
+            accent:  facet,
+        })
+
+        // Reflect the currently-selected claim (if any) on its chip.
+        if(this.selectedClaimId)
+        {
+            const chip = this.tldrSlotEl.querySelector(
+                `.tldr-chip[data-tldr-chip-id="${this.selectedClaimId}"]`
+            )
+            chip?.classList.add('is-selected')
+        }
+    }
+
+    /**
+     * Per-facet headline copy for the TLDR hero. Kept here (not in
+     * `FACET_HEADERS`) because the headline is dynamic and small enough
+     * to colocate with the renderer.
+     */
+    _tldrHeadline(facet, voicedCount)
+    {
+        const ringPhrase = voicedCount >= 5 ? 'keep surfacing'
+                         : voicedCount >= 3 ? 'are showing up'
+                         : 'are starting to show'
+        const noun = ({
+            values:        'values',
+            interests:     'interests',
+            personality:   'traits',
+            skills:        'skills',
+            relationships: 'connections',
+            choices:       'choices',
+        })[facet] || 'themes'
+        return `These ${noun} ${ringPhrase} in your reflections`
     }
 
     _renderReactPanel(tab)
@@ -789,6 +891,21 @@ export default class ProfileSheet
             const claimId = tile.dataset.claimId
             if(claimId === this.selectedClaimId) this.selectedClaimId = null
             else this.selectedClaimId = claimId
+            this._renderTldrHero()
+            this._renderBento()
+            this._renderTimeline()
+            return
+        }
+
+        // TLDR hero chip click — same filter behaviour as a bento tile.
+        const chip = target.closest('.tldr-chip')
+        if(chip && this.tldrSlotEl?.contains(chip))
+        {
+            const claimId = chip.dataset.tldrChipId
+            if(!claimId) return
+            if(claimId === this.selectedClaimId) this.selectedClaimId = null
+            else this.selectedClaimId = claimId
+            this._renderTldrHero()
             this._renderBento()
             this._renderTimeline()
             return
