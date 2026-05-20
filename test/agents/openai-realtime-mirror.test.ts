@@ -1,5 +1,6 @@
 import type { RealtimeClientEvent, RealtimeServerEvent } from 'openai/resources/realtime/realtime'
 import { describe, expect, it, vi } from 'vitest'
+import { buildRealtimeMirrorLiveInstructions } from '~/agents/openai-realtime/mirror-payloads'
 import {
   type RealtimeMirrorSocket,
   runOpenAIRealtimeMirror,
@@ -79,6 +80,15 @@ describe('OpenAI Realtime Mirror runner', () => {
         'Here:\n```json\n{"validation":"v","inferred_meaning":"m","story_reframe":"s"}\n```',
       ),
     ).toEqual({ validation: 'v', inferred_meaning: 'm', story_reframe: 's' })
+  })
+
+  it('keeps live spoken Kira responses short and non-coaching', () => {
+    const instructions = buildRealtimeMirrorLiveInstructions()
+
+    expect(instructions).toContain('one short sentence')
+    expect(instructions).toContain('If the student is checking whether the mic works')
+    expect(instructions).toContain('Do not coach, over-explain')
+    expect(instructions).toContain('Do not ask interview questions')
   })
 })
 

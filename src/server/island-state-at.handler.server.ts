@@ -129,21 +129,25 @@ export async function getIslandStateAtHandler(
 
   return withStudent(studentId, async (ctx) => {
     // Path 1 — latest snapshot at or before the year-end timestamp.
-    const snapResult = await ctx.db.execute<SnapshotRow>(sql`
-      select payload_json, captured_at from vips_island_snapshots
-      where captured_at <= ${at}
-      order by captured_at desc
-      limit 1
-    `)
-    const snapshot = snapResult.rows[0]
-    if (snapshot) {
-      const bloomedTrees = readSnapshotBloomedTrees(snapshot.payload_json)
-      return {
-        source: 'snapshot' as const,
-        capturedAt: snapshot.captured_at,
-        year: data.year,
-        bloomedTrees,
+    try {
+      const snapResult = await ctx.db.execute<SnapshotRow>(sql`
+        select payload_json, captured_at from vips_island_snapshots
+        where captured_at <= ${at}
+        order by captured_at desc
+        limit 1
+      `)
+      const snapshot = snapResult.rows[0]
+      if (snapshot) {
+        const bloomedTrees = readSnapshotBloomedTrees(snapshot.payload_json)
+        return {
+          source: 'snapshot' as const,
+          capturedAt: snapshot.captured_at,
+          year: data.year,
+          bloomedTrees,
+        }
       }
+    } catch (err) {
+      if (!isMissingIslandSnapshotTableError(err)) throw err
     }
 
     // Path 2 — reconstruct from claims committed by `at` and not forgotten
@@ -170,4 +174,23 @@ export async function getIslandStateAtHandler(
       bloomedTrees,
     }
   })
+}
+
+function isMissingIslandSnapshotTableError(err: unknown): boolean {
+  const seen = new Set<unknown>()
+  const inspect = (candidate: unknown): boolean => {
+    if (!candidate || typeof candidate !== 'object' || seen.has(candidate)) return false
+    seen.add(candidate)
+    const record = candidate as {
+      code?: unknown
+      message?: unknown
+      cause?: unknown
+    }
+    const message = typeof record.message === 'string' ? record.message : ''
+    const tableMentioned = message.includes('vips_island_snapshots')
+    const missingRelation = record.code === '42P01' || /relation .* does not exist/i.test(message)
+    if (tableMentioned && missingRelation) return true
+    return inspect(record.cause)
+  }
+  return inspect(err)
 }

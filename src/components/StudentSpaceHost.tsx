@@ -5,7 +5,6 @@ import { createStudentSpaceBackendBridge } from '~/lib/student-space/backend-bri
 import { applyStudentSpaceBackendSnapshot } from '~/lib/student-space/backend-snapshot'
 import { studentSpaceSurfaceFromLocation } from '~/lib/student-space/route-sheets'
 import { cn } from '~/lib/utils'
-import { CaptureTagPicker } from './CaptureTagPicker'
 import { IslandProgressionOverlay } from './IslandProgressionOverlay'
 
 /**
@@ -126,12 +125,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
   return (
     <>
       <div ref={containerRef} className={cn('game fixed inset-0 h-svh w-svw', className)} />
-      {game ? (
-        <>
-          <IslandProgressionOverlay game={game} />
-          <CaptureTagPicker game={game} />
-        </>
-      ) : null}
+      {game ? <IslandProgressionOverlay game={game} /> : null}
     </>
   )
 }

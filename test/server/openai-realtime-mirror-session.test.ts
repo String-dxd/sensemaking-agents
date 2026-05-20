@@ -63,7 +63,7 @@ describe('openAIRealtimeMirrorSessionHandler', () => {
           },
         },
         output: {
-          voice: 'verse',
+          voice: 'marin',
         },
       },
     })

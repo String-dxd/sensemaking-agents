@@ -20,6 +20,8 @@ import { runConnector } from '~/server/run-connector.functions'
 import type { RunConnectorResult } from '~/server/run-connector.handler.server'
 import { submitStudentSpaceReflection } from '~/server/submit-student-space-reflection.functions'
 import type { SubmitStudentSpaceReflectionResult } from '~/server/submit-student-space-reflection.handler.server'
+import { transcribeMirror } from '~/server/transcribe-mirror.functions'
+import type { TranscribeMirrorResult } from '~/server/transcribe-mirror.handler.server'
 import { updateMirrorReview } from '~/server/update-mirror-review.functions'
 import {
   createRealtimeMirrorCapture,
@@ -80,6 +82,11 @@ export interface StudentSpacePreparedReflection {
   transcription?: unknown
 }
 
+export interface StudentSpaceTranscriptionInput {
+  audioBase64: string
+  mimeType: string
+}
+
 export interface StudentSpaceReviewInput {
   entryId: number
   status: 'confirmed' | 'forgotten'
@@ -107,10 +114,16 @@ export interface StudentSpaceBackendBridge {
   createRealtimeMirrorCapture?: (
     input: StudentSpaceReflectionInput,
   ) => Promise<StudentSpaceRealtimeMirrorCapture>
+  transcribeReflectionAudio?: (
+    input: StudentSpaceTranscriptionInput,
+  ) => Promise<TranscribeMirrorResult>
   prepareReflection?: (
     input: StudentSpaceReflectionInput,
   ) => Promise<StudentSpacePreparedReflection>
   logPreparedReflection?: (
+    input: StudentSpacePreparedReflection,
+  ) => Promise<StudentSpaceReflectionResult>
+  forgetPreparedReflection?: (
     input: StudentSpacePreparedReflection,
   ) => Promise<StudentSpaceReflectionResult>
   submitReflection?: (input: StudentSpaceReflectionInput) => Promise<StudentSpaceReflectionResult>
@@ -156,6 +169,13 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
         initialTranscript: input.initialTranscript ?? input.transcript,
         onConversationUpdate: input.onConversationUpdate,
       }),
+    transcribeReflectionAudio: async (input) =>
+      transcribeMirror({
+        data: {
+          audioBase64: input.audioBase64,
+          mimeType: input.mimeType,
+        },
+      }),
     prepareReflection: async (input) => {
       const result = (await prepareStudentSpaceReflection({
         data: {
@@ -169,37 +189,8 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
       })) as PrepareStudentSpaceReflectionResult
       return mapPreparedReflectionResult(result)
     },
-    logPreparedReflection: async (input) => {
-      const result = (await persistMirror({
-        data: {
-          entry: {
-            transcript: input.transcript,
-            validation: input.validation,
-            inferred_meaning: input.inferredMeaning,
-            story_reframe: input.storyReframe,
-          },
-          context_type: input.contextType,
-          ...(input.mood ? { mood: input.mood } : {}),
-          raw_output: {
-            validation: input.validation,
-            inferred_meaning: input.inferredMeaning,
-            story_reframe: input.storyReframe,
-            eval_review: input.evalReview ?? null,
-            transcription: input.transcription ?? null,
-          },
-          trace: {
-            source: 'student-space',
-            local_capture_id: input.localCaptureId,
-            eval_review: input.evalReview ?? null,
-            prepared: true,
-          },
-        },
-      })) as PersistMirrorResult
-      return {
-        localCaptureId: input.localCaptureId,
-        mirrorEntry: mapMirrorEntryRowToSummary(result.mirror_entry),
-      }
-    },
+    logPreparedReflection: (input) => persistPreparedReflection(input, 'confirmed'),
+    forgetPreparedReflection: (input) => persistPreparedReflection(input, 'forgotten'),
     submitReflection: async (input) => {
       const result = (await submitStudentSpaceReflection({
         data: {
@@ -252,6 +243,42 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
       }
       return result
     },
+  }
+}
+
+async function persistPreparedReflection(
+  input: StudentSpacePreparedReflection,
+  reviewStatus: 'confirmed' | 'forgotten',
+): Promise<StudentSpaceReflectionResult> {
+  const result = (await persistMirror({
+    data: {
+      entry: {
+        transcript: input.transcript,
+        validation: input.validation,
+        inferred_meaning: input.inferredMeaning,
+        story_reframe: input.storyReframe,
+      },
+      context_type: input.contextType,
+      review_status: reviewStatus,
+      ...(input.mood ? { mood: input.mood } : {}),
+      raw_output: {
+        validation: input.validation,
+        inferred_meaning: input.inferredMeaning,
+        story_reframe: input.storyReframe,
+        eval_review: input.evalReview ?? null,
+        transcription: input.transcription ?? null,
+      },
+      trace: {
+        source: 'student-space',
+        local_capture_id: input.localCaptureId,
+        eval_review: input.evalReview ?? null,
+        prepared: true,
+      },
+    },
+  })) as PersistMirrorResult
+  return {
+    localCaptureId: input.localCaptureId,
+    mirrorEntry: mapMirrorEntryRowToSummary(result.mirror_entry),
   }
 }
 

@@ -21,7 +21,8 @@ import { canCreateRealtimeMirrorCapture } from '../../../../lib/student-space/re
  *
  * Voice path: MediaRecorder audio. Web Speech is optional live-caption help.
  * In bridged mode the backend prepares a Mirror draft from OpenAI transcription,
- * then `Log` persists it and `Forget` discards the transient draft.
+ * then `Log` persists it as confirmed and `Forget` persists the rejected
+ * draft as forgotten for pipeline audit visibility.
  *
  * Close behaviour: the × at the top is "back" (returns to the chooser, not
  * a hard dismiss). The chooser's own × is the only place that dismisses
@@ -510,7 +511,7 @@ export default class AskSheet
         // Read-only replay + Kira-direct entry both bypass the chooser
         // because there's no chooser context to return to.
         if(this.readOnly || this.dismissOnBack) { this.close(); return }
-        if(this._isBackendDraftMode()) { this._forgetDraft(); return }
+        if(this._isBackendDraftMode()) { this._discardPreparedDraft(); return }
         // From recording: stop the engine but DON'T review — bail to chooser.
         if(this.listening) this._abortRecording()
         // Default: route back to the chooser; OverlayController will close
@@ -576,7 +577,15 @@ export default class AskSheet
             }
             this.audioCapture = await startStudentSpaceAudioCapture()
             this.recordedAudioMimeType = this.audioCapture.mimeType
-            this._startLiveCaptions()
+            if(this.backend?.transcribeReflectionAudio)
+            {
+                this.hintLiveEl.hidden = false
+                this.hintLiveEl.textContent = 'OpenAI will transcribe this when you stop.'
+            }
+            else
+            {
+                this._startLiveCaptions()
+            }
         }
         catch(err)
         {
@@ -896,7 +905,7 @@ export default class AskSheet
 
     async _prepareMirrorDraft()
     {
-        const text = (this.recCommitted || this._composeText()).trim()
+        let text = (this.recCommitted || this._composeText()).trim()
         const audioBlob = this.recordedAudioBlob
         if(!text && !audioBlob)
         {
@@ -926,26 +935,57 @@ export default class AskSheet
         try
         {
             let audioBase64 = null
+            let transcription = null
             if(audioBlob)
             {
                 if(audioBlob.size === 0) throw new Error('No audio was captured.')
                 audioBase64 = await blobToStudentSpaceAudioBase64(audioBlob)
             }
             if(runId !== this.prepareId || !this.isOpen) return
+            if(audioBase64 && this.backend?.transcribeReflectionAudio)
+            {
+                const audioTranscript = await this.backend.transcribeReflectionAudio({
+                    audioBase64,
+                    mimeType: this.recordedAudioMimeType || audioBlob.type || 'audio/webm',
+                })
+                if(runId !== this.prepareId || !this.isOpen) return
+                const transcript = (audioTranscript?.transcript || '').trim()
+                if(!transcript) throw new Error('OpenAI transcription came back empty.')
+                transcription = audioTranscript
+                text = transcript
+                this.recCommitted = transcript
+                this.reviewTextEl.textContent = transcript
+                this._upsertLiveDialogue({
+                    id: 'openai-transcript',
+                    role: 'student',
+                    text: transcript,
+                    status: 'final',
+                })
+                this._renderReframe({
+                    headline: 'Kira is reading this back carefully.',
+                    highlightPhrase: transcript,
+                    themes: [],
+                    needs: [],
+                    moods: this.selectedMood ? [this.selectedMood] : ['ennui'],
+                })
+            }
             const prepared = await this.backend.prepareReflection({
                 localCaptureId: this._ensureDraftCaptureId(),
-                ...(audioBase64
+                ...(audioBase64 && !transcription
                     ? { audioBase64, mimeType: this.recordedAudioMimeType || audioBlob.type || 'audio/webm' }
                     : { transcript: text }),
                 contextType: 'school',
                 ...(this.selectedMood ? { mood: this.selectedMood } : {}),
             })
             if(runId !== this.prepareId || !this.isOpen) return
+            const preparedForLog = transcription
+                ? { ...prepared, transcription: prepared.transcription || transcription }
+                : prepared
             this.prepareInFlight = false
-            this.preparedReflection = prepared
-            this.recCommitted = prepared.transcript || text
+            this.preparedReflection = preparedForLog
+            this.recCommitted = preparedForLog.transcript || text
             this.reviewTextEl.textContent = this.recCommitted
-            this.reframe = this._reframeFromPrepared(prepared)
+            this.reframe = this._reframeFromPrepared(preparedForLog)
             this._renderReframe(this.reframe)
             this._setReframeActionMode('ready')
         }
@@ -1060,7 +1100,7 @@ export default class AskSheet
         )
     }
 
-    _forgetDraft()
+    _discardPreparedDraft()
     {
         this.prepareId += 1
         this.prepareInFlight = false
@@ -1069,6 +1109,35 @@ export default class AskSheet
         this.reframe = null
         this.realtimeCapture?.abort?.()
         this.realtimeCapture = null
+        this.recordedAudioBlob = null
+        this.recordedAudioMimeType = null
+        this.selectedMood = null
+        this.uploadedImageDataUrl = null
+        this.imageInputEl.value = ''
+        this._renderComposerMeta()
+        this.pendingLocalCaptureId = null
+        this.close()
+    }
+
+    async _forgetDraft()
+    {
+        const prepared = this.preparedReflection
+        this.prepareId += 1
+        this.prepareInFlight = false
+        this.logInFlight = true
+        this.realtimeCapture?.abort?.()
+        this.realtimeCapture = null
+        this._setReframeActionMode('logging')
+
+        if(prepared && this.backend?.forgetPreparedReflection)
+        {
+            try { await this.backend.forgetPreparedReflection(prepared) }
+            catch(err) { console.warn('[AskSheet] prepared reflection forget failed', err) }
+        }
+
+        this.preparedReflection = null
+        this.reframe = null
+        this.logInFlight = false
         this.recordedAudioBlob = null
         this.recordedAudioMimeType = null
         this.selectedMood = null

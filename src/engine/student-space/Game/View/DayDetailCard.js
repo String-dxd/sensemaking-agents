@@ -68,6 +68,9 @@ export default class DayDetailCard
         this.root  = root
         this.titleEl = root.querySelector('.day-detail-card__title')
         this.emptyEl = root.querySelector('.day-detail-card__empty')
+        this.reviewInFlightEntryId = null
+        this.reviewInFlightStatus = null
+        this.reviewError = null
 
         this._onRootClick = (event) =>
         {
@@ -164,10 +167,14 @@ export default class DayDetailCard
                 const status = c.reviewStatus ? `status: ${c.reviewStatus}` : ''
                 const sync = syncLine(c)
                 const prompt = c.prompt ? `prompt: ${escapeHtml(c.prompt)}` : ''
+                const reviewing = this.reviewInFlightEntryId === c.backendMirrorEntryId
+                const confirmLabel = reviewing && this.reviewInFlightStatus === 'confirmed' ? 'Confirming...' : 'Confirm'
+                const forgetLabel = reviewing && this.reviewInFlightStatus === 'forgotten' ? 'Forgetting...' : 'Forget'
+                const disabled = reviewing ? ' disabled aria-busy="true"' : ''
                 const actions = c.backendMirrorEntryId && c.reviewStatus === 'pending'
                     ? `<div class="day-detail-row__actions">
-                        <button type="button" data-review-action="confirmed" data-entry-id="${c.backendMirrorEntryId}">Confirm</button>
-                        <button type="button" data-review-action="forgotten" data-entry-id="${c.backendMirrorEntryId}">Forget</button>
+                        <button type="button" data-review-action="confirmed" data-entry-id="${c.backendMirrorEntryId}"${disabled}>${confirmLabel}</button>
+                        <button type="button" data-review-action="forgotten" data-entry-id="${c.backendMirrorEntryId}"${disabled}>${forgetLabel}</button>
                       </div>`
                     : ''
                 const retry = c.syncStatus === 'failed' && this.backend?.submitReflection
@@ -175,7 +182,10 @@ export default class DayDetailCard
                         <button type="button" data-sync-action="retry" data-capture-id="${escapeAttr(c.id)}">Retry sync</button>
                       </div>`
                     : ''
-                const sub = [status, sync, prompt, actions, retry].filter(Boolean).join(' ')
+                const reviewError = this.reviewError && this.reviewError.entryId === c.backendMirrorEntryId
+                    ? `<div class="day-detail-row__error" role="alert">${escapeHtml(this.reviewError.message)}</div>`
+                    : ''
+                const sub = [status, sync, prompt, actions, retry, reviewError].filter(Boolean).join(' ')
                 return renderRow('✎', text || '<i>(empty)</i>', sub)
             }
             if(c.kind === 'photo')
@@ -204,18 +214,63 @@ export default class DayDetailCard
         const entryId = parseInt(button.dataset.entryId || '', 10)
         const status = button.dataset.reviewAction
         if(!Number.isInteger(entryId) || (status !== 'confirmed' && status !== 'forgotten')) return
+        this.reviewInFlightEntryId = entryId
+        this.reviewInFlightStatus = status
+        this.reviewError = null
+        this._render()
         try
         {
-            await this.backend.updateReflectionReview({ entryId, status })
-            const snapshot = await this.backend.refreshSnapshot?.()
-            if(snapshot) this.state.applyBackendSnapshot?.(snapshot)
-            else this.state.captures?.patch?.(`mirror:${entryId}`, { reviewStatus: status })
+            const updated = await this.backend.updateReflectionReview({ entryId, status })
+            this._patchReviewCapture(entryId, status, updated)
+            try
+            {
+                const snapshot = await this.backend.refreshSnapshot?.()
+                if(snapshot) this.state.applyBackendSnapshot?.(snapshot)
+            }
+            catch(refreshErr)
+            {
+                console.warn('[DayDetailCard] reflection review snapshot refresh failed', refreshErr)
+            }
             this._render()
         }
         catch(err)
         {
+            const message = err instanceof Error ? err.message : String(err)
+            this.reviewError = { entryId, message: `Review update failed: ${message}` }
             console.warn('[DayDetailCard] reflection review failed', err)
+            this._render()
         }
+        finally
+        {
+            this.reviewInFlightEntryId = null
+            this.reviewInFlightStatus = null
+            this._render()
+        }
+    }
+
+    _patchReviewCapture(entryId, status, updated)
+    {
+        const patch = {
+            reviewStatus: updated?.reviewStatus || status,
+            ...(updated?.transcript ? { text: updated.transcript } : {}),
+            ...(updated?.contextType ? { contextType: updated.contextType } : {}),
+            ...(updated
+                ? {
+                    reframe: {
+                        headline: updated.storyReframe || '',
+                        highlightPhrase: updated.inferredMeaning || '',
+                        themes: updated.contextType ? [updated.contextType] : [],
+                        needs: [],
+                        moods: [],
+                    },
+                }
+                : {}),
+        }
+        let patched = this.state.captures?.patch?.(`mirror:${entryId}`, patch)
+        if(patched) return patched
+        const capture = this.state.captures?.entries?.find?.((c) => c.backendMirrorEntryId === entryId)
+        if(capture?.id) patched = this.state.captures?.patch?.(capture.id, patch)
+        return patched
     }
 
     async _retryReflectionSync(button)

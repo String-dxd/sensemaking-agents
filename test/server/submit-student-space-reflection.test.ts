@@ -4,7 +4,7 @@ import { submitStudentSpaceReflectionHandler } from '~/server/submit-student-spa
 import { transcribeMirrorHandler } from '~/server/transcribe-mirror.handler.server'
 
 describe('submitStudentSpaceReflectionHandler', () => {
-  it('runs typed text through Mirror and persists a pending mirror entry', async () => {
+  it('runs typed text through Mirror and persists the logged entry as confirmed', async () => {
     const requireContext = vi.fn(async () => ({ counselorId: 'counselor', studentId: 'demo' }))
     const runMirror = vi.fn(async () => ({
       output: mirrorOutput(),
@@ -35,6 +35,7 @@ describe('submitStudentSpaceReflectionHandler', () => {
       expect.objectContaining({
         context_type: 'school',
         mood: 'joy',
+        review_status: 'confirmed',
         trace: expect.objectContaining({
           source: 'student-space',
           local_capture_id: 'local-1',
@@ -45,7 +46,7 @@ describe('submitStudentSpaceReflectionHandler', () => {
     expect(result).toMatchObject({
       local_capture_id: 'local-1',
       transcript: 'I wanted the project to help someone.',
-      mirror_entry: { id: 42, review_status: 'pending' },
+      mirror_entry: { id: 42, review_status: 'confirmed' },
       transcription: null,
     })
   })
@@ -117,7 +118,7 @@ function mirrorEntry(): MirrorEntryRow {
     story_reframe: 'A moment of contribution taking shape.',
     raw_output_json: '{}',
     context_type: 'school',
-    review_status: 'pending',
+    review_status: 'confirmed',
     tags: ['mood:joy'],
     created_at: '2026-05-18T08:00:00.000Z',
   }
