@@ -51,6 +51,66 @@ const ARM_TIMEOUT_MS  = 3200
 const FORGET_FADE_MS  = 200
 const TAB_FADE_MS     = 110         // half of the 220ms total cross-fade
 
+/**
+ * Build a fresh hidden form on `document.body` and submit it. The body
+ * survives engine `dispose()` (which removes the in-engine sheet root
+ * containing the original form). Without this indirection, a form-scoped
+ * native POST can be aborted by the browser when its ancestor is removed
+ * mid-handler — the documented DevPalette pattern at
+ * `src/components/DevPalette.tsx` lines 79-86.
+ *
+ * `extras` lets the caller include additional inputs (e.g. CSRF tokens
+ * in a future iteration). Right now no auth route needs them.
+ */
+function submitBodyScopedAuthForm(action, method = 'post', extras = null)
+{
+    if(typeof document === 'undefined') return
+    const form = document.createElement('form')
+    form.method = method
+    form.action = action
+    // Hide it visually so the in-flight POST does not flash a stale form
+    // while the navigation is in flight.
+    form.style.display = 'none'
+    if(extras && typeof extras === 'object')
+    {
+        for(const [name, value] of Object.entries(extras))
+        {
+            const input = document.createElement('input')
+            input.type = 'hidden'
+            input.name = name
+            input.value = String(value)
+            form.appendChild(input)
+        }
+    }
+    document.body.appendChild(form)
+    form.submit()
+}
+
+/**
+ * Inline twin of `~/lib/clear-student-space-local-state.ts`. The TS helper
+ * lives outside the engine module graph and pulling it in here would couple
+ * vendored JS to host TS. Sign-out flows that originate from this sheet
+ * still need to drain `ss:v1:*` keys before the cookie clear, so we inline
+ * the same six lines here.
+ */
+function clearStudentSpaceLocalStateInline()
+{
+    if(typeof window === 'undefined') return
+    try
+    {
+        const storage = window.localStorage
+        if(!storage) return
+        const keys = []
+        for(let i = 0; i < storage.length; i++)
+        {
+            const key = storage.key(i)
+            if(key && key.indexOf('ss:v1:') === 0) keys.push(key)
+        }
+        for(const key of keys) storage.removeItem(key)
+    }
+    catch(_) { /* unavailable (private mode); nothing to clear */ }
+}
+
 const formatRefined = (iso) =>
 {
     if(!iso) return ''
@@ -106,7 +166,10 @@ export default class ProfileSheet
                     <h1 class="profile-id__name"></h1>
                     <p  class="profile-id__class"></p>
                 </div>
-                <div class="profile-id__actions" data-share-slot></div>
+                <div class="profile-id__actions">
+                    <span class="profile-id__share-slot" data-share-slot></span>
+                    <span class="profile-id__auth-slot" data-auth-slot></span>
+                </div>
             </header>
             <nav class="profile-sheet__tabs" role="tablist">
                 ${TAB_ORDER.map((f) => {
@@ -175,7 +238,13 @@ export default class ProfileSheet
         this.idNameEl    = root.querySelector('.profile-id__name')
         this.idClassEl   = root.querySelector('.profile-id__class')
         this.shareSlotEl = root.querySelector('[data-share-slot]')
+        this.authSlotEl  = root.querySelector('[data-auth-slot]')
         this._mountShareButton()
+        this._renderAuthButton()
+        // Re-render the auth slot whenever the host updates state.auth (sign-
+        // in or sign-out reflected back into the engine). Stored on `this`
+        // so dispose() can detach it.
+        this._unsubAuth = this.state?.auth?.subscribe?.(() => this._renderAuthButton())
 
         this.titleEl     = root.querySelector('.profile-sheet__title')
         this.eyebrowEl   = root.querySelector('.profile-sheet__panel-eyebrow')
@@ -233,6 +302,11 @@ export default class ProfileSheet
             try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
             this._onRootClick = null
         }
+        if(this._unsubAuth)
+        {
+            try { this._unsubAuth() } catch(_) {}
+            this._unsubAuth = null
+        }
         this._unmountReactPanel()
         try { this.shareDialog?.dispose?.() } catch(_) {}
         this.shareDialog = null
@@ -259,6 +333,97 @@ export default class ProfileSheet
         btn.addEventListener('click', () => this._openShareDialog())
         this.shareSlotEl.appendChild(btn)
         this.shareButtonEl = btn
+    }
+
+    /**
+     * Mount or refresh the auth slot. Reads the live `state.auth.menu` and
+     * renders either:
+     *   - a Sign-out button (signed-in) that drains the engine, wipes the
+     *     `ss:v1:*` localStorage, then POSTs to `/api/auth/sign-out`.
+     *   - a Sign-in link (signed-out) that drains the engine and navigates
+     *     to `/api/auth/sign-in?returnPathname=/?sheet=profile` so the user
+     *     returns to the same profile context after WorkOS callback.
+     *
+     * Idempotent — replaces the slot contents on every call so re-renders
+     * triggered by Auth.subscribe() don't pile up stale nodes.
+     */
+    _renderAuthButton()
+    {
+        if(!this.authSlotEl) return
+        this.authSlotEl.innerHTML = ''
+        // Reset the per-flow navigation guard whenever the slot is rebuilt —
+        // a previous click that started a sign-in / sign-out flow may have
+        // left this true even though the browser ended up not navigating
+        // (network failure, captive portal, server 500). Re-rendering means
+        // the user is back and clicks should work again.
+        this._authNavigating = false
+        const menu = this.state?.auth?.menu
+        if(!menu) return
+        if(menu.status === 'signed-in')
+        {
+            // We render the form purely for visual layout and accessibility.
+            // The actual POST goes through a fresh `document.body`-scoped
+            // form built at click time so engine dispose (which removes the
+            // .profile-sheet root and detaches this form) cannot abort the
+            // navigation. See `_onSignOutClick` for the choreography.
+            const form = document.createElement('form')
+            form.action = '/api/auth/sign-out'
+            form.method = 'post'
+            form.className = 'profile-auth-form'
+            form.dataset.testid = 'profile-auth-signout-form'
+            const btn = document.createElement('button')
+            btn.type = 'submit'
+            btn.className = 'profile-auth-button profile-auth-button--signout'
+            btn.dataset.testid = 'profile-auth-signout'
+            btn.textContent = 'Sign out'
+            // Intercept BOTH paths: pointer click and keyboard Enter that
+            // dispatches submit. Both must route through the body-scoped
+            // POST so the form detachment can't abort the navigation.
+            btn.addEventListener('click', (event) => this._onSignOutAction(event))
+            form.addEventListener('submit', (event) => this._onSignOutAction(event))
+            form.appendChild(btn)
+            this.authSlotEl.appendChild(form)
+        }
+        else
+        {
+            const link = document.createElement('a')
+            // `returnPathname` is a query value — the `?` of any nested
+            // query string must be URL-encoded so it survives the WorkOS
+            // callback round-trip. Without this, the second `?` is parsed
+            // as the path-end and `sheet=profile` is dropped.
+            link.href = `/api/auth/sign-in?returnPathname=${encodeURIComponent('/?sheet=profile')}`
+            link.className = 'profile-auth-button profile-auth-button--signin'
+            link.dataset.testid = 'profile-auth-signin'
+            link.textContent = 'Sign in'
+            link.addEventListener('click', (event) => this._onSignInClick(event, link))
+            this.authSlotEl.appendChild(link)
+        }
+    }
+
+    _onSignInClick(_event, link)
+    {
+        if(this._authNavigating) return
+        this._authNavigating = true
+        try { window.__studentSpaceGame?.dispose?.() } catch(_) {}
+        // Honor the link's default navigation. Engine dispose runs synchronously
+        // before the browser leaves; Persistence has already flushed.
+        try { link.classList.add('is-loading') } catch(_) {}
+    }
+
+    _onSignOutAction(event)
+    {
+        // Single entry point for click + keyboard-submit. preventDefault the
+        // in-place form so a browser-native POST does not race with our
+        // synchronous engine dispose (which removes this form from the DOM
+        // mid-handler and would otherwise cancel the navigation, leaving the
+        // user with wiped `ss:v1:*` state but a live auth cookie). The
+        // body-scoped form below survives dispose.
+        try { event.preventDefault?.() } catch(_) {}
+        if(this._authNavigating) return
+        this._authNavigating = true
+        try { window.__studentSpaceGame?.dispose?.() } catch(_) {}
+        clearStudentSpaceLocalStateInline()
+        submitBodyScopedAuthForm('/api/auth/sign-out', 'post')
     }
 
     _openShareDialog()

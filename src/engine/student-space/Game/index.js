@@ -90,6 +90,7 @@ export const HOST_BODY_CLASSES = Object.freeze([
  *   persistence?: { storage?: import('./State/Persistence.js').StorageAdapter },
  *   initialOverlay?: { name: string },
  *   backend?: import('../../../lib/student-space/backend-bridge.ts').StudentSpaceBackendBridge,
+ *   authMenu?: { status: 'signed-out' } | { status: 'signed-in', label: string, detail: string | null, kind: 'workos' | 'demo' | 'dev-bypass' } | null,
  *   initialOverlay?: string,
  * }} [opts]
  * @returns {Game}
@@ -117,7 +118,11 @@ export function createGame(opts = {})
         )
     }
 
-    const game = new Game({ persistence: opts.persistence, backend: opts.backend })
+    const game = new Game({
+        persistence: opts.persistence,
+        backend: opts.backend,
+        authMenu: opts.authMenu ?? null,
+    })
 
     // Deep-link surface open on mount. Hosts pass `initialOverlay: 'growth'`
     // (read from a `?sheet=growth` URL param) and the engine routes through

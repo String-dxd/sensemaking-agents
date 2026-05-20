@@ -1,9 +1,16 @@
 /**
- * Dummy "Login with Edupass" surface.
+ * "Login with Edupass" surface, now an explicit three-action picker.
  *
- * On click: shows a 600ms "Connecting…" affordance and advances to greeting.
- * In bridged mode the server snapshot owns identity; the offline engine-only
- * fallback still picks a local demo student so the ceremony remains usable.
+ * Visual identity (wordmark, sky orbit) is preserved — the change is
+ * behavioral: clicking the primary "Sign in with Edupass" CTA starts a
+ * real WorkOS sign-in (WorkOS routes to its configured social provider —
+ * Google in v0.2). A secondary "Use a demo account" button POSTs to the
+ * demo cookie route. "Continue offline" preserves the legacy random
+ * OFFLINE_DEMO_STUDENTS pick so a developer with no WorkOS env still has
+ * a path into the world.
+ *
+ * Returning signed-in students never see this surface — `OnboardingFlow.start()`
+ * auto-skips the `login` stage when `state.auth.status === 'signed-in'`.
  */
 
 import { OFFLINE_DEMO_STUDENTS } from './copy.js'
@@ -14,6 +21,40 @@ const CONNECTING_MS  = 600
 const ENTER_MS       = 320
 const EXIT_MS        = 240
 
+function disposeEngineForNavigation()
+{
+    // Drain Persistence's debounced writes synchronously before any link or
+    // form navigation tears the page down. Mirrors the documented pattern in
+    // `src/lib/sign-out-engine.ts`; we reach the live Game through the same
+    // window-global so this engine file does not have to import host code.
+    if(typeof window === 'undefined') return
+    try
+    {
+        const game = /** @type {{ dispose?: () => void } | null | undefined} */ (window.__studentSpaceGame)
+        if(game?.dispose) game.dispose()
+    }
+    catch(err) { console.warn('[EdupassLogin] engine dispose before navigation failed', err) }
+}
+
+/**
+ * Build a fresh hidden form on `document.body` and submit it. The body
+ * survives engine `dispose()` (which removes the .onboarding-root that
+ * holds the original visible form). Without this indirection a form-scoped
+ * native POST can be aborted by the browser when its ancestor is removed
+ * mid-handler — the documented DevPalette pattern at
+ * `src/components/DevPalette.tsx`.
+ */
+function submitBodyScopedAuthForm(action, method = 'post')
+{
+    if(typeof document === 'undefined') return
+    const form = document.createElement('form')
+    form.method = method
+    form.action = action
+    form.style.display = 'none'
+    document.body.appendChild(form)
+    form.submit()
+}
+
 export default class EdupassLogin
 {
     constructor(flow)
@@ -21,7 +62,7 @@ export default class EdupassLogin
         this.flow = flow
         this._el = null
         this._advance = null
-        this._btn = null
+        this._buttons = null
         this._connecting = false
     }
 
@@ -40,22 +81,42 @@ export default class EdupassLogin
                 </div>
             </div>
             <div class="onb-login__footer">
-                <button type="button" class="onb-login__cta">
-                    <span class="onb-login__edupass-mark" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" width="20" height="20">
-                            <rect x="3" y="3" width="18" height="18" rx="5" fill="#fff" opacity="0.95"/>
-                            <circle cx="12" cy="12" r="4" fill="#ff8a5c"/>
-                        </svg>
-                    </span>
-                    <span class="onb-login__cta-label">${escapeHtml(ctx.copy.login.cta)}</span>
-                </button>
+                <div class="onb-login__actions" role="group" aria-label="Sign in">
+                    <a class="onb-login__cta onb-login__cta--edupass"
+                       data-action="edupass"
+                       href="/api/auth/sign-in?returnPathname=/">
+                        <span class="onb-login__edupass-mark" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="20" height="20">
+                                <rect x="3" y="3" width="18" height="18" rx="5" fill="#fff" opacity="0.95"/>
+                                <circle cx="12" cy="12" r="4" fill="#ff8a5c"/>
+                            </svg>
+                        </span>
+                        <span class="onb-login__cta-label">${escapeHtml(ctx.copy.login.actions.edupass)}</span>
+                    </a>
+                    <form class="onb-login__secondary-form"
+                          data-action="demo"
+                          method="post"
+                          action="/api/auth/sign-in?demo=1&returnPathname=/">
+                        <button type="submit" class="onb-login__secondary">
+                            ${escapeHtml(ctx.copy.login.actions.demo)}
+                        </button>
+                    </form>
+                    <button type="button"
+                            class="onb-login__secondary onb-login__secondary--ghost"
+                            data-action="offline">
+                        ${escapeHtml(ctx.copy.login.actions.offline)}
+                    </button>
+                </div>
                 <p class="onb-login__demo-note">${escapeHtml(ctx.copy.login.demoNote)}</p>
             </div>
         `
         root.appendChild(el)
         this._el = el
-        this._btn = el.querySelector('.onb-login__cta')
-        this._btn.addEventListener('click', () => this._onClick(ctx))
+        this._buttons = el.querySelector('.onb-login__actions')
+        this._onClickRoot = (event) => this._onClick(event, ctx)
+        this._onSubmitRoot = (event) => this._onSubmit(event, ctx)
+        this._buttons.addEventListener('click', this._onClickRoot)
+        this._buttons.addEventListener('submit', this._onSubmitRoot)
 
         // Reveal the 3D scene behind the surface. The body class flips
         // every onboarding-root child to transparent backgrounds so the
@@ -83,9 +144,10 @@ export default class EdupassLogin
             await wait(ENTER_MS)
         }
 
-        // Park focus on the CTA after the entry animation. Keyboard users
-        // can hit Enter without tabbing in from the splash.
-        this._btn?.focus({ preventScroll: true })
+        // Park focus on the primary CTA after the entry animation. Keyboard
+        // users can hit Enter without tabbing in from the splash.
+        const primary = this._buttons.querySelector('[data-action="edupass"]')
+        try { primary?.focus({ preventScroll: true }) } catch(_) { /* link focus may not be supported */ }
     }
 
     async unmount()
@@ -93,6 +155,23 @@ export default class EdupassLogin
         if(!this._el) return
         const el = this._el
         this._el = null
+        // Cancel any in-flight offline-path setTimeout so its callback does
+        // not fire `setIdentity`/`_advance` against torn-down state.
+        if(this._offlineTimer != null)
+        {
+            try { clearTimeout(this._offlineTimer) } catch(_) {}
+            this._offlineTimer = null
+        }
+        // Reset the connecting guard so a future remount can interact again.
+        this._connecting = false
+        if(this._buttons)
+        {
+            if(this._onClickRoot)  this._buttons.removeEventListener('click', this._onClickRoot)
+            if(this._onSubmitRoot) this._buttons.removeEventListener('submit', this._onSubmitRoot)
+        }
+        this._buttons = null
+        this._onClickRoot = null
+        this._onSubmitRoot = null
         // Snap the orbit back to the default static framing for greeting/
         // egg surfaces; clear the body class so cream panels read solid.
         document.body.classList.remove('is-onb-landing')
@@ -103,22 +182,89 @@ export default class EdupassLogin
         el.remove()
     }
 
-    _onClick(ctx)
+    _onClick(event, ctx)
     {
-        if(this._connecting || !this._btn) return
-        this._connecting = true
-        this._btn.classList.add('is-connecting')
-        this._btn.disabled = true
-        this._btn.querySelector('.onb-login__cta-label').textContent = `${ctx.copy.login.connecting}…`
+        if(this._connecting) return
 
-        setTimeout(() =>
+        const link = event.target.closest('[data-action="edupass"]')
+        if(link)
         {
-            if(!ctx.state?.backend)
+            event.preventDefault()
+            this._beginConnecting(link, ctx)
+            disposeEngineForNavigation()
+            if(typeof window !== 'undefined')
             {
-                const pick = OFFLINE_DEMO_STUDENTS[Math.floor(Math.random() * OFFLINE_DEMO_STUDENTS.length)]
-                ctx.profile.setIdentity({ name: pick.name, className: pick.className })
+                window.location.assign(link.getAttribute('href'))
             }
-            this._advance?.('greeting')
-        }, CONNECTING_MS)
+            return
+        }
+
+        const offline = event.target.closest('[data-action="offline"]')
+        if(offline)
+        {
+            event.preventDefault()
+            this._beginConnecting(offline, ctx)
+            this._offlineTimer = setTimeout(() =>
+            {
+                this._offlineTimer = null
+                // The surface may have been unmounted (engine dispose,
+                // host route change) during the 600 ms wait — guard
+                // against firing against torn-down state.
+                if(!this._el) return
+                if(!ctx.state?.backend)
+                {
+                    const pick = OFFLINE_DEMO_STUDENTS[Math.floor(Math.random() * OFFLINE_DEMO_STUDENTS.length)]
+                    ctx.profile.setIdentity({ name: pick.name, className: pick.className })
+                }
+                this._advance?.('greeting')
+            }, CONNECTING_MS)
+            return
+        }
+    }
+
+    _onSubmit(event, ctx)
+    {
+        if(this._connecting) { event.preventDefault(); return }
+        const form = event.target.closest('[data-action="demo"]')
+        if(!form) return
+        // preventDefault the in-place form so the browser-native POST does
+        // not race with our synchronous engine dispose (which removes the
+        // .onboarding-root mid-handler and would otherwise cancel the
+        // navigation). Submit through a body-scoped form instead.
+        event.preventDefault()
+        this._beginConnecting(form.querySelector('button'), ctx)
+        disposeEngineForNavigation()
+        submitBodyScopedAuthForm(form.action, form.method || 'post')
+    }
+
+    /**
+     * Mark the surface as "connecting" so subsequent taps no-op. Only the
+     * triggered control flips into the visual connecting state; the other
+     * two are simply disabled to communicate exclusivity.
+     */
+    _beginConnecting(triggeredControl, ctx)
+    {
+        this._connecting = true
+        if(triggeredControl)
+        {
+            triggeredControl.classList.add('is-connecting')
+            if(triggeredControl.disabled !== undefined) triggeredControl.disabled = true
+            const label = triggeredControl.querySelector('.onb-login__cta-label')
+            if(label && ctx?.copy?.login?.connecting)
+            {
+                label.textContent = `${ctx.copy.login.connecting}…`
+            }
+        }
+        if(this._buttons)
+        {
+            for(const btn of this._buttons.querySelectorAll('button'))
+            {
+                if(btn !== triggeredControl) btn.disabled = true
+            }
+            for(const link of this._buttons.querySelectorAll('a'))
+            {
+                if(link !== triggeredControl) link.classList.add('is-disabled')
+            }
+        }
     }
 }

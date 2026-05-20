@@ -1306,7 +1306,10 @@ body.has-chooser        .bird-picker
     position: relative;
     max-width: min(78%, 520px);
     padding: 12px 18px;
-    border-radius: 999px;
+    /* Soft rounded-rectangle instead of a pill — pill geometry made
+       multi-line bubbles look like elongated capsules. 20px reads as
+       a chat bubble across one-line and four-line content. */
+    border-radius: 20px;
     background: rgba(255, 255, 250, 0.96);
     border: 1px solid rgba(43, 38, 32, 0.05);
     box-shadow: 0 8px 20px rgba(63, 74, 44, 0.08);
@@ -3017,8 +3020,15 @@ body.has-chooser        .top-nav
     100% { transform: translate3d(2%, -1%, 0) scale(1.04); }
 }
 
-/* All children except the hero get a stacking context above it. */
-.profile-sheet > :not(.profile-sheet__hero)
+/* All children except the hero (and the shared close button) get a
+   stacking context above it. The close button must stay out of this rule
+   because it relies on its OWN `position: fixed` (viewport-anchored) from
+   the grouped sheet-close selector at the top of this file. Folding it
+   into the `position: relative` rule below collapsed its top/right
+   anchors and shoved the button off into the corner where the
+   identity-header actions container ends up — leaving the X clipped at
+   the viewport edge instead of pinned to the top-right. */
+.profile-sheet > :not(.profile-sheet__hero):not(.profile-sheet__close)
 {
     position: relative;
     z-index: 1;
@@ -3112,6 +3122,45 @@ body.has-chooser        .top-nav
     width: 14px;
     height: 14px;
 }
+
+/* Auth button — lives in the same identity-header actions slot as Share.
+   Sign-out (signed-in) is a small cream pill; Sign-in (signed-out) keeps
+   the same shape so the slot doesn't reflow as auth state changes. */
+.profile-auth-form { margin: 0; }
+.profile-auth-button
+{
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(43, 38, 32, 0.10);
+    background: rgba(241, 237, 229, 0.95);
+    color: rgba(43, 38, 32, 0.78);
+    font: 500 13px/1 var(--font-sans);
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.profile-auth-button:hover
+{
+    color: #2b2620;
+    background: #fff;
+    transform: translateY(-1px);
+}
+.profile-auth-button:focus-visible
+{
+    outline: 2px solid var(--facet-accent);
+    outline-offset: 2px;
+}
+.profile-auth-button.is-loading { opacity: 0.5; pointer-events: none; }
+.profile-auth-button--signin
+{
+    background: #2b2620;
+    color: #fdfaf3;
+    border-color: transparent;
+}
+.profile-auth-button--signin:hover { background: rgba(43, 38, 32, 0.90); color: #fdfaf3; }
 
 /* Share dialog — overlays the open profile sheet. Not registered with
    OverlayController; it sits visually above ProfileSheet rather than
@@ -4962,6 +5011,59 @@ body.is-onboarding .hover-cta
 {
     color: rgba(255, 255, 255, 0.78);
     text-shadow: 0 1px 2px rgba(7, 18, 36, 0.35);
+}
+.onb-login__actions
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+.onb-login__cta--edupass { text-decoration: none; }
+.onb-login__cta.is-disabled { pointer-events: none; opacity: 0.5; }
+.onb-login__secondary-form { margin: 0; width: 100%; display: flex; justify-content: center; }
+.onb-login__secondary
+{
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--onb-ink-deep, #2b2620);
+    border: 1px solid rgba(43, 38, 32, 0.08);
+    border-radius: 12px;
+    padding: 0 18px;
+    min-height: 44px;
+    font-size: 14px;
+    cursor: pointer;
+    max-width: 320px;
+    width: 100%;
+    transition: background 180ms ease, transform 180ms var(--onb-ease), box-shadow 180ms ease;
+    box-shadow: 0 1px 2px rgba(43, 38, 32, 0.05);
+}
+.onb-login__secondary:hover
+{
+    transform: translateY(-1px);
+    background: #fff;
+    box-shadow: 0 3px 8px rgba(43, 38, 32, 0.10);
+}
+.onb-login__secondary:disabled { opacity: 0.55; cursor: progress; }
+.onb-login__secondary:focus-visible
+{
+    outline: 3px solid rgba(255, 138, 92, 0.7);
+    outline-offset: 3px;
+}
+.onb-login__secondary--ghost
+{
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.92);
+}
+.onb-login__secondary--ghost:hover
+{
+    background: rgba(255, 255, 255, 0.10);
+}
+.onb-login--landing .onb-login__secondary
+{
+    background: rgba(255, 255, 255, 0.92);
+    color: var(--onb-ink-deep, #2b2620);
 }
 
 /* ── Greeting ───────────────────────────────────────────────────────── */

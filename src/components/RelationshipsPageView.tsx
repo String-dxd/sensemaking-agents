@@ -10,16 +10,9 @@
  * the self-side column hooks into VIPS pages in the U6 wiring).
  */
 import { useState } from 'react'
-import {
-  type FloatingAuthMenuState,
-  getProfileTabTheme,
-  ProfileStudentChrome,
-  type ProfileStudentIdentity,
-} from '~/components/ProfileSheetChrome'
-import type { SheetKey } from '~/components/SheetEntryRail'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import { PROFILE_TAB_HEADERS } from '~/data/profile-tabs'
+import { PROFILE_TAB_HEADERS, PROFILE_TAB_THEMES } from '~/data/profile-tabs'
 import type {
   BelongingEntry,
   OutsidePerspectiveEntry,
@@ -42,11 +35,6 @@ export interface RelationshipsActions {
 
 export interface RelationshipsPageViewProps {
   studentId?: string
-  authMenu?: FloatingAuthMenuState
-  studentProfile?: ProfileStudentIdentity | null
-  openSheet?: SheetKey | null
-  onOpenSheet?: (key: SheetKey) => void
-  sheetPanelId?: string
   disabled?: boolean
   map: RelationshipMapEntry[]
   belonging: BelongingEntry[]
@@ -55,8 +43,8 @@ export interface RelationshipsPageViewProps {
   selfSide?: VipsSelfSideClaim[]
   actions: RelationshipsActions
   /**
-   * Skip rendering the chrome (avatar + tab rail). Used when the view is
-   * embedded inside the engine ProfileSheet, which provides its own chrome.
+   * @deprecated Always rendered without the legacy avatar+tab-rail chrome.
+   * Kept on the type for callers that pass it; ignored at runtime.
    */
   omitChrome?: boolean
 }
@@ -106,44 +94,19 @@ const AGREEMENT_LABEL: Record<OutsidePerspectiveEntry['agreementSelf'], string> 
 }
 
 export function RelationshipsPageView({
-  authMenu,
-  studentProfile,
-  openSheet,
-  onOpenSheet,
-  sheetPanelId,
   disabled = false,
   map,
   belonging,
   perspectives,
   selfSide,
   actions,
-  omitChrome = false,
 }: RelationshipsPageViewProps) {
   const header = PROFILE_TAB_HEADERS.relationships
-  const theme = getProfileTabTheme('relationships')
+  const theme = PROFILE_TAB_THEMES.relationships
 
   return (
-    <section
-      className={
-        omitChrome
-          ? 'flex w-full flex-col text-[#2b2620]'
-          : 'mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-t-[1.75rem] bg-gradient-to-b from-[#fdfaf3] to-[#efe7d5] text-[#2b2620]'
-      }
-      data-testid="relationships-page"
-    >
-      {omitChrome ? null : (
-        <ProfileStudentChrome
-          authMenu={authMenu}
-          studentProfile={studentProfile}
-          activeDimension="relationships"
-          openSheet={openSheet ?? 'relationships'}
-          onOpenSheet={onOpenSheet}
-          sheetPanelId={sheetPanelId}
-          disabled={disabled}
-        />
-      )}
-
-      <div className={omitChrome ? 'w-full' : 'mx-auto w-full max-w-[760px] px-6 py-5'}>
+    <section className="flex w-full flex-col text-[#2b2620]" data-testid="relationships-page">
+      <div className="w-full">
         <header className="border-b border-[#e3d8c4] pb-6">
           <div className="flex items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
@@ -182,7 +145,7 @@ function SectionMap({
   actions,
 }: {
   entries: RelationshipMapEntry[]
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   disabled: boolean
   actions: RelationshipsActions
 }) {
@@ -277,7 +240,7 @@ function RelationshipPersonForm({
   onSubmit,
   onCancel,
 }: {
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   onSubmit: (payload: Partial<RelationshipMapEntry>) => void
   onCancel: () => void
 }) {
@@ -385,7 +348,7 @@ function SectionBelonging({
   actions,
 }: {
   entries: BelongingEntry[]
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   disabled: boolean
   actions: RelationshipsActions
 }) {
@@ -478,7 +441,7 @@ function BelongLevelPill({
   theme,
 }: {
   level: BelongingEntry['belongLevel']
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['relationships']
 }) {
   const intensity =
     level === 'belong'
@@ -498,7 +461,7 @@ function BelongingForm({
   onSubmit,
   onCancel,
 }: {
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   onSubmit: (payload: Partial<BelongingEntry>) => void
   onCancel: () => void
 }) {
@@ -609,7 +572,7 @@ function SectionPerspectives({
   selfSide,
 }: {
   entries: OutsidePerspectiveEntry[]
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   disabled: boolean
   actions: RelationshipsActions
   selfSide?: VipsSelfSideClaim[]
@@ -748,7 +711,7 @@ function PerspectiveForm({
   onSubmit,
   onCancel,
 }: {
-  theme: ReturnType<typeof getProfileTabTheme>
+  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   onSubmit: (payload: Partial<OutsidePerspectiveEntry>) => void
   onCancel: () => void
 }) {

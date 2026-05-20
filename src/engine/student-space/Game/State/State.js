@@ -17,6 +17,7 @@ import Sprouts, { wireSproutsToCaptures } from './Sprouts.js'
 import Relationships from './Relationships.js'
 import Choices from './Choices.js'
 import IslandSnapshotBridge from './IslandSnapshotBridge.js'
+import Auth from './Auth.js'
 
 export default class State
 {
@@ -31,6 +32,7 @@ export default class State
      * @param {{
      *   persistence?: { storage?: import('./Persistence.js').StorageAdapter },
      *   backend?: import('../../../lib/student-space/backend-bridge.ts').StudentSpaceBackendBridge,
+     *   authMenu?: { status: 'signed-out' } | { status: 'signed-in', label: string, detail: string | null, kind: 'workos' | 'demo' | 'dev-bypass' } | null,
      * }} [opts]
      */
     constructor(opts = {})
@@ -41,6 +43,13 @@ export default class State
         State.instance = this
         this.backend = opts.backend || null
         this.backendActive = false
+
+        // Auth slice carries the server-resolved `loadAuthMenu()` payload
+        // so chrome surfaces (Onboarding/EdupassLogin, ProfileSheet, TopNav)
+        // can render the right sign-in / sign-out / demo affordance. Built
+        // before Onboarding so its first `_renderStage` can decide to skip
+        // the dummy login when already signed-in.
+        this.auth = new Auth(opts.authMenu ?? null)
 
         // Persistence is the very first state thing constructed — every
         // persistent module reads `Persistence.getInstance()` inside its

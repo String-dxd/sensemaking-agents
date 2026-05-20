@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import '~/engine/student-space/style.css'
-import type { Game } from '~/engine/student-space/Game'
+import type { AuthMenuState, Game } from '~/engine/student-space/Game'
 import { createStudentSpaceBackendBridge } from '~/lib/student-space/backend-bridge'
 import { applyStudentSpaceBackendSnapshot } from '~/lib/student-space/backend-snapshot'
 import { studentSpaceSurfaceFromLocation } from '~/lib/student-space/route-sheets'
@@ -42,13 +42,39 @@ export function StudentSpaceHost({ className }: { className?: string }) {
 
     void (async () => {
       try {
-        const engine = await import('~/engine/student-space/Game')
+        // Fetch the server-resolved auth menu in parallel with the engine
+        // dynamic import so onboarding can decide whether to skip the dummy
+        // login surface and chrome can render the right sign-in / sign-out
+        // affordance from the first paint. A rejection or timeout is
+        // non-fatal — the engine boots with the default signed-out menu,
+        // matching what a truly signed-out visitor would see. The timeout
+        // exists so a hung AuthKit middleware can never block engine boot
+        // indefinitely.
+        const authMenuPromise: Promise<AuthMenuState | null> = backend.loadAuthMenu
+          ? Promise.race<AuthMenuState | null>([
+              backend.loadAuthMenu().catch((err) => {
+                console.warn('[StudentSpaceHost] loadAuthMenu failed', err)
+                return null
+              }),
+              new Promise<null>((resolve) =>
+                setTimeout(() => {
+                  console.warn('[StudentSpaceHost] loadAuthMenu timed out after 3s')
+                  resolve(null)
+                }, 3000),
+              ),
+            ])
+          : Promise.resolve(null)
+        const [engine, authMenu] = await Promise.all([
+          import('~/engine/student-space/Game'),
+          authMenuPromise,
+        ])
         if (cancelled) return
         const live = engine.createGame({
           container,
           persistence: { storage: engine.localStorageAdapter() },
           initialOverlay,
           backend,
+          authMenu: authMenu ?? null,
         })
         // Expose the live Game so the sign-out helper (which cannot static-
         // import the engine without bloating server bundles) can call

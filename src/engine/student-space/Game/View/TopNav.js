@@ -1,14 +1,19 @@
 /**
- * Top-right navigation cluster — three cream pill chips that open the new
- * Profile / Calendar / Letters sheets via OverlayController.
+ * Top-right navigation cluster — four cream pill chips that open the
+ * Profile / Calendar / Letters / Path Finder sheets via OverlayController.
  *
  * Placement: top-right corner, immediately left of HourHud (which already
  * sits there). Both share z-index 10 with the rest of the chrome HUDs.
  * Hides itself via `body.has-overlay` (and `.has-chooser` when the capture
  * popover is open) so it never collides with anything full-viewport.
  *
- * The label collapses to icon-only below 520px so all three chips + HourHud
+ * The label collapses to icon-only below 520px so all chips + HourHud
  * still fit comfortably on phone widths.
+ *
+ * Auth chrome lives in two other places: the onboarding `EdupassLogin`
+ * surface handles first-arrival sign-in, and the engine `ProfileSheet`
+ * identity header hosts the post-onboarding Sign-in / Sign-out
+ * affordance. The TopNav itself stays focused on world-navigation chips.
  */
 
 import OverlayController from './OverlayController.js'
@@ -83,8 +88,7 @@ export default class TopNav
     }
 
     /**
-     * Tear-down hook. Detaches the top-nav root from the body. No
-     * document/window listeners are registered.
+     * Tear-down hook. Detaches the top-nav root from the body.
      */
     dispose()
     {

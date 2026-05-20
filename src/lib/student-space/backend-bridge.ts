@@ -5,6 +5,8 @@ import {
   mapTrajectoryResultToStudentSpaceCapture,
   type StudentSpaceBackendSnapshot,
 } from '~/lib/student-space/backend-snapshot'
+import { loadAuthMenu } from '~/server/auth-menu.functions'
+import type { AuthMenuState } from '~/server/auth-menu.handler.server'
 import { forgetTimelineEntry } from '~/server/forget-timeline-entry.functions'
 import { loadTrajectory } from '~/server/load-trajectory.functions'
 import { loadVipsPages } from '~/server/load-vips-pages.functions'
@@ -96,6 +98,12 @@ export interface StudentSpaceOpenSurfaceInput {
 export interface StudentSpaceBackendBridge {
   version: 1
   refreshSnapshot?: () => Promise<StudentSpaceBackendSnapshot>
+  /**
+   * Fetch the server-resolved auth menu once during host boot. Engines feed
+   * this into their `state.auth` slice so onboarding / TopNav / ProfileSheet
+   * render the right sign-in / sign-out / demo affordance.
+   */
+  loadAuthMenu?: () => Promise<AuthMenuState>
   createRealtimeMirrorCapture?: (
     input: StudentSpaceReflectionInput,
   ) => Promise<StudentSpaceRealtimeMirrorCapture>
@@ -120,13 +128,26 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
   return {
     version: 1,
     refreshSnapshot: async () => {
-      const [vips, wiki, trajectory] = await Promise.all([
+      // Auth menu is fetched alongside the snapshot data so identity
+      // hydration can use the WorkOS label when the seed-resolved
+      // `student_profile` is null. A rejection is non-fatal — the snapshot
+      // mapper falls back to the seed name or "Me". We log the swallow so
+      // ops can correlate identity flicker with an upstream auth-menu fault.
+      const [vips, wiki, trajectory, authMenu] = await Promise.all([
         loadVipsPages({ data: {} }),
         loadWiki({ data: {} }),
         loadTrajectory({ data: {} }),
+        loadAuthMenu().catch((err) => {
+          console.warn(
+            '[backend-bridge] refreshSnapshot loadAuthMenu failed; identity may flicker to placeholder',
+            err,
+          )
+          return null
+        }),
       ])
-      return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory })
+      return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory, authMenu })
     },
+    loadAuthMenu: async () => loadAuthMenu(),
     createRealtimeMirrorCapture: async (input) =>
       createRealtimeMirrorCapture({
         localCaptureId: input.localCaptureId,
