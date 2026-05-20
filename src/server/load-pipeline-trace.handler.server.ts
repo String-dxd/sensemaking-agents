@@ -31,8 +31,12 @@ export async function loadPipelineTraceHandler(): Promise<PipelineTraceResult> {
   // Defence in depth: the `/dev/pipeline` route already 404s in production,
   // but the server function is a separate seam (it could be called from
   // anywhere a server function call is reachable). Refuse to run in
-  // production until a counsellor-role gate exists upstream.
-  if (process.env.NODE_ENV === 'production') {
+  // production unless `ENABLE_DEV_PIPELINE=1` is explicitly set — the
+  // Vercel staging deploy sets the flag so QA can audit traces; real
+  // production builds without the flag keep the gate closed until a proper
+  // counsellor-role gate exists upstream. `requireCounselorContext` still
+  // enforces an authenticated session in either case.
+  if (process.env.NODE_ENV === 'production' && process.env.ENABLE_DEV_PIPELINE !== '1') {
     throw new Error('loadPipelineTrace is dev-only')
   }
   const { studentId } = await requireCounselorContext()
