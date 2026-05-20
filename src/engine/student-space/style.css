@@ -8004,6 +8004,28 @@ body.is-onboarding .kira-bubble
     padding-top: 4px;
 }
 
+/* Path Finder — per-pathway "See evidence" disclosure inside the
+   Searching panel. Wraps the trait + ECG + risk groups so the
+   cold open of each pathway reads as title + prompt + CTA. */
+.trajectory-panel__evidence
+{
+    margin: 6px 0 14px;
+}
+.trajectory-panel__evidence-toggle
+{
+    padding: 8px 0;
+    color: rgba(43, 38, 32, 0.62);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+.trajectory-panel__evidence-toggle:hover { color: rgba(43, 38, 32, 0.82); }
+.trajectory-panel__evidence .disclosure__panel
+{
+    padding-top: 4px;
+}
+
 /* Path Finder — "Why this status" disclosure slot beneath the head actions. */
 .trajectory-sheet__why-slot
 {

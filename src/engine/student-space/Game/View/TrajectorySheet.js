@@ -524,20 +524,33 @@ export default class TrajectorySheet
                 </header>
                 <p class="trajectory-panel__prompt" data-role="panel-prompt"></p>
 
-                <div class="trajectory-panel__chips" data-role="panel-trait-group" hidden>
-                    <p class="trajectory-panel__chip-label">TRAIT COMBINATION</p>
-                    <div class="trajectory-panel__chip-row" data-role="panel-traits"></div>
-                </div>
+                <section class="disclosure trajectory-panel__evidence"
+                         data-role="panel-evidence"
+                         data-expanded="false"
+                         hidden>
+                    <button class="disclosure__toggle trajectory-panel__evidence-toggle"
+                            type="button"
+                            aria-expanded="false">
+                        <span class="disclosure__chevron" aria-hidden="true"></span>
+                        <span class="disclosure__summary">See evidence</span>
+                    </button>
+                    <div class="disclosure__panel">
+                        <div class="trajectory-panel__chips" data-role="panel-trait-group" hidden>
+                            <p class="trajectory-panel__chip-label">TRAIT COMBINATION</p>
+                            <div class="trajectory-panel__chip-row" data-role="panel-traits"></div>
+                        </div>
 
-                <div class="trajectory-panel__chips" data-role="panel-ecg-group" hidden>
-                    <p class="trajectory-panel__chip-label">ECG REGION TAGS</p>
-                    <div class="trajectory-panel__chip-row" data-role="panel-ecg"></div>
-                </div>
+                        <div class="trajectory-panel__chips" data-role="panel-ecg-group" hidden>
+                            <p class="trajectory-panel__chip-label">ECG REGION TAGS</p>
+                            <div class="trajectory-panel__chip-row" data-role="panel-ecg"></div>
+                        </div>
 
-                <div class="trajectory-panel__risk" data-role="panel-risk-group" hidden>
-                    <p class="trajectory-panel__chip-label">RISKS AND TRADEOFFS</p>
-                    <p class="trajectory-panel__risk-text" data-role="panel-risk"></p>
-                </div>
+                        <div class="trajectory-panel__risk" data-role="panel-risk-group" hidden>
+                            <p class="trajectory-panel__chip-label">RISKS AND TRADEOFFS</p>
+                            <p class="trajectory-panel__risk-text" data-role="panel-risk"></p>
+                        </div>
+                    </div>
+                </section>
 
                 <a class="trajectory-panel__cta" data-role="panel-cta"
                    target="_blank" rel="noopener noreferrer" hidden>
@@ -553,6 +566,7 @@ export default class TrajectorySheet
         this.panelIndexEl = wrap.querySelector('[data-role="panel-index"]')
         this.panelTitleEl = wrap.querySelector('[data-role="panel-title"]')
         this.panelPromptEl= wrap.querySelector('[data-role="panel-prompt"]')
+        this.panelEvidenceEl = wrap.querySelector('[data-role="panel-evidence"]')
         this.panelTraitGrp= wrap.querySelector('[data-role="panel-trait-group"]')
         this.panelTraitsEl= wrap.querySelector('[data-role="panel-traits"]')
         this.panelEcgGrp  = wrap.querySelector('[data-role="panel-ecg-group"]')
@@ -744,6 +758,18 @@ export default class TrajectorySheet
 
         this.panelRiskGrp.hidden = !bearing.risk
         this.panelRiskEl.textContent = bearing.risk || ''
+
+        // Show the "See evidence" disclosure only when there's evidence to
+        // reveal; reset to collapsed on every tab switch so each pathway
+        // opens glanceable.
+        if(this.panelEvidenceEl)
+        {
+            const hasEvidence = traits.length > 0 || ecg.length > 0 || !!bearing.risk
+            this.panelEvidenceEl.hidden = !hasEvidence
+            this.panelEvidenceEl.setAttribute('data-expanded', 'false')
+            const toggle = this.panelEvidenceEl.querySelector('.disclosure__toggle')
+            toggle?.setAttribute('aria-expanded', 'false')
+        }
 
         if(bearing.msfUrl)
         {
