@@ -217,4 +217,22 @@ describe('statusCopyOf', () => {
     const uniq = new Set(leads)
     expect(uniq.size).toBe(leads.length)
   })
+
+  it('returns a non-empty TLDR for every Marcia status', () => {
+    const tldrs = ['starter', 'diffused', 'searching', 'foreclosed', 'achieved'].map(
+      (s) => statusCopyOf(s, null).tldr,
+    )
+    expect(tldrs.every((t) => typeof t === 'string' && t.length > 0)).toBe(true)
+    // TLDR copy is distinct per status (so the cold-open carries real signal).
+    const uniq = new Set(tldrs)
+    expect(uniq.size).toBe(tldrs.length)
+  })
+
+  it('TLDR is meaningfully shorter than the lead paragraph', () => {
+    const statuses = ['searching', 'foreclosed', 'achieved'] as const
+    for (const s of statuses) {
+      const copy = statusCopyOf(s, null)
+      expect(copy.tldr.length).toBeLessThan(copy.lead.length)
+    }
+  })
 })

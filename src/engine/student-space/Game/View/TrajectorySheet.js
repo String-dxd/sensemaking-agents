@@ -11,6 +11,7 @@ import {
     STARTER_PROMPT,
     FORECLOSED_CHALLENGE_PROMPT,
 } from './statusHeuristics.js'
+import { disclosureHTML, bindDisclosureToggles } from './visualPrimitives.js'
 import { _auditEcgAffinities } from '../Data/ecgClusters.js'
 
 /**
@@ -83,6 +84,7 @@ export default class TrajectorySheet
 
                     <p class="trajectory-sheet__meta" data-role="meta" hidden></p>
                     <div class="trajectory-sheet__head-actions" data-role="head-actions"></div>
+                    <div class="trajectory-sheet__why-slot" data-role="why-slot"></div>
                 </header>
 
                 <section class="trajectory-sheet__body" data-role="body"></section>
@@ -99,7 +101,12 @@ export default class TrajectorySheet
         this.statusLabelEl  = root.querySelector('[data-role="status-label"]')
         this.statusReasonEl = root.querySelector('[data-role="status-reason"]')
         this.headActionsEl  = root.querySelector('[data-role="head-actions"]')
+        this.whySlotEl      = root.querySelector('[data-role="why-slot"]')
         this.bodyEl    = root.querySelector('[data-role="body"]')
+
+        // Wire chevron toggles for the "Why this status" disclosure and any
+        // future disclosures rendered into the sheet's root.
+        this._unbindDisclosure = bindDisclosureToggles(root)
 
         this.isOpen      = false
         this.activeIndex = 0
@@ -139,6 +146,11 @@ export default class TrajectorySheet
         {
             try { this._unwireStatusOverride() } catch(_) {}
             this._unwireStatusOverride = null
+        }
+        if(this._unbindDisclosure)
+        {
+            try { this._unbindDisclosure() } catch(_) {}
+            this._unbindDisclosure = null
         }
         try { this.chrome?.dispose?.() } catch(_) {}
         this.chrome = null
@@ -300,14 +312,36 @@ export default class TrajectorySheet
         const status = this.escapeHatch ? 'searching' : audit.status
         const copy = statusCopyOf(status, this.profile?.identity)
 
-        // Header: eyebrow + title + subtitle live in the shared SheetChrome
-        // header. Status pill, meta line, and head actions stay in Path
-        // Finder's own body header below the chrome header.
+        // Header: eyebrow + title + (short) tldr subtitle live in the shared
+        // SheetChrome header. The full long-form `lead` paragraph moves into
+        // a "Why this status" disclosure beneath the head actions so the
+        // cold-open weight drops. Status pill, meta line, and head actions
+        // stay in Path Finder's own body header below the chrome header.
         this.chrome?.setHeader?.({
             eyebrow:  copy.eyebrow,
             title:    copy.title,
-            subtitle: copy.lead,
+            subtitle: copy.tldr || copy.lead,
         })
+
+        // "Why this status" disclosure — collapsed by default once the sheet
+        // has been open. Contains the full lead paragraph that used to live
+        // in the chrome subtitle.
+        if(this.whySlotEl)
+        {
+            if(copy.lead && copy.lead !== (copy.tldr || copy.lead))
+            {
+                this.whySlotEl.innerHTML = disclosureHTML({
+                    id:       `why-${status}`,
+                    summary:  'Why this status',
+                    content:  `<p class="trajectory-sheet__why-body">${escapeHtml(copy.lead)}</p>`,
+                    expanded: false,
+                })
+            }
+            else
+            {
+                this.whySlotEl.innerHTML = ''
+            }
+        }
 
         // Status pill is always shown (even on escape) so the student can
         // see what status they were classified as. The label tracks the

@@ -7942,3 +7942,22 @@ body.is-onboarding .kira-bubble
     border-color: rgba(43, 38, 32, 0.22);
     color: rgba(43, 38, 32, 0.92);
 }
+
+/* Path Finder — "Why this status" disclosure slot beneath the head actions. */
+.trajectory-sheet__why-slot
+{
+    margin-top: 14px;
+}
+.trajectory-sheet__why-slot .disclosure__toggle
+{
+    color: rgba(43, 38, 32, 0.62);
+}
+.trajectory-sheet__why-body
+{
+    margin: 6px 0 0;
+    padding: 4px 0 8px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: rgba(43, 38, 32, 0.78);
+    max-width: 62ch;
+}
