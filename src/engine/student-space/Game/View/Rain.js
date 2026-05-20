@@ -288,7 +288,16 @@ export default class Rain
         this._size = new THREE.Vector2()
         this._currentWeight = 0
         this._time = 0
+        this._glassFrame = 0
         this._renderErrLogged = false
+    }
+
+    _quality()
+    {
+        return this.state.performance?.settings || {
+            rainGlassCadence: 1,
+            rainStreakScale: 1,
+        }
     }
 
     _ensureSize(renderer)
@@ -319,6 +328,7 @@ export default class Rain
     {
         const dt = this.state.time.delta
         const rainWeight = this.weather.rain
+        const quality = this._quality()
         this._currentWeight = rainWeight
 
         if(rainWeight <= 0.001)
@@ -338,12 +348,20 @@ export default class Rain
 
         const spawnChance = heavy ? 1.0 : intensity * 0.85
         const spawnRate   = heavy ? 60  : 30
-        const activeLimit = heavy ? STREAK_COUNT : Math.floor(STREAK_COUNT * 0.25)
+        const qualityScale = THREE.MathUtils.clamp(quality.rainStreakScale ?? 1, 0.1, 1)
+        const activeLimit = Math.max(1, Math.floor((heavy ? STREAK_COUNT : STREAK_COUNT * 0.25) * qualityScale))
         const opacityMul  = heavy ? 0.55 : 0.35
 
         for(let i = 0; i < STREAK_COUNT; i++)
         {
             const s = this.streaks[i]
+
+            if(i >= activeLimit)
+            {
+                s.active = false
+                this.streakMeshes[i].visible = false
+                continue
+            }
 
             if(!s.active)
             {
@@ -393,19 +411,24 @@ export default class Rain
             this.dropsMat.uniforms.skyMid.value.setRGB(skyMid[0] / 255, skyMid[1] / 255, skyMid[2] / 255)
             this.dropsMat.uniforms.skyBottom.value.setRGB(skyBottom[0] / 255, skyBottom[1] / 255, skyBottom[2] / 255)
         }
-        this.dropsMesh.visible = true
+        this.dropsMesh.visible = (quality.rainGlassCadence ?? 1) > 0
     }
 
     render(renderer)
     {
         if(this._currentWeight <= 0.001) return
+        const glassCadence = this._quality().rainGlassCadence ?? 1
+        const glassFrame = this._glassFrame++
+        const shouldRenderGlass = this.dropsMesh.visible
+            && glassCadence > 0
+            && (glassCadence === 1 || glassFrame % glassCadence === 0)
         try
         {
             this._ensureSize(renderer)
 
             renderer.autoClear = false
 
-            if(this.dropsMesh.visible)
+            if(shouldRenderGlass)
             {
                 renderer.copyFramebufferToTexture(this._copyOrigin, this.sceneTex)
                 renderer.render(this.dropsScene, this.orthoCam)

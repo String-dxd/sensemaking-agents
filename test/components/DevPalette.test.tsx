@@ -10,15 +10,71 @@
  */
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const navigate = vi.fn()
+const signOutEngineMock = vi.hoisted(() => vi.fn())
+
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => navigate,
   useRouterState: () => '/',
 }))
 
+vi.mock('~/lib/sign-out-engine', () => ({
+  signOutEngine: signOutEngineMock,
+}))
+
 import { DevPalette } from '~/components/DevPalette'
+
+let originalStorageDescriptor: PropertyDescriptor | undefined
+let originalAssign: typeof window.location.assign
+const assignSpy = vi.fn()
+
+function createStorageStub() {
+  const map = new Map<string, string>()
+  return {
+    getItem(key: string) {
+      return map.has(key) ? (map.get(key) ?? null) : null
+    },
+    setItem(key: string, value: string) {
+      map.set(key, String(value))
+    },
+    removeItem(key: string) {
+      map.delete(key)
+    },
+  }
+}
+
+beforeEach(() => {
+  originalStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: createStorageStub(),
+  })
+  originalAssign = window.location.assign
+  Object.defineProperty(window.location, 'assign', {
+    configurable: true,
+    writable: true,
+    value: assignSpy,
+  })
+  assignSpy.mockClear()
+  signOutEngineMock.mockClear()
+})
+
+afterEach(() => {
+  document.body.classList.remove('is-dev-overlay-hidden')
+  navigate.mockClear()
+  Object.defineProperty(window.location, 'assign', {
+    configurable: true,
+    writable: true,
+    value: originalAssign,
+  })
+  if (originalStorageDescriptor) {
+    Object.defineProperty(window, 'localStorage', originalStorageDescriptor)
+  } else {
+    delete (window as { localStorage?: unknown }).localStorage
+  }
+})
 
 describe('DevPalette', () => {
   it('toggles open with Cmd-K and closed with Cmd-K again', async () => {
@@ -50,10 +106,40 @@ describe('DevPalette', () => {
     render(<DevPalette />)
     await user.keyboard('{Meta>}k{/Meta}')
     // First command in the list is "Switch to UI mode" → '/'. ArrowDown
-    // moves to "Switch to backend table view" → '/dev/pipeline'.
+    // moves to "Test agent pipeline" → '/dev/pipeline'.
     await user.keyboard('{ArrowDown}')
     await user.keyboard('{Enter}')
     expect(navigate).toHaveBeenCalledWith({ to: '/dev/pipeline' })
+  })
+
+  it('toggles the developer overlay from Cmd-K', async () => {
+    const user = userEvent.setup()
+    render(<DevPalette />)
+    await user.keyboard('{Meta>}k{/Meta}')
+
+    await user.click(screen.getByRole('option', { name: /hide developer overlay/i }))
+    expect(document.body).toHaveClass('is-dev-overlay-hidden')
+    expect(localStorage.getItem('sm:dev-overlay-hidden')).toBe('1')
+
+    await user.keyboard('{Meta>}k{/Meta}')
+    await user.click(screen.getByRole('option', { name: /show developer overlay/i }))
+    expect(document.body).not.toHaveClass('is-dev-overlay-hidden')
+    expect(localStorage.getItem('sm:dev-overlay-hidden')).toBeNull()
+  })
+
+  it('restarts onboarding from Cmd-K without clearing the full student-space state', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('ss:v1:onboarding', '{"stage":"done"}')
+    localStorage.setItem('ss:v1:moodPins', '[]')
+    render(<DevPalette />)
+    await user.keyboard('{Meta>}k{/Meta}')
+
+    await user.click(screen.getByRole('option', { name: /restart onboarding/i }))
+
+    expect(signOutEngineMock).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('ss:v1:onboarding')).toBeNull()
+    expect(localStorage.getItem('ss:v1:moodPins')).toBe('[]')
+    expect(assignSpy).toHaveBeenCalledWith('/#onboarding')
   })
 
   it('does not open when the Cmd-K event has defaultPrevented set', async () => {

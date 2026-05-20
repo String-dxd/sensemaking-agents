@@ -1,6 +1,6 @@
 import { Dialog as BaseDialog } from '@base-ui-components/react/dialog'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogOverlay, DialogPortal } from '~/components/ui/dialog'
 import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
 import { signOutEngine } from '~/lib/sign-out-engine'
@@ -13,7 +13,7 @@ import { cn } from '~/lib/utils'
  * command list.
  *
  * The palette is the only UX seam between the new Student Space app shell
- * (UI mode at `/`) and the agent-pipeline backend table view at
+ * (UI mode at `/`) and the agent-pipeline test bench at
  * `/dev/pipeline`. It also exposes the legacy routes (`/library`, `/me`,
  * `/reflect`) so QA can reach them without typing URLs.
  */
@@ -24,12 +24,39 @@ type Command = {
   run: () => void
 }
 
+const DEV_OVERLAY_STORAGE_KEY = 'sm:dev-overlay-hidden'
+const DEV_OVERLAY_HIDDEN_CLASS = 'is-dev-overlay-hidden'
+const ONBOARDING_STORAGE_KEY = 'ss:v1:onboarding'
+
 export function DevPalette() {
   const navigate = useNavigate()
   const currentPath = useRouterState({ select: (s) => s.location.pathname })
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
+  const [devOverlayHidden, setDevOverlayHidden] = useState(false)
+
+  const applyDevOverlayHidden = useCallback((next: boolean) => {
+    setDevOverlayHidden(next)
+    document.body.classList.toggle(DEV_OVERLAY_HIDDEN_CLASS, next)
+    try {
+      if (next) localStorage.setItem(DEV_OVERLAY_STORAGE_KEY, '1')
+      else localStorage.removeItem(DEV_OVERLAY_STORAGE_KEY)
+    } catch {
+      // Non-fatal: the class still updates for this session.
+    }
+  }, [])
+
+  useEffect(() => {
+    let hidden = false
+    try {
+      hidden = localStorage.getItem(DEV_OVERLAY_STORAGE_KEY) === '1'
+    } catch {
+      hidden = false
+    }
+    document.body.classList.toggle(DEV_OVERLAY_HIDDEN_CLASS, hidden)
+    setDevOverlayHidden(hidden)
+  }, [])
 
   const commands = useMemo<Command[]>(() => {
     const go = (path: string) => () => {
@@ -40,9 +67,33 @@ export function DevPalette() {
       { id: 'ui', label: 'Switch to UI mode', hint: '/', run: go('/') },
       {
         id: 'backend',
-        label: 'Switch to backend table view',
+        label: 'Test agent pipeline',
         hint: '/dev/pipeline',
         run: go('/dev/pipeline'),
+      },
+      {
+        id: 'dev-overlay',
+        label: devOverlayHidden ? 'Show developer overlay' : 'Hide developer overlay',
+        hint: 'FPS + time HUD',
+        run: () => {
+          setOpen(false)
+          applyDevOverlayHidden(!devOverlayHidden)
+        },
+      },
+      {
+        id: 'restart-onboarding',
+        label: 'Restart onboarding',
+        hint: '/#onboarding',
+        run: () => {
+          setOpen(false)
+          signOutEngine()
+          try {
+            localStorage.removeItem(ONBOARDING_STORAGE_KEY)
+          } catch {
+            // Non-fatal: the #onboarding boot path also resets the slice.
+          }
+          window.location.assign('/#onboarding')
+        },
       },
       {
         id: 'signout',
@@ -71,7 +122,7 @@ export function DevPalette() {
         },
       },
     ]
-  }, [navigate])
+  }, [navigate, devOverlayHidden, applyDevOverlayHidden])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()

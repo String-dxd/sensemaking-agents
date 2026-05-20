@@ -34,10 +34,11 @@ export default class Sky
         this.setDebug()
 
         // Phase 2a: the CSS sky on body is the real backdrop. Bruno's WebGL
-        // sky-sphere is no longer needed to paint the sky — we still keep the
-        // pipeline alive for Phase 2b weather work, but drop the screen-filling
-        // bg quad so the transparent canvas lets the CSS gradient through.
+        // sky-sphere is no longer needed to paint the sky, so the offscreen
+        // render target stays idle until an explicit consumer reattaches the
+        // background mesh or asks for the target.
         this.group.remove(this.background.mesh)
+        this.customRender.enabled = false
     }
 
     setCustomRender()
@@ -282,6 +283,8 @@ export default class Sky
         this.stars.material.uniforms.uSunPosition.value.set(sunState.position.x, sunState.position.y, sunState.position.z)
         this.stars.material.uniforms.uHeightFragments.value = this.viewport.height * this.viewport.clampedPixelRatio
 
+        if(!this._shouldRenderOffscreenSky()) return
+
         // Render in render target — keep the sky-sphere camera at the origin so
         // we render the sphere from its centre. (Bruno's clone() pulls the main
         // camera's position; without this reset we'd be outside the dome looking
@@ -294,8 +297,14 @@ export default class Sky
         this.renderer.instance.setRenderTarget(null)
     }
 
+    _shouldRenderOffscreenSky()
+    {
+        return this.customRender.enabled || this.background.mesh.parent === this.group
+    }
+
     resize()
     {
+        if(!this._shouldRenderOffscreenSky()) return
         this.customRender.renderTarget.width = this.viewport.width * this.customRender.resolutionRatio
         this.customRender.renderTarget.height = this.viewport.height * this.customRender.resolutionRatio
     }

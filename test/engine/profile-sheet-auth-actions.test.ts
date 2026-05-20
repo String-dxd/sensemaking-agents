@@ -166,22 +166,25 @@ describe('ProfileSheet auth slot', () => {
     const { sheet } = mountSheet({ status: 'signed-out' })
     const link = document.querySelector('[data-testid="profile-auth-signin"]') as HTMLAnchorElement
     expect(link).toBeTruthy()
-    // returnPathname must be URL-encoded so the nested `?sheet=profile` query
-    // survives the WorkOS callback round-trip (raw `?` is the start-of-query
-    // delimiter and would otherwise be dropped from the value).
     expect(link.getAttribute('href')).toBe(
-      `/api/auth/sign-in?returnPathname=${encodeURIComponent('/?sheet=profile')}`,
+      `/?auth=sign-in&returnPathname=${encodeURIComponent('/?sheet=profile')}#sign-in`,
     )
     sheet.dispose?.()
   })
 
-  it('renders a Sign out form when state.auth is signed-in', () => {
+  it('renders Sign out under a More menu when state.auth is signed-in', () => {
     const { sheet } = mountSheet({
       status: 'signed-in',
       label: 'Reza Ilmi',
       detail: 'reza@example.com',
       kind: 'workos',
     })
+    const more = document.querySelector('[data-testid="profile-auth-more"]') as HTMLButtonElement
+    const popover = document.querySelector('[data-testid="profile-auth-popover"]') as HTMLDivElement
+    expect(more).toBeTruthy()
+    expect(more.getAttribute('aria-label')).toBe('More profile actions')
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    expect(popover.hidden).toBe(true)
     const form = document.querySelector(
       '[data-testid="profile-auth-signout-form"]',
     ) as HTMLFormElement
@@ -191,6 +194,28 @@ describe('ProfileSheet auth slot', () => {
     const btn = document.querySelector('[data-testid="profile-auth-signout"]') as HTMLButtonElement
     expect(btn).toBeTruthy()
     expect(btn.textContent?.trim()).toBe('Sign out')
+    sheet.dispose?.()
+  })
+
+  it('toggles and closes the signed-in More menu', () => {
+    const { sheet } = mountSheet({
+      status: 'signed-in',
+      label: 'Reza Ilmi',
+      detail: 'reza@example.com',
+      kind: 'workos',
+    })
+    const more = document.querySelector('[data-testid="profile-auth-more"]') as HTMLButtonElement
+    const popover = document.querySelector('[data-testid="profile-auth-popover"]') as HTMLDivElement
+
+    more.click()
+    expect(more.getAttribute('aria-expanded')).toBe('true')
+    expect(popover.hidden).toBe(false)
+
+    const name = document.querySelector('.profile-id__name') as HTMLElement
+    name.click()
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    expect(popover.hidden).toBe(true)
+
     sheet.dispose?.()
   })
 
@@ -206,6 +231,8 @@ describe('ProfileSheet auth slot', () => {
     window.localStorage.setItem('ss:v1:captures', '[]')
     window.localStorage.setItem('unrelated', 'keep-me')
 
+    const more = document.querySelector('[data-testid="profile-auth-more"]') as HTMLButtonElement
+    more.click()
     const btn = document.querySelector('[data-testid="profile-auth-signout"]') as HTMLButtonElement
     btn.click()
 
@@ -236,6 +263,8 @@ describe('ProfileSheet auth slot', () => {
     const form = document.querySelector(
       '[data-testid="profile-auth-signout-form"]',
     ) as HTMLFormElement
+    const more = document.querySelector('[data-testid="profile-auth-more"]') as HTMLButtonElement
+    more.click()
     // Simulate keyboard-Enter submit (no click first).
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
 
@@ -248,7 +277,7 @@ describe('ProfileSheet auth slot', () => {
   it('re-renders the auth slot when state.auth.setMenu fires', () => {
     const { sheet, auth } = mountSheet({ status: 'signed-out' })
     expect(document.querySelector('[data-testid="profile-auth-signin"]')).toBeTruthy()
-    expect(document.querySelector('[data-testid="profile-auth-signout"]')).toBeFalsy()
+    expect(document.querySelector('[data-testid="profile-auth-more"]')).toBeFalsy()
 
     auth.setMenu({
       status: 'signed-in',
@@ -257,11 +286,12 @@ describe('ProfileSheet auth slot', () => {
       kind: 'demo',
     })
     expect(document.querySelector('[data-testid="profile-auth-signin"]')).toBeFalsy()
+    expect(document.querySelector('[data-testid="profile-auth-more"]')).toBeTruthy()
     expect(document.querySelector('[data-testid="profile-auth-signout"]')).toBeTruthy()
 
     auth.setMenu({ status: 'signed-out' })
     expect(document.querySelector('[data-testid="profile-auth-signin"]')).toBeTruthy()
-    expect(document.querySelector('[data-testid="profile-auth-signout"]')).toBeFalsy()
+    expect(document.querySelector('[data-testid="profile-auth-more"]')).toBeFalsy()
     sheet.dispose?.()
   })
 

@@ -23,7 +23,7 @@ describe('OpenAI Realtime Mirror runner', () => {
       {
         config: {
           apiKey: 'sk-test',
-          model: 'gpt-realtime-2',
+          model: 'gpt-realtime',
           callsUrl: 'https://api.openai.test/v1/realtime/calls',
         },
         connect,
@@ -33,7 +33,7 @@ describe('OpenAI Realtime Mirror runner', () => {
     expect(connect).toHaveBeenCalledOnce()
     expect(socket.sent[0]).toMatchObject({
       type: 'session.update',
-      session: { type: 'realtime', model: 'gpt-realtime-2', output_modalities: ['text'] },
+      session: { type: 'realtime', model: 'gpt-realtime', output_modalities: ['text'] },
     })
     expect(socket.sent.map((event) => event.type)).toEqual([
       'session.update',
@@ -60,7 +60,7 @@ describe('OpenAI Realtime Mirror runner', () => {
         {
           config: {
             apiKey: 'sk-test',
-            model: 'gpt-realtime-2',
+            model: 'gpt-realtime',
             callsUrl: 'https://api.openai.test/v1/realtime/calls',
           },
           connect: vi.fn(async () => socket),

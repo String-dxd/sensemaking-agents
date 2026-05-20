@@ -1,5 +1,6 @@
 import Time from './Time.js'
 import Viewport from './Viewport.js'
+import PerformanceState from './Performance.js'
 import DayCycle from './DayCycle.js'
 import ColdStart from './ColdStart.js'
 import Sun from './Sun.js'
@@ -60,6 +61,16 @@ export default class State
 
         this.time = new Time()
         this.viewport = new Viewport()
+        this.performance = new PerformanceState({
+            hints: {
+                devicePixelRatio: this.viewport.pixelRatio,
+                width: this.viewport.width,
+                height: this.viewport.height,
+                hardwareConcurrency: typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : 0,
+                deviceMemory: typeof navigator !== 'undefined' ? navigator.deviceMemory : 0,
+            },
+        })
+        this.viewport.setPixelRatioCap(this.performance.settings.dprCap)
         this.day = new DayCycle()
         // Onboarding must construct + hydrate before ColdStart so ColdStart's
         // constructor can read `state.onboarding.stage` to decide whether to
@@ -121,6 +132,7 @@ export default class State
     resize()
     {
         this.viewport.resize()
+        this.viewport.setPixelRatioCap(this.performance.settings.dprCap)
     }
 
     applyBackendSnapshot(snapshot)
@@ -140,6 +152,8 @@ export default class State
     update()
     {
         this.time.update()
+        if(this.performance.update(this.time.rawDelta))
+            this.viewport.setPixelRatioCap(this.performance.settings.dprCap)
         // ColdStart writes manualHour BEFORE DayCycle.update() reads it, so
         // the very first frame already paints twilight on first arrival.
         this.coldStart.update()

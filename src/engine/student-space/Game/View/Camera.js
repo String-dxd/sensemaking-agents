@@ -31,6 +31,7 @@ export default class Camera
         this._placeAtDefault()
 
         this.controls = null
+        this._zoomTargetScratch = new THREE.Vector3()
     }
 
     _placeAtDefault()
@@ -224,7 +225,7 @@ export default class Camera
             // smootherstep so the camera doesn't ease in/out hard.
             const eased = t * t * t * (t * (t * 6 - 15) + 10)
             this.instance.position.lerpVectors(this._zoom.startPos, this._zoom.endPos, eased)
-            const tgt = new THREE.Vector3().lerpVectors(this._zoom.startTarget, this._zoom.endTarget, eased)
+            const tgt = this._zoomTargetScratch.lerpVectors(this._zoom.startTarget, this._zoom.endTarget, eased)
             this.instance.lookAt(tgt)
             if(this.controls) this.controls.target.copy(tgt)
             if(t >= 1)

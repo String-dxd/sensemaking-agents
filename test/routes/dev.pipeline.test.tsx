@@ -25,14 +25,27 @@ import {
 } from '~/lib/student-space/realtime-mirror-client'
 import { PipelinePageView } from '~/routes/dev.pipeline'
 import type { PipelineMirrorRow, PipelineTraceResult } from '~/server/load-pipeline-trace.types'
+import { persistMirror } from '~/server/persist-mirror.functions'
+import { runCartographer } from '~/server/run-cartographer.functions'
+import { runConnector } from '~/server/run-connector.functions'
+import { runMirror } from '~/server/run-mirror.functions'
 
 vi.mock('~/lib/student-space/realtime-mirror-client', () => ({
   canCreateRealtimeMirrorCapture: vi.fn(() => true),
   createRealtimeMirrorCapture: vi.fn(),
 }))
 
+vi.mock('~/server/run-mirror.functions', () => ({ runMirror: vi.fn() }))
+vi.mock('~/server/persist-mirror.functions', () => ({ persistMirror: vi.fn() }))
+vi.mock('~/server/run-connector.functions', () => ({ runConnector: vi.fn() }))
+vi.mock('~/server/run-cartographer.functions', () => ({ runCartographer: vi.fn() }))
+
 const mockCanCreateRealtimeMirrorCapture = vi.mocked(canCreateRealtimeMirrorCapture)
 const mockCreateRealtimeMirrorCapture = vi.mocked(createRealtimeMirrorCapture)
+const mockRunMirror = vi.mocked(runMirror)
+const mockPersistMirror = vi.mocked(persistMirror)
+const mockRunConnector = vi.mocked(runConnector)
+const mockRunCartographer = vi.mocked(runCartographer)
 
 function mirror(overrides: Partial<PipelineMirrorRow> = {}): PipelineMirrorRow {
   return {
@@ -85,6 +98,10 @@ describe('/dev/pipeline PipelinePageView', () => {
   beforeEach(() => {
     mockCanCreateRealtimeMirrorCapture.mockReturnValue(true)
     mockCreateRealtimeMirrorCapture.mockReset()
+    mockRunMirror.mockReset()
+    mockPersistMirror.mockReset()
+    mockRunConnector.mockReset()
+    mockRunCartographer.mockReset()
   })
 
   it('renders full end-to-end controls for Mirror, Connector, and sense-making', () => {
@@ -92,11 +109,13 @@ describe('/dev/pipeline PipelinePageView', () => {
 
     expect(screen.getByRole('button', { name: 'Start Realtime transcript' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Stop Realtime transcript' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run full backend flow' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run initial chat' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run Connector' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run sense-making' })).toBeInTheDocument()
     expect(screen.getByLabelText('Initial chat transcript')).toBeInTheDocument()
     expect(screen.getByTestId('pipeline-action-log')).toHaveTextContent('Ready.')
+    expect(screen.getByText('Agent pipeline test bench')).toBeInTheDocument()
   })
 
   it('runs the Realtime GPT transcript test and copies the final transcript into initial chat', async () => {
@@ -158,6 +177,52 @@ describe('/dev/pipeline PipelinePageView', () => {
     expect(screen.getByText('The transcript arrived live.')).toBeInTheDocument()
     expect(screen.getByTestId('pipeline-action-log')).toHaveTextContent(
       'Realtime: transcript copied into the initial chat field.',
+    )
+  })
+
+  it('stops the full flow before Cartographer when Connector cannot link any reflection', async () => {
+    const user = userEvent.setup()
+    mockRunMirror.mockResolvedValue({
+      output: {
+        validation: 'A real debugging moment was named.',
+        inferred_meaning: 'Maybe breaking things into smaller tests felt satisfying.',
+        story_reframe: 'You helped after class. You made the problem smaller. That mattered.',
+      },
+      eval_review: null,
+    })
+    mockPersistMirror.mockResolvedValue({
+      mirror_entry: {
+        id: 42,
+        student_id: 'demo-a',
+        transcript: 'debugging after class',
+        validation: 'A real debugging moment was named.',
+        inferred_meaning: 'Maybe breaking things into smaller tests felt satisfying.',
+        story_reframe: 'You helped after class. You made the problem smaller. That mattered.',
+        raw_output_json: '{}',
+        context_type: 'school',
+        review_status: 'confirmed',
+        tags: [],
+        created_at: '2026-05-10T00:00:00Z',
+      },
+    })
+    mockRunConnector.mockResolvedValue({
+      status: 'transport_error',
+      processed: 1,
+      succeeded: 0,
+      failed: 1,
+      remaining: 0,
+      entries: [{ mirror_entry_id: 42, status: 'transport_error', staged_diff_id: null }],
+    })
+
+    render(<PipelinePageView data={makeData()} />)
+    await user.click(screen.getByRole('button', { name: 'Run full backend flow' }))
+
+    await waitFor(() => expect(mockRunConnector).toHaveBeenCalledTimes(1))
+    expect(mockRunCartographer).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(screen.getByTestId('pipeline-action-log')).toHaveTextContent(
+        'Connector transport failed.',
+      ),
     )
   })
 

@@ -273,7 +273,13 @@ export default class ProfileSheet
 
         this._onKeyDown = (event) =>
         {
-            if(this.isOpen && event.key === 'Escape') this.close()
+            if(!this.isOpen || event.key !== 'Escape') return
+            if(this._authMenuIsOpen())
+            {
+                this._setAuthMenuOpen(false)
+                return
+            }
+            this.close()
         }
         document.addEventListener('keydown', this._onKeyDown)
     }
@@ -338,11 +344,11 @@ export default class ProfileSheet
     /**
      * Mount or refresh the auth slot. Reads the live `state.auth.menu` and
      * renders either:
-     *   - a Sign-out button (signed-in) that drains the engine, wipes the
-     *     `ss:v1:*` localStorage, then POSTs to `/api/auth/sign-out`.
+     *   - a More menu (signed-in) whose Sign out item drains the engine,
+     *     wipes the `ss:v1:*` localStorage, then POSTs to `/api/auth/sign-out`.
      *   - a Sign-in link (signed-out) that drains the engine and navigates
-     *     to `/api/auth/sign-in?returnPathname=/?sheet=profile` so the user
-     *     returns to the same profile context after WorkOS callback.
+     *     to the onboarding login surface, preserving the profile return
+     *     path for the WorkOS/demo actions inside that surface.
      *
      * Idempotent — replaces the slot contents on every call so re-renders
      * triggered by Auth.subscribe() don't pile up stale nodes.
@@ -366,6 +372,32 @@ export default class ProfileSheet
             // form built at click time so engine dispose (which removes the
             // .profile-sheet root and detaches this form) cannot abort the
             // navigation. See `_onSignOutClick` for the choreography.
+            const wrap = document.createElement('div')
+            wrap.className = 'profile-auth-menu'
+            wrap.dataset.testid = 'profile-auth-menu'
+
+            const more = document.createElement('button')
+            more.type = 'button'
+            more.className = 'profile-auth-more'
+            more.dataset.action = 'auth-more'
+            more.dataset.testid = 'profile-auth-more'
+            more.setAttribute('aria-label', 'More profile actions')
+            more.setAttribute('aria-expanded', 'false')
+            more.setAttribute('aria-controls', 'profile-auth-popover')
+            more.innerHTML = `
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                    <circle cx="5" cy="12" r="1.8" fill="currentColor"></circle>
+                    <circle cx="12" cy="12" r="1.8" fill="currentColor"></circle>
+                    <circle cx="19" cy="12" r="1.8" fill="currentColor"></circle>
+                </svg>
+            `
+
+            const popover = document.createElement('div')
+            popover.id = 'profile-auth-popover'
+            popover.className = 'profile-auth-popover'
+            popover.dataset.testid = 'profile-auth-popover'
+            popover.hidden = true
+
             const form = document.createElement('form')
             form.action = '/api/auth/sign-out'
             form.method = 'post'
@@ -373,7 +405,7 @@ export default class ProfileSheet
             form.dataset.testid = 'profile-auth-signout-form'
             const btn = document.createElement('button')
             btn.type = 'submit'
-            btn.className = 'profile-auth-button profile-auth-button--signout'
+            btn.className = 'profile-auth-menu-item profile-auth-menu-item--signout'
             btn.dataset.testid = 'profile-auth-signout'
             btn.textContent = 'Sign out'
             // Intercept BOTH paths: pointer click and keyboard Enter that
@@ -382,16 +414,16 @@ export default class ProfileSheet
             btn.addEventListener('click', (event) => this._onSignOutAction(event))
             form.addEventListener('submit', (event) => this._onSignOutAction(event))
             form.appendChild(btn)
-            this.authSlotEl.appendChild(form)
+            popover.appendChild(form)
+            wrap.appendChild(more)
+            wrap.appendChild(popover)
+            this.authSlotEl.appendChild(wrap)
         }
         else
         {
             const link = document.createElement('a')
-            // `returnPathname` is a query value — the `?` of any nested
-            // query string must be URL-encoded so it survives the WorkOS
-            // callback round-trip. Without this, the second `?` is parsed
-            // as the path-end and `sheet=profile` is dropped.
-            link.href = `/api/auth/sign-in?returnPathname=${encodeURIComponent('/?sheet=profile')}`
+            const profileReturnPathname = encodeURIComponent('/?sheet=profile')
+            link.href = `/?auth=sign-in&returnPathname=${profileReturnPathname}#sign-in`
             link.className = 'profile-auth-button profile-auth-button--signin'
             link.dataset.testid = 'profile-auth-signin'
             link.textContent = 'Sign in'
@@ -408,6 +440,22 @@ export default class ProfileSheet
         // Honor the link's default navigation. Engine dispose runs synchronously
         // before the browser leaves; Persistence has already flushed.
         try { link.classList.add('is-loading') } catch(_) {}
+    }
+
+    _authMenuIsOpen()
+    {
+        const more = this.authSlotEl?.querySelector('[data-action="auth-more"]')
+        return more?.getAttribute('aria-expanded') === 'true'
+    }
+
+    _setAuthMenuOpen(open)
+    {
+        const more = this.authSlotEl?.querySelector('[data-action="auth-more"]')
+        const popover = this.authSlotEl?.querySelector('.profile-auth-popover')
+        if(!more || !popover) return
+        more.setAttribute('aria-expanded', open ? 'true' : 'false')
+        more.classList.toggle('is-open', open)
+        popover.hidden = !open
     }
 
     _onSignOutAction(event)
@@ -709,6 +757,15 @@ export default class ProfileSheet
     _onClick(event)
     {
         const target = event.target
+
+        const more = target.closest('[data-action="auth-more"]')
+        if(more)
+        {
+            event.preventDefault()
+            this._setAuthMenuOpen(more.getAttribute('aria-expanded') !== 'true')
+            return
+        }
+        if(!target.closest('.profile-auth-menu')) this._setAuthMenuOpen(false)
 
         if(target.closest('.profile-sheet__close')) { this.close(); return }
 

@@ -140,6 +140,53 @@ body.student-space-shell.is-night #sky-rays
     user-select: none;
 }
 
+.fps-overlay
+{
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 24px;
+    margin-bottom: 2px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    color: rgba(250, 246, 238, 0.96);
+    font: 700 13px/1 var(--font-sans);
+    letter-spacing: 0;
+    pointer-events: none;
+    user-select: none;
+}
+
+.fps-overlay__title
+{
+    color: rgba(250, 246, 238, 0.58);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.fps-overlay__metric
+{
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+}
+
+.fps-overlay__value
+{
+    min-width: 2ch;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+}
+
+.fps-overlay__label
+{
+    color: rgba(250, 246, 238, 0.72);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
 .ui a
 {
     pointer-events: auto;
@@ -3132,6 +3179,75 @@ body.has-chooser        .top-nav
    Sign-out (signed-in) is a small cream pill; Sign-in (signed-out) keeps
    the same shape so the slot doesn't reflow as auth state changes. */
 .profile-auth-form { margin: 0; }
+.profile-auth-menu
+{
+    position: relative;
+    display: inline-flex;
+}
+.profile-auth-more
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(43, 38, 32, 0.10);
+    background: rgba(241, 237, 229, 0.95);
+    color: rgba(43, 38, 32, 0.78);
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.profile-auth-more:hover,
+.profile-auth-more.is-open
+{
+    color: #2b2620;
+    background: #fff;
+    transform: translateY(-1px);
+}
+.profile-auth-more:focus-visible
+{
+    outline: 2px solid var(--facet-accent);
+    outline-offset: 2px;
+}
+.profile-auth-popover
+{
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 42;
+    min-width: 136px;
+    padding: 6px;
+    border: 1px solid rgba(43, 38, 32, 0.10);
+    border-radius: 12px;
+    background: rgba(255, 252, 246, 0.96);
+    box-shadow: 0 16px 36px rgba(43, 38, 32, 0.14);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+.profile-auth-popover[hidden] { display: none; }
+.profile-auth-menu-item
+{
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: 34px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #2b2620;
+    font: 500 13px/1 var(--font-sans);
+    text-align: left;
+    cursor: pointer;
+}
+.profile-auth-menu-item:hover,
+.profile-auth-menu-item:focus-visible
+{
+    background: rgba(43, 38, 32, 0.07);
+    outline: none;
+}
 .profile-auth-button
 {
     display: inline-flex;
@@ -4851,6 +4967,13 @@ body.is-onboarding .bird-picker,
 body.is-onboarding .track-picker,
 body.is-onboarding .object-peek,
 body.is-onboarding .hover-cta
+{
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+}
+
+body.is-dev-overlay-hidden .hour-hud
 {
     pointer-events: none;
     opacity: 0;

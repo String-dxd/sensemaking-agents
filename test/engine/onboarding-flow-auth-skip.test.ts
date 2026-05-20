@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 interface OnboardingStub {
   stage: string
   isDone: boolean
+  completedAt?: string | null
   setStage: (next: string) => string
   subscribe: (cb: (event: unknown) => void) => () => void
   firstMoodPinId: string | null
@@ -30,6 +31,7 @@ function makeOnboarding(initialStage = 'login'): OnboardingStub {
   const subscribers = new Set<(event: unknown) => void>()
   return {
     stage: initialStage,
+    completedAt: null,
     get isDone() {
       return this.stage === 'done'
     },
@@ -110,6 +112,14 @@ describe('OnboardingFlow auth-aware skip', () => {
     // The loop in start() is still running; tear it down by marking done.
     mock.onboarding.setStage('done')
     await startPromise.catch(() => {})
+  })
+
+  it('signed-in completed user: login-only entry returns to done instead of replaying onboarding', async () => {
+    const mock = mountState('login', { isSignedIn: true })
+    mock.onboarding.completedAt = '2026-05-20T00:00:00.000Z'
+    const flow = new OnboardingFlow(fakeView) as OnboardingFlowHandle
+    await flow.start()
+    expect(mock.onboarding.stage).toBe('done')
   })
 
   it('signed-out: keeps the login stage and renders the dummy surface', async () => {

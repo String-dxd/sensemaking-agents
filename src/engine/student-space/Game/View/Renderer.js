@@ -4,6 +4,8 @@ import Game from '../Game.js'
 import View from './View.js'
 import Debug from '../Debug/Debug.js'
 import State from '../State/State.js'
+import { selectPixelRatio } from '../State/Performance.js'
+import { applyRendererSize } from './renderQuality.js'
 
 export default class Renderer
 {
@@ -32,7 +34,8 @@ export default class Renderer
         // sky-sphere render target alive.
         this.instance = new THREE.WebGLRenderer({
             alpha: true,
-            antialias: true
+            antialias: this.state.performance?.settings?.antialias !== false,
+            powerPreference: 'high-performance',
         })
 
         this.instance.sortObjects = false
@@ -43,8 +46,9 @@ export default class Renderer
         this.instance.domElement.style.height = '100%'
 
         this.instance.setClearAlpha(0)
-        this.instance.setSize(this.viewport.width, this.viewport.height)
-        this.instance.setPixelRatio(this.viewport.clampedPixelRatio)
+        this._qualityRevision = -1
+        this._appliedPixelRatio = null
+        this._applyQuality(true)
 
         // this.instance.physicallyCorrectLights = true
         // this.instance.gammaOutPut = true
@@ -67,12 +71,27 @@ export default class Renderer
     resize()
     {
         // Instance
-        this.instance.setSize(this.viewport.width, this.viewport.height)
-        this.instance.setPixelRatio(this.viewport.clampedPixelRatio)
+        this._applyQuality(true)
+    }
+
+    _applyQuality(force = false)
+    {
+        const revision = this.state.performance?.revision ?? 0
+        const targetPixelRatio = selectPixelRatio(
+            this.viewport.pixelRatio ?? this.viewport.clampedPixelRatio,
+            this.state.performance?.settings || 'high'
+        )
+        if(!force && revision === this._qualityRevision && targetPixelRatio === this._appliedPixelRatio)
+            return
+
+        this._appliedPixelRatio = applyRendererSize(this.instance, this.viewport, this.state.performance)
+        this._qualityRevision = revision
     }
 
     update()
     {
+        this._applyQuality()
+
         if(this.debug.stats)
             this.debug.stats.beforeRender()
 

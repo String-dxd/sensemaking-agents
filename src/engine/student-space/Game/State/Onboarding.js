@@ -43,6 +43,12 @@ export default class Onboarding
         // it a foot-gun for accidental ceremony resets via shareable links.
         this._replayHash = (typeof window !== 'undefined') &&
             window.location.hash === '#onboarding'
+        // `#sign-in` reuses the onboarding login surface without wiping the
+        // completed ceremony fields. Profile-sheet auth sends signed-out
+        // students here so they see the same Edupass/demo/offline chooser
+        // from first arrival.
+        this._signInHash = (typeof window !== 'undefined') &&
+            window.location.hash === '#sign-in'
 
         this.subscribers = new Set()
 
@@ -147,6 +153,11 @@ export default class Onboarding
         // without manually clearing localStorage. `reset()` will also persist
         // the cleared state so a subsequent refresh still replays.
         if(this._replayHash) this.reset()
+        else if(this._signInHash)
+        {
+            this.stage = 'login'
+            this._persist()
+        }
 
         this._notify({ kind: 'hydrate' })
     }

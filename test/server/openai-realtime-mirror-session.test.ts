@@ -50,7 +50,7 @@ describe('openAIRealtimeMirrorSessionHandler', () => {
     }
     expect(session).toMatchObject({
       type: 'realtime',
-      model: 'gpt-realtime-2',
+      model: 'gpt-realtime',
       output_modalities: ['audio'],
       audio: {
         input: {

@@ -96,10 +96,13 @@ export default class OnboardingFlow
         // Skip the dummy Edupass login when the host already resolved an
         // authenticated session (WorkOS, demo cookie, or dev-bypass). The
         // login surface exists for first-arrival sign-in; a returning
-        // signed-in student should land at the greeting beat directly.
+        // signed-in student should land at the greeting beat directly. If a
+        // completed student came through the profile-sheet sign-in entry,
+        // mark the ceremony done again instead of replaying it.
         if(stage === 'login' && this.state.auth?.isSignedIn)
         {
-            stage = this._setStage('greeting')
+            stage = this._setStage(this.onb.completedAt ? 'done' : 'greeting')
+            if(this.onb.isDone) return
         }
 
         // Cinematic stages replay from start if interrupted; configuration

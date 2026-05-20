@@ -39,6 +39,7 @@
 - `docs/plans/2026-05-18-004-feat-mirror-result-log-forget-plan.md` — completed in the current branch.
 - `docs/plans/2026-05-18-005-feat-student-space-island-evidence-wiring-plan.md` — completed in the current branch.
 - `docs/plans/2026-05-19-001-feat-openai-realtime-mirror-plan.md` — implemented in the current branch: Mirror reflection generation uses OpenAI Realtime while Connector stays on Claude Managed Agents.
+- `docs/plans/2026-05-20-002-feat-dev-pipeline-simplification-plan.md` — active follow-up to simplify `/dev/pipeline` into a focused backend/agent test bench.
 
 ## Current Product Shape
 
