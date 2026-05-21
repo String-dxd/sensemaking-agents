@@ -5919,7 +5919,8 @@ body.is-onb-landing .half-sheet
     visibility: hidden;
 }
 
-body.is-dev-overlay-hidden .hour-hud
+body.is-dev-overlay-hidden .hour-hud,
+body.is-dev-overlay-hidden .status-preview-hud
 {
     pointer-events: none;
     opacity: 0;
