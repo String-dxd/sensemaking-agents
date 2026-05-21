@@ -158,7 +158,7 @@ export function hotspotForButterfly(butterfly: ButterflyDescriptor): WorldHotspo
     description: `${butterfly.evidenceState === 'pending' ? 'Needs review' : 'Confirmed'} · ${
       butterfly.targetClaimLabel
     }`,
-    href: `/?sheet=reflections#reflection-${butterfly.entryId}`,
+    href: `/history#reflection-${butterfly.entryId}`,
   }
 }
 
@@ -170,7 +170,7 @@ export function hotspotForMailbox(mailbox: MailboxDescriptor): WorldHotspot {
       eyebrow: 'Mailbox',
       title: mailbox.unreadCount === 1 ? '1 unread brief' : `${mailbox.unreadCount} unread briefs`,
       description: 'New counsellor brief is waiting.',
-      href: '/?sheet=trajectory',
+      href: '/trajectory',
     }
   }
   if (mailbox.state === 'has-brief') {
@@ -180,7 +180,7 @@ export function hotspotForMailbox(mailbox: MailboxDescriptor): WorldHotspot {
       eyebrow: 'Mailbox',
       title: 'Latest brief',
       description: 'Open the trajectory to revisit it.',
-      href: '/?sheet=trajectory',
+      href: '/trajectory',
     }
   }
   return {
@@ -199,7 +199,7 @@ export function hotspotForMoodPin(pin: MoodPinDescriptor): WorldHotspot {
     eyebrow: 'Mood pin',
     title: pin.emotion,
     description: `${Math.round(pin.intensity * 100)}% intensity`,
-    href: '/?sheet=reflections',
+    href: '/history',
   }
 }
 
@@ -216,9 +216,11 @@ export function hotspotForPromptBird(prompt: string): WorldHotspot {
 
 function dimensionHref(dimension: VipsDimension, timelineEntryIds: Array<number | string>): string {
   const firstEntryId = timelineEntryIds[0]
-  return firstEntryId == null
-    ? `/?sheet=${dimension}`
-    : `/?sheet=${dimension}#entry-${firstEntryId}`
+  // VipsDimension values (`values`, `interests`, `personality`, `skills`)
+  // map 1:1 to Profile tabs at `/profile/<tab>`. The `values` tab is the
+  // default and has the shorter canonical URL `/profile`.
+  const path = dimension === 'values' ? '/profile' : `/profile/${dimension}`
+  return firstEntryId == null ? path : `${path}#entry-${firstEntryId}`
 }
 
 function entryCount(count: number): string {

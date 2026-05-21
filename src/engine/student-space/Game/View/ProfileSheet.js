@@ -480,7 +480,10 @@ export default class ProfileSheet
         else
         {
             const link = document.createElement('a')
-            const profileReturnPathname = encodeURIComponent('/?sheet=profile')
+            // Post-sign-in return target uses the canonical /profile path
+            // now that Profile is a routed page. Legacy `/?sheet=profile`
+            // is still honored by the home-route redirect for old links.
+            const profileReturnPathname = encodeURIComponent('/profile')
             link.href = `/?auth=sign-in&returnPathname=${profileReturnPathname}#sign-in`
             link.className = 'profile-auth-button profile-auth-button--signin'
             link.dataset.testid = 'profile-auth-signin'
