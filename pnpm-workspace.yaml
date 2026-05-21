@@ -1,0 +1,41 @@
+# pnpm 11+ canonical config. Two blocks live here:
+#
+#   - `allowBuilds`: per-package approval for build scripts on native
+#     modules. Without these, `pnpm install` (and every `pnpm <script>` via
+#     its deps pre-check) exits with ERR_PNPM_IGNORED_BUILDS.
+#
+#   - `overrides`: pinned versions for TanStack packages whose minor-bump
+#     cadence has previously broken our router contract mid-release. These
+#     used to live in `package.json#pnpm.overrides`, but pnpm 11 won't
+#     honor both locations: the moment a `pnpm-workspace.yaml` exists,
+#     pnpm regenerates pnpm-lock.yaml against the workspace config and
+#     strips anything that came from package.json. Keep the two in sync
+#     by treating this file as the single source of truth.
+#
+# Prior history: commit 07753ad4 removed a malformed pnpm-workspace.yaml
+# (placeholder strings caused `pnpm install --frozen-lockfile` to fail on
+# Vercel with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH). This file is the
+# well-formed replacement — booleans for build approvals, real version
+# strings for overrides.
+
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+
+overrides:
+  '@tanstack/history': 1.161.6
+  '@tanstack/react-router': 1.169.2
+  '@tanstack/react-start': 1.167.65
+  '@tanstack/react-start-client': 1.166.48
+  '@tanstack/react-start-rsc': 0.0.44
+  '@tanstack/react-start-server': 1.166.52
+  '@tanstack/router-core': 1.169.2
+  '@tanstack/router-generator': 1.166.42
+  '@tanstack/router-plugin': 1.167.35
+  '@tanstack/router-utils': 1.161.8
+  '@tanstack/start-client-core': 1.168.2
+  '@tanstack/start-fn-stubs': 1.161.6
+  '@tanstack/start-plugin-core': 1.169.20
+  '@tanstack/start-server-core': 1.167.30
+  '@tanstack/start-storage-context': 1.166.35
+  '@tanstack/virtual-file-routes': 1.161.7
