@@ -7,24 +7,26 @@ status: shipped
 
 # Island progression — engine substrate is the live one
 
-## The trap
+## The trap (now closed)
 
-The brainstorm for "more captures → more island objects"
-(`docs/brainstorms/2026-05-18-island-object-progression-requirements.md`)
-referenced files under `src/components/world/*` (`trees.ts`,
+Earlier brainstorms and plans — notably
+`docs/brainstorms/2026-05-18-island-object-progression-requirements.md`
+— referenced files under `src/components/world/*` (`trees.ts`,
 `vipsWorldMapping.ts`, `island.ts`, `hotspots.ts`) as the
-implementation target. Those files exist and look like the live
-3D scene.
-
-They are not. The home route at `src/routes/index.tsx` mounts
-`StudentSpaceHost`, which dynamically imports the vendored
+implementation target. Those files looked like the live 3D scene
+but were not: the home route at `src/routes/index.tsx` mounted
+`StudentSpaceHost`, which dynamically imported the vendored
 **Student Space engine** under `src/engine/student-space/Game/`.
-The React/Three layer under `src/components/world/*` is dormant —
-no route mounts it. The plan
-`docs/plans/2026-05-18-001-feat-port-student-space-shell-plan.md`
-documents this port; the world layer is retained only so the
-quarantined tests under `test/world/**` can be deleted alongside
-it in a cleanup milestone.
+The React/Three layer under `src/components/world/*` was dormant —
+no route mounted it. The plan
+`docs/plans/_archive/2026-05-18-001-feat-port-student-space-shell-plan.md`
+documented this port; the world layer was retained only so the
+quarantined tests under `test/world/**` could be deleted alongside
+it in a cleanup milestone, which happened on 2026-05-21 (see
+`docs/plans/2026-05-21-001-refactor-dead-code-cleanup-plan.md`).
+Both the `src/components/world/*` source and the `test/world/**`
+tests are now removed; this section remains so historical
+references to those paths can still be located.
 
 ## Rule of thumb
 
@@ -36,18 +38,19 @@ the implementation target:
 2. If the answer is `StudentSpaceHost`, the live substrate is
    `src/engine/student-space/Game/`. Translate the plan's file
    references accordingly.
-3. The two substrates have different primitives:
+3. The two substrates had different primitives (recorded here so
+   historical references stay legible):
    - State slices: live engine uses singleton classes under
      `Game/State/*.js` with `subscribe()` patterns (see
-     `MoodPins.js`, `Captures.js`). React/Three layer uses
-     descriptor-driven scene models (see `vipsWorldMapping.ts`).
+     `MoodPins.js`, `Captures.js`). The removed React/Three layer
+     used descriptor-driven scene models (`vipsWorldMapping.ts`).
    - 3D rendering: live engine uses single `THREE.InstancedMesh`
      per species baked at boot from a `PLACEMENTS` array in
-     `Tree.js`. React/Three layer uses per-descriptor non-instanced
-     groups in `trees.ts`.
+     `Tree.js`. The removed React/Three layer used per-descriptor
+     non-instanced groups in `trees.ts`.
    - Persistence: live engine uses `localStorage` via the
-     `ss:v1:*` namespace. React/Three layer reads from Postgres
-     via `vips_timeline_entries`.
+     `ss:v1:*` namespace. The removed React/Three layer read from
+     Postgres via `vips_timeline_entries`.
 4. The Connector → verifier pipeline is **not** live on the home
    route. `runAutoConnectorAfterMirror` exists in
    `src/server/auto-connector.handler.server.ts` but is invoked

@@ -1,6 +1,6 @@
 /**
  * Managed Agents runtime wrapper — Step 6 of
- * `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`.
+ * `docs/plans/_archive/2026-05-12-002-feat-managed-agents-full-migration-plan.md`.
  *
  * Thin async-iterable transport over `client.beta.sessions.*` that turns a
  * one-shot agent invocation (Mirror today; Connector + Cartographer wire up

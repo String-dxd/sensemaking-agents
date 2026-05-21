@@ -59,7 +59,7 @@ Substrate learning: `docs/solutions/2026-05-18-island-progression-engine-substra
 
 ## Design decisions worth review
 
-- **Substrate**: live engine at `src/engine/student-space/Game/`, not the dormant `src/components/world/*`. Documented in the solutions entry so future contributors don't re-derive.
+- **Substrate**: live engine at `src/engine/student-space/Game/`. The legacy `src/components/world/*` layer was removed in the 2026-05-21 cleanup; the solutions entry documents the substrate decision so future contributors don't re-derive.
 - **Species mechanism**: student tags V/I/P/S explicitly after capture (Path B per the iteration). Rejected modality-driven heuristic (Path A) after dogfooding showed it didn't match how captures actually work — a photo of teamwork is a value, not an interest. Rejected full Mirror→Connector v2 because the home route isn't wired to Mirror yet.
 - **First-capture-wins species lock**: simpler model than blending. The student learns: the FIRST thing you tag in a sprout determines what it becomes.
 - **Mood pins skip the picker**: auto-tag as Personality. Less friction; mood is inherently emotional state.

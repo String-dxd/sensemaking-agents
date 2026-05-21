@@ -6,7 +6,7 @@ Cuts over the four sensemaking agents (Mirror, Connector, Cartographer, self_cri
 - **Cutover gate passed** (plan §11). Ablation harness: Mirror 32/32 parsed, Connector 4/4 students parsed after `reflection_id` coercion fix, Verifier admitted 13 entries + 1 `no_quote_match` drop. Rubric review: 1/1 Mirror sample pass, 4/4 Cartographer outputs reviewed (3 pass + 1 concern), empty-VIPS-state caveat noted.
 - **PR 2 follow-up** opens as a draft against this branch to remove `@openai/agents`, `handoff-chain*.ts`, and the feature flag once the observation window clears. Day-21 CI guard fails the build on 2026-06-02 if `USE_MANAGED_AGENTS` is still in `src/agents/config.ts` — forcing function for either shipping PR 2 or extending the deadline explicitly.
 
-Plan: `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`
+Plan: `docs/plans/_archive/2026-05-12-002-feat-managed-agents-full-migration-plan.md`
 
 ## Step-by-step changes
 
