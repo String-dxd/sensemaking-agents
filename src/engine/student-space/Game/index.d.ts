@@ -44,12 +44,6 @@ export type AuthMenuState =
 export interface GameOptions {
   container?: HTMLElement
   persistence?: { storage?: StorageAdapter }
-  /**
-   * Open a registered overlay surface immediately after boot. Honored only
-   * when onboarding has finished. Used by hosts to land users on a specific
-   * sheet after a redirect (e.g. `/me` → `/?sheet=profile`).
-   */
-  initialOverlay?: { name: string }
   backend?: StudentSpaceBackendBridge
   /**
    * Server-resolved auth menu, captured by the host once during boot. The
@@ -75,6 +69,17 @@ export interface Game {
    * no overlay is open. Used by route sync when transitioning to `/`.
    */
   closeActiveSurface(): void
+  /**
+   * Ask the host to navigate to a canonical pathname (`/profile/values`,
+   * `/history`, `/`, …). In-engine click sources call this instead of
+   * touching `OverlayController` directly so the URL is the single source
+   * of truth for which sheet is open.
+   *
+   * Falls back to direct controller action when no host router is wired:
+   * `/` calls `closeActiveSurface()`; other paths no-op (callers can wire
+   * their own fallback for harness contexts).
+   */
+  navigate(href: string): void
   /**
    * Gate the engine's rAF render loop. Pass `false` to suspend (e.g. when
    * a routed sheet covers the world); pass `true` to resume. Mirrors the

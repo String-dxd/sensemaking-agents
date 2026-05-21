@@ -39,7 +39,8 @@ interface PathnameOptions {
   surface: StudentSpaceSurface
   tab?: string
   entryId?: number
-  filter?: 'all' | 'need-review'
+  // Note: `filter` is intentionally NOT a path segment. Callers attach it
+  // as a search param (`?filter=…`) after computing the pathname here.
 }
 
 /**
@@ -80,7 +81,9 @@ export function surfaceFromPathname(pathname: string): StudentSpaceOpenSurfaceIn
  */
 export function pathnameForSurface(opts: PathnameOptions): string {
   const { surface, tab, entryId } = opts
-  const hash = entryId ? `#reflection-${entryId}` : ''
+  // `Number.isFinite` so a legitimate `entryId === 0` survives. Truthy
+  // checks would silently drop it and route to a tabless surface.
+  const hash = Number.isFinite(entryId) ? `#reflection-${entryId}` : ''
   switch (surface) {
     case 'profile': {
       if (tab && isProfileTab(tab) && tab !== DEFAULT_PROFILE_TAB) {
@@ -104,7 +107,7 @@ export function pathnameForSurface(opts: PathnameOptions): string {
       return `/history${hash}`
     }
     case 'reflections':
-    case 'calendar' as StudentSpaceSurface:
+    case 'calendar':
       // Legacy aliases — both route to History's Timeline tab.
       return `/history${hash}`
     case 'growth':
@@ -143,10 +146,19 @@ export function useStudentSpaceRouteSync(game: Game | null, opts: { paused?: boo
   const location = useLocation()
   const lastApplied = useRef<string | null>(null)
   const paused = opts.paused === true
+  // `filter=need-review` round-trips through the URL — TanStack parses
+  // `location.search` into an object via per-route `validateSearch`. We
+  // read it loosely (the home route validates it as `'need-review'` and
+  // the history routes mirror that) and forward it into `openSurface`.
+  const searchFilter =
+    (location.search as { filter?: unknown } | undefined)?.filter === 'need-review'
+      ? 'need-review'
+      : undefined
 
   useEffect(() => {
     if (!game) return
-    const key = `${location.pathname}${location.hash ?? ''}`
+    const filterKey = searchFilter ? `?filter=${searchFilter}` : ''
+    const key = `${location.pathname}${location.hash ?? ''}${filterKey}`
     if (paused) return
     if (lastApplied.current === key) return
     lastApplied.current = key
@@ -157,8 +169,12 @@ export function useStudentSpaceRouteSync(game: Game | null, opts: { paused?: boo
       return
     }
     const entryId = entryIdFromHash(location.hash ?? '')
-    game.openSurface({ ...parsed, ...(entryId ? { entryId } : {}) })
-  }, [game, location.pathname, location.hash, paused])
+    game.openSurface({
+      ...parsed,
+      ...(entryId ? { entryId } : {}),
+      ...(searchFilter ? { filter: searchFilter } : {}),
+    })
+  }, [game, location.pathname, location.hash, paused, searchFilter])
 }
 
 /**
@@ -174,7 +190,9 @@ export function useStudentSpaceNavigate(): (href: string) => void {
   // route tree, so an unknown route would type-error here — by design.
   return (href: string) => {
     const [pathname, hashRaw] = href.split('#')
-    const hash = hashRaw ? `#${hashRaw}` : undefined
+    // `router.navigate` re-prefixes `#`, so pass the raw fragment without
+    // a leading `#`. Earlier versions added one and produced `##foo`.
+    const hash = hashRaw || undefined
     void router.navigate({
       // `to` is typed against the generated route tree; we cast through
       // `unknown` because callers pass dynamic paths derived from

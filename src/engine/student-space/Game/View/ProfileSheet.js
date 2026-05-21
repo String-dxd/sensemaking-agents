@@ -1002,12 +1002,15 @@ export default class ProfileSheet
                 // Drive the tab change through the router so the URL
                 // (e.g. /profile/relationships) is the source of truth.
                 // The route-sync hook then calls openSurface → _setTab.
-                // Falls back to the imperative tab swap when no host
-                // router is wired (standalone harnesses).
+                // `Game.navigate()` owns the no-router fallback; we still
+                // call `_switchTab` directly when there's no Game instance
+                // (standalone test harness).
+                // `defaultTab` mirrors `DEFAULT_PROFILE_TAB` in
+                // `src/lib/student-space/route-sync.ts` — keep them in sync.
                 const game = Game.getInstance()
-                const default_tab = 'values'
-                const href = facet === default_tab ? '/profile' : `/profile/${facet}`
-                if(game?._onNavigate) game.navigate(href)
+                const defaultTab = 'values'
+                const href = facet === defaultTab ? '/profile' : `/profile/${facet}`
+                if(game) game.navigate(href)
                 else this._switchTab(facet)
             }
             return

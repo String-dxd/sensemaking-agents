@@ -47,6 +47,11 @@ describe('legacy ?sheet= redirect', () => {
     expect(final.pathname).toBe('/history')
   })
 
+  it('redirects /?sheet=letters to /letters', async () => {
+    const final = await locationAfterNavigation('/?sheet=letters')
+    expect(final.pathname).toBe('/letters')
+  })
+
   it('preserves the reflection hash when entryId is encoded', async () => {
     const final = await locationAfterNavigation('/?sheet=reflections#reflection-42')
     expect(final.pathname).toBe('/history')

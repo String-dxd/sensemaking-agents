@@ -82,20 +82,11 @@ export function StudentSpaceHost({ className }: { className?: string }) {
     game.setRenderActive(location.pathname === '/')
   }, [game, location.pathname])
 
-  // After the backend snapshot resolves, re-apply the current route
-  // surface so sheets that opened against empty local state re-render
-  // with the freshly-loaded data. The hydration flag only flips once per
-  // engine boot; reading the surface through a ref keeps the effect
-  // anchored to the hydration→opened transition without re-firing on
-  // every navigation (the route-sync hook already handles that).
-  const surfaceRef = useRef(currentRouteSurface)
-  surfaceRef.current = currentRouteSurface
-  useEffect(() => {
-    if (!game || !hydrated) return
-    const surface = surfaceRef.current
-    if (!surface) return
-    game.openSurface(surface)
-  }, [game, hydrated])
+  // Hydration replay is handled by the route-sync hook: when `paused`
+  // flips false (snapshot resolved), the hook re-fires its effect and
+  // opens the current surface against fresh data. No separate replay
+  // effect needed — duplicating it caused `openSurface` to run twice
+  // in the same commit under StrictMode.
 
   useEffect(() => {
     const container = containerRef.current
@@ -104,6 +95,7 @@ export function StudentSpaceHost({ className }: { className?: string }) {
     document.body.classList.add('student-space-shell')
     let dispose: (() => void) | null = null
     let cancelled = false
+    let authMenuTimeoutId: ReturnType<typeof setTimeout> | null = null
 
     void (async () => {
       try {
@@ -121,12 +113,12 @@ export function StudentSpaceHost({ className }: { className?: string }) {
                 console.warn('[StudentSpaceHost] loadAuthMenu failed', err)
                 return null
               }),
-              new Promise<null>((resolve) =>
-                setTimeout(() => {
+              new Promise<null>((resolve) => {
+                authMenuTimeoutId = setTimeout(() => {
                   console.warn('[StudentSpaceHost] loadAuthMenu timed out after 3s')
                   resolve(null)
-                }, 3000),
-              ),
+                }, 3000)
+              }),
             ])
           : Promise.resolve(null)
         const [engine, authMenu] = await Promise.all([
@@ -137,8 +129,6 @@ export function StudentSpaceHost({ className }: { className?: string }) {
         const live = engine.createGame({
           container,
           persistence: { storage: engine.localStorageAdapter() },
-          // initialOverlay is a legacy opt-in for hosts that don't drive the
-          // URL; the pathname-based initial open below is the canonical path.
           backend,
           authMenu: authMenu ?? null,
           onNavigate: (href: string) => onNavigateRef.current(href),
@@ -180,6 +170,10 @@ export function StudentSpaceHost({ className }: { className?: string }) {
 
     return () => {
       cancelled = true
+      if (authMenuTimeoutId != null) {
+        clearTimeout(authMenuTimeoutId)
+        authMenuTimeoutId = null
+      }
       dispose?.()
       document.body.classList.remove('student-space-shell')
     }

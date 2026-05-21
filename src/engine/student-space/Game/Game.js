@@ -136,11 +136,15 @@ export default class Game
             if(this._rafId != null) { cancelAnimationFrame(this._rafId); this._rafId = null }
             try { this.view?.sound?.ctx?.suspend?.() } catch(_) {}
         }
-        else if(this._running)
+        else if(this._running && this._renderActive)
         {
             // Re-prime audio + restart the rAF loop. Resume returns a
             // promise; we don't need to await it (next frame's update will
             // tick the music scheduler off ctx.currentTime regardless).
+            //
+            // Gate on `_renderActive` so audio doesn't resume while a routed
+            // sheet covers the world — otherwise music plays into a tab the
+            // user expects to be quiet (paused by `setRenderActive(false)`).
             try { this.view?.sound?.ctx?.resume?.() } catch(_) {}
             this.update()
         }
@@ -219,6 +223,12 @@ export default class Game
             // Honor the caller's tab when provided (e.g. `/history/timeline`
             // routes pass `tab: 'timeline'`). Default to timeline when no tab
             // is supplied — matches HistorySheet.open() default.
+            //
+            // Behavior change: prior to the routing refactor, `surface:
+            // 'history'` always forced `tab: 'growth'`. The route-sync hook
+            // now passes the URL tab through (`/history` → timeline,
+            // `/history/growth` → growth), so honoring `input.tab` keeps
+            // the URL as the single source of truth.
             const tab = input.tab === 'growth' ? 'growth' : 'timeline'
             this.view.overlayController.open('history', { ...input, tab })
             return
@@ -279,10 +289,10 @@ export default class Game
             return
         }
         // Resume only if the engine isn't otherwise suspended (running and
-        // not hidden). update() guards both internally, but starting the
-        // schedule manually here is the simpler invariant — same shape as
-        // the visibility-resume branch.
-        if(this._running && !this._hidden) this.update()
+        // not hidden) AND we don't already have an rAF scheduled. The
+        // `_rafId == null` guard prevents StrictMode's effect-replay from
+        // starting two parallel rAF chains via false→true→false→true.
+        if(this._running && !this._hidden && this._rafId == null) this.update()
     }
 
     /**

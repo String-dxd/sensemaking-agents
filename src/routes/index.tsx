@@ -44,12 +44,19 @@ export const Route = createFileRoute('/')({
       ...(parsed.entryId ? { entryId: parsed.entryId } : {}),
     })
     // `to` already encodes any hash from entryId. Forward `?filter` as a
-    // search param since it's a runtime filter, not a path segment.
+    // search param since it's a runtime filter, not a path segment. Also
+    // forward `authError` so WorkOS sign-out redirects that land on the
+    // legacy `/?sheet=profile&authError=…` shape don't lose the error.
     const [pathname, hashRaw] = to.split('#')
+    const forwardedSearch: Record<string, string> = {}
+    if (parsed.filter) forwardedSearch.filter = parsed.filter
+    if (search.authError) forwardedSearch.authError = search.authError
     throw redirect({
       to: pathname as never,
       ...(hashRaw ? { hash: hashRaw } : {}),
-      ...(parsed.filter ? { search: { filter: parsed.filter } as never } : {}),
+      ...(Object.keys(forwardedSearch).length > 0
+        ? { search: forwardedSearch as never }
+        : {}),
     })
   },
   component: HomePage,

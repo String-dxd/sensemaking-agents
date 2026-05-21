@@ -139,10 +139,15 @@ export default class SideRail
                 const href = SHEET_HREFS[sheet]
                 if(!href) return
                 // Re-tap the same chip while its sheet is open → navigate
-                // home. The router-driven open path will close the sheet
-                // when the URL changes back to `/`.
-                const controller = OverlayController.getInstance()
-                if(controller?.isOpen?.(sheet)) this._navigate('/')
+                // home. We compare against `window.location.pathname`
+                // rather than `OverlayController.isOpen` because the
+                // controller flag lags behind URL transitions during
+                // rapid taps, leading to two history entries for the
+                // same surface. The pathname is updated synchronously
+                // by the router on each navigate.
+                const onSheet = typeof window !== 'undefined' &&
+                    window.location.pathname.startsWith(href)
+                if(onSheet) this._navigate('/')
                 else this._navigate(href)
                 return
             }
@@ -173,22 +178,22 @@ export default class SideRail
     }
 
     /**
-     * Ask the host to navigate. Falls back to direct OverlayController calls
-     * when no host router is wired (e.g. standalone test harnesses) so the
-     * rail stays functional in isolation. In production the host always
-     * provides `onNavigate` via `createGame`.
+     * Ask the host to navigate. `Game.navigate()` already owns the
+     * host-router fallback (closes the active surface on `/`, no-ops
+     * otherwise). When no Game instance exists (test harness mounting
+     * the rail in isolation) we drive `OverlayController` directly so
+     * the rail still works.
      */
     _navigate(href)
     {
         const game = Game.getInstance()
-        if(game?._onNavigate)
+        if(game)
         {
             game.navigate(href)
             return
         }
-        // Fallback: drive the controller directly. This branch only runs
-        // when no host router is wired (test harnesses without
-        // `useStudentSpaceNavigate`); production hosts always pass it.
+        // No-game harness fallback — drive the controller directly so the
+        // rail still opens sheets in isolation.
         const controller = OverlayController.getInstance()
         if(!controller) return
         if(href === '/')
@@ -196,7 +201,6 @@ export default class SideRail
             if(controller.active) controller.close(controller.active)
             return
         }
-        // Strip leading slash + any hash so the path maps to a sheet key.
         const sheet = href.replace(/^\/+/, '').split(/[/#?]/)[0]
         if(sheet && controller.surfaces?.has?.(sheet)) controller.open(sheet)
     }
