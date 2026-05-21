@@ -5239,15 +5239,25 @@ body.is-onb-landing .side-rail
     line-height: 1.5;
 }
 
-/* Narrow viewport: single-pane router. List shows by default; once a
-   letter is selected (.is-reading), list hides and panel shows the back btn. */
-@media (max-width: 779px)
+/* Split-layout overrides — Letters lives in the Gather-style two-pane
+   chrome. The list lives in the left pane (introSlot), the active
+   letter fills the right pane (bodySlot). The chrome's 860px stack
+   media query handles the responsive collapse: at narrow widths the
+   list sits above the detail and both scroll naturally. */
+.letters-sheet.sheet-chrome--split .sheet-chrome__intro
 {
-    .letters-sheet__grid { grid-template-columns: 1fr; }
-    .letters-sheet__panel { display: none; }
-    .letters-sheet.is-reading .letters-sheet__list  { display: none; }
-    .letters-sheet.is-reading .letters-sheet__panel { display: block; }
-    .letters-sheet.is-reading .letters-sheet__back  { display: inline-flex; align-items: center; }
+    padding: 0;
+    gap: 0;
+}
+.letters-sheet.sheet-chrome--split .letters-sheet__list
+{
+    border-right: none;
+    background: transparent;
+    padding: 8px 16px 24px;
+}
+.letters-sheet.sheet-chrome--split .letters-sheet__panel
+{
+    padding: 24px 32px 64px;
 }
 
 @media (prefers-reduced-motion: reduce)
