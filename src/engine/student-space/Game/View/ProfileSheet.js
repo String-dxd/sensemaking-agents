@@ -191,6 +191,7 @@ export default class ProfileSheet
                     <span class="profile-id__auth-slot" data-auth-slot></span>
                 </div>
             </header>
+            <section class="profile-sheet__tabbed" data-role="tabbed">
             <nav class="profile-sheet__tabs" role="tablist">
                 ${TAB_ORDER.map((f) => {
                     const label = FACET_THEMES[f]
@@ -203,7 +204,7 @@ export default class ProfileSheet
                             data-facet="${f}">${label}</button>
                 `}).join('')}
             </nav>
-            <section class="profile-sheet__panel">
+            <div class="profile-sheet__panel">
                 <header class="profile-sheet__header">
                     <div class="profile-sheet__eyebrow-row">
                         <span class="profile-sheet__panel-eyebrow"></span>
@@ -256,6 +257,7 @@ export default class ProfileSheet
                     <p class="profile-sheet__empty" hidden>No noticings here yet — capture a few from the island.</p>
                 </div>
                 <div class="profile-sheet__react-mount" hidden></div>
+            </div>
             </section>
         `
         const root = this.chrome.root
@@ -992,7 +994,19 @@ export default class ProfileSheet
         if(tab)
         {
             const facet = tab.dataset.facet
-            if(facet && facet !== this.activeFacet) this._switchTab(facet)
+            if(facet && facet !== this.activeFacet)
+            {
+                // Drive the tab change through the router so the URL
+                // (e.g. /profile/relationships) is the source of truth.
+                // The route-sync hook then calls openSurface → _setTab.
+                // Falls back to the imperative tab swap when no host
+                // router is wired (standalone harnesses).
+                const game = Game.getInstance()
+                const default_tab = 'values'
+                const href = facet === default_tab ? '/profile' : `/profile/${facet}`
+                if(game?._onNavigate) game.navigate(href)
+                else this._switchTab(facet)
+            }
             return
         }
 

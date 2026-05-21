@@ -3844,6 +3844,20 @@ body.is-onb-landing .side-rail
     letter-spacing: 0.02em;
 }
 
+/* Profile tabbed section — wraps the tab strip and its active panel so
+   the two read as one connected surface (the brief: "tabs are separate
+   from changing content"). The tab bar still owns its own translucent
+   backdrop, but it's now contained inside the same column as the panel
+   underneath, with no visual seam between them. */
+.profile-sheet__tabbed
+{
+    /* No explicit background — the tabs strip and panel each provide
+       their own surface; the wrapper exists for DOM hierarchy and
+       affordance only. */
+    display: flex;
+    flex-direction: column;
+}
+
 .profile-sheet__tabs
 {
     position: sticky;
@@ -3904,7 +3918,10 @@ body.is-onb-landing .side-rail
 
 .profile-sheet__panel
 {
-    padding: 16px 24px 96px;
+    /* Tighter top padding so the panel sits directly under the tab strip
+       (the tab bar above already gives 14px breathing room). Removing
+       the seam was the visible bug from the brief. */
+    padding: 4px 24px 96px;
     max-width: 760px;
     margin: 0 auto;
     transition: opacity 110ms cubic-bezier(0.22, 1, 0.36, 1);
