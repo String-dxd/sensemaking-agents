@@ -39,17 +39,6 @@ const TYPER_STOP_MS  = 220
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const EMOTION_BY_ID = Object.fromEntries(EMOTIONS.map((e) => [e.id, e]))
-const EMOTION_EMOJI = {
-    joy: '🙂',
-    sadness: '😔',
-    anger: '😠',
-    fear: '😟',
-    disgust: '😖',
-    anxiety: '😬',
-    envy: '🫥',
-    embarrassment: '😳',
-    ennui: '😶',
-}
 
 const THEME_PILL = {
     school: { label: 'school', need: 'autonomy',  mood: 'anxiety' },
@@ -86,8 +75,8 @@ export default class AskSheet
 
                 <!-- STAGE: compose -->
                 <section class="ask-sheet__stage" data-stage="compose">
-                    <p class="ask-sheet__eyebrow">Talking to Kira</p>
-                    <h2 class="ask-sheet__title">What should I hold with you?</h2>
+                    <p class="ask-sheet__eyebrow">Today</p>
+                    <h2 class="ask-sheet__title">What is something you experienced today?</h2>
                     <p class="ask-sheet__prompt" hidden></p>
                     <div class="ask-sheet__field" data-testid="kira-multimodal-composer">
                         <div class="ask-sheet__image-preview" hidden>
@@ -99,7 +88,7 @@ export default class AskSheet
                             rows="3"
                             placeholder="Write it here, or use voice, feeling, or image…"
                         ></textarea>
-                        <div class="ask-sheet__tools" aria-label="Ways to talk to Kira">
+                        <div class="ask-sheet__tools" aria-label="Ways to capture">
                             <button class="ask-sheet__tool ask-sheet__mic" type="button" aria-label="Start voice recording" title="Voice">
                                 <svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true">
                                     <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" fill="currentColor"/>
@@ -120,7 +109,7 @@ export default class AskSheet
                                     <circle cx="16.5" cy="8.5" r="1.5" fill="#fff"/>
                                 </svg>
                             </button>
-                            <button class="ask-sheet__save" type="button" aria-label="Send to Kira" disabled>
+                            <button class="ask-sheet__save" type="button" aria-label="Send" disabled>
                                 <span aria-hidden="true">→</span>
                             </button>
                             <input class="ask-sheet__image-input" type="file" accept="image/*" hidden />
@@ -128,7 +117,7 @@ export default class AskSheet
                         <div class="ask-sheet__emoji-panel" hidden>
                             ${EMOTIONS.map((e) => `
                                 <button class="ask-sheet__emoji-option" type="button" data-emotion="${e.id}" style="--emotion-color:${e.color}">
-                                    <span class="ask-sheet__emoji-symbol" aria-hidden="true">${EMOTION_EMOJI[e.id] || '•'}</span>
+                                    <span class="ask-sheet__emoji-symbol" aria-hidden="true">${shapeSvg(e.shape, e.color)}</span>
                                     <span>${e.label}</span>
                                 </button>
                             `).join('')}
@@ -140,12 +129,12 @@ export default class AskSheet
                 <!-- STAGE: recording — live voice session -->
                 <section class="ask-sheet__stage" data-stage="recording" hidden>
                     <p class="ask-sheet__eyebrow ask-sheet__eyebrow--live">
-                        <span class="ask-sheet__rec-dot" aria-hidden="true"></span> Live with Kira
+                        <span class="ask-sheet__rec-dot" aria-hidden="true"></span> Live
                     </p>
-                    <h2 class="ask-sheet__title ask-sheet__title--live">Talk with Kira.</h2>
+                    <h2 class="ask-sheet__title ask-sheet__title--live">Tell me what's happening.</h2>
                     <p class="ask-sheet__session-note">Keep going until it feels complete.</p>
                     <div class="ask-live-chat" role="log" aria-live="polite">
-                        <p class="ask-live-chat__empty">Start talking. Kira will answer when you pause.</p>
+                        <p class="ask-live-chat__empty">Start talking. A reading will appear when you pause.</p>
                     </div>
                     <p class="ask-sheet__hint ask-sheet__hint--live" hidden></p>
                     <div class="ask-sheet__row ask-sheet__row--rec">
@@ -166,7 +155,7 @@ export default class AskSheet
                     <div class="ask-sheet__replay-extras" hidden></div>
                     <div class="ask-sheet__reframe-cta-row">
                         <button class="ask-sheet__reframe-cta" type="button">
-                            See Kira's reading <span aria-hidden="true">→</span>
+                            See the reading <span aria-hidden="true">→</span>
                         </button>
                     </div>
                     <div class="ask-sheet__row ask-sheet__row--review">
@@ -180,7 +169,7 @@ export default class AskSheet
                 <!-- STAGE: chat — dive-deeper thread with Kira -->
                 <section class="ask-sheet__stage ask-sheet__stage--chat" data-stage="chat" hidden>
                     <header class="ask-chat__header">
-                        <span class="ask-chat__with">with Kira</span>
+                        <span class="ask-chat__with">Conversation</span>
                     </header>
                     <div class="ask-chat__thread" role="log" aria-live="polite"></div>
                     <div class="ask-chat__compose">
@@ -208,7 +197,7 @@ export default class AskSheet
                     <div class="ask-reframe__shapes" aria-hidden="true"></div>
                     <div class="ask-reframe__pills"></div>
                     <blockquote class="ask-reframe__quote"></blockquote>
-                    <p class="ask-sheet__eyebrow">Kira's reading</p>
+                    <p class="ask-sheet__eyebrow">Reading</p>
                     <p class="ask-reframe__prose"></p>
                     <div class="ask-sheet__row ask-sheet__row--reframe">
                         <button class="ask-sheet__edit" type="button">Edit</button>
@@ -672,7 +661,7 @@ export default class AskSheet
             this.logInFlight = false
             this.preparedReflection = null
             this._renderReframe({
-                headline: 'Kira is mirroring and summarising the session.',
+                headline: 'Mirroring and summarising the session.',
                 highlightPhrase: this.recCommitted || 'Voice reflection',
                 themes: [],
                 needs: [],
@@ -699,7 +688,7 @@ export default class AskSheet
                 this.prepareInFlight = false
                 this.preparedReflection = null
                 this._renderReframe({
-                    headline: `Kira could not prepare this reading yet. ${message}`,
+                    headline: `Could not prepare this reading yet. ${message}`,
                     highlightPhrase: this.recCommitted || 'Voice reflection',
                     themes: [],
                     needs: [],
@@ -771,7 +760,7 @@ export default class AskSheet
         this.liveDialogue = []
         this.liveDialogueEls = new Map()
         if(!this.liveThreadEl) return
-        this.liveThreadEl.innerHTML = '<p class="ask-live-chat__empty">Start talking. Kira will answer when you pause.</p>'
+        this.liveThreadEl.innerHTML = '<p class="ask-live-chat__empty">Start talking. A reading will appear when you pause.</p>'
     }
 
     _upsertLiveDialogue(message)
@@ -791,7 +780,7 @@ export default class AskSheet
             el.dataset.role = role
             el.dataset.messageId = id
             el.innerHTML = `
-                <span class="ask-live-chat__name">${role === 'kira' ? 'Kira' : 'You'}</span>
+                <span class="ask-live-chat__name">${role === 'kira' ? 'Mirror' : 'You'}</span>
                 <p class="ask-live-chat__text"></p>
             `
             this.liveDialogueEls.set(id, el)
@@ -922,8 +911,8 @@ export default class AskSheet
         this.preparedReflection = null
         this._renderReframe({
             headline: audioBlob
-                ? 'Kira is listening to the recording.'
-                : 'Kira is reading this back carefully.',
+                ? 'Listening to the recording.'
+                : 'Reading this back carefully.',
             highlightPhrase: text || 'Voice recording',
             themes: [],
             needs: [],
@@ -962,7 +951,7 @@ export default class AskSheet
                     status: 'final',
                 })
                 this._renderReframe({
-                    headline: 'Kira is reading this back carefully.',
+                    headline: 'Reading this back carefully.',
                     highlightPhrase: transcript,
                     themes: [],
                     needs: [],
@@ -996,7 +985,7 @@ export default class AskSheet
             this.prepareInFlight = false
             this.preparedReflection = null
             this._renderReframe({
-                headline: `Kira could not prepare this reading yet. ${message}`,
+                headline: `Could not prepare this reading yet. ${message}`,
                 highlightPhrase: text || 'Voice recording',
                 themes: [],
                 needs: [],
@@ -1256,7 +1245,7 @@ export default class AskSheet
         const wrap = document.createElement('div')
         wrap.className = `ask-chat__bubble ${role === 'kira' ? 'ask-chat__bubble--kira' : 'ask-chat__bubble--you'}`
         wrap.innerHTML = `
-            <span class="ask-chat__author">${role === 'kira' ? 'Kira' : 'you'}</span>
+            <span class="ask-chat__author">${role === 'kira' ? 'Mirror' : 'you'}</span>
             <p class="ask-chat__text"></p>
         `
         const textEl = wrap.querySelector('.ask-chat__text')
@@ -1499,7 +1488,7 @@ export default class AskSheet
                     <div class="ask-reframe__shapes" aria-hidden="true">${shapesHtml}</div>
                     <div class="ask-reframe__pills">${pillsHtml}</div>
                     ${rf.highlightPhrase ? `<blockquote class="ask-reframe__quote">${this._escape(rf.highlightPhrase)}</blockquote>` : ''}
-                    <p class="ask-sheet__eyebrow">Kira's reading</p>
+                    <p class="ask-sheet__eyebrow">Reading</p>
                     <p class="ask-reframe__prose">${this._escape(rf.headline || '')}</p>
                 </section>
             `
@@ -1509,7 +1498,7 @@ export default class AskSheet
             const bubbles = this.thread.map((m) =>
             {
                 const cls = m.role === 'kira' ? 'ask-chat__bubble--kira' : 'ask-chat__bubble--you'
-                return `<div class="ask-chat__bubble ${cls}"><span class="ask-chat__author">${m.role === 'kira' ? 'Kira' : 'you'}</span><p class="ask-chat__text">${this._escape(m.text)}</p></div>`
+                return `<div class="ask-chat__bubble ${cls}"><span class="ask-chat__author">${m.role === 'kira' ? 'Mirror' : 'you'}</span><p class="ask-chat__text">${this._escape(m.text)}</p></div>`
             }).join('')
             html += `
                 <section class="ask-sheet__replay-thread">
@@ -1685,8 +1674,6 @@ export default class AskSheet
         this.emojiToggleBtn.classList.toggle('is-selected', !!emotion)
         this.emojiToggleBtn.setAttribute('aria-pressed', emotion ? 'true' : 'false')
         this.emojiToggleBtn.style.setProperty('--emotion-color', emotion?.color || 'rgba(255, 138, 92, 0.95)')
-        const symbol = this.emojiToggleBtn.querySelector('span')
-        if(symbol) symbol.textContent = emotion ? (EMOTION_EMOJI[emotion.id] || '•') : '🙂'
 
         this.imagePreviewEl.hidden = !this.uploadedImageDataUrl
         this.imageTriggerBtn.classList.toggle('is-selected', !!this.uploadedImageDataUrl)

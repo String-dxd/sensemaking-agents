@@ -30,6 +30,7 @@ import EggHatcher      from './EggHatcher.js'
 import FirstChat       from './FirstChat.js'
 import FirstMood       from './FirstMood.js'
 import IslandReveal    from './IslandReveal.js'
+import SkipButton      from './SkipButton.js'
 import { ONBOARDING_COPY } from './copy.js'
 
 // Map persisted stage → which surface owns it. Surfaces are constructed
@@ -75,6 +76,12 @@ export default class OnboardingFlow
         // Built lazily so a `done` boot pays nothing.
         this._root = null
 
+        // Floating "Skip onboarding (dev)" button that rides every
+        // post-login stage. Lives outside `.onboarding-root` so the per-
+        // surface fade doesn't tween it. EdupassLogin keeps its own inline
+        // skip button; the floating one hides itself on the `login` stage.
+        this._skipButton = null
+
         // Bind once so we can pass identity-stable refs to surfaces.
         this._advance = this._advance.bind(this)
     }
@@ -118,6 +125,7 @@ export default class OnboardingFlow
         }
 
         this._ensureRoot()
+        this._ensureSkipButton()
         document.body.classList.add('is-onboarding')
 
         // Park the world in clear midday so the landing reads as the canonical
@@ -247,7 +255,9 @@ export default class OnboardingFlow
 
     _setStage(next)
     {
-        return this.onb.setStage(next)
+        const result = this.onb.setStage(next)
+        this._skipButton?.syncVisibility?.(this.onb.stage)
+        return result
     }
 
     _advance(next)
@@ -256,6 +266,7 @@ export default class OnboardingFlow
         // loop in `start()` polls onb.stage between awaits and picks up the
         // new owner on the next iteration.
         this.onb.setStage(next)
+        this._skipButton?.syncVisibility?.(this.onb.stage)
     }
 
     // ── Finish ─────────────────────────────────────────────────────────────
@@ -295,6 +306,9 @@ export default class OnboardingFlow
             this._root.remove()
             this._root = null
         }
+
+        this._skipButton?.unmount?.()
+        this._skipButton = null
     }
 
     // ── DOM root ───────────────────────────────────────────────────────────
@@ -310,6 +324,14 @@ export default class OnboardingFlow
         host.appendChild(el)
         this._root = el
         return el
+    }
+
+    _ensureSkipButton()
+    {
+        if(this._skipButton) return this._skipButton
+        this._skipButton = new SkipButton(this)
+        this._skipButton.mount()
+        return this._skipButton
     }
 
     /**
@@ -341,5 +363,8 @@ export default class OnboardingFlow
             try { this._root.remove() } catch(_) {}
             this._root = null
         }
+
+        try { this._skipButton?.unmount?.() } catch(_) {}
+        this._skipButton = null
     }
 }

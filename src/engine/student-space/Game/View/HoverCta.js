@@ -125,7 +125,7 @@ export default class HoverCta
         if(target.kind === 'kira')
         {
             this._setHeader('How today is landing', 'Mood', 'mood')
-            this.titleEl.textContent = 'Kira'
+            this.titleEl.textContent = State.getInstance()?.profile?.displayCompanionName?.() || 'Kira'
             this.lineEl.textContent  = 'Your island’s resident finch.'
             this._setThumb(null)
             return
