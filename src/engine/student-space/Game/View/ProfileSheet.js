@@ -25,6 +25,7 @@
  */
 
 import State from '../State/State.js'
+import Game from '../Game.js'
 import { VIPS_BY_FACET, claimLabel, FACET_IDS } from '../Data/vipsTaxonomy.js'
 import { FACET_THEMES, FACET_HEADERS, applyFacetVars } from './facets.js'
 import { iconForClaim } from './claimIcons.js'
@@ -162,9 +163,14 @@ export default class ProfileSheet
         this.chrome = new SheetChrome({
             key:            'profile',
             sheetClassName: 'profile-sheet',
+            // Profile is now a routed page (/profile) — close is via
+            // browser back / SideRail / Escape, not a × button.
             withCloseButton: false,
             closeOnBackdrop: false,
             layout:         'split',
+            // Escape and other dismiss paths go through the router so the
+            // URL stays the source of truth for which sheet is open.
+            onCloseRequest: () => Game.getInstance()?.navigate('/'),
             header: {
                 title:    'My Identity',
                 subtitle: 'The shape of your reflections so far.',
@@ -258,6 +264,7 @@ export default class ProfileSheet
                     <p class="profile-sheet__empty" hidden>No noticings here yet — capture a few from the island.</p>
                 </div>
                 <div class="profile-sheet__react-mount" hidden></div>
+            </div>
             </section>
         `
         const root = this.chrome.root
@@ -480,7 +487,10 @@ export default class ProfileSheet
         else
         {
             const link = document.createElement('a')
-            const profileReturnPathname = encodeURIComponent('/?sheet=profile')
+            // Post-sign-in return target uses the canonical /profile path
+            // now that Profile is a routed page. Legacy `/?sheet=profile`
+            // is still honored by the home-route redirect for old links.
+            const profileReturnPathname = encodeURIComponent('/profile')
             link.href = `/?auth=sign-in&returnPathname=${profileReturnPathname}#sign-in`
             link.className = 'profile-auth-button profile-auth-button--signin'
             link.dataset.testid = 'profile-auth-signin'
@@ -994,7 +1004,22 @@ export default class ProfileSheet
         if(tab)
         {
             const facet = tab.dataset.facet
-            if(facet && facet !== this.activeFacet) this._switchTab(facet)
+            if(facet && facet !== this.activeFacet)
+            {
+                // Drive the tab change through the router so the URL
+                // (e.g. /profile/relationships) is the source of truth.
+                // The route-sync hook then calls openSurface → _setTab.
+                // `Game.navigate()` owns the no-router fallback; we still
+                // call `_switchTab` directly when there's no Game instance
+                // (standalone test harness).
+                // `defaultTab` mirrors `DEFAULT_PROFILE_TAB` in
+                // `src/lib/student-space/route-sync.ts` — keep them in sync.
+                const game = Game.getInstance()
+                const defaultTab = 'values'
+                const href = facet === defaultTab ? '/profile' : `/profile/${facet}`
+                if(game) game.navigate(href)
+                else this._switchTab(facet)
+            }
             return
         }
 

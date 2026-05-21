@@ -138,10 +138,10 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
       // "weird white strip" at the bottom of the page.
       style={{
         position: 'fixed',
-        top:    'var(--frame-inset, 0px)',
-        right:  'var(--frame-inset, 0px)',
+        top: 'var(--frame-inset, 0px)',
+        right: 'var(--frame-inset, 0px)',
         bottom: 'var(--frame-inset, 0px)',
-        left:   'calc(var(--rail-width, 0px) + var(--frame-inset, 0px))',
+        left: 'calc(var(--rail-width, 0px) + var(--frame-inset, 0px))',
         pointerEvents: 'none',
         zIndex: 22,
       }}

@@ -199,7 +199,9 @@ describe('LettersSheet.open({ letterId }) — deep-link', () => {
 
   it('unknown letterId clears a stale prior selection before auto-select', () => {
     const lettersSlice = (state.instance as { letters: { letters: Array<{ id: string }> } }).letters
-    const stalePrior = lettersSlice.letters[lettersSlice.letters.length - 1].id
+    const lastLetter = lettersSlice.letters[lettersSlice.letters.length - 1]
+    if (!lastLetter) throw new Error('test setup: lettersSeed produced no letters')
+    const stalePrior = lastLetter.id
 
     const sheet = new LettersSheet() as {
       open: (opts?: { letterId?: string }) => void

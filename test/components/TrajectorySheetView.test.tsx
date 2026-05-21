@@ -32,7 +32,7 @@ function makeWrapper() {
 afterEach(() => loadTrajectoryMock.mockReset())
 
 describe('TrajectorySheetView', () => {
-  it('renders the compiled trajectory paragraph and a link to /library/trajectory', async () => {
+  it('renders the compiled trajectory paragraph and a link to /trajectory', async () => {
     loadTrajectoryMock.mockResolvedValue({
       trajectory: {
         trajectory_text: 'You orient toward STEM with quiet civic instincts.',
@@ -48,10 +48,7 @@ describe('TrajectorySheetView', () => {
       expect(screen.getByTestId('trajectory-sheet-paragraph')).toBeInTheDocument(),
     )
     expect(screen.getByText(/STEM with quiet civic instincts/)).toBeInTheDocument()
-    expect(screen.getByTestId('trajectory-sheet-link')).toHaveAttribute(
-      'href',
-      '/library/trajectory',
-    )
+    expect(screen.getByTestId('trajectory-sheet-link')).toHaveAttribute('href', '/trajectory')
   })
 
   it('renders an empty-state when no trajectory is available', async () => {

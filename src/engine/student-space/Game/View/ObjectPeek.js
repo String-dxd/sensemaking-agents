@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import View from './View.js'
 import State from '../State/State.js'
 import OverlayController from './OverlayController.js'
+import Game from '../Game.js'
 import { meaningForSpecies } from '../Data/flowerMeanings.js'
 import { elementTitle, latestEvidenceLine, metaphorLine, resolveElementEvidence } from './elementEvidence.js'
 
@@ -130,7 +131,7 @@ const KIND_CONFIG = {
             prompt: 'Tell me about a teacher or message that has stayed with you.',
             dismissOnBack: true,
         }),
-        secondaryAction: () => OverlayController.getInstance().open('letters'),
+        secondaryAction: () => Game.getInstance()?.navigate('/letters'),
     },
 
     telescope: {
@@ -147,7 +148,7 @@ const KIND_CONFIG = {
             prompt: "Tell me about a path you've been quietly curious about.",
             dismissOnBack: true,
         }),
-        secondaryAction: () => OverlayController.getInstance().open('trajectory'),
+        secondaryAction: () => Game.getInstance()?.navigate('/trajectory'),
     },
 }
 

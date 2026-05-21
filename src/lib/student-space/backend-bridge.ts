@@ -41,6 +41,10 @@ export type StudentSpaceSurface =
   | 'choices'
   | 'growth'
   | 'history'
+  | 'letters'
+  // Legacy alias — `calendar` deep-links now route into History (Timeline tab).
+  // Kept in the union so the `pathnameForSurface` switch stays exhaustive.
+  | 'calendar'
 
 export interface StudentSpaceReflectionInput {
   localCaptureId: string
@@ -100,6 +104,24 @@ export interface StudentSpaceOpenSurfaceInput {
   surface: StudentSpaceSurface
   filter?: 'all' | 'need-review'
   entryId?: number
+  /**
+   * Tab to open within a tabbed surface. For `profile`: one of `values`,
+   * `interests`, `personality`, `skills`, `relationships`, `choices`. For
+   * `history`: `timeline` or `growth`. Ignored on untabbed surfaces.
+   *
+   * Cross-reference: the `ProfileTab` / `HistoryTab` unions in
+   * `~/lib/student-space/route-sync.ts` enumerate these tab values. We
+   * keep them inlined here to avoid a circular import.
+   */
+  tab?:
+    | 'values'
+    | 'interests'
+    | 'personality'
+    | 'skills'
+    | 'relationships'
+    | 'choices'
+    | 'timeline'
+    | 'growth'
 }
 
 export interface StudentSpaceBackendBridge {

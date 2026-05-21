@@ -76,6 +76,28 @@ afterEach(() => {
 })
 
 describe('Engine ProfileSheet tab parity', () => {
+  it('renders tabs and panel as siblings inside the SheetChrome right pane (U7)', () => {
+    state.instance = { profile: makeProfileStub(), backend: null }
+    OverlayController.instance = new OverlayController()
+    const sheet = new ProfileSheet() as ProfileSheetHandle
+    try {
+      // U7's intent: tabs and the active panel must read as one visual
+      // block, not as detached siblings of the identity card. Main's
+      // split-layout refactor (PR #26 Gather-style two-pane) subsumed
+      // the original `.profile-sheet__tabbed` wrapper by placing the
+      // tab strip and the panel together in SheetChrome's right pane.
+      // The contract this test enforces: both elements exist and live
+      // under the same parent (the right pane / bodySlot).
+      const tabs = document.querySelector('.profile-sheet__tabs')
+      const panel = document.querySelector('.profile-sheet__panel')
+      expect(tabs).toBeTruthy()
+      expect(panel).toBeTruthy()
+      expect(tabs?.parentElement).toBe(panel?.parentElement)
+    } finally {
+      sheet.dispose?.()
+    }
+  })
+
   it('renders 6 tab buttons in canonical order', () => {
     state.instance = { profile: makeProfileStub(), backend: null }
     OverlayController.instance = new OverlayController()

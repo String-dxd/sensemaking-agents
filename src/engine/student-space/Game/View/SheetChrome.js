@@ -86,18 +86,29 @@ export default class SheetChrome
         header          = null,
         onOpen,
         onClose,
+        // Routed sheets (Profile, History, Letters, Trajectory) pass an
+        // `onCloseRequest` callback so Escape (and any optional bespoke
+        // close affordance) navigates back through the router instead of
+        // calling `OverlayController.close(key)` directly. The router's
+        // location change then drives the sheet close via the
+        // `useStudentSpaceRouteSync` hook, keeping the URL authoritative.
+        // When absent, `_requestClose()` falls back to the legacy
+        // controller-close path so capture sheets and any non-routed
+        // surfaces keep their old dismiss semantics.
+        onCloseRequest,
     } = {})
     {
         if(!key) throw new Error('SheetChrome requires a `key`')
         if(layout !== 'stacked' && layout !== 'split')
             throw new Error(`SheetChrome: unknown layout "${layout}" (expected 'stacked' or 'split')`)
 
-        this.key             = key
-        this.layout          = layout
-        this.closeOnBackdrop = closeOnBackdrop
-        this._onOpen         = onOpen
-        this._onClose        = onClose
-        this.isOpen          = false
+        this.key              = key
+        this.layout           = layout
+        this.closeOnBackdrop  = closeOnBackdrop
+        this._onOpen          = onOpen
+        this._onClose         = onClose
+        this._onCloseRequest  = onCloseRequest
+        this.isOpen           = false
 
         // Outer root — owns the chrome (backdrop / blur / fade / z-tier).
         // The per-sheet class (e.g. `.profile-sheet`) is layered on so existing
@@ -277,6 +288,11 @@ export default class SheetChrome
 
     _requestClose()
     {
+        if(this._onCloseRequest)
+        {
+            this._onCloseRequest()
+            return
+        }
         OverlayController.getInstance().close(this.key)
     }
 

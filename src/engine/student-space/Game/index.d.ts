@@ -44,12 +44,6 @@ export type AuthMenuState =
 export interface GameOptions {
   container?: HTMLElement
   persistence?: { storage?: StorageAdapter }
-  /**
-   * Open a registered overlay surface immediately after boot. Honored only
-   * when onboarding has finished. Used by hosts to land users on a specific
-   * sheet after a redirect (e.g. `/me` → `/?sheet=profile`).
-   */
-  initialOverlay?: { name: string }
   backend?: StudentSpaceBackendBridge
   /**
    * Server-resolved auth menu, captured by the host once during boot. The
@@ -57,11 +51,41 @@ export interface GameOptions {
    * in chrome (TopNav, ProfileSheet, the onboarding login surface).
    */
   authMenu?: AuthMenuState | null
+  /**
+   * Host-injected navigation callback. In-engine click sources (SideRail,
+   * Escape-to-close, sign-in flows) call this with a canonical pathname
+   * (e.g. `/profile/values`, `/`). The host wires it to its router so the
+   * URL is the source of truth for which overlay is open. When absent, the
+   * engine falls back to driving `OverlayController` directly.
+   */
+  onNavigate?: (href: string) => void
 }
 
 export interface Game {
   backend: StudentSpaceBackendBridge | null
   openSurface(input: StudentSpaceOpenSurfaceInput): void
+  /**
+   * Close whichever full-viewport sheet is currently active. No-op when
+   * no overlay is open. Used by route sync when transitioning to `/`.
+   */
+  closeActiveSurface(): void
+  /**
+   * Ask the host to navigate to a canonical pathname (`/profile/values`,
+   * `/history`, `/`, …). In-engine click sources call this instead of
+   * touching `OverlayController` directly so the URL is the single source
+   * of truth for which sheet is open.
+   *
+   * Falls back to direct controller action when no host router is wired:
+   * `/` calls `closeActiveSurface()`; other paths no-op (callers can wire
+   * their own fallback for harness contexts).
+   */
+  navigate(href: string): void
+  /**
+   * Gate the engine's rAF render loop. Pass `false` to suspend (e.g. when
+   * a routed sheet covers the world); pass `true` to resume. Mirrors the
+   * existing `visibilitychange` suspension pattern.
+   */
+  setRenderActive(active: boolean): void
   dispose(): void
   /**
    * Public state surface. The four slices below are the stable engine

@@ -28,6 +28,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 import State from '../State/State.js'
 import View from './View.js'
+import Game from '../Game.js'
 import SheetChrome from './SheetChrome.js'
 
 const HISTORY_API = {
@@ -117,9 +118,14 @@ export default class HistorySheet
         this.chrome = new SheetChrome({
             key:            'history',
             sheetClassName: 'history-sheet',
+            // History is now a routed page (/history) — close is via
+            // browser back / SideRail / Escape, not a × button.
             withCloseButton: false,
             closeOnBackdrop: false,
             layout:         'split',
+            // Escape and other dismiss paths go through the router so the
+            // URL stays the source of truth.
+            onCloseRequest: () => Game.getInstance()?.navigate('/'),
             header: {
                 title:    'History',
                 subtitle: 'A chronological feed of what you recorded, and a year-by-year read on how it\'s adding up.',

@@ -26,9 +26,9 @@ function makeStateWithSearching() {
   return {
     profile: { identity: { name: 'Mei' } },
     captures: {
-      asks:   { recent: () => [] },
+      asks: { recent: () => [] },
       photos: { recent: () => [] },
-      moods:  { recent: () => [] },
+      moods: { recent: () => [] },
     },
     choices: null,
     backend: null,
@@ -42,13 +42,13 @@ function fakeCapture() {
       throughLine: 'A through-line.',
       bearings: [
         {
-          title:      'Public service',
-          prompt:     'A people-facing direction worth probing.',
-          traitTags:  ['interpersonal-trust'],
-          ecgTags:    ['cluster.public-service'],
-          risk:       'Could feel emotionally heavy on hard weeks.',
-          clusterId:  'cluster.public-service',
-          msfUrl:     '',
+          title: 'Public service',
+          prompt: 'A people-facing direction worth probing.',
+          traitTags: ['interpersonal-trust'],
+          ecgTags: ['cluster.public-service'],
+          risk: 'Could feel emotionally heavy on hard weeks.',
+          clusterId: 'cluster.public-service',
+          msfUrl: '',
         },
       ],
     },
@@ -104,7 +104,15 @@ describe('TrajectorySheet — pathway evidence disclosure', () => {
         trajectory: {
           throughLine: '',
           bearings: [
-            { title: 'A path', prompt: 'A prompt', traitTags: [], ecgTags: [], risk: '', clusterId: '', msfUrl: '' },
+            {
+              title: 'A path',
+              prompt: 'A prompt',
+              traitTags: [],
+              ecgTags: [],
+              risk: '',
+              clusterId: '',
+              msfUrl: '',
+            },
           ],
         },
       }
@@ -142,8 +150,24 @@ describe('TrajectorySheet — pathway evidence disclosure', () => {
         trajectory: {
           throughLine: '',
           bearings: [
-            { title: 'A', prompt: 'p', traitTags: ['t'], ecgTags: [], risk: '', clusterId: '', msfUrl: '' },
-            { title: 'B', prompt: 'p', traitTags: ['t'], ecgTags: [], risk: '', clusterId: '', msfUrl: '' },
+            {
+              title: 'A',
+              prompt: 'p',
+              traitTags: ['t'],
+              ecgTags: [],
+              risk: '',
+              clusterId: '',
+              msfUrl: '',
+            },
+            {
+              title: 'B',
+              prompt: 'p',
+              traitTags: ['t'],
+              ecgTags: [],
+              risk: '',
+              clusterId: '',
+              msfUrl: '',
+            },
           ],
         },
       }

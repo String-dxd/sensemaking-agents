@@ -2,7 +2,7 @@ import View from './View.js'
 import State from '../State/State.js'
 import { FACET_THEMES as VIPS_THEMES, FACET_HEADERS as VIPS_HEADERS } from './facets.js'
 import { VIPS_BY_FACET, claimLabel } from '../Data/vipsTaxonomy.js'
-import OverlayController from './OverlayController.js'
+import Game from '../Game.js'
 import {
     elementTitle,
     evidenceCountText,
@@ -475,13 +475,14 @@ export default class FacetView
     {
         const facetId = this.activeFacetId
         if(!facetId || facetId === 'mood') return
-        const controller = OverlayController.getInstance()
         // Close the half-sheet first so we don't leave two surfaces stacked.
         this.close()
-        controller.open('profile', {
-            tab: facetId,
-            ...(this.activeClaimId ? { claimId: this.activeClaimId } : {}),
-        })
+        // Route through the host so the URL is the source of truth. The
+        // `claimId` deep-link is intentionally dropped here — per-claim
+        // deep links are deferred (see routing plan); the facet alone is
+        // enough to land the user in the right place.
+        const href = facetId === 'values' ? '/profile' : `/profile/${facetId}`
+        Game.getInstance()?.navigate(href)
     }
 
     _pinColor(emotion)

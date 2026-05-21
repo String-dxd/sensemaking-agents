@@ -12,6 +12,7 @@
  */
 
 import State from '../State/State.js'
+import Game from '../Game.js'
 import SheetChrome from './SheetChrome.js'
 import OverlayController from './OverlayController.js'
 import { escapeHtml } from '../util/html.js'
@@ -45,9 +46,14 @@ export default class LettersSheet
         this.chrome = new SheetChrome({
             key:            'letters',
             sheetClassName: 'letters-sheet',
+            // Letters is now a routed page (/letters) — close is via
+            // browser back / SideRail / Escape, not a × button.
             withCloseButton: false,
             closeOnBackdrop: false,
             layout:         'split',
+            // Escape and other dismiss paths go through the router so the
+            // URL stays the source of truth.
+            onCloseRequest: () => Game.getInstance()?.navigate('/'),
             header: {
                 title:    'Letters',
                 subtitle: 'Notes from your form teacher when they notice something worth saying.',

@@ -20,6 +20,25 @@
 
 import OverlayController from './OverlayController.js'
 import State from '../State/State.js'
+import Game from '../Game.js'
+
+// Canonical paths for each rail entry. Kept inline (not imported from
+// `~/lib/student-space/route-sync`) so the engine's JS layer stays free
+// of TS imports for navigation primitives. The host's `pathnameForSurface`
+// helper is the authoritative builder; this map just mirrors the well-known
+// pathnames the rail emits.
+//
+// `test/engine/SideRail.hrefs.test.ts` enforces the keep-in-sync contract
+// by importing this map AND `pathnameForSurface` and asserting they agree
+// on every rail entry. If route-sync.ts changes a canonical path or this
+// map drifts, the test fails at CI time — no silent drift.
+export const SHEET_HREFS = {
+    home:       '/',
+    letters:    '/letters',
+    history:    '/history',
+    profile:    '/profile',
+    trajectory: '/trajectory',
+}
 
 const SHEET_BUTTONS = [
     {
@@ -116,17 +135,25 @@ export default class SideRail
             const action = btn.dataset.action
             if(sheet === 'home')
             {
-                // Home == the island. Close whatever surface is open.
-                const controller = OverlayController.getInstance()
-                if(controller.active) controller.close(controller.active)
+                // Home == the island. Ask the host to navigate to `/`.
+                this._navigate('/')
                 return
             }
             if(sheet)
             {
-                const controller = OverlayController.getInstance()
-                // Re-tap the same chip while its sheet is open → close it.
-                if(controller.isOpen(sheet)) controller.close(sheet)
-                else controller.open(sheet)
+                const href = SHEET_HREFS[sheet]
+                if(!href) return
+                // Re-tap the same chip while its sheet is open → navigate
+                // home. We compare against `window.location.pathname`
+                // rather than `OverlayController.isOpen` because the
+                // controller flag lags behind URL transitions during
+                // rapid taps, leading to two history entries for the
+                // same surface. The pathname is updated synchronously
+                // by the router on each navigate.
+                const onSheet = typeof window !== 'undefined' &&
+                    window.location.pathname.startsWith(href)
+                if(onSheet) this._navigate('/')
+                else this._navigate(href)
                 return
             }
             if(action === 'restart') this._restartOnboarding()
@@ -153,6 +180,34 @@ export default class SideRail
             btn.classList.toggle('is-active', isActive)
             btn.setAttribute('aria-pressed', isActive ? 'true' : 'false')
         }
+    }
+
+    /**
+     * Ask the host to navigate. `Game.navigate()` already owns the
+     * host-router fallback (closes the active surface on `/`, no-ops
+     * otherwise). When no Game instance exists (test harness mounting
+     * the rail in isolation) we drive `OverlayController` directly so
+     * the rail still works.
+     */
+    _navigate(href)
+    {
+        const game = Game.getInstance()
+        if(game)
+        {
+            game.navigate(href)
+            return
+        }
+        // No-game harness fallback — drive the controller directly so the
+        // rail still opens sheets in isolation.
+        const controller = OverlayController.getInstance()
+        if(!controller) return
+        if(href === '/')
+        {
+            if(controller.active) controller.close(controller.active)
+            return
+        }
+        const sheet = href.replace(/^\/+/, '').split(/[/#?]/)[0]
+        if(sheet && controller.surfaces?.has?.(sheet)) controller.open(sheet)
     }
 
     _restartOnboarding()

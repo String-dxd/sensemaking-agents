@@ -1,19 +1,18 @@
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+// The companion prompt is extracted to a sibling .md file. Use Vite's
+// `?raw` import so the body is inlined at build time as a string and
+// works on both server (SSR) and client (WebRTC session). The prior
+// `readFileSync` approach broke client bundles — this module is
+// transitively imported by `realtime-mirror-client.ts` which runs in
+// the browser, and `node:fs` is server-only.
+import LIVE_PROMPT_RAW from './mirror-realtime-live.prompt.md?raw'
 
 const MIRROR_JSON_SHAPE = '{"validation":"","inferred_meaning":"","story_reframe":""}'
 export const OPENAI_REALTIME_MIRROR_VOICE = 'marin'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const LIVE_PROMPT_PATH = resolve(__dirname, 'mirror-realtime-live.prompt.md')
-
-let cachedLiveInstructions: string | null = null
+const LIVE_INSTRUCTIONS = LIVE_PROMPT_RAW.trim()
 
 export function buildRealtimeMirrorLiveInstructions(): string {
-  cachedLiveInstructions ??= readFileSync(LIVE_PROMPT_PATH, 'utf8').trim()
-  return cachedLiveInstructions
+  return LIVE_INSTRUCTIONS
 }
 
 export function buildRealtimeMirrorUserInput(transcript: string): string {

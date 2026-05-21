@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { DevPalette } from '~/components/DevPalette'
+import { StudentSpaceHost } from '~/components/StudentSpaceHost'
 import { queryClient } from '~/router'
 import styles from '~/styles.css?url'
 
@@ -30,6 +31,11 @@ function RootComponent() {
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
+        {/* Engine mounts once at the layout level so its WebGL context and
+            in-memory state survive route changes. The `.game` frame is
+            `position: fixed` so it anchors to the viewport regardless of
+            this DOM position; routed pages drive the overlay via URL. */}
+        <StudentSpaceHost />
         <div className="mx-auto flex min-h-svh w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
           <main className="flex min-h-0 w-full flex-1 flex-col">
             <Outlet />
