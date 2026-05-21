@@ -57,11 +57,30 @@ export interface GameOptions {
    * in chrome (TopNav, ProfileSheet, the onboarding login surface).
    */
   authMenu?: AuthMenuState | null
+  /**
+   * Host-injected navigation callback. In-engine click sources (SideRail,
+   * Escape-to-close, sign-in flows) call this with a canonical pathname
+   * (e.g. `/profile/values`, `/`). The host wires it to its router so the
+   * URL is the source of truth for which overlay is open. When absent, the
+   * engine falls back to driving `OverlayController` directly.
+   */
+  onNavigate?: (href: string) => void
 }
 
 export interface Game {
   backend: StudentSpaceBackendBridge | null
   openSurface(input: StudentSpaceOpenSurfaceInput): void
+  /**
+   * Close whichever full-viewport sheet is currently active. No-op when
+   * no overlay is open. Used by route sync when transitioning to `/`.
+   */
+  closeActiveSurface(): void
+  /**
+   * Gate the engine's rAF render loop. Pass `false` to suspend (e.g. when
+   * a routed sheet covers the world); pass `true` to resume. Mirrors the
+   * existing `visibilitychange` suspension pattern.
+   */
+  setRenderActive(active: boolean): void
   dispose(): void
   /**
    * Public state surface. The four slices below are the stable engine

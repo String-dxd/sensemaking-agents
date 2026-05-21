@@ -1,11 +1,22 @@
+import { useLocation } from '@tanstack/react-router'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import '~/engine/student-space/style.css'
 import type { AuthMenuState, Game } from '~/engine/student-space/Game'
 import { createStudentSpaceBackendBridge } from '~/lib/student-space/backend-bridge'
 import { applyStudentSpaceBackendSnapshot } from '~/lib/student-space/backend-snapshot'
-import { studentSpaceSurfaceFromLocation } from '~/lib/student-space/route-sheets'
+import {
+  surfaceFromPathname,
+  useStudentSpaceNavigate,
+  useStudentSpaceRouteSync,
+} from '~/lib/student-space/route-sync'
 import { cn } from '~/lib/utils'
 import { IslandProgressionOverlay } from './IslandProgressionOverlay'
+
+// Surfaces that render empty without server data — we defer the open call
+// until the backend snapshot resolves so the student doesn't see an empty
+// shell. Other sheets (Profile, History, Letters) render meaningful chrome
+// from local state and open immediately.
+const SURFACES_REQUIRING_HYDRATION = new Set(['trajectory'])
 
 /**
  * Mounts the vendored Student Space engine. The engine is one-game-per-page;
@@ -22,12 +33,57 @@ import { IslandProgressionOverlay } from './IslandProgressionOverlay'
  * top-level evaluation (e.g. `KiraDialogue.js` reads
  * `window.matchMedia('(prefers-reduced-motion: reduce)')` at module load).
  * The dynamic import defers evaluation to the client.
+ *
+ * The host mounts in `src/routes/__root.tsx` so the engine instance survives
+ * route changes. URL ↔ overlay sync lives in `useStudentSpaceRouteSync`;
+ * in-engine click sources call `game.navigate(href)`, which routes through
+ * the `useStudentSpaceNavigate` callback we hand to `createGame`.
  */
 export function StudentSpaceHost({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const backend = useMemo(() => createStudentSpaceBackendBridge(), [])
   const [game, setGame] = useState<Game | null>(null)
+  const [hydrated, setHydrated] = useState(false)
+  const onNavigate = useStudentSpaceNavigate()
+  // Stable ref so the engine's `_onNavigate` always sees the latest router
+  // callback without forcing a re-mount on every navigation.
+  const onNavigateRef = useRef(onNavigate)
+  onNavigateRef.current = onNavigate
+
+  // Compute the active surface from the live router location (not
+  // window.location) so memory-router tests work and SSR-derived initial
+  // paths flow through correctly.
+  const location = useLocation()
+  const currentRouteSurface = useMemo(
+    () => surfaceFromPathname(location.pathname),
+    [location.pathname],
+  )
+
+  // Defer the open call for surfaces that render empty without server
+  // data, until the snapshot promise has resolved.
+  const paused = Boolean(
+    currentRouteSurface &&
+      SURFACES_REQUIRING_HYDRATION.has(currentRouteSurface.surface) &&
+      !hydrated,
+  )
+
+  // Mirror URL changes onto OverlayController via the engine's
+  // `openSurface` / `closeActiveSurface` methods.
+  useStudentSpaceRouteSync(game, { paused })
+
+  // After the backend snapshot resolves, re-apply the current route
+  // surface so sheets that opened against empty local state re-render
+  // with the freshly-loaded data. The hydration flag only flips once per
+  // engine boot, so this fires at most one extra openSurface call.
+  useEffect(() => {
+    if (!game || !hydrated || !currentRouteSurface) return
+    game.openSurface(currentRouteSurface)
+    // `currentRouteSurface` is intentionally omitted from deps — refiring
+    // on every navigation would double the route-sync hook's work. We
+    // only care about the hydration→opened transition.
+    // biome-ignore lint/correctness/useExhaustiveDependencies: explained above
+  }, [game, hydrated])
 
   useEffect(() => {
     const container = containerRef.current
@@ -36,8 +92,6 @@ export function StudentSpaceHost({ className }: { className?: string }) {
     document.body.classList.add('student-space-shell')
     let dispose: (() => void) | null = null
     let cancelled = false
-
-    const initialOverlay = readInitialOverlayFromLocation()
 
     void (async () => {
       try {
@@ -71,9 +125,11 @@ export function StudentSpaceHost({ className }: { className?: string }) {
         const live = engine.createGame({
           container,
           persistence: { storage: engine.localStorageAdapter() },
-          initialOverlay,
+          // initialOverlay is a legacy opt-in for hosts that don't drive the
+          // URL; the pathname-based initial open below is the canonical path.
           backend,
           authMenu: authMenu ?? null,
+          onNavigate: (href: string) => onNavigateRef.current(href),
         })
         // Expose the live Game so the sign-out helper (which cannot static-
         // import the engine without bloating server bundles) can call
@@ -84,26 +140,23 @@ export function StudentSpaceHost({ className }: { className?: string }) {
         dispose = () => {
           window.__studentSpaceGame = null
           setGame(null)
+          setHydrated(false)
           live.dispose()
         }
-        const routeSurface = studentSpaceSurfaceFromLocation(window.location)
-        let openedRouteBeforeHydration = false
-        if (routeSurface && routeSurface.surface !== 'trajectory') {
-          live.openSurface?.(routeSurface)
-          openedRouteBeforeHydration = true
-        }
+        // The route-sync hook drives the initial open as soon as `game`
+        // flips non-null. Snapshot hydration only re-applies the route
+        // surface so already-rendered sheets refresh against fresh data,
+        // and unpauses hydration-gated surfaces (e.g. trajectory).
         void backend
           .refreshSnapshot?.()
           .then((snapshot) => {
             if (cancelled) return
             applyStudentSpaceBackendSnapshot(live, snapshot)
-            if (routeSurface) live.openSurface?.(routeSurface)
+            setHydrated(true)
           })
           .catch((snapshotErr) => {
             console.warn('[StudentSpaceHost] backend snapshot hydration failed', snapshotErr)
-            if (!cancelled && routeSurface && !openedRouteBeforeHydration) {
-              live.openSurface?.(routeSurface)
-            }
+            if (!cancelled) setHydrated(true)
           })
       } catch (err) {
         console.error('[StudentSpaceHost] createGame failed', err)
@@ -131,21 +184,6 @@ export function StudentSpaceHost({ className }: { className?: string }) {
       {game ? <IslandProgressionOverlay game={game} /> : null}
     </>
   )
-}
-
-const KNOWN_INITIAL_OVERLAYS = new Set(['profile', 'calendar', 'letters', 'trajectory'])
-
-/**
- * Parse `?sheet=…` from the current URL and return an `initialOverlay` arg
- * for `engine.createGame` when it matches a known overlay. The `/me` route
- * redirects to `/?sheet=profile`; this is the consumer that turns that
- * search param into an actual sheet-open after the engine boots.
- */
-function readInitialOverlayFromLocation(): { name: string } | undefined {
-  if (typeof window === 'undefined') return undefined
-  const sheet = new URLSearchParams(window.location.search).get('sheet')
-  if (!sheet || !KNOWN_INITIAL_OVERLAYS.has(sheet)) return undefined
-  return { name: sheet }
 }
 
 function EngineLoadFailure({ error }: { error: Error }) {

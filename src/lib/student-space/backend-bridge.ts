@@ -41,6 +41,7 @@ export type StudentSpaceSurface =
   | 'choices'
   | 'growth'
   | 'history'
+  | 'letters'
 
 export interface StudentSpaceReflectionInput {
   localCaptureId: string
@@ -100,6 +101,12 @@ export interface StudentSpaceOpenSurfaceInput {
   surface: StudentSpaceSurface
   filter?: 'all' | 'need-review'
   entryId?: number
+  /**
+   * Tab to open within a tabbed surface. For `profile`: one of `values`,
+   * `interests`, `personality`, `skills`, `relationships`, `choices`. For
+   * `history`: `timeline` or `growth`. Ignored on untabbed surfaces.
+   */
+  tab?: string
 }
 
 export interface StudentSpaceBackendBridge {

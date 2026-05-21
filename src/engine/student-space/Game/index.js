@@ -122,6 +122,7 @@ export function createGame(opts = {})
         persistence: opts.persistence,
         backend: opts.backend,
         authMenu: opts.authMenu ?? null,
+        onNavigate: opts.onNavigate,
     })
 
     // Deep-link surface open on mount. Hosts pass `initialOverlay: 'growth'`

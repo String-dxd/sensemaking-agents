@@ -69,6 +69,15 @@ export default class Game
         // the user can't hear. On visible we re-prime both.
         this._hidden = typeof document !== 'undefined' && document.hidden === true
         this._onVisibilityChange = () => this._handleVisibilityChange()
+        // Host-injected navigation callback. In-engine click sources call
+        // `game.navigate(href)` and the host wires it to its router so the
+        // URL is the source of truth for which overlay is open.
+        this._onNavigate = typeof opts.onNavigate === 'function' ? opts.onNavigate : null
+        // Render-loop gate. Mirrors `_hidden`: when the host sets this to
+        // false (because the URL is not `/`), `update()` short-circuits and
+        // the rAF schedule is cancelled. The visibilitychange path remains
+        // orthogonal — both can suspend independently.
+        this._renderActive = true
 
         // If View construction throws (asset loader misconfig, WebGL context
         // refused, etc.) the Game.instance handle is already set above. Clear
@@ -144,6 +153,10 @@ export default class Game
         // bail here too so a late-firing rAF from before the suspension
         // doesn't sneak through and tick state/view once more.
         if(this._hidden) return
+        // Route-driven render gate. When the host navigates away from `/`
+        // the engine pauses so the Three.js scene doesn't keep ticking
+        // behind a sheet. Same shape as the hidden-tab path above.
+        if(!this._renderActive) return
         // Frame-error isolation: a throw inside state.update() / view.update()
         // would otherwise propagate to the rAF callback and prevent the next
         // requestAnimationFrame schedule below — freezing the world for the
@@ -186,20 +199,82 @@ export default class Game
             this.view.overlayController.open('trajectory', input)
             return
         }
+        if(surface === 'letters')
+        {
+            this.view.overlayController.open('letters', input)
+            return
+        }
         if(surface === 'profile')
         {
             this.view.overlayController.open('profile', input)
             return
         }
-        if(surface === 'growth' || surface === 'history')
+        if(surface === 'growth')
         {
             this.view.overlayController.open('history', { ...input, tab: 'growth' })
+            return
+        }
+        if(surface === 'history')
+        {
+            // Honor the caller's tab when provided (e.g. `/history/timeline`
+            // routes pass `tab: 'timeline'`). Default to timeline when no tab
+            // is supplied — matches HistorySheet.open() default.
+            const tab = input.tab === 'growth' ? 'growth' : 'timeline'
+            this.view.overlayController.open('history', { ...input, tab })
             return
         }
         if(['values', 'interests', 'personality', 'skills', 'relationships', 'choices'].includes(surface))
         {
             this.view.overlayController.open('profile', { ...input, tab: surface })
         }
+    }
+
+    /**
+     * Close whichever full-viewport sheet is currently active. No-op when
+     * no overlay is open. Used by the router to "go back to the world"
+     * when the URL transitions to `/`.
+     */
+    closeActiveSurface()
+    {
+        const controller = this.view?.overlayController
+        if(!controller?.active) return
+        controller.close(controller.active)
+    }
+
+    /**
+     * Ask the host to navigate to a canonical pathname. In-engine click
+     * sources (SideRail, Escape-to-close, sign-in flows) call this instead
+     * of touching OverlayController directly so the URL stays the single
+     * source of truth for which overlay is open. No-op when no host
+     * callback is wired — leaves the engine controllable in standalone
+     * test harnesses without forcing them to mock a router.
+     */
+    navigate(href)
+    {
+        if(this._onNavigate) this._onNavigate(href)
+    }
+
+    /**
+     * Gate the rAF render loop. Pass `false` to suspend (host sets this
+     * when the route is non-`/`); pass `true` to resume. Mirrors the
+     * `_handleVisibilityChange` pattern — cancel any pending rAF on
+     * flip-false; schedule one on flip-true.
+     */
+    setRenderActive(active)
+    {
+        const next = !!active
+        if(this._renderActive === next) return
+        this._renderActive = next
+        if(!next)
+        {
+            if(this._rafId != null) { cancelAnimationFrame(this._rafId); this._rafId = null }
+            return
+        }
+        // Resume only if the engine isn't otherwise suspended (running and
+        // not hidden). update() guards both internally, but starting the
+        // schedule manually here is the simpler invariant — same shape as
+        // the visibility-resume branch.
+        if(this._running && !this._hidden) this.update()
     }
 
     /**
