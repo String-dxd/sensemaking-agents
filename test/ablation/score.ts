@@ -1,6 +1,6 @@
 /**
  * v0.2 ablation rubric scaffolding (U13) — extended for the Managed-Agents
- * migration (`plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`
+ * migration (`docs/plans/_archive/2026-05-12-002-feat-managed-agents-full-migration-plan.md`
  * Step 1).
  *
  * Two distinct report formats:

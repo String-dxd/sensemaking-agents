@@ -24,15 +24,15 @@
 
 ## Plan Status
 
-- `plans/2026-05-08-001-feat-sensemaking-agents-v0.1-plan.md` — completed historical v0.1 baseline.
-- `plans/2026-05-08-002-feat-quiet-mirror-pivot-plan.md` — superseded by VIPS Wiki Pivot, Managed Agents, and World Studio.
-- `plans/2026-05-11-001-feat-vips-wiki-pivot-plan.md` — completed by PR #1.
-- `plans/2026-05-12-001-feat-managed-agents-migration-plan.md` — superseded by the full migration plan.
-- `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md` — completed across PR #4 and PR #5.
-- `plans/2026-05-12-002-feat-world-studio-flow-reorder-plan.md` — completed by PR #6.
-- `plans/2026-05-12-003-chore-managed-agents-cleanup-plan.md` — completed by PR #5.
-- `plans/sensemaking-agents.md` — superseded historical product plan.
-- `plans/_archive/voice-wiki.md` — archived historical plan.
+- `docs/plans/_archive/2026-05-08-001-feat-sensemaking-agents-v0.1-plan.md` — completed historical v0.1 baseline.
+- `docs/plans/_archive/2026-05-08-002-feat-quiet-mirror-pivot-plan.md` — superseded by VIPS Wiki Pivot, Managed Agents, and World Studio.
+- `docs/plans/_archive/2026-05-11-001-feat-vips-wiki-pivot-plan.md` — completed by PR #1.
+- `docs/plans/_archive/2026-05-12-001-feat-managed-agents-migration-plan.md` — superseded by the full migration plan.
+- `docs/plans/_archive/2026-05-12-002-feat-managed-agents-full-migration-plan.md` — completed across PR #4 and PR #5.
+- `docs/plans/_archive/2026-05-12-002-feat-world-studio-flow-reorder-plan.md` — completed by PR #6.
+- `docs/plans/_archive/2026-05-12-003-chore-managed-agents-cleanup-plan.md` — completed by PR #5.
+- `docs/plans/_archive/sensemaking-agents.md` — superseded historical product plan.
+- `docs/plans/_archive/voice-wiki.md` — archived historical plan.
 - `docs/plans/2026-05-18-001-feat-port-student-space-shell-plan.md` — completed; backend wiring deferral superseded by the bridge plan below.
 - `docs/plans/2026-05-18-002-feat-student-space-backend-bridge-plan.md` — completed in the current branch.
 - `docs/plans/2026-05-18-003-feat-student-space-demo-data-audio-plan.md` — completed in the current branch; extended by the Mirror-result decision plan below.

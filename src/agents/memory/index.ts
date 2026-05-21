@@ -1,6 +1,6 @@
 /**
  * Per-student memory store writes — Step 10 of
- * `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`.
+ * `docs/plans/_archive/2026-05-12-002-feat-managed-agents-full-migration-plan.md`.
  *
  * Each student owns one Anthropic memory store (`memstore_...`) mounted at
  * `/mnt/memory/` in the agent's container. Server-side helpers — Mirror's

@@ -1,5 +1,5 @@
 // Drizzle-backed query layer for Postgres (Neon). Replaces the v0.1
-// better-sqlite3 implementation per plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md §5.
+// better-sqlite3 implementation per docs/plans/_archive/2026-05-12-002-feat-managed-agents-full-migration-plan.md §5.
 //
 // Every public function preserves its v0.1 signature
 //   (studentId: string, input, opts?: { ctx?: TenantContext }) => Promise<…>

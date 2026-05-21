@@ -114,7 +114,7 @@ Adding the URL hook and TopNav entry (`src/engine/student-space/Game/Game.js` an
 
 - **Bottom-anchored capture sheets** (Ask, Photo, Mood, Chooser) keep their own `has-capture-sheet` tier and do not use SheetChrome. They are tall-but-bottom-anchored, not full-viewport.
 - **Popovers, tooltips, dialogues** (KiraDialogue, ShareDialog) are inline UI, not sheets — they should not register with OverlayController.
-- **`src/components/world/*`** is dormant; no new code goes there.
+- **`src/components/world/`** was deleted in the 2026-05-21 cleanup; do not re-add it.
 
 ## React-side parity
 

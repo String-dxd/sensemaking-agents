@@ -23,7 +23,7 @@ Package manager is **pnpm only**. Do not introduce npm / yarn lockfiles.
 ## Repo conventions
 
 - **Engine is a canonical fork.** `src/engine/student-space/` is the source of truth for the island scene. There is no upstream sync from `wondopamine/student-space` — edit in place.
-- **`src/components/world/*` is dormant.** Don't add new code there; the world lives in the engine.
+- **`src/components/world/` was deleted** in the 2026-05-21 cleanup. Don't re-add it; the world lives in the engine.
 - **Base UI for behavior, hand-rolled locals for visuals.** Use `@base-ui-components/react` for dialogs, drawers, radio groups, focus traps. Visual primitives in `src/components/ui/*` are hand-written in the shadcn style; do **not** install the `shadcn/ui` package.
 - **Tenancy via `withStudent`.** Every DB read/write goes through the `withStudent` envelope (`src/db/*`, server handlers). Bypassing it is a tenancy bug.
 - **Agents.** Mirror = OpenAI Realtime (browser WebRTC, server-brokered key). Connector / Cartographer / self_critique = Anthropic Managed Agents. Prompts in `src/agents/*.prompt.md`; binding in `src/agents/config.ts`; transport in `src/agents/runner.ts`. The deterministic verifier (`src/agents/verifier.ts`) is the hard gate before any Connector link is persisted.
