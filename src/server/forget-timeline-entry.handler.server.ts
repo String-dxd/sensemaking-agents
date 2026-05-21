@@ -19,16 +19,10 @@
  * Single-query handler — `forgetVipsTimelineEntry` opens its own
  * `withStudent` envelope.
  */
-import { z } from 'zod'
 import { requireCounselorContext } from '~/auth/identity'
 import type { VipsDimension } from '~/data/vips-taxonomy'
 import { forgetVipsTimelineEntry } from '~/db/queries'
-
-export const forgetTimelineEntryInputSchema = z.object({
-  entryId: z.number().int().positive(),
-})
-
-export type ForgetTimelineEntryInput = z.output<typeof forgetTimelineEntryInputSchema>
+import { type ForgetTimelineEntryInput, forgetTimelineEntryInputSchema } from './function-schemas'
 
 export class ForgetTimelineEntryError extends Error {
   constructor(message: string) {

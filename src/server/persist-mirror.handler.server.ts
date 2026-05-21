@@ -1,33 +1,15 @@
-import { z } from 'zod'
 import {
   appendIfNovel,
-  appendStudentMemory,
+  appendStudentMemory as appendStudentMemoryDefault,
   MEMORY_FILE_PATHS,
   type MemoryStoreTransport,
   MemoryWriteError,
 } from '~/agents/memory'
-import { MirrorEntrySchema } from '~/agents/schemas'
-import { VipsContextTypeSchema } from '~/agents/tools/schemas'
 import { requireCounselorContext } from '~/auth/identity'
-import type { VipsProposedDiffRow } from '~/db/queries'
-import { insertMirrorEntry, type MirrorEntryRow } from '~/db/queries'
+import { insertMirrorEntry, type MirrorEntryRow, updateMirrorEntryReviewStatus } from '~/db/queries'
 import { checkPayloadForDiagnosticLanguage } from '~/lib/safety'
-import {
-  type AutoConnectorDeps,
-  type AutoConnectorStatus,
-  runAutoConnectorAfterMirror,
-} from '~/server/auto-connector.handler.server'
-
-export const persistMirrorInputSchema = z.object({
-  entry: MirrorEntrySchema,
-  /** U7: closed VIPS parallax context chosen by the student at Stop time. */
-  context_type: VipsContextTypeSchema,
-  /** Raw, un-edited Mirror agent output preserved for the R20 ablation. */
-  raw_output: z.unknown(),
-  trace: z.unknown().optional(),
-})
-
-export type PersistMirrorInput = z.output<typeof persistMirrorInputSchema>
+import { type PersistMirrorInput, persistMirrorInputSchema } from './mirror-function-schemas'
+import { mirrorMoodTag } from './mood-tags'
 
 export class DiagnosticLanguageError extends Error {
   constructor(readonly matches: { text: string; pattern: string }[]) {
@@ -40,19 +22,18 @@ export class DiagnosticLanguageError extends Error {
 
 /**
  * U7-reshaped response. The mirror entry is ALWAYS present on success; the
- * auto-connector result is best-effort and may be `queued`, `timeout`, or
- * `schema_reject` — none of those block persistence (A11).
+ * Connector is no longer invoked during persistence. Manual and scheduled
+ * Connector runs process unconnected entries later.
  */
 export interface PersistMirrorResult {
   mirror_entry: MirrorEntryRow
-  auto_connector_status: AutoConnectorStatus
-  staged_diff: VipsProposedDiffRow | null
-  /** R30 — true iff a prior pending diff caused this run to be queued. */
-  pending_queued: boolean
 }
 
 export interface PersistMirrorDeps {
-  autoConnector?: AutoConnectorDeps
+  requireContext?: typeof requireCounselorContext
+  insertMirrorEntry?: typeof insertMirrorEntry
+  updateMirrorEntryReviewStatus?: typeof updateMirrorEntryReviewStatus
+  appendStudentMemory?: typeof appendStudentMemoryDefault
   /**
    * Override the Anthropic memory-store transport. Default lazily wraps the
    * live SDK. Tests pass an in-memory fake; production leaves unset.
@@ -65,8 +46,15 @@ export async function persistMirrorHandler(
   deps: PersistMirrorDeps = {},
 ): Promise<PersistMirrorResult> {
   const parsed = persistMirrorInputSchema.parse(data)
-  const { studentId } = await requireCounselorContext()
+  const { studentId } = await (deps.requireContext ?? requireCounselorContext)()
+  return persistMirrorForStudent(studentId, parsed, deps)
+}
 
+export async function persistMirrorForStudent(
+  studentId: string,
+  parsed: PersistMirrorInput,
+  deps: Omit<PersistMirrorDeps, 'requireContext'> = {},
+): Promise<PersistMirrorResult> {
   // Safety gate: reject diagnostic language at persistence time.
   const safety = checkPayloadForDiagnosticLanguage({
     validation: parsed.entry.validation,
@@ -78,7 +66,9 @@ export async function persistMirrorHandler(
   // Single-call: insertMirrorEntry opens its own withStudent envelope so we
   // don't need to wrap. The auto-connector chain below opens a separate
   // transaction of its own.
-  const mirrorEntry = await insertMirrorEntry(studentId, {
+  const insertMirrorEntryFn = deps.insertMirrorEntry ?? insertMirrorEntry
+  const taggedMood = parsed.mood ?? null
+  let mirrorEntry = await insertMirrorEntryFn(studentId, {
     transcript: parsed.entry.transcript,
     validation: parsed.entry.validation,
     inferred_meaning: parsed.entry.inferred_meaning,
@@ -90,7 +80,13 @@ export async function persistMirrorHandler(
       story_reframe: parsed.entry.story_reframe,
     },
     trace: parsed.trace,
+    tags: taggedMood ? [mirrorMoodTag(taggedMood)] : undefined,
   })
+  if (parsed.review_status) {
+    const updateReviewStatus = deps.updateMirrorEntryReviewStatus ?? updateMirrorEntryReviewStatus
+    mirrorEntry =
+      (await updateReviewStatus(studentId, mirrorEntry.id, parsed.review_status)) ?? mirrorEntry
+  }
 
   // ── Student-voice memory append (best-effort, non-blocking) ──
   // The Mirror output passed the diagnostic-language gate above, so the
@@ -102,6 +98,7 @@ export async function persistMirrorHandler(
   // Failure here must not block persistence — the user has already given
   // their reflection and the Mirror entry exists in Postgres. Log + move on.
   try {
+    const appendStudentMemory = deps.appendStudentMemory ?? appendStudentMemoryDefault
     await appendStudentMemory(
       studentId,
       MEMORY_FILE_PATHS.studentVoice,
@@ -127,17 +124,7 @@ export async function persistMirrorHandler(
     })
   }
 
-  // ── Auto-Connector chain (in-process, same round trip per plan Approach) ──
-  const autoResult = await runAutoConnectorAfterMirror(
-    studentId,
-    mirrorEntry.id,
-    deps.autoConnector,
-  )
-
   return {
     mirror_entry: mirrorEntry,
-    auto_connector_status: autoResult.status,
-    staged_diff: autoResult.staged_diff,
-    pending_queued: autoResult.status === 'queued',
   }
 }

@@ -1,17 +1,13 @@
 #!/usr/bin/env tsx
 /**
- * Mirror smoke test — Step 6 of
- * `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`.
+ * Mirror smoke test.
  *
- * Runs ONE end-to-end Managed Agents Mirror call against a fixture
- * transcript and prints the parsed JSON to stdout. Intended as the manual
- * one-shot the dev runs after `pnpm provision:managed-agents` to confirm
- * the runner wiring is sound before touching the ablate harness.
+ * Runs ONE OpenAI Realtime Mirror call against a fixture transcript and
+ * prints the parsed JSON to stdout.
  *
  * Env required:
- *   - `ANTHROPIC_API_KEY` (managed-agents-2026-04-01 beta access)
- *   - `MANAGED_AGENT_MIRROR_ID` (+ optional `_VERSION`) — written by provision.ts
- *   - `MANAGED_AGENT_ENV_ID`
+ *   - `OPENAI_API_KEY`
+ *   - optional `OPENAI_REALTIME_MIRROR_MODEL`
  *
  * Usage:
  *   pnpm tsx scripts/managed-agents/smoke-mirror.ts
@@ -24,9 +20,11 @@
 import 'dotenv/config'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { getManagedAgentBinding } from '~/agents/config'
-import { ManagedAgentError, runManagedAgent } from '~/agents/runner'
-import { MirrorOutputSchema } from '~/agents/schemas'
+import { getOpenAIRealtimeMirrorConfig } from '~/agents/openai-realtime/config'
+import {
+  OpenAIRealtimeMirrorError,
+  runOpenAIRealtimeMirror,
+} from '~/agents/openai-realtime/mirror-runner'
 
 interface SeedCorpus {
   students: Array<{
@@ -64,51 +62,29 @@ function parseArgs(argv: string[]): { student: string | undefined } {
 }
 
 async function main(): Promise<void> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     process.stderr.write(
-      'smoke-mirror: ANTHROPIC_API_KEY is not set. Add it to .env.local and re-run.\n',
+      'smoke-mirror: OPENAI_API_KEY is not set. Add it to .env and re-run.\n',
     )
     process.exit(1)
   }
 
   const args = parseArgs(process.argv.slice(2))
   const { studentId, transcript } = loadFirstTranscript(args.student)
-
-  let binding: ReturnType<typeof getManagedAgentBinding>
-  try {
-    binding = getManagedAgentBinding('mirror')
-  } catch (err) {
-    process.stderr.write(
-      `smoke-mirror: ${err instanceof Error ? err.message : String(err)}\n` +
-        'Run `pnpm provision:managed-agents` first.\n',
-    )
-    process.exit(1)
-  }
-
-  const versionLabel = binding.agentVersion !== undefined ? `v${binding.agentVersion}` : 'latest'
+  const config = getOpenAIRealtimeMirrorConfig()
   process.stdout.write(
-    `smoke-mirror: dispatching student=${studentId} agent=${binding.agentId} (${versionLabel}) env=${binding.environmentId}\n`,
+    `smoke-mirror: dispatching student=${studentId} provider=openai_realtime model=${config.model}\n`,
   )
 
   const startedAt = Date.now()
   try {
-    const result = await runManagedAgent({
-      agentId: binding.agentId,
-      ...(binding.agentVersion !== undefined ? { agentVersion: binding.agentVersion } : {}),
-      environmentId: binding.environmentId,
-      prompt: `The student spoke this transcript while looking into a webcam mirror. They are no longer present. Reflect what was said back in three parts.\n\nTranscript:\n\n${transcript}`,
-      outputSchema: MirrorOutputSchema,
-      sessionTitle: `smoke:mirror:${studentId}`,
-    })
+    const output = await runOpenAIRealtimeMirror({ studentId, transcript }, { config })
     const elapsed = Date.now() - startedAt
-    process.stdout.write(
-      `\nsmoke-mirror: success in ${elapsed}ms (session=${result.sessionId}).\n` +
-        `  tokens: input=${result.usage.inputTokens} output=${result.usage.outputTokens} cache_read=${result.usage.cacheReadInputTokens}\n\n`,
-    )
-    process.stdout.write(`${JSON.stringify(result.output, null, 2)}\n`)
+    process.stdout.write(`\nsmoke-mirror: success in ${elapsed}ms.\n\n`)
+    process.stdout.write(`${JSON.stringify(output, null, 2)}\n`)
   } catch (err) {
     const elapsed = Date.now() - startedAt
-    const code = err instanceof ManagedAgentError ? err.code : 'UNKNOWN'
+    const code = err instanceof OpenAIRealtimeMirrorError ? 'OPENAI_REALTIME' : 'UNKNOWN'
     const message = err instanceof Error ? err.message : String(err)
     process.stderr.write(`\nsmoke-mirror: failed in ${elapsed}ms [${code}]\n${message}\n`)
     process.exit(1)

@@ -4,18 +4,16 @@
  * `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md`.
  *
  * What it does (idempotently):
- *   1. Reads `.env.local`. If a `MANAGED_AGENT_*_ID` key already exists for a
+ *   1. Reads `.env`. If a `MANAGED_AGENT_*_ID` key already exists for a
  *      given agent (or for the environment), the corresponding create call is
  *      skipped and the existing id/version are reused.
- *   2. Creates the four managed agents — `mirror`, `connector`, `cartographer`,
- *      `self_critique` — via `client.beta.agents.create`. The first three load
- *      their system prompt from `src/agents/<name>.prompt.md`; `self_critique`
- *      uses a short inline prompt mirroring `src/agents/tools/self-critique.ts`
- *      and is provisioned for symmetry only — it is invoked at runtime as a
- *      Messages-API tool (plan §7.2), not as a Managed Agent.
+ *   2. Creates the Claude managed agents — `connector`, `cartographer`,
+ *      `self_critique` — via `client.beta.agents.create`. Each loads its
+ *      system prompt from `src/agents/<name>.prompt.md`; `self_critique` is
+ *      the eval/safety reviewer for agent outputs.
  *   3. Creates a single `sensemaking-prod` environment (cloud-networking) via
  *      `client.beta.environments.create`.
- *   4. Writes the merged result back to `.env.local`, preserving any
+ *   4. Writes the merged result back to `.env`, preserving any
  *      unrelated keys and comments. Prints a result table and a
  *      copy-pasteable `vercel env add` snippet at the end.
  *
@@ -23,11 +21,9 @@
  *   - `ANTHROPIC_API_KEY` — used to authenticate against the Managed Agents
  *     beta surface (`anthropic-beta: managed-agents-2026-04-01`).
  *
- * Keys written/read in `.env.local` (mirrored in `.env.example`):
+ * Keys written/read in `.env`:
  *   ANTHROPIC_API_KEY=
  *   MANAGED_AGENT_ENV_ID=
- *   MANAGED_AGENT_MIRROR_ID=
- *   MANAGED_AGENT_MIRROR_VERSION=
  *   MANAGED_AGENT_CONNECTOR_ID=
  *   MANAGED_AGENT_CONNECTOR_VERSION=
  *   MANAGED_AGENT_CARTOGRAPHER_ID=
@@ -37,6 +33,7 @@
  *
  * Usage:
  *   pnpm provision:managed-agents
+ *   pnpm provision:managed-agents -- --update-existing connector,cartographer,self_critique
  *   (or directly: pnpm tsx scripts/managed-agents/provision.ts)
  */
 
@@ -52,12 +49,12 @@ const ENVIRONMENT_NAME = 'sensemaking-prod'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const REPO_ROOT = resolve(__dirname, '..', '..')
-const ENV_LOCAL_PATH = resolve(REPO_ROOT, '.env.local')
+const ENV_PATH = resolve(REPO_ROOT, '.env')
 const AGENT_PROMPT_DIR = resolve(REPO_ROOT, 'src', 'agents')
 
 interface AgentSpec {
   /** Logical name; also used as the prefix for env-var keys. */
-  name: 'mirror' | 'connector' | 'cartographer' | 'self_critique'
+  name: 'connector' | 'cartographer' | 'self_critique'
   /** Anthropic model id. */
   model: string
   /** Max output tokens per invocation. */
@@ -65,8 +62,6 @@ interface AgentSpec {
   /** System prompt (resolved from .prompt.md file or inline string). */
   systemPrompt: string
 }
-
-const SELF_CRITIQUE_INLINE_PROMPT = `You are a critique-only reviewer. You will be given a draft from another agent (Connector or Pathfinder) and one specific dimension to evaluate it against. Return a structured critique. Do not rewrite the draft. Do not be polite for politeness's sake. Confidence: low / medium / high based on how strong your evidence is.`
 
 function loadPrompt(name: string): string {
   const path = resolve(AGENT_PROMPT_DIR, `${name}.prompt.md`)
@@ -76,14 +71,8 @@ function loadPrompt(name: string): string {
 function buildAgentSpecs(): AgentSpec[] {
   return [
     {
-      name: 'mirror',
-      model: 'claude-sonnet-4-6',
-      maxTokens: 4096,
-      systemPrompt: loadPrompt('mirror'),
-    },
-    {
       name: 'connector',
-      model: 'claude-haiku-4-5',
+      model: 'claude-sonnet-4-6',
       maxTokens: 2048,
       systemPrompt: loadPrompt('connector'),
     },
@@ -97,12 +86,12 @@ function buildAgentSpecs(): AgentSpec[] {
       name: 'self_critique',
       model: 'claude-haiku-4-5',
       maxTokens: 2048,
-      systemPrompt: SELF_CRITIQUE_INLINE_PROMPT,
+      systemPrompt: loadPrompt('self_critique'),
     },
   ]
 }
 
-// ── .env.local parse + merge ────────────────────────────────────────────────
+// ── .env parse + merge ──────────────────────────────────────────────────────
 
 type EnvEntry =
   | { kind: 'kv'; key: string; value: string; raw: string }
@@ -160,18 +149,22 @@ interface ProvisionResult {
   label: string
   id: string
   version: string
-  action: 'created' | 'skipped'
+  action: 'created' | 'updated' | 'skipped'
 }
 
 // The Anthropic SDK may not yet expose first-class typed bindings for the
 // Managed Agents beta. We narrow to a loose shape and let the runtime calls
 // surface any drift as a clear error. `getBetaSurface` validates both
 // resources are present, so downstream call sites get the non-optional form.
-type BetaResource = {
+type AgentBetaResource = {
+  create: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
+  update?: (id: string, params: Record<string, unknown>) => Promise<Record<string, unknown>>
+}
+type EnvironmentBetaResource = {
   create: (params: Record<string, unknown>) => Promise<Record<string, unknown>>
 }
-type BetaSurface = { agents: BetaResource; environments: BetaResource }
-type LooseBeta = { agents?: BetaResource; environments?: BetaResource }
+type BetaSurface = { agents: AgentBetaResource; environments: EnvironmentBetaResource }
+type LooseBeta = { agents?: AgentBetaResource; environments?: EnvironmentBetaResource }
 
 function getBetaSurface(client: Anthropic): BetaSurface {
   // biome-ignore lint/suspicious/noExplicitAny: beta surface may be untyped in SDK
@@ -239,11 +232,47 @@ async function provisionAgent(
   spec: AgentSpec,
   envEntries: EnvEntry[],
   environmentId: string,
+  updateExistingAgents: ReadonlySet<AgentSpec['name']>,
 ): Promise<{ result: ProvisionResult; entries: EnvEntry[] }> {
   const prefix = envKeyPrefix(spec.name)
   const existingId = readEnvKey(envEntries, `${prefix}_ID`)
   const existingVersion = readEnvKey(envEntries, `${prefix}_VERSION`)
   if (existingId) {
+    if (updateExistingAgents.has(spec.name)) {
+      if (!existingVersion) {
+        throw new Error(
+          `${prefix}_VERSION is required to update existing managed agent ${existingId}. ` +
+            'Fetch the current version from Anthropic or recreate the agent.',
+        )
+      }
+      const version = Number(existingVersion)
+      if (!Number.isInteger(version) || version < 1) {
+        throw new Error(`${prefix}_VERSION must be a positive integer; got ${existingVersion}.`)
+      }
+      if (!beta.agents.update) {
+        throw new Error(
+          'The installed @anthropic-ai/sdk does not expose `client.beta.agents.update`. ' +
+            'Upgrade the SDK or update the agent with `ant beta:agents update`.',
+        )
+      }
+      const raw = await beta.agents.update(existingId, {
+        version,
+        name: spec.name,
+        model: spec.model,
+        system: spec.systemPrompt,
+      })
+      const nextVersion = pickField(raw, 'version', 'agent_version') ?? String(version + 1)
+      const next = upsertEnvKey(envEntries, `${prefix}_VERSION`, String(nextVersion))
+      return {
+        result: {
+          label: spec.name,
+          id: existingId,
+          version: String(nextVersion),
+          action: 'updated',
+        },
+        entries: next,
+      }
+    }
     return {
       result: {
         label: spec.name,
@@ -283,6 +312,30 @@ async function provisionAgent(
   }
 }
 
+function parseUpdateExistingAgents(argv: string[]): ReadonlySet<AgentSpec['name']> {
+  const flagIndex = argv.indexOf('--update-existing')
+  if (flagIndex === -1) return new Set()
+
+  const raw = argv[flagIndex + 1]
+  if (!raw || raw.startsWith('--') || raw === 'all') {
+    return new Set(['connector', 'cartographer', 'self_critique'])
+  }
+
+  const allowed = new Set<AgentSpec['name']>(['connector', 'cartographer', 'self_critique'])
+  const requested = raw
+    .split(',')
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0)
+  for (const name of requested) {
+    if (!allowed.has(name as AgentSpec['name'])) {
+      throw new Error(
+        `Unknown --update-existing agent "${name}". Expected one of: ${Array.from(allowed).join(', ')}, or all.`,
+      )
+    }
+  }
+  return new Set(requested as AgentSpec['name'][])
+}
+
 function throwShape(msg: string, raw: unknown): never {
   throw new Error(`${msg}. Raw response: ${JSON.stringify(raw)}`)
 }
@@ -299,17 +352,17 @@ function printResultTable(results: ProvisionResult[]): void {
   for (const r of rows) process.stdout.write(`${fmt(r)}\n`)
 }
 
-function printVercelInstructions(createdKeys: string[]): void {
-  if (createdKeys.length === 0) {
+function printVercelInstructions(changedKeys: string[]): void {
+  if (changedKeys.length === 0) {
     process.stdout.write(
-      '\nAll managed-agent ids were already present in .env.local — nothing new to upload.\n',
+      '\nNo managed-agent env vars changed — nothing new to upload.\n',
     )
     return
   }
   process.stdout.write(
-    '\nVercel env-var setup — copy-paste these (production + preview), then redeploy:\n\n',
+    '\nVercel env-var setup — update these keys (production + preview), then redeploy:\n\n',
   )
-  for (const key of createdKeys) {
+  for (const key of changedKeys) {
     process.stdout.write(`  vercel env add ${key} production\n`)
     process.stdout.write(`  vercel env add ${key} preview\n`)
   }
@@ -319,10 +372,11 @@ function printVercelInstructions(createdKeys: string[]): void {
 // ── main ────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
+  const updateExistingAgents = parseUpdateExistingAgents(process.argv.slice(2))
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     process.stderr.write(
-      'ERROR: ANTHROPIC_API_KEY is not set. Add it to .env.local or your shell env and re-run.\n',
+      'ERROR: ANTHROPIC_API_KEY is not set. Add it to .env or your shell env and re-run.\n',
     )
     process.exit(1)
   }
@@ -333,8 +387,10 @@ async function main(): Promise<void> {
   })
   const beta = getBetaSurface(client)
 
-  let envEntries = parseEnvFile(ENV_LOCAL_PATH)
-  const initialKeys = new Set(envEntries.flatMap((e) => (e.kind === 'kv' ? [e.key] : [])))
+  let envEntries = parseEnvFile(ENV_PATH)
+  const initialValues = new Map(
+    envEntries.flatMap((e) => (e.kind === 'kv' ? [[e.key, e.value] as const] : [])),
+  )
 
   const { result: envResult, entries: afterEnv } = await provisionEnvironment(beta, envEntries)
   envEntries = afterEnv
@@ -342,20 +398,28 @@ async function main(): Promise<void> {
   const specs = buildAgentSpecs()
   const results: ProvisionResult[] = [envResult]
   for (const spec of specs) {
-    const { result, entries } = await provisionAgent(beta, spec, envEntries, envResult.id)
+    const { result, entries } = await provisionAgent(
+      beta,
+      spec,
+      envEntries,
+      envResult.id,
+      updateExistingAgents,
+    )
     envEntries = entries
     results.push(result)
   }
 
-  writeFileSync(ENV_LOCAL_PATH, serializeEnv(envEntries), 'utf8')
+  writeFileSync(ENV_PATH, serializeEnv(envEntries), 'utf8')
 
-  const newlyCreatedKeys = envEntries.flatMap((e) =>
-    e.kind === 'kv' && e.key.startsWith('MANAGED_AGENT_') && !initialKeys.has(e.key) ? [e.key] : [],
+  const changedManagedKeys = envEntries.flatMap((e) =>
+    e.kind === 'kv' && e.key.startsWith('MANAGED_AGENT_') && initialValues.get(e.key) !== e.value
+      ? [e.key]
+      : [],
   )
 
   printResultTable(results)
-  process.stdout.write(`\nWrote merged ids/versions to ${ENV_LOCAL_PATH}\n`)
-  printVercelInstructions(newlyCreatedKeys)
+  process.stdout.write(`\nWrote merged ids/versions to ${ENV_PATH}\n`)
+  printVercelInstructions(changedManagedKeys)
 }
 
 main().catch((err: unknown) => {

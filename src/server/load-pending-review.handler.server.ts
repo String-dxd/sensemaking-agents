@@ -6,13 +6,9 @@
  * Single-query handler — `listVipsProposedDiffs` opens its own
  * `withStudent` envelope when no `ctx` is supplied.
  */
-import { z } from 'zod'
 import { requireCounselorContext } from '~/auth/identity'
 import { listVipsProposedDiffs, type VipsProposedDiffRow } from '~/db/queries'
-
-export const loadPendingReviewInputSchema = z.object({})
-
-export type LoadPendingReviewInput = z.output<typeof loadPendingReviewInputSchema>
+import { type LoadPendingReviewInput, loadPendingReviewInputSchema } from './function-schemas'
 
 export interface LoadPendingReviewResult {
   diff: VipsProposedDiffRow | null

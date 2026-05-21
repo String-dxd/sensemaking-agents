@@ -1,5 +1,6 @@
 import OpenAI, { toFile } from 'openai'
-import { z } from 'zod'
+import { requireCounselorContext } from '~/auth/identity'
+import { type TranscribeMirrorInput, transcribeMirrorInputSchema } from './function-schemas'
 
 /**
  * Browser-side reflection capture posts the recorded audio (encoded as
@@ -12,13 +13,6 @@ import { z } from 'zod'
  */
 const MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
-export const transcribeMirrorInputSchema = z.object({
-  audioBase64: z.string().min(1),
-  mimeType: z.string().min(1),
-})
-
-export type TranscribeMirrorInput = z.output<typeof transcribeMirrorInputSchema>
-
 export interface TranscribeMirrorResult {
   transcript: string
   durationMs: number
@@ -27,7 +21,7 @@ export interface TranscribeMirrorResult {
 export class WhisperTranscriptionError extends Error {
   constructor(
     message: string,
-    readonly code: 'EMPTY_AUDIO' | 'TOO_LARGE' | 'NO_API_KEY' | 'UPSTREAM',
+    readonly code: 'EMPTY_AUDIO' | 'TOO_LARGE' | 'UNSUPPORTED_MIME' | 'NO_API_KEY' | 'UPSTREAM',
     readonly upstreamStatus?: number,
   ) {
     super(message)
@@ -36,6 +30,8 @@ export class WhisperTranscriptionError extends Error {
 }
 
 export interface TranscribeMirrorDeps {
+  /** Override auth for tests. Production requires a counselor before touching audio/OpenAI. */
+  authenticate?: () => Promise<unknown>
   /** Override the OpenAI client. Default: a real client constructed from env. */
   client?: { audio: { transcriptions: { create: OpenAI['audio']['transcriptions']['create'] } } }
 }
@@ -44,7 +40,21 @@ export async function transcribeMirrorHandler(
   data: TranscribeMirrorInput,
   deps: TranscribeMirrorDeps = {},
 ): Promise<TranscribeMirrorResult> {
+  await (deps.authenticate ?? requireCounselorContext)()
+  return transcribeMirrorAudio(data, deps)
+}
+
+export async function transcribeMirrorAudio(
+  data: TranscribeMirrorInput,
+  deps: Omit<TranscribeMirrorDeps, 'authenticate'> = {},
+): Promise<TranscribeMirrorResult> {
   const parsed = transcribeMirrorInputSchema.parse(data)
+  if (!isSupportedAudioMime(parsed.mimeType)) {
+    throw new WhisperTranscriptionError(
+      `Unsupported audio MIME type: ${parsed.mimeType}`,
+      'UNSUPPORTED_MIME',
+    )
+  }
 
   let buffer: Buffer
   try {
@@ -111,4 +121,13 @@ function filenameForMime(mime: string): string {
   if (mime.includes('wav')) return 'mirror-session.wav'
   if (mime.includes('ogg')) return 'mirror-session.ogg'
   return 'mirror-session.bin'
+}
+
+function isSupportedAudioMime(mime: string): boolean {
+  return (
+    mime.startsWith('audio/') ||
+    mime === 'video/webm' ||
+    mime === 'application/ogg' ||
+    mime === 'application/octet-stream'
+  )
 }

@@ -7,13 +7,13 @@
  * U7 — Auto-Connector chain after `persistMirror`.
  *
  * Test-first per the plan's Execution note: a stub Connector + stub verifier
- * proves the staged-diff row shape (and the chain's failure modes) before
- * any real LLM call is wired. The real verifier is exercised in U6's tests;
- * here we only assert the chain's orchestration and persistence behavior.
+ * proves the auto-apply behavior (and the chain's failure modes) before any
+ * real LLM call is wired. The real verifier is exercised in U6's tests; here
+ * we only assert the chain's orchestration and persistence behavior.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { openInMemoryDb, resetDbForTests, setDbForTests } from '~/db/client'
-import { insertMirrorEntry, listVipsProposedDiffs } from '~/db/queries'
+import { insertMirrorEntry, listVipsProposedDiffs, listVipsTimelineEntries } from '~/db/queries'
 import { seed } from '~/db/seed'
 import {
   AUTO_CONNECTOR_TIMEOUT_MS,
@@ -62,7 +62,7 @@ function emptyDiff() {
 }
 
 describe.skipIf(!process.env.DATABASE_URL)('runAutoConnectorAfterMirror — happy path', () => {
-  it('produces a staged vips_proposed_diffs row with admitted entries and ok status', async () => {
+  it('applies verifier-passing entries and writes a confirmed audit row', async () => {
     const mirror = seedMirror()
 
     const runConnector = vi.fn().mockResolvedValue({
@@ -73,7 +73,7 @@ describe.skipIf(!process.env.DATABASE_URL)('runAutoConnectorAfterMirror — happ
           open_question: 'Does the same pattern hold in collaborative settings?',
           new_timeline_entries: [
             {
-              canonical_claim_id: 'values.self_direction',
+              canonical_claim_id: 'values.independence',
               verbatim_quote: 'i hated when teacher told us exactly what to do',
               reflection_id: mirror.id,
               strength: 'medium' as const,
@@ -88,23 +88,24 @@ describe.skipIf(!process.env.DATABASE_URL)('runAutoConnectorAfterMirror — happ
 
     expect(result.status).toBe('ok')
     expect(result.staged_diff).not.toBeNull()
-    expect(result.staged_diff?.status).toBe('pending')
+    expect(result.staged_diff?.status).toBe('confirmed')
     expect(runConnector).toHaveBeenCalledOnce()
 
     const pending = listVipsProposedDiffs('demo', { status: 'pending' })
-    expect(pending).toHaveLength(1)
-    // Verifier annotations live on the payload — the admitted list is what
-    // the U8 review surface renders. Quote matches the seeded transcript
-    // verbatim, so the verifier admits it.
-    const payload = pending[0]?.payload as { admitted?: unknown[] } | null
+    expect(pending).toHaveLength(0)
+    const timeline = listVipsTimelineEntries('demo', 'values')
+    expect(timeline).toHaveLength(1)
+    // Verifier annotations live on the audit payload. Quote matches the
+    // seeded transcript verbatim, so the verifier admits and auto-confirms it.
+    const payload = result.staged_diff?.payload as { admitted?: unknown[] } | null
     expect(payload?.admitted).toHaveLength(1)
   })
 })
 
 describe.skipIf(!process.env.DATABASE_URL)(
-  'runAutoConnectorAfterMirror — R30 pending-queue rule',
+  'runAutoConnectorAfterMirror — legacy pending rows',
   () => {
-    it('skips the run and reports queued when a prior pending diff exists', async () => {
+    it('does not block Connector when a prior pending diff exists', async () => {
       const first = seedMirror()
       // Seed a prior pending diff manually (no chain invocation).
       const { insertVipsProposedDiff } = await import('~/db/queries')
@@ -115,12 +116,13 @@ describe.skipIf(!process.env.DATABASE_URL)(
       })
 
       const second = seedMirror()
-      const runConnector = vi.fn()
+      const runConnector = vi.fn().mockResolvedValue(emptyDiff())
       const result = await runAutoConnectorAfterMirror('demo', second.id, { runConnector })
 
-      expect(result.status).toBe('queued')
-      expect(result.staged_diff).toBeNull()
-      expect(runConnector).not.toHaveBeenCalled()
+      expect(result.status).toBe('ok')
+      expect(result.staged_diff?.status).toBe('confirmed')
+      expect(runConnector).toHaveBeenCalledOnce()
+      expect(listVipsProposedDiffs('demo', { status: 'pending' })).toHaveLength(1)
     })
   },
 )
@@ -223,7 +225,7 @@ describe.skipIf(!process.env.DATABASE_URL)('runAutoConnectorAfterMirror — fail
   it('timeout: A11 — mirror entry STILL persists after Connector timeout (Finding #17)', async () => {
     // The contract: `persistMirror` writes the mirror reflection BEFORE
     // invoking the auto-connector chain. Even if the Connector hangs past
-    // 30s, the student's reflection must remain in `mirror_entries` —
+    // If Connector times out, the student's reflection must remain in `mirror_entries`:
     // sense-making failures never cost the student their words (A11).
     const mirror = seedMirror()
     const { getMirrorEntry } = await import('~/db/queries')
@@ -259,7 +261,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
             open_question: '',
             new_timeline_entries: [
               {
-                canonical_claim_id: 'values.self_direction',
+                canonical_claim_id: 'values.independence',
                 // Not present in the transcript anywhere.
                 verbatim_quote: 'completely fabricated quote about nothing',
                 reflection_id: mirror.id,
@@ -274,7 +276,7 @@ describe.skipIf(!process.env.DATABASE_URL)(
       const result = await runAutoConnectorAfterMirror('demo', mirror.id, { runConnector })
 
       expect(result.status).toBe('ok')
-      expect(result.staged_diff?.status).toBe('pending')
+      expect(result.staged_diff?.status).toBe('confirmed')
 
       const payload = result.staged_diff?.payload as {
         admitted: unknown[]

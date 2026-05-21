@@ -10,13 +10,14 @@
 // `*Inner` helpers just take `ctx` and run.
 //
 // Row-level security enforces `student_id = current_setting('app.student_id')`
-// on every tenancy-scoped table, so the WHERE student_id = ? predicates have
-// been dropped from SELECT/UPDATE/DELETE for clarity (composite-key WHEREs
-// that filter on student_id as part of the PK are kept).
+// on every tenancy-scoped table. The query layer still keeps explicit
+// student_id predicates on reads/updates as a belt-and-suspenders guard for
+// local/dev databases whose connection role may own the tables and therefore
+// bypass non-FORCE RLS.
 
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import type { VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
-import { type TenantContext, withStudent } from './client'
+import { getDbForMemoryModule, type TenantContext, withStudent } from './client'
 import {
   agentTraces,
   cartographerOutputs,
@@ -66,6 +67,7 @@ export interface MirrorEntryRow {
    * `'school'` when not supplied; the DB CHECK enforces the closed enum.
    */
   context_type: VipsContextType
+  review_status: MirrorReviewStatus
   tags: string[]
   created_at: string
 }
@@ -122,6 +124,11 @@ export type AgentRefTable =
   | 'pathfinder_outputs'
   | 'cartographer_outputs'
 export type MirrorEditableField = 'validation' | 'inferred_meaning' | 'story_reframe'
+export type MirrorReviewStatus = 'pending' | 'confirmed' | 'forgotten'
+
+const MIRROR_CONFIRMED_TAG = 'system:mirror-confirmed'
+const MIRROR_FORGOTTEN_TAG = 'system:mirror-forgotten'
+const MIRROR_REVIEW_TAGS = [MIRROR_CONFIRMED_TAG, MIRROR_FORGOTTEN_TAG] as const
 
 // ---------------------------------------------------------------------------
 // Internal row shapes — what Drizzle hands back before JSON-blob inflation.
@@ -198,6 +205,11 @@ interface CartographerOutputDbRow {
 // ---------------------------------------------------------------------------
 
 function rowToMirrorEntry(row: MirrorEntryDbRow, entryTags: string[]): MirrorEntryRow {
+  const review_status: MirrorReviewStatus = entryTags.includes(MIRROR_FORGOTTEN_TAG)
+    ? 'forgotten'
+    : entryTags.includes(MIRROR_CONFIRMED_TAG)
+      ? 'confirmed'
+      : 'pending'
   return {
     id: row.id,
     student_id: row.student_id,
@@ -207,9 +219,14 @@ function rowToMirrorEntry(row: MirrorEntryDbRow, entryTags: string[]): MirrorEnt
     story_reframe: row.story_reframe,
     raw_output_json: row.raw_output_json,
     context_type: row.context_type,
-    tags: entryTags,
+    review_status,
+    tags: entryTags.filter((tag) => !isMirrorReviewTag(tag)),
     created_at: row.created_at,
   }
+}
+
+function isMirrorReviewTag(tag: string): boolean {
+  return (MIRROR_REVIEW_TAGS as readonly string[]).includes(tag)
 }
 
 function rowToVipsTimelineEntry(row: VipsTimelineEntryDbRow): VipsTimelineEntryRow {
@@ -255,7 +272,8 @@ function rowToCartographerOutput(row: CartographerOutputDbRow): CartographerOutp
 }
 
 // ---------------------------------------------------------------------------
-// Internal helpers — operate on an open TenantContext. RLS scopes the tenant.
+// Internal helpers — operate on an open TenantContext. RLS scopes the tenant;
+// explicit student predicates below protect owner-role local/dev databases too.
 // ---------------------------------------------------------------------------
 
 async function loadTagsInner(ctx: TenantContext, entryId: number): Promise<string[]> {
@@ -263,7 +281,7 @@ async function loadTagsInner(ctx: TenantContext, entryId: number): Promise<strin
     .select({ label: tags.label })
     .from(tags)
     .innerJoin(mirrorEntryTags, eq(mirrorEntryTags.tagId, tags.id))
-    .where(eq(mirrorEntryTags.entryId, entryId))
+    .where(and(eq(tags.studentId, ctx.studentId), eq(mirrorEntryTags.entryId, entryId)))
     .orderBy(tags.label)
   return rows.map((r: { label: string }) => r.label)
 }
@@ -278,7 +296,7 @@ async function upsertTagInner(
   const existing = await ctx.db
     .select({ id: tags.id })
     .from(tags)
-    .where(eq(tags.label, label))
+    .where(and(eq(tags.studentId, studentId), eq(tags.label, label)))
     .limit(1)
   if (existing.length > 0) return requireRow(existing, 'select tag id').id
   const inserted = await ctx.db.insert(tags).values({ studentId, label }).returning({ id: tags.id })
@@ -289,7 +307,7 @@ async function upsertTagInner(
 // mirror_entries — FTS, list, get, insert, update
 // ---------------------------------------------------------------------------
 
-/** tsvector-backed search restricted to one student (via RLS). */
+/** tsvector-backed search restricted to one student. */
 export async function searchMirrors(
   studentId: string,
   query: string,
@@ -315,7 +333,12 @@ async function searchMirrorsInner(
       score: sql<number>`ts_rank(${mirrorEntries.storyReframeTsv}, plainto_tsquery('english', ${query}))`,
     })
     .from(mirrorEntries)
-    .where(sql`${mirrorEntries.storyReframeTsv} @@ plainto_tsquery('english', ${query})`)
+    .where(
+      and(
+        eq(mirrorEntries.studentId, ctx.studentId),
+        sql`${mirrorEntries.storyReframeTsv} @@ plainto_tsquery('english', ${query})`,
+      ),
+    )
     .orderBy(
       sql`ts_rank(${mirrorEntries.storyReframeTsv}, plainto_tsquery('english', ${query})) desc`,
     )
@@ -395,32 +418,42 @@ async function insertMirrorEntryInner(
     })
   }
 
-  const rows = await ctx.db.select().from(mirrorEntries).where(eq(mirrorEntries.id, id)).limit(1)
+  const rows = await ctx.db
+    .select()
+    .from(mirrorEntries)
+    .where(and(eq(mirrorEntries.studentId, ctx.studentId), eq(mirrorEntries.id, id)))
+    .limit(1)
   const row = drizzleMirrorRow(requireRow(rows, 'select mirror_entries'))
   return rowToMirrorEntry(row, await loadTagsInner(ctx, id))
 }
 
 export async function listMirrorEntries(
   studentId: string,
-  opts: { limit?: number; ctx?: TenantContext } = {},
+  opts: { limit?: number | null; includeForgotten?: boolean; ctx?: TenantContext } = {},
 ): Promise<MirrorEntryRow[]> {
-  if (opts.ctx) return listMirrorEntriesInner(opts.ctx, opts.limit ?? 50)
-  return withStudent(studentId, (ctx) => listMirrorEntriesInner(ctx, opts.limit ?? 50))
+  const limit = opts.limit === null ? undefined : (opts.limit ?? 50)
+  if (opts.ctx) return listMirrorEntriesInner(opts.ctx, limit, opts.includeForgotten)
+  return withStudent(studentId, (ctx) => listMirrorEntriesInner(ctx, limit, opts.includeForgotten))
 }
 
 async function listMirrorEntriesInner(
   ctx: TenantContext,
-  limit: number,
+  limit: number | undefined,
+  includeForgotten = false,
 ): Promise<MirrorEntryRow[]> {
-  const rows = await ctx.db
+  const baseQuery = ctx.db
     .select()
     .from(mirrorEntries)
+    .where(eq(mirrorEntries.studentId, ctx.studentId))
     .orderBy(desc(mirrorEntries.createdAt))
-    .limit(limit)
+  const rows = limit === undefined ? await baseQuery : await baseQuery.limit(limit)
   const out: MirrorEntryRow[] = []
   for (const r of rows) {
     const row = drizzleMirrorRow(r)
-    out.push(rowToMirrorEntry(row, await loadTagsInner(ctx, row.id)))
+    const entry = rowToMirrorEntry(row, await loadTagsInner(ctx, row.id))
+    if (includeForgotten || entry.review_status !== 'forgotten') {
+      out.push(entry)
+    }
   }
   return out
 }
@@ -434,8 +467,41 @@ export async function getMirrorEntry(
   return withStudent(studentId, (ctx) => getMirrorEntryInner(ctx, id))
 }
 
+export async function listUnconnectedMirrorEntries(
+  studentId: string,
+  opts: { limit?: number; ctx?: TenantContext } = {},
+): Promise<MirrorEntryRow[]> {
+  if (opts.ctx) return listUnconnectedMirrorEntriesInner(opts.ctx, opts.limit)
+  return withStudent(studentId, (ctx) => listUnconnectedMirrorEntriesInner(ctx, opts.limit))
+}
+
+async function listUnconnectedMirrorEntriesInner(
+  ctx: TenantContext,
+  limit: number | undefined,
+): Promise<MirrorEntryRow[]> {
+  const entries = await listMirrorEntriesInner(ctx, undefined, false)
+  const proposedDiffs = await listVipsProposedDiffsInner(ctx, undefined)
+  const attemptedMirrorIds = new Set(proposedDiffs.map((diff) => diff.mirror_entry_id))
+  const unconnected = entries.filter(
+    (entry) => entry.review_status === 'confirmed' && !attemptedMirrorIds.has(entry.id),
+  )
+  return limit === undefined ? unconnected : unconnected.slice(0, limit)
+}
+
+export async function listAttachedStudentIds(): Promise<string[]> {
+  const db = getDbForMemoryModule()
+  const rows = await db.execute<{ student_id: string }>(
+    sql`select distinct student_id from counselor_students order by student_id asc`,
+  )
+  return rows.rows.map((row) => row.student_id)
+}
+
 async function getMirrorEntryInner(ctx: TenantContext, id: number): Promise<MirrorEntryRow | null> {
-  const rows = await ctx.db.select().from(mirrorEntries).where(eq(mirrorEntries.id, id)).limit(1)
+  const rows = await ctx.db
+    .select()
+    .from(mirrorEntries)
+    .where(and(eq(mirrorEntries.studentId, ctx.studentId), eq(mirrorEntries.id, id)))
+    .limit(1)
   if (rows.length === 0) return null
   const row = drizzleMirrorRow(requireRow(rows, 'select mirror_entries'))
   return rowToMirrorEntry(row, await loadTagsInner(ctx, row.id))
@@ -466,9 +532,97 @@ async function updateMirrorEntryFieldsInner(
   if (patch.inferred_meaning !== undefined) set.inferredMeaning = patch.inferred_meaning
   if (patch.story_reframe !== undefined) set.storyReframe = patch.story_reframe
   if (Object.keys(set).length > 0) {
-    await ctx.db.update(mirrorEntries).set(set).where(eq(mirrorEntries.id, id))
+    await ctx.db
+      .update(mirrorEntries)
+      .set(set)
+      .where(and(eq(mirrorEntries.studentId, ctx.studentId), eq(mirrorEntries.id, id)))
   }
   return getMirrorEntryInner(ctx, id)
+}
+
+export async function updateMirrorEntryContextType(
+  studentId: string,
+  id: number,
+  contextType: VipsContextType,
+  opts: { ctx?: TenantContext } = {},
+): Promise<MirrorEntryRow | null> {
+  if (opts.ctx) return updateMirrorEntryContextTypeInner(opts.ctx, id, contextType)
+  return withStudent(studentId, (ctx) => updateMirrorEntryContextTypeInner(ctx, id, contextType))
+}
+
+async function updateMirrorEntryContextTypeInner(
+  ctx: TenantContext,
+  id: number,
+  contextType: VipsContextType,
+): Promise<MirrorEntryRow | null> {
+  await ctx.db
+    .update(mirrorEntries)
+    .set({ contextType })
+    .where(and(eq(mirrorEntries.studentId, ctx.studentId), eq(mirrorEntries.id, id)))
+  return getMirrorEntryInner(ctx, id)
+}
+
+export async function updateMirrorEntryReviewStatus(
+  studentId: string,
+  id: number,
+  status: Exclude<MirrorReviewStatus, 'pending'>,
+  opts: { ctx?: TenantContext } = {},
+): Promise<MirrorEntryRow | null> {
+  if (opts.ctx) return updateMirrorEntryReviewStatusInner(opts.ctx, studentId, id, status)
+  return withStudent(studentId, (ctx) =>
+    updateMirrorEntryReviewStatusInner(ctx, studentId, id, status),
+  )
+}
+
+async function updateMirrorEntryReviewStatusInner(
+  ctx: TenantContext,
+  studentId: string,
+  id: number,
+  status: Exclude<MirrorReviewStatus, 'pending'>,
+): Promise<MirrorEntryRow | null> {
+  await clearMirrorReviewTagsInner(ctx, id)
+  const label = status === 'confirmed' ? MIRROR_CONFIRMED_TAG : MIRROR_FORGOTTEN_TAG
+  const tagId = await upsertTagInner(ctx, studentId, label)
+  await ctx.db.insert(mirrorEntryTags).values({ entryId: id, tagId }).onConflictDoNothing()
+  return getMirrorEntryInner(ctx, id)
+}
+
+export async function updatePendingMirrorEntriesReviewStatus(
+  studentId: string,
+  status: Exclude<MirrorReviewStatus, 'pending'>,
+  opts: { ctx?: TenantContext } = {},
+): Promise<{ updated: number }> {
+  if (opts.ctx) return updatePendingMirrorEntriesReviewStatusInner(opts.ctx, studentId, status)
+  return withStudent(studentId, (ctx) =>
+    updatePendingMirrorEntriesReviewStatusInner(ctx, studentId, status),
+  )
+}
+
+async function updatePendingMirrorEntriesReviewStatusInner(
+  ctx: TenantContext,
+  studentId: string,
+  status: Exclude<MirrorReviewStatus, 'pending'>,
+): Promise<{ updated: number }> {
+  const entries = await listMirrorEntriesInner(ctx, undefined, false)
+  const pending = entries.filter((entry) => entry.review_status === 'pending')
+  for (const entry of pending) {
+    await updateMirrorEntryReviewStatusInner(ctx, studentId, entry.id, status)
+  }
+  return { updated: pending.length }
+}
+
+async function clearMirrorReviewTagsInner(ctx: TenantContext, entryId: number): Promise<void> {
+  for (const label of MIRROR_REVIEW_TAGS) {
+    const rows = await ctx.db
+      .select({ id: tags.id })
+      .from(tags)
+      .where(and(eq(tags.studentId, ctx.studentId), eq(tags.label, label)))
+    for (const row of rows) {
+      await ctx.db
+        .delete(mirrorEntryTags)
+        .where(and(eq(mirrorEntryTags.entryId, entryId), eq(mirrorEntryTags.tagId, row.id)))
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -536,7 +690,7 @@ async function getConnectorOutputByIdInner(
   const rows = await ctx.db
     .select()
     .from(connectorOutputs)
-    .where(eq(connectorOutputs.id, id))
+    .where(and(eq(connectorOutputs.studentId, ctx.studentId), eq(connectorOutputs.id, id)))
     .limit(1)
   if (rows.length === 0) return null
   const row = drizzleConnectorRow(requireRow(rows, 'select connector_outputs'))
@@ -561,6 +715,7 @@ async function latestConnectorOutputInner(ctx: TenantContext): Promise<Connector
   const rows = await ctx.db
     .select()
     .from(connectorOutputs)
+    .where(eq(connectorOutputs.studentId, ctx.studentId))
     .orderBy(desc(connectorOutputs.createdAt))
     .limit(1)
   if (rows.length === 0) return null
@@ -627,7 +782,7 @@ async function insertPathfinderOutputInner(
   const rows = await ctx.db
     .select()
     .from(pathfinderOutputs)
-    .where(eq(pathfinderOutputs.id, id))
+    .where(and(eq(pathfinderOutputs.studentId, ctx.studentId), eq(pathfinderOutputs.id, id)))
     .limit(1)
   const row = drizzlePathfinderRow(requireRow(rows, 'select pathfinder_outputs'))
   return {
@@ -655,6 +810,7 @@ async function latestPathfinderOutputInner(
   const rows = await ctx.db
     .select()
     .from(pathfinderOutputs)
+    .where(eq(pathfinderOutputs.studentId, ctx.studentId))
     .orderBy(desc(pathfinderOutputs.createdAt))
     .limit(1)
   if (rows.length === 0) return null
@@ -900,7 +1056,11 @@ export async function listVipsPages(
 }
 
 async function listVipsPagesInner(ctx: TenantContext): Promise<VipsPageRow[]> {
-  const rows = await ctx.db.select().from(vipsPages).orderBy(desc(vipsPages.updatedAt))
+  const rows = await ctx.db
+    .select()
+    .from(vipsPages)
+    .where(eq(vipsPages.studentId, ctx.studentId))
+    .orderBy(desc(vipsPages.updatedAt))
   return rows.map(drizzleVipsPageRow)
 }
 
@@ -967,7 +1127,7 @@ async function getVipsTimelineEntryInner(
   const rows = await ctx.db
     .select()
     .from(vipsTimelineEntries)
-    .where(eq(vipsTimelineEntries.id, id))
+    .where(and(eq(vipsTimelineEntries.studentId, ctx.studentId), eq(vipsTimelineEntries.id, id)))
     .limit(1)
   if (rows.length === 0) return null
   return rowToVipsTimelineEntry(
@@ -983,11 +1143,12 @@ async function getVipsTimelineEntryInner(
 export async function listVipsTimelineEntries(
   studentId: string,
   dimension: string,
-  opts: { includeForgotten?: boolean; ctx?: TenantContext } = {},
+  opts: { includeForgotten?: boolean; ctx?: TenantContext; limit?: number } = {},
 ): Promise<VipsTimelineEntryRow[]> {
-  if (opts.ctx) return listVipsTimelineEntriesInner(opts.ctx, dimension, !!opts.includeForgotten)
+  if (opts.ctx)
+    return listVipsTimelineEntriesInner(opts.ctx, dimension, !!opts.includeForgotten, opts.limit)
   return withStudent(studentId, (ctx) =>
-    listVipsTimelineEntriesInner(ctx, dimension, !!opts.includeForgotten),
+    listVipsTimelineEntriesInner(ctx, dimension, !!opts.includeForgotten, opts.limit),
   )
 }
 
@@ -995,10 +1156,59 @@ async function listVipsTimelineEntriesInner(
   ctx: TenantContext,
   dimension: string,
   includeForgotten: boolean,
+  limit?: number,
 ): Promise<VipsTimelineEntryRow[]> {
   const where = includeForgotten
-    ? eq(vipsTimelineEntries.dimension, dimension)
-    : and(eq(vipsTimelineEntries.dimension, dimension), isNull(vipsTimelineEntries.forgottenAt))
+    ? and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
+        eq(vipsTimelineEntries.dimension, dimension),
+      )
+    : and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
+        eq(vipsTimelineEntries.dimension, dimension),
+        isNull(vipsTimelineEntries.forgottenAt),
+      )
+  const base = ctx.db
+    .select()
+    .from(vipsTimelineEntries)
+    .where(where)
+    .orderBy(desc(vipsTimelineEntries.committedAt))
+  const rows = limit != null ? await base.limit(limit) : await base
+  return rows.map((r: DrizzleVipsTimelineRow) => rowToVipsTimelineEntry(drizzleVipsTimelineRow(r)))
+}
+
+export async function listVipsTimelineEntriesByReflectionId(
+  studentId: string,
+  reflectionId: number,
+  opts: { includeForgotten?: boolean; ctx?: TenantContext } = {},
+): Promise<VipsTimelineEntryRow[]> {
+  if (opts.ctx) {
+    return listVipsTimelineEntriesByReflectionIdInner(
+      opts.ctx,
+      reflectionId,
+      !!opts.includeForgotten,
+    )
+  }
+  return withStudent(studentId, (ctx) =>
+    listVipsTimelineEntriesByReflectionIdInner(ctx, reflectionId, !!opts.includeForgotten),
+  )
+}
+
+async function listVipsTimelineEntriesByReflectionIdInner(
+  ctx: TenantContext,
+  reflectionId: number,
+  includeForgotten: boolean,
+): Promise<VipsTimelineEntryRow[]> {
+  const where = includeForgotten
+    ? and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
+        eq(vipsTimelineEntries.reflectionId, reflectionId),
+      )
+    : and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
+        eq(vipsTimelineEntries.reflectionId, reflectionId),
+        isNull(vipsTimelineEntries.forgottenAt),
+      )
   const rows = await ctx.db
     .select()
     .from(vipsTimelineEntries)
@@ -1036,7 +1246,13 @@ async function forgetVipsTimelineEntryInner(
   const updated = await ctx.db
     .update(vipsTimelineEntries)
     .set({ forgottenAt: sql`now()` })
-    .where(and(eq(vipsTimelineEntries.id, id), isNull(vipsTimelineEntries.forgottenAt)))
+    .where(
+      and(
+        eq(vipsTimelineEntries.studentId, studentId),
+        eq(vipsTimelineEntries.id, id),
+        isNull(vipsTimelineEntries.forgottenAt),
+      ),
+    )
     .returning()
 
   if (updated.length === 0) {
@@ -1086,11 +1302,16 @@ async function searchVipsTimelineEntriesInner(
   const matchClause = sql`${vipsTimelineEntries.verbatimQuoteTsv} @@ plainto_tsquery('english', ${query})`
   const where = dimension
     ? and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
         matchClause,
         isNull(vipsTimelineEntries.forgottenAt),
         eq(vipsTimelineEntries.dimension, dimension),
       )
-    : and(matchClause, isNull(vipsTimelineEntries.forgottenAt))
+    : and(
+        eq(vipsTimelineEntries.studentId, ctx.studentId),
+        matchClause,
+        isNull(vipsTimelineEntries.forgottenAt),
+      )
 
   const rows = await ctx.db
     .select({
@@ -1136,6 +1357,7 @@ export interface InsertVipsProposedDiffInput {
   mirror_entry_id: number
   payload: unknown
   verifier_result: unknown
+  status?: VipsProposedDiffStatus
 }
 
 export async function insertVipsProposedDiff(
@@ -1152,6 +1374,7 @@ async function insertVipsProposedDiffInner(
   studentId: string,
   input: InsertVipsProposedDiffInput,
 ): Promise<VipsProposedDiffRow> {
+  const status = input.status ?? 'pending'
   const inserted = await ctx.db
     .insert(vipsProposedDiffs)
     .values({
@@ -1159,7 +1382,8 @@ async function insertVipsProposedDiffInner(
       mirrorEntryId: input.mirror_entry_id,
       payloadJson: JSON.stringify(input.payload),
       verifierResultJson: JSON.stringify(input.verifier_result),
-      status: 'pending',
+      status,
+      ...(status === 'pending' ? {} : { reviewedAt: sql`now()` }),
     })
     .returning({ id: vipsProposedDiffs.id })
   const id = requireRow(inserted, 'insert').id
@@ -1272,7 +1496,7 @@ async function getVipsProposedDiffInner(
   const rows = await ctx.db
     .select()
     .from(vipsProposedDiffs)
-    .where(eq(vipsProposedDiffs.id, id))
+    .where(and(eq(vipsProposedDiffs.studentId, ctx.studentId), eq(vipsProposedDiffs.id, id)))
     .limit(1)
   if (rows.length === 0) return null
   return rowToVipsProposedDiff(
@@ -1282,23 +1506,31 @@ async function getVipsProposedDiffInner(
 
 export async function listVipsProposedDiffs(
   studentId: string,
-  opts: { status?: VipsProposedDiffStatus; ctx?: TenantContext } = {},
+  opts: { status?: VipsProposedDiffStatus; ctx?: TenantContext; limit?: number } = {},
 ): Promise<VipsProposedDiffRow[]> {
-  if (opts.ctx) return listVipsProposedDiffsInner(opts.ctx, opts.status)
-  return withStudent(studentId, (ctx) => listVipsProposedDiffsInner(ctx, opts.status))
+  if (opts.ctx) return listVipsProposedDiffsInner(opts.ctx, opts.status, opts.limit)
+  return withStudent(studentId, (ctx) => listVipsProposedDiffsInner(ctx, opts.status, opts.limit))
 }
 
 async function listVipsProposedDiffsInner(
   ctx: TenantContext,
   status: VipsProposedDiffStatus | undefined,
+  limit?: number,
 ): Promise<VipsProposedDiffRow[]> {
-  const rows = status
-    ? await ctx.db
+  const base = status
+    ? ctx.db
         .select()
         .from(vipsProposedDiffs)
-        .where(eq(vipsProposedDiffs.status, status))
+        .where(
+          and(eq(vipsProposedDiffs.studentId, ctx.studentId), eq(vipsProposedDiffs.status, status)),
+        )
         .orderBy(desc(vipsProposedDiffs.createdAt))
-    : await ctx.db.select().from(vipsProposedDiffs).orderBy(desc(vipsProposedDiffs.createdAt))
+    : ctx.db
+        .select()
+        .from(vipsProposedDiffs)
+        .where(eq(vipsProposedDiffs.studentId, ctx.studentId))
+        .orderBy(desc(vipsProposedDiffs.createdAt))
+  const rows = limit != null ? await base.limit(limit) : await base
   return rows.map((r: DrizzleVipsProposedDiffRow) =>
     rowToVipsProposedDiff(drizzleVipsProposedDiffRow(r)),
   )
@@ -1327,7 +1559,7 @@ async function updateVipsProposedDiffStatusInner(
   await ctx.db
     .update(vipsProposedDiffs)
     .set({ status, reviewedAt: sql`now()` })
-    .where(eq(vipsProposedDiffs.id, id))
+    .where(and(eq(vipsProposedDiffs.studentId, ctx.studentId), eq(vipsProposedDiffs.id, id)))
   return getVipsProposedDiffInner(ctx, id)
 }
 
@@ -1355,7 +1587,7 @@ async function updateVipsProposedDiffPayloadInner(
   await ctx.db
     .update(vipsProposedDiffs)
     .set({ payloadJson: JSON.stringify(payload) })
-    .where(eq(vipsProposedDiffs.id, id))
+    .where(and(eq(vipsProposedDiffs.studentId, ctx.studentId), eq(vipsProposedDiffs.id, id)))
   return getVipsProposedDiffInner(ctx, id)
 }
 
@@ -1439,7 +1671,7 @@ async function insertCartographerOutputInner(
   const rows = await ctx.db
     .select()
     .from(cartographerOutputs)
-    .where(eq(cartographerOutputs.id, id))
+    .where(and(eq(cartographerOutputs.studentId, ctx.studentId), eq(cartographerOutputs.id, id)))
     .limit(1)
   return rowToCartographerOutput(
     drizzleCartographerRow(requireRow(rows, 'select cartographer_outputs')),
@@ -1460,6 +1692,7 @@ async function latestCartographerOutputInner(
   const rows = await ctx.db
     .select()
     .from(cartographerOutputs)
+    .where(eq(cartographerOutputs.studentId, ctx.studentId))
     .orderBy(desc(cartographerOutputs.createdAt))
     .limit(1)
   if (rows.length === 0) return null

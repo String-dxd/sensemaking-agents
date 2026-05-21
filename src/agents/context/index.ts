@@ -101,12 +101,7 @@ export async function buildConnectorContext(
     .slice(0, CONNECTOR_FTS_LIMIT)
 
   const pages = await listVipsPages(studentId, { ctx })
-  const timelineByDim = await Promise.all(
-    VIPS_DIMENSIONS.map((dim) =>
-      listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
-    ),
-  )
-  const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
+  const timeline = await listTimelineEntriesAcrossDimensions(studentId, ctx)
 
   return formatConnectorContext({
     mirror: {
@@ -166,12 +161,7 @@ export interface CartographerContextPayload {
 export async function buildCartographerContext(ctx: TenantContext): Promise<string> {
   const { studentId } = ctx
   const pages = await listVipsPages(studentId, { ctx })
-  const timelineByDim = await Promise.all(
-    VIPS_DIMENSIONS.map((dim) =>
-      listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx }),
-    ),
-  )
-  const timeline: VipsTimelineEntryRow[] = timelineByDim.flat()
+  const timeline = await listTimelineEntriesAcrossDimensions(studentId, ctx)
 
   const queries = pages.map((p) => p.open_question.trim()).filter((q) => q.length > 0)
 
@@ -192,6 +182,19 @@ export async function buildCartographerContext(ctx: TenantContext): Promise<stri
     .slice(0, CARTOGRAPHER_FTS_LIMIT)
 
   return formatCartographerContext({ studentId, pages, timeline, pastMirrors })
+}
+
+async function listTimelineEntriesAcrossDimensions(
+  studentId: string,
+  ctx: TenantContext,
+): Promise<VipsTimelineEntryRow[]> {
+  const timeline: VipsTimelineEntryRow[] = []
+  for (const dim of VIPS_DIMENSIONS) {
+    timeline.push(
+      ...(await listVipsTimelineEntries(studentId, dim, { includeForgotten: false, ctx })),
+    )
+  }
+  return timeline
 }
 
 /**
@@ -299,10 +302,7 @@ function formatVipsPagesBlock(pages: VipsPageRow[], timeline: VipsTimelineEntryR
       entriesForDim.length === 0
         ? 'Existing timeline entries: (none)'
         : `Existing timeline entries:\n${entriesForDim
-            .map(
-              (e) =>
-                `- [${e.canonical_claim_id}] (${e.strength}, parallax=${JSON.stringify(e.parallax_tag)}) "${e.verbatim_quote}"`,
-            )
+            .map(formatTimelineEntryForPrompt)
             .join('\n')}`,
     ].join('\n')
   }).join('\n\n')
@@ -310,8 +310,22 @@ function formatVipsPagesBlock(pages: VipsPageRow[], timeline: VipsTimelineEntryR
   return `# Current VIPS pages\n\n${dimBlocks}`
 }
 
+function formatTimelineEntryForPrompt(entry: VipsTimelineEntryRow): string {
+  const reflectionId = entry.reflection_id === null ? 'null' : String(entry.reflection_id)
+  const reinforcesId = entry.reinforces_id === null ? 'null' : String(entry.reinforces_id)
+  return [
+    `- entry_id=${entry.id}`,
+    `source_reflection_id=${reflectionId}`,
+    `canonical_claim_id=${entry.canonical_claim_id}`,
+    `strength=${entry.strength}`,
+    `parallax=${JSON.stringify(entry.parallax_tag)}`,
+    `reinforces_id=${reinforcesId}`,
+    `quote="${entry.verbatim_quote}"`,
+  ].join(' ')
+}
+
 const CONNECTOR_TASK_FOOTER =
   '# Task\n\nProduce a ConnectorDiffSchema-shaped proposal. Cite verbatim quotes from the transcript above only. Do NOT emit `reinforces_id`, `partial_match`, `aspirational`, or `parallax_cap_reason` — those are computed by the verifier post-hoc.'
 
 const CARTOGRAPHER_TASK_FOOTER =
-  '# Task\n\nProduce a CartographerOutputSchema-shaped Trajectory page. `trait_combination[].claim_id` MUST appear as a `canonical_claim_id` on one of the current timeline entries above. `ecg_region_tags[]` MUST be cluster-level IDs (`cluster.*`) from the inlined ECG taxonomy. Return 2–5 pathways.'
+  '# Task\n\nProduce a CartographerOutputSchema-shaped Trajectory page. `trait_combination[].claim_id` MUST appear as a `canonical_claim_id` on one of the current timeline entries above. Include `trait_combination[].timeline_entry_id` whenever the claim refers to a specific current timeline `entry_id`. `ecg_region_tags[]` MUST be cluster-level IDs (`cluster.*`) from the inlined ECG taxonomy. Return 2–5 pathways.'

@@ -1,14 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
-import {
-  createRootRouteWithContext,
-  HeadContent,
-  Link,
-  Outlet,
-  Scripts,
-  useRouterState,
-} from '@tanstack/react-router'
+import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
+import { DevPalette } from '~/components/DevPalette'
 import { queryClient } from '~/router'
 import styles from '~/styles.css?url'
 
@@ -21,7 +15,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     meta: [
       { charSet: 'utf-8' },
       { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'Sensemaking Agents' },
+      { title: 'SenseMake' },
       {
         name: 'description',
         content: 'Mirror, Connector, Cartographer — a per-student library of reflections.',
@@ -33,39 +27,21 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 })
 
 function RootComponent() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const isWorld = pathname === '/'
   return (
     <RootDocument>
       <QueryClientProvider client={queryClient}>
-        <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-8">
-          {isWorld ? null : (
-            <header className="flex items-center justify-between">
-              <Link to="/" className="text-sm font-semibold tracking-tight">
-                sensemaking · v0.1
-              </Link>
-              <nav className="flex items-center gap-4 text-sm text-muted-foreground">
-                <Link
-                  to="/library"
-                  className="hover:text-foreground"
-                  activeProps={{ className: 'text-foreground' }}
-                >
-                  library
-                </Link>
-                <Link
-                  to="/reflect/review"
-                  className="text-xs hover:text-foreground"
-                  activeProps={{ className: 'text-foreground' }}
-                >
-                  review
-                </Link>
-              </nav>
-            </header>
-          )}
-          <main className="flex-1">
+        <div className="mx-auto flex min-h-svh w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
+          <main className="flex min-h-0 w-full flex-1 flex-col">
             <Outlet />
           </main>
         </div>
+        {/* Cmd-K palette. On in dev by default; in production builds it is
+            included only when `VITE_ENABLE_DEV_PALETTE=1` is set at build
+            time. Vercel staging sets the flag so QA can reach `/dev/pipeline`
+            and the other developer commands. */}
+        {import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_PALETTE === '1' ? (
+          <DevPalette />
+        ) : null}
       </QueryClientProvider>
     </RootDocument>
   )

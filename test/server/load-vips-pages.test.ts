@@ -68,7 +68,7 @@ describe.skipIf(!process.env.DATABASE_URL)('loadVipsPagesHandler — happy path'
   it('groups non-forgotten timeline entries by dimension and reports per-dimension counts', () => {
     insertVipsTimelineEntry('demo', {
       dimension: 'values',
-      canonical_claim_id: 'values.self_direction',
+      canonical_claim_id: 'values.independence',
       verbatim_quote: 'a',
       reflection_id: null,
       strength: 'medium',

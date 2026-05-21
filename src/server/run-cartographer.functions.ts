@@ -1,8 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import {
-  runCartographerHandler,
-  runCartographerInputSchema,
-} from './run-cartographer.handler.server'
+import { runCartographerInputSchema } from './function-schemas'
 
 /**
  * U11 — Trajectory-page server fn. Wired to the `/wiki` "Run sense-making"
@@ -16,4 +13,7 @@ import {
  */
 export const runCartographer = createServerFn({ method: 'POST' })
   .inputValidator((raw: unknown) => runCartographerInputSchema.parse(raw))
-  .handler(({ data }) => runCartographerHandler(data))
+  .handler(async ({ data }) => {
+    const { runCartographerHandler } = await import('./run-cartographer.handler.server')
+    return runCartographerHandler(data)
+  })

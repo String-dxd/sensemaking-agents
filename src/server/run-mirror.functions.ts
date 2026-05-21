@@ -1,6 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { runMirrorHandler, runMirrorInputSchema } from './run-mirror.handler.server'
+import { runMirrorInputSchema } from './function-schemas'
 
 export const runMirror = createServerFn({ method: 'POST' })
   .inputValidator((raw: unknown) => runMirrorInputSchema.parse(raw))
-  .handler(({ data }) => runMirrorHandler(data))
+  .handler(async ({ data }) => {
+    const { runMirrorHandler } = await import('./run-mirror.handler.server')
+    return runMirrorHandler(data)
+  })

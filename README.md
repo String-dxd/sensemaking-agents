@@ -1,85 +1,200 @@
-# Sensemaking Agents — v0.1 (Quiet Mirror Pivot)
+# SenseMake
 
-Three OpenAI agents over a per-student SQLite wiki, structured around a quiet self-directed reflection ritual.
+SenseMake is a student reflection app for turning lived school experiences into a reviewable VIPS library: Values, Interests, Personality, Skills, and Trajectory.
 
-- **Mirror** (`gpt-5.5`, async) — runs after the student stops talking. Reads the transcript, returns a three-part reflection: `validation`, `inferred_meaning`, `story_reframe`. No AI voice during the session.
-- **Connector** (`gpt-5.5`, manual button) — re-reads the per-student wiki and surfaces patterns with evidence IDs.
-- **Cartographer** (`gpt-5.5`, manual button) — receives Connector's patterns via SDK Handoff, returns trajectory + 2–5 pathways with SG-ECG mapping. (Renamed from "Pathfinder" in v0.2.)
+Current product shape:
 
-All three agents read their model id from `src/agents/config.ts`. Set `AGENT_MODEL=<id>` in the env to override (e.g. `AGENT_MODEL=gpt-4.1 pnpm ablate:mirror` to score the prior baseline). The ablate script also accepts `--model=<id>` as an inline shortcut.
+- `/` is the recording surface: audio-only reflection in the island world, one primary voice action, then Mirror saves the raw thought into Library.
+- Mirror uses OpenAI Realtime to listen, transcribe, and reflect the thought, then saves the raw thought without waiting on Connector.
+- Connector runs from the Library `Run Connector` action or the scheduled evening pass, verifies proposed VIPS links, and applies verifier-passing links directly into the VIPS pages and timeline.
+- `/library` is the main review surface. By default it shows all recorded thoughts and VIPS pages; the `Need review` filter shows raw mirror thoughts that still need confirm/forget.
+- Cartographer runs manually from `/library` and generates the Trajectory page.
+- `/reflect` redirects to `/`; `/reflect/review` redirects into `/library?filter=need-review`.
 
-The reflect path is browser → MediaRecorder → OpenAI Whisper → Mirror agent. The sense-making path is a single in-process Connector → Cartographer Handoff chain with **live step-event visualization** in the wiki view.
+For the latest planning and merge status, see `plans/CURRENT_STATE.md`.
 
-SQLite + FTS5 with a single tenancy boundary (`withStudent`); v0.1 has no auth — `student_id` defaults to `'demo'`.
+## Architecture
 
-## What changed in this pivot
+- Frontend: TanStack Router/Start, React, Tailwind, shadcn-style local primitives, Base UI for accessible dialogs/drawers/radio groups.
+- Agents: OpenAI Realtime for Mirror; Anthropic Managed Agents for Connector, Cartographer, and the self-critique eval/safety reviewer.
+- Transcription: OpenAI Realtime input transcription on the main Student Space voice path; the OpenAI transcription helper remains for legacy/support utilities.
+- Persistence: Postgres via Drizzle ORM and `pg`; every request is scoped through the `withStudent` tenancy envelope.
+- Auth: WorkOS AuthKit with Google sign-in, plus a local demo/dev bypass path.
+- Deployment target: Vercel.
 
-The realtime `gpt-realtime-2` Mirror was replaced with the quiet ritual after local testing made the turn-taking voice agent feel like an interview rather than reflection. Trigger.dev cron was deleted from v0.1 — sense-making is now a manual button with a live agent-step visualization that doubles as the demo wow surface.
+## Agent Architecture
 
-See `docs/brainstorms/2026-05-08-quiet-mirror-pivot-requirements.md` for the full pivot rationale and `plans/2026-05-08-002-feat-quiet-mirror-pivot-plan.md` for the unit-by-unit implementation plan.
+The app uses three product-facing agents plus one eval/safety reviewer. Mirror is an OpenAI Realtime agent; Connector, Cartographer, and self-critique are Claude-backed managed agents. Persistence, verification, auth, and final policy decisions stay in application code.
+
+| Agent | Role | Trigger | Writes student-facing state? | Default model |
+|---|---|---|---|---|
+| Mirror | Reflect one recorded thought back to the student | During Student Space voice/typed capture | Indirectly: app persists its parsed output as a raw mirror entry | `gpt-realtime-2` via `OPENAI_REALTIME_MIRROR_MODEL` |
+| Connector | Link recent mirror entries into canonical VIPS pages | Manual `Run Connector` button or 18:00 Singapore scheduled pass | Yes, but only after deterministic verifier gates proposed links | `claude-sonnet-4-6` |
+| Cartographer | Synthesize verified VIPS state into Trajectory | Manual `Run sense-making` button | Yes, writes the trajectory view | `claude-sonnet-4-6` |
+| self_critique | Eval/safety reviewer for other agent outputs | Best-effort review after Mirror, Connector, or Cartographer drafts | No | `claude-haiku-4-5` |
+
+Realtime Mirror defaults live in `src/agents/openai-realtime/config.ts`. Claude managed-agent provisioning for Connector, Cartographer, and self-critique lives in `scripts/managed-agents/provision.ts`.
+
+### Handoff Flow
+
+1. The user records in the Student Space scene on `/`.
+2. The browser opens a server-brokered OpenAI Realtime WebRTC session; the standard OpenAI API key never reaches the browser.
+3. The app infers a closed context tag: `school`, `family`, `peer`, `hobby`, or `civic`.
+4. Mirror receives the live audio/typed transcript and returns `validation`, `inferred_meaning`, and `story_reframe`.
+5. `self_critique` reviews the Mirror draft for evidence grounding, safety, student agency, and specificity. This review is returned as `eval_review`; it does not block persistence.
+6. `persistMirror` writes the raw thought to `mirror_entries` in `pending` review state.
+7. Connector later runs from Library or the scheduled pass over recent unconnected reflections.
+8. Connector proposes VIPS timeline links and page rewrites across Values, Interests, Personality, and Skills.
+9. `self_critique` reviews the Connector draft for evidence grounding, taxonomy fit, safety, specificity, and sycophancy.
+10. The deterministic verifier gates every proposed timeline link before anything enters `vips_timeline_entries`.
+11. Verifier-passing `admitted` and `downgraded` entries become connected VIPS links. Dropped entries stay only in the audit payload in `vips_proposed_diffs`.
+12. Cartographer reads verified VIPS pages and timeline entries when the user clicks `Run sense-making`.
+13. `self_critique` reviews the Cartographer draft for evidence grounding, safety, student agency, specificity, sycophancy, and actionability.
+14. Cartographer writes `/library/trajectory` with a trajectory paragraph, 2-5 pathways, open questions, and a disclaimer.
+
+### Agent Boundaries
+
+Mirror creates the dot. It reflects one transcript without deciding a student identity, career path, or VIPS profile. It should stay validating, concrete, and non-diagnostic.
+
+Connector links dots into the mesh. It can propose VIPS claims only from observed evidence and the closed VIPS taxonomy. It does not invent free-text labels from external lists. The deterministic verifier is the hard gate before links are applied.
+
+Cartographer reads the connected mesh. It synthesizes direction-of-travel from verified VIPS state without inventing certainty, destiny, or prescriptive career advice.
+
+`self_critique` is the guardrail lens. It evaluates quality and safety, but it does not rewrite the full draft, create student-facing meaning, or persist state. It can flag safety and overclaiming even when the caller requested a narrower focus.
+
+### Eval Review Contract
+
+`self_critique` receives:
+
+- `agent`: `mirror`, `connector`, or `cartographer`
+- `draft`: JSON-serialized output from that agent
+- `focus`: review dimensions such as `evidence_grounding`, `taxonomy_fit`, `safety`, `student_agency`, `specificity`, `sycophancy`, or `actionability`
+- `source_context`: compact context such as transcript text, reflection metadata, VIPS page count, or verified timeline count
+
+It returns structured JSON with:
+
+- `verdict`: `pass`, `pass_with_warnings`, or `fail`
+- `risk_level`: `low`, `medium`, or `high`
+- `critique`: one concise paragraph
+- `findings`: categorized issues and recommendations
+- `suggestions`: concrete follow-up checks or revisions
+- `confidence`: `low`, `medium`, or `high`
+
+The eval call is best-effort. If the `self_critique` binding is missing or the managed-agent call fails, the app logs a warning and continues. Connector safety does not depend on eval alone; verified persistence still depends on deterministic checks.
+
+### Source Of Truth
+
+- Agent prompts: `src/agents/mirror.prompt.md`, `src/agents/connector.prompt.md`, `src/agents/cartographer.prompt.md`, `src/agents/self_critique.prompt.md`
+- Realtime Mirror runtime: `src/agents/openai-realtime/*`, `src/server/openai-realtime-mirror-session.handler.server.ts`, `src/lib/student-space/realtime-mirror-client.ts`
+- Managed-agent binding and version lookup: `src/agents/config.ts`
+- Managed-agent transport: `src/agents/runner.ts`
+- Eval runner: `src/agents/self-critique-eval.ts`
+- Agent and eval schemas: `src/agents/schemas.ts`, `src/agents/tools/schemas.ts`
+- VIPS taxonomy grounding: `docs/vips-taxonomy.md`, `src/data/vips-taxonomy.ts`, `src/agents/context/index.ts`
+- Deterministic Connector verifier: `src/agents/verifier.ts`
+- Runtime handoff handlers: `src/server/run-mirror.handler.server.ts`, `src/server/auto-connector.handler.server.ts`, `src/server/run-connector.handler.server.ts`, `src/server/run-cartographer.handler.server.ts`
+
+### Developer Debug Surface
+
+In development builds, the header includes an `agent debug` drawer that shows the current tab's last known Mirror, Connector, and Cartographer state: `idle`, `running`, `succeeded`, `queued`, `skipped`, or `failed`, with a short detail message and timestamp. This is developer-only and is not rendered in production builds.
 
 ## Setup
 
-Requires Node 20+, pnpm, and an OpenAI key.
+Requires Node 22+, pnpm, Postgres/Neon connection details, Anthropic Managed Agent bindings for Connector/Cartographer/self-critique, and an OpenAI API key for Mirror Realtime.
+
+Create `.env` with the environment variables your flow needs:
+
+```bash
+DATABASE_URL=...
+OPENAI_API_KEY=...
+OPENAI_REALTIME_MIRROR_MODEL=gpt-realtime-2
+
+MANAGED_AGENT_ENV_ID=...
+MANAGED_AGENT_CONNECTOR_ID=...
+MANAGED_AGENT_CARTOGRAPHER_ID=...
+MANAGED_AGENT_SELF_CRITIQUE_ID=...
+
+WORKOS_CLIENT_ID=...
+WORKOS_API_KEY=...
+WORKOS_REDIRECT_URI=http://localhost:3000/api/auth/callback
+WORKOS_COOKIE_PASSWORD=...
+
+CRON_SECRET=...
+```
+
+For local browser development without WorkOS, start the app and choose
+`profile` -> `use demo account`. That creates a same-origin demo session cookie
+for the seeded `demo-a` student.
+
+For non-browser server checks that cannot set the demo cookie, you can use the
+dev-only bypass instead:
+
+```bash
+DEV_BYPASS_AUTH=demo-a
+```
+
+Then run:
 
 ```bash
 pnpm install
-cp .env.example .env   # fill in OPENAI_API_KEY
-pnpm seed              # populate app.db with the v0.2 multi-student seed (3–5 students × 6–10 reflections)
-pnpm dev               # vite dev server on http://localhost:3000
+pnpm db:migrate
+pnpm seed
+pnpm dev
 ```
 
-If you see a schema mismatch warning on boot, that's the v0.1 → v0.2 schema reshape: the demo db is dropped and recreated automatically (no production data exists in v0.1).
+The dev server runs at `http://localhost:3000`.
 
-## Demo flow
-
-The v0.2 multi-student seed populates four students (`demo-a` … `demo-d`) with distinct emerging VIPS profiles (the helper, the seeker, the maker, the steady). v0.2 still hardcodes `STUDENT_ID = 'demo-a'` in the reflect/wiki routes — to demo a different student, edit the constant in `reflect.tsx`, `wiki.index.tsx`, `wiki.$dimension.tsx`, `wiki.trajectory.tsx`, and `wiki.$entryId.tsx`. A nav-level student picker is post-v0.2.
-
-1. `/` — landing.
-2. `/reflect` — click into the mirror. Allow camera + microphone. Look at yourself in the mirror, talk for ~60–90 seconds. The session is silent unless you stay quiet for the first 3 seconds, in which case one soft prompt appears: "Just talk to yourself, naturally."
-3. Press **Stop and reflect**. Whisper transcribes; Mirror agent reflects back as `validation` + `inferred_meaning` + `story_reframe`. You land on `/wiki/<id>` with all three fields editable.
-4. Repeat until your wiki has at least 3 reflections.
-5. `/wiki` — press **Run sense-making**. Watch the live agent chain:
-   - Connector lights up, calls `search_past_mirrors`, surfaces patterns.
-   - Cartographer lights up in its single-card view, calls `lookup_ecg_taxonomy`, returns trajectory + pathways.
-   - Final `ConnectorPatternCard`, `PathfinderTrajectoryCard`, `PathfinderPathwaysCard` render below (the wiki-card components are still named under the v0.1 `Pathfinder*` prefix while the v0.1 `pathfinder_outputs` table is kept through cutover).
-
-Pre-grant camera/microphone permissions for `localhost:3000` before the demo so the prompt doesn't break the flow.
-
-## Quality gates
+After changing managed-agent prompts or model defaults, update existing hosted agent versions with:
 
 ```bash
-pnpm check     # biome lint + tsc --noEmit
-pnpm test      # vitest run
-pnpm build     # production build
+pnpm provision:managed-agents -- --update-existing connector,cartographer
 ```
 
-## Ablation
+Connector now defaults to `claude-sonnet-4-6`; adaptive Haiku/Sonnet routing is a deferred cost optimization.
 
-Two independent ablations against the v0.2 multi-student seed corpus (3–5 students × 6–10 reflections at `test/ablation/fixtures/seed-multistudent.json`):
+## Demo Flow
+
+1. Open `/`.
+2. Use the voice button.
+3. Allow microphone access. No camera or video element is used.
+4. Talk for a short reflection, then stop.
+5. Realtime Mirror prepares Kira's reading; choose `Log` to save it or `Forget` to discard it.
+6. Review raw thoughts at `/library?filter=need-review`.
+7. Open `/library` to run Connector, inspect VIPS pages, and run Cartographer for Trajectory.
+
+## Quality Gates
 
 ```bash
-pnpm ablate:mirror                          # corpus search ON vs OFF for Mirror — cross-student union
-pnpm ablate:mirror -- --student=demo-a      # scope the Mirror ablation to a single student
-pnpm ablate:sensemake                       # full 3-tool surface ON vs OFF for Connector + Cartographer
-pnpm ablate:sensemake -- --student=demo-b   # per-student sense-making run
+pnpm check
+pnpm test
+pnpm build
 ```
 
-Reports land under `test/ablation/reports/` — per-student runs use the filename pattern `YYYY-MM-DD-<surface>-ablation-<student_id>.md`; the cross-student union run drops the suffix. v0.2 bar: 1–2 humans score 0–3 per dimension across five dimensions (provenance, specificity, novelty, anti-sycophancy, **parallax_discipline** — single-context claims correctly capped at low); ON beats OFF by ≥2 points across ≥3 dimensions to "pass."
+Useful focused commands:
+
+```bash
+pnpm smoke:mirror
+pnpm smoke:managed-connector
+pnpm smoke:managed-cartographer
+pnpm ablate:mirror
+pnpm ablate:sensemake
+```
 
 ## Layout
 
-```
+```text
 src/
-  routes/         # TanStack Router file-based routes
-  server/         # *.functions.ts — TanStack Start server fns
-  agents/         # Mirror, Connector, Cartographer + tools + handoff chain (sync + streamed)
-  db/             # better-sqlite3 schema + queries + seed
-  data/           # ecg-taxonomy.ts (~30 hand-curated SG entries)
-  components/     # MirrorSession, AgentRunVisualizer, WikiEntryCard, primitives
-test/             # vitest specs incl. test/ablation/
+  agents/       Realtime Mirror/Managed Agent prompts, schemas, runner, context builders
+  auth/         WorkOS, demo auth, identity helpers
+  components/   World Studio, review, library, and UI primitives
+  data/         VIPS and ECG taxonomy fixtures
+  db/           Drizzle schema, migrations, queries, seed
+  routes/       TanStack Router file routes and API routes
+  server/       Server function wrappers and handlers
+test/           Vitest specs and ablation fixtures/reports
+plans/          Planning artifacts and current state snapshot
 ```
 
-## License
+## Historical Plans
 
-MIT — see [LICENSE](LICENSE).
+Older plans remain in `plans/` for context, but several are superseded. Use `plans/CURRENT_STATE.md` as the entry point before executing old plan units.

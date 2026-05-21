@@ -152,7 +152,7 @@ export interface AgentRunStats {
 
 /**
  * Verifier verdict counters per-row. Sum over admitted, downgraded, and
- * the two drop reasons. `aspirational` is the subset of admitted+downgraded
+ * the drop reasons. `aspirational` is the subset of admitted+downgraded
  * that hit the parallax cap (R11). `claim_ids` is the set of
  * `canonical_claim_id` values that survived the verifier — used downstream
  * to compute claim-id frequency distribution.
@@ -162,6 +162,7 @@ export interface VerifierVerdictCounters {
   downgraded: number
   dropped_no_quote_match: number
   dropped_unknown_reflection: number
+  dropped_unknown_canonical_claim_id: number
   aspirational: number
   claim_ids: string[]
 }
@@ -172,6 +173,7 @@ export function zeroVerdictCounters(): VerifierVerdictCounters {
     downgraded: 0,
     dropped_no_quote_match: 0,
     dropped_unknown_reflection: 0,
+    dropped_unknown_canonical_claim_id: 0,
     aspirational: 0,
     claim_ids: [],
   }
@@ -208,7 +210,7 @@ export interface AgentTotals {
 }
 
 export interface AblationStructuredReport {
-  runner: 'openai' | 'managed'
+  runner: 'openai' | 'managed' | 'openai-realtime'
   surface: 'mirror' | 'sensemake'
   ran_at: string
   /** Model id that Mirror/Connector/Cartographer ran against (env-resolved). */
@@ -274,6 +276,7 @@ export function aggregateVerifierCounters(rows: PerFixtureRow[]): VerifierVerdic
     totals.downgraded += v.downgraded
     totals.dropped_no_quote_match += v.dropped_no_quote_match
     totals.dropped_unknown_reflection += v.dropped_unknown_reflection
+    totals.dropped_unknown_canonical_claim_id += v.dropped_unknown_canonical_claim_id
     totals.aspirational += v.aspirational
     totals.claim_ids.push(...v.claim_ids)
   }
@@ -295,7 +298,7 @@ export function buildClaimIdDistribution(rows: PerFixtureRow[]): Record<string, 
 }
 
 export interface BuildStructuredReportInput {
-  runner: 'openai' | 'managed'
+  runner: 'openai' | 'managed' | 'openai-realtime'
   surface: 'mirror' | 'sensemake'
   ran_at: string
   model: string

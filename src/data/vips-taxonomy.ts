@@ -22,6 +22,9 @@
  *     into the counsellor-facing 8 above; not a direct copy of Schwartz's
  *     19 — collapsed for v0.2 to keep the closed vocabulary tractable.
  *   - Costa & McCrae (NEO-PI-R) — Big5 E + N definitions.
+ *   - SkillsFuture Singapore Critical Core Skills — source-family reference
+ *     for Skills crosswalks; v0.2 keeps 6 compact student-facing skill
+ *     clusters instead of exposing the full CCS list as canonical IDs.
  *
  * Behavioral indicators are short phrases tied to behaviors a counsellor
  * could plausibly observe in reflections or 1:1 sessions; they are not
@@ -331,6 +334,26 @@ export const VIPS_TAXONOMY: VipsTaxonomyEntry[] = [
     ],
   },
 ]
+
+const VIPS_TAXONOMY_ID_BY_DIMENSION = new Map<VipsDimension, Set<string>>()
+
+for (const dimension of VIPS_DIMENSIONS) {
+  VIPS_TAXONOMY_ID_BY_DIMENSION.set(
+    dimension,
+    new Set(
+      VIPS_TAXONOMY.filter((entry) => entry.dimension === dimension).map((entry) => entry.id),
+    ),
+  )
+}
+
+export function isVipsDimension(value: string): value is VipsDimension {
+  return (VIPS_DIMENSIONS as readonly string[]).includes(value)
+}
+
+export function isKnownVipsTaxonomyId(opts: { dimension: string; id: string }): boolean {
+  if (!isVipsDimension(opts.dimension)) return false
+  return VIPS_TAXONOMY_ID_BY_DIMENSION.get(opts.dimension)?.has(opts.id) ?? false
+}
 
 export function lookupVipsTaxonomy(opts: {
   query: string

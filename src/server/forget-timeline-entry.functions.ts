@@ -1,8 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import {
-  forgetTimelineEntryHandler,
-  forgetTimelineEntryInputSchema,
-} from './forget-timeline-entry.handler.server'
+import { forgetTimelineEntryInputSchema } from './function-schemas'
 
 /**
  * U9 — wiki-side per-entry forget mutation. POST because it mutates server
@@ -13,4 +10,7 @@ import {
  */
 export const forgetTimelineEntry = createServerFn({ method: 'POST' })
   .inputValidator((raw: unknown) => forgetTimelineEntryInputSchema.parse(raw))
-  .handler(({ data }) => forgetTimelineEntryHandler(data))
+  .handler(async ({ data }) => {
+    const { forgetTimelineEntryHandler } = await import('./forget-timeline-entry.handler.server')
+    return forgetTimelineEntryHandler(data)
+  })

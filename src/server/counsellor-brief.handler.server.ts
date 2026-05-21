@@ -21,11 +21,10 @@
  * handing the data to the renderer; the same pattern is used by
  * `/wiki/trajectory` in `src/routes/wiki.trajectory.tsx`.
  */
-import { z } from 'zod'
 import type { CartographerOutputDraft } from '~/agents/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
-import { withStudent } from '~/db/client'
+import { type TenantContext, withStudent } from '~/db/client'
 import {
   latestCartographerOutput,
   listVipsPages,
@@ -34,12 +33,15 @@ import {
   type VipsTimelineEntryRow,
 } from '~/db/queries'
 import { renderCounsellorBrief } from '~/lib/counsellor-brief-renderer'
-
-export const counsellorBriefInputSchema = z.object({})
-export type CounsellorBriefInput = z.output<typeof counsellorBriefInputSchema>
+import { type CounsellorBriefInput, counsellorBriefInputSchema } from './function-schemas'
 
 export interface CounsellorBriefResult {
   markdown: string
+}
+
+export interface CounsellorBriefStatusResult {
+  unreadBriefCount: number
+  lastBriefId: number | null
 }
 
 export class CounsellorBriefError extends Error {
@@ -100,4 +102,23 @@ export async function counsellorBriefHandler(
     })
     return { markdown }
   })
+}
+
+export async function loadCounsellorBriefStatusHandler(
+  data: CounsellorBriefInput,
+): Promise<CounsellorBriefStatusResult> {
+  counsellorBriefInputSchema.parse(data)
+  const { studentId } = await requireCounselorContext()
+  return withStudent(studentId, (ctx) => loadCounsellorBriefStatusForStudent(studentId, { ctx }))
+}
+
+export async function loadCounsellorBriefStatusForStudent(
+  studentId: string,
+  opts: { ctx: TenantContext },
+): Promise<CounsellorBriefStatusResult> {
+  const latestBriefSource = await latestCartographerOutput(studentId, { ctx: opts.ctx })
+  return {
+    unreadBriefCount: 0,
+    lastBriefId: latestBriefSource?.id ?? null,
+  }
 }

@@ -48,6 +48,8 @@ export interface TenantContext {
   counselorId?: string
 }
 
+const DEMO_STUDENT_IDS = ['demo-a', 'demo-b', 'demo-c', 'demo-d'] as const
+
 let cachedPool: Pool | null = null
 let cachedDb: AppDatabase | null = null
 
@@ -171,12 +173,13 @@ export async function assertCounselorHasStudent(
 }
 
 /**
- * Look up the lowest-id studentId attached to the given counselor.
+ * Legacy helper for the future multi-student picker: look up the lowest-id
+ * studentId attached to the given counselor.
  * Returns `null` if the counselor has no rows in `counselor_students`.
  *
- * v0.2 uses this as the source of `activeStudentId` (deterministic; the
- * multi-student counselor picker is a follow-up PR per plan §16). Runs
- * outside `withStudent` because `counselor_students` has no RLS.
+ * WorkOS request handling does not use this to select the active student:
+ * real signed-in users always resolve to `personalStudentIdForCounselor`.
+ * Runs outside `withStudent` because `counselor_students` has no RLS.
  */
 export async function findFirstAttachedStudent(counselorId: string): Promise<string | null> {
   const db = getDb()
@@ -189,14 +192,49 @@ export async function findFirstAttachedStudent(counselorId: string): Promise<str
   return rows.rows[0]?.student_id ?? null
 }
 
+export function personalStudentIdForCounselor(counselorId: string): string {
+  if (!counselorId || counselorId.trim().length === 0) {
+    throw new Error('personalStudentIdForCounselor: counselorId is required')
+  }
+  return `workos:${counselorId.trim()}`
+}
+
 /**
- * Insert the four demo students for a newly-signed-in counselor. Idempotent.
- * Called from src/auth/middleware.ts on first sign-in.
+ * Real WorkOS users get a private, initially empty student namespace.
+ * Demo seed rows remain reachable only through the explicit demo/dev paths.
+ * If an older build attached demo rows to this WorkOS counselor, prune those
+ * stale rows so future picker work cannot accidentally surface demo data.
  */
+export async function attachCounselorToPersonalStudent(counselorId: string): Promise<string> {
+  const studentId = personalStudentIdForCounselor(counselorId)
+  const db = getDb()
+  await db.execute(
+    sql`insert into counselor_students (counselor_id, student_id)
+        values (${counselorId}, ${studentId})
+        on conflict (counselor_id, student_id) do nothing`,
+  )
+  await detachDemoStudentsFromRealCounselor(db, counselorId)
+  return studentId
+}
+
+async function detachDemoStudentsFromRealCounselor(
+  db: AppDatabase,
+  counselorId: string,
+): Promise<void> {
+  if (counselorId.startsWith('auth-bypass:')) return
+  for (const demoStudentId of DEMO_STUDENT_IDS) {
+    await db.execute(
+      sql`delete from counselor_students
+          where counselor_id = ${counselorId}
+            and student_id = ${demoStudentId}`,
+    )
+  }
+}
+
+/** Insert the four seeded demo students for a demo/dev counselor. Idempotent. */
 export async function attachCounselorToDemoStudents(counselorId: string): Promise<void> {
   const db = getDb()
-  const demoIds = ['demo-a', 'demo-b', 'demo-c', 'demo-d']
-  for (const studentId of demoIds) {
+  for (const studentId of DEMO_STUDENT_IDS) {
     await db.execute(
       sql`insert into counselor_students (counselor_id, student_id)
           values (${counselorId}, ${studentId})

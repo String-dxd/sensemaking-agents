@@ -1,7 +1,7 @@
 ---
 title: "feat: Sensemaking Agents — student reflection multi-agent app"
 type: feat
-status: active
+status: superseded
 date: 2026-05-08
 origin: ~/Downloads/plan (4).md
 scope_contract: docs/brainstorms/2026-05-08-sensemaking-agents-loop-premise-check.md
@@ -9,6 +9,8 @@ scope_contract: docs/brainstorms/2026-05-08-sensemaking-agents-loop-premise-chec
 
 # feat: Sensemaking Agents — student reflection multi-agent app
 
+> **Current status (2026-05-13):** Superseded historical product plan. The current repo state is tracked in `plans/CURRENT_STATE.md`; the implemented line of work has moved through VIPS Wiki Pivot, Managed Agents, and World Studio.
+>
 > **Target repo:** standalone at `~/Developer/sensemaking-agents/app/`. Pivot 2026-05-08 from the prior voice-wiki plan (now archived at `plans/_archive/voice-wiki.md`); much of the multi-agent and structured-output thinking survives, but audience, frontend, time horizon, and architecture have all moved.
 >
 > **Scope contract:** the durable v0.1 scope and architecture decisions live in `docs/brainstorms/2026-05-08-sensemaking-agents-loop-premise-check.md`. This plan inherits from that doc and elaborates HOW v0.1 ships. Where the two disagree, the brainstorm wins; this plan is updated to match.

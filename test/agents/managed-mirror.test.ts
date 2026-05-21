@@ -131,6 +131,24 @@ describe('U6 runManagedAgent — happy path', () => {
     })
     expect(result.output.validation).toMatch(/stayed long enough/)
   })
+
+  it('extracts JSON from wrapper text when the fence is not closed cleanly', async () => {
+    const transport = makeFakeTransport([
+      {
+        type: 'agent.message',
+        text: `\`\`\`json\n${VALID_MIRROR_JSON}\n\nI will stop here.`,
+      },
+      { type: 'session.status_idle', stopReason: 'end_turn' },
+    ])
+    const result = await runManagedAgent({
+      agentId: 'agt_mirror',
+      environmentId: 'env_x',
+      prompt: 'p',
+      outputSchema: MirrorOutputSchema,
+      transport,
+    })
+    expect(result.output.story_reframe).toContain('afternoon slipped')
+  })
 })
 
 describe('U6 runManagedAgent — failure modes', () => {
@@ -298,8 +316,8 @@ describe('U6 runManagedAgent — failure modes', () => {
 describe('getManagedAgentBinding', () => {
   const SAVED_ENV = { ...process.env }
   beforeEach(() => {
-    delete process.env.MANAGED_AGENT_MIRROR_ID
-    delete process.env.MANAGED_AGENT_MIRROR_VERSION
+    delete process.env.MANAGED_AGENT_CONNECTOR_ID
+    delete process.env.MANAGED_AGENT_CONNECTOR_VERSION
     delete process.env.MANAGED_AGENT_ENV_ID
   })
   afterEach(() => {
@@ -312,34 +330,34 @@ describe('getManagedAgentBinding', () => {
   })
 
   it('reads MANAGED_AGENT_<NAME>_ID + _VERSION + MANAGED_AGENT_ENV_ID', async () => {
-    process.env.MANAGED_AGENT_MIRROR_ID = 'agt_mirror_abc'
-    process.env.MANAGED_AGENT_MIRROR_VERSION = '3'
+    process.env.MANAGED_AGENT_CONNECTOR_ID = 'agt_connector_abc'
+    process.env.MANAGED_AGENT_CONNECTOR_VERSION = '3'
     process.env.MANAGED_AGENT_ENV_ID = 'env_xyz'
     const { getManagedAgentBinding } = await import('~/agents/config')
-    expect(getManagedAgentBinding('mirror')).toEqual({
-      agentId: 'agt_mirror_abc',
+    expect(getManagedAgentBinding('connector')).toEqual({
+      agentId: 'agt_connector_abc',
       agentVersion: 3,
       environmentId: 'env_xyz',
     })
   })
 
   it('agentVersion is undefined when MANAGED_AGENT_<NAME>_VERSION is unset (pins to latest server-side)', async () => {
-    process.env.MANAGED_AGENT_MIRROR_ID = 'agt_mirror_abc'
+    process.env.MANAGED_AGENT_CONNECTOR_ID = 'agt_connector_abc'
     process.env.MANAGED_AGENT_ENV_ID = 'env_xyz'
     const { getManagedAgentBinding } = await import('~/agents/config')
-    const b = getManagedAgentBinding('mirror')
+    const b = getManagedAgentBinding('connector')
     expect(b.agentVersion).toBeUndefined()
   })
 
   it('throws when MANAGED_AGENT_<NAME>_ID is missing', async () => {
     process.env.MANAGED_AGENT_ENV_ID = 'env_xyz'
     const { getManagedAgentBinding } = await import('~/agents/config')
-    expect(() => getManagedAgentBinding('mirror')).toThrow(/MANAGED_AGENT_MIRROR_ID/)
+    expect(() => getManagedAgentBinding('connector')).toThrow(/MANAGED_AGENT_CONNECTOR_ID/)
   })
 
   it('throws when MANAGED_AGENT_ENV_ID is missing', async () => {
-    process.env.MANAGED_AGENT_MIRROR_ID = 'agt_mirror_abc'
+    process.env.MANAGED_AGENT_CONNECTOR_ID = 'agt_connector_abc'
     const { getManagedAgentBinding } = await import('~/agents/config')
-    expect(() => getManagedAgentBinding('mirror')).toThrow(/MANAGED_AGENT_ENV_ID/)
+    expect(() => getManagedAgentBinding('connector')).toThrow(/MANAGED_AGENT_ENV_ID/)
   })
 })

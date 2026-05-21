@@ -1,14 +1,7 @@
-import { z } from 'zod'
 import { executeSearchPastMirrors } from '~/agents/tools/search-corpus.server'
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudentLegacy } from '~/server/tenancy.server'
-
-export const searchPastMirrorsInputSchema = z.object({
-  query: z.string().min(1),
-  limit: z.number().int().min(1).max(20).optional(),
-})
-
-export type SearchPastMirrorsServerInput = z.output<typeof searchPastMirrorsInputSchema>
+import { type SearchPastMirrorsServerInput, searchPastMirrorsInputSchema } from './function-schemas'
 
 export async function searchPastMirrorsHandler(data: SearchPastMirrorsServerInput) {
   const parsed = searchPastMirrorsInputSchema.parse(data)

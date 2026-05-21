@@ -9,7 +9,8 @@
       "!**/routeTree.gen.ts",
       "!**/.output/**",
       "!**/dist/**",
-      "!**/node_modules/**"
+      "!**/node_modules/**",
+      "!src/engine/student-space/**"
     ]
   },
   "css": {

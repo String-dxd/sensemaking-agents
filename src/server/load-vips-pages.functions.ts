@@ -1,5 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
-import { loadVipsPagesHandler, loadVipsPagesInputSchema } from './load-vips-pages.handler.server'
+import { loadVipsPagesInputSchema } from './function-schemas'
 
 /**
  * U9 — fetch the four VIPS pages + non-forgotten timeline entries for the
@@ -9,4 +9,7 @@ import { loadVipsPagesHandler, loadVipsPagesInputSchema } from './load-vips-page
  */
 export const loadVipsPages = createServerFn({ method: 'GET' })
   .inputValidator((raw: unknown) => loadVipsPagesInputSchema.parse(raw))
-  .handler(({ data }) => loadVipsPagesHandler(data))
+  .handler(async ({ data }) => {
+    const { loadVipsPagesHandler } = await import('./load-vips-pages.handler.server')
+    return loadVipsPagesHandler(data)
+  })

@@ -1,44 +1,63 @@
 import { forwardRef, type ReactNode } from 'react'
 import { cn } from '~/lib/utils'
+import type { WorldHotspot } from './world/hotspots'
+import type { VipsWorldSceneModel } from './world/vipsWorldMapping'
+import { WorldScene, type WorldSceneInteractionEvent } from './world/WorldScene'
+import type { WorldEnvironmentControls } from './world/worldStyle'
 
 export interface WorldStageProps {
   /** HUD content rendered above the stage (Studio pill, Voice button, etc.). */
   children?: ReactNode
   /** Optional extra classes for the stage root. */
   className?: string
+  /** Triggered when the prompt bird is selected. */
+  onVoicePromptSelect?: () => void
+  /** Lets TanStack routes handle world hotspot links without a page reload. */
+  onHotspotNavigate?: (href: string, hotspot: WorldHotspot) => void
+  /** Backend-ready seam for future world interaction analytics/wiring. */
+  onWorldInteraction?: (event: WorldSceneInteractionEvent) => void
+  /** Plain scene descriptor rendered by the decorative Three.js layer. */
+  sceneModel?: VipsWorldSceneModel
+  /** Student Space-inspired time and weather controls for the scene layer. */
+  environmentControls?: WorldEnvironmentControls
 }
 
 /**
- * Placeholder world-stage surface. Renders a solid color with a quiet
- * label as a clearly non-final visual; the real threejs scene replaces
- * the internals in a follow-up plan without changing this component's
- * external API.
- *
- * The forwarded ref points at the stage root so a future canvas mount has
- * a stable target. Empty in this plan.
+ * World-stage surface. Three.js owns only the decorative island layer;
+ * React children remain the actionable HUD above it.
  */
 export const WorldStage = forwardRef<HTMLDivElement, WorldStageProps>(function WorldStage(
-  { children, className },
+  {
+    children,
+    className,
+    environmentControls,
+    onHotspotNavigate,
+    onVoicePromptSelect,
+    onWorldInteraction,
+    sceneModel,
+  },
   ref,
 ) {
   return (
     <div
       ref={ref}
       data-testid="world-stage"
-      data-placeholder="true"
+      data-placeholder="false"
+      data-fullscreen="true"
       className={cn(
-        'relative isolate w-full overflow-hidden rounded-2xl border border-border/40',
-        'min-h-[60vh] bg-muted',
+        'relative isolate w-full overflow-hidden',
+        'min-h-svh bg-transparent',
         className,
       )}
     >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.2em] text-muted-foreground/60"
-      >
-        world
-      </span>
-      {children}
+      <WorldScene
+        environmentControls={environmentControls}
+        model={sceneModel}
+        onHotspotNavigate={onHotspotNavigate}
+        onVoicePromptSelect={onVoicePromptSelect}
+        onWorldInteraction={onWorldInteraction}
+      />
+      <div className="pointer-events-none absolute inset-0 z-10">{children}</div>
     </div>
   )
 })

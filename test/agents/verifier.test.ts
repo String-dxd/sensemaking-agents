@@ -24,7 +24,7 @@ const baseMirror: VerifierMirrorEntry = {
 function draft(overrides: Partial<ProposedTimelineEntryDraft> = {}): ProposedTimelineEntryDraft {
   return {
     dimension: 'values',
-    canonical_claim_id: 'V.SELF_DIRECTION',
+    canonical_claim_id: 'values.independence',
     verbatim_quote: 'i hated when teacher told us exactly what to do',
     reflection_id: 101,
     strength: 'medium',
@@ -216,7 +216,7 @@ function existingEntry(
   return {
     id: 1,
     dimension: 'values',
-    canonical_claim_id: 'V.SELF_DIRECTION',
+    canonical_claim_id: 'values.independence',
     parallax_tag: ['school'],
     forgotten_at: null,
     committed_at: '2026-05-01 10:00:00',
@@ -286,14 +286,16 @@ describe('structural reinforces (A5)', () => {
   it('one prior non-forgotten same-page same-claim entry → reinforces_id = that entry', () => {
     const result = verifyProposedDiff({
       diff: {
-        timeline_entries: [draft({ dimension: 'values', canonical_claim_id: 'V.SELF_DIRECTION' })],
+        timeline_entries: [
+          draft({ dimension: 'values', canonical_claim_id: 'values.independence' }),
+        ],
       },
       mirrorEntry: baseMirror,
       existingTimelineEntries: [
         existingEntry({
           id: 77,
           dimension: 'values',
-          canonical_claim_id: 'V.SELF_DIRECTION',
+          canonical_claim_id: 'values.independence',
           forgotten_at: null,
         }),
       ],
@@ -305,14 +307,16 @@ describe('structural reinforces (A5)', () => {
   it('only prior entry is forgotten → reinforces_id = null (R19 filter)', () => {
     const result = verifyProposedDiff({
       diff: {
-        timeline_entries: [draft({ dimension: 'values', canonical_claim_id: 'V.SELF_DIRECTION' })],
+        timeline_entries: [
+          draft({ dimension: 'values', canonical_claim_id: 'values.independence' }),
+        ],
       },
       mirrorEntry: baseMirror,
       existingTimelineEntries: [
         existingEntry({
           id: 77,
           dimension: 'values',
-          canonical_claim_id: 'V.SELF_DIRECTION',
+          canonical_claim_id: 'values.independence',
           forgotten_at: '2026-05-02 09:00:00',
         }),
       ],
@@ -324,23 +328,25 @@ describe('structural reinforces (A5)', () => {
   it('picks most-recent non-forgotten by committed_at desc', () => {
     const result = verifyProposedDiff({
       diff: {
-        timeline_entries: [draft({ dimension: 'values', canonical_claim_id: 'V.SELF_DIRECTION' })],
+        timeline_entries: [
+          draft({ dimension: 'values', canonical_claim_id: 'values.independence' }),
+        ],
       },
       mirrorEntry: baseMirror,
       existingTimelineEntries: [
         existingEntry({
           id: 50,
-          canonical_claim_id: 'V.SELF_DIRECTION',
+          canonical_claim_id: 'values.independence',
           committed_at: '2026-05-01 09:00:00',
         }),
         existingEntry({
           id: 51,
-          canonical_claim_id: 'V.SELF_DIRECTION',
+          canonical_claim_id: 'values.independence',
           committed_at: '2026-05-03 09:00:00',
         }),
         existingEntry({
           id: 52,
-          canonical_claim_id: 'V.SELF_DIRECTION',
+          canonical_claim_id: 'values.independence',
           committed_at: '2026-05-02 09:00:00',
         }),
       ],
@@ -351,12 +357,18 @@ describe('structural reinforces (A5)', () => {
   it('ignores entries on a different dimension or different canonical claim id', () => {
     const result = verifyProposedDiff({
       diff: {
-        timeline_entries: [draft({ dimension: 'values', canonical_claim_id: 'V.SELF_DIRECTION' })],
+        timeline_entries: [
+          draft({ dimension: 'values', canonical_claim_id: 'values.independence' }),
+        ],
       },
       mirrorEntry: baseMirror,
       existingTimelineEntries: [
-        existingEntry({ id: 60, dimension: 'interests', canonical_claim_id: 'V.SELF_DIRECTION' }),
-        existingEntry({ id: 61, dimension: 'values', canonical_claim_id: 'V.OTHER' }),
+        existingEntry({
+          id: 60,
+          dimension: 'interests',
+          canonical_claim_id: 'values.independence',
+        }),
+        existingEntry({ id: 61, dimension: 'values', canonical_claim_id: 'values.contribution' }),
       ],
     })
     expect(result.admitted[0]?.reinforces_id).toBe(null)
@@ -365,6 +377,45 @@ describe('structural reinforces (A5)', () => {
 
 // ── error path ────────────────────────────────────────────────────────────
 describe('error path', () => {
+  it('matching quote with invented canonical_claim_id → dropped with unknown_canonical_claim_id', () => {
+    const result = verifyProposedDiff({
+      diff: {
+        timeline_entries: [draft({ canonical_claim_id: 'values.nope' })],
+      },
+      mirrorEntry: baseMirror,
+      existingTimelineEntries: [],
+    })
+    expect(result.admitted).toHaveLength(0)
+    expect(result.downgraded).toHaveLength(0)
+    expect(result.dropped).toHaveLength(1)
+    expect(result.dropped[0]?.reason).toBe('unknown_canonical_claim_id')
+  })
+
+  it('known canonical_claim_id under wrong dimension → dropped with unknown_canonical_claim_id', () => {
+    const result = verifyProposedDiff({
+      diff: {
+        timeline_entries: [draft({ dimension: 'values', canonical_claim_id: 'skills.analytical' })],
+      },
+      mirrorEntry: baseMirror,
+      existingTimelineEntries: [],
+    })
+    expect(result.admitted).toHaveLength(0)
+    expect(result.dropped).toHaveLength(1)
+    expect(result.dropped[0]?.reason).toBe('unknown_canonical_claim_id')
+  })
+
+  it('invalid canonical_claim_id does not compute reinforces_id even when prior invented ID exists', () => {
+    const result = verifyProposedDiff({
+      diff: {
+        timeline_entries: [draft({ canonical_claim_id: 'values.nope' })],
+      },
+      mirrorEntry: baseMirror,
+      existingTimelineEntries: [existingEntry({ id: 99, canonical_claim_id: 'values.nope' })],
+    })
+    expect(result.dropped).toHaveLength(1)
+    expect(result.dropped[0]?.entry).not.toHaveProperty('reinforces_id')
+  })
+
   it('cited reflection_id ≠ mirrorEntry.id → entry dropped, reason unknown_reflection', () => {
     const result = verifyProposedDiff({
       diff: {
@@ -397,7 +448,7 @@ describe('schema & integration shape', () => {
       existingTimelineEntries: [
         existingEntry({
           id: 200,
-          canonical_claim_id: 'V.SELF_DIRECTION',
+          canonical_claim_id: 'values.independence',
           parallax_tag: ['peer'],
         }),
       ],

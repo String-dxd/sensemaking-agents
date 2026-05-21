@@ -1,25 +1,14 @@
-import { z } from 'zod'
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudent } from '~/db/client'
-import {
-  type CartographerOutputRow,
-  latestCartographerOutput,
-  listVipsProposedDiffs,
-} from '~/db/queries'
-
-export const loadTrajectoryInputSchema = z.object({})
-export type LoadTrajectoryInput = z.output<typeof loadTrajectoryInputSchema>
+import { type CartographerOutputRow, latestCartographerOutput } from '~/db/queries'
+import { type LoadTrajectoryInput, loadTrajectoryInputSchema } from './function-schemas'
 
 /**
  * `/wiki/trajectory` loader data.
  *
- * `pending_diff_present` is the R30 carry-forward: when a pending
- * `vips_proposed_diffs` row exists, F2 (the manual Run-sense-making
- * surface) defers to F1's post-mirror review path. The route uses this
- * flag to redirect to `/reflect/review`. U8 owns the dedicated
- * `loadPendingReview` server fn that returns the row contents; here we
- * only check presence so this loader can compose against the queries
- * surface without a U8 import dependency.
+ * `pending_diff_present` remains for legacy callers. Connector now verifies
+ * and applies links itself, so pending proposed-diff rows no longer block
+ * Trajectory.
  */
 export interface LoadTrajectoryResult {
   trajectory: CartographerOutputRow | null
@@ -32,11 +21,10 @@ export async function loadTrajectoryHandler(
   loadTrajectoryInputSchema.parse(data)
   const { studentId } = await requireCounselorContext()
   return withStudent(studentId, async (ctx) => {
-    const pending = await listVipsProposedDiffs(studentId, { status: 'pending', ctx })
     const trajectory = await latestCartographerOutput(studentId, { ctx })
     return {
       trajectory,
-      pending_diff_present: pending.length > 0,
+      pending_diff_present: false,
     }
   })
 }

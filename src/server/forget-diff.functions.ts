@@ -1,6 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import { forgetDiffHandler, forgetDiffInputSchema } from './forget-diff.handler.server'
+import { forgetDiffInputSchema } from './function-schemas'
 
 export const forgetDiff = createServerFn({ method: 'POST' })
   .inputValidator((raw: unknown) => forgetDiffInputSchema.parse(raw))
-  .handler(({ data }) => forgetDiffHandler(data))
+  .handler(async ({ data }) => {
+    const { forgetDiffHandler } = await import('./forget-diff.handler.server')
+    return forgetDiffHandler(data)
+  })

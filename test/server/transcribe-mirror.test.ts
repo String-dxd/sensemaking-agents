@@ -6,6 +6,10 @@ import {
 
 describe('transcribeMirrorHandler', () => {
   it('returns the transcript text plus a duration on success', async () => {
+    const authenticate = vi.fn(async () => ({
+      counselorId: 'auth-bypass:demo-a',
+      studentId: 'demo-a',
+    }))
     const client = {
       audio: {
         transcriptions: {
@@ -19,19 +23,23 @@ describe('transcribeMirrorHandler', () => {
         mimeType: 'audio/webm',
       },
       // biome-ignore lint/suspicious/noExplicitAny: test seam
-      { client: client as any },
+      { authenticate, client: client as any },
     )
     expect(out.transcript).toMatch(/robotics/)
     expect(out.durationMs).toBeGreaterThanOrEqual(0)
+    expect(authenticate).toHaveBeenCalledOnce()
     expect(client.audio.transcriptions.create).toHaveBeenCalledOnce()
   })
 
   it('rejects an empty audio blob with EMPTY_AUDIO', async () => {
     await expect(
-      transcribeMirrorHandler({
-        audioBase64: '',
-        mimeType: 'audio/webm',
-      }),
+      transcribeMirrorHandler(
+        {
+          audioBase64: '',
+          mimeType: 'audio/webm',
+        },
+        { authenticate: vi.fn(async () => ({ counselorId: 'auth-bypass:demo-a' })) },
+      ),
     ).rejects.toThrow()
     // empty string fails Zod min(1) before reaching the buffer check; that's fine.
   })
@@ -39,14 +47,21 @@ describe('transcribeMirrorHandler', () => {
   it('rejects audio over 25 MB with TOO_LARGE', async () => {
     const huge = Buffer.alloc(26 * 1024 * 1024).toString('base64')
     await expect(
-      transcribeMirrorHandler({
-        audioBase64: huge,
-        mimeType: 'audio/webm',
-      }),
+      transcribeMirrorHandler(
+        {
+          audioBase64: huge,
+          mimeType: 'audio/webm',
+        },
+        { authenticate: vi.fn(async () => ({ counselorId: 'auth-bypass:demo-a' })) },
+      ),
     ).rejects.toMatchObject({ code: 'TOO_LARGE' })
   })
 
   it('wraps upstream OpenAI failures as WhisperTranscriptionError', async () => {
+    const authenticate = vi.fn(async () => ({
+      counselorId: 'auth-bypass:demo-a',
+      studentId: 'demo-a',
+    }))
     const client = {
       audio: {
         transcriptions: {
@@ -65,13 +80,39 @@ describe('transcribeMirrorHandler', () => {
           mimeType: 'audio/webm',
         },
         // biome-ignore lint/suspicious/noExplicitAny: test seam
-        { client: client as any },
+        { authenticate, client: client as any },
       ),
     ).rejects.toMatchObject({
       name: 'WhisperTranscriptionError',
       code: 'UPSTREAM',
       upstreamStatus: 429,
     })
+    expect(authenticate).toHaveBeenCalledOnce()
+  })
+
+  it('rejects unauthenticated callers before touching audio or OpenAI', async () => {
+    const authenticate = vi.fn(async () => {
+      throw new Error('not authenticated')
+    })
+    const client = {
+      audio: {
+        transcriptions: {
+          create: vi.fn(),
+        },
+      },
+    }
+
+    await expect(
+      transcribeMirrorHandler(
+        {
+          audioBase64: Buffer.from('audio').toString('base64'),
+          mimeType: 'audio/webm',
+        },
+        // biome-ignore lint/suspicious/noExplicitAny: test seam
+        { authenticate, client: client as any },
+      ),
+    ).rejects.toThrow('not authenticated')
+    expect(client.audio.transcriptions.create).not.toHaveBeenCalled()
   })
 
   it('the WhisperTranscriptionError class carries a name and code', () => {

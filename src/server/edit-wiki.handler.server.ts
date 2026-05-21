@@ -1,16 +1,7 @@
-import { z } from 'zod'
-import { MirrorEditableField } from '~/agents/schemas'
 import { requireCounselorContext } from '~/auth/identity'
 import { type MirrorEntryRow, updateMirrorEntryFields } from '~/db/queries'
 import { checkOutputForDiagnosticLanguage } from '~/lib/safety'
-
-export const editMirrorFieldInputSchema = z.object({
-  entryId: z.number().int().positive(),
-  field: MirrorEditableField,
-  value: z.string().min(1),
-})
-
-export type EditMirrorFieldInput = z.output<typeof editMirrorFieldInputSchema>
+import { type EditMirrorFieldInput, editMirrorFieldInputSchema } from './mirror-function-schemas'
 
 export class EditValidationError extends Error {
   constructor(message: string) {

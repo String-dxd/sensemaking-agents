@@ -10,7 +10,6 @@
  * `withStudent` from `~/db/client`) so the timeline insert + page upsert
  * + payload mutation + (possibly) status flip succeed or fail atomically.
  */
-import { z } from 'zod'
 import { requireCounselorContext } from '~/auth/identity'
 import { withStudent } from '~/db/client'
 import {
@@ -33,14 +32,7 @@ import {
   type ReviewableAnnotatedEntry,
   type ReviewPayload,
 } from '~/server/review-payload-shape'
-
-export const confirmDiffInputSchema = z.object({
-  diffId: z.number().int().positive(),
-  /** Stable per-entry handle — see `buildReviewEntryId`. */
-  entryId: z.string().min(1),
-})
-
-export type ConfirmDiffInput = z.output<typeof confirmDiffInputSchema>
+import { type ConfirmDiffInput, confirmDiffInputSchema } from './function-schemas'
 
 export class ConfirmDiffError extends Error {
   constructor(message: string) {
@@ -65,6 +57,16 @@ export interface ConfirmDiffResult {
   }
 }
 
+export interface ConfirmDiffDeps {
+  requireContext?: typeof requireCounselorContext
+  withStudent?: typeof withStudent
+  getVipsProposedDiff?: typeof getVipsProposedDiff
+  insertVipsTimelineEntry?: typeof insertVipsTimelineEntry
+  updateVipsProposedDiffPayload?: typeof updateVipsProposedDiffPayload
+  updateVipsProposedDiffStatus?: typeof updateVipsProposedDiffStatus
+  upsertVipsPage?: typeof upsertVipsPage
+}
+
 /**
  * Returns the matching guard for a dimension. Personality uses the
  * stricter rewrite-aware patterns (U7) because the third-person voice
@@ -78,11 +80,16 @@ function checkCompiledTruthForDimension(dimension: string, text: string): Safety
   return checkOutputForDiagnosticLanguage(text)
 }
 
-export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<ConfirmDiffResult> {
+export async function confirmDiffHandler(
+  data: ConfirmDiffInput,
+  deps: ConfirmDiffDeps = {},
+): Promise<ConfirmDiffResult> {
   const parsed = confirmDiffInputSchema.parse(data)
-  const { studentId } = await requireCounselorContext()
-  return withStudent(studentId, async (ctx) => {
-    const row = await getVipsProposedDiff(studentId, parsed.diffId, { ctx })
+  const { studentId } = await (deps.requireContext ?? requireCounselorContext)()
+  return (deps.withStudent ?? withStudent)(studentId, async (ctx) => {
+    const row = await (deps.getVipsProposedDiff ?? getVipsProposedDiff)(studentId, parsed.diffId, {
+      ctx,
+    })
     if (!row) throw new ConfirmDiffError(`Staged diff ${parsed.diffId} not found`)
     if (row.status !== 'pending') {
       throw new ConfirmDiffError(
@@ -120,7 +127,7 @@ export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<Confir
     // canonical_claim_id / verbatim_quote / reflection_id came from
     // the agent's draft and survived the verifier gate (admitted or
     // downgraded).
-    await insertVipsTimelineEntry(
+    await (deps.insertVipsTimelineEntry ?? insertVipsTimelineEntry)(
       studentId,
       {
         dimension,
@@ -171,7 +178,7 @@ export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<Confir
         )
         compiled_truth_safety_skip = { dimension, matches: safety.matches }
       } else {
-        await upsertVipsPage(
+        await (deps.upsertVipsPage ?? upsertVipsPage)(
           studentId,
           {
             dimension,
@@ -186,7 +193,12 @@ export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<Confir
     // Mutate the in-payload resolution flag and persist it.
     entry.resolved = 'confirmed'
     const updated =
-      (await updateVipsProposedDiffPayload(studentId, parsed.diffId, payload, { ctx })) ?? row
+      (await (deps.updateVipsProposedDiffPayload ?? updateVipsProposedDiffPayload)(
+        studentId,
+        parsed.diffId,
+        payload,
+        { ctx },
+      )) ?? row
 
     // If this was the last unresolved entry across all dimensions in
     // the diff, flip the staging row's status to 'confirmed' and stamp
@@ -195,9 +207,12 @@ export async function confirmDiffHandler(data: ConfirmDiffInput): Promise<Confir
     // *reviewed* — see forget-diff.handler.server.ts for the parallel
     // rule.
     if (allEntriesResolved(payload)) {
-      const finalRow = await updateVipsProposedDiffStatus(studentId, parsed.diffId, 'confirmed', {
-        ctx,
-      })
+      const finalRow = await (deps.updateVipsProposedDiffStatus ?? updateVipsProposedDiffStatus)(
+        studentId,
+        parsed.diffId,
+        'confirmed',
+        { ctx },
+      )
       return { diff: finalRow ?? updated, compiled_truth_safety_skip }
     }
     return { diff: updated, compiled_truth_safety_skip }

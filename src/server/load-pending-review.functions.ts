@@ -1,9 +1,9 @@
 import { createServerFn } from '@tanstack/react-start'
-import {
-  loadPendingReviewHandler,
-  loadPendingReviewInputSchema,
-} from './load-pending-review.handler.server'
+import { loadPendingReviewInputSchema } from './function-schemas'
 
 export const loadPendingReview = createServerFn({ method: 'GET' })
   .inputValidator((raw: unknown) => loadPendingReviewInputSchema.parse(raw))
-  .handler(({ data }) => loadPendingReviewHandler(data))
+  .handler(async ({ data }) => {
+    const { loadPendingReviewHandler } = await import('./load-pending-review.handler.server')
+    return loadPendingReviewHandler(data)
+  })

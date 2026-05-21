@@ -9,6 +9,7 @@ import { sql } from 'drizzle-orm'
 import {
   bigint,
   bigserial,
+  boolean,
   check,
   customType,
   foreignKey,
@@ -514,6 +515,84 @@ export const studentMemoryFiles = pgTable(
   (t) => [
     primaryKey({ columns: [t.studentId, t.filePath] }),
     pgPolicy('student_memory_files_rls', {
+      as: 'permissive',
+      for: 'all',
+      to: 'public',
+      using: RLS_STUDENT_PREDICATE,
+      withCheck: RLS_STUDENT_PREDICATE,
+    }),
+  ],
+).enableRLS()
+
+// ---------------------------------------------------------------------------
+// vips_share_tokens — public-share token rows. One row per minted link; revoke
+// is soft (sets revoked_at). The public route looks up tokens via a hand-
+// authored SECURITY DEFINER function (`share_token_resolve`) appended to the
+// migration SQL — see docs/plans/2026-05-18-005-feat-profile-redesign-share-plan.md
+// U2. Drizzle generates the table + RLS; the function is hand-authored
+// because Drizzle Kit does not emit SECURITY DEFINER functions.
+//
+// No counselor bypass — students-only on insert/update. The RLS policy uses
+// the same GUC-equality predicate as every other student-scoped table.
+// ---------------------------------------------------------------------------
+
+export const vipsShareTokens = pgTable(
+  'vips_share_tokens',
+  {
+    token: text('token').primaryKey(),
+    studentId: text('student_id').notNull(),
+    showQuotes: boolean('show_quotes').notNull().default(false),
+    // Sanitised display name frozen at insert time, sourced from WorkOS
+    // profile fields via `sanitizeNameSnapshot()` in src/lib/share-token.ts.
+    // Never updated post-insert — the snapshot is part of the link's identity.
+    nameSnapshot: text('name_snapshot').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'string' }),
+  },
+  (t) => [
+    index('idx_vips_share_tokens_student').on(t.studentId),
+    pgPolicy('vips_share_tokens_rls', {
+      as: 'permissive',
+      for: 'all',
+      to: 'public',
+      using: RLS_STUDENT_PREDICATE,
+      withCheck: RLS_STUDENT_PREDICATE,
+    }),
+  ],
+).enableRLS()
+
+// ---------------------------------------------------------------------------
+// vips_island_snapshots — periodic server-side snapshots of the engine's
+// Sprouts slice payload, for the year-over-year growth timelapse.
+//
+// Today the engine's `Sprouts.bloomedTrees` lives in localStorage only — wipe
+// local state and the island resets to its seed. A timelapse over years
+// requires server-authoritative history, so this table starts logging now;
+// the growth view falls back to claim-history synthesis for any year before
+// snapshotting began. See docs/plans/2026-05-19-001-feat-year-over-year-
+// growth-monitoring-plan.md U2 + U5.
+//
+// `payload_json` is the verbatim output of `Sprouts.serialize()` — slice
+// owns the shape, the migration row is a transport container. No projection,
+// no per-row tables for individual bloomed trees: that would couple the
+// schema to the engine's evolving in-memory model.
+// ---------------------------------------------------------------------------
+
+export const vipsIslandSnapshots = pgTable(
+  'vips_island_snapshots',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    studentId: text('student_id').notNull(),
+    capturedAt: timestamp('captured_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    payloadJson: text('payload_json').notNull(),
+  },
+  (t) => [
+    index('idx_vips_island_snapshots_student').on(t.studentId, t.capturedAt.desc()),
+    pgPolicy('vips_island_snapshots_rls', {
       as: 'permissive',
       for: 'all',
       to: 'public',

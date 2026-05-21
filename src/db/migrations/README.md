@@ -9,7 +9,7 @@ This folder holds Drizzle-Kit-generated migration SQL plus its tracking metadata
    - Emits one `NNNN_<auto-name>.sql` file plus a snapshot under `meta/`.
    - Review the generated SQL — Drizzle should emit `CREATE TABLE`, `CREATE INDEX`, `CREATE POLICY`, and `ALTER TABLE … ENABLE ROW LEVEL SECURITY` for every table that uses `pgPolicy` + `.enableRLS()` in schema.ts.
 3. **Apply against a Neon dev branch:** `pnpm db:migrate`
-   - Uses `DATABASE_URL_UNPOOLED` (or falls back to `DATABASE_URL`) — set it in `.env.local`.
+   - Uses `DATABASE_URL_UNPOOLED` (or falls back to `DATABASE_URL`) — set it in `.env`.
    - Tracks applied migrations in the `__drizzle_migrations` table.
 4. **Commit** the generated `.sql` file *and* the `meta/` snapshot together with the schema change.
 
@@ -24,7 +24,7 @@ The `pgPolicy` declarations in `schema.ts` are emitted on first generation but *
 
 ## Local dev requirement (Step 2 → Step 3)
 
-The Postgres port removes the v0.1 fallback to a local SQLite file. **Any code path that touches the DB now requires `DATABASE_URL`** — including unit tests that previously used `openInMemoryDb`. Set it in `.env.local` (Neon dev branch, pooled URL) before running `pnpm dev`, `pnpm test`, or seed scripts. Step 3 reseeds against Postgres and rewrites DB-touching tests; until then, the affected tests are gated behind `describe.skipIf(!process.env.DATABASE_URL)` and silently skip.
+The Postgres port removes the v0.1 fallback to a local SQLite file. **Any code path that touches the DB now requires `DATABASE_URL`** — including unit tests that previously used `openInMemoryDb`. Set it in `.env` (Neon dev branch, pooled URL) before running `pnpm dev`, `pnpm test`, or seed scripts. Step 3 reseeds against Postgres and rewrites DB-touching tests; until then, the affected tests are gated behind `describe.skipIf(!process.env.DATABASE_URL)` and silently skip.
 
 ## FORCE ROW LEVEL SECURITY (deferred)
 
