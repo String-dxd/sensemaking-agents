@@ -44,7 +44,7 @@ export function WorldHud({ voiceModeActive = false, onVoicePressed, voiceSlot }:
         </div>
         <div className="flex flex-1 justify-end">
           <Link
-            to="/library"
+            to="/history"
             aria-label="Library"
             aria-disabled={voiceModeActive || undefined}
             onClick={

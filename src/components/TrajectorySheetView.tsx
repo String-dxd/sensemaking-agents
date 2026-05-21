@@ -45,7 +45,7 @@ export function TrajectorySheetView({ studentId }: TrajectorySheetViewProps) {
         </p>
       )}
       <Link
-        to="/library/trajectory"
+        to="/trajectory"
         className="text-xs text-muted-foreground hover:text-foreground hover:underline"
         data-testid="trajectory-sheet-link"
       >
