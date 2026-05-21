@@ -8,6 +8,7 @@
  * importing the route's internals — this protects the behavior, not the
  * implementation.
  */
+import { QueryClient } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { describe, expect, it } from 'vitest'
 import { routeTree } from '~/routeTree.gen'
@@ -17,8 +18,13 @@ async function locationAfterNavigation(initial: string): Promise<{
   hash: string
   search: Record<string, unknown>
 }> {
+  // `__root` declares a required `context: { queryClient }` after the
+  // routing refactor wired validateSearch on /history. The router needs
+  // a real QueryClient to satisfy the context type, even if no loader
+  // touches it in this test.
   const router = createRouter({
     routeTree,
+    context: { queryClient: new QueryClient() },
     history: createMemoryHistory({ initialEntries: [initial] }),
   })
   await router.load()
