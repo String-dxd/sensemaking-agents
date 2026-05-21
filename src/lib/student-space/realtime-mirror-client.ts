@@ -303,7 +303,7 @@ export function createRealtimeMirrorAccumulator(
     { append }: { append: boolean },
   ) => {
     if (!value.trim()) return
-    const id = getRealtimeResponseId(event) ?? 'kira-live-response'
+    const id = getRealtimeResponseId(event) ?? 'companion-live-response'
     const previous = append ? (assistantParts.get(id) ?? '') : ''
     const nextText = append ? `${previous}${value}` : value.trim()
     assistantParts.set(id, nextText)

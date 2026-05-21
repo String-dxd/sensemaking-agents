@@ -32,6 +32,7 @@ This is a provider-boundary change, not a product-loop rewrite. The Kira reading
 
 - "Mirror agents" means the product-facing Mirror reflection generator. It does not include Connector, Cartographer, or the self-critique reviewer unless a later request expands the scope.
 - The quiet-mirror ritual remains non-interviewing. OpenAI Realtime is used for low-latency voice capture and Mirror draft generation, but the UI should not introduce an AI interviewer voice during recording in this pass.
+  - **Superseded 2026-05-21**: a two-mode (gathering / reflecting) live Companion now ships in `buildRealtimeMirrorLiveInstructions`. See `src/agents/openai-realtime/mirror-payloads.ts` for the current live-audio prompt. JSON-mode generation (`buildRealtimeMirrorInstructions`) is unchanged and still non-interviewing.
 - `gpt-realtime-2` is the planned default model because current OpenAI Realtime guidance names it as the state-of-the-art reasoning voice model. Keep the model behind `OPENAI_REALTIME_MIRROR_MODEL` so implementation can adjust if availability differs in the target account.
 - The OpenAI developer-docs MCP was not available in this Codex session, so official OpenAI web docs were used as the planning source.
 
@@ -125,6 +126,7 @@ This is a provider-boundary change, not a product-loop rewrite. The Kira reading
 - Should Connector move to OpenAI too? No. The user explicitly asked to keep Connectors on Claude.
 - Should the old OpenAI transcription helper remain? Yes, as legacy/supporting code for now. The main Student Space voice Mirror path should stop depending on it.
 - Should Realtime introduce a live interviewing voice? No. The existing quiet-mirror identity is preserved; Realtime is the Mirror runtime, not a new interview UX.
+  - **Superseded 2026-05-21**: the live-audio path now does ship an active two-mode Companion. See `buildRealtimeMirrorLiveInstructions` for the current live prompt. JSON-mode Mirror generation remains non-interviewing.
 - Should Mirror silently fall back to Claude if Realtime fails? No. Surface retry or typed fallback.
 
 ### Deferred to Implementation
