@@ -12,6 +12,7 @@
  */
 
 import State from '../State/State.js'
+import Game from '../Game.js'
 import SheetChrome from './SheetChrome.js'
 
 const formatSent = (iso) =>
@@ -42,8 +43,13 @@ export default class LettersSheet
         this.chrome = new SheetChrome({
             key:            'letters',
             sheetClassName: 'letters-sheet',
-            withCloseButton: true,
+            // Letters is now a routed page (/letters) — close is via
+            // browser back / SideRail / Escape, not a × button.
+            withCloseButton: false,
             closeOnBackdrop: false,
+            // Escape and other dismiss paths go through the router so the
+            // URL stays the source of truth.
+            onCloseRequest: () => Game.getInstance()?.navigate('/'),
             header: {
                 eyebrow:  'LETTERS',
                 title:    'Inbox',

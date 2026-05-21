@@ -1,4 +1,5 @@
 import State from '../State/State.js'
+import Game from '../Game.js'
 import { escapeAttr, escapeHtml } from '../util/html.js'
 import SheetChrome from './SheetChrome.js'
 import { trajectoryFor, traitChipOf, ecgChipOf } from './trajectoryHeuristics.js'
@@ -68,8 +69,13 @@ export default class TrajectorySheet
         this.chrome = new SheetChrome({
             key:            'trajectory',
             sheetClassName: 'trajectory-sheet',
-            withCloseButton: true,
+            // Path Finder is now a routed page (/trajectory) — close is via
+            // browser back / SideRail / Escape, not a × button.
+            withCloseButton: false,
             closeOnBackdrop: false,
+            // Escape and other dismiss paths go through the router so the
+            // URL stays the source of truth.
+            onCloseRequest: () => Game.getInstance()?.navigate('/'),
             header: {
                 eyebrow:  'PATH FINDER',
                 title:    'Trajectory compass',

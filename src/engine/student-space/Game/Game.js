@@ -245,13 +245,21 @@ export default class Game
      * Ask the host to navigate to a canonical pathname. In-engine click
      * sources (SideRail, Escape-to-close, sign-in flows) call this instead
      * of touching OverlayController directly so the URL stays the single
-     * source of truth for which overlay is open. No-op when no host
-     * callback is wired — leaves the engine controllable in standalone
-     * test harnesses without forcing them to mock a router.
+     * source of truth for which overlay is open.
+     *
+     * Falls back to direct controller action when no host router is wired:
+     * `/` closes the active surface (matches the router-driven close path).
+     * Other paths no-op — SideRail has its own open-fallback for the
+     * harness case.
      */
     navigate(href)
     {
-        if(this._onNavigate) this._onNavigate(href)
+        if(this._onNavigate)
+        {
+            this._onNavigate(href)
+            return
+        }
+        if(href === '/') this.closeActiveSurface()
     }
 
     /**

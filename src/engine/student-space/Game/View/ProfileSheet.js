@@ -25,6 +25,7 @@
  */
 
 import State from '../State/State.js'
+import Game from '../Game.js'
 import { VIPS_BY_FACET, claimLabel, FACET_IDS } from '../Data/vipsTaxonomy.js'
 import { FACET_THEMES, FACET_HEADERS, applyFacetVars } from './facets.js'
 import { iconForClaim } from './claimIcons.js'
@@ -159,8 +160,13 @@ export default class ProfileSheet
         this.chrome = new SheetChrome({
             key:            'profile',
             sheetClassName: 'profile-sheet',
-            withCloseButton: true,
+            // Profile is now a routed page (/profile) — close is via
+            // browser back / SideRail / Escape, not a × button.
+            withCloseButton: false,
             closeOnBackdrop: false,
+            // Escape and other dismiss paths go through the router so the
+            // URL stays the source of truth for which sheet is open.
+            onCloseRequest: () => Game.getInstance()?.navigate('/'),
             header: {
                 eyebrow:  'PROFILE',
                 title:    'Your identity',
