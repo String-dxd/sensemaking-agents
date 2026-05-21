@@ -152,22 +152,26 @@ export default class ProfileSheet
 
         // SheetChrome owns backdrop, blur, fade, z-tier, the × button, the
         // Escape-to-close listener, AND the shared header (eyebrow + title +
-        // subtitle). Profile's identity card / tabs / panels render inside
-        // chrome.bodySlot. The atmospheric hero is also moved into bodySlot
-        // so it overlays only the identity + tabs region, not the new
-        // page-title header. See CLAUDE.md "Sheet chrome contract".
+        // subtitle). Under the Gather Town-style split layout, the chrome
+        // exposes an introSlot (left pane body) alongside the existing
+        // bodySlot (right pane). Left pane carries identity + per-tab
+        // dimension summary; right pane carries tabs + TLDR + COLLECTION
+        // bento + TIMELINE. The atmospheric hero now lives inside the
+        // left pane behind the identity card. See CLAUDE.md "Sheet chrome
+        // contract".
         this.chrome = new SheetChrome({
             key:            'profile',
             sheetClassName: 'profile-sheet',
             withCloseButton: true,
             closeOnBackdrop: false,
+            layout:         'split',
             header: {
                 eyebrow:  'PROFILE',
-                title:    'Your identity',
-                subtitle: 'The shape of your reflections so far — values, interests, personality, and skills.',
+                title:    'My Identity',
+                subtitle: 'The shape of your reflections so far.',
             },
         })
-        this.chrome.bodySlot.innerHTML = `
+        this.chrome.introSlot.innerHTML = `
             <div class="profile-sheet__hero" aria-hidden="true">
                 <div class="profile-sheet__hero-wash"></div>
                 <div class="profile-sheet__hero-shimmer"></div>
@@ -185,19 +189,7 @@ export default class ProfileSheet
                     <span class="profile-id__auth-slot" data-auth-slot></span>
                 </div>
             </header>
-            <nav class="profile-sheet__tabs" role="tablist">
-                ${TAB_ORDER.map((f) => {
-                    const label = FACET_THEMES[f]
-                        ? (FACET_THEMES[f].eyebrow.split(' — ')[1] || f)
-                        : (TAB_LABELS_EXTRA[f] || f)
-                    return `
-                    <button type="button"
-                            class="profile-tab${f === 'values' ? ' is-active' : ''}"
-                            role="tab"
-                            data-facet="${f}">${label}</button>
-                `}).join('')}
-            </nav>
-            <section class="profile-sheet__panel">
+            <section class="profile-sheet__intro-panel">
                 <header class="profile-sheet__header">
                     <div class="profile-sheet__eyebrow-row">
                         <span class="profile-sheet__panel-eyebrow"></span>
@@ -232,7 +224,22 @@ export default class ProfileSheet
                     </div>
                     <p class="profile-sheet__meta"></p>
                 </header>
-
+            </section>
+        `
+        this.chrome.bodySlot.innerHTML = `
+            <nav class="profile-sheet__tabs" role="tablist">
+                ${TAB_ORDER.map((f) => {
+                    const label = FACET_THEMES[f]
+                        ? (FACET_THEMES[f].eyebrow.split(' — ')[1] || f)
+                        : (TAB_LABELS_EXTRA[f] || f)
+                    return `
+                    <button type="button"
+                            class="profile-tab${f === 'values' ? ' is-active' : ''}"
+                            role="tab"
+                            data-facet="${f}">${label}</button>
+                `}).join('')}
+            </nav>
+            <section class="profile-sheet__panel">
                 <div class="profile-sheet__tldr-slot" data-role="tldr-slot" hidden></div>
 
                 <div class="profile-sheet__vips-body">
@@ -276,8 +283,8 @@ export default class ProfileSheet
         this.eyebrowEl   = root.querySelector('.profile-sheet__panel-eyebrow')
         this.tagEl       = root.querySelector('.profile-sheet__panel-tag')
         this.subtitleEl  = root.querySelector('.profile-sheet__panel-subtitle')
-        this.rowMostEl   = root.querySelector('.profile-sheet__panel [data-row="most"]')
-        this.rowEmergeEl = root.querySelector('.profile-sheet__panel [data-row="emerge"]')
+        this.rowMostEl   = root.querySelector('[data-row="most"]')
+        this.rowEmergeEl = root.querySelector('[data-row="emerge"]')
         this.summaryEl   = root.querySelector('.profile-sheet__summary')
         this.openTextEl  = root.querySelector('.profile-sheet__open-text')
         this.metaEl      = root.querySelector('.profile-sheet__meta')

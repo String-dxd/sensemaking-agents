@@ -3462,6 +3462,150 @@ body.is-onb-landing .side-rail
     z-index: 1;
 }
 
+/* Split-layout overrides — under Gather-style two-pane mode, the hero
+   migrates into the intro slot (left pane) so the wash/shimmer reads
+   as identity context, not full-bleed canopy. The intro slot picks up
+   `position: relative` so the absolutely-positioned hero anchors to
+   it, and intro children get a z-index above the hero. The right pane
+   inherits the facet CSS vars from the chrome root so theming still
+   applies to bento + timeline. */
+.profile-sheet.sheet-chrome--split .sheet-chrome__intro
+{
+    position: relative;
+    color: #2b2620;
+    font-family: var(--font-sans);
+    padding: 0 24px 28px;
+    gap: 18px;
+    /* defaults — overridden by applyFacetVars on open */
+    --facet-accent: #A07659;
+    --facet-soft:   #EAD7BE;
+    --facet-ink:    #6A4A26;
+}
+.profile-sheet.sheet-chrome--split .sheet-chrome__intro > :not(.profile-sheet__hero)
+{
+    position: relative;
+    z-index: 1;
+}
+.profile-sheet.sheet-chrome--split .sheet-chrome__intro .profile-sheet__hero
+{
+    /* Compact hero band that hugs the top of the left pane behind the
+       identity card. No height clamp — let it cover the upper third of
+       the intro naturally so the wash bleeds beneath the avatar. */
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 60%;
+    max-height: 320px;
+}
+.profile-sheet.sheet-chrome--split
+{
+    --facet-accent: #A07659;
+    --facet-soft:   #EAD7BE;
+    --facet-ink:    #6A4A26;
+}
+.profile-sheet.sheet-chrome--split .sheet-chrome__pane--right
+{
+    /* The right pane is the working surface; pad it for the tab strip
+       + bento + timeline content. */
+    padding: 24px 28px 48px;
+}
+.profile-sheet.sheet-chrome--split .sheet-chrome__body
+{
+    min-height: 0;
+}
+/* The intro panel wraps the dimension-summary header in the left pane.
+   Strip its inherited max-width / centering so it flows naturally
+   inside the narrow intro slot. */
+.profile-sheet.sheet-chrome--split .profile-sheet__intro-panel
+{
+    margin: 0;
+    padding: 0;
+    max-width: none;
+}
+/* The dimension headline ("What you keep coming back to") was sized
+   for the wide single-column layout (clamp 1.75–2.25rem). In the
+   narrow left pane it wraps awkwardly. Scale to ~1.05rem so it reads
+   as an emphasis line, not a billboard. */
+.profile-sheet.sheet-chrome--split .profile-sheet__title
+{
+    font-size: 1.05rem;
+    line-height: 1.3;
+    margin: 6px 0 4px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__panel-subtitle
+{
+    font-size: 12.5px;
+    margin-bottom: 10px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__summary
+{
+    font-size: 13px;
+    line-height: 1.5;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__open-question
+{
+    margin-top: 10px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__open-text
+{
+    font-size: 13px;
+    line-height: 1.45;
+}
+.profile-sheet.sheet-chrome--split .vips-rows--profile .vips-row__body
+{
+    font-size: 13px;
+}
+/* Identity card lives in the left pane — drop the 760px centering and
+   shrink the avatar so name + class fit alongside the slimmer column. */
+.profile-sheet.sheet-chrome--split .profile-id
+{
+    max-width: none;
+    margin: 0;
+    padding: 0 0 16px;
+    gap: 12px;
+}
+.profile-sheet.sheet-chrome--split .profile-id__avatar
+{
+    width: 56px;
+    height: 56px;
+    font-size: 22px;
+}
+.profile-sheet.sheet-chrome--split .profile-id__name
+{
+    font-size: 18px;
+    line-height: 1.2;
+}
+.profile-sheet.sheet-chrome--split .profile-id__class
+{
+    font-size: 12.5px;
+}
+/* Right pane tab strip — sticky to the top of the right pane rather
+   than to the viewport, and the 760px centering trick collapses to
+   honest padding since the pane is already width-constrained. */
+.profile-sheet.sheet-chrome--split .profile-sheet__tabs
+{
+    position: sticky;
+    top: 0;
+    padding-inline: 0;
+    margin-inline: 0;
+    z-index: 2;
+}
+/* The dimension-summary header inside the intro panel was sized for a
+   760px column; in the narrower intro it just flows full-width. */
+.profile-sheet.sheet-chrome--split .profile-sheet__header
+{
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+/* The right-pane panel hosts TLDR + bento + timeline. Drop the 760px
+   centering since the chrome pane already constrains width. */
+.profile-sheet.sheet-chrome--split .profile-sheet__panel
+{
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
 /* profile-sheet close styling is provided by the shared sheet-close
    grouped selector at the top of this file. */
 
