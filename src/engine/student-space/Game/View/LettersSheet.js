@@ -13,6 +13,8 @@
 
 import State from '../State/State.js'
 import SheetChrome from './SheetChrome.js'
+import OverlayController from './OverlayController.js'
+import { escapeHtml } from '../util/html.js'
 
 const formatSent = (iso) =>
 {
@@ -24,8 +26,6 @@ const formatSent = (iso) =>
     }
     catch(_) { return '' }
 }
-
-const escapeHtml = (s) => (s || '').replace(/[<>&"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[ch])
 
 export default class LettersSheet
 {
@@ -89,12 +89,16 @@ export default class LettersSheet
         this.root = null
     }
 
-    open()
+    open({ letterId } = {})
     {
         if(!this.chrome) return
-        // First time the inbox opens, snap to the newest unread letter (or
-        // newest letter if all are read). Subsequent opens preserve the
-        // selection across the session.
+        // Stale/unknown letterId falls through to auto-select.
+        if(letterId && this.letters.letters.some((l) => l.id === letterId))
+        {
+            this.selectedId = letterId
+            this.letters.markRead(letterId)
+        }
+
         if(!this.selectedId)
         {
             const sorted = [...this.letters.letters].sort((a, b) => (b.sentAt || '').localeCompare(a.sentAt || ''))
@@ -147,12 +151,29 @@ export default class LettersSheet
         if(selected)
         {
             const paragraphs = (selected.body || '').split('\n\n').map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`).join('')
+            const cta = selected.prompt
+                ? `
+                    <div class="letters-sheet__cta">
+                        <p class="letters-sheet__cta-prompt">${escapeHtml(selected.prompt)}</p>
+                        <button type="button" class="letters-sheet__capture-btn" data-action="capture-prompt" data-prompt="${escapeHtml(selected.prompt)}">
+                            <span class="letters-sheet__capture-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" width="16" height="16">
+                                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                                    <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                </svg>
+                            </span>
+                            Capture
+                        </button>
+                    </div>
+                `
+                : ''
             this.bodyEl.innerHTML = `
                 <header class="letters-sheet__header">
                     <p class="letters-sheet__from">${escapeHtml(selected.from)} · <time>${formatSent(selected.sentAt)}</time></p>
                     <h2 class="letters-sheet__subject">${escapeHtml(selected.subject)}</h2>
                 </header>
                 ${paragraphs}
+                ${cta}
             `
         }
         else
@@ -167,6 +188,17 @@ export default class LettersSheet
         // handling needed here. The old `.letters-sheet__back` button has
         // been removed; the chrome's 860px responsive stack supplies the
         // narrow-viewport flow without a routed back affordance.
+        const captureBtn = event.target.closest('[data-action="capture-prompt"]')
+        if(captureBtn)
+        {
+            const prompt = captureBtn.dataset.prompt || ''
+            const letterId = this.selectedId || null
+            // dismissOnBack: AskSheet was opened outside the CaptureChooser,
+            // so × should dismiss instead of routing back to a chooser the
+            // student never saw.
+            OverlayController.getInstance().open('ask', { prompt, dismissOnBack: true, letterId })
+            return
+        }
         const row = event.target.closest('.letter-row')
         if(row)
         {

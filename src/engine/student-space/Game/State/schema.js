@@ -22,7 +22,7 @@ const MOOD_EMOTION    = new Set(['joy', 'sadness', 'anger', 'fear', 'disgust', '
 const MOOD_INTENSITY  = new Set([1, 2, 3, 4])
 const MOOD_CAUSE      = new Set(['school', 'friends', 'family', 'social', 'body', 'achievement', 'uncertainty', 'alone', 'gratitude', 'other'])
 const CAPTURE_KIND    = new Set(['ask', 'photo', 'trajectory'])
-const LETTER_KEYS     = new Set(['id', 'from', 'subject', 'body', 'sentAt', 'read'])
+const LETTER_KEYS     = new Set(['id', 'from', 'subject', 'body', 'sentAt', 'read', 'prompt'])
 const EVENT_KINDS     = new Set(['class', 'cca', 'note'])
 const FACET_IDS       = new Set(['values', 'interests', 'personality', 'skills'])
 
@@ -220,6 +220,7 @@ const KNOWN_CAPTURE_KEYS = new Set([
     // future analysis + display; species is still derived from the
     // top-level dimension above so this is purely additive.
     'subClaimId',
+    'letterId',
 ])
 const CAPTURE_DIMENSIONS = new Set(['values', 'interests', 'personality', 'skills'])
 
@@ -320,6 +321,7 @@ export function mergeCapture(raw, ctx = 'capture')
         if(k === 'syncStatus' && !SYNC_STATES.has(v)) { warn(`${ctx}.syncStatus invalid`); continue }
         if(k === 'syncError' && typeof v !== 'string') { warn(`${ctx}.syncError not string`); continue }
         if(k === 'contextType' && typeof v !== 'string') { warn(`${ctx}.contextType not string`); continue }
+        if(k === 'letterId' && typeof v !== 'string') { warn(`${ctx}.letterId not string`); continue }
         if(k === 'dimension' && v !== null && !CAPTURE_DIMENSIONS.has(v)) { warn(`${ctx}.dimension invalid: "${v}"`); continue }
         if(k === 'subClaimId' && v !== null && !isCanonicalClaim(v)) { warn(`${ctx}.subClaimId not in taxonomy: "${v}"`); continue }
         if(k === 'reframe')
@@ -354,6 +356,7 @@ const defaultLetter = () => ({
     body:    '',
     sentAt:  new Date(0).toISOString(),
     read:    false,
+    prompt:  '',
 })
 
 export function mergeTeacherLetter(raw, ctx = 'letter')
