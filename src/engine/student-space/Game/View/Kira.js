@@ -2,7 +2,6 @@ import * as THREE from 'three'
 
 import View from './View.js'
 import State from '../State/State.js'
-import { buildStandingBird } from './StandingBird.js'
 
 /**
  * Kira — the resident island bird. Mesh + species data ported from the
@@ -39,7 +38,7 @@ export const SPECIES = [
         id: 'flame',
         displayName: 'Flame Bower',
         shape:   { crest: 'pointed', tail: 'long-fan',  beak: 'slender' },
-        palette: { back: '#d6321f', belly: '#f5be1c', accent: '#6f7826', beak: '#cdc0a8', legs: '#b89673', eye: '#1a1410' },
+        palette: { back: '#e63946', belly: '#ffd3a5', accent: '#ffb347', beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a' },
     },
     {
         id: 'ember',
@@ -80,6 +79,198 @@ export const SPECIES = [
 ]
 
 export const SPECIES_BY_ID = Object.fromEntries(SPECIES.map(s => [s.id, s]))
+
+/* ---------- standing-build character config (base + per-species overrides) ---------- */
+
+const STANDING_BASE = {
+    scale: 0.74,
+    body:        { x: 0.72, y: 0.88, z: 0.58 },
+    bodyY:       0.62,
+    belly:       { y: 0.37, z: 0.35 },
+    bellyX:      0.39,
+    bellyY:      0.58,
+    neckTop:     0.11,
+    neckBottom:  0.13,
+    neckH:       0.16,
+    neckY:       1.08,
+    headX:       0.10,
+    headY:       1.34,
+    headSize:    0.42,
+    headScale:   { x: 1.08, y: 1.02, z: 1.0 },
+    faceY:       0.74,
+    faceZ:       0.86,
+    faceYOffset: -0.02,
+    faceColor:   null,
+    cheekSize:   0.13,
+    cheekZ:      0.31,
+    beak:        { length: 0.40, width: 0.18, height: 0.15, gape: 0.042, open: 0.05 },
+    beakKeepsDark: false,
+    eyeWhite:    0.20,
+    pupil:       0.13,
+    eyeSquash:   0.42,
+    eyeY:        0.17,
+    eyeZ:        0.275,
+    eyeTilt:     0,
+    pupilScaleX: 0.70,
+    pupilScaleY: 1.08,
+    pupilOffsetY: -0.02,
+    upperLid:    0.08,
+    lowerLid:    0.00,
+    lidColor:    null,
+    eyeRingColor: null,
+    lash:        false,
+    shine:       false,
+    brow:        -0.08,
+    browW:       0.18,
+    crestScale:  0.82,
+    wing: { x: 0.02, y: 0.82, z: 0.31, length: 0.56, rootW: 0.13, tipW: 0.38, rest: -0.10, feathers: 3 },
+    leg:  { y: 0.34, z: 0.20, len: 0.32, toe: 0.14 },
+    tail: { x: 0.40, y: 0.55, scaleX: 0.36, scaleY: 0.50, scaleZ: 0.50 },
+}
+
+const STANDING_OVERRIDES = {
+    flame: {
+        body: { x: 0.70, y: 0.86, z: 0.56 },
+        headScale: { x: 1.06, y: 1.02, z: 0.98 },
+        faceColor: '#ffe6a2',
+        beak: { length: 0.44, width: 0.20, height: 0.16, gape: 0.050, open: 0.10 },
+        eyeRingColor: '#fff4bf',
+        pupilScaleY: 1.18,
+        upperLid: 0.03,
+        brow: -0.14,
+        wing: { x: 0.01, y: 0.82, z: 0.31, length: 0.60, rootW: 0.12, tipW: 0.42, rest: -0.12, feathers: 4 },
+        tail: { x: 0.43, y: 0.55, scaleX: 0.42, scaleY: 0.56, scaleZ: 0.62 },
+        crestScale: 0.90,
+    },
+    ember: {
+        scale: 0.72,
+        body: { x: 0.66, y: 0.92, z: 0.62 },
+        bodyY: 0.61,
+        headY: 1.32,
+        headSize: 0.43,
+        headScale: { x: 1.08, y: 0.98, z: 1.04 },
+        cheekSize: 0.15,
+        faceColor: '#fff0c8',
+        beak: { length: 0.36, width: 0.20, height: 0.14, gape: 0.036, open: 0.02 },
+        eyeWhite: 0.19, pupil: 0.12,
+        eyeSquash: 0.50, eyeTilt: -0.18,
+        pupilScaleX: 0.82, pupilScaleY: 0.72,
+        upperLid: 0.42, lowerLid: 0.05,
+        brow: -0.06,
+        wing: { x: 0.01, y: 0.79, z: 0.34, length: 0.50, rootW: 0.14, tipW: 0.36, rest: -0.04, feathers: 3 },
+        leg:  { y: 0.34, z: 0.22, len: 0.28, toe: 0.13 },
+        tail: { x: 0.38, y: 0.52, scaleX: 0.30, scaleY: 0.46, scaleZ: 0.46 },
+    },
+    regent: {
+        scale: 0.73,
+        body: { x: 0.70, y: 0.82, z: 0.56 },
+        headSize: 0.41,
+        headScale: { x: 1.10, y: 0.98, z: 1.0 },
+        faceY: 0.66,
+        faceColor: '#fff7bf',
+        beak: { length: 0.40, width: 0.22, height: 0.15, gape: 0.060, open: 0.12 },
+        beakKeepsDark: true,
+        eyeWhite: 0.19, pupil: 0.11,
+        eyeRingColor: '#f04a2f',
+        pupilScaleY: 1.20,
+        upperLid: 0.00,
+        brow: -0.20, browW: 0.20,
+        wing: { x: 0.0, y: 0.77, z: 0.30, length: 0.48, rootW: 0.12, tipW: 0.34, rest: 0.02, feathers: 3 },
+        leg:  { y: 0.33, z: 0.21, len: 0.34, toe: 0.14 },
+        tail: { x: 0.40, y: 0.52, scaleX: 0.32, scaleY: 0.46, scaleZ: 0.50 },
+    },
+    emerald: {
+        scale: 0.70,
+        body: { x: 0.62, y: 0.88, z: 0.55 },
+        bodyY: 0.60,
+        headX: 0.08, headY: 1.34,
+        headSize: 0.39,
+        headScale: { x: 1.0, y: 1.05, z: 0.98 },
+        faceColor: '#dff0a5',
+        beak: { length: 0.50, width: 0.15, height: 0.11, gape: 0.034, open: 0.02 },
+        eyeWhite: 0.18, pupil: 0.105,
+        eyeTilt: 0.10,
+        pupilScaleX: 0.64, pupilScaleY: 1.16,
+        upperLid: 0.14, brow: -0.02,
+        wing: { x: 0.0, y: 0.78, z: 0.29, length: 0.58, rootW: 0.10, tipW: 0.34, rest: -0.18, feathers: 4 },
+        leg:  { y: 0.33, z: 0.18, len: 0.35, toe: 0.13 },
+        tail: { x: 0.40, y: 0.54, scaleX: 0.38, scaleY: 0.52, scaleZ: 0.56 },
+        crestScale: 0.72,
+    },
+    satin: {
+        scale: 0.76,
+        body: { x: 0.76, y: 0.86, z: 0.60 },
+        headSize: 0.40,
+        headScale: { x: 1.05, y: 1.0, z: 1.02 },
+        faceY: 0.60, faceZ: 0.72,
+        faceColor: '#d9edf7',
+        beak: { length: 0.35, width: 0.22, height: 0.15, gape: 0.035, open: 0.02 },
+        eyeWhite: 0.17, pupil: 0.095,
+        eyeSquash: 0.54, eyeTilt: -0.10,
+        pupilScaleX: 0.86, pupilScaleY: 0.58,
+        upperLid: 0.48, lowerLid: 0.06,
+        brow: 0.00, browW: 0.16,
+        wing: { x: 0.02, y: 0.80, z: 0.35, length: 0.52, rootW: 0.15, tipW: 0.40, rest: -0.08, feathers: 3 },
+        tail: { x: 0.42, y: 0.53, scaleX: 0.32, scaleY: 0.48, scaleZ: 0.52 },
+    },
+    twilight: {
+        scale: 0.72,
+        body: { x: 0.63, y: 0.82, z: 0.54 },
+        bodyY: 0.58,
+        headY: 1.30,
+        headSize: 0.39,
+        headScale: { x: 0.98, y: 1.04, z: 0.96 },
+        cheekSize: 0.12,
+        faceColor: '#e4dcff',
+        beak: { length: 0.46, width: 0.16, height: 0.11, gape: 0.034, open: 0.02 },
+        eyeWhite: 0.18, pupil: 0.10,
+        eyeTilt: -0.24,
+        pupilScaleX: 0.70, pupilScaleY: 0.62,
+        upperLid: 0.36, lowerLid: 0.05,
+        brow: -0.18,
+        lash: true,
+        wing: { x: -0.01, y: 0.75, z: 0.28, length: 0.62, rootW: 0.10, tipW: 0.36, rest: -0.16, feathers: 4 },
+        leg:  { y: 0.31, z: 0.18, len: 0.38, toe: 0.13 },
+        tail: { x: 0.40, y: 0.50, scaleX: 0.42, scaleY: 0.50, scaleZ: 0.44 },
+        crestScale: 0.70,
+    },
+    lilac: {
+        scale: 0.78,
+        body: { x: 0.80, y: 0.88, z: 0.62 },
+        bodyY: 0.62,
+        headY: 1.35,
+        headSize: 0.40,
+        headScale: { x: 1.12, y: 0.96, z: 1.02 },
+        faceY: 0.64,
+        cheekSize: 0.14,
+        faceColor: '#f6e9fb',
+        beak: { length: 0.36, width: 0.20, height: 0.14, gape: 0.035, open: 0.02 },
+        eyeWhite: 0.19, pupil: 0.105,
+        eyeSquash: 0.50, eyeTilt: -0.12,
+        pupilScaleX: 0.70, pupilScaleY: 0.86,
+        upperLid: 0.28, brow: 0.10,
+        lash: true,
+        wing: { x: 0.03, y: 0.82, z: 0.36, length: 0.54, rootW: 0.15, tipW: 0.44, rest: -0.03, feathers: 3 },
+        leg:  { y: 0.34, z: 0.23, len: 0.31, toe: 0.15 },
+        tail: { x: 0.46, y: 0.54, scaleX: 0.44, scaleY: 0.56, scaleZ: 0.62 },
+        crestScale: 0.62,
+    },
+}
+
+function getCharacter(speciesId)
+{
+    const override = STANDING_OVERRIDES[speciesId] || {}
+    const merged = { ...STANDING_BASE, ...override }
+    for(const key of ['body', 'belly', 'headScale', 'beak', 'wing', 'leg', 'tail'])
+        merged[key] = { ...STANDING_BASE[key], ...(override[key] || {}) }
+    return merged
+}
+
+const lerpColor = (a, b, t) => new THREE.Color(
+    a.r + (b.r - a.r) * t,
+    a.g + (b.g - a.g) * t,
+    a.b + (b.b - a.b) * t,
+)
 
 /* ---------- Kira class ---------- */
 
@@ -640,3 +831,494 @@ export default class Kira
     }
 }
 
+/* =====================================================================
+ *  Mesh builder — standing bowerbird (any species via spec)
+ *
+ *  Adapted from buildStandingCompanionParts() in the FlameBower studio's
+ *  View/Bird.js.
+ * ===================================================================== */
+
+export { buildStandingBird }
+function buildStandingBird(spec)
+{
+    const c = getCharacter(spec.id)
+    const p = spec.palette
+
+    const root = new THREE.Group()
+    root.scale.setScalar(c.scale)
+
+    const bodyMat   = new THREE.MeshLambertMaterial({ color: p.back })
+    const bellyMat  = new THREE.MeshLambertMaterial({ color: p.belly })
+    const accentMat = new THREE.MeshLambertMaterial({ color: p.accent })
+
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 28, 18), bodyMat)
+    body.geometry.scale(c.body.x, c.body.y, c.body.z)
+    body.position.set(0, c.bodyY, 0)
+    root.add(body)
+
+    const bellyPatch = new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 14), bellyMat)
+    bellyPatch.geometry.scale(0.065, c.belly.y, c.belly.z)
+    bellyPatch.position.set(c.bellyX, c.bellyY, 0)
+    root.add(bellyPatch)
+
+    const neck = new THREE.Mesh(
+        new THREE.CylinderGeometry(c.neckTop, c.neckBottom, c.neckH, 16),
+        bellyMat,
+    )
+    neck.position.set(0.04, c.neckY, 0)
+    root.add(neck)
+
+    const head = new THREE.Group()
+    head.position.set(c.headX, c.headY, 0)
+    const headBaseY = head.position.y
+    const headBaseRotZ = 0
+    const headMat = makeStandingHeadMaterial(p.back, c, {
+        eye:    p.eye,
+        back:   p.back,
+        face:   c.faceColor || p.belly,
+        accent: p.accent,
+    })
+    const headMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(c.headSize, 48, 28),
+        headMat,
+    )
+    headMesh.geometry.scale(c.headScale.x, c.headScale.y, c.headScale.z)
+    head.add(headMesh)
+
+    const friendlyBeak = getFriendlyBeakColor(p.beak, p.accent, p.belly, c.beakKeepsDark)
+    const beak = makeStandingBeak(friendlyBeak, c.headSize, c.beak)
+    head.add(beak)
+
+    if(spec.shape.crest !== 'none')
+    {
+        const crest = makeCrest(spec.shape.crest, new THREE.Color(p.accent), c.headSize * c.crestScale)
+        crest.position.set(-c.headSize * 0.08, c.headSize * 0.76, 0)
+        head.add(crest)
+    }
+
+    root.add(head)
+
+    const wingL = makeStandingWing(p.back, p.accent, c.wing)
+    wingL.position.set(c.wing.x, c.wing.y, c.wing.z)
+    wingL.rotation.z = c.wing.rest
+    root.add(wingL)
+    const wingR = makeStandingWing(p.back, p.accent, c.wing)
+    wingR.position.set(c.wing.x, c.wing.y, -c.wing.z)
+    wingR.scale.z = -1
+    wingR.rotation.z = -c.wing.rest
+    root.add(wingR)
+
+    const legL = makeStandingLeg(p.legs, c.leg)
+    legL.position.set(0.10, c.leg.y, c.leg.z)
+    root.add(legL)
+    const legR = makeStandingLeg(p.legs, c.leg)
+    legR.position.set(0.10, c.leg.y, -c.leg.z)
+    root.add(legR)
+
+    const tail = new THREE.Group()
+    tail.position.set(-c.tail.x, c.tail.y, 0)
+    const tailGeo = makeTailGeometry(spec.shape.tail)
+    tailGeo.scale(c.tail.scaleX, c.tail.scaleY, c.tail.scaleZ)
+    tail.add(new THREE.Mesh(tailGeo, accentMat))
+    root.add(tail)
+
+    return {
+        root, body, head, tail, wingL, wingR, legL, legR, beak,
+        headBaseY,
+        headBaseRotZ,
+        wingBaseZL:  c.wing.rest,
+        wingBaseZR: -c.wing.rest,
+    }
+}
+
+/* ---------- face painter ---------- */
+
+function makeStandingHeadMaterial(baseColor, c, palette)
+{
+    const width = 1024, height = 512, size = height
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    ctx.fillStyle = baseColor
+    ctx.fillRect(0, 0, width, height)
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    const cx = width * 0.5
+    const cy = size * 0.54 + c.faceYOffset * size * 0.20
+    const faceRx = size * c.faceZ * 0.36
+    const faceRy = size * c.faceY * 0.34
+    const cheekY = cy + faceRy * 0.36
+    const cheekX = size * c.cheekZ * 0.54
+    const eyeY = cy - size * c.eyeY * 0.48
+    const eyeSep = size * c.eyeZ * 0.62
+    const eyeH = size * c.eyeWhite * 0.80
+    const eyeW = eyeH * (0.62 + c.eyeSquash * 0.95)
+
+    drawEllipse(ctx, cx, cy, faceRx, faceRy, palette.face)
+    drawEllipse(ctx, cx - cheekX, cheekY, size * c.cheekSize * 0.42, size * c.cheekSize * 0.38, palette.accent, 0, 0.70)
+    drawEllipse(ctx, cx + cheekX, cheekY, size * c.cheekSize * 0.42, size * c.cheekSize * 0.38, palette.accent, 0, 0.70)
+    drawPaintedEye(ctx, c, palette, -1, cx - eyeSep, eyeY, eyeW, eyeH)
+    drawPaintedEye(ctx, c, palette, +1, cx + eyeSep, eyeY, eyeW, eyeH)
+
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.needsUpdate = true
+    return new THREE.MeshLambertMaterial({ map: texture, color: 0xffffff })
+}
+
+function drawPaintedEye(ctx, c, palette, side, x, y, w, h)
+{
+    const tilt = c.eyeTilt * side
+    const lid = c.lidColor || palette.back
+
+    if(c.eyeRingColor)
+        drawEllipse(ctx, x, y, w * 0.78, h * 0.72, c.eyeRingColor, tilt)
+
+    drawEllipse(ctx, x, y, w * 0.56, h * 0.58, '#fff8ec', tilt)
+
+    const pupilW = w * c.pupilScaleX * 0.30
+    const pupilH = h * c.pupilScaleY * 0.34
+    drawEllipse(ctx, x + side * w * 0.05, y + h * c.pupilOffsetY, pupilW, pupilH, palette.eye, tilt)
+
+    if(c.shine)
+        drawEllipse(ctx, x - side * w * 0.08, y - h * 0.16, w * 0.08, h * 0.08, '#ffffff')
+
+    if(c.upperLid > 0)
+    {
+        ctx.save()
+        ctx.translate(x, y - h * (0.52 - c.upperLid * 0.16))
+        ctx.rotate(tilt)
+        ctx.fillStyle = lid
+        ctx.beginPath()
+        ctx.ellipse(0, 0, w * 0.58, h * c.upperLid * 0.50, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+    }
+    if(c.lowerLid > 0)
+    {
+        ctx.save()
+        ctx.translate(x, y + h * 0.52)
+        ctx.rotate(tilt)
+        ctx.fillStyle = lid
+        ctx.beginPath()
+        ctx.ellipse(0, 0, w * 0.58, h * c.lowerLid * 0.45, 0, 0, Math.PI * 2)
+        ctx.fill()
+        ctx.restore()
+    }
+
+    const browY = y - h * 0.72
+    const browX = x + side * w * 0.06
+    drawStroke(ctx, browX, browY, w * c.browW * 1.20, h * 0.10, palette.eye, side > 0 ? -c.brow : c.brow)
+
+    if(c.lash)
+    {
+        drawStroke(ctx, x + side * w * 0.40, y - h * 0.10, w * 0.22, h * 0.05, palette.eye, side * -0.75)
+        drawStroke(ctx, x + side * w * 0.42, y + h * 0.12, w * 0.18, h * 0.05, palette.eye, side * -0.20)
+    }
+}
+
+function drawEllipse(ctx, x, y, rx, ry, fill, rot = 0, alpha = 1)
+{
+    ctx.save()
+    ctx.globalAlpha = alpha
+    ctx.translate(x, y)
+    ctx.rotate(rot)
+    ctx.fillStyle = fill
+    ctx.beginPath()
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
+}
+
+function drawStroke(ctx, x, y, w, h, stroke, rot = 0)
+{
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.rotate(rot)
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = Math.max(4, h)
+    ctx.beginPath()
+    ctx.moveTo(-w * 0.5, 0)
+    ctx.lineTo(w * 0.5, 0)
+    ctx.stroke()
+    ctx.restore()
+}
+
+/* ---------- wings / legs / beak / crest / tail ---------- */
+
+function makeStandingWing(back, accent, cfg)
+{
+    const wing = new THREE.Group()
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })
+    const backColor = new THREE.Color(back)
+    const accentColor = new THREE.Color(accent)
+    const positions = []
+    const colors = []
+    const L = cfg.length
+    const rootW = cfg.rootW
+    const tipW = cfg.tipW
+
+    const pts = [
+        [ rootW * 0.5,  0.06, 0 ],
+        [-rootW * 0.5, -0.02, 0 ],
+        [-tipW * 0.62, -L * 0.82, 0 ],
+        [ 0.00,        -L, 0 ],
+        [ tipW * 0.62, -L * 0.82, 0 ],
+        [ tipW * 0.42, -L * 0.24, 0 ],
+    ]
+    const tris = [0, 1, 5, 1, 2, 5, 2, 3, 4, 2, 4, 5]
+    for(const i of tris)
+    {
+        const pt = pts[i]
+        positions.push(...pt)
+        const k = THREE.MathUtils.smoothstep(-pt[1], L * 0.35, L)
+        const c = lerpColor(backColor, accentColor, k)
+        colors.push(c.r, c.g, c.b)
+    }
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geo.setAttribute('color',    new THREE.Float32BufferAttribute(colors, 3))
+    geo.computeVertexNormals()
+    wing.add(new THREE.Mesh(geo, mat))
+
+    const featherMat = new THREE.MeshLambertMaterial({ color: accent })
+    for(let i = 0; i < cfg.feathers; i++)
+    {
+        const t = cfg.feathers === 1 ? 0.5 : i / (cfg.feathers - 1)
+        const x = THREE.MathUtils.lerp(-tipW * 0.42, tipW * 0.42, t)
+        const feather = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 8), featherMat)
+        feather.geometry.scale(tipW * 0.15, L * 0.18, 0.018)
+        feather.position.set(x, -L * (0.78 + Math.abs(t - 0.5) * 0.16), 0.012)
+        feather.rotation.z = THREE.MathUtils.lerp(0.25, -0.25, t)
+        wing.add(feather)
+    }
+    return wing
+}
+
+function makeStandingLeg(color, cfg)
+{
+    const leg = new THREE.Group()
+    const mat = new THREE.MeshLambertMaterial({ color })
+    const legLen = cfg.len
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.030, legLen, 10), mat)
+    shin.position.y = -legLen * 0.5
+    leg.add(shin)
+
+    const foot = new THREE.Group()
+    foot.position.y = -legLen
+    const toeGeo = new THREE.ConeGeometry(0.030, cfg.toe, 8)
+    for(const [x, z, rz] of [[0.070, 0, 0], [0.035, 0.052, 0.35], [0.035, -0.052, -0.35]])
+    {
+        const toe = new THREE.Mesh(toeGeo, mat)
+        toe.rotation.z = -Math.PI / 2
+        toe.rotation.y = rz
+        toe.position.set(x, -0.015, z)
+        foot.add(toe)
+    }
+    leg.add(foot)
+    return leg
+}
+
+function getFriendlyBeakColor(beak, accent, belly, keepsDark = false)
+{
+    const c = new THREE.Color(beak)
+    const luminance = c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722
+    if(!keepsDark && luminance < 0.28)
+        return new THREE.Color(accent).lerp(new THREE.Color(belly), 0.35)
+    return c
+}
+
+function makeStandingBeak(color, headSize, cfg)
+{
+    const group = new THREE.Group()
+    const mat = new THREE.MeshLambertMaterial({ color, side: THREE.DoubleSide })
+    const darkMat = new THREE.MeshLambertMaterial({ color: 0x23150f, side: THREE.DoubleSide })
+
+    const length = headSize * cfg.length
+    const width = headSize * cfg.width
+    const height = headSize * cfg.height
+    const gap = headSize * Math.max(cfg.gape || 0.02, 0.034)
+    const rootX = headSize * 1.01
+
+    const upper = new THREE.Mesh(makeStandingBeakShellGeometry(length, width, height, true), mat)
+    upper.position.set(rootX, gap * 0.30, 0)
+    group.add(upper)
+
+    const mouth = new THREE.Mesh(
+        makeStandingMouthGeometry(length * 0.76, width * 0.56, gap * 0.72),
+        darkMat,
+    )
+    mouth.position.set(rootX + length * 0.12, -gap * 0.10, 0)
+    group.add(mouth)
+
+    const lowerPivot = new THREE.Group()
+    lowerPivot.position.set(rootX + length * 0.03, -gap * 0.34, 0)
+
+    const lower = new THREE.Mesh(
+        makeStandingBeakShellGeometry(length * 0.86, width * 0.82, height * 0.68, false),
+        mat,
+    )
+    lower.position.set(length * 0.03, 0, 0)
+    lowerPivot.add(lower)
+    group.add(lowerPivot)
+
+    group.userData.lowerPivot = lowerPivot
+    group.userData.restOpen = Math.max(cfg.open || 0, 0.055)
+    lowerPivot.rotation.z = -group.userData.restOpen
+
+    return group
+}
+
+function makeStandingBeakShellGeometry(length, width, height, upper)
+{
+    const radialSegments = 18
+    const stride = radialSegments + 1
+    const rings = [
+        { x: 0,             w: width * 0.62, h: height * (upper ? 0.58 : 0.42), cy: upper ? 0 : -height * 0.03 },
+        { x: length * 0.43, w: width,        h: height * (upper ? 0.86 : 0.58), cy: upper ? height * 0.02 : -height * 0.07 },
+        { x: length * 0.82, w: width * 0.44, h: height * (upper ? 0.40 : 0.30), cy: upper ? -height * 0.01 : -height * 0.09 },
+    ]
+    const positions = []
+    const indices = []
+    for(const ring of rings)
+    {
+        for(let i = 0; i <= radialSegments; i++)
+        {
+            const t = i / radialSegments
+            const a = upper ? t * Math.PI : Math.PI + t * Math.PI
+            positions.push(ring.x, ring.cy + Math.sin(a) * ring.h, Math.cos(a) * ring.w)
+        }
+    }
+    const tipIndex = positions.length / 3
+    positions.push(length, upper ? -height * 0.04 : -height * 0.11, 0)
+    for(let r = 0; r < rings.length - 1; r++)
+    {
+        for(let i = 0; i < radialSegments; i++)
+        {
+            const a = r * stride + i
+            const b = a + 1
+            const c = (r + 1) * stride + i
+            const d = c + 1
+            if(upper) indices.push(a, c, b, b, c, d)
+            else      indices.push(a, b, c, b, d, c)
+        }
+    }
+    const lastRing = (rings.length - 1) * stride
+    for(let i = 0; i < radialSegments; i++)
+    {
+        const a = lastRing + i
+        const b = a + 1
+        if(upper) indices.push(a, tipIndex, b)
+        else      indices.push(a, b, tipIndex)
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geo.setIndex(indices)
+    geo.computeVertexNormals()
+    return geo
+}
+
+function makeStandingMouthGeometry(length, halfWidth, drop)
+{
+    const positions = [
+        0, 0, -halfWidth,
+        0, 0, halfWidth,
+        length, -drop, 0,
+        0, -drop * 0.34, -halfWidth * 0.62,
+        length * 0.88, -drop * 1.06, 0,
+        0, -drop * 0.34, halfWidth * 0.62,
+    ]
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geo.setIndex([0, 1, 2, 3, 4, 5])
+    geo.computeVertexNormals()
+    return geo
+}
+
+function makeCrest(type, color, headSize)
+{
+    const positions = []
+    if(type === 'pointed')
+    {
+        const w = headSize * 0.32, h = headSize * 1.10
+        positions.push(-w, 0, 0,   w, 0, 0,   headSize * 0.15, h, 0)
+    }
+    else if(type === 'tuft')
+    {
+        for(let i = 0; i < 3; i++)
+        {
+            const cx = (i - 1) * headSize * 0.25
+            const w = headSize * 0.12, h = headSize * 0.55
+            positions.push(cx - w, 0, 0,   cx + w, 0, 0,   cx, h, 0)
+        }
+    }
+    else if(type === 'fan')
+    {
+        const blades = 5
+        const fanW = headSize * 1.4
+        const fanH = headSize * 0.85
+        for(let i = 0; i < blades; i++)
+        {
+            const t1 = (i - (blades - 1) / 2) / blades
+            const t2 = ((i + 1) - (blades - 1) / 2) / blades
+            positions.push(0, 0, 0, fanW * t1, fanH, 0, fanW * t2, fanH, 0)
+        }
+    }
+    else if(type === 'curve')
+    {
+        const N = 4
+        const radius = headSize * 0.95
+        for(let i = 0; i < N; i++)
+        {
+            const a1 = (i       / N) * Math.PI * 0.42 - 0.05
+            const a2 = ((i + 1) / N) * Math.PI * 0.42 - 0.05
+            positions.push(
+                0, 0, 0,
+                Math.sin(a1) * radius, Math.cos(a1) * radius, 0,
+                Math.sin(a2) * radius, Math.cos(a2) * radius, 0,
+            )
+        }
+    }
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geo.computeVertexNormals()
+    return new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color, flatShading: true, side: THREE.DoubleSide }))
+}
+
+function makeTailGeometry(type)
+{
+    const positions = []
+    const W = 0.34
+    const L = type === 'long-fan'  ? 0.78
+          :   type === 'short-fan' ? 0.36
+          :   type === 'pointed'   ? 0.60
+          :   type === 'forked'    ? 0.62
+          :   /* square */          0.42
+
+    if(type === 'short-fan' || type === 'long-fan')
+    {
+        positions.push(0, 0, 0,   -L, 0.04, -W,   -L, 0.04, W)
+    }
+    else if(type === 'pointed')
+    {
+        positions.push(0, 0, 0,   -L, 0, -W * 0.25,   -L, 0, W * 0.25)
+    }
+    else if(type === 'forked')
+    {
+        positions.push(0, 0, 0,   -L * 0.95, 0, -W * 0.7,   -L * 1.1, 0.04, -W * 0.3)
+        positions.push(0, 0, 0,   -L * 1.1, 0.04, W * 0.3,   -L * 0.95, 0, W * 0.7)
+    }
+    else // square
+    {
+        positions.push(0, 0, -W,   0, 0, W,   -L, 0, -W)
+        positions.push(0, 0, W,    -L, 0, W,   -L, 0, -W)
+    }
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geo.computeVertexNormals()
+    return geo
+}
