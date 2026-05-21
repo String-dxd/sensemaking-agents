@@ -77,6 +77,10 @@ html, body
        Pin both elements to the viewport so the gradient renders properly. */
     min-height: 100vh;
     height: 100%;
+    /* Lock horizontal scroll at the viewport so a stray wide child anywhere
+       in the engine (or in dev/design surfaces hosted alongside it) can't
+       drag the page sideways. Vertical scroll stays auto inside sheets. */
+    overflow-x: hidden;
 }
 
 /* When the engine shell mounts, paint html AND body to the outer chrome color
@@ -235,16 +239,25 @@ body.student-space-shell.is-night #sky-rays
     user-select: none;
 }
 
+/* Standalone dev counter — used to live inside HourHud's panel; HourHud
+   now lives under Settings, so this chip mounts at body level with its
+   own dark-glass tile in the top-right corner. Toggled by
+   `body.is-dev-overlay-hidden` (DevPalette → "Hide developer overlay"). */
 .fps-overlay
 {
-    display: flex;
+    position: fixed;
+    top: calc(var(--frame-inset) + 12px);
+    right: calc(var(--frame-inset) + 16px);
+    z-index: 10;
+    display: inline-flex;
     align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 24px;
-    margin-bottom: 2px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    gap: 10px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(20, 24, 32, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     color: rgba(250, 246, 238, 0.96);
     font: 700 13px/1 var(--font-sans);
     letter-spacing: 0;
@@ -721,19 +734,6 @@ body.student-space-shell.is-night #sky-rays
     flex-shrink: 0;
 }
 
-/* Hide along with the bird-picker when any sheet is open. visibility:hidden
-   guarantees the chip cannot peek through the rail edge mid-transition; the
-   opacity-only rule wasn't strong enough on translucent surfaces. */
-body.has-overlay        .track-picker,
-body.has-capture-sheet  .track-picker,
-body.has-chooser        .track-picker
-{
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(6px);
-}
-
 /* Bird picker — admin/dev affordance for trying species variants.
    Lives in the dark-glass tier alongside HourHud's weather switches:
    visually marked as "inspect the product" chrome, not part of the
@@ -802,18 +802,6 @@ body.has-chooser        .track-picker
     margin-left: 2px;
 }
 
-/* Hide the picker when any full sheet is open. visibility:hidden ensures the
-   chip is fully removed from the compositor so it can't peek through the
-   sheet's translucent backdrop. */
-body.has-overlay        .bird-picker,
-body.has-capture-sheet  .bird-picker,
-body.has-chooser        .bird-picker
-{
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(6px);
-}
 
 .capture-fab
 {
@@ -906,12 +894,20 @@ body.has-chooser        .bird-picker
     z-index: 60;
     display: none;
     pointer-events: auto;
-    background: linear-gradient(180deg, rgba(253, 250, 243, 0.55) 0%, rgba(253, 250, 243, 0.92) 75%);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    /* Sheets are full pages now, not popups — solid stone-100 surface, no
+       peek-through to the island behind. The body class .has-overlay also
+       hides .game so the world canvas never shows under one of these.
+       overflow-x: hidden so a wide child (long word, intrinsic-width row)
+       can't scroll the page sideways. */
+    background: #F5F5F4;
     overflow-y: auto;
+    overflow-x: hidden;
     transition: opacity 200ms ease;
     opacity: 0;
+}
+body.has-overlay .game
+{
+    visibility: hidden;
 }
 .sheet-chrome.is-open
 {
@@ -944,7 +940,7 @@ body.has-chooser        .bird-picker
 {
     box-sizing: border-box;
     width: 100%;
-    background: #fdfaf3;
+    background: #F5F5F4;
     border-bottom: 1px solid rgba(43, 38, 32, 0.06);
     color: #2b2620;
     font-family: var(--font-sans);
@@ -993,6 +989,130 @@ body.has-chooser        .bird-picker
     .sheet-chrome__header
     {
         padding: 48px max(18px, calc((100% - 760px) / 2 + 18px)) 14px;
+    }
+}
+
+/* ── Split-layout (Gather Town-style two-pane) ──────────────────────
+   When SheetChrome is constructed with `layout: 'split'`, contentSlot
+   becomes a row container with two sibling panes:
+
+     leftPane  — compact title + intro/summary content (~360px sidebar)
+     rightPane — the working surface (tabs, lists, detail)
+
+   Left + right are direct children of `.sheet-chrome__content` so the
+   existing 0/80/160ms entry stagger animates panes in sequence for
+   free. The portalTarget stays the chrome root so child overlays
+   (DayDetailCard, ShareDialog) keep portaling into the active sheet's
+   stacking context — splitting that per-pane would re-introduce the
+   z-32-behind-z-60 bug that originally motivated SheetChrome.
+
+   Translucency posture: leftPane gets a low-alpha cream (≤ 0.40 per
+   the audit findings) and a hairline divider — never a solid sidebar
+   fill, which would break the "island visible through chrome" rule. */
+.sheet-chrome--split .sheet-chrome__content
+{
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+.sheet-chrome__pane
+{
+    box-sizing: border-box;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+.sheet-chrome__pane--left
+{
+    flex: 0 0 360px;
+    max-width: 360px;
+    background: rgba(255, 250, 243, 0.32);
+    border-right: 1px solid rgba(43, 38, 32, 0.06);
+    display: flex;
+    flex-direction: column;
+}
+.sheet-chrome__pane--right
+{
+    flex: 1 1 auto;
+    min-width: 0;
+    background: transparent;
+}
+/* Compact header — drops scale from clamp(1.75rem … 2.25rem) down to
+   ~22px so the page title reads as a normal heading next to the intro
+   content rather than dominating the pane. Padding tightens up because
+   the pane is narrow. */
+.sheet-chrome__header--compact
+{
+    background: transparent;
+    border-bottom: none;
+    padding: 56px 28px 12px;
+}
+.sheet-chrome__title--compact
+{
+    font-size: 1.4rem;
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+}
+.sheet-chrome--split .sheet-chrome__header--compact .sheet-chrome__eyebrow
+{
+    font-size: 10.5px;
+    margin-bottom: 8px;
+}
+.sheet-chrome--split .sheet-chrome__header--compact .sheet-chrome__subtitle
+{
+    font-size: 13px;
+    line-height: 1.45;
+    max-width: 38ch;
+}
+/* Intro slot — per-sheet summary content sits directly below the
+   compact header in the left pane. Per-sheet CSS targets
+   `.<sheet>.sheet-chrome--split .sheet-chrome__intro` for its own
+   layout, just like `.sheet-chrome__body` for the right pane. */
+.sheet-chrome__intro
+{
+    box-sizing: border-box;
+    padding: 0 28px 32px;
+    color: rgba(43, 38, 32, 0.78);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    line-height: 1.55;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+/* Responsive stack — below 860px the two panes flow vertically: the
+   left pane becomes a compact intro band above the scrollable right
+   pane. Matches the engine's existing 780px convention bumped slightly
+   to leave room for the wider two-pane at desktop sizes. */
+@media (max-width: 860px)
+{
+    .sheet-chrome--split .sheet-chrome__content
+    {
+        flex-direction: column;
+    }
+    .sheet-chrome__pane--left
+    {
+        flex: 0 0 auto;
+        max-width: none;
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid rgba(43, 38, 32, 0.06);
+    }
+    .sheet-chrome__pane--right
+    {
+        flex: 1 1 auto;
+    }
+    .sheet-chrome__header--compact
+    {
+        padding: 44px 20px 10px;
+    }
+    .sheet-chrome__intro
+    {
+        padding: 0 20px 20px;
     }
 }
 
@@ -5919,7 +6039,11 @@ body.is-onb-landing .half-sheet
     visibility: hidden;
 }
 
-body.is-dev-overlay-hidden .hour-hud
+/* "Hide developer overlay" (DevPalette command) hides the standalone FPS
+   chip. HourHud + the other admin pickers used to be hidden by the same
+   class, but they now live inside Settings and are reached deliberately
+   via the rail — there's no need to gate them on the dev-overlay toggle. */
+body.is-dev-overlay-hidden .fps-overlay
 {
     pointer-events: none;
     opacity: 0;
@@ -6167,10 +6291,10 @@ body.is-dev-overlay-hidden .hour-hud
     color: var(--onb-ink-deep, #2b2620);
 }
 
-/* Dev escape hatch beneath the demo note — small, low-contrast so it reads as
-   a back-door rather than a peer of the Edupass CTA. Underlined on hover to
-   land closer to a text link than a chip. */
-.onb-login__skip
+/* Dev escape hatch beneath the greeting CTA — small, low-contrast so it
+   reads as a back-door rather than a peer of "Let's begin." Underlined on
+   hover to land closer to a text link than a chip. */
+.onb-greeting__skip
 {
     margin-top: 6px;
     padding: 4px 8px;
@@ -6185,19 +6309,10 @@ body.is-dev-overlay-hidden .hour-hud
     text-underline-offset: 3px;
     transition: color 160ms ease, text-decoration-color 160ms ease;
 }
-.onb-login__skip:hover
+.onb-greeting__skip:hover
 {
     color: rgba(43, 38, 32, 0.78);
     text-decoration-color: currentColor;
-}
-.onb-login--landing .onb-login__skip
-{
-    color: rgba(255, 255, 255, 0.55);
-    text-shadow: 0 1px 2px rgba(7, 18, 36, 0.35);
-}
-.onb-login--landing .onb-login__skip:hover
-{
-    color: rgba(255, 255, 255, 0.88);
 }
 
 /* ── Greeting ───────────────────────────────────────────────────────── */
@@ -6442,7 +6557,8 @@ body.is-dev-overlay-hidden .hour-hud
     gap: 10px;
     margin-top: 4px;
 }
-.onb-egg__back
+.onb-egg__back,
+.onb-back
 {
     background: transparent;
     border: none;
@@ -6454,8 +6570,10 @@ body.is-dev-overlay-hidden .hour-hud
     text-underline-offset: 3px;
     min-height: 44px;
 }
-.onb-egg__back:hover { color: var(--onb-ink); }
-.onb-egg__back:focus-visible
+.onb-egg__back:hover,
+.onb-back:hover { color: var(--onb-ink); }
+.onb-egg__back:focus-visible,
+.onb-back:focus-visible
 {
     outline: 3px solid rgba(255, 138, 92, 0.7);
     outline-offset: 3px;
@@ -7672,6 +7790,41 @@ body.is-onboarding .kira-bubble
     outline: 3px solid rgba(255, 138, 92, 0.7);
     outline-offset: 2px;
 }
+
+/* Embedded admin UIs ─────────────────────────────────────────────────
+   The four admin pickers (HourHud, TrackPicker, BirdPicker,
+   StatusPreviewHud) each carry `position: fixed` defaults so they can
+   float at body level on their own. Inside SettingsSheet, that
+   positioning is meaningless — reset it so each picker flows as the
+   content of its section. The dark-glass tile styling is preserved so
+   the admin tier still reads visually distinct from the cream settings
+   chrome around it. */
+.settings-sheet__admin-slot
+{
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.settings-sheet .hour-hud,
+.settings-sheet .track-picker,
+.settings-sheet .bird-picker,
+.settings-sheet .status-preview-hud
+{
+    position: static;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    z-index: auto;
+}
+
+/* StatusPreviewHud's menu is `position: absolute`; give the root a
+   positioning context so the popout still anchors correctly to the
+   toggle (rather than escaping to the nearest fixed ancestor). */
+.settings-sheet .status-preview-hud { position: relative; }
 
 /* ── Visual primitives (shared across full-viewport sheets) ─────────
    TLDR hero, disclosure, stat tile row, and callout strip — composed
