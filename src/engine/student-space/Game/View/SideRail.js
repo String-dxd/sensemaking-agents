@@ -26,8 +26,13 @@ import Game from '../Game.js'
 // `~/lib/student-space/route-sync`) so the engine's JS layer stays free
 // of TS imports for navigation primitives. The host's `pathnameForSurface`
 // helper is the authoritative builder; this map just mirrors the well-known
-// pathnames the rail emits. Keep in sync with `route-sync.ts`.
-const SHEET_HREFS = {
+// pathnames the rail emits.
+//
+// `test/engine/SideRail.hrefs.test.ts` enforces the keep-in-sync contract
+// by importing this map AND `pathnameForSurface` and asserting they agree
+// on every rail entry. If route-sync.ts changes a canonical path or this
+// map drifts, the test fails at CI time — no silent drift.
+export const SHEET_HREFS = {
     home:       '/',
     letters:    '/letters',
     history:    '/history',

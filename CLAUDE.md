@@ -14,12 +14,12 @@ Every **full-viewport sheet** in the engine (`src/engine/student-space/Game/View
 
 Use `new SheetChrome({ key, sheetClassName, … })` from `src/engine/student-space/Game/View/SheetChrome.js`. The chrome owns:
 
-- backdrop (`rgba(253, 250, 243, 0.55 → 0.92)`)
+- backdrop (`rgba(253, 250, 243, 0.85 → 0.92)`) — updated from the original `0.55 → 0.92` after the 2026-05-21 routing refactor. Routed sheets (Profile/History/Letters/Trajectory) now have a transparent header instead of a solid cream panel, so the gradient's top stop carries the title's legibility against the engine canvas. The lower bound stays at `0.92` near the bottom.
 - 10px blur (`backdrop-filter: blur(10px)`)
 - 200ms opacity fade (`transition: opacity 200ms ease`)
 - z-60 tier (`z-index: 60`)
-- the × close button (`.sheet-chrome__close`, shared style)
-- Escape-to-close key handling
+- the × close button (`.sheet-chrome__close`, shared style) — opt-out via `withCloseButton: false` on routed sheets where browser back / SideRail are the navigation primitives
+- Escape-to-close key handling, with optional `onCloseRequest` callback that routes Escape through the host router for routed sheets
 - registration with `OverlayController` for exclusivity + body class toggling
 - a `portalTarget` for child overlays (popovers, day-detail cards) that need to mount inside the active sheet's stacking context
 
