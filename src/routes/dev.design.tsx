@@ -1254,7 +1254,7 @@ function ButtonsSection() {
     <SectionShell
       id="buttons"
       title="Buttons"
-      subtitle="Every button-shaped affordance in the system — shadcn primitive variants, the engine cream pill family, and the product-specific VoiceButton."
+      subtitle="Every button-shaped affordance in the system — shadcn primitive variants and the engine cream pill family."
     >
       <div className="flex flex-col gap-5">
         <ComponentBlock
@@ -2306,12 +2306,6 @@ const INVENTORY: InventoryEntry[] = [
       'Read-only chip (Mirror sensed / You felt) + a connector that says same / aligned / different.',
     renderedAt: 'pills',
   },
-  {
-    file: 'src/components/VoiceButton.tsx',
-    name: 'VoiceButton',
-    summary: 'Primary capture affordance — idle / recording (with halo) / working / disabled.',
-    renderedAt: 'buttons',
-  },
   // Cards / fields
   {
     file: 'src/components/WikiEntryCard.tsx',
@@ -2356,22 +2350,6 @@ const INVENTORY: InventoryEntry[] = [
     name: 'StudentSpaceHost',
     summary:
       'Mounts the vendored engine on `/`. Dispatches dynamic import + adds the body.student-space-shell class.',
-  },
-  {
-    file: 'src/components/WorldHud.tsx',
-    name: 'WorldHud',
-    summary: 'Floating HUD over the engine canvas — capture corner anchor.',
-  },
-  {
-    file: 'src/components/WorldStage.tsx',
-    name: 'WorldStage',
-    summary: 'Engine stage shell — provides the container the engine mounts into.',
-  },
-  {
-    file: 'src/components/FloatingWorldActions.tsx',
-    name: 'FloatingWorldActions',
-    summary:
-      'Legacy floating action shell. Largely retired but kept for backwards-compat type re-export.',
   },
   {
     file: 'src/components/IslandProgressionOverlay.tsx',
