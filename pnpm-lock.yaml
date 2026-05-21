@@ -4,24 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@tanstack/history': 1.161.6
-  '@tanstack/react-router': 1.169.2
-  '@tanstack/react-start': 1.167.65
-  '@tanstack/react-start-client': 1.166.48
-  '@tanstack/react-start-rsc': 0.0.44
-  '@tanstack/react-start-server': 1.166.52
-  '@tanstack/router-core': 1.169.2
-  '@tanstack/router-generator': 1.166.42
-  '@tanstack/router-plugin': 1.167.35
-  '@tanstack/router-utils': 1.161.8
-  '@tanstack/start-client-core': 1.168.2
-  '@tanstack/start-fn-stubs': 1.161.6
-  '@tanstack/start-plugin-core': 1.169.20
-  '@tanstack/start-server-core': 1.167.30
-  '@tanstack/start-storage-context': 1.166.35
-  '@tanstack/virtual-file-routes': 1.161.7
-
 importers:
 
   .:
@@ -1174,7 +1156,7 @@ packages:
     engines: {node: '>=20.19'}
     peerDependencies:
       '@rsbuild/core': '>=1.0.2 || ^2.0.0'
-      '@tanstack/react-router': 1.169.2
+      '@tanstack/react-router': ^1.169.2
       vite: '>=5.0.0 || >=6.0.0 || >=7.0.0 || >=8.0.0'
       vite-plugin-solid: ^2.11.10 || ^3.0.0-0
       webpack: '>=5.92.0'
@@ -1378,8 +1360,8 @@ packages:
     resolution: {integrity: sha512-WXow2hqmfeHPbEUvXT1LDe+LDqX+fiAtHcpMujhGoXR/TK7FhnPvPUcEMkihfknCJKBxnyOi4zkk1xtgkqRFUA==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
-      '@tanstack/react-router': 1.169.2
-      '@tanstack/react-start': 1.167.65
+      '@tanstack/react-router': '>=1.0.0'
+      '@tanstack/react-start': '>=1.0.0'
       react: ^18.0 || ^19.0
       react-dom: ^18.0 || ^19.0
 

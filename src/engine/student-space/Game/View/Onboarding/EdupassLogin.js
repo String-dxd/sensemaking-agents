@@ -14,6 +14,7 @@
  */
 
 import { OFFLINE_DEMO_STUDENTS } from './copy.js'
+import { performOnboardingSkip } from './OnboardingSkip.js'
 import { wait } from '../../util/timing.js'
 import { escapeHtml } from '../../util/html.js'
 
@@ -232,32 +233,47 @@ export default class EdupassLogin
      * Edupass CTA so test/dev flows don't have to sit through the full
      * ceremony each run. No-ops gracefully if any singleton is missing.
      */
+    // On the login surface, "skip" means: log the user in as a demo account
+    // (the safe default when no explicit method has been picked) AND mark
+    // onboarding done so the post-demo reload lands them straight on the
+    // island. We commit onboarding=done BEFORE the demo POST so the server's
+    // redirect-back boots a flow that immediately short-circuits in
+    // OnboardingFlow.start() via `onb.isDone`. If the demo form is missing
+    // (no backend / dev env), we fall back to the offline-identity skip
+    // path used by the post-login floating button.
     _onSkip(ctx)
     {
+        const demoForm = this._el?.querySelector('form[data-action="demo"]')
+        if(!demoForm)
+        {
+            performOnboardingSkip(ctx)
+            return
+        }
+
         try
         {
-            if(!ctx.state?.backend)
-            {
-                const pick = OFFLINE_DEMO_STUDENTS[Math.floor(Math.random() * OFFLINE_DEMO_STUDENTS.length)]
-                ctx.profile.setIdentity({ name: pick.name, className: pick.className })
-            }
             ctx.state?.onboarding?.complete?.()
-            // Drain the 250ms persistence debounce SYNCHRONOUSLY so the new
-            // onboarding stage hits storage before we reload. Without this,
-            // the page reload races the debounce timer, the stage='done'
-            // write is lost, and the next boot replays the ceremony.
+            // Drain the persistence debounce SYNCHRONOUSLY so the
+            // stage='done' write survives the demo POST → server redirect.
             ctx.state?.persistence?.flush?.()
-            // Clear the `#onboarding` URL hash — Onboarding.hydrate() runs
-            // its replay-reset whenever it sees that hash on boot, which
-            // would re-wipe the `stage='done'` we just persisted. Without
-            // this, skip → reload would replay the ceremony every time.
             if(typeof window !== 'undefined' && window.location.hash === '#onboarding')
             {
                 window.history.replaceState(null, '', window.location.pathname + window.location.search)
             }
         }
         catch(_) {}
-        try { window.location.reload() } catch(_) {}
+
+        try
+        {
+            const btn = demoForm.querySelector('button')
+            this._beginConnecting(btn || demoForm, ctx)
+            disposeEngineForNavigation()
+            submitBodyScopedAuthForm(demoForm.action, demoForm.method || 'post')
+        }
+        catch(_)
+        {
+            performOnboardingSkip(ctx)
+        }
     }
 
     _onClick(event, ctx)

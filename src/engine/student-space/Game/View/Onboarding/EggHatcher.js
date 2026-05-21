@@ -17,7 +17,8 @@
 import * as THREE from 'three'
 
 import { EGG_COLORS, EGG_COLOR_BY_ID } from './copy.js'
-import { SPECIES_BY_ID, buildStandingBird } from '../Kira.js'
+import { SPECIES_BY_ID } from '../Kira.js'
+import { buildStandingBird } from '../StandingBird.js'
 import { escapeHtml } from '../../util/html.js'
 import { wait } from '../../util/timing.js'
 
