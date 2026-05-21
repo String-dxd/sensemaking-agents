@@ -39,17 +39,6 @@ const TYPER_STOP_MS  = 220
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const EMOTION_BY_ID = Object.fromEntries(EMOTIONS.map((e) => [e.id, e]))
-const EMOTION_EMOJI = {
-    joy: '🙂',
-    sadness: '😔',
-    anger: '😠',
-    fear: '😟',
-    disgust: '😖',
-    anxiety: '😬',
-    envy: '🫥',
-    embarrassment: '😳',
-    ennui: '😶',
-}
 
 const THEME_PILL = {
     school: { label: 'school', need: 'autonomy',  mood: 'anxiety' },
@@ -128,7 +117,7 @@ export default class AskSheet
                         <div class="ask-sheet__emoji-panel" hidden>
                             ${EMOTIONS.map((e) => `
                                 <button class="ask-sheet__emoji-option" type="button" data-emotion="${e.id}" style="--emotion-color:${e.color}">
-                                    <span class="ask-sheet__emoji-symbol" aria-hidden="true">${EMOTION_EMOJI[e.id] || '•'}</span>
+                                    <span class="ask-sheet__emoji-symbol" aria-hidden="true">${shapeSvg(e.shape, e.color)}</span>
                                     <span>${e.label}</span>
                                 </button>
                             `).join('')}
@@ -1685,8 +1674,6 @@ export default class AskSheet
         this.emojiToggleBtn.classList.toggle('is-selected', !!emotion)
         this.emojiToggleBtn.setAttribute('aria-pressed', emotion ? 'true' : 'false')
         this.emojiToggleBtn.style.setProperty('--emotion-color', emotion?.color || 'rgba(255, 138, 92, 0.95)')
-        const symbol = this.emojiToggleBtn.querySelector('span')
-        if(symbol) symbol.textContent = emotion ? (EMOTION_EMOJI[emotion.id] || '•') : '🙂'
 
         this.imagePreviewEl.hidden = !this.uploadedImageDataUrl
         this.imageTriggerBtn.classList.toggle('is-selected', !!this.uploadedImageDataUrl)
