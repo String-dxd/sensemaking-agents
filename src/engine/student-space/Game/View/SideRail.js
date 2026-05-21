@@ -20,6 +20,20 @@
 
 import OverlayController from './OverlayController.js'
 import State from '../State/State.js'
+import Game from '../Game.js'
+
+// Canonical paths for each rail entry. Kept inline (not imported from
+// `~/lib/student-space/route-sync`) so the engine's JS layer stays free
+// of TS imports for navigation primitives. The host's `pathnameForSurface`
+// helper is the authoritative builder; this map just mirrors the well-known
+// pathnames the rail emits. Keep in sync with `route-sync.ts`.
+const SHEET_HREFS = {
+    home:       '/',
+    letters:    '/letters',
+    history:    '/history',
+    profile:    '/profile',
+    trajectory: '/trajectory',
+}
 
 const SHEET_BUTTONS = [
     {
@@ -116,17 +130,20 @@ export default class SideRail
             const action = btn.dataset.action
             if(sheet === 'home')
             {
-                // Home == the island. Close whatever surface is open.
-                const controller = OverlayController.getInstance()
-                if(controller.active) controller.close(controller.active)
+                // Home == the island. Ask the host to navigate to `/`.
+                this._navigate('/')
                 return
             }
             if(sheet)
             {
+                const href = SHEET_HREFS[sheet]
+                if(!href) return
+                // Re-tap the same chip while its sheet is open → navigate
+                // home. The router-driven open path will close the sheet
+                // when the URL changes back to `/`.
                 const controller = OverlayController.getInstance()
-                // Re-tap the same chip while its sheet is open → close it.
-                if(controller.isOpen(sheet)) controller.close(sheet)
-                else controller.open(sheet)
+                if(controller?.isOpen?.(sheet)) this._navigate('/')
+                else this._navigate(href)
                 return
             }
             if(action === 'restart') this._restartOnboarding()
@@ -153,6 +170,35 @@ export default class SideRail
             btn.classList.toggle('is-active', isActive)
             btn.setAttribute('aria-pressed', isActive ? 'true' : 'false')
         }
+    }
+
+    /**
+     * Ask the host to navigate. Falls back to direct OverlayController calls
+     * when no host router is wired (e.g. standalone test harnesses) so the
+     * rail stays functional in isolation. In production the host always
+     * provides `onNavigate` via `createGame`.
+     */
+    _navigate(href)
+    {
+        const game = Game.getInstance()
+        if(game?._onNavigate)
+        {
+            game.navigate(href)
+            return
+        }
+        // Fallback: drive the controller directly. This branch only runs
+        // when no host router is wired (test harnesses without
+        // `useStudentSpaceNavigate`); production hosts always pass it.
+        const controller = OverlayController.getInstance()
+        if(!controller) return
+        if(href === '/')
+        {
+            if(controller.active) controller.close(controller.active)
+            return
+        }
+        // Strip leading slash + any hash so the path maps to a sheet key.
+        const sheet = href.replace(/^\/+/, '').split(/[/#?]/)[0]
+        if(sheet && controller.surfaces?.has?.(sheet)) controller.open(sheet)
     }
 
     _restartOnboarding()
