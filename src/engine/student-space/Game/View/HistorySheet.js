@@ -117,12 +117,11 @@ export default class HistorySheet
         this.chrome = new SheetChrome({
             key:            'history',
             sheetClassName: 'history-sheet',
-            withCloseButton: true,
+            withCloseButton: false,
             closeOnBackdrop: false,
             layout:         'split',
             header: {
-                eyebrow:  'HISTORY',
-                title:    'Look back',
+                title:    'History',
                 subtitle: 'A chronological feed of what you recorded, and a year-by-year read on how it\'s adding up.',
             },
         })

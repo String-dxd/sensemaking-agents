@@ -1042,31 +1042,38 @@ body.has-overlay .game
 }
 /* Compact header — drops scale from clamp(1.75rem … 2.25rem) down to
    ~22px so the page title reads as a normal heading next to the intro
-   content rather than dominating the pane. Padding tightens up because
-   the pane is narrow. */
+   content rather than dominating the pane. A hairline divider sits
+   below the description so the title block reads as its own zone,
+   separate from the per-sheet intro content below. Padding tightens
+   up because the pane is narrow. */
 .sheet-chrome__header--compact
 {
     background: transparent;
-    border-bottom: none;
-    padding: 56px 28px 12px;
+    border-bottom: 1px solid rgba(43, 38, 32, 0.08);
+    padding: 56px 28px 18px;
+    margin-bottom: 4px;
 }
 .sheet-chrome__title--compact
 {
     font-size: 1.4rem;
     line-height: 1.18;
     letter-spacing: -0.01em;
-    margin: 0 0 4px;
+    margin: 0 0 6px;
 }
+/* Eyebrow is intentionally omitted from the split layout — the
+   compact title block reads as "Page name + description, then a
+   line, then content" (Gather pattern). The eyebrow stub element
+   still renders for ARIA continuity but is visually hidden. */
 .sheet-chrome--split .sheet-chrome__header--compact .sheet-chrome__eyebrow
 {
-    font-size: 10.5px;
-    margin-bottom: 8px;
+    display: none;
 }
 .sheet-chrome--split .sheet-chrome__header--compact .sheet-chrome__subtitle
 {
     font-size: 13px;
     line-height: 1.45;
     max-width: 38ch;
+    color: rgba(43, 38, 32, 0.62);
 }
 /* Intro slot — per-sheet summary content sits directly below the
    compact header in the left pane. Per-sheet CSS targets
@@ -5317,6 +5324,26 @@ body.is-onb-landing .side-rail
 {
     padding: 0;
 }
+/* Dynamic per-status title + tldr that used to live in the chrome
+   header. With the static-header refactor, they live in the intro
+   slot just below the chrome divider, giving the student the
+   per-status orientation without the page name shape-shifting. */
+.trajectory-sheet__status-title
+{
+    margin: 6px 0 4px;
+    font-size: 1.05rem;
+    line-height: 1.25;
+    font-weight: 600;
+    color: #2b2620;
+    letter-spacing: -0.005em;
+}
+.trajectory-sheet__status-tldr
+{
+    margin: 0 0 6px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: rgba(43, 38, 32, 0.72);
+}
 .trajectory-sheet__throughline
 {
     margin: 0 0 14px;
@@ -8212,6 +8239,16 @@ body.is-onboarding .kira-bubble
 .disclosure__panel > *
 {
     min-height: 0;
+}
+/* All disclosure content must be wrapped in a SINGLE inner element so
+   the grid-template-rows 0→1fr collapse animation works correctly.
+   Multiple direct children of `.disclosure__panel` only collapse the
+   first row; later children leak through visually. The
+   `disclosure__panel-inner` wrapper is the canonical home for that
+   content — see ProfileSheet, TrajectorySheet, visualPrimitives.js. */
+.disclosure__panel-inner
+{
+    overflow: hidden;
 }
 @media (prefers-reduced-motion: reduce)
 {

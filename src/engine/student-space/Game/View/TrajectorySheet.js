@@ -60,13 +60,12 @@ export default class TrajectorySheet
         this.chrome = new SheetChrome({
             key:            'trajectory',
             sheetClassName: 'trajectory-sheet',
-            withCloseButton: true,
+            withCloseButton: false,
             closeOnBackdrop: false,
             layout:         'split',
             header: {
-                eyebrow:  'PATH FINDER',
-                title:    'Trajectory compass',
-                subtitle: '',
+                title:    'Path Finder',
+                subtitle: 'Bearings the evidence points toward as you explore who you might become.',
             },
         })
         this.chrome.introSlot.innerHTML = `
@@ -81,6 +80,9 @@ export default class TrajectorySheet
                 </span>
                 <span class="trajectory-sheet__status-reason" data-role="status-reason" hidden></span>
             </div>
+
+            <h2 class="trajectory-sheet__status-title" data-role="status-title"></h2>
+            <p class="trajectory-sheet__status-tldr" data-role="status-tldr" hidden></p>
 
             <p class="trajectory-sheet__meta" data-role="meta" hidden></p>
             <div class="trajectory-sheet__head-actions" data-role="head-actions"></div>
@@ -101,6 +103,8 @@ export default class TrajectorySheet
         this.statusPillEl   = root.querySelector('[data-role="status-pill"]')
         this.statusLabelEl  = root.querySelector('[data-role="status-label"]')
         this.statusReasonEl = root.querySelector('[data-role="status-reason"]')
+        this.statusTitleEl  = root.querySelector('[data-role="status-title"]')
+        this.statusTldrEl   = root.querySelector('[data-role="status-tldr"]')
         this.headActionsEl  = root.querySelector('[data-role="head-actions"]')
         this.whySlotEl      = root.querySelector('[data-role="why-slot"]')
         this.bodyEl    = root.querySelector('[data-role="body"]')
@@ -313,16 +317,24 @@ export default class TrajectorySheet
         const status = this.escapeHatch ? 'searching' : audit.status
         const copy = statusCopyOf(status, this.profile?.identity)
 
-        // Header: eyebrow + title + (short) tldr subtitle live in the shared
-        // SheetChrome header. The full long-form `lead` paragraph moves into
-        // a "Why this status" disclosure beneath the head actions so the
-        // cold-open weight drops. Status pill, meta line, and head actions
-        // stay in Path Finder's own body header below the chrome header.
-        this.chrome?.setHeader?.({
-            eyebrow:  copy.eyebrow,
-            title:    copy.title,
-            subtitle: copy.tldr || copy.lead,
-        })
+        // Chrome header stays static ("Path Finder" + general subtitle).
+        // The status-driven title + tldr live in the intro slot below the
+        // chrome divider so the page reads as "Path Finder · description
+        // · then the per-status orientation" rather than the page name
+        // shape-shifting per status. The full long-form `lead` paragraph
+        // moves into a "Why this status" disclosure beneath the head
+        // actions so the cold-open weight drops.
+        if(this.statusTitleEl)
+        {
+            this.statusTitleEl.textContent = copy.title || ''
+            this.statusTitleEl.hidden = !copy.title
+        }
+        if(this.statusTldrEl)
+        {
+            const tldr = copy.tldr || ''
+            this.statusTldrEl.textContent = tldr
+            this.statusTldrEl.hidden = !tldr
+        }
 
         // "Why this status" disclosure — collapsed by default once the sheet
         // has been open. Contains the full lead paragraph that used to live
@@ -559,19 +571,21 @@ export default class TrajectorySheet
                         <span class="disclosure__summary">See evidence</span>
                     </button>
                     <div class="disclosure__panel">
-                        <div class="trajectory-panel__chips" data-role="panel-trait-group" hidden>
-                            <p class="trajectory-panel__chip-label">TRAIT COMBINATION</p>
-                            <div class="trajectory-panel__chip-row" data-role="panel-traits"></div>
-                        </div>
+                        <div class="disclosure__panel-inner">
+                            <div class="trajectory-panel__chips" data-role="panel-trait-group" hidden>
+                                <p class="trajectory-panel__chip-label">TRAIT COMBINATION</p>
+                                <div class="trajectory-panel__chip-row" data-role="panel-traits"></div>
+                            </div>
 
-                        <div class="trajectory-panel__chips" data-role="panel-ecg-group" hidden>
-                            <p class="trajectory-panel__chip-label">ECG REGION TAGS</p>
-                            <div class="trajectory-panel__chip-row" data-role="panel-ecg"></div>
-                        </div>
+                            <div class="trajectory-panel__chips" data-role="panel-ecg-group" hidden>
+                                <p class="trajectory-panel__chip-label">ECG REGION TAGS</p>
+                                <div class="trajectory-panel__chip-row" data-role="panel-ecg"></div>
+                            </div>
 
-                        <div class="trajectory-panel__risk" data-role="panel-risk-group" hidden>
-                            <p class="trajectory-panel__chip-label">RISKS AND TRADEOFFS</p>
-                            <p class="trajectory-panel__risk-text" data-role="panel-risk"></p>
+                            <div class="trajectory-panel__risk" data-role="panel-risk-group" hidden>
+                                <p class="trajectory-panel__chip-label">RISKS AND TRADEOFFS</p>
+                                <p class="trajectory-panel__risk-text" data-role="panel-risk"></p>
+                            </div>
                         </div>
                     </div>
                 </section>

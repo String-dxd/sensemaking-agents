@@ -162,11 +162,10 @@ export default class ProfileSheet
         this.chrome = new SheetChrome({
             key:            'profile',
             sheetClassName: 'profile-sheet',
-            withCloseButton: true,
+            withCloseButton: false,
             closeOnBackdrop: false,
             layout:         'split',
             header: {
-                eyebrow:  'PROFILE',
                 title:    'My Identity',
                 subtitle: 'The shape of your reflections so far.',
             },
@@ -203,23 +202,25 @@ export default class ProfileSheet
                             <span class="disclosure__summary">More about this dimension</span>
                         </button>
                         <div class="disclosure__panel">
-                            <h2 class="profile-sheet__title"></h2>
-                            <p  class="profile-sheet__panel-subtitle"></p>
-                            <ul class="vips-rows vips-rows--profile" role="list">
-                                <li class="vips-row">
-                                    <span class="vips-row__label">Most common</span>
-                                    <p class="vips-row__body" data-row="most"></p>
-                                </li>
-                                <li class="vips-row">
-                                    <span class="vips-row__label">Quietly emerging</span>
-                                    <p class="vips-row__body" data-row="emerge"></p>
-                                </li>
-                            </ul>
-                            <p  class="profile-sheet__summary"></p>
-                            <aside class="callout-strip profile-sheet__open-question" data-accent="">
-                                <p class="callout-strip__eyebrow profile-sheet__open-eyebrow">OPEN QUESTION</p>
-                                <p class="callout-strip__body profile-sheet__open-text"></p>
-                            </aside>
+                            <div class="disclosure__panel-inner">
+                                <h2 class="profile-sheet__title"></h2>
+                                <p  class="profile-sheet__panel-subtitle"></p>
+                                <ul class="vips-rows vips-rows--profile" role="list">
+                                    <li class="vips-row">
+                                        <span class="vips-row__label">Most common</span>
+                                        <p class="vips-row__body" data-row="most"></p>
+                                    </li>
+                                    <li class="vips-row">
+                                        <span class="vips-row__label">Quietly emerging</span>
+                                        <p class="vips-row__body" data-row="emerge"></p>
+                                    </li>
+                                </ul>
+                                <p  class="profile-sheet__summary"></p>
+                                <aside class="callout-strip profile-sheet__open-question" data-accent="">
+                                    <p class="callout-strip__eyebrow profile-sheet__open-eyebrow">OPEN QUESTION</p>
+                                    <p class="callout-strip__body profile-sheet__open-text"></p>
+                                </aside>
+                            </div>
                         </div>
                     </div>
                     <p class="profile-sheet__meta"></p>

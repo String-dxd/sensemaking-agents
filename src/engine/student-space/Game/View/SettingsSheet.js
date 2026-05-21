@@ -28,11 +28,10 @@ export default class SettingsSheet
         this.chrome = new SheetChrome({
             key:             'settings',
             sheetClassName:  'settings-sheet',
-            withCloseButton: true,
+            withCloseButton: false,
             closeOnBackdrop: false,
             layout:          'split',
             header: {
-                eyebrow:  'SETTINGS',
                 title:    'Settings',
                 subtitle: 'Tools for adjusting how the world behaves.',
             },

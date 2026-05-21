@@ -45,12 +45,11 @@ export default class LettersSheet
         this.chrome = new SheetChrome({
             key:            'letters',
             sheetClassName: 'letters-sheet',
-            withCloseButton: true,
+            withCloseButton: false,
             closeOnBackdrop: false,
             layout:         'split',
             header: {
-                eyebrow:  'LETTERS',
-                title:    'Inbox',
+                title:    'Letters',
                 subtitle: 'Notes from your form teacher when they notice something worth saying.',
             },
         })
