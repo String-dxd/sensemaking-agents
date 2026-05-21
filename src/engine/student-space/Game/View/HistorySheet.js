@@ -109,25 +109,30 @@ export default class HistorySheet
 
         // SheetChrome owns backdrop, blur, fade, z-tier, the × button, the
         // Escape-to-close listener, AND the shared header (eyebrow + title +
-        // subtitle). History only owns its tab/embed/year logic inside
-        // chrome.bodySlot. See CLAUDE.md "Sheet chrome contract".
+        // subtitle). Under the Gather-style split layout, the left pane
+        // (introSlot) carries the tab strip + intro context; the right pane
+        // (bodySlot) carries the active tab's content (embedded Calendar
+        // for Timeline, year-scrubber + island + summary for Growth).
+        // See CLAUDE.md "Sheet chrome contract".
         this.chrome = new SheetChrome({
             key:            'history',
             sheetClassName: 'history-sheet',
             withCloseButton: true,
             closeOnBackdrop: false,
+            layout:         'split',
             header: {
                 eyebrow:  'HISTORY',
                 title:    'Look back',
                 subtitle: 'A chronological feed of what you recorded, and a year-by-year read on how it\'s adding up.',
             },
         })
-        this.chrome.bodySlot.innerHTML = `
+        this.chrome.introSlot.innerHTML = `
             <nav class="history-sheet__tabs" role="tablist">
                 <button type="button" class="history-sheet__tab" data-tab="timeline" role="tab">Timeline</button>
                 <button type="button" class="history-sheet__tab" data-tab="growth" role="tab">Growth</button>
             </nav>
-
+        `
+        this.chrome.bodySlot.innerHTML = `
             <section class="history-sheet__pane history-sheet__pane--timeline" data-pane="timeline" hidden>
                 <div class="history-sheet__timeline-slot" data-timeline-slot></div>
             </section>

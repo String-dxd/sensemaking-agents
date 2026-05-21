@@ -7217,6 +7217,36 @@ body.is-onboarding .kira-bubble
     padding: 8px 20px 32px;
 }
 
+/* Split-layout overrides — History uses the Gather-style two-pane
+   chrome. Tab strip lives in the left pane (introSlot); active tab
+   content (embedded Calendar or Growth scrubber/island/summary)
+   lives in the right pane (bodySlot). The shared header text supplies
+   page orientation; the tab strip is the only intro chrome. */
+.history-sheet.sheet-chrome--split .sheet-chrome__intro
+{
+    padding: 0 24px 24px;
+    gap: 12px;
+}
+.history-sheet.sheet-chrome--split .history-sheet__tabs
+{
+    max-width: none;
+    margin: 0;
+    background: rgba(253, 250, 243, 0.55);
+    flex-direction: row;
+}
+.history-sheet.sheet-chrome--split .history-sheet__pane--timeline,
+.history-sheet.sheet-chrome--split .history-sheet__pane--growth
+{
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+.history-sheet.sheet-chrome--split .history-sheet__scrubber
+{
+    max-width: none;
+    margin: 0 0 16px;
+}
+
 .history-sheet__scrubber
 {
     max-width: 720px;
