@@ -17,6 +17,15 @@ const isoDaysAgo = (n) =>
 
 export const LETTERS_SEED = [
     {
+        id:      'lt_camp_reflect',
+        from:    'Ms. Tan',
+        subject: 'After Sec 2 camp — three moments',
+        body:    'The bus has dropped you home by now, the laundry pile is sitting somewhere your mother can see it, and the camp probably feels both very loud and very far away.\n\nBefore the noise of school comes back, I want to ask you something that won\'t get marked. What were three moments from camp that have stayed with you? Small, specific, weird if they want to be. Not the ones that look good in a group photo — the ones that show up when nobody\'s asking.\n\nTap Capture below when you have one. It opens the same place you usually talk to Kira, so you can type, voice, or just sit with it. One moment at a time is plenty. They will keep, and we can talk about them after.\n\n— Ms. Tan',
+        sentAt:  isoDaysAgo(0),
+        read:    false,
+        prompt:  'What are three moments from Sec 2 camp that have stayed with you?',
+    },
+    {
         id:      'lt_01',
         from:    'Ms. Tan',
         subject: 'A small noticing during recess',

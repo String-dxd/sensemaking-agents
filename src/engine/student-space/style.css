@@ -77,6 +77,10 @@ html, body
        Pin both elements to the viewport so the gradient renders properly. */
     min-height: 100vh;
     height: 100%;
+    /* Lock horizontal scroll at the viewport so a stray wide child anywhere
+       in the engine (or in dev/design surfaces hosted alongside it) can't
+       drag the page sideways. Vertical scroll stays auto inside sheets. */
+    overflow-x: hidden;
 }
 
 /* When the engine shell mounts, paint html AND body to the outer chrome color
@@ -235,16 +239,25 @@ body.student-space-shell.is-night #sky-rays
     user-select: none;
 }
 
+/* Standalone dev counter — used to live inside HourHud's panel; HourHud
+   now lives under Settings, so this chip mounts at body level with its
+   own dark-glass tile in the top-right corner. Toggled by
+   `body.is-dev-overlay-hidden` (DevPalette → "Hide developer overlay"). */
 .fps-overlay
 {
-    display: flex;
+    position: fixed;
+    top: calc(var(--frame-inset) + 12px);
+    right: calc(var(--frame-inset) + 16px);
+    z-index: 10;
+    display: inline-flex;
     align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-    min-height: 24px;
-    margin-bottom: 2px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+    gap: 10px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(20, 24, 32, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     color: rgba(250, 246, 238, 0.96);
     font: 700 13px/1 var(--font-sans);
     letter-spacing: 0;
@@ -721,19 +734,6 @@ body.student-space-shell.is-night #sky-rays
     flex-shrink: 0;
 }
 
-/* Hide along with the bird-picker when any sheet is open. visibility:hidden
-   guarantees the chip cannot peek through the rail edge mid-transition; the
-   opacity-only rule wasn't strong enough on translucent surfaces. */
-body.has-overlay        .track-picker,
-body.has-capture-sheet  .track-picker,
-body.has-chooser        .track-picker
-{
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(6px);
-}
-
 /* Bird picker — admin/dev affordance for trying species variants.
    Lives in the dark-glass tier alongside HourHud's weather switches:
    visually marked as "inspect the product" chrome, not part of the
@@ -802,18 +802,6 @@ body.has-chooser        .track-picker
     margin-left: 2px;
 }
 
-/* Hide the picker when any full sheet is open. visibility:hidden ensures the
-   chip is fully removed from the compositor so it can't peek through the
-   sheet's translucent backdrop. */
-body.has-overlay        .bird-picker,
-body.has-capture-sheet  .bird-picker,
-body.has-chooser        .bird-picker
-{
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-    transform: translateY(6px);
-}
 
 .capture-fab
 {
@@ -906,16 +894,20 @@ body.has-chooser        .bird-picker
     z-index: 60;
     display: none;
     pointer-events: auto;
-    /* Top stop bumped 0.55 → 0.85 because the header is now transparent
-       (no more solid cream panel — see `.sheet-chrome__header`). Titles
-       sit directly on this gradient; 0.85 keeps them legible against
-       the engine canvas behind without re-introducing a visible seam. */
-    background: linear-gradient(180deg, rgba(253, 250, 243, 0.85) 0%, rgba(253, 250, 243, 0.92) 75%);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    /* Sheets are full pages now, not popups — solid stone-100 surface, no
+       peek-through to the island behind. The body class .has-overlay also
+       hides .game so the world canvas never shows under one of these.
+       overflow-x: hidden so a wide child (long word, intrinsic-width row)
+       can't scroll the page sideways. */
+    background: #F5F5F4;
     overflow-y: auto;
+    overflow-x: hidden;
     transition: opacity 200ms ease;
     opacity: 0;
+}
+body.has-overlay .game
+{
+    visibility: hidden;
 }
 .sheet-chrome.is-open
 {
@@ -948,13 +940,8 @@ body.has-chooser        .bird-picker
 {
     box-sizing: border-box;
     width: 100%;
-    /* No solid background or hairline — the routed-sheet refactor turned
-       these sheets into real pages. A solid cream header on top of the
-       translucent body reads as a card-on-card stack ("extra page card
-       container below the main one"). Letting the chrome's own gradient
-       show through keeps the title legible (top stop is now 0.85) while
-       the page reads as one surface from eyebrow to last pathway. */
-    background: transparent;
+    background: #F5F5F4;
+    border-bottom: 1px solid rgba(43, 38, 32, 0.06);
     color: #2b2620;
     font-family: var(--font-sans);
     padding: 56px max(24px, calc((100% - 760px) / 2 + 24px)) 18px;
@@ -1002,6 +989,137 @@ body.has-chooser        .bird-picker
     .sheet-chrome__header
     {
         padding: 48px max(18px, calc((100% - 760px) / 2 + 18px)) 14px;
+    }
+}
+
+/* ── Split-layout (Gather Town-style two-pane) ──────────────────────
+   When SheetChrome is constructed with `layout: 'split'`, contentSlot
+   becomes a row container with two sibling panes:
+
+     leftPane  — compact title + intro/summary content (~360px sidebar)
+     rightPane — the working surface (tabs, lists, detail)
+
+   Left + right are direct children of `.sheet-chrome__content` so the
+   existing 0/80/160ms entry stagger animates panes in sequence for
+   free. The portalTarget stays the chrome root so child overlays
+   (DayDetailCard, ShareDialog) keep portaling into the active sheet's
+   stacking context — splitting that per-pane would re-introduce the
+   z-32-behind-z-60 bug that originally motivated SheetChrome.
+
+   Translucency posture: leftPane gets a low-alpha cream (≤ 0.40 per
+   the audit findings) and a hairline divider — never a solid sidebar
+   fill, which would break the "island visible through chrome" rule. */
+.sheet-chrome--split .sheet-chrome__content
+{
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+}
+.sheet-chrome__pane
+{
+    box-sizing: border-box;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+.sheet-chrome__pane--left
+{
+    flex: 0 0 360px;
+    max-width: 360px;
+    background: rgba(255, 250, 243, 0.32);
+    border-right: 1px solid rgba(43, 38, 32, 0.06);
+    display: flex;
+    flex-direction: column;
+}
+.sheet-chrome__pane--right
+{
+    flex: 1 1 auto;
+    min-width: 0;
+    background: transparent;
+}
+/* Compact header — drops scale from clamp(1.75rem … 2.25rem) down to
+   ~22px so the page title reads as a normal heading next to the intro
+   content rather than dominating the pane. A hairline divider sits
+   below the description so the title block reads as its own zone,
+   separate from the per-sheet intro content below. Padding tightens
+   up because the pane is narrow. */
+.sheet-chrome__header--compact
+{
+    background: transparent;
+    border-bottom: 1px solid rgba(43, 38, 32, 0.08);
+    padding: 56px 28px 18px;
+    margin-bottom: 4px;
+}
+.sheet-chrome__title--compact
+{
+    font-size: 1.4rem;
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+}
+/* Eyebrow is intentionally omitted from the split layout — the
+   compact title block reads as "Page name + description, then a
+   line, then content" (Gather pattern). The eyebrow stub element
+   still renders for ARIA continuity but is visually hidden. */
+.sheet-chrome--split .sheet-chrome__header--compact .sheet-chrome__eyebrow
+{
+    display: none;
+}
+.sheet-chrome--split .sheet-chrome__header--compact .sheet-chrome__subtitle
+{
+    font-size: 13px;
+    line-height: 1.45;
+    max-width: 38ch;
+    color: rgba(43, 38, 32, 0.62);
+}
+/* Intro slot — per-sheet summary content sits directly below the
+   compact header in the left pane. Per-sheet CSS targets
+   `.<sheet>.sheet-chrome--split .sheet-chrome__intro` for its own
+   layout, just like `.sheet-chrome__body` for the right pane. */
+.sheet-chrome__intro
+{
+    box-sizing: border-box;
+    padding: 0 28px 32px;
+    color: rgba(43, 38, 32, 0.78);
+    font-family: var(--font-sans);
+    font-size: 13.5px;
+    line-height: 1.55;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+/* Responsive stack — below 860px the two panes flow vertically: the
+   left pane becomes a compact intro band above the scrollable right
+   pane. Matches the engine's existing 780px convention bumped slightly
+   to leave room for the wider two-pane at desktop sizes. */
+@media (max-width: 860px)
+{
+    .sheet-chrome--split .sheet-chrome__content
+    {
+        flex-direction: column;
+    }
+    .sheet-chrome__pane--left
+    {
+        flex: 0 0 auto;
+        max-width: none;
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid rgba(43, 38, 32, 0.06);
+    }
+    .sheet-chrome__pane--right
+    {
+        flex: 1 1 auto;
+    }
+    .sheet-chrome__header--compact
+    {
+        padding: 44px 20px 10px;
+    }
+    .sheet-chrome__intro
+    {
+        padding: 0 20px 20px;
     }
 }
 
@@ -1388,6 +1506,44 @@ body.has-chooser        .bird-picker
     margin: 0 0 16px;
     font-style: italic;
     opacity: 0.85;
+}
+
+/* Letter back-reference — small clickable pill that surfaces above the
+   prompt when this capture was triggered from a teacher letter. Lavender
+   matches the personality-facet accent letters already use (unread dot,
+   Capture button), so the visual lineage from Letters → AskSheet stays
+   coherent. */
+.ask-sheet__letter-ref
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 10px;
+    padding: 5px 11px 5px 9px;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--facet-personality-accent) 28%, transparent);
+    background: color-mix(in srgb, var(--facet-personality-accent) 10%, rgba(255, 255, 255, 0.6));
+    color: color-mix(in srgb, var(--facet-personality-accent) 85%, #2b2620);
+    font: 600 11.5px/1.1 inherit;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    transition: background 160ms ease, transform 140ms ease;
+    max-width: 100%;
+}
+.ask-sheet__letter-ref:hover  { background: color-mix(in srgb, var(--facet-personality-accent) 18%, rgba(255, 255, 255, 0.6)); transform: translateY(-1px); }
+.ask-sheet__letter-ref:active { transform: translateY(0); }
+.ask-sheet__letter-ref[hidden] { display: none; }
+.ask-sheet__letter-ref-icon
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.ask-sheet__letter-ref-label
+{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .ask-sheet__field
@@ -3356,6 +3512,150 @@ body.is-onb-landing .side-rail
     z-index: 1;
 }
 
+/* Split-layout overrides — under Gather-style two-pane mode, the hero
+   migrates into the intro slot (left pane) so the wash/shimmer reads
+   as identity context, not full-bleed canopy. The intro slot picks up
+   `position: relative` so the absolutely-positioned hero anchors to
+   it, and intro children get a z-index above the hero. The right pane
+   inherits the facet CSS vars from the chrome root so theming still
+   applies to bento + timeline. */
+.profile-sheet.sheet-chrome--split .sheet-chrome__intro
+{
+    position: relative;
+    color: #2b2620;
+    font-family: var(--font-sans);
+    padding: 0 24px 28px;
+    gap: 18px;
+    /* defaults — overridden by applyFacetVars on open */
+    --facet-accent: #A07659;
+    --facet-soft:   #EAD7BE;
+    --facet-ink:    #6A4A26;
+}
+.profile-sheet.sheet-chrome--split .sheet-chrome__intro > :not(.profile-sheet__hero)
+{
+    position: relative;
+    z-index: 1;
+}
+.profile-sheet.sheet-chrome--split .sheet-chrome__intro .profile-sheet__hero
+{
+    /* Compact hero band that hugs the top of the left pane behind the
+       identity card. No height clamp — let it cover the upper third of
+       the intro naturally so the wash bleeds beneath the avatar. */
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 60%;
+    max-height: 320px;
+}
+.profile-sheet.sheet-chrome--split
+{
+    --facet-accent: #A07659;
+    --facet-soft:   #EAD7BE;
+    --facet-ink:    #6A4A26;
+}
+.profile-sheet.sheet-chrome--split .sheet-chrome__pane--right
+{
+    /* The right pane is the working surface; pad it for the tab strip
+       + bento + timeline content. */
+    padding: 24px 28px 48px;
+}
+.profile-sheet.sheet-chrome--split .sheet-chrome__body
+{
+    min-height: 0;
+}
+/* The intro panel wraps the dimension-summary header in the left pane.
+   Strip its inherited max-width / centering so it flows naturally
+   inside the narrow intro slot. */
+.profile-sheet.sheet-chrome--split .profile-sheet__intro-panel
+{
+    margin: 0;
+    padding: 0;
+    max-width: none;
+}
+/* The dimension headline ("What you keep coming back to") was sized
+   for the wide single-column layout (clamp 1.75–2.25rem). In the
+   narrow left pane it wraps awkwardly. Scale to ~1.05rem so it reads
+   as an emphasis line, not a billboard. */
+.profile-sheet.sheet-chrome--split .profile-sheet__title
+{
+    font-size: 1.05rem;
+    line-height: 1.3;
+    margin: 6px 0 4px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__panel-subtitle
+{
+    font-size: 12.5px;
+    margin-bottom: 10px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__summary
+{
+    font-size: 13px;
+    line-height: 1.5;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__open-question
+{
+    margin-top: 10px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__open-text
+{
+    font-size: 13px;
+    line-height: 1.45;
+}
+.profile-sheet.sheet-chrome--split .vips-rows--profile .vips-row__body
+{
+    font-size: 13px;
+}
+/* Identity card lives in the left pane — drop the 760px centering and
+   shrink the avatar so name + class fit alongside the slimmer column. */
+.profile-sheet.sheet-chrome--split .profile-id
+{
+    max-width: none;
+    margin: 0;
+    padding: 0 0 16px;
+    gap: 12px;
+}
+.profile-sheet.sheet-chrome--split .profile-id__avatar
+{
+    width: 56px;
+    height: 56px;
+    font-size: 22px;
+}
+.profile-sheet.sheet-chrome--split .profile-id__name
+{
+    font-size: 18px;
+    line-height: 1.2;
+}
+.profile-sheet.sheet-chrome--split .profile-id__class
+{
+    font-size: 12.5px;
+}
+/* Right pane tab strip — sticky to the top of the right pane rather
+   than to the viewport, and the 760px centering trick collapses to
+   honest padding since the pane is already width-constrained. */
+.profile-sheet.sheet-chrome--split .profile-sheet__tabs
+{
+    position: sticky;
+    top: 0;
+    padding-inline: 0;
+    margin-inline: 0;
+    z-index: 2;
+}
+/* The dimension-summary header inside the intro panel was sized for a
+   760px column; in the narrower intro it just flows full-width. */
+.profile-sheet.sheet-chrome--split .profile-sheet__header
+{
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+/* The right-pane panel hosts TLDR + bento + timeline. Drop the 760px
+   centering since the chrome pane already constrains width. */
+.profile-sheet.sheet-chrome--split .profile-sheet__panel
+{
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
 /* profile-sheet close styling is provided by the shared sheet-close
    grouped selector at the top of this file. */
 
@@ -5006,15 +5306,74 @@ body.is-onb-landing .side-rail
     line-height: 1.5;
 }
 
-/* Narrow viewport: single-pane router. List shows by default; once a
-   letter is selected (.is-reading), list hides and panel shows the back btn. */
-@media (max-width: 779px)
+/* Capture CTA at the foot of a prompt-bearing letter. The personality-facet
+   accent (lavender) is reused from the unread dot so letters keep a single
+   accent colour — the teacher's voice is always integrative, never tagged
+   to a single facet. */
+.letters-sheet__cta
 {
-    .letters-sheet__grid { grid-template-columns: 1fr; }
-    .letters-sheet__panel { display: none; }
-    .letters-sheet.is-reading .letters-sheet__list  { display: none; }
-    .letters-sheet.is-reading .letters-sheet__panel { display: block; }
-    .letters-sheet.is-reading .letters-sheet__back  { display: inline-flex; align-items: center; }
+    margin: 28px 0 0;
+    padding: 20px 22px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(43, 38, 32, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: flex-start;
+}
+.letters-sheet__cta-prompt
+{
+    margin: 0;
+    color: rgba(43, 38, 32, 0.78);
+    font-size: 14px;
+    font-style: italic;
+    line-height: 1.5;
+}
+.letters-sheet__capture-btn
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: none;
+    background: var(--facet-personality-accent);
+    color: #fff;
+    font: 600 13.5px/1 inherit;
+    letter-spacing: 0.01em;
+    padding: 10px 16px 10px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform 140ms ease, box-shadow 160ms ease, filter 160ms ease;
+    box-shadow: 0 1px 0 rgba(43, 38, 32, 0.06);
+}
+.letters-sheet__capture-btn:hover  { filter: brightness(1.04); transform: translateY(-1px); box-shadow: 0 6px 14px rgba(43, 38, 32, 0.12); }
+.letters-sheet__capture-btn:active { transform: translateY(0); filter: brightness(0.97); }
+.letters-sheet__capture-icon
+{
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Split-layout overrides — Letters lives in the Gather-style two-pane
+   chrome. The list lives in the left pane (introSlot), the active
+   letter fills the right pane (bodySlot). The chrome's 860px stack
+   media query handles the responsive collapse: at narrow widths the
+   list sits above the detail and both scroll naturally. */
+.letters-sheet.sheet-chrome--split .sheet-chrome__intro
+{
+    padding: 0;
+    gap: 0;
+}
+.letters-sheet.sheet-chrome--split .letters-sheet__list
+{
+    border-right: none;
+    background: transparent;
+    padding: 8px 16px 24px;
+}
+.letters-sheet.sheet-chrome--split .letters-sheet__panel
+{
+    padding: 24px 32px 64px;
 }
 
 @media (prefers-reduced-motion: reduce)
@@ -5047,6 +5406,52 @@ body.is-onb-landing .side-rail
 {
     max-width: 760px;
     margin: 0 auto 12px;
+}
+
+/* Split-layout overrides — Path Finder under the Gather-style two-pane
+   chrome. Left pane carries the status pill + meta + head actions;
+   the right pane gets the pathway content. The scroll container's
+   max-width centering collapses to honest padding since the chrome
+   pane already constrains width. */
+.trajectory-sheet.sheet-chrome--split .sheet-chrome__intro
+{
+    color: #2b2620;
+    font-family: var(--font-sans);
+    padding: 0 24px 24px;
+    gap: 14px;
+}
+.trajectory-sheet.sheet-chrome--split .trajectory-sheet__head
+{
+    max-width: none;
+    margin: 0;
+}
+.trajectory-sheet.sheet-chrome--split .trajectory-sheet__scroll
+{
+    padding: 16px 24px 64px;
+}
+.trajectory-sheet.sheet-chrome--split .sheet-chrome__pane--right
+{
+    padding: 0;
+}
+/* Dynamic per-status title + tldr that used to live in the chrome
+   header. With the static-header refactor, they live in the intro
+   slot just below the chrome divider, giving the student the
+   per-status orientation without the page name shape-shifting. */
+.trajectory-sheet__status-title
+{
+    margin: 6px 0 4px;
+    font-size: 1.05rem;
+    line-height: 1.25;
+    font-weight: 600;
+    color: #2b2620;
+    letter-spacing: -0.005em;
+}
+.trajectory-sheet__status-tldr
+{
+    margin: 0 0 6px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: rgba(43, 38, 32, 0.72);
 }
 .trajectory-sheet__throughline
 {
@@ -5975,9 +6380,12 @@ body.is-onb-landing .half-sheet
     visibility: hidden;
 }
 
-body.is-dev-overlay-hidden .hour-hud,
-body.is-dev-overlay-hidden .track-picker,
-body.is-dev-overlay-hidden .bird-picker,
+/* "Hide developer overlay" (DevPalette command) hides the standalone FPS
+   chip and the status-preview HUD. HourHud + the other admin pickers used
+   to be hidden by the same class, but they now live inside Settings and are
+   reached deliberately via the rail — there's no need to gate them on the
+   dev-overlay toggle. */
+body.is-dev-overlay-hidden .fps-overlay,
 body.is-dev-overlay-hidden .status-preview-hud
 {
     pointer-events: none;
@@ -6226,10 +6634,10 @@ body.is-dev-overlay-hidden .status-preview-hud
     color: var(--onb-ink-deep, #2b2620);
 }
 
-/* Dev escape hatch beneath the demo note — small, low-contrast so it reads as
-   a back-door rather than a peer of the Edupass CTA. Underlined on hover to
-   land closer to a text link than a chip. */
-.onb-login__skip
+/* Dev escape hatch beneath the greeting CTA — small, low-contrast so it
+   reads as a back-door rather than a peer of "Let's begin." Underlined on
+   hover to land closer to a text link than a chip. */
+.onb-greeting__skip
 {
     margin-top: 6px;
     padding: 4px 8px;
@@ -6244,19 +6652,10 @@ body.is-dev-overlay-hidden .status-preview-hud
     text-underline-offset: 3px;
     transition: color 160ms ease, text-decoration-color 160ms ease;
 }
-.onb-login__skip:hover
+.onb-greeting__skip:hover
 {
     color: rgba(43, 38, 32, 0.78);
     text-decoration-color: currentColor;
-}
-.onb-login--landing .onb-login__skip
-{
-    color: rgba(255, 255, 255, 0.55);
-    text-shadow: 0 1px 2px rgba(7, 18, 36, 0.35);
-}
-.onb-login--landing .onb-login__skip:hover
-{
-    color: rgba(255, 255, 255, 0.88);
 }
 
 /* Floating "Skip onboarding (dev)" button mounted by OnboardingFlow for every
@@ -6539,7 +6938,8 @@ body.is-dev-overlay-hidden .status-preview-hud
     gap: 10px;
     margin-top: 4px;
 }
-.onb-egg__back
+.onb-egg__back,
+.onb-back
 {
     background: transparent;
     border: none;
@@ -6551,8 +6951,10 @@ body.is-dev-overlay-hidden .status-preview-hud
     text-underline-offset: 3px;
     min-height: 44px;
 }
-.onb-egg__back:hover { color: var(--onb-ink); }
-.onb-egg__back:focus-visible
+.onb-egg__back:hover,
+.onb-back:hover { color: var(--onb-ink); }
+.onb-egg__back:focus-visible,
+.onb-back:focus-visible
 {
     outline: 3px solid rgba(255, 138, 92, 0.7);
     outline-offset: 3px;
@@ -7014,6 +7416,36 @@ body.is-onboarding .kira-bubble
 .history-sheet .sheet-chrome__body
 {
     padding: 8px 20px 32px;
+}
+
+/* Split-layout overrides — History uses the Gather-style two-pane
+   chrome. Tab strip lives in the left pane (introSlot); active tab
+   content (embedded Calendar or Growth scrubber/island/summary)
+   lives in the right pane (bodySlot). The shared header text supplies
+   page orientation; the tab strip is the only intro chrome. */
+.history-sheet.sheet-chrome--split .sheet-chrome__intro
+{
+    padding: 0 24px 24px;
+    gap: 12px;
+}
+.history-sheet.sheet-chrome--split .history-sheet__tabs
+{
+    max-width: none;
+    margin: 0;
+    background: rgba(253, 250, 243, 0.55);
+    flex-direction: row;
+}
+.history-sheet.sheet-chrome--split .history-sheet__pane--timeline,
+.history-sheet.sheet-chrome--split .history-sheet__pane--growth
+{
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+.history-sheet.sheet-chrome--split .history-sheet__scrubber
+{
+    max-width: none;
+    margin: 0 0 16px;
 }
 
 .history-sheet__scrubber
@@ -7718,6 +8150,25 @@ body.is-onboarding .kira-bubble
     color: #2b2620;
     font-family: var(--font-sans);
 }
+/* Split-layout overrides — Settings uses the Gather-style two-pane
+   chrome. Left pane carries an orientation paragraph under the compact
+   title; right pane holds the 5 admin sections (no max-width centering
+   needed since the chrome pane already constrains width). */
+.settings-sheet.sheet-chrome--split .sheet-chrome__intro
+{
+    padding: 0 24px 24px;
+}
+.settings-sheet__intro-copy
+{
+    margin: 0;
+    color: rgba(43, 38, 32, 0.72);
+    font-size: 13.5px;
+    line-height: 1.55;
+}
+.settings-sheet.sheet-chrome--split .sheet-chrome__body
+{
+    padding: 24px 32px 64px;
+}
 .settings-sheet__group
 {
     margin: 0;
@@ -7769,6 +8220,41 @@ body.is-onboarding .kira-bubble
     outline: 3px solid rgba(255, 138, 92, 0.7);
     outline-offset: 2px;
 }
+
+/* Embedded admin UIs ─────────────────────────────────────────────────
+   The four admin pickers (HourHud, TrackPicker, BirdPicker,
+   StatusPreviewHud) each carry `position: fixed` defaults so they can
+   float at body level on their own. Inside SettingsSheet, that
+   positioning is meaningless — reset it so each picker flows as the
+   content of its section. The dark-glass tile styling is preserved so
+   the admin tier still reads visually distinct from the cream settings
+   chrome around it. */
+.settings-sheet__admin-slot
+{
+    margin-top: 4px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.settings-sheet .hour-hud,
+.settings-sheet .track-picker,
+.settings-sheet .bird-picker,
+.settings-sheet .status-preview-hud
+{
+    position: static;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    transform: none;
+    z-index: auto;
+}
+
+/* StatusPreviewHud's menu is `position: absolute`; give the root a
+   positioning context so the popout still anchors correctly to the
+   toggle (rather than escaping to the nearest fixed ancestor). */
+.settings-sheet .status-preview-hud { position: relative; }
 
 /* ── Visual primitives (shared across full-viewport sheets) ─────────
    TLDR hero, disclosure, stat tile row, and callout strip — composed
@@ -7927,6 +8413,16 @@ body.is-onboarding .kira-bubble
 .disclosure__panel > *
 {
     min-height: 0;
+}
+/* All disclosure content must be wrapped in a SINGLE inner element so
+   the grid-template-rows 0→1fr collapse animation works correctly.
+   Multiple direct children of `.disclosure__panel` only collapse the
+   first row; later children leak through visually. The
+   `disclosure__panel-inner` wrapper is the canonical home for that
+   content — see ProfileSheet, TrajectorySheet, visualPrimitives.js. */
+.disclosure__panel-inner
+{
+    overflow: hidden;
 }
 @media (prefers-reduced-motion: reduce)
 {

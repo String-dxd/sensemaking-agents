@@ -57,8 +57,15 @@ export default class TeacherLetters
     hydrateBackend(snapshot)
     {
         if(!Array.isArray(snapshot)) return
-        this.letters = mergeArray(snapshot, mergeTeacherLetter, 'letter.backend')
-            .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
+        // Union-merge instead of hard-replace: backend wins on shared IDs,
+        // but seed-only letters (e.g. demo-content additions that the
+        // backend doesn't echo) stay visible. Mirrors the seed-preservation
+        // posture in hydrate() above — without this, any new seed letter
+        // disappears the moment a backend snapshot arrives.
+        const backend = mergeArray(snapshot, mergeTeacherLetter, 'letter.backend')
+        const byId = new Map(this.letters.map((l) => [l.id, l]))
+        for(const l of backend) byId.set(l.id, l)
+        this.letters = Array.from(byId.values()).sort((a, b) => b.sentAt.localeCompare(a.sentAt))
         this._notify({ kind: 'backend-hydrate' })
     }
 

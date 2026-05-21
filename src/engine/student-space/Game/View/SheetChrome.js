@@ -29,6 +29,7 @@
  *       sheetClassName:   'profile-sheet',          // per-sheet class for content CSS
  *       withCloseButton:  true,                     // render the × button (default true)
  *       closeOnBackdrop:  false,                    // click-outside dismissal (default false to preserve current sheets' behavior)
+ *       layout:           'split',                  // 'stacked' (default) | 'split' (Gather-style two-pane)
  *       header: {                                   // optional shared header block — eyebrow + title + subtitle
  *           eyebrow:  'PROFILE',
  *           title:    'Your identity',
@@ -39,10 +40,13 @@
  *   })
  *
  *   chrome.root           // outer DOM node — has body-class hook, sized to viewport
- *   chrome.contentSlot    // outer slot — when `header` is provided, contains [header, bodySlot]
- *   chrome.bodySlot       // per-sheet body container; falls back to contentSlot when no header
+ *   chrome.contentSlot    // outer slot — stacked: [header?, bodySlot]; split: [leftPane, rightPane]
+ *   chrome.bodySlot       // per-sheet body container (the right pane under split layout)
+ *   chrome.introSlot      // per-sheet intro container in the left pane (split layout only; null otherwise)
  *   chrome.headerEl       // the shared header element (or null when no header)
- *   chrome.portalTarget   // where child overlays (DayDetailCard, popovers) mount
+ *   chrome.leftPane       // the left pane element under split layout (null otherwise)
+ *   chrome.rightPane      // the right pane element under split layout (null otherwise)
+ *   chrome.portalTarget   // where child overlays (DayDetailCard, popovers) mount — always the chrome root
  *   chrome.closeBtn       // the × button (or null if withCloseButton is false)
  *
  *   chrome.open(opts)     // open the sheet (called by OverlayController)
@@ -53,6 +57,20 @@
  * Chrome registers itself with OverlayController under `key`, so the existing
  * exclusivity rules (one full-viewport sheet at a time, body.has-overlay class
  * toggling) keep working unchanged.
+ *
+ * Split layout
+ * ------------
+ * Under `layout: 'split'`, contentSlot becomes a two-pane row container:
+ *   contentSlot
+ *     ├── leftPane  (header + introSlot)  — ~360px sidebar
+ *     └── rightPane (bodySlot)            — fills remainder
+ * Left and right panes are direct children of contentSlot so the existing
+ * 0/80/160ms entry stagger continues to animate panes in sequence. The
+ * portalTarget stays the chrome root so child overlays (DayDetailCard,
+ * ShareDialog) keep portaling into the active sheet's stacking context
+ * — splitting that contract would re-introduce the z-32-behind-z-60 bug
+ * that originally motivated SheetChrome. Below 860px the panes stack
+ * vertically (see style.css `.sheet-chrome--split` media query).
  */
 
 import OverlayController from './OverlayController.js'
@@ -64,6 +82,7 @@ export default class SheetChrome
         sheetClassName  = '',
         withCloseButton = true,
         closeOnBackdrop = false,
+        layout          = 'stacked',
         header          = null,
         onOpen,
         onClose,
@@ -80,8 +99,11 @@ export default class SheetChrome
     } = {})
     {
         if(!key) throw new Error('SheetChrome requires a `key`')
+        if(layout !== 'stacked' && layout !== 'split')
+            throw new Error(`SheetChrome: unknown layout "${layout}" (expected 'stacked' or 'split')`)
 
         this.key              = key
+        this.layout           = layout
         this.closeOnBackdrop  = closeOnBackdrop
         this._onOpen          = onOpen
         this._onClose         = onClose
@@ -90,9 +112,12 @@ export default class SheetChrome
 
         // Outer root — owns the chrome (backdrop / blur / fade / z-tier).
         // The per-sheet class (e.g. `.profile-sheet`) is layered on so existing
-        // per-sheet content CSS continues to apply unchanged.
+        // per-sheet content CSS continues to apply unchanged. The split-layout
+        // modifier is added here so CSS can target the two-pane container
+        // without re-checking the layout flag.
         const root = document.createElement('div')
         const classes = ['sheet-chrome']
+        if(layout === 'split') classes.push('sheet-chrome--split')
         if(sheetClassName) classes.push(sheetClassName)
         root.className = classes.join(' ')
         root.dataset.sheetKey = key
@@ -117,23 +142,76 @@ export default class SheetChrome
             this.closeBtn = null
         }
 
-        // Content slot — outermost mount point. When `header` is provided,
-        // contentSlot owns two siblings: the shared `.sheet-chrome__header`
-        // and a `.sheet-chrome__body` body container that per-sheet code
-        // fills via `chrome.bodySlot.innerHTML = ...`. When no header is
-        // provided, `bodySlot` aliases `contentSlot` so legacy sheets
-        // (Calendar) keep working unchanged.
+        // Content slot — outermost mount point. Two layouts:
+        //
+        //  • stacked (default) — contentSlot holds [header?, bodySlot].
+        //    Legacy single-column sheets keep working unchanged. When no
+        //    header is provided, bodySlot aliases contentSlot.
+        //
+        //  • split — contentSlot holds [leftPane, rightPane] siblings. The
+        //    header (when present) moves into the left pane along with a new
+        //    introSlot for per-sheet summary content. bodySlot lives inside
+        //    the right pane and continues to be the per-sheet body container.
+        //    Keeping panes as direct children of contentSlot preserves the
+        //    existing `.sheet-chrome__content > :nth-child(-n+3)` entry
+        //    stagger so panes animate in sequence for free.
         //
         // Child overlays (DayDetailCard, popovers) portal into `portalTarget`
-        // which stays at the root level so they sit above both header and
-        // body within this sheet's stacking context.
+        // which stays at the root level under BOTH layouts — splitting that
+        // contract per pane would re-introduce the z-32-behind-z-60 bug class
+        // that originally motivated SheetChrome.
         const contentSlot = document.createElement('div')
         contentSlot.className = 'sheet-chrome__content'
         root.appendChild(contentSlot)
 
         let headerEl = null
         let bodySlot = contentSlot
-        if(header)
+        let introSlot = null
+        let leftPane = null
+        let rightPane = null
+
+        if(layout === 'split')
+        {
+            leftPane  = document.createElement('div')
+            rightPane = document.createElement('div')
+            leftPane.className  = 'sheet-chrome__pane sheet-chrome__pane--left'
+            rightPane.className = 'sheet-chrome__pane sheet-chrome__pane--right'
+            contentSlot.appendChild(leftPane)
+            contentSlot.appendChild(rightPane)
+
+            if(header)
+            {
+                headerEl = document.createElement('header')
+                // The --compact modifier collapses title scale from
+                // ~56px to ~22px so the page name reads as a normal
+                // heading next to the intro content, matching the
+                // Gather Town reference.
+                headerEl.className = 'sheet-chrome__header sheet-chrome__header--compact'
+                headerEl.innerHTML = `
+                    <span class="sheet-chrome__eyebrow" data-role="eyebrow"></span>
+                    <h1 class="sheet-chrome__title sheet-chrome__title--compact" data-role="title"></h1>
+                    <p class="sheet-chrome__subtitle" data-role="subtitle"></p>
+                `
+                leftPane.appendChild(headerEl)
+            }
+
+            introSlot = document.createElement('div')
+            introSlot.className = 'sheet-chrome__intro'
+            leftPane.appendChild(introSlot)
+
+            bodySlot = document.createElement('div')
+            bodySlot.className = 'sheet-chrome__body'
+            rightPane.appendChild(bodySlot)
+
+            if(headerEl)
+            {
+                const titleId = `sheet-chrome-title--${key}`
+                headerEl.querySelector('[data-role="title"]').id = titleId
+                root.setAttribute('role', 'dialog')
+                root.setAttribute('aria-labelledby', titleId)
+            }
+        }
+        else if(header)
         {
             headerEl = document.createElement('header')
             headerEl.className = 'sheet-chrome__header'
@@ -160,6 +238,9 @@ export default class SheetChrome
         this.root         = root
         this.contentSlot  = contentSlot
         this.bodySlot     = bodySlot
+        this.introSlot    = introSlot
+        this.leftPane     = leftPane
+        this.rightPane    = rightPane
         this.headerEl     = headerEl
         this.portalTarget = root
 
@@ -296,6 +377,9 @@ export default class SheetChrome
         this.root         = null
         this.contentSlot  = null
         this.bodySlot     = null
+        this.introSlot    = null
+        this.leftPane     = null
+        this.rightPane    = null
         this.headerEl     = null
         this.portalTarget = null
         this.closeBtn     = null

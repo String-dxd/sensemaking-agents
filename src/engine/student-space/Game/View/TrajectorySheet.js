@@ -62,10 +62,11 @@ export default class TrajectorySheet
 
         // SheetChrome owns backdrop, blur, fade, z-tier, the × button, the
         // Escape-to-close listener, AND the shared header (eyebrow + title +
-        // subtitle). Path Finder's status pill / meta / head actions / body
-        // live inside chrome.bodySlot. The header text is dynamic per status
-        // and updated each open via chrome.setHeader(...). See CLAUDE.md
-        // "Sheet chrome contract".
+        // subtitle). Under the Gather-style split layout, the left pane
+        // (introSlot) carries the status pill + meta + head actions + reason
+        // tooltip, and the right pane (bodySlot) carries the pathway content.
+        // Header text is dynamic per status and updated each open via
+        // chrome.setHeader(...). See CLAUDE.md "Sheet chrome contract".
         this.chrome = new SheetChrome({
             key:            'trajectory',
             sheetClassName: 'trajectory-sheet',
@@ -73,35 +74,37 @@ export default class TrajectorySheet
             // browser back / SideRail / Escape, not a × button.
             withCloseButton: false,
             closeOnBackdrop: false,
+            layout:         'split',
             // Escape and other dismiss paths go through the router so the
             // URL stays the source of truth.
             onCloseRequest: () => Game.getInstance()?.navigate('/'),
             header: {
-                eyebrow:  'PATH FINDER',
-                title:    'Trajectory compass',
-                subtitle: '',
+                title:    'Path Finder',
+                subtitle: 'Bearings the evidence points toward as you explore who you might become.',
             },
         })
+        this.chrome.introSlot.innerHTML = `
+            <div class="trajectory-sheet__status-row" data-role="status-row" hidden>
+                <span class="trajectory-sheet__status-pill" data-role="status-pill"
+                      tabindex="0"
+                      role="button"
+                      aria-haspopup="true"
+                      aria-expanded="false">
+                    <span class="trajectory-sheet__status-dot" aria-hidden="true"></span>
+                    <span class="trajectory-sheet__status-label" data-role="status-label"></span>
+                </span>
+                <span class="trajectory-sheet__status-reason" data-role="status-reason" hidden></span>
+            </div>
+
+            <h2 class="trajectory-sheet__status-title" data-role="status-title"></h2>
+            <p class="trajectory-sheet__status-tldr" data-role="status-tldr" hidden></p>
+
+            <p class="trajectory-sheet__meta" data-role="meta" hidden></p>
+            <div class="trajectory-sheet__head-actions" data-role="head-actions"></div>
+            <div class="trajectory-sheet__why-slot" data-role="why-slot"></div>
+        `
         this.chrome.bodySlot.innerHTML = `
             <div class="trajectory-sheet__scroll">
-                <header class="trajectory-sheet__head">
-                    <div class="trajectory-sheet__status-row" data-role="status-row" hidden>
-                        <span class="trajectory-sheet__status-pill" data-role="status-pill"
-                              tabindex="0"
-                              role="button"
-                              aria-haspopup="true"
-                              aria-expanded="false">
-                            <span class="trajectory-sheet__status-dot" aria-hidden="true"></span>
-                            <span class="trajectory-sheet__status-label" data-role="status-label"></span>
-                        </span>
-                        <span class="trajectory-sheet__status-reason" data-role="status-reason" hidden></span>
-                    </div>
-
-                    <p class="trajectory-sheet__meta" data-role="meta" hidden></p>
-                    <div class="trajectory-sheet__head-actions" data-role="head-actions"></div>
-                    <div class="trajectory-sheet__why-slot" data-role="why-slot"></div>
-                </header>
-
                 <section class="trajectory-sheet__body" data-role="body"></section>
             </div>
         `
@@ -115,6 +118,8 @@ export default class TrajectorySheet
         this.statusPillEl   = root.querySelector('[data-role="status-pill"]')
         this.statusLabelEl  = root.querySelector('[data-role="status-label"]')
         this.statusReasonEl = root.querySelector('[data-role="status-reason"]')
+        this.statusTitleEl  = root.querySelector('[data-role="status-title"]')
+        this.statusTldrEl   = root.querySelector('[data-role="status-tldr"]')
         this.headActionsEl  = root.querySelector('[data-role="head-actions"]')
         this.whySlotEl      = root.querySelector('[data-role="why-slot"]')
         this.bodyEl    = root.querySelector('[data-role="body"]')
@@ -327,16 +332,24 @@ export default class TrajectorySheet
         const status = this.escapeHatch ? 'searching' : audit.status
         const copy = statusCopyOf(status, this.profile?.identity)
 
-        // Header: eyebrow + title + (short) tldr subtitle live in the shared
-        // SheetChrome header. The full long-form `lead` paragraph moves into
-        // a "Why this status" disclosure beneath the head actions so the
-        // cold-open weight drops. Status pill, meta line, and head actions
-        // stay in Path Finder's own body header below the chrome header.
-        this.chrome?.setHeader?.({
-            eyebrow:  copy.eyebrow,
-            title:    copy.title,
-            subtitle: copy.tldr || copy.lead,
-        })
+        // Chrome header stays static ("Path Finder" + general subtitle).
+        // The status-driven title + tldr live in the intro slot below the
+        // chrome divider so the page reads as "Path Finder · description
+        // · then the per-status orientation" rather than the page name
+        // shape-shifting per status. The full long-form `lead` paragraph
+        // moves into a "Why this status" disclosure beneath the head
+        // actions so the cold-open weight drops.
+        if(this.statusTitleEl)
+        {
+            this.statusTitleEl.textContent = copy.title || ''
+            this.statusTitleEl.hidden = !copy.title
+        }
+        if(this.statusTldrEl)
+        {
+            const tldr = copy.tldr || ''
+            this.statusTldrEl.textContent = tldr
+            this.statusTldrEl.hidden = !tldr
+        }
 
         // "Why this status" disclosure — collapsed by default once the sheet
         // has been open. Contains the full lead paragraph that used to live
@@ -573,7 +586,7 @@ export default class TrajectorySheet
                         <span class="disclosure__summary">See evidence</span>
                     </button>
                     <div class="disclosure__panel">
-                        <div class="trajectory-panel__evidence-content">
+                        <div class="disclosure__panel-inner">
                             <div class="trajectory-panel__chips" data-role="panel-trait-group" hidden>
                                 <p class="trajectory-panel__chip-label">TRAIT COMBINATION</p>
                                 <div class="trajectory-panel__chip-row" data-role="panel-traits"></div>

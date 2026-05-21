@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 /**
  * Single source of truth for all four tool I/O schemas (locked at plan time
- * by K.T.D. #4 of `plans/2026-05-08-001-feat-sensemaking-agents-v0.1-plan.md`).
+ * by K.T.D. #4 of `docs/plans/_archive/2026-05-08-001-feat-sensemaking-agents-v0.1-plan.md`).
  *
  * Mirror exposes only `search_past_mirrors`. Connector and Cartographer used
  * to share the broader sensemaking tool surface; current managed-agent prompts

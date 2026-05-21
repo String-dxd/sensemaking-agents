@@ -76,19 +76,23 @@ afterEach(() => {
 })
 
 describe('Engine ProfileSheet tab parity', () => {
-  it('wraps tabs and panel in a shared .profile-sheet__tabbed container (U7)', () => {
+  it('renders tabs and panel as siblings inside the SheetChrome right pane (U7)', () => {
     state.instance = { profile: makeProfileStub(), backend: null }
     OverlayController.instance = new OverlayController()
     const sheet = new ProfileSheet() as ProfileSheetHandle
     try {
-      // U7 introduced a shared wrapper so the tab strip and the active
-      // panel read as one block (instead of being siblings of the identity
-      // card with no visual containment). The wrapper must contain BOTH
-      // the tablist and the content panel.
-      const wrapper = document.querySelector('.profile-sheet__tabbed')
-      expect(wrapper).toBeTruthy()
-      expect(wrapper?.querySelector('.profile-sheet__tabs')).toBeTruthy()
-      expect(wrapper?.querySelector('.profile-sheet__panel')).toBeTruthy()
+      // U7's intent: tabs and the active panel must read as one visual
+      // block, not as detached siblings of the identity card. Main's
+      // split-layout refactor (PR #26 Gather-style two-pane) subsumed
+      // the original `.profile-sheet__tabbed` wrapper by placing the
+      // tab strip and the panel together in SheetChrome's right pane.
+      // The contract this test enforces: both elements exist and live
+      // under the same parent (the right pane / bodySlot).
+      const tabs = document.querySelector('.profile-sheet__tabs')
+      const panel = document.querySelector('.profile-sheet__panel')
+      expect(tabs).toBeTruthy()
+      expect(panel).toBeTruthy()
+      expect(tabs?.parentElement).toBe(panel?.parentElement)
     } finally {
       sheet.dispose?.()
     }

@@ -75,8 +75,17 @@ export default class AskSheet
 
                 <!-- STAGE: compose -->
                 <section class="ask-sheet__stage" data-stage="compose">
-                    <p class="ask-sheet__eyebrow">Today</p>
-                    <h2 class="ask-sheet__title">What is something you experienced today?</h2>
+                    <p class="ask-sheet__eyebrow">Talking to Kira</p>
+                    <h2 class="ask-sheet__title">What should I hold with you?</h2>
+                    <button class="ask-sheet__letter-ref" type="button" hidden>
+                        <span class="ask-sheet__letter-ref-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="13" height="13">
+                                <path d="M4 6.5h16v11H4z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                                <path d="M4 7l8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+                            </svg>
+                        </span>
+                        <span class="ask-sheet__letter-ref-label" data-role="letter-ref-label"></span>
+                    </button>
                     <p class="ask-sheet__prompt" hidden></p>
                     <div class="ask-sheet__field" data-testid="kira-multimodal-composer">
                         <div class="ask-sheet__image-preview" hidden>
@@ -226,6 +235,8 @@ export default class AskSheet
         this.imageEl         = root.querySelector('.ask-sheet__image')
         this.imageRemoveBtn  = root.querySelector('.ask-sheet__image-remove')
         this.promptEl    = root.querySelector('.ask-sheet__prompt')
+        this.letterRefEl    = root.querySelector('.ask-sheet__letter-ref')
+        this.letterRefLabel = root.querySelector('[data-role="letter-ref-label"]')
         this.hintEl      = root.querySelector('.ask-sheet__hint')
         this.hintLiveEl  = root.querySelector('.ask-sheet__hint--live')
         this.liveThreadEl = root.querySelector('.ask-live-chat')
@@ -252,6 +263,7 @@ export default class AskSheet
         this.recognition = null
         this.listening   = false
         this.prompt      = null
+        this.letterId    = null
         this.stage       = 'compose'
         this.recCommitted = ''
         this.recInterim   = ''
@@ -287,6 +299,7 @@ export default class AskSheet
         // GC'd alongside root.remove(); the document-level keydown is the
         // only one that survives, so it is the priority for dispose().
         root.querySelector('.ask-sheet__close').addEventListener('click', () => this._onBack())
+        this.letterRefEl.addEventListener('click', () => this._openLetterRef())
         this.input.addEventListener('input', () => this._refreshSave())
         this.saveBtn.addEventListener('click', () => this._saveTyped())
         this.micBtn.addEventListener('click', () => this._startRecording())
@@ -372,9 +385,10 @@ export default class AskSheet
         this.root = null
     }
 
-    open({ prompt, readOnly, capture, dismissOnBack, prefilledText } = {})
+    open({ prompt, readOnly, capture, dismissOnBack, prefilledText, letterId } = {})
     {
         this.prompt        = prompt || null
+        this.letterId      = letterId || capture?.letterId || null
         this.readOnly      = !!readOnly
         this.replayImageDataUrl = this.readOnly && capture?.dataUrl ? capture.dataUrl : null
         // dismissOnBack: when AskSheet is opened directly (e.g. from Kira's
@@ -392,6 +406,7 @@ export default class AskSheet
         {
             this.promptEl.hidden = true
         }
+        this._renderLetterRef()
         // prefilledText supports the Edit path — re-entering compose from
         // the reframe page lands with the last transcript ready to amend.
         const initialText = this.readOnly && capture?.text
@@ -486,6 +501,7 @@ export default class AskSheet
         this.hintEl.hidden = true
         this.reframe = null
         this.thread = null
+        this.letterId = null
         if(this.chatThreadEl) this.chatThreadEl.innerHTML = ''
         if(this.chatInputEl)  this.chatInputEl.value = ''
         this._resetLiveDialogue()
@@ -1401,6 +1417,7 @@ export default class AskSheet
             syncStatus: this.backend?.logPreparedReflection ? 'syncing' : 'local',
             contextType: prepared.contextType || 'school',
             ...(this.uploadedImageDataUrl ? { dataUrl: this.uploadedImageDataUrl } : {}),
+            ...(this.letterId ? { letterId: this.letterId } : {}),
         })
 
         if(!this.backend?.logPreparedReflection)
@@ -1527,6 +1544,7 @@ export default class AskSheet
             prompt: this.prompt,
             syncStatus: this.backend?.submitReflection ? 'syncing' : 'local',
             ...(dataUrl ? { dataUrl } : {}),
+            ...(this.letterId ? { letterId: this.letterId } : {}),
             ...payload,
         }
         // Strip empties so old-style captures stay { kind, text, prompt }.
@@ -1682,6 +1700,34 @@ export default class AskSheet
 
         for(const option of this.emojiPanelEl.querySelectorAll('.ask-sheet__emoji-option'))
             option.classList.toggle('is-selected', option.dataset.emotion === this.selectedMood)
+    }
+
+    _renderLetterRef()
+    {
+        if(!this.letterRefEl) return
+        const letter = this.letterId
+            ? this.state.letters.letters.find((l) => l.id === this.letterId)
+            : null
+        if(!letter)
+        {
+            this.letterRefEl.hidden = true
+            this.letterRefEl.dataset.letterId = ''
+            return
+        }
+        const fromText = letter.from ? `From ${letter.from}` : 'From your teacher'
+        const subjectText = letter.subject ? ` — ${letter.subject}` : ''
+        this.letterRefLabel.textContent = `${fromText}${subjectText}`
+        this.letterRefEl.dataset.letterId = letter.id
+        this.letterRefEl.hidden = false
+    }
+
+    _openLetterRef()
+    {
+        if(!this.letterId) return
+        // Hand off to LettersSheet with the originating letter pre-selected.
+        // OverlayController.open enforces exclusivity, so closing AskSheet is
+        // implicit — opening 'letters' swaps the active surface for us.
+        OverlayController.getInstance().open('letters', { letterId: this.letterId })
     }
 }
 

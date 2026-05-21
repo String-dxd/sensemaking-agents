@@ -60,6 +60,7 @@ A daily-habit framing reintroduces the very pressure we're trying to remove ("an
 
 **Reflection ritual**
 - R1. Mirror sessions are **self-directed and time-boxed**. The student sees their own webcam stream as the mirror. There is no AI voice during the session. The agent never speaks while the student is talking.
+  - **Superseded 2026-05-21**: the live-audio Realtime path now ships a two-mode (gathering / reflecting) conversational companion via `buildRealtimeMirrorLiveInstructions` in `src/agents/openai-realtime/mirror-payloads.ts`. The "no AI voice" constraint applies only to the JSON-mode Mirror generation path; the live-audio path is now an active interlocutor by design. Re-read the live prompt for the current contract.
 - R2. The session opens silent. After ~3 seconds of silence at the start, a single soft text prompt appears once: "Just talk to yourself, naturally." After that the UI stays silent for the remainder of the session.
 - R3. The session has a soft time-box (default ~60-90 seconds) and an always-available Stop button. The student controls when the session ends.
 - R4. The webcam is **visual-only**. The video stream is rendered locally for the student. Frames are not sent to any AI service and no still photos are captured or stored in v0.1.

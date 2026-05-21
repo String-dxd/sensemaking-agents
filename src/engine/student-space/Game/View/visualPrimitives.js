@@ -71,7 +71,7 @@ export function disclosureHTML(opts = {})
             <span class="disclosure__chevron" aria-hidden="true"></span>
             <span class="disclosure__summary">${escapeHtml(summary)}</span>
         </button>
-        <div class="disclosure__panel">${content}</div>
+        <div class="disclosure__panel"><div class="disclosure__panel-inner">${content}</div></div>
     </section>`
 }
 

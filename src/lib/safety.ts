@@ -7,7 +7,7 @@
  * The matchers are deliberately narrow — false positives here would be
  * worse than missed catches because they'd block legitimate output. The
  * v1 plan ports the six anti-sycophancy fixtures from
- * `plans/_archive/voice-wiki.md` as a stricter sweep.
+ * `docs/plans/_archive/voice-wiki.md` as a stricter sweep.
  */
 
 const DIAGNOSTIC_PATTERNS: RegExp[] = [
