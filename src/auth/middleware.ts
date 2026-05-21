@@ -11,7 +11,7 @@
 //      rows are attached only for explicit demo/dev bypass sessions.
 //
 // Production never sets `DEV_BYPASS_AUTH`. The Vercel env-var list in
-// `plans/2026-05-12-002-feat-managed-agents-full-migration-plan.md` §10
+// `docs/plans/_archive/2026-05-12-002-feat-managed-agents-full-migration-plan.md` §10
 // does not include it.
 
 import { type DevBypassIdentity, makeBypassIdentity } from './demo'
