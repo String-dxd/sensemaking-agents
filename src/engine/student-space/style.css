@@ -906,7 +906,11 @@ body.has-chooser        .bird-picker
     z-index: 60;
     display: none;
     pointer-events: auto;
-    background: linear-gradient(180deg, rgba(253, 250, 243, 0.55) 0%, rgba(253, 250, 243, 0.92) 75%);
+    /* Top stop bumped 0.55 → 0.85 because the header is now transparent
+       (no more solid cream panel — see `.sheet-chrome__header`). Titles
+       sit directly on this gradient; 0.85 keeps them legible against
+       the engine canvas behind without re-introducing a visible seam. */
+    background: linear-gradient(180deg, rgba(253, 250, 243, 0.85) 0%, rgba(253, 250, 243, 0.92) 75%);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     overflow-y: auto;
@@ -944,8 +948,13 @@ body.has-chooser        .bird-picker
 {
     box-sizing: border-box;
     width: 100%;
-    background: #fdfaf3;
-    border-bottom: 1px solid rgba(43, 38, 32, 0.06);
+    /* No solid background or hairline — the routed-sheet refactor turned
+       these sheets into real pages. A solid cream header on top of the
+       translucent body reads as a card-on-card stack ("extra page card
+       container below the main one"). Letting the chrome's own gradient
+       show through keeps the title legible (top stop is now 0.85) while
+       the page reads as one surface from eyebrow to last pathway. */
+    background: transparent;
     color: #2b2620;
     font-family: var(--font-sans);
     padding: 56px max(24px, calc((100% - 760px) / 2 + 24px)) 18px;
