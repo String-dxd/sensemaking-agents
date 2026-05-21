@@ -5068,9 +5068,9 @@ body.is-onb-landing .side-rail
     position: sticky;
     top: 0;
     z-index: 1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
     padding-block: 12px;
     /* Match the centered 760px column used elsewhere on this sheet. */
     padding-inline: max(24px, calc((100% - 760px) / 2 + 24px));
@@ -5081,24 +5081,35 @@ body.is-onb-landing .side-rail
     backdrop-filter: blur(14px) saturate(115%);
     -webkit-backdrop-filter: blur(14px) saturate(115%);
 }
+/* Above ~720px the 4 tabs read better as a single row. */
+@media (min-width: 720px)
+{
+    .trajectory-sheet__tabs
+    {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
 
 .trajectory-tab
 {
     /* DESIGN SYSTEM ROLE: Numbered nav chip — squircle (10px radius at 32
        tall = 31% ratio, clearly rounded-rect). Number circle stays fully
-       round to keep its character (the number IS the visual hook). */
+       round to keep its character (the number IS the visual hook).
+       Grid-cell wide: width 100% so every tab fills its column equally. */
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    width: 100%;
+    min-width: 0;
     height: 32px;
-    padding: 0 14px 0 6px;
+    padding: 0 12px 0 6px;
     border-radius: 10px;
     border: 1px solid transparent;
     background: transparent;
     color: rgba(43, 38, 32, 0.62);
     font: 600 13px/1 inherit;
+    text-align: left;
     cursor: pointer;
-    max-width: 100%;
     transition: background 180ms cubic-bezier(0.2, 0, 0, 1),
                 color 180ms cubic-bezier(0.2, 0, 0, 1),
                 border-color 180ms cubic-bezier(0.2, 0, 0, 1),
@@ -5110,6 +5121,7 @@ body.is-onb-landing .side-rail
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    flex: 0 0 auto;
     width: 22px;
     height: 22px;
     border-radius: 999px;
@@ -5121,10 +5133,11 @@ body.is-onb-landing .side-rail
 }
 .trajectory-tab__label
 {
+    flex: 1 1 auto;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 22ch;
 }
 .trajectory-tab:hover { background: rgba(43, 38, 32, 0.04); }
 .trajectory-tab.is-active
@@ -5160,10 +5173,15 @@ body.is-onb-landing .side-rail
 
 .trajectory-panel__head
 {
+    /* Stack the PATH N eyebrow above the title so neither competes for the
+       same baseline. On wide viewports they still sit close (4px gap) but
+       at a glance the title owns the line — the eyebrow reads as section
+       metadata, not a peer of the heading. */
     display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 10px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    margin-bottom: 8px;
 }
 .trajectory-panel__index
 {
@@ -5183,21 +5201,25 @@ body.is-onb-landing .side-rail
 }
 .trajectory-panel__prompt
 {
-    margin: 0 0 22px;
+    margin: 0 0 18px;
     font-size: 16px;
     line-height: 1.55;
     color: rgba(43, 38, 32, 0.86);
     max-width: 62ch;
 }
 
-.trajectory-panel__chips { margin: 0 0 18px; }
+/* Evidence groups: each "label + chip row" pair gets generous vertical
+   space so two adjacent groups don't read as a single stacked label
+   followed by two chip rows. */
+.trajectory-panel__chips { margin: 0 0 20px; }
+.trajectory-panel__chips:last-of-type { margin-bottom: 16px; }
 .trajectory-panel__chip-label
 {
-    margin: 0 0 8px;
-    font-size: 11px;
-    letter-spacing: 0.10em;
+    margin: 0 0 6px;
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: rgba(43, 38, 32, 0.55);
+    color: rgba(43, 38, 32, 0.50);
     font-weight: 600;
 }
 .trajectory-panel__chip-row
@@ -5249,11 +5271,14 @@ body.is-onb-landing .side-rail
     font-weight: 600;
 }
 
+/* Risks block reads as a sibling section of the chip groups (label +
+   body), not a quoted aside. The hairline rule on top separates it from
+   the chip groups above without the visual weight of a left border. */
 .trajectory-panel__risk
 {
-    border-left: 2px solid rgba(43, 38, 32, 0.18);
-    padding: 4px 0 4px 14px;
-    margin-top: 12px;
+    margin-top: 4px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(43, 38, 32, 0.08);
 }
 .trajectory-panel__risk-text
 {
@@ -8062,24 +8087,40 @@ body.is-onboarding .kira-bubble
 
 /* Path Finder — per-pathway "See evidence" disclosure inside the
    Searching panel. Wraps the trait + ECG + risk groups so the
-   cold open of each pathway reads as title + prompt + CTA. */
+   cold open of each pathway reads as title + prompt + CTA. The
+   toggle is rendered as a small outlined pill so it's discoverable
+   as an action, not background-text. */
 .trajectory-panel__evidence
 {
-    margin: 6px 0 14px;
+    margin: 4px 0 14px;
 }
 .trajectory-panel__evidence-toggle
 {
-    padding: 8px 0;
-    color: rgba(43, 38, 32, 0.62);
-    font-size: 12px;
+    width: auto;
+    min-height: 0;
+    padding: 6px 12px 6px 10px;
+    border: 1px solid rgba(43, 38, 32, 0.14);
+    border-radius: 999px;
+    color: rgba(43, 38, 32, 0.66);
+    font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.45);
 }
-.trajectory-panel__evidence-toggle:hover { color: rgba(43, 38, 32, 0.82); }
-.trajectory-panel__evidence .disclosure__panel
+.trajectory-panel__evidence-toggle:hover
 {
-    padding-top: 4px;
+    color: rgba(43, 38, 32, 0.86);
+    border-color: rgba(43, 38, 32, 0.24);
+    background: rgba(255, 255, 255, 0.75);
+}
+/* The wrapper around all evidence groups exists so the grid-rows
+   expand animation (0fr → 1fr) only sizes a single child — without it,
+   subsequent children land in implicit rows and the first child gets
+   clipped to 1fr of an indefinite height. */
+.trajectory-panel__evidence-content
+{
+    padding-top: 14px;
 }
 
 /* Path Finder — "Why this status" disclosure slot beneath the head actions. */
