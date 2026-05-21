@@ -22,6 +22,14 @@ export interface SheetChromeOptions {
   header?: SheetChromeHeader
   onOpen?: (opts?: unknown) => void
   onClose?: () => void
+  /**
+   * Routed sheets (Profile, History, Letters, Trajectory) pass this so
+   * Escape (and the × button when present) navigates back through the
+   * router instead of calling `OverlayController.close(key)` directly.
+   * Capture sheets leave it unset and inherit the legacy controller-close
+   * dismiss path. See `SheetChrome.js#_requestClose`.
+   */
+  onCloseRequest?: () => void
 }
 
 export default class SheetChrome {
