@@ -72,6 +72,16 @@ export function StudentSpaceHost({ className }: { className?: string }) {
   // `openSurface` / `closeActiveSurface` methods.
   useStudentSpaceRouteSync(game, { paused })
 
+  // Pause the engine's rAF render loop while a routed sheet covers the
+  // world. The engine canvas is still mounted (cheap to resume) but the
+  // Three.js scene stops ticking — eliminates the shaking/perf regressions
+  // reported when switching pages and saves GPU on every non-`/` route.
+  // Mirrors the existing visibilitychange suspension pattern.
+  useEffect(() => {
+    if (!game) return
+    game.setRenderActive(location.pathname === '/')
+  }, [game, location.pathname])
+
   // After the backend snapshot resolves, re-apply the current route
   // surface so sheets that opened against empty local state re-render
   // with the freshly-loaded data. The hydration flag only flips once per
