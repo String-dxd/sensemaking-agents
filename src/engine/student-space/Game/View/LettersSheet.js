@@ -13,6 +13,8 @@
 
 import State from '../State/State.js'
 import SheetChrome from './SheetChrome.js'
+import OverlayController from './OverlayController.js'
+import { escapeHtml } from '../util/html.js'
 
 const formatSent = (iso) =>
 {
@@ -25,8 +27,6 @@ const formatSent = (iso) =>
     catch(_) { return '' }
 }
 
-const escapeHtml = (s) => (s || '').replace(/[<>&"]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[ch])
-
 export default class LettersSheet
 {
     constructor()
@@ -36,30 +36,32 @@ export default class LettersSheet
         this.selectedId = null
 
         // SheetChrome owns backdrop, blur, fade, z-tier, the × button, the
-        // Escape-to-close listener, AND the shared header. Letters only owns
-        // the two-pane inbox grid inside chrome.bodySlot. See CLAUDE.md
-        // "Sheet chrome contract".
+        // Escape-to-close listener, AND the shared header. Under the Gather-
+        // style split layout the letter list lives in the left pane (intro)
+        // and the active letter's body fills the right pane. The chrome's
+        // 860px responsive stack replaces the old internal 780px list/detail
+        // pivot, so the standalone back-button is gone — at narrow widths
+        // both panes flow vertically. See CLAUDE.md "Sheet chrome contract".
         this.chrome = new SheetChrome({
             key:            'letters',
             sheetClassName: 'letters-sheet',
-            withCloseButton: true,
+            withCloseButton: false,
             closeOnBackdrop: false,
+            layout:         'split',
             header: {
-                eyebrow:  'LETTERS',
-                title:    'Inbox',
+                title:    'Letters',
                 subtitle: 'Notes from your form teacher when they notice something worth saying.',
             },
         })
+        this.chrome.introSlot.innerHTML = `
+            <aside class="letters-sheet__list" role="list"></aside>
+        `
         this.chrome.bodySlot.innerHTML = `
-            <div class="letters-sheet__grid">
-                <aside class="letters-sheet__list" role="list"></aside>
-                <section class="letters-sheet__panel">
-                    <button class="letters-sheet__back" type="button">‹ all letters</button>
-                    <article class="letters-sheet__body" data-role="letter-body">
-                        <p class="letters-sheet__empty">Tap a letter to read it.</p>
-                    </article>
-                </section>
-            </div>
+            <section class="letters-sheet__panel">
+                <article class="letters-sheet__body" data-role="letter-body">
+                    <p class="letters-sheet__empty">Tap a letter to read it.</p>
+                </article>
+            </section>
         `
         const root = this.chrome.root
         this.root    = root
@@ -87,12 +89,25 @@ export default class LettersSheet
         this.root = null
     }
 
-    open()
+    open({ letterId } = {})
     {
         if(!this.chrome) return
-        // First time the inbox opens, snap to the newest unread letter (or
-        // newest letter if all are read). Subsequent opens preserve the
-        // selection across the session.
+        // An unknown deep-link must clear any prior selection so the
+        // auto-select branch below picks the newest unread instead of
+        // silently honouring a stale session selectedId.
+        if(letterId)
+        {
+            if(this.letters.letters.some((l) => l.id === letterId))
+            {
+                this.selectedId = letterId
+                this.letters.markRead(letterId)
+            }
+            else
+            {
+                this.selectedId = null
+            }
+        }
+
         if(!this.selectedId)
         {
             const sorted = [...this.letters.letters].sort((a, b) => (b.sentAt || '').localeCompare(a.sentAt || ''))
@@ -108,9 +123,6 @@ export default class LettersSheet
     {
         if(!this.isOpen) return
         this.isOpen = false
-        // Drop the content-level reading state before chrome closes so the
-        // next open starts on the list pane (mobile-style router).
-        try { this.root?.classList?.remove?.('is-reading') } catch(_) {}
         try { this.chrome?.close?.() } catch(_) {}
     }
 
@@ -148,12 +160,29 @@ export default class LettersSheet
         if(selected)
         {
             const paragraphs = (selected.body || '').split('\n\n').map((p) => `<p>${escapeHtml(p).replace(/\n/g, '<br>')}</p>`).join('')
+            const cta = selected.prompt
+                ? `
+                    <div class="letters-sheet__cta">
+                        <p class="letters-sheet__cta-prompt">${escapeHtml(selected.prompt)}</p>
+                        <button type="button" class="letters-sheet__capture-btn" data-action="capture-prompt" data-prompt="${escapeHtml(selected.prompt)}">
+                            <span class="letters-sheet__capture-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" width="16" height="16">
+                                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                                    <path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                                </svg>
+                            </span>
+                            Capture
+                        </button>
+                    </div>
+                `
+                : ''
             this.bodyEl.innerHTML = `
                 <header class="letters-sheet__header">
                     <p class="letters-sheet__from">${escapeHtml(selected.from)} · <time>${formatSent(selected.sentAt)}</time></p>
                     <h2 class="letters-sheet__subject">${escapeHtml(selected.subject)}</h2>
                 </header>
                 ${paragraphs}
+                ${cta}
             `
         }
         else
@@ -165,20 +194,26 @@ export default class LettersSheet
     _onClick(event)
     {
         // × button and Escape are owned by SheetChrome — no per-sheet close
-        // handling needed here.
-        if(event.target.closest('.letters-sheet__back'))
+        // handling needed here. The old `.letters-sheet__back` button has
+        // been removed; the chrome's 860px responsive stack supplies the
+        // narrow-viewport flow without a routed back affordance.
+        const captureBtn = event.target.closest('[data-action="capture-prompt"]')
+        if(captureBtn)
         {
-            this.root.classList.remove('is-reading')
+            const prompt = captureBtn.dataset.prompt || ''
+            const letterId = this.selectedId || null
+            // dismissOnBack: AskSheet was opened outside the CaptureChooser,
+            // so × should dismiss instead of routing back to a chooser the
+            // student never saw.
+            OverlayController.getInstance().open('ask', { prompt, dismissOnBack: true, letterId })
             return
         }
-
         const row = event.target.closest('.letter-row')
         if(row)
         {
             const id = row.dataset.letterId
             this.selectedId = id
             this.letters.markRead(id)        // idempotent; persists
-            this.root.classList.add('is-reading')
             this._render()
             return
         }

@@ -34,6 +34,22 @@ Before SheetChrome, every sheet hand-rolled its own chrome. That produced two re
 
 One chrome implementation makes both problems go away at the root.
 
+### Split layout (default for full-viewport sheets)
+
+Every user-facing full-viewport sheet uses `layout: 'split'` — a Gather Town-style two-pane structure:
+
+- **Left pane** (`introSlot`, ~360px) — compact title + per-sheet intro/summary (identity card, status pill, page description, navigation tab strip, etc.). Orients the reader.
+- **Right pane** (`bodySlot`) — the working surface (tabs, lists, detail, dense content). This is where work happens.
+
+Constraints:
+
+- Both panes are direct children of `chrome.contentSlot` so the existing 0/80/160ms entry stagger animates panes in sequence for free.
+- `portalTarget` stays the chrome root under both layouts. Child overlays (DayDetailCard, ShareDialog) keep portaling into the active sheet's stacking context — splitting that per pane would re-introduce the z-32-behind-z-60 bug class that originally motivated SheetChrome.
+- Below 860px viewport, the chrome stacks the panes vertically (left becomes a compact intro band above the right pane). No per-sheet media query needed.
+- Left pane background obeys the translucency rule (alpha ≤ 0.40) — never a solid sidebar fill, or the "island visible through chrome" promise breaks.
+
+Stacked layout (`layout: 'stacked'`, the default) is still available for sheets that don't need a left intro pane — currently only CalendarSheet uses it, because it gets reparented into HistorySheet's right pane (Timeline tab) and a nested two-pane would compound the structure.
+
 ### How to apply
 
 Adding a new sheet:
@@ -51,8 +67,15 @@ export default class MyNewSheet
             sheetClassName: 'my-new-sheet',     // for per-sheet content CSS
             withCloseButton: true,              // chrome renders the × button
             closeOnBackdrop: false,             // opt-in click-outside dismissal
+            layout:         'split',            // Gather-style two-pane (recommended for new full-viewport sheets)
+            header: {
+                eyebrow:  'MY SECTION',
+                title:    'My new page',
+                subtitle: 'Brief one-line description.',
+            },
         })
-        this.chrome.contentSlot.innerHTML = `<header>…</header><section>…</section>`
+        this.chrome.introSlot.innerHTML = `<!-- left pane: summary / nav / status -->`
+        this.chrome.bodySlot.innerHTML  = `<!-- right pane: working surface -->`
         this.root = this.chrome.root            // back-compat for code that expects this.root
 
         // Content-level clicks (tabs, lists, etc.) — chrome owns ×/Escape.
@@ -69,13 +92,20 @@ export default class MyNewSheet
 Adding the per-sheet CSS (`style.css`):
 
 ```css
-.my-new-sheet .sheet-chrome__content
+/* Left-pane intro overrides — keep alpha low; pad to taste. */
+.my-new-sheet.sheet-chrome--split .sheet-chrome__intro
 {
-    /* padding, typography, layout — content-only. */
-    padding: 24px 20px 32px;
+    padding: 0 24px 24px;
+    gap: 14px;
+}
+
+/* Right-pane body overrides — drop any old 760px centering tricks, the
+   chrome pane already constrains width. */
+.my-new-sheet.sheet-chrome--split .sheet-chrome__body
+{
+    padding: 24px 32px 64px;
     color: #2b2620;
     font-family: var(--font-sans);
-    min-height: 100%;
 }
 ```
 
@@ -100,8 +130,10 @@ React-only surfaces (none today) should use `src/components/ui/dialog.tsx` or `d
 
 ### Reference files
 
-- `src/engine/student-space/Game/View/SheetChrome.js` — primitive
+- `src/engine/student-space/Game/View/SheetChrome.js` — primitive (split + stacked layouts)
 - `src/engine/student-space/Game/View/OverlayController.js` — exclusivity + `getActiveRoot()`
-- `src/engine/student-space/Game/View/HistorySheet.js` — canonical consumer (reference migration)
-- `src/engine/student-space/style.css` — `.sheet-chrome`, `.sheet-chrome__content`, `.sheet-chrome__close` base rules
+- `src/engine/student-space/Game/View/HistorySheet.js` — canonical split-layout consumer (tabs in left pane, embedded Calendar in right pane)
+- `src/engine/student-space/Game/View/ProfileSheet.js` — split-layout consumer that hosts a React subtree in the right pane
+- `src/engine/student-space/style.css` — `.sheet-chrome`, `.sheet-chrome--split`, `.sheet-chrome__pane`, `.sheet-chrome__intro`, `.sheet-chrome__header--compact` base rules
 - `docs/plans/2026-05-20-001-refactor-sheet-primitive-consistency-plan.md` — origin plan
+- `docs/plans/2026-05-21-001-refactor-gather-style-two-pane-sheets-plan.md` — split-layout plan

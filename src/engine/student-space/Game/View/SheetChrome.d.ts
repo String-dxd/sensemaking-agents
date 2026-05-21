@@ -14,11 +14,14 @@ export interface SheetChromeHeader {
   subtitle?: string
 }
 
+export type SheetChromeLayout = 'stacked' | 'split'
+
 export interface SheetChromeOptions {
   key: string
   sheetClassName?: string
   withCloseButton?: boolean
   closeOnBackdrop?: boolean
+  layout?: SheetChromeLayout
   header?: SheetChromeHeader
   onOpen?: (opts?: unknown) => void
   onClose?: () => void
@@ -27,10 +30,14 @@ export interface SheetChromeOptions {
 export default class SheetChrome {
   constructor(opts: SheetChromeOptions)
   readonly key: string
+  readonly layout: SheetChromeLayout
   isOpen: boolean
   root: HTMLElement | null
   contentSlot: HTMLElement
   bodySlot: HTMLElement
+  introSlot: HTMLElement | null
+  leftPane: HTMLElement | null
+  rightPane: HTMLElement | null
   headerEl: HTMLElement | null
   portalTarget: HTMLElement | null
   closeBtn: HTMLButtonElement | null
