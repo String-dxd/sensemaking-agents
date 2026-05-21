@@ -19,6 +19,15 @@
  * (which preserves the current TrajectorySheet UX). Boundaries are spelled
  * out below so they are tunable from one place.
  */
+import State from '../State/State.js'
+
+// Companion display name — falls back to 'Kira' before the first-run
+// ceremony writes identity.companionName.
+function _companionName()
+{
+    return State.getInstance()?.profile?.displayCompanionName?.() || 'Kira'
+}
+
 export const STATUS_IDS = ['starter', 'diffused', 'searching', 'foreclosed', 'achieved']
 
 // Exploration thresholds.
@@ -121,7 +130,7 @@ function reasonFor(status, exploration, commitment)
     const co = commitment.inputs
     const xparts = []
     if(ex.distinctClaims > 0) xparts.push(`${ex.distinctClaims} VIPS claim${ex.distinctClaims === 1 ? '' : 's'}`)
-    if(ex.askCount > 0)       xparts.push(`${ex.askCount} chat${ex.askCount === 1 ? '' : 's'} with Kira`)
+    if(ex.askCount > 0)       xparts.push(`${ex.askCount} chat${ex.askCount === 1 ? '' : 's'} with ${_companionName()}`)
     if(ex.hasBackendCartographer) xparts.push('a Cartographer reading')
     const xline = xparts.length ? xparts.join(' · ') : 'no profile evidence yet'
 
@@ -208,7 +217,7 @@ export function statusCopyOf(id, identity)
                 eyebrow: 'PATH FINDER',
                 title:   `Hi${name ? `, ${name}` : ''} — let's find your bearings`,
                 tldr:    'Path Finder needs a bit more to read before it can suggest anything.',
-                lead:    `Path Finder reads your VIPS profile + Choices to suggest the kind of work that might fit. Right now there isn't much to read yet — a short chat with Kira will give it something to work with.`,
+                lead:    `Path Finder reads your VIPS profile + Choices to suggest the kind of work that might fit. Right now there isn't much to read yet — a short chat with ${_companionName()} will give it something to work with.`,
             }
         case 'diffused':
             return {
@@ -268,7 +277,7 @@ export const DIFFUSED_NUDGES = [
 /** Starter-state single prompt. */
 export const STARTER_PROMPT = {
     id: 'starter-first-chat',
-    title: 'Start a short reflection with Kira',
+    title: 'Start a short reflection with {companionName}',
     prompt: 'I want to start figuring out my post-secondary path. Where should I begin?',
 }
 

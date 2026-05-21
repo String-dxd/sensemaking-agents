@@ -87,7 +87,7 @@ function facetIdForTarget(target)
 
 function elementTitleForTarget(target)
 {
-    if(target.kind === 'kira') return 'Kira'
+    if(target.kind === 'kira') return State.getInstance()?.profile?.displayCompanionName?.() || 'Kira'
     const sp = speciesIdOf(target)
     return sp ? sp.charAt(0).toUpperCase() + sp.slice(1) : 'Element'
 }

@@ -1737,7 +1737,7 @@ body.has-chooser        .bird-picker
 }
 .ask-sheet__captions-committed:empty + .ask-sheet__captions-interim:empty::before
 {
-    content: 'Start talking. Kira will answer when you pause.';
+    content: 'Start talking. A reading will appear when you pause.';
     color: rgba(43, 38, 32, 0.35);
     font-style: italic;
 }

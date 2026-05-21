@@ -57,6 +57,15 @@ export default class Profile
 
     getFacet(facetId) { return this.facets[facetId] ?? null }
 
+    // Display name for the companion bird. Falls back to 'Kira' when the
+    // first-run ceremony has not written `identity.companionName` yet, so
+    // hover hints / name tags read sensibly during onboarding too.
+    displayCompanionName()
+    {
+        const n = this.identity?.companionName?.trim()
+        return n && n.length > 0 ? n : 'Kira'
+    }
+
     getQuotesForClaim(claimId)
     {
         for(const facet of Object.values(this.facets))

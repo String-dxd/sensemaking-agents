@@ -14,6 +14,15 @@ import {
 import { disclosureHTML, bindDisclosureToggles, statTileRowHTML } from './visualPrimitives.js'
 import { _auditEcgAffinities } from '../Data/ecgClusters.js'
 
+// Companion display name — falls back to 'Kira' before the first-run
+// ceremony writes identity.companionName. Inlined per-site to keep this
+// sheet's read footprint small.
+function _companionName()
+{
+    return State.getInstance()?.profile?.displayCompanionName?.() || 'Kira'
+}
+
+
 /**
  * TrajectorySheet — full-viewport "Path Finder" overlay reachable from the
  * top-right Path Finder chip and from the telescope on the island rim.
@@ -469,10 +478,10 @@ export default class TrajectorySheet
         card.className = 'trajectory-sheet__starter'
         card.innerHTML = `
             <div class="trajectory-starter__card">
-                <p class="trajectory-starter__title">${escapeHtml(STARTER_PROMPT.title)}</p>
+                <p class="trajectory-starter__title">${escapeHtml(STARTER_PROMPT.title.replace('{companionName}', _companionName()))}</p>
                 <p class="trajectory-starter__prompt">${escapeHtml(STARTER_PROMPT.prompt)}</p>
                 <button type="button" class="trajectory-starter__cta">
-                    Start a chat with Kira <span aria-hidden="true">→</span>
+                    Start a chat with ${escapeHtml(_companionName())} <span aria-hidden="true">→</span>
                 </button>
             </div>
         `
@@ -498,7 +507,7 @@ export default class TrajectorySheet
                 <button type="button" class="trajectory-nudge">
                     <span class="trajectory-nudge__title">${escapeHtml(nudge.title)}</span>
                     <span class="trajectory-nudge__prompt">${escapeHtml(nudge.prompt)}</span>
-                    <span class="trajectory-nudge__cta" aria-hidden="true">Reflect with Kira →</span>
+                    <span class="trajectory-nudge__cta" aria-hidden="true">Reflect with ${escapeHtml(_companionName())} →</span>
                 </button>
             `
             li.querySelector('button').addEventListener('click', () => this._openAskWithPrompt(nudge.prompt))
@@ -650,7 +659,7 @@ export default class TrajectorySheet
             </section>
             <section class="trajectory-foreclosed__challenge">
                 <p class="trajectory-foreclosed__challenge-q">${escapeHtml(FORECLOSED_CHALLENGE_PROMPT.title)}</p>
-                <button type="button" class="trajectory-foreclosed__cta">Open the question with Kira →</button>
+                <button type="button" class="trajectory-foreclosed__cta">Open the question with ${escapeHtml(_companionName())} →</button>
             </section>
         `
 
