@@ -1,19 +1,17 @@
 /**
- * "Login with Edupass" surface, now an explicit three-action picker.
+ * "Login with Edupass" surface, now an explicit two-action picker.
  *
  * Visual identity (wordmark, sky orbit) is preserved — the change is
  * behavioral: clicking the primary "Sign in with Edupass" CTA starts a
  * real WorkOS sign-in (WorkOS routes to its configured social provider —
  * Google in v0.2). A secondary "Use a demo account" button POSTs to the
- * demo cookie route. "Continue offline" preserves the legacy random
- * OFFLINE_DEMO_STUDENTS pick so a developer with no WorkOS env still has
- * a path into the world.
+ * demo cookie route.
  *
  * Returning signed-in students never see this surface — `OnboardingFlow.start()`
  * auto-skips the `login` stage when `state.auth.status === 'signed-in'`.
  */
 
-import { OFFLINE_DEMO_STUDENTS } from './copy.js'
+import { performOnboardingSkip } from './OnboardingSkip.js'
 import { wait } from '../../util/timing.js'
 import { escapeHtml } from '../../util/html.js'
 
@@ -126,11 +124,6 @@ export default class EdupassLogin
                             ${escapeHtml(ctx.copy.login.actions.demo)}
                         </button>
                     </form>
-                    <button type="button"
-                            class="onb-login__secondary onb-login__secondary--ghost"
-                            data-action="offline">
-                        ${escapeHtml(ctx.copy.login.actions.offline)}
-                    </button>
                 </div>
                 <p class="onb-login__demo-note">${escapeHtml(ctx.copy.login.demoNote)}</p>
                 <button type="button" class="onb-login__skip" aria-label="Skip onboarding (dev)">
@@ -192,13 +185,6 @@ export default class EdupassLogin
         if(!this._el) return
         const el = this._el
         this._el = null
-        // Cancel any in-flight offline-path setTimeout so its callback does
-        // not fire `setIdentity`/`_advance` against torn-down state.
-        if(this._offlineTimer != null)
-        {
-            try { clearTimeout(this._offlineTimer) } catch(_) {}
-            this._offlineTimer = null
-        }
         // Reset the connecting guard so a future remount can interact again.
         this._connecting = false
         if(this._buttons)
@@ -232,32 +218,47 @@ export default class EdupassLogin
      * Edupass CTA so test/dev flows don't have to sit through the full
      * ceremony each run. No-ops gracefully if any singleton is missing.
      */
+    // On the login surface, "skip" means: log the user in as a demo account
+    // (the safe default when no explicit method has been picked) AND mark
+    // onboarding done so the post-demo reload lands them straight on the
+    // island. We commit onboarding=done BEFORE the demo POST so the server's
+    // redirect-back boots a flow that immediately short-circuits in
+    // OnboardingFlow.start() via `onb.isDone`. If the demo form is missing
+    // (no backend / dev env), we fall back to the offline-identity skip
+    // path used by the post-login floating button.
     _onSkip(ctx)
     {
+        const demoForm = this._el?.querySelector('form[data-action="demo"]')
+        if(!demoForm)
+        {
+            performOnboardingSkip(ctx)
+            return
+        }
+
         try
         {
-            if(!ctx.state?.backend)
-            {
-                const pick = OFFLINE_DEMO_STUDENTS[Math.floor(Math.random() * OFFLINE_DEMO_STUDENTS.length)]
-                ctx.profile.setIdentity({ name: pick.name, className: pick.className })
-            }
             ctx.state?.onboarding?.complete?.()
-            // Drain the 250ms persistence debounce SYNCHRONOUSLY so the new
-            // onboarding stage hits storage before we reload. Without this,
-            // the page reload races the debounce timer, the stage='done'
-            // write is lost, and the next boot replays the ceremony.
+            // Drain the persistence debounce SYNCHRONOUSLY so the
+            // stage='done' write survives the demo POST → server redirect.
             ctx.state?.persistence?.flush?.()
-            // Clear the `#onboarding` URL hash — Onboarding.hydrate() runs
-            // its replay-reset whenever it sees that hash on boot, which
-            // would re-wipe the `stage='done'` we just persisted. Without
-            // this, skip → reload would replay the ceremony every time.
             if(typeof window !== 'undefined' && window.location.hash === '#onboarding')
             {
                 window.history.replaceState(null, '', window.location.pathname + window.location.search)
             }
         }
         catch(_) {}
-        try { window.location.reload() } catch(_) {}
+
+        try
+        {
+            const btn = demoForm.querySelector('button')
+            this._beginConnecting(btn || demoForm, ctx)
+            disposeEngineForNavigation()
+            submitBodyScopedAuthForm(demoForm.action, demoForm.method || 'post')
+        }
+        catch(_)
+        {
+            performOnboardingSkip(ctx)
+        }
     }
 
     _onClick(event, ctx)
@@ -274,28 +275,6 @@ export default class EdupassLogin
             {
                 window.location.assign(link.getAttribute('href'))
             }
-            return
-        }
-
-        const offline = event.target.closest('[data-action="offline"]')
-        if(offline)
-        {
-            event.preventDefault()
-            this._beginConnecting(offline, ctx)
-            this._offlineTimer = setTimeout(() =>
-            {
-                this._offlineTimer = null
-                // The surface may have been unmounted (engine dispose,
-                // host route change) during the 600 ms wait — guard
-                // against firing against torn-down state.
-                if(!this._el) return
-                if(!ctx.state?.backend)
-                {
-                    const pick = OFFLINE_DEMO_STUDENTS[Math.floor(Math.random() * OFFLINE_DEMO_STUDENTS.length)]
-                    ctx.profile.setIdentity({ name: pick.name, className: pick.className })
-                }
-                this._advance?.('greeting')
-            }, CONNECTING_MS)
             return
         }
     }

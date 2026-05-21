@@ -101,7 +101,7 @@ export default class KiraNarrator
         root.className = 'kira-dialogue'
         root.setAttribute('aria-hidden', 'true')
         root.innerHTML = `
-            <div class="kira-dialogue__name">Kira</div>
+            <div class="kira-dialogue__name"></div>
             <button class="kira-dialogue__close" type="button" aria-label="Close">×</button>
             <div class="kira-dialogue__body">
                 <p class="kira-dialogue__text"></p>
@@ -112,6 +112,7 @@ export default class KiraNarrator
         `
         document.body.appendChild(root)
         this.root = root
+        this.nameEl = root.querySelector('.kira-dialogue__name')
         this.textEl  = root.querySelector('.kira-dialogue__text')
         this.ctaEl   = root.querySelector('.kira-dialogue__cta')
         this.closeEl = root.querySelector('.kira-dialogue__close')
@@ -230,6 +231,7 @@ export default class KiraNarrator
         // staged rather than simultaneous-noisy.
         setTimeout(() =>
         {
+            if(this.nameEl) this.nameEl.textContent = this.state?.profile?.displayCompanionName?.() || 'Kira'
             this.root.classList.add('is-open')
             this.root.setAttribute('aria-hidden', 'false')
         }, 180)

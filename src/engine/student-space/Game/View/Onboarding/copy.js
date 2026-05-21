@@ -22,7 +22,6 @@ export const ONBOARDING_COPY = Object.freeze({
         actions:    {
             edupass: 'Sign in with Edupass',
             demo:    'Use a demo account',
-            offline: 'Continue offline',
         },
     },
 

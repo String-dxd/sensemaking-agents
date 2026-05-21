@@ -183,7 +183,7 @@ export default class ObjectPeek
         pickup.className = 'kira-dialogue object-pickup'
         pickup.setAttribute('aria-hidden', 'true')
         pickup.innerHTML = `
-            <div class="kira-dialogue__name">Kira</div>
+            <div class="kira-dialogue__name"></div>
             <button class="kira-dialogue__close" type="button" aria-label="Close">×</button>
             <div class="kira-dialogue__body">
                 <p class="kira-dialogue__text"></p>
@@ -199,6 +199,7 @@ export default class ObjectPeek
         this.pickupTalk  = pickup.querySelector('.object-pickup__talk')
         this.pickupDetail= pickup.querySelector('.object-pickup__detail')
         this.pickupClose = pickup.querySelector('.kira-dialogue__close')
+        this.pickupName  = pickup.querySelector('.kira-dialogue__name')
 
         this.peekCta.addEventListener('click', () => this._goPickup())
         this.pickupTalk.addEventListener('click', () => this._primary())
@@ -329,6 +330,7 @@ export default class ObjectPeek
         setTimeout(() =>
         {
             if(this.step !== 'pickup') return
+            if(this.pickupName) this.pickupName.textContent = this.state?.profile?.displayCompanionName?.() || 'Kira'
             this.pickupEl.classList.add('is-open')
             this.pickupEl.setAttribute('aria-hidden', 'false')
         }, 200)
