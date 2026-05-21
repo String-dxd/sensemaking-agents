@@ -16,10 +16,7 @@
 import { useLocation, useRouter } from '@tanstack/react-router'
 import { useEffect, useRef } from 'react'
 import type { Game } from '~/engine/student-space/Game'
-import type {
-  StudentSpaceOpenSurfaceInput,
-  StudentSpaceSurface,
-} from './backend-bridge'
+import type { StudentSpaceOpenSurfaceInput, StudentSpaceSurface } from './backend-bridge'
 
 const PROFILE_TABS = [
   'values',
@@ -51,7 +48,10 @@ interface PathnameOptions {
  * can fall through to the home behavior.
  */
 export function surfaceFromPathname(pathname: string): StudentSpaceOpenSurfaceInput | null {
-  const segments = pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean)
+  const segments = pathname
+    .replace(/^\/+|\/+$/g, '')
+    .split('/')
+    .filter(Boolean)
   if (segments.length === 0) return null
 
   const [head, sub] = segments
@@ -139,10 +139,7 @@ function isHistoryTab(value: unknown): value is HistoryTab {
  * (e.g. trajectory). The hook still records the pending location, so when
  * `paused` flips false the deferred open fires automatically.
  */
-export function useStudentSpaceRouteSync(
-  game: Game | null,
-  opts: { paused?: boolean } = {},
-): void {
+export function useStudentSpaceRouteSync(game: Game | null, opts: { paused?: boolean } = {}): void {
   const location = useLocation()
   const lastApplied = useRef<string | null>(null)
   const paused = opts.paused === true

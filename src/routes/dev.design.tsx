@@ -1332,7 +1332,6 @@ function ButtonsSection() {
             </button>
           </div>
         </ComponentBlock>
-
       </div>
     </SectionShell>
   )
@@ -1551,13 +1550,14 @@ function CardsSection() {
                 More about this dimension
               </summary>
               <p className="mt-2 text-[13px] leading-relaxed text-[#2b2620]/70">
-                Curiosity shows up across capture moments — when describing what energises you,
-                what drains you, and how you spent your free time last week.
+                Curiosity shows up across capture moments — when describing what energises you, what
+                drains you, and how you spent your free time last week.
               </p>
             </details>
             <p className="text-[11px] text-muted-foreground">
-              Default: <code className="rounded bg-muted px-1">data-expanded="false"</code>. Toggle flips
-              both the section attribute and the toggle's <code className="rounded bg-muted px-1">aria-expanded</code>.
+              Default: <code className="rounded bg-muted px-1">data-expanded="false"</code>. Toggle
+              flips both the section attribute and the toggle's{' '}
+              <code className="rounded bg-muted px-1">aria-expanded</code>.
             </p>
           </div>
         </ComponentBlock>

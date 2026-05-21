@@ -1,6 +1,6 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { pathnameForSurface } from '~/lib/student-space/route-sync'
 import { studentSpaceSurfaceFromLocation } from '~/lib/student-space/route-sheets'
+import { pathnameForSurface } from '~/lib/student-space/route-sync'
 
 // The engine is mounted at the root layout (`src/routes/__root.tsx`) and
 // stays visible across every route. The home route renders nothing of its

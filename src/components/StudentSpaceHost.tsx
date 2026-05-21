@@ -85,14 +85,16 @@ export function StudentSpaceHost({ className }: { className?: string }) {
   // After the backend snapshot resolves, re-apply the current route
   // surface so sheets that opened against empty local state re-render
   // with the freshly-loaded data. The hydration flag only flips once per
-  // engine boot, so this fires at most one extra openSurface call.
+  // engine boot; reading the surface through a ref keeps the effect
+  // anchored to the hydration→opened transition without re-firing on
+  // every navigation (the route-sync hook already handles that).
+  const surfaceRef = useRef(currentRouteSurface)
+  surfaceRef.current = currentRouteSurface
   useEffect(() => {
-    if (!game || !hydrated || !currentRouteSurface) return
-    game.openSurface(currentRouteSurface)
-    // `currentRouteSurface` is intentionally omitted from deps — refiring
-    // on every navigation would double the route-sync hook's work. We
-    // only care about the hydration→opened transition.
-    // biome-ignore lint/correctness/useExhaustiveDependencies: explained above
+    if (!game || !hydrated) return
+    const surface = surfaceRef.current
+    if (!surface) return
+    game.openSurface(surface)
   }, [game, hydrated])
 
   useEffect(() => {

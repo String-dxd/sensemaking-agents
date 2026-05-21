@@ -48,10 +48,7 @@ describe('TrajectorySheetView', () => {
       expect(screen.getByTestId('trajectory-sheet-paragraph')).toBeInTheDocument(),
     )
     expect(screen.getByText(/STEM with quiet civic instincts/)).toBeInTheDocument()
-    expect(screen.getByTestId('trajectory-sheet-link')).toHaveAttribute(
-      'href',
-      '/trajectory',
-    )
+    expect(screen.getByTestId('trajectory-sheet-link')).toHaveAttribute('href', '/trajectory')
   })
 
   it('renders an empty-state when no trajectory is available', async () => {

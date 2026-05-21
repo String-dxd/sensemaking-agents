@@ -76,7 +76,8 @@ function profileWithValuesQuotes(n: number) {
   return {
     identity: { name: 'Mei', className: 'Sec 3B', avatarDataUrl: null },
     getFacet: (facetId: string) => {
-      if (facetId !== 'values') return { paragraph: '', openQuestion: '', lastRefinedAt: '', quotes: [] }
+      if (facetId !== 'values')
+        return { paragraph: '', openQuestion: '', lastRefinedAt: '', quotes: [] }
       return { paragraph: '', openQuestion: '', lastRefinedAt: '', quotes }
     },
     countByClaim: (facetId: string) => (facetId === 'values' ? { 'values.contribution': n } : {}),
@@ -135,13 +136,13 @@ describe('ProfileSheet — TLDR hero', () => {
   it('shows up to 5 chips ordered by quote count when 3+ claims are voiced', async () => {
     state.instance = {
       profile: profileWithValuesCounts({
-        'values.contribution':  5,
-        'values.achievement':   4,
-        'values.tradition':     3,
-        'values.security':      2,
-        'values.independence':  1,
+        'values.contribution': 5,
+        'values.achievement': 4,
+        'values.tradition': 3,
+        'values.security': 2,
+        'values.independence': 1,
         'values.relationships': 6, // highest — should be first
-        'values.wellbeing':     0, // zero — excluded
+        'values.wellbeing': 0, // zero — excluded
       }),
       backend: null,
     }
@@ -170,8 +171,8 @@ describe('ProfileSheet — TLDR hero', () => {
     state.instance = {
       profile: profileWithValuesCounts({
         'values.contribution': 3,
-        'values.achievement':  2,
-        'values.tradition':    1,
+        'values.achievement': 2,
+        'values.tradition': 1,
       }),
       backend: null,
     }
@@ -209,7 +210,10 @@ describe('ProfileSheet — TLDR hero', () => {
   })
 
   it('expands the "More about this dimension" disclosure on first tab visit', async () => {
-    state.instance = { profile: profileWithValuesCounts({ 'values.contribution': 1 }), backend: null }
+    state.instance = {
+      profile: profileWithValuesCounts({ 'values.contribution': 1 }),
+      backend: null,
+    }
     OverlayController.instance = new OverlayController()
     const sheet = new ProfileSheet() as ProfileSheetHandle
     try {
@@ -225,7 +229,10 @@ describe('ProfileSheet — TLDR hero', () => {
   })
 
   it('collapses the "More" disclosure on second visit to the same tab within one open', async () => {
-    state.instance = { profile: profileWithValuesCounts({ 'values.contribution': 1 }), backend: null }
+    state.instance = {
+      profile: profileWithValuesCounts({ 'values.contribution': 1 }),
+      backend: null,
+    }
     OverlayController.instance = new OverlayController()
     const sheet = new ProfileSheet() as ProfileSheetHandle
     try {
@@ -237,9 +244,7 @@ describe('ProfileSheet — TLDR hero', () => {
       )
       interestsTab?.click()
       await new Promise((r) => setTimeout(r, 150))
-      const valuesTab = document.querySelector<HTMLElement>(
-        '.profile-tab[data-facet="values"]',
-      )
+      const valuesTab = document.querySelector<HTMLElement>('.profile-tab[data-facet="values"]')
       valuesTab?.click()
       await new Promise((r) => setTimeout(r, 150))
       const more = document.querySelector<HTMLElement>('[data-role="more-disclosure"]')
@@ -250,7 +255,10 @@ describe('ProfileSheet — TLDR hero', () => {
   })
 
   it('applies the facet accent to the embedded Open Question callout strip', async () => {
-    state.instance = { profile: profileWithValuesCounts({ 'values.contribution': 1 }), backend: null }
+    state.instance = {
+      profile: profileWithValuesCounts({ 'values.contribution': 1 }),
+      backend: null,
+    }
     OverlayController.instance = new OverlayController()
     const sheet = new ProfileSheet() as ProfileSheetHandle
     try {
@@ -338,15 +346,15 @@ describe('ProfileSheet — TLDR hero', () => {
           if (facetId === 'values') {
             return {
               'values.contribution': 3,
-              'values.achievement':  2,
-              'values.tradition':    1,
+              'values.achievement': 2,
+              'values.tradition': 1,
             }
           }
           if (facetId === 'interests') {
             return {
-              'interests.social':         4,
-              'interests.investigative':  3,
-              'interests.realistic':      2,
+              'interests.social': 4,
+              'interests.investigative': 3,
+              'interests.realistic': 2,
             }
           }
           return {}

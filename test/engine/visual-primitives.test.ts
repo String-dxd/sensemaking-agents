@@ -17,7 +17,7 @@ import {
   statTileRowHTML,
   calloutStripHTML,
   bindDisclosureToggles,
-// @ts-expect-error — engine module is plain JS without bundled type defs
+  // @ts-expect-error — engine module is plain JS without bundled type defs
 } from '~/engine/student-space/Game/View/visualPrimitives.js'
 
 /** Mount an HTML string into a detached DOM element for inspection. */
@@ -49,7 +49,9 @@ describe('visualPrimitives — tldrHeroHTML', () => {
     expect(chips[0]?.getAttribute('data-tldr-chip-id')).toBe('c.belonging')
     expect(chips[0]?.getAttribute('data-accent')).toBe('values')
     expect(chips[0]?.querySelector('.tldr-chip__label')?.textContent).toBe('BELONGING')
-    expect(root.querySelector('.tldr-hero__meta')?.textContent).toBe('12 noticings · last refined today')
+    expect(root.querySelector('.tldr-hero__meta')?.textContent).toBe(
+      '12 noticings · last refined today',
+    )
   })
 
   it('renders without chips when chips array is empty', () => {
@@ -95,7 +97,9 @@ describe('visualPrimitives — disclosureHTML', () => {
 
     const toggle = section?.querySelector('.disclosure__toggle')
     expect(toggle?.getAttribute('aria-expanded')).toBe('false')
-    expect(toggle?.querySelector('.disclosure__summary')?.textContent).toBe('More about this dimension')
+    expect(toggle?.querySelector('.disclosure__summary')?.textContent).toBe(
+      'More about this dimension',
+    )
 
     const panel = section?.querySelector('.disclosure__panel')
     expect(panel?.innerHTML).toContain('Hidden body')

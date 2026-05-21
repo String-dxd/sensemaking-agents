@@ -107,13 +107,16 @@ describe('pathnameForSurface', () => {
   })
 
   it('appends the reflection hash when entryId is supplied', () => {
-    expect(
-      pathnameForSurface({ surface: 'history', tab: 'timeline', entryId: 42 }),
-    ).toBe('/history#reflection-42')
+    expect(pathnameForSurface({ surface: 'history', tab: 'timeline', entryId: 42 })).toBe(
+      '/history#reflection-42',
+    )
   })
 
   it('round-trips through surfaceFromPathname for every known surface', () => {
-    const cases: Array<{ surface: 'profile' | 'history' | 'letters' | 'trajectory'; tab?: string }> = [
+    const cases: Array<{
+      surface: 'profile' | 'history' | 'letters' | 'trajectory'
+      tab?: string
+    }> = [
       { surface: 'profile' },
       { surface: 'profile', tab: 'relationships' },
       { surface: 'history' },
