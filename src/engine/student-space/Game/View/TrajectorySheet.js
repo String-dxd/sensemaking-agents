@@ -558,19 +558,21 @@ export default class TrajectorySheet
                         <span class="disclosure__summary">See evidence</span>
                     </button>
                     <div class="disclosure__panel">
-                        <div class="trajectory-panel__chips" data-role="panel-trait-group" hidden>
-                            <p class="trajectory-panel__chip-label">TRAIT COMBINATION</p>
-                            <div class="trajectory-panel__chip-row" data-role="panel-traits"></div>
-                        </div>
+                        <div class="trajectory-panel__evidence-content">
+                            <div class="trajectory-panel__chips" data-role="panel-trait-group" hidden>
+                                <p class="trajectory-panel__chip-label">TRAIT COMBINATION</p>
+                                <div class="trajectory-panel__chip-row" data-role="panel-traits"></div>
+                            </div>
 
-                        <div class="trajectory-panel__chips" data-role="panel-ecg-group" hidden>
-                            <p class="trajectory-panel__chip-label">ECG REGION TAGS</p>
-                            <div class="trajectory-panel__chip-row" data-role="panel-ecg"></div>
-                        </div>
+                            <div class="trajectory-panel__chips" data-role="panel-ecg-group" hidden>
+                                <p class="trajectory-panel__chip-label">ECG REGION TAGS</p>
+                                <div class="trajectory-panel__chip-row" data-role="panel-ecg"></div>
+                            </div>
 
-                        <div class="trajectory-panel__risk" data-role="panel-risk-group" hidden>
-                            <p class="trajectory-panel__chip-label">RISKS AND TRADEOFFS</p>
-                            <p class="trajectory-panel__risk-text" data-role="panel-risk"></p>
+                            <div class="trajectory-panel__risk" data-role="panel-risk-group" hidden>
+                                <p class="trajectory-panel__chip-label">RISKS AND TRADEOFFS</p>
+                                <p class="trajectory-panel__risk-text" data-role="panel-risk"></p>
+                            </div>
                         </div>
                     </div>
                 </section>
