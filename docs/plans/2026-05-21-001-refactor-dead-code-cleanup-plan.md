@@ -1,7 +1,7 @@
 ---
 title: Dead code cleanup — legacy world scene, engine port finalization, root plans archive
 type: refactor
-status: active
+status: completed
 date: 2026-05-21
 ---
 
