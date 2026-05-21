@@ -52,41 +52,42 @@ export default class TrajectorySheet
 
         // SheetChrome owns backdrop, blur, fade, z-tier, the × button, the
         // Escape-to-close listener, AND the shared header (eyebrow + title +
-        // subtitle). Path Finder's status pill / meta / head actions / body
-        // live inside chrome.bodySlot. The header text is dynamic per status
-        // and updated each open via chrome.setHeader(...). See CLAUDE.md
-        // "Sheet chrome contract".
+        // subtitle). Under the Gather-style split layout, the left pane
+        // (introSlot) carries the status pill + meta + head actions + reason
+        // tooltip, and the right pane (bodySlot) carries the pathway content.
+        // Header text is dynamic per status and updated each open via
+        // chrome.setHeader(...). See CLAUDE.md "Sheet chrome contract".
         this.chrome = new SheetChrome({
             key:            'trajectory',
             sheetClassName: 'trajectory-sheet',
             withCloseButton: true,
             closeOnBackdrop: false,
+            layout:         'split',
             header: {
                 eyebrow:  'PATH FINDER',
                 title:    'Trajectory compass',
                 subtitle: '',
             },
         })
+        this.chrome.introSlot.innerHTML = `
+            <div class="trajectory-sheet__status-row" data-role="status-row" hidden>
+                <span class="trajectory-sheet__status-pill" data-role="status-pill"
+                      tabindex="0"
+                      role="button"
+                      aria-haspopup="true"
+                      aria-expanded="false">
+                    <span class="trajectory-sheet__status-dot" aria-hidden="true"></span>
+                    <span class="trajectory-sheet__status-label" data-role="status-label"></span>
+                </span>
+                <span class="trajectory-sheet__status-reason" data-role="status-reason" hidden></span>
+            </div>
+
+            <p class="trajectory-sheet__meta" data-role="meta" hidden></p>
+            <div class="trajectory-sheet__head-actions" data-role="head-actions"></div>
+            <div class="trajectory-sheet__why-slot" data-role="why-slot"></div>
+        `
         this.chrome.bodySlot.innerHTML = `
             <div class="trajectory-sheet__scroll">
-                <header class="trajectory-sheet__head">
-                    <div class="trajectory-sheet__status-row" data-role="status-row" hidden>
-                        <span class="trajectory-sheet__status-pill" data-role="status-pill"
-                              tabindex="0"
-                              role="button"
-                              aria-haspopup="true"
-                              aria-expanded="false">
-                            <span class="trajectory-sheet__status-dot" aria-hidden="true"></span>
-                            <span class="trajectory-sheet__status-label" data-role="status-label"></span>
-                        </span>
-                        <span class="trajectory-sheet__status-reason" data-role="status-reason" hidden></span>
-                    </div>
-
-                    <p class="trajectory-sheet__meta" data-role="meta" hidden></p>
-                    <div class="trajectory-sheet__head-actions" data-role="head-actions"></div>
-                    <div class="trajectory-sheet__why-slot" data-role="why-slot"></div>
-                </header>
-
                 <section class="trajectory-sheet__body" data-role="body"></section>
             </div>
         `

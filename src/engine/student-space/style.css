@@ -5281,6 +5281,32 @@ body.is-onb-landing .side-rail
     max-width: 760px;
     margin: 0 auto 12px;
 }
+
+/* Split-layout overrides — Path Finder under the Gather-style two-pane
+   chrome. Left pane carries the status pill + meta + head actions;
+   the right pane gets the pathway content. The scroll container's
+   max-width centering collapses to honest padding since the chrome
+   pane already constrains width. */
+.trajectory-sheet.sheet-chrome--split .sheet-chrome__intro
+{
+    color: #2b2620;
+    font-family: var(--font-sans);
+    padding: 0 24px 24px;
+    gap: 14px;
+}
+.trajectory-sheet.sheet-chrome--split .trajectory-sheet__head
+{
+    max-width: none;
+    margin: 0;
+}
+.trajectory-sheet.sheet-chrome--split .trajectory-sheet__scroll
+{
+    padding: 16px 24px 64px;
+}
+.trajectory-sheet.sheet-chrome--split .sheet-chrome__pane--right
+{
+    padding: 0;
+}
 .trajectory-sheet__throughline
 {
     margin: 0 0 14px;
