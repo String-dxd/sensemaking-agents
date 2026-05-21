@@ -92,11 +92,20 @@ export default class LettersSheet
     open({ letterId } = {})
     {
         if(!this.chrome) return
-        // Stale/unknown letterId falls through to auto-select.
-        if(letterId && this.letters.letters.some((l) => l.id === letterId))
+        // An unknown deep-link must clear any prior selection so the
+        // auto-select branch below picks the newest unread instead of
+        // silently honouring a stale session selectedId.
+        if(letterId)
         {
-            this.selectedId = letterId
-            this.letters.markRead(letterId)
+            if(this.letters.letters.some((l) => l.id === letterId))
+            {
+                this.selectedId = letterId
+                this.letters.markRead(letterId)
+            }
+            else
+            {
+                this.selectedId = null
+            }
         }
 
         if(!this.selectedId)
