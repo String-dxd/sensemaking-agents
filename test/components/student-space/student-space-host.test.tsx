@@ -8,6 +8,7 @@ import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { StudentSpaceHost } from '~/components/StudentSpaceHost'
 import { EngineContext } from '~/lib/student-space/use-engine'
+import { EngineOverlayProvider } from '~/lib/student-space/use-engine-overlay'
 
 // IslandProgressionOverlay reads from the engine state; stub it out so we
 // can focus the test on the host's render-or-null gating.
@@ -19,7 +20,9 @@ describe('StudentSpaceHost', () => {
   it('renders nothing while the engine is still booting (useEngine() === null)', () => {
     const { container } = render(
       <EngineContext.Provider value={null}>
-        <StudentSpaceHost />
+        <EngineOverlayProvider>
+          <StudentSpaceHost />
+        </EngineOverlayProvider>
       </EngineContext.Provider>,
     )
     expect(container.firstChild).toBeNull()
@@ -29,7 +32,9 @@ describe('StudentSpaceHost', () => {
     const fakeGame = { dispose: vi.fn() }
     const { getByTestId } = render(
       <EngineContext.Provider value={fakeGame as never}>
-        <StudentSpaceHost />
+        <EngineOverlayProvider>
+          <StudentSpaceHost />
+        </EngineOverlayProvider>
       </EngineContext.Provider>,
     )
     expect(getByTestId('island-overlay')).toBeInTheDocument()

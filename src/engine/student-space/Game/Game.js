@@ -232,6 +232,11 @@ export default class Game
             this.view.overlayController.open('history', { ...input, tab })
             return
         }
+        if(surface === 'settings')
+        {
+            this.view.overlayController.open('settings', input)
+            return
+        }
         if(['values', 'interests', 'personality', 'skills', 'relationships', 'choices'].includes(surface))
         {
             this.view.overlayController.open('profile', { ...input, tab: surface })
@@ -252,14 +257,13 @@ export default class Game
 
     /**
      * Ask the host to navigate to a canonical pathname. In-engine click
-     * sources (SideRail, Escape-to-close, sign-in flows) call this instead
-     * of touching OverlayController directly so the URL stays the single
-     * source of truth for which overlay is open.
+     * sources (Escape-to-close, sign-in flows, and any remaining world
+     * helpers) call this instead of touching OverlayController directly so
+     * the URL stays the single source of truth for which overlay is open.
      *
      * Falls back to direct controller action when no host router is wired:
      * `/` closes the active surface (matches the router-driven close path).
-     * Other paths no-op — SideRail has its own open-fallback for the
-     * harness case.
+     * Other paths no-op when no host router is wired.
      */
     navigate(href)
     {

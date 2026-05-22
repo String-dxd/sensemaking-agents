@@ -47,7 +47,7 @@ export function useWorldPosition(
         return
       }
       const projected = source.project(mesh)
-      if (!projected || !projected.visible) {
+      if (!projected?.visible) {
         hide(el)
         return
       }

@@ -1,13 +1,15 @@
-import { useNavigate, useParams } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Sheet,
   SheetBody,
   SheetContent,
   SheetDescription,
   SheetIdentityHeader,
+  SheetNavButton,
   SheetPageHeader,
   SheetSidebar,
+  SheetSidenav,
   SheetSurface,
   SheetTitle,
 } from '~/components/ui/sheet'
@@ -37,6 +39,7 @@ type HistoryTab = 'timeline' | 'growth'
 export function HistorySheet() {
   const engine = useEngine()
   const navigate = useNavigate()
+  const location = useLocation()
   const params = useParams({ strict: false }) as { tab?: string }
   const initialTab: HistoryTab = params.tab === 'growth' ? 'growth' : 'timeline'
 
@@ -64,12 +67,24 @@ export function HistorySheet() {
         kind: string
         text?: string
         createdAt?: string
+        backendMirrorEntryId?: number | string
+        reviewStatus?: string
       }>
+      findById?: (id: string) => unknown
+      patch?: (id: string, updates: Record<string, unknown>) => unknown
     }
     calendar?: Subscribable & {
-      events?: Array<{ entryDate: string; kind?: string; title?: string }>
+      events?: Array<{
+        entryDate?: string
+        date?: string
+        kind?: string
+        title?: string
+        label?: string
+      }>
     }
     sprouts?: { years?: () => number[] }
+    backend?: unknown
+    applyBackendSnapshot?: (snapshot: unknown) => void
   }
   const state = (engine as unknown as { state?: EngineState } | null)?.state
   useEngineSliceVersion(state?.moodPins ?? null)
@@ -79,7 +94,11 @@ export function HistorySheet() {
   const setTab = useCallback(
     (tab: HistoryTab) => {
       setActiveTab(tab)
-      navigate({ to: tab === 'growth' ? '/history/growth' : '/history' })
+      if (tab === 'growth') {
+        navigate({ to: '/history/$tab', params: { tab: 'growth' } })
+        return
+      }
+      navigate({ to: '/history' })
     },
     [navigate],
   )
@@ -100,14 +119,14 @@ export function HistorySheet() {
               The trail of moments, moods, and bloomed claims behind you.
             </SheetDescription>
           </SheetIdentityHeader>
-          <nav className="px-4 pb-6">
-            <TabButton active={activeTab === 'timeline'} onClick={() => setTab('timeline')}>
+          <SheetSidenav>
+            <SheetNavButton active={activeTab === 'timeline'} onClick={() => setTab('timeline')}>
               Timeline
-            </TabButton>
-            <TabButton active={activeTab === 'growth'} onClick={() => setTab('growth')}>
+            </SheetNavButton>
+            <SheetNavButton active={activeTab === 'growth'} onClick={() => setTab('growth')}>
               Growth
-            </TabButton>
-          </nav>
+            </SheetNavButton>
+          </SheetSidenav>
         </SheetSidebar>
         <SheetContent>
           <SheetPageHeader>
@@ -115,7 +134,15 @@ export function HistorySheet() {
           </SheetPageHeader>
           <SheetBody>
             {activeTab === 'timeline' ? (
-              <TimelinePane engineState={state} />
+              <TimelinePane
+                engineState={state}
+                hash={location.hash ?? ''}
+                filter={
+                  (location.search as { filter?: unknown } | undefined)?.filter === 'need-review'
+                    ? 'need-review'
+                    : undefined
+                }
+              />
             ) : (
               <GrowthPane engine={engine} />
             )}
@@ -126,47 +153,50 @@ export function HistorySheet() {
   )
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      data-active={active || undefined}
-      className={cn(
-        'flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors',
-        active
-          ? 'bg-(--color-sheet-pane-left) text-(--color-sheet-ink)'
-          : 'text-(--color-sheet-ink-soft) hover:bg-black/5',
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
 function TimelinePane({
   engineState,
+  hash,
+  filter,
 }: {
   engineState: Parameters<typeof CalendarPane>[0]['engineState']
+  hash: string
+  filter?: 'need-review'
 }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const lastAppliedHashRef = useRef('')
+  const lastAppliedFilterTargetRef = useRef<string | null>(null)
+  const targetDate = resolveTargetDate({
+    captures: engineState?.captures?.entries ?? [],
+    hash,
+    filter,
+  })
 
-  // Default to today on first render.
   useEffect(() => {
+    if (hash && targetDate && lastAppliedHashRef.current !== hash) {
+      setSelectedDate(targetDate)
+      lastAppliedHashRef.current = hash
+      return
+    }
+    if (!hash) lastAppliedHashRef.current = ''
+
+    if (
+      !hash &&
+      filter === 'need-review' &&
+      targetDate &&
+      lastAppliedFilterTargetRef.current !== targetDate
+    ) {
+      setSelectedDate(targetDate)
+      lastAppliedFilterTargetRef.current = targetDate
+      return
+    }
+    if (filter !== 'need-review') lastAppliedFilterTargetRef.current = null
+
     if (selectedDate) return
     const now = new Date()
     setSelectedDate(
       `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
     )
-  }, [selectedDate])
+  }, [filter, hash, selectedDate, targetDate])
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
@@ -178,6 +208,47 @@ function TimelinePane({
       <DayDetailCard date={selectedDate} engineState={engineState as never} />
     </div>
   )
+}
+
+function resolveTargetDate({
+  captures,
+  hash,
+  filter,
+}: {
+  captures: Array<{
+    id?: string
+    entryDate: string
+    createdAt?: string
+    backendMirrorEntryId?: number | string
+    reviewStatus?: string
+  }>
+  hash: string
+  filter?: 'need-review'
+}) {
+  const entryId = entryIdFromHash(hash)
+  if (entryId) {
+    const target = captures.find(
+      (capture) =>
+        Number(capture.backendMirrorEntryId) === entryId || capture.id === `mirror:${entryId}`,
+    )
+    if (target?.entryDate) return target.entryDate
+  }
+  if (filter === 'need-review') {
+    return (
+      captures
+        .filter((capture) => capture.reviewStatus === 'pending' && capture.entryDate)
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0]?.entryDate ?? null
+    )
+  }
+  return null
+}
+
+function entryIdFromHash(hash: string) {
+  const cleaned = hash.startsWith('#') ? hash : `#${hash}`
+  const match = cleaned.match(/^#(?:reflection|entry)-(\d+)$/)
+  if (!match?.[1]) return null
+  const id = Number.parseInt(match[1], 10)
+  return Number.isFinite(id) ? id : null
 }
 
 function GrowthPane({ engine }: { engine: unknown }) {
@@ -204,7 +275,7 @@ function GrowthPane({ engine }: { engine: unknown }) {
             onClick={() => setSelectedYear(year)}
             data-active={year === selectedYear || undefined}
             className={cn(
-              'inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold tabular-nums transition-colors',
+              'inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-sm font-semibold tabular-nums transition-colors',
               year === selectedYear
                 ? 'border-(--color-status-searching) bg-(--color-status-searching) text-white'
                 : 'border-(--color-sheet-divider) text-(--color-sheet-ink) hover:bg-black/5',

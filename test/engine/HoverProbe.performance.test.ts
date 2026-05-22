@@ -17,16 +17,11 @@ vi.mock('~/engine/student-space/Game/State/State.js', () => ({
   },
 }))
 
-vi.mock('~/engine/student-space/Game/View/OverlayController.js', () => ({
-  default: class StubOverlayController {},
-}))
-
-// @ts-expect-error — engine source is JavaScript without companion declarations.
-import HoverProbe from '~/engine/student-space/Game/View/HoverProbe.js'
+import { HoverProbeController } from '~/components/student-space/world/WorldInteractions'
 
 function makeProbe() {
   const camera = new THREE.PerspectiveCamera()
-  const probe = Object.assign(Object.create(HoverProbe.prototype), {
+  const probe = Object.assign(Object.create(HoverProbeController.prototype), {
     enabled: true,
     ring: { material: { opacity: 0 } },
     state: {

@@ -40,14 +40,6 @@ const createGame = vi
 const localStorageAdapter = vi.fn().mockReturnValue({})
 const backendBridge = vi.hoisted(() => ({ version: 1 }))
 
-// U20: SideRail is dynamically imported by the host; stub it so the host
-// tests don't pull in the real engine widget module.
-vi.mock('~/engine/student-space/Game/View/SideRail.js', () => ({
-  default: function MockSideRail() {
-    return { dispose: vi.fn(), update: vi.fn() }
-  },
-}))
-
 vi.mock('~/lib/student-space/backend-bridge', () => ({
   createStudentSpaceBackendBridge: () => backendBridge,
 }))
@@ -233,6 +225,61 @@ describe('EngineHost', () => {
         expect.objectContaining({ surface: 'profile', tab: 'relationships' }),
       ),
     )
+  })
+
+  it('pauses the world canvas and marks page routes while routed sheets are active', async () => {
+    const { container, unmount } = renderHostAt('/profile')
+
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(setRenderActive).toHaveBeenCalledWith(false))
+    expect(container.querySelector('.game')).toHaveAttribute('aria-hidden', 'true')
+    expect(document.body.classList.contains('student-space-page-route')).toBe(true)
+
+    unmount()
+    expect(document.body.classList.contains('student-space-page-route')).toBe(false)
+  })
+
+  it('keeps the world canvas active on the home and onboarding routes', async () => {
+    const { container } = renderHostAt('/onboarding')
+
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(setRenderActive).toHaveBeenCalledWith(true))
+    expect(container.querySelector('.game')).toHaveAttribute('aria-hidden', 'false')
+    expect(document.body.classList.contains('student-space-page-route')).toBe(false)
+  })
+
+  it('registers React capture overlays with the engine overlay controller and unregisters them', async () => {
+    const surfaces = new Map<
+      string,
+      { open?: (opts?: Record<string, unknown>) => void; close?: () => void }
+    >()
+    const register = vi.fn((name: string, surface: { open?: () => void; close?: () => void }) => {
+      surfaces.set(name, surface)
+    })
+    const unregister = vi.fn((name: string) => {
+      surfaces.delete(name)
+    })
+    createGame.mockImplementationOnce(() => ({
+      dispose,
+      openSurface,
+      closeActiveSurface,
+      setRenderActive,
+      state: { captures: { add: vi.fn(), patch: vi.fn() } },
+      view: { overlayController: { register, unregister } },
+    }))
+
+    const { unmount } = renderHostAt('/')
+
+    await waitFor(() => expect(register).toHaveBeenCalledWith('ask', expect.any(Object)))
+    surfaces.get('ask')?.open?.({ prefilledText: 'Bridge prompt' })
+    expect(await screen.findByText('Tell me more about your day?')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Bridge prompt')).toBeInTheDocument()
+
+    unmount()
+    expect(unregister).toHaveBeenCalledWith('chooser')
+    expect(unregister).toHaveBeenCalledWith('ask')
+    expect(unregister).toHaveBeenCalledWith('photo')
+    expect(unregister).toHaveBeenCalledWith('mood')
   })
 
   it('replays the route-opened sheet after backend snapshot hydration', async () => {

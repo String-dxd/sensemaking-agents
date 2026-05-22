@@ -76,7 +76,9 @@ function renderHookInRouter(
     ...result,
     navigate: async (to: string) => {
       await act(async () => {
-        await routerRef?.navigate({ to: to as unknown as Parameters<NonNullable<typeof routerRef>['navigate']>[0]['to'] })
+        await routerRef?.navigate({
+          to: to as unknown as Parameters<NonNullable<typeof routerRef>['navigate']>[0]['to'],
+        })
       })
     },
     setPaused: (paused: boolean) => {

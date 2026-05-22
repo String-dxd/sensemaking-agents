@@ -1,5 +1,11 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
+import {
+  BirdPicker,
+  EnvironmentHud,
+  type GameLike,
+  TrackPicker,
+} from '~/components/student-space/hud/StudentSpaceHud'
 import {
   Sheet,
   SheetBody,
@@ -19,76 +25,18 @@ import { useEngine } from '~/lib/student-space/use-engine'
  * View.js consumer pre-migration; this commit makes Settings a real routed
  * page reachable via `/settings`).
  *
- * The four admin pickers it hosts (HourHud, TrackPicker, BirdPicker,
- * StatusPreviewHud) are still engine-rendered until U13/U15 migrate them
- * to React. We mount each into a placeholder div via a useEffect that
- * imports the engine widget dynamically — same pattern the engine sheet
- * used (`new Widget({ mount: slotEl })`), transcribed to React.
- *
  * Restart Onboarding wipes `state.onboarding`, flushes persistence, and
- * reloads with `#onboarding` so the bootstrapping picks up the cleared slice.
+ * reloads at `/onboarding` so the bootstrapping picks up the cleared slice.
  */
-type EngineWidget = { dispose?: () => void; update?: () => void }
-type EngineWidgetCtor = new (opts: { mount: HTMLElement }) => EngineWidget
-
 export function SettingsSheet() {
   const engine = useEngine()
   const navigate = useNavigate()
+  const typedEngine = engine as GameLike | null
 
   // body.has-overlay so engine CSS hides the world canvas behind the sheet.
   useEffect(() => {
     document.body.classList.add('has-overlay')
     return () => document.body.classList.remove('has-overlay')
-  }, [])
-
-  const hourRef = useRef<HTMLDivElement | null>(null)
-  const trackRef = useRef<HTMLDivElement | null>(null)
-  const birdRef = useRef<HTMLDivElement | null>(null)
-  const statusRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    let widgets: EngineWidget[] = []
-    let cancelled = false
-    void (async () => {
-      // Engine modules are intentionally untyped (vanilla JS substrate); cast
-      // each dynamic import to the EngineWidget constructor shape.
-      type EngineModule = { default?: EngineWidgetCtor }
-      const modules = (await Promise.all([
-        // @ts-expect-error untyped engine module
-        import('~/engine/student-space/Game/View/HourHud.js'),
-        // @ts-expect-error untyped engine module
-        import('~/engine/student-space/Game/View/TrackPicker.js'),
-        // @ts-expect-error untyped engine module
-        import('~/engine/student-space/Game/View/BirdPicker.js'),
-        // @ts-expect-error untyped engine module
-        import('~/engine/student-space/Game/View/StatusPreviewHud.js'),
-      ])) as unknown as [EngineModule, EngineModule, EngineModule, EngineModule]
-      if (cancelled) return
-      const mounts: Array<[EngineWidgetCtor | undefined, HTMLElement | null]> = [
-        [modules[0].default, hourRef.current],
-        [modules[1].default, trackRef.current],
-        [modules[2].default, birdRef.current],
-        [modules[3].default, statusRef.current],
-      ]
-      widgets = mounts
-        .filter(
-          (entry): entry is [EngineWidgetCtor, HTMLElement] =>
-            entry[0] !== undefined && entry[1] !== null,
-        )
-        .map(([Ctor, mount]) => new Ctor({ mount }))
-    })()
-
-    return () => {
-      cancelled = true
-      for (const widget of widgets) {
-        try {
-          widget.dispose?.()
-        } catch {
-          // Engine widget disposal swallows errors in the original
-          // SettingsSheet; preserve that posture here.
-        }
-      }
-    }
   }, [])
 
   const handleRestart = () => {
@@ -104,8 +52,7 @@ export function SettingsSheet() {
       // best-effort wipe; reload still picks up the hash
     }
     if (typeof window !== 'undefined') {
-      window.location.hash = '#onboarding'
-      window.location.reload()
+      window.location.assign('/onboarding')
     }
   }
 
@@ -139,38 +86,22 @@ export function SettingsSheet() {
               title="World & weather"
               help="Scrub the time of day and force weather effects."
             >
-              <div
-                ref={hourRef}
-                data-testid="settings-mount-hour"
-                className="flex flex-wrap gap-3"
-              />
+              <div data-testid="settings-mount-hour" className="flex flex-wrap gap-3">
+                {typedEngine ? <EnvironmentHud game={typedEngine} inline /> : null}
+              </div>
             </SettingsGroup>
             <SettingsGroup
               title="Music"
               help="Cycle through ambient tracks. Right-click the chip to step back."
             >
-              <div
-                ref={trackRef}
-                data-testid="settings-mount-track"
-                className="flex flex-wrap gap-3"
-              />
+              <div data-testid="settings-mount-track" className="flex flex-wrap gap-3">
+                {typedEngine ? <TrackPicker game={typedEngine} inline /> : null}
+              </div>
             </SettingsGroup>
             <SettingsGroup title="Companion" help="Try a different bird companion.">
-              <div
-                ref={birdRef}
-                data-testid="settings-mount-bird"
-                className="flex flex-wrap gap-3"
-              />
-            </SettingsGroup>
-            <SettingsGroup
-              title="Path Finder preview"
-              help="Force the identity-status quadrant the Path Finder uses to skin itself."
-            >
-              <div
-                ref={statusRef}
-                data-testid="settings-mount-status"
-                className="flex flex-wrap gap-3"
-              />
+              <div data-testid="settings-mount-bird" className="flex flex-wrap gap-3">
+                {typedEngine ? <BirdPicker game={typedEngine} inline /> : null}
+              </div>
             </SettingsGroup>
             <SettingsGroup
               title="Onboarding"

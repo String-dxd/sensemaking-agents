@@ -1,5 +1,13 @@
 import type { ReactNode } from 'react'
-import { createContext, createElement, useContext, useEffect, useMemo, useState } from 'react'
+import {
+  createContext,
+  createElement,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 
 /**
  * React-side coordinator for NON-routed overlays. The router owns routed
@@ -15,10 +23,14 @@ import { createContext, createElement, useContext, useEffect, useMemo, useState 
  */
 export type CaptureSheet = 'ask' | 'mood' | null
 export type ActivePicker = 'bird' | 'track' | null
+export type CaptureOptions = Record<string, unknown> | null
 
 export interface EngineOverlayState {
   activeCapture: CaptureSheet
   setActiveCapture: (next: CaptureSheet) => void
+  activeCaptureOptions: CaptureOptions
+  openCapture: (next: Exclude<CaptureSheet, null>, options?: CaptureOptions) => void
+  closeCapture: () => void
   activeChooser: boolean
   setActiveChooser: (next: boolean) => void
   activePicker: ActivePicker
@@ -31,9 +43,29 @@ const EngineOverlayContext = createContext<EngineOverlayState | null>(null)
 
 export function EngineOverlayProvider({ children }: { children: ReactNode }) {
   const [activeCapture, setActiveCapture] = useState<CaptureSheet>(null)
+  const [activeCaptureOptions, setActiveCaptureOptions] = useState<CaptureOptions>(null)
   const [activeChooser, setActiveChooser] = useState(false)
   const [activePicker, setActivePicker] = useState<ActivePicker>(null)
   const [isOnboarding, setIsOnboarding] = useState(false)
+
+  const setActiveCaptureAndReset = useCallback((next: CaptureSheet) => {
+    setActiveCaptureOptions(null)
+    setActiveCapture(next)
+  }, [])
+
+  const openCapture = useCallback(
+    (next: Exclude<CaptureSheet, null>, options: CaptureOptions = null) => {
+      setActiveChooser(false)
+      setActiveCaptureOptions(options)
+      setActiveCapture(next)
+    },
+    [],
+  )
+
+  const closeCapture = useCallback(() => {
+    setActiveCapture(null)
+    setActiveCaptureOptions(null)
+  }, [])
 
   useEffect(() => {
     toggleBodyClass('has-capture-sheet', activeCapture !== null)
@@ -53,7 +85,10 @@ export function EngineOverlayProvider({ children }: { children: ReactNode }) {
   const value = useMemo<EngineOverlayState>(
     () => ({
       activeCapture,
-      setActiveCapture,
+      setActiveCapture: setActiveCaptureAndReset,
+      activeCaptureOptions,
+      openCapture,
+      closeCapture,
       activeChooser,
       setActiveChooser,
       activePicker,
@@ -61,7 +96,16 @@ export function EngineOverlayProvider({ children }: { children: ReactNode }) {
       isOnboarding,
       setIsOnboarding,
     }),
-    [activeCapture, activeChooser, activePicker, isOnboarding],
+    [
+      activeCapture,
+      activeCaptureOptions,
+      activeChooser,
+      activePicker,
+      closeCapture,
+      isOnboarding,
+      openCapture,
+      setActiveCaptureAndReset,
+    ],
   )
 
   return createElement(EngineOverlayContext.Provider, { value }, children)

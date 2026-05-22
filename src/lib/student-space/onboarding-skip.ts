@@ -1,13 +1,12 @@
 import { OFFLINE_DEMO_STUDENTS } from '~/engine/student-space/Game/View/Onboarding/copy.js'
 
 /**
- * Canonical "skip onboarding (dev)" routine, ported from
- * `src/engine/student-space/Game/View/Onboarding/OnboardingSkip.js` (U16).
+ * Canonical "skip onboarding (dev)" routine for the React ceremony.
  *
  * Marks the ceremony complete, seeds an offline demo identity when there's
  * no backend, drains the persistence debounce synchronously so the write
- * survives the reload, and strips any `#onboarding` hash that would trigger
- * `Onboarding.hydrate()`'s replay-reset on the next boot.
+ * survives the reload, and leaves `/onboarding` / `#onboarding` so the next
+ * boot lands back on the island instead of replaying the ceremony.
  *
  * Shared between the React `SkipButton` (floating dev escape hatch) and any
  * inline skip affordance an individual stage renders.
@@ -29,8 +28,11 @@ export function performOnboardingSkip(ctx: SkipContext): void {
     }
     ctx.state?.onboarding?.complete?.()
     ctx.state?.persistence?.flush?.()
-    if (typeof window !== 'undefined' && window.location.hash === '#onboarding') {
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    if (
+      typeof window !== 'undefined' &&
+      (window.location.pathname === '/onboarding' || window.location.hash === '#onboarding')
+    ) {
+      window.history.replaceState(null, '', '/')
     }
   } catch {
     // The original helper swallowed every error so a dev tap couldn't get

@@ -32,15 +32,11 @@ Package manager is **pnpm only**. Do not introduce npm / yarn lockfiles.
 
 ## Engine view architecture
 
-The engine's DOM-rendering surfaces are being migrated to React + Tailwind v4
+The engine's DOM-rendering surfaces have moved to React + Tailwind v4
 (plan: `docs/plans/2026-05-22-001-refactor-full-dom-react-tailwind-migration-plan.md`).
-The migration is **in-flight** as of this commit — 20 of 21 structural units
-have shipped on this branch (every engine widget's lifecycle is now React-
-owned). The U21 final cleanup (delete `SheetChrome.js` / `OverlayController.js`
-and prune `style.css` to the canvas baseline) is gated on per-surface React
-rewrites of the engine widgets that still draw their own DOM — capture
-sheets (Ask, Mood, Chooser) and the onboarding ceremony surfaces (Greeting,
-EggHatcher, FirstChat, FirstMood, IslandReveal, EdupassLogin).
+Three.js scene objects, state slices, camera controls, renderer, audio, and
+heuristics remain vanilla JS. React owns the visible DOM surfaces and calls
+back into the engine for behavior.
 
 **Routed sheets** — owned by TanStack Router file routes. Each route renders
 its React sheet component directly; no engine sheet construction.
@@ -93,33 +89,28 @@ engine once at the root layout. It owns:
 - Engine boot (`createGame({…})`) + canvas DOM (`.game` div)
 - Backend bridge construction + snapshot hydration
 - Auth menu fetch (with 3s timeout)
-- `useStudentSpaceRouteSync(game, …)` — URL ↔ surface mirroring
+- `useStudentSpaceRouteSync(game, …)` — URL → engine compatibility mirroring
 - `setRenderActive(pathname === '/')` — rAF gating for routed pages
-- SideRail lifecycle (engine widget; persists across every route)
-- OnboardingFlow lifecycle (engine ceremony orchestrator; runs across
-  every route — `body.is-onboarding` and the floating skip button span
-  the world and routed surfaces alike, matching legacy posture)
+- SideRail lifecycle (React navigation rail; persists across every route)
+- OnboardingFlow lifecycle (React ceremony orchestrator; runs across
+  every route — `body.is-onboarding` and the floating skip button span the
+  world and routed surfaces alike, matching legacy posture)
 
 **StudentSpaceHost** — `src/components/StudentSpaceHost.tsx` is the world-
 route React composition (mounts only on `/`). It owns the lifecycle for
-every engine widget that was previously constructed in `View.js`:
+non-routed world overlays:
 
-- HUDs (HourHud, StatusPreviewHud, ZoomHud, FpsOverlay)
-- Pickers (BirdPicker, TrackPicker)
-- Kira overlays (KiraDialogue, KiraNarrator — re-attached to `view.*` so
-  engine code that reaches them at `view.kiraDialogue` etc. keeps working)
-- In-world interaction widgets (ObjectPeek, HoverCta, HoverProbe — same
-  view re-attach pattern, dependency-order constructed)
-- CaptureFab (which owns CaptureChooser, AskSheet, MoodSheet internally)
+- HUDs and pickers (`StudentSpaceHud.tsx`)
+- Kira overlays, hover CTA, object peek/pickup, and hover probe
+  (`WorldInteractions.tsx`, re-attached to `view.*` so engine code that
+  reaches `view.kiraDialogue`, `view.objectPeek`, etc. keeps working)
+- CaptureFab, CaptureChooser, AskSheet, MoodSheet
 - IslandProgressionOverlay (existing React component)
 
-These engine widgets continue to render their own DOM + CSS until a future
-per-widget React rewrite pass; what U10/U12–U15/U20 changed is **lifecycle
-ownership** (React mounts + disposes; engine still draws). The same pattern
-landed for onboarding in U16–U19: EngineHost owns the OnboardingFlow
-construction + dispose, while the ceremony surfaces (Greeting, EggHatcher,
-FirstChat, FirstMood, IslandReveal, EdupassLogin) still draw their own DOM
-under `.onboarding-root`.
+`OverlayController.js` remains only as a compatibility bridge for imperative
+engine callers that open non-routed capture overlays (`ask`, `mood`,
+`chooser`). Routed sheets are URL-owned; opening a routed key through the
+controller just closes active capture state.
 
 **Design tokens** — canonical store is `@theme` in `src/styles.css`:
 
@@ -133,22 +124,10 @@ under `.onboarding-root`.
 - Marcia identity status palette (--color-status-{starter,diffused,…})
 - HUD ink palette, onboarding palette
 
-`src/engine/student-space/style.css` carries only what the engine substrate
-still uses: Three.js canvas wrapper (`.game` frame inset + rounded corners),
-the still-alive engine widget classes (HUDs, pickers, Kira overlays, in-
-world labels, capture sheets, onboarding), the sheet-chrome shared
-selectors that capture sheets and onboarding still consume. It shrank from
-9,136 → ~5,000 lines as routed sheets and dead code came out.
-
-**Sheet chrome contract** (legacy) — the original
-`docs/sheet-chrome-contract.md` rule said "every full-viewport sheet in the
-engine MUST be built on the shared SheetChrome primitive." That rule is now
-**partial**: routed sheets use the React `<Sheet>` primitive; capture sheets
-(Ask, Mood) and onboarding ceremony surfaces still use the engine
-`SheetChrome.js` class. Their **lifecycle owners** have all moved to React
-(U10 / U16–U19), but the per-surface DOM/CSS still lives in the engine —
-removing `SheetChrome.js` in U21 is gated on rewriting those surfaces as
-React components.
+`src/engine/student-space/style.css` carries only the remaining engine
+substrate: `.game` frame geometry, Three.js-adjacent half-sheet/FacetView
+styling, substrate utilities, and legacy canvas support. Do not add new
+per-surface DOM CSS there; new UI belongs in React components with Tailwind.
 
 ---
 
@@ -156,7 +135,6 @@ React components.
 
 Read these before touching the relevant area:
 
-- **[Sheet chrome contract](docs/sheet-chrome-contract.md)** — the contract
-  applies to the few engine surfaces (capture sheets, onboarding) that
-  still use `SheetChrome.js`. Routed sheets use the React `<Sheet>`
-  primitive in `src/components/ui/sheet.tsx` instead.
+- **[Historical sheet chrome contract](docs/sheet-chrome-contract.md)** —
+  retained for context only. New routed sheets use `src/components/ui/sheet.tsx`;
+  new non-routed overlays use React host components and Tailwind.

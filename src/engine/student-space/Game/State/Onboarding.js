@@ -34,15 +34,15 @@ export default class Onboarding
         this.completedAt    = seed.completedAt
         this.firstMoodPinId = seed.firstMoodPinId
 
-        // `#onboarding` URL hash forces a re-run on the next boot. The hash
-        // stays on the URL so the student can refresh during QA without
-        // losing the replay intent. Hydration below still runs first so we
-        // can observe what was persisted before clearing it.
+        // `/onboarding` and the legacy `#onboarding` URL hash force a re-run
+        // on the next boot. The URL stays in place so the student can refresh
+        // during QA without losing the replay intent. Hydration below still
+        // runs first so we can observe what was persisted before clearing it.
         // Exact match only — earlier `.includes('onboarding')` matched any URL
         // fragment containing the word (e.g. `#section-onboarding-foo`), making
         // it a foot-gun for accidental ceremony resets via shareable links.
         this._replayHash = (typeof window !== 'undefined') &&
-            window.location.hash === '#onboarding'
+            (window.location.pathname === '/onboarding' || window.location.hash === '#onboarding')
         // `#sign-in` reuses the onboarding login surface without wiping the
         // completed ceremony fields. Profile-sheet auth sends signed-out
         // students here so they see the same Edupass/demo/offline chooser

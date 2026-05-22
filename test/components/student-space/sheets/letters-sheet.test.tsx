@@ -140,7 +140,7 @@ describe('LettersSheet (React)', () => {
     const items = within(list).getAllByRole('listitem')
     const afterCamp = items.find((item) => within(item).queryByText('After camp'))
     expect(afterCamp).toBeDefined()
-    await userEvent.click(afterCamp as Element)
+    await userEvent.click(within(afterCamp as HTMLElement).getByRole('button'))
     expect(slice.markRead).toHaveBeenCalledWith('lt-1')
   })
 

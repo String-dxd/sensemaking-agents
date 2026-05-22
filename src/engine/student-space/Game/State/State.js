@@ -47,7 +47,7 @@ export default class State
         this.backendActive = false
 
         // Auth slice carries the server-resolved `loadAuthMenu()` payload
-        // so chrome surfaces (Onboarding/EdupassLogin, ProfileSheet, TopNav)
+        // so React chrome surfaces (Onboarding/EdupassLogin, ProfileSheet)
         // can render the right sign-in / sign-out / demo affordance. Built
         // before Onboarding so its first `_renderStage` can decide to skip
         // the dummy login when already signed-in.

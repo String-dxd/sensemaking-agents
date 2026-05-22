@@ -1,7 +1,13 @@
 import { Dialog as BaseDialog } from '@base-ui-components/react/dialog'
 import { X } from 'lucide-react'
-import type { ComponentProps, HTMLAttributes } from 'react'
+import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes } from 'react'
 import { cn } from '~/lib/utils'
+
+export const studentSpaceFrameClassName =
+  'top-(--inset-frame) right-(--inset-frame) bottom-(--inset-frame) left-[calc(var(--width-rail)+var(--inset-frame))] max-[640px]:left-(--inset-frame) max-[640px]:bottom-[calc(var(--inset-frame)+4.25rem)]'
+
+export const studentSpaceFrameContainerClassName =
+  'rounded-(--radius-frame) border border-(--color-frame-border) shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]'
 
 /**
  * Full-viewport routed-page sheet primitive. Built on Base UI Dialog with
@@ -22,8 +28,8 @@ import { cn } from '~/lib/utils'
  *     </SheetContent>
  *   </Sheet>
  *
- * Replaces `src/engine/student-space/Game/View/SheetChrome.js` for routed
- * pages. Capture sheets (Ask/Mood) continue to use `<Drawer>`.
+ * Replaces the old engine-side sheet chrome for routed pages. Capture sheets
+ * (Ask/Mood) continue to use `<Drawer>`.
  */
 export const Sheet = BaseDialog.Root
 export const SheetTrigger = BaseDialog.Trigger
@@ -71,22 +77,28 @@ export function SheetSurface({
       <BaseDialog.Popup
         data-testid="sheet-surface"
         className={cn(
-          'fixed z-50 flex overflow-hidden bg-(--color-sheet-bg) text-(--color-sheet-ink)',
-          framed
-            ? 'top-(--inset-frame) right-(--inset-frame) bottom-(--inset-frame) left-[calc(var(--width-rail)+var(--inset-frame))] rounded-(--radius-frame)'
-            : 'inset-0',
+          'fixed z-50 bg-transparent text-(--color-sheet-ink)',
+          framed ? studentSpaceFrameClassName : 'inset-0',
           'transition-opacity duration-(--duration-sheet) ease-(--ease-sheet)',
           'data-[starting-style]:opacity-0 data-[ending-style]:opacity-0',
           className,
         )}
         {...props}
       >
-        {children}
+        <div
+          data-testid="sheet-page-container"
+          className={cn(
+            'flex h-full w-full overflow-hidden bg-(--color-sheet-bg)',
+            framed ? studentSpaceFrameContainerClassName : 'rounded-none',
+          )}
+        >
+          {children}
+        </div>
         {showClose ? (
           <BaseDialog.Close
             aria-label={closeLabel}
             data-testid="sheet-close"
-            className="absolute right-4 top-4 z-10 inline-flex size-9 items-center justify-center rounded-full text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="absolute right-4 top-4 z-10 inline-flex size-9 cursor-pointer items-center justify-center rounded-full text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <X aria-hidden className="size-4" />
           </BaseDialog.Close>
@@ -191,5 +203,32 @@ export function SheetBody({ className, ...props }: HTMLAttributes<HTMLDivElement
       className={cn('relative min-h-px flex-1 overflow-y-auto px-9 py-8', className)}
       {...props}
     />
+  )
+}
+
+export interface SheetNavButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  active?: boolean
+}
+
+export function SheetNavButton({
+  active = false,
+  className,
+  children,
+  ...props
+}: SheetNavButtonProps) {
+  return (
+    <button
+      type="button"
+      data-active={active || undefined}
+      className={cn(
+        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors',
+        'cursor-pointer text-(--color-sheet-ink-soft) hover:bg-[rgba(43,38,32,0.045)]',
+        'data-[active]:bg-(--color-sheet-tab-active) data-[active]:text-(--color-sheet-ink)',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </button>
   )
 }

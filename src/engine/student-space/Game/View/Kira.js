@@ -347,8 +347,10 @@ export default class Kira
      */
     setOnboardingMode(active)
     {
-        this.onboardingMode = !!active
-        if(active)
+        const next = !!active
+        if(next === this.onboardingMode) return
+        this.onboardingMode = next
+        if(next)
         {
             // Resolve any in-flight cinematic so a caller awaiting flyTo()
             // doesn't hang when the ceremony forces an early reset.

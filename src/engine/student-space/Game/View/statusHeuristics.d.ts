@@ -36,7 +36,7 @@ export interface IdentityStatusAudit {
 export interface StatusCopy {
   eyebrow: string
   title: string
-  /** Short one-line TLDR; replaces `lead` in the SheetChrome subtitle. */
+  /** Short one-line TLDR; replaces `lead` in the routed sheet subtitle. */
   tldr: string
   /** Long-form lead paragraph; shown via the "Why this status" disclosure. */
   lead: string

@@ -57,23 +57,64 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
 
 const TODAY = '2026-05-22'
 
+type TestCapture = {
+  id: string
+  entryDate: string
+  kind: string
+  text?: string
+  createdAt?: string
+  backendMirrorEntryId?: number
+  reviewStatus?: string
+  syncStatus?: string
+  syncError?: string
+  contextType?: string
+}
+
+type TestEvent = {
+  id?: string
+  date?: string
+  entryDate?: string
+  kind?: string
+  label?: string
+  title?: string
+}
+
 function makeEngine(
   overrides: {
     pins?: Array<{ entryDate: string; emotion?: string }>
-    captures?: Array<{ id: string; entryDate: string; kind: string }>
+    captures?: TestCapture[]
+    events?: TestEvent[]
+    backend?: Record<string, unknown>
   } = {},
 ) {
+  const captures = [...(overrides.captures ?? [])]
+  const captureSubscribers = new Set<() => void>()
+  const capturePatch = vi.fn((id: string, updates: Partial<TestCapture>) => {
+    const capture = captures.find((entry) => entry.id === id)
+    if (!capture) return null
+    Object.assign(capture, updates)
+    for (const subscriber of captureSubscribers) subscriber()
+    return capture
+  })
+
   return {
     state: {
+      backend: overrides.backend ?? null,
+      applyBackendSnapshot: vi.fn(),
       moodPins: {
         pins: overrides.pins ?? [],
         subscribe: () => () => {},
       },
       captures: {
-        entries: overrides.captures ?? [],
-        subscribe: () => () => {},
+        entries: captures,
+        findById: (id: string) => captures.find((capture) => capture.id === id) ?? null,
+        patch: capturePatch,
+        subscribe: (cb: () => void) => {
+          captureSubscribers.add(cb)
+          return () => captureSubscribers.delete(cb)
+        },
       },
-      calendar: { events: [], subscribe: () => () => {} },
+      calendar: { events: overrides.events ?? [], subscribe: () => () => {} },
       sprouts: {
         years: () => [2026, 2025, 2024],
         setTimelapseSubset: vi.fn(),
@@ -160,11 +201,169 @@ describe('HistorySheet (React)', () => {
     renderHistory(makeEngine())
     const cal = await screen.findByTestId('calendar-pane')
     // Click any cell labeled "15" — every visible month has a 15th.
-    const fifteen = (await screen.findAllByRole('gridcell', { name: /15/ }))[0]
+    const fifteen = (await screen.findAllByRole('button', { name: /15/ }))[0]
     expect(fifteen).toBeDefined()
     await userEvent.click(fifteen as Element)
     expect((fifteen as HTMLElement).getAttribute('data-selected')).toBe('true')
     expect(cal).toBeInTheDocument()
+  })
+
+  it('selects a linked reflection day from the route hash', async () => {
+    renderHistory(
+      makeEngine({
+        captures: [
+          {
+            id: 'mirror:24',
+            entryDate: '2026-04-03',
+            createdAt: '2026-04-03T08:00:00.000Z',
+            kind: 'ask',
+            text: 'Linked reflection',
+            backendMirrorEntryId: 24,
+          },
+        ],
+      }),
+      '/history#reflection-24',
+    )
+
+    expect(await screen.findByText(/Friday, April 3, 2026/)).toBeInTheDocument()
+    expect(screen.getByText('Linked reflection')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /Wednesday, April 15, 2026/ }))
+    expect(await screen.findByText(/Wednesday, April 15, 2026/)).toBeInTheDocument()
+    expect(screen.queryByText('Linked reflection')).not.toBeInTheDocument()
+  })
+
+  it('selects the newest pending reflection from the need-review filter and advances after confirm', async () => {
+    const updateReflectionReview = vi.fn(async () => ({
+      reviewStatus: 'confirmed',
+      transcript: 'Confirmed latest',
+      contextType: 'school',
+    }))
+    const engine = makeEngine({
+      backend: { updateReflectionReview },
+      captures: [
+        {
+          id: 'mirror:23',
+          entryDate: '2026-04-03',
+          createdAt: '2026-04-03T08:00:00.000Z',
+          kind: 'ask',
+          text: 'Older pending',
+          backendMirrorEntryId: 23,
+          reviewStatus: 'pending',
+        },
+        {
+          id: 'mirror:24',
+          entryDate: TODAY,
+          createdAt: '2026-05-22T08:00:00.000Z',
+          kind: 'ask',
+          text: 'Newest pending',
+          backendMirrorEntryId: 24,
+          reviewStatus: 'pending',
+        },
+      ],
+    })
+
+    renderHistory(engine, '/history?filter=need-review')
+
+    expect(await screen.findByText('Newest pending')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    await waitFor(() => expect(screen.getByText('Older pending')).toBeInTheDocument())
+    expect(screen.queryByText('Newest pending')).not.toBeInTheDocument()
+  })
+
+  it('renders school events from the engine date/label shape', async () => {
+    renderHistory(
+      makeEngine({
+        events: [{ id: 'event-1', date: TODAY, kind: 'class', label: 'Mathematics - Sec 3.4' }],
+      }),
+    )
+
+    expect(await screen.findByText('Mathematics - Sec 3.4')).toBeInTheDocument()
+  })
+
+  it('can confirm pending backend reflections from day detail', async () => {
+    const updateReflectionReview = vi.fn(async () => ({
+      reviewStatus: 'confirmed',
+      transcript: 'Confirmed transcript',
+      contextType: 'school',
+    }))
+    const engine = makeEngine({
+      backend: { updateReflectionReview },
+      captures: [
+        {
+          id: 'mirror:24',
+          entryDate: TODAY,
+          createdAt: '2026-05-22T08:00:00.000Z',
+          kind: 'ask',
+          text: 'Needs review',
+          backendMirrorEntryId: 24,
+          reviewStatus: 'pending',
+        },
+      ],
+    })
+    renderHistory(engine)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
+    await waitFor(() =>
+      expect(updateReflectionReview).toHaveBeenCalledWith({ entryId: 24, status: 'confirmed' }),
+    )
+    expect(engine.state.captures.patch).toHaveBeenCalledWith(
+      'mirror:24',
+      expect.objectContaining({
+        reviewStatus: 'confirmed',
+        text: 'Confirmed transcript',
+        contextType: 'school',
+      }),
+    )
+  })
+
+  it('can retry failed local reflection syncs from day detail', async () => {
+    const submitReflection = vi.fn(async () => ({
+      mirrorEntry: {
+        id: 91,
+        transcript: 'Synced reflection',
+        reviewStatus: 'pending',
+        contextType: 'school',
+      },
+    }))
+    const engine = makeEngine({
+      backend: { submitReflection },
+      captures: [
+        {
+          id: 'local-ask-1',
+          entryDate: TODAY,
+          createdAt: '2026-05-22T08:00:00.000Z',
+          kind: 'ask',
+          text: 'Needs sync',
+          syncStatus: 'failed',
+          syncError: 'offline',
+          contextType: 'home',
+        },
+      ],
+    })
+    renderHistory(engine)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry sync' }))
+    await waitFor(() =>
+      expect(submitReflection).toHaveBeenCalledWith({
+        localCaptureId: 'local-ask-1',
+        transcript: 'Needs sync',
+        contextType: 'home',
+      }),
+    )
+    expect(engine.state.captures.patch).toHaveBeenCalledWith('local-ask-1', {
+      syncStatus: 'syncing',
+      syncError: '',
+    })
+    expect(engine.state.captures.patch).toHaveBeenCalledWith(
+      'local-ask-1',
+      expect.objectContaining({
+        backendMirrorEntryId: 91,
+        text: 'Synced reflection',
+        reviewStatus: 'pending',
+        syncStatus: 'synced',
+      }),
+    )
   })
 
   it('switches to Growth tab and loads /api/growth/summary', async () => {

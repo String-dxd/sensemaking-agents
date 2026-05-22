@@ -3,8 +3,7 @@ import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/cop
 import { cn } from '~/lib/utils'
 
 /**
- * Post-login greeting surface (U16 React rewrite of
- * `src/engine/student-space/Game/View/Onboarding/Greeting.js`).
+ * Post-login greeting surface for the React onboarding ceremony.
  *
  * "Hi, {name}." + sub + hint + CTA. No bird visible yet — the egg hasn't
  * been picked. Fade-in on mount; fade-out is owned by the orchestrator

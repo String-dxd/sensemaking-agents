@@ -1,26 +1,21 @@
 /**
  * Single source of truth for "which sheet/overlay is open right now."
  *
- * Each sheet registers itself with {open(opts), close()}; opening one
- * exclusive sheet auto-closes whatever exclusive sheet was previously
- * active, so we can never have two full-viewport sheets fighting for the
- * viewport. The exclusive set covers every modal-ish surface:
+ * Compatibility bridge for non-routed overlays. React routes now render
+ * full-viewport sheets directly, but the engine still needs one tiny
+ * imperative channel for capture overlays opened from world interactions.
+ * Each non-routed surface registers itself with {open(opts), close()}.
+ * Opening one exclusive surface auto-closes the previous one so capture,
+ * chooser, and routed-page transitions never stack.
  *
  *   profile · calendar · letters · trajectory · history
- *     — the five full-viewport sheets, all built on SheetChrome
- *   mood · ask · photo                  — the existing capture sheets
- *   chooser                             — the CaptureChooser popover
+ *     — virtual routed-page keys; they do not register a surface anymore,
+ *       but opening them closes any active capture overlay.
+ *   mood · ask · photo                  — React capture sheets
+ *   chooser                             — the React CaptureChooser popover
  *
- * `body.has-overlay` is the CSS hook the TopNav uses to hide itself when
- * one of the three full-viewport sheets is open — chooser/Ask/Photo/Mood
- * are tall-but-bottom-anchored and do collide with the top chrome, so the
- * `has-chooser` and `has-capture-sheet` body classes give the CSS room to
- * hide TopNav for those too.
- *
- * Full-viewport sheets register via SheetChrome (see SheetChrome.js and
- * CLAUDE.md "Sheet chrome contract"); `getActiveRoot()` returns the active
- * sheet's `.root` so child overlays can portal into the active sheet's
- * stacking context rather than `document.body`.
+ * `body.has-chooser` and `body.has-capture-sheet` remain compatibility
+ * hooks for CSS that needs to know a non-routed overlay is open.
  */
 
 const SHEET_OVERLAY_CLASS = {
@@ -29,6 +24,7 @@ const SHEET_OVERLAY_CLASS = {
     letters:    'has-overlay',
     trajectory: 'has-overlay',
     history:    'has-overlay',
+    settings:   'has-overlay',
     mood:       'has-capture-sheet',
     ask:        'has-capture-sheet',
     photo:      'has-capture-sheet',
@@ -59,6 +55,14 @@ export default class OverlayController
         this.surfaces.set(name, surface)
     }
 
+    unregister(name, surface)
+    {
+        if(!name) return
+        if(surface && this.surfaces.get(name) !== surface) return
+        if(this.active === name) this.close(name)
+        this.surfaces.delete(name)
+    }
+
     /**
      * Open a surface by name. If another exclusive surface is already open
      * and the incoming surface is also exclusive, close the previous one
@@ -67,7 +71,12 @@ export default class OverlayController
      */
     open(name, opts)
     {
-        if(!this.surfaces.has(name)) return
+        if(!this.surfaces.has(name))
+        {
+            if(this.active && EXCLUSIVE.has(name) && EXCLUSIVE.has(this.active))
+                this.close(this.active)
+            return
+        }
         if(this.active && this.active !== name && EXCLUSIVE.has(name) && EXCLUSIVE.has(this.active))
         {
             const prev = this.surfaces.get(this.active)

@@ -1,5 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ChevronDown, ExternalLink } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   Sheet,
   SheetBody,
@@ -11,42 +13,48 @@ import {
   SheetSurface,
   SheetTitle,
 } from '~/components/ui/sheet'
+import type {
+  ChoiceDecisionShape,
+  ChoiceIntentionShape,
+  FacetsInput,
+} from '~/engine/student-space/Game/View/statusHeuristics.js'
 import {
   actionsForCluster,
   DIFFUSED_NUDGES,
   FORECLOSED_CHALLENGE_PROMPT,
   STARTER_PROMPT,
+  STATUS_IDS,
   statusCopyOf,
+  statusFor,
   statusLabelOf,
 } from '~/engine/student-space/Game/View/statusHeuristics.js'
-// @ts-expect-error untyped engine module
-import { trajectoryFor } from '~/engine/student-space/Game/View/trajectoryHeuristics.js'
+import {
+  ecgChipOf,
+  traitChipOf,
+  trajectoryFor,
+} from '~/engine/student-space/Game/View/trajectoryHeuristics.js'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 import { cn } from '~/lib/utils'
 
 /**
- * Path Finder — full-viewport sheet at `/trajectory`. U5 React rewrite of
- * `src/engine/student-space/Game/View/TrajectorySheet.js` (874 lines).
+ * Path Finder, migrated from the pre-React engine HTML surface.
  *
- * The sheet branches by inferred Marcia identity status
- * (Starter / Diffused / Searching / Foreclosed / Achieved). The status is
- * computed at open time by the existing engine heuristic modules
- * (trajectoryHeuristics, statusHeuristics) — those modules are pure JS and
- * are imported directly here. The React component owns the rendering, action
- * wiring, and slice subscriptions.
+ * The old sheet did two distinct jobs:
+ * - classify the student's identity-status frame with `statusFor`
+ * - render or mint a trajectory reading with `trajectoryFor`
  *
- * "Show me all paths" escape hatch is local React state. The status preview
- * override (DevPalette) writes to `state.identityStatusOverride`; the React
- * component subscribes via useEngineSliceVersion and re-renders the new
- * audit's status branch when the override flips.
+ * Keeping those jobs separate restores the pre-migration behavior: the page
+ * shows the status-specific copy, optional reason/why disclosures, generated
+ * pathway metadata, and the evidence-bearing pathway panel.
  */
 type StatusKey = 'starter' | 'diffused' | 'searching' | 'foreclosed' | 'achieved'
 
 interface TrajectoryAudit {
   status: StatusKey
   reason: string
-  isOverride: boolean
+  isOverride?: boolean
+  inferredStatus?: StatusKey
 }
 
 interface Bearing {
@@ -54,14 +62,52 @@ interface Bearing {
   prompt?: string
   clusterId?: string
   msfUrl?: string
+  traitTags?: string[]
+  ecgTags?: string[]
+  risk?: string
 }
 
 interface TrajectoryCapture {
+  kind?: string
   createdAt: string
+  backendCartographerOutputId?: string | number | null
   trajectory?: {
     throughLine?: string
     bearings?: Bearing[]
   }
+}
+
+type Subscribable = { subscribe: (cb: () => void) => () => void }
+type CapturesLike = Subscribable & {
+  entries?: Array<TrajectoryCapture> | (() => Array<TrajectoryCapture>)
+  add?: (input: { kind: string; trajectory: TrajectoryCapture['trajectory'] }) => TrajectoryCapture
+}
+type ChoicesLike = Subscribable & {
+  decisions?: Array<ChoiceDecisionShape & { chose?: string; decision?: string }>
+  intentions?: Array<ChoiceIntentionShape & { change?: string }>
+  dominantPatternTag?: () => string | null
+}
+type ProfileLike = Subscribable & {
+  displayCompanionName?: () => string
+  identity?: unknown
+  facets?: FacetsInput
+}
+type EngineState = {
+  captures?: CapturesLike
+  profile?: ProfileLike
+  choices?: ChoicesLike | null
+  backend?: {
+    runTrajectory?: () => Promise<unknown>
+    refreshSnapshot?: () => Promise<unknown>
+  } | null
+  applyBackendSnapshot?: (snapshot: unknown) => unknown
+  backendActive?: boolean
+  identityStatusOverride?:
+    | (Subscribable & {
+        current?: StatusKey | null
+        setOverride?: (status: StatusKey | null) => void
+      })
+    | null
 }
 
 export function TrajectorySheet() {
@@ -73,21 +119,6 @@ export function TrajectorySheet() {
     return () => document.body.classList.remove('has-overlay')
   }, [])
 
-  // Engine state — slices are untyped on the contract; cast to read.
-  type Subscribable = { subscribe: (cb: () => void) => () => void }
-  type EngineState = {
-    captures?: Subscribable & {
-      entries?: () => Array<TrajectoryCapture & { kind?: string }>
-    }
-    profile?: Subscribable & {
-      displayCompanionName?: () => string
-      identity?: unknown
-    }
-    choices?: Subscribable | null
-    backend?: { runTrajectory?: () => Promise<unknown> } | null
-    backendActive?: boolean
-    identityStatusOverride?: Subscribable | null
-  }
   const state = (engine as unknown as { state?: EngineState } | null)?.state
   useEngineSliceVersion(state?.identityStatusOverride ?? null)
   useEngineSliceVersion(state?.profile ?? null)
@@ -97,48 +128,22 @@ export function TrajectorySheet() {
   const [escapeHatch, setEscapeHatch] = useState(false)
   const [running, setRunning] = useState(false)
 
-  const audit = useMemo<TrajectoryAudit | null>(() => {
-    if (!state) return null
-    const result = trajectoryFor({
-      profile: state.profile,
-      captures: state.captures,
-      choices: state.choices,
-      override: state.identityStatusOverride,
-    }) as TrajectoryAudit | undefined
-    return result ?? { status: 'searching', reason: '', isOverride: false }
-  }, [state])
-
-  const capture = useMemo<TrajectoryCapture | null>(() => {
-    const entries = state?.captures?.entries?.() ?? []
-    for (let i = entries.length - 1; i >= 0; i--) {
-      const c = entries[i]
-      if (c?.kind === 'trajectory' && c.trajectory) return c
-    }
-    return null
-  }, [state])
-
-  if (!audit) {
-    return (
-      <Sheet open modal={false} onOpenChange={(next) => next === false && navigate({ to: '/' })}>
-        <SheetSurface>
-          <SheetContent>
-            <SheetBody>
-              <p className="text-sm text-(--color-sheet-ink-soft)">Loading Path Finder…</p>
-            </SheetBody>
-          </SheetContent>
-        </SheetSurface>
-      </Sheet>
-    )
-  }
-
-  const renderStatus: StatusKey = escapeHatch ? 'searching' : audit.status
-  const identity = (state?.profile as { identity?: unknown } | undefined)?.identity ?? null
-  const copy = (statusCopyOf(renderStatus, identity as never) ?? {}) as {
-    title?: string
-    tldr?: string
-    lead?: string
-  }
-  const companion = state?.profile?.displayCompanionName?.() || 'Kira'
+  const entries = captureEntries(state?.captures)
+  const audit = currentAudit(state)
+  const renderStatus: StatusKey | null = audit ? (escapeHatch ? 'searching' : audit.status) : null
+  const existingCapture =
+    audit && renderStatus && needsBearings(renderStatus)
+      ? latestTrajectoryCapture(entries, Boolean(state?.backendActive))
+      : null
+  const previewCapture =
+    audit &&
+    renderStatus &&
+    needsBearings(renderStatus) &&
+    !existingCapture &&
+    !state?.backendActive
+      ? generatedTrajectoryCapture(state)
+      : null
+  const capture = existingCapture ?? previewCapture
 
   const openAsk = useCallback(
     (prompt: string) => {
@@ -155,13 +160,35 @@ export function TrajectorySheet() {
     setRunning(true)
     try {
       await state.backend.runTrajectory()
+      const snapshot = await state.backend.refreshSnapshot?.()
+      if (snapshot) state.applyBackendSnapshot?.(snapshot)
     } finally {
       setRunning(false)
     }
   }, [state])
 
-  const needsBearings = renderStatus !== 'starter' && renderStatus !== 'diffused'
-  const showRun = state?.backend?.runTrajectory && needsBearings
+  if (!audit || !renderStatus) {
+    return (
+      <Sheet open modal={false} onOpenChange={(next) => next === false && navigate({ to: '/' })}>
+        <SheetSurface>
+          <SheetContent>
+            <SheetBody>
+              <p className="text-sm text-(--color-sheet-ink-soft)">Loading Path Finder...</p>
+            </SheetBody>
+          </SheetContent>
+        </SheetSurface>
+      </Sheet>
+    )
+  }
+
+  const identity = state?.profile?.identity ?? null
+  const copy = (statusCopyOf(renderStatus, identity as never) ?? {}) as {
+    title?: string
+    tldr?: string
+    lead?: string
+  }
+  const companion = state?.profile?.displayCompanionName?.() || 'Kira'
+  const showRun = Boolean(state?.backend?.runTrajectory && needsBearings(renderStatus))
   const showEscape = audit.status !== 'starter' && audit.status !== 'searching' && !escapeHatch
 
   return (
@@ -180,24 +207,33 @@ export function TrajectorySheet() {
               Bearings drawn from the patterns in your reflections.
             </SheetDescription>
           </SheetIdentityHeader>
-          <div className="space-y-3 px-7 pb-6">
-            <StatusPill status={audit.status} isPreview={audit.isOverride} />
-            {copy.title ? (
-              <p className="text-base font-semibold text-(--color-sheet-ink)">{copy.title}</p>
-            ) : null}
-            {copy.tldr ? (
-              <p className="text-sm leading-relaxed text-(--color-sheet-ink-soft)">{copy.tldr}</p>
-            ) : null}
-            <div className="flex flex-wrap gap-2 pt-2">
+          <div className="space-y-5 px-7 pb-8">
+            <StatusPreviewSelector
+              audit={audit}
+              override={state?.identityStatusOverride ?? null}
+              onSelect={() => setEscapeHatch(false)}
+            />
+            <div className="space-y-2">
+              {copy.title ? (
+                <h2 className="text-xl font-semibold leading-tight tracking-tight text-(--color-sheet-ink)">
+                  {copy.title}
+                </h2>
+              ) : null}
+              {copy.tldr ? (
+                <p className="text-sm leading-relaxed text-(--color-sheet-ink-soft)">{copy.tldr}</p>
+              ) : null}
+            </div>
+            <TrajectoryMeta capture={capture} status={renderStatus} />
+            <div className="flex flex-wrap gap-2">
               {showRun ? (
                 <button
                   type="button"
                   onClick={runBackend}
                   disabled={running}
                   data-testid="trajectory-run"
-                  className="inline-flex items-center rounded-full bg-(--color-status-searching) px-4 py-1.5 text-sm font-semibold text-white transition-opacity active:scale-[0.96] disabled:opacity-60"
+                  className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-[rgba(160,118,89,0.28)] bg-white/70 px-3.5 text-sm font-semibold text-[#7a4b2e] transition-[background,transform,opacity] hover:bg-white active:scale-[0.96] disabled:cursor-wait disabled:opacity-70"
                 >
-                  {running ? 'Running…' : 'Run sense-making'}
+                  {running ? 'Running...' : 'Run sense-making'}
                 </button>
               ) : null}
               {showEscape ? (
@@ -205,7 +241,7 @@ export function TrajectorySheet() {
                   type="button"
                   onClick={() => setEscapeHatch(true)}
                   data-testid="trajectory-escape"
-                  className="inline-flex items-center rounded-full border border-(--color-sheet-divider) px-4 py-1.5 text-sm font-medium text-(--color-sheet-ink) hover:bg-black/5 active:scale-[0.96]"
+                  className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-3.5 text-sm font-medium text-(--color-sheet-ink) transition-[background,transform] hover:bg-black/5 active:scale-[0.96]"
                 >
                   Show me all paths
                 </button>
@@ -215,12 +251,17 @@ export function TrajectorySheet() {
                   type="button"
                   onClick={() => setEscapeHatch(false)}
                   data-testid="trajectory-back"
-                  className="inline-flex items-center rounded-full border border-(--color-sheet-divider) px-4 py-1.5 text-sm font-medium text-(--color-sheet-ink) hover:bg-black/5 active:scale-[0.96]"
+                  className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-3.5 text-sm font-medium text-(--color-sheet-ink) transition-[background,transform] hover:bg-black/5 active:scale-[0.96]"
                 >
                   Back to {statusLabelOf(audit.status)}
                 </button>
               ) : null}
             </div>
+            {copy.lead && copy.lead !== (copy.tldr || copy.lead) ? (
+              <InlineDisclosure label="Why this status">
+                <p className="text-sm leading-relaxed text-(--color-sheet-ink-soft)">{copy.lead}</p>
+              </InlineDisclosure>
+            ) : null}
           </div>
         </SheetSidebar>
         <SheetContent>
@@ -234,6 +275,7 @@ export function TrajectorySheet() {
               companion={companion}
               backendActive={state?.backendActive}
               hasBackend={Boolean(state?.backend?.runTrajectory)}
+              committedDirection={readCommittedDirection(state?.choices)}
               onAsk={openAsk}
             />
           </SheetBody>
@@ -243,24 +285,244 @@ export function TrajectorySheet() {
   )
 }
 
-function StatusPill({ status, isPreview }: { status: StatusKey; isPreview: boolean }) {
-  const color: Record<StatusKey, string> = {
-    starter: 'bg-(--color-status-starter)',
-    diffused: 'bg-(--color-status-diffused)',
-    searching: 'bg-(--color-status-searching)',
-    foreclosed: 'bg-(--color-status-foreclosed)',
-    achieved: 'bg-(--color-status-achieved)',
+function currentAudit(state: EngineState | undefined): TrajectoryAudit | null {
+  if (!state) return null
+  const entries = captureEntries(state.captures)
+  const inferred = statusFor({
+    facets: state.profile?.facets,
+    captures: entries,
+    decisions: state.choices?.decisions,
+    intentions: state.choices?.intentions,
+    dominantPatternTag: state.choices?.dominantPatternTag?.() || null,
+  }) as TrajectoryAudit | undefined
+
+  if (!inferred?.status) return null
+  const overrideId = state.identityStatusOverride?.current ?? null
+  if (!overrideId || overrideId === inferred.status) return { ...inferred, isOverride: false }
+
+  return {
+    ...inferred,
+    status: overrideId,
+    isOverride: true,
+    inferredStatus: inferred.status,
+    reason:
+      `Previewing as ${statusLabelOf(overrideId)}. ` +
+      `Inferred status from current evidence is ${statusLabelOf(inferred.status)}. ` +
+      inferred.reason,
   }
+}
+
+function captureEntries(captures: CapturesLike | null | undefined): TrajectoryCapture[] {
+  const entries = captures?.entries
+  if (Array.isArray(entries)) return entries
+  if (typeof entries === 'function') return entries()
+  return []
+}
+
+function needsBearings(status: StatusKey): boolean {
+  return status !== 'starter' && status !== 'diffused'
+}
+
+function generatedTrajectoryCapture(state: EngineState | undefined): TrajectoryCapture {
+  const identity = state?.profile?.identity as { name?: string | null } | null | undefined
+  const trajectory = trajectoryFor(state?.profile?.facets, identity) as
+    | TrajectoryCapture['trajectory']
+    | undefined
+  return {
+    kind: 'trajectory',
+    createdAt: new Date().toISOString(),
+    trajectory,
+  }
+}
+
+function latestTrajectoryCapture(
+  entries: TrajectoryCapture[],
+  backendActive: boolean,
+): TrajectoryCapture | null {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const capture = entries[i]
+    if (
+      capture?.kind === 'trajectory' &&
+      capture.trajectory &&
+      capture.backendCartographerOutputId
+    ) {
+      return capture
+    }
+  }
+  if (backendActive) return null
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const capture = entries[i]
+    if (capture?.kind === 'trajectory' && capture.trajectory) return capture
+  }
+  return null
+}
+
+function StatusPreviewSelector({
+  audit,
+  override,
+  onSelect,
+}: {
+  audit: TrajectoryAudit
+  override: EngineState['identityStatusOverride']
+  onSelect?: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const current = override?.current ?? null
+
+  useEffect(() => {
+    if (!open) return
+    const onDocClick = (event: MouseEvent) => {
+      if ((event.target as Element | null)?.closest?.('[data-trajectory-status-root]')) return
+      setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setOpen(false)
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    document.addEventListener('click', onDocClick)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('click', onDocClick)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
   return (
-    <span
-      data-status={status}
-      data-testid="trajectory-status-pill"
-      className="inline-flex items-center gap-2 rounded-full bg-black/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-(--color-sheet-ink)"
-    >
-      <span aria-hidden className={cn('size-2 rounded-full', color[status])} />
-      {isPreview ? 'Preview · ' : ''}
-      {statusLabelOf(status)}
-    </span>
+    <div data-trajectory-status-root className="relative space-y-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        data-testid="trajectory-status-pill"
+        onClick={() => setOpen((next) => !next)}
+        className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-white/76 px-3 text-xs font-semibold uppercase tracking-[0.13em] text-(--color-sheet-ink) shadow-[inset_0_0_0_1px_rgba(43,38,32,0.08)] transition-transform active:scale-[0.96]"
+      >
+        <span aria-hidden className={cn('size-2 rounded-full', statusDotColor[audit.status])} />
+        Preview · {current ? statusLabelOf(audit.status) : 'Auto'}
+        <ChevronDown
+          aria-hidden
+          className={cn('size-3.5 transition-transform', open && 'rotate-180')}
+        />
+      </button>
+      {open ? (
+        <ul className="absolute left-0 top-full z-10 mt-2 w-52 overflow-hidden rounded-2xl border border-(--color-sheet-divider) bg-white p-1 shadow-xl shadow-black/10">
+          {[null, ...STATUS_IDS].map((status) => {
+            const key = status ?? 'auto'
+            const selected = current === status
+            return (
+              <li key={key}>
+                <button
+                  type="button"
+                  data-selected={selected || undefined}
+                  onClick={() => {
+                    onSelect?.()
+                    override?.setOverride?.(status as StatusKey | null)
+                    setOpen(false)
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 data-[selected]:bg-(--color-sheet-tab-active) data-[selected]:text-(--color-sheet-ink)"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'size-2.5 rounded-full',
+                      status ? statusDotColor[status] : 'bg-(--color-sheet-ink-faint)',
+                    )}
+                  />
+                  {status ? statusLabelOf(status) : 'Auto'}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      ) : null}
+      {audit.isOverride ? (
+        <p className="max-w-[34ch] text-xs leading-relaxed text-(--color-sheet-ink-soft)">
+          {audit.reason}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+const statusDotColor: Record<StatusKey, string> = {
+  starter: 'bg-[#c2a572]',
+  diffused: 'bg-[#b88660]',
+  searching: 'bg-[#4f8acb]',
+  foreclosed: 'bg-[#c97a4e]',
+  achieved: 'bg-[#4f9b6a]',
+}
+
+function TrajectoryMeta({
+  capture,
+  status,
+}: {
+  capture: TrajectoryCapture | null
+  status: StatusKey
+}) {
+  if (!capture?.trajectory || !needsBearings(status)) return null
+  const bearings = capture.trajectory.bearings ?? []
+  const generatedAt = new Date(capture.createdAt)
+  const count = bearings.length
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <StatTile value={String(count)} label={count === 1 ? 'Pathway' : 'Pathways'} />
+      <StatTile value={relativeTime(generatedAt)} label="Last generated" />
+    </div>
+  )
+}
+
+function StatTile({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-xl bg-white/55 px-3 py-3 shadow-[inset_0_0_0_1px_rgba(43,38,32,0.045)]">
+      <p className="text-lg font-bold leading-none text-(--color-sheet-ink) tabular-nums">
+        {value}
+      </p>
+      <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-(--color-sheet-ink-soft)">
+        {label}
+      </p>
+    </div>
+  )
+}
+
+function relativeTime(date: Date): string {
+  const ms = Date.now() - date.getTime()
+  const mins = Math.round(ms / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.round(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.round(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return date.toLocaleDateString()
+}
+
+function InlineDisclosure({
+  label,
+  children,
+  defaultOpen = false,
+}: {
+  label: string
+  children: ReactNode
+  defaultOpen?: boolean
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <section data-expanded={open} className="space-y-2">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((next) => !next)}
+        className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-(--color-sheet-divider) bg-white/35 px-3 py-1.5 text-xs font-semibold text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink)"
+      >
+        <ChevronDown
+          aria-hidden
+          className={cn('size-3.5 transition-transform', open && 'rotate-180')}
+        />
+        {label}
+      </button>
+      {open ? <div>{children}</div> : null}
+    </section>
   )
 }
 
@@ -270,6 +532,7 @@ function StatusBody({
   companion,
   backendActive,
   hasBackend,
+  committedDirection,
   onAsk,
 }: {
   status: StatusKey
@@ -277,13 +540,14 @@ function StatusBody({
   companion: string
   backendActive?: boolean
   hasBackend: boolean
+  committedDirection: string | null
   onAsk: (prompt: string) => void
 }) {
   if (status === 'starter') {
     const title = (STARTER_PROMPT.title as string).replace('{companionName}', companion)
     return (
-      <div className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6">
-        <p className="text-sm font-medium text-(--color-sheet-ink)">{title}</p>
+      <div className="mx-auto mt-4 max-w-xl rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6">
+        <p className="text-base font-semibold text-(--color-sheet-ink)">{title}</p>
         <p className="mt-2 text-sm leading-relaxed text-(--color-sheet-ink-soft)">
           {STARTER_PROMPT.prompt}
         </p>
@@ -291,7 +555,7 @@ function StatusBody({
           type="button"
           onClick={() => onAsk(STARTER_PROMPT.prompt as string)}
           data-testid="trajectory-starter-cta"
-          className="mt-5 inline-flex items-center gap-2 rounded-full bg-(--color-onb-accent) px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.96]"
+          className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-(--color-onb-accent) px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.96]"
         >
           Start a chat with {companion} <span aria-hidden>→</span>
         </button>
@@ -302,7 +566,7 @@ function StatusBody({
   if (status === 'diffused') {
     const nudges = DIFFUSED_NUDGES as unknown as Array<{ title: string; prompt: string }>
     return (
-      <div>
+      <section className="mx-auto max-w-3xl">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
           Pick a nudge
         </p>
@@ -312,22 +576,27 @@ function StatusBody({
               <button
                 type="button"
                 onClick={() => onAsk(nudge.prompt)}
-                className="w-full rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4 text-left text-sm hover:bg-black/5 active:scale-[0.98] transition-transform"
+                className="group w-full cursor-pointer rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4 text-left text-sm transition-[background,transform] hover:bg-black/5 active:scale-[0.98]"
               >
-                <p className="font-medium text-(--color-sheet-ink)">{nudge.title}</p>
-                <p className="mt-1 text-(--color-sheet-ink-soft)">{nudge.prompt}</p>
+                <span className="block font-semibold text-(--color-sheet-ink)">{nudge.title}</span>
+                <span className="mt-1 block leading-relaxed text-(--color-sheet-ink-soft)">
+                  {nudge.prompt}
+                </span>
+                <span className="mt-3 block text-xs font-semibold text-[#7a4b2e]">
+                  Reflect with {companion} →
+                </span>
               </button>
             </li>
           ))}
         </ul>
-      </div>
+      </section>
     )
   }
 
   if (!capture?.trajectory) {
     return (
-      <div className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6">
-        <p className="font-medium text-(--color-sheet-ink)">
+      <div className="mx-auto mt-4 max-w-2xl rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6">
+        <p className="font-semibold text-(--color-sheet-ink)">
           {backendActive
             ? 'No backend trajectory has been generated yet.'
             : 'No trajectory has been generated yet.'}
@@ -341,144 +610,317 @@ function StatusBody({
     )
   }
 
-  const bearings = capture.trajectory.bearings ?? []
-
   if (status === 'foreclosed') {
     return (
-      <div className="space-y-6">
-        <section>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
-            Worth holding up next to yours
-          </p>
-          <ol className="mt-3 space-y-3">
-            {bearings.slice(0, 2).map((b, i) => (
-              <li
-                key={b.title ?? i}
-                className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4"
-              >
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 text-sm font-semibold text-(--color-sheet-ink-soft)">
-                    {i + 1}
-                  </span>
-                  <div>
-                    <h3 className="text-sm font-semibold text-(--color-sheet-ink)">{b.title}</h3>
-                    <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">{b.prompt}</p>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
-        <section className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5">
-          <p className="text-sm font-medium text-(--color-sheet-ink)">
-            {FORECLOSED_CHALLENGE_PROMPT.title}
-          </p>
-          <button
-            type="button"
-            onClick={() => onAsk(FORECLOSED_CHALLENGE_PROMPT.prompt as string)}
-            className="mt-3 inline-flex items-center gap-2 rounded-full bg-(--color-onb-accent) px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.96]"
-          >
-            Open the question with {companion} →
-          </button>
-        </section>
-      </div>
+      <ForeclosedBody
+        capture={capture}
+        companion={companion}
+        committedDirection={committedDirection}
+        onAsk={onAsk}
+      />
     )
   }
 
   if (status === 'achieved') {
-    return (
-      <ol className="space-y-4">
-        {bearings.map((b, i) => {
-          const actions = (actionsForCluster(b.clusterId) ?? []) as string[]
-          return (
-            <li
-              key={b.title ?? i}
-              className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5"
-            >
-              <header className="flex items-start gap-3">
-                <span className="text-sm font-semibold text-(--color-sheet-ink-soft)">{i + 1}</span>
-                <h3 className="text-base font-semibold text-(--color-sheet-ink)">{b.title}</h3>
-              </header>
-              <p className="mt-2 text-sm text-(--color-sheet-ink-soft)">{b.prompt}</p>
-              <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
-                Next concrete steps
-              </p>
-              <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-(--color-sheet-ink)">
-                {actions.map((action) => (
-                  <li key={action}>{action}</li>
-                ))}
-              </ol>
-              {b.msfUrl ? (
-                <a
-                  href={b.msfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-block text-sm font-medium text-(--color-status-searching) hover:underline"
-                >
-                  Explore on MySkillsFuture ↗
-                </a>
-              ) : null}
-            </li>
-          )
-        })}
-      </ol>
-    )
+    return <AchievedBody capture={capture} />
   }
 
-  // searching (also catches escape-hatch)
   return <SearchingBody capture={capture} />
 }
 
 function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
   const bearings = capture.trajectory?.bearings ?? []
   const [activeIndex, setActiveIndex] = useState(0)
-  const active = bearings[activeIndex]
+  const selectedIndex = Math.min(activeIndex, Math.max(0, bearings.length - 1))
+  const active = bearings[selectedIndex]
   const throughLine = (capture.trajectory?.throughLine ?? '').trim()
 
+  if (bearings.length === 0) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6">
+        <p className="font-semibold text-(--color-sheet-ink)">No pathways are available yet.</p>
+        <p className="mt-2 text-sm text-(--color-sheet-ink-soft)">
+          Capture a few more reflections and Path Finder will sharpen the compass.
+        </p>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-5">
+    <div className="mx-auto max-w-3xl space-y-6">
       {throughLine ? (
-        <p className="text-sm leading-relaxed text-(--color-sheet-ink-soft)">{throughLine}</p>
+        <p className="max-w-[62ch] text-base leading-relaxed text-(--color-sheet-ink)">
+          {throughLine}
+        </p>
       ) : null}
-      <nav className="flex flex-wrap gap-2" role="tablist">
-        {bearings.map((b, i) => (
-          <button
-            key={b.title ?? i}
-            type="button"
-            role="tab"
-            aria-selected={i === activeIndex}
-            onClick={() => setActiveIndex(i)}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors',
-              i === activeIndex
-                ? 'border-(--color-status-searching) bg-(--color-status-searching) text-white'
-                : 'border-(--color-sheet-divider) text-(--color-sheet-ink) hover:bg-black/5',
-            )}
-          >
-            <span className="text-xs font-semibold">{i + 1}</span>
-            <span>{b.title}</span>
-          </button>
-        ))}
-      </nav>
-      {active ? (
-        <section
-          className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5"
-          role="tabpanel"
+      <div className="grid gap-4">
+        <div
+          className="grid content-start gap-1.5 rounded-2xl border border-(--color-sheet-divider) bg-white/45 p-3 sm:grid-cols-3"
+          role="tablist"
+          aria-label="Pathway options"
         >
-          <h3 className="text-base font-semibold text-(--color-sheet-ink)">{active.title}</h3>
-          <p className="mt-2 text-sm text-(--color-sheet-ink-soft)">{active.prompt}</p>
-          {active.msfUrl ? (
-            <a
-              href={active.msfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-block text-sm font-medium text-(--color-status-searching) hover:underline"
+          {bearings.map((bearing, i) => (
+            <button
+              key={bearing.title ?? i}
+              type="button"
+              role="tab"
+              aria-selected={i === selectedIndex}
+              onClick={() => setActiveIndex(i)}
+              className={cn(
+                'flex min-h-12 cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-tight transition-colors',
+                i === selectedIndex
+                  ? 'bg-white text-[#2166aa] shadow-[inset_0_0_0_1px_rgba(79,138,203,0.36)]'
+                  : 'text-(--color-sheet-ink-soft) hover:bg-black/5 hover:text-(--color-sheet-ink)',
+              )}
             >
-              Explore on MySkillsFuture ↗
-            </a>
-          ) : null}
-        </section>
-      ) : null}
+              <span
+                className={cn(
+                  'grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums',
+                  i === selectedIndex
+                    ? 'bg-[#d4e6fb] text-[#2166aa]'
+                    : 'bg-black/8 text-(--color-sheet-ink-soft)',
+                )}
+              >
+                {i + 1}
+              </span>
+              <span className="min-w-0 whitespace-normal">{bearing.title}</span>
+            </button>
+          ))}
+        </div>
+        {active ? (
+          <section
+            className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6 shadow-[0_1px_0_rgba(255,255,255,0.55)_inset]"
+            role="tabpanel"
+          >
+            <header className="flex items-start gap-4">
+              <span className="pt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-sheet-ink-soft)">
+                Path {selectedIndex + 1}
+              </span>
+              <h3 className="text-xl font-semibold leading-tight text-(--color-sheet-ink)">
+                {active.title}
+              </h3>
+            </header>
+            <p className="mt-4 text-sm leading-relaxed text-(--color-sheet-ink)">{active.prompt}</p>
+            <EvidenceDisclosure key={selectedIndex} bearing={active} />
+            {active.msfUrl ? (
+              <a
+                href={active.msfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#2b2620] px-4 py-2 text-sm font-semibold text-white transition-transform hover:bg-[#3a342b] active:scale-[0.96]"
+              >
+                Explore on MySkillsFuture
+                <ExternalLink aria-hidden className="size-3.5" />
+              </a>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
     </div>
   )
+}
+
+function EvidenceDisclosure({ bearing }: { bearing: Bearing }) {
+  const traits = bearing.traitTags ?? []
+  const ecg = bearing.ecgTags ?? []
+  const hasEvidence = traits.length > 0 || ecg.length > 0 || Boolean(bearing.risk)
+  if (!hasEvidence) return null
+
+  return (
+    <div className="mt-5">
+      <InlineDisclosure label="See evidence">
+        <div className="space-y-4 rounded-xl bg-white/45 p-4 shadow-[inset_0_0_0_1px_rgba(43,38,32,0.045)]">
+          {traits.length > 0 ? (
+            <ChipGroup label="Trait combination">
+              {traits.map((id) => (
+                <TraitChip key={id} id={id} />
+              ))}
+            </ChipGroup>
+          ) : null}
+          {ecg.length > 0 ? (
+            <ChipGroup label="ECG region tags">
+              {ecg.map((id) => (
+                <EcgChip key={id} id={id} />
+              ))}
+            </ChipGroup>
+          ) : null}
+          {bearing.risk ? (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-sheet-ink-soft)">
+                Risks and tradeoffs
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-(--color-sheet-ink-soft)">
+                {bearing.risk}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </InlineDisclosure>
+    </div>
+  )
+}
+
+function ChipGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-sheet-ink-soft)">
+        {label}
+      </p>
+      <div className="mt-2 flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  )
+}
+
+function TraitChip({ id }: { id: string }) {
+  const chip = traitChipOf(id) as { kicker?: string; label: string; title: string }
+  return (
+    <span
+      title={chip.title}
+      className="inline-flex items-center gap-1 rounded-full bg-[rgba(43,38,32,0.055)] px-2.5 py-1 text-xs text-(--color-sheet-ink)"
+    >
+      {chip.kicker ? (
+        <>
+          <span className="font-semibold text-(--color-sheet-ink-soft)">{chip.kicker}</span>
+          <span aria-hidden className="text-(--color-sheet-ink-soft)">
+            →
+          </span>
+        </>
+      ) : null}
+      <span>{chip.label}</span>
+    </span>
+  )
+}
+
+function EcgChip({ id }: { id: string }) {
+  const chip = ecgChipOf(id) as { label: string; title: string }
+  return (
+    <span
+      title={chip.title}
+      className="inline-flex rounded-full border border-[rgba(79,138,203,0.22)] bg-[rgba(79,138,203,0.08)] px-2.5 py-1 text-xs text-[#365f87]"
+    >
+      {chip.label}
+    </span>
+  )
+}
+
+function ForeclosedBody({
+  capture,
+  companion,
+  committedDirection,
+  onAsk,
+}: {
+  capture: TrajectoryCapture
+  companion: string
+  committedDirection: string | null
+  onAsk: (prompt: string) => void
+}) {
+  const bearings = (capture.trajectory?.bearings ?? []).slice(0, 2)
+  return (
+    <div className="mx-auto max-w-3xl space-y-5">
+      {committedDirection ? (
+        <section className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+            Your committed direction
+          </p>
+          <p className="mt-2 text-base font-semibold text-(--color-sheet-ink)">
+            {committedDirection}
+          </p>
+        </section>
+      ) : null}
+      <section>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+          Worth holding up next to yours
+        </p>
+        <ol className="mt-3 space-y-3">
+          {bearings.map((bearing, i) => (
+            <li
+              key={bearing.title ?? i}
+              className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4"
+            >
+              <h3 className="flex gap-3 text-sm font-semibold text-(--color-sheet-ink)">
+                <span className="text-(--color-sheet-ink-soft) tabular-nums">{i + 1}</span>
+                {bearing.title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-(--color-sheet-ink-soft)">
+                {bearing.prompt}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </section>
+      <section className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5">
+        <p className="text-sm font-semibold text-(--color-sheet-ink)">
+          {FORECLOSED_CHALLENGE_PROMPT.title}
+        </p>
+        <button
+          type="button"
+          onClick={() => onAsk(FORECLOSED_CHALLENGE_PROMPT.prompt as string)}
+          className="mt-3 inline-flex cursor-pointer items-center rounded-full bg-(--color-onb-accent) px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.96]"
+        >
+          Open the question with {companion} →
+        </button>
+      </section>
+    </div>
+  )
+}
+
+function AchievedBody({ capture }: { capture: TrajectoryCapture }) {
+  const bearings = capture.trajectory?.bearings ?? []
+  return (
+    <ol className="mx-auto max-w-3xl space-y-4">
+      {bearings.map((bearing, i) => {
+        const actions = (actionsForCluster(bearing.clusterId) ?? []) as string[]
+        return (
+          <li
+            key={bearing.title ?? i}
+            className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5"
+          >
+            <header className="flex items-start gap-3">
+              <span className="text-sm font-semibold text-(--color-sheet-ink-soft) tabular-nums">
+                {i + 1}
+              </span>
+              <h3 className="text-base font-semibold text-(--color-sheet-ink)">{bearing.title}</h3>
+            </header>
+            <p className="mt-2 text-sm leading-relaxed text-(--color-sheet-ink-soft)">
+              {bearing.prompt}
+            </p>
+            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+              Next concrete steps
+            </p>
+            <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-(--color-sheet-ink)">
+              {actions.map((action) => (
+                <li key={action}>{action}</li>
+              ))}
+            </ol>
+            {bearing.msfUrl ? (
+              <a
+                href={bearing.msfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#2b2620] px-4 py-2 text-sm font-semibold text-white transition-transform hover:bg-[#3a342b] active:scale-[0.96]"
+              >
+                Explore on MySkillsFuture
+                <ExternalLink aria-hidden className="size-3.5" />
+              </a>
+            ) : null}
+          </li>
+        )
+      })}
+    </ol>
+  )
+}
+
+function readCommittedDirection(choices: ChoicesLike | null | undefined): string | null {
+  const intentions = choices?.intentions
+  if (Array.isArray(intentions) && intentions.length > 0) {
+    const latest = intentions[intentions.length - 1]
+    if (latest?.change) return latest.change
+  }
+  const decisions = choices?.decisions
+  if (Array.isArray(decisions) && decisions.length > 0) {
+    const latest = decisions[decisions.length - 1]
+    if (latest?.chose) return latest.chose
+    if (latest?.decision) return latest.decision
+  }
+  return null
 }

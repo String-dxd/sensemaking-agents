@@ -73,8 +73,8 @@ export function DevPalette() {
       },
       {
         id: 'dev-overlay',
-        label: devOverlayHidden ? 'Show developer overlay' : 'Hide developer overlay',
-        hint: 'FPS + time HUD',
+        label: devOverlayHidden ? 'Show world controls' : 'Hide world controls',
+        hint: 'HUD panel',
         run: () => {
           setOpen(false)
           applyDevOverlayHidden(!devOverlayHidden)
@@ -83,16 +83,16 @@ export function DevPalette() {
       {
         id: 'restart-onboarding',
         label: 'Restart onboarding',
-        hint: '/#onboarding',
+        hint: '/onboarding',
         run: () => {
           setOpen(false)
           signOutEngine()
           try {
             localStorage.removeItem(ONBOARDING_STORAGE_KEY)
           } catch {
-            // Non-fatal: the #onboarding boot path also resets the slice.
+            // Non-fatal: the /onboarding boot path also resets the slice.
           }
-          window.location.assign('/#onboarding')
+          window.location.assign('/onboarding')
         },
       },
       {
@@ -110,7 +110,7 @@ export function DevPalette() {
           // no further saves can fire during the sign-out POST flight.
           signOutEngine()
           clearStudentSpaceLocalState()
-          // POST via a hidden form mirrors ProfileSheetChrome's sign-out
+          // POST via a hidden form mirrors the profile sheet's sign-out
           // pattern. The GET handler skips the same-origin guard the POST
           // handler enforces; using POST removes a cross-site forced-logout
           // vector.

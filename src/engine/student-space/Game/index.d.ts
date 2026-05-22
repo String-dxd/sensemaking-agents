@@ -48,7 +48,7 @@ export interface GameOptions {
   /**
    * Server-resolved auth menu, captured by the host once during boot. The
    * engine builds its `state.auth` slice from this and surfaces auth state
-   * in chrome (TopNav, ProfileSheet, the onboarding login surface).
+   * in React chrome (ProfileSheet and the onboarding login surface).
    */
   authMenu?: AuthMenuState | null
   /**

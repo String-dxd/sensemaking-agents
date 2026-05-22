@@ -28,6 +28,7 @@
   --color-sheet-ink-soft: rgba(43, 38, 32, 0.62);
   --color-sheet-ink-faint: rgba(43, 38, 32, 0.32);
   --color-sheet-divider: rgba(43, 38, 32, 0.06);
+  --color-sheet-tab-active: rgba(43, 38, 32, 0.075);
   --blur-sheet: 10px;
   --duration-sheet: 200ms;
   --ease-sheet: cubic-bezier(0.22, 1, 0.36, 1);

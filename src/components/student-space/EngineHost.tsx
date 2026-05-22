@@ -11,7 +11,12 @@ import {
   useStudentSpaceRouteSync,
 } from '~/lib/student-space/route-sync'
 import { EngineContext } from '~/lib/student-space/use-engine'
+import { EngineOverlayProvider, useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
 import { cn } from '~/lib/utils'
+import { AskSheet } from './capture/AskSheet'
+import { CaptureChooser } from './capture/CaptureChooser'
+import { MoodSheet } from './capture/MoodSheet'
+import { SideRail } from './navigation/SideRail'
 import { OnboardingFlow } from './onboarding/OnboardingFlow'
 
 // Surfaces that render empty without server data — we defer the open call
@@ -33,9 +38,8 @@ const SURFACES_REQUIRING_HYDRATION = new Set(['trajectory'])
  * `/` route's component output.
  *
  * The engine is loaded via dynamic import inside `useEffect`. Static import
- * is unsafe under SSR: some engine modules read `window` / `document` at
- * top-level evaluation (e.g. `KiraDialogue.js` reads
- * `window.matchMedia('(prefers-reduced-motion: reduce)')` at module load).
+ * is unsafe under SSR: some engine modules still expect a browser-owned
+ * `window` / `document` during evaluation.
  */
 export function EngineHost({ className, children }: { className?: string; children?: ReactNode }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -57,6 +61,7 @@ export function EngineHost({ className, children }: { className?: string; childr
     () => surfaceFromPathname(location.pathname),
     [location.pathname],
   )
+  const isWorldRoute = location.pathname === '/' || location.pathname === '/onboarding'
 
   // Defer the open call for surfaces that render empty without server
   // data, until the snapshot promise has resolved.
@@ -76,36 +81,13 @@ export function EngineHost({ className, children }: { className?: string; childr
   // reported when switching pages and saves GPU on every non-`/` route.
   useEffect(() => {
     if (!game) return
-    game.setRenderActive(location.pathname === '/')
-  }, [game, location.pathname])
+    game.setRenderActive(isWorldRoute)
+  }, [game, isWorldRoute])
 
-  // U20: SideRail is engine-rendered but React owns its lifecycle. It
-  // persists across every route (the nav rail is visible on / and on every
-  // routed sheet alike, so EngineHost is the correct mount scope rather
-  // than StudentSpaceHost which only mounts on `/`).
   useEffect(() => {
-    if (!game) return
-    let widget: { dispose?: () => void; update?: () => void } | null = null
-    let cancelled = false
-    void (async () => {
-      // @ts-expect-error untyped engine module
-      const mod = (await import('~/engine/student-space/Game/View/SideRail.js')) as {
-        default?: new () => { dispose?: () => void; update?: () => void }
-      }
-      if (cancelled) return
-      const SideRail = mod.default
-      if (!SideRail) return
-      widget = new SideRail()
-    })()
-    return () => {
-      cancelled = true
-      try {
-        widget?.dispose?.()
-      } catch {
-        // engine widget dispose swallows errors; preserve that posture
-      }
-    }
-  }, [game])
+    document.body.classList.toggle('student-space-page-route', !isWorldRoute)
+    return () => document.body.classList.remove('student-space-page-route')
+  }, [isWorldRoute])
 
   // U16: OnboardingFlow is now a React component (`<OnboardingFlow />`)
   // rendered as a child of EngineHost — see below. The reveal-prep hide-
@@ -233,14 +215,95 @@ export function EngineHost({ className, children }: { className?: string; childr
 
   return (
     <EngineContext.Provider value={game}>
-      {/* Engine owns positioning via `.game` (frame inset + rounded corners).
+      <EngineOverlayProvider>
+        {/* Engine owns positioning via `.game` (frame inset + rounded corners).
           Inline Tailwind `fixed inset-0` utilities would override the inset
           rules and the rounded frame would extend edge-to-edge. */}
-      <div ref={containerRef} className={cn('game', className)} />
-      <OnboardingFlow />
-      {children}
+        <div
+          ref={containerRef}
+          aria-hidden={!isWorldRoute}
+          className={cn(
+            'game',
+            !isWorldRoute && 'pointer-events-none invisible opacity-0',
+            className,
+          )}
+        />
+        <RouteOverlayEffects isWorldRoute={isWorldRoute} />
+        {game ? <SideRail game={game} /> : null}
+        {game ? <CaptureOverlayBridge game={game} /> : null}
+        <CaptureChooser />
+        <AskSheet />
+        <MoodSheet />
+        <OnboardingFlow />
+        {children}
+      </EngineOverlayProvider>
     </EngineContext.Provider>
   )
+}
+
+function RouteOverlayEffects({ isWorldRoute }: { isWorldRoute: boolean }) {
+  const overlay = useEngineOverlay()
+  const { closeCapture, setActiveChooser } = overlay
+
+  useEffect(() => {
+    if (isWorldRoute) return
+    closeCapture()
+    setActiveChooser(false)
+  }, [closeCapture, isWorldRoute, setActiveChooser])
+
+  return null
+}
+
+function CaptureOverlayBridge({ game }: { game: Game }) {
+  const overlay = useEngineOverlay()
+  const overlayRef = useRef(overlay)
+  overlayRef.current = overlay
+
+  useEffect(() => {
+    const controller = (
+      game as unknown as {
+        view?: {
+          overlayController?: {
+            register?: (
+              name: string,
+              surface: {
+                open?: (opts?: Record<string, unknown>) => void
+                close?: () => void
+              },
+            ) => void
+            unregister?: (name: string) => void
+          }
+        }
+      }
+    ).view?.overlayController
+    if (!controller?.register) return
+
+    controller.register('chooser', {
+      open: () => overlayRef.current.setActiveChooser(true),
+      close: () => overlayRef.current.setActiveChooser(false),
+    })
+    controller.register('ask', {
+      open: (opts = {}) => overlayRef.current.openCapture('ask', opts),
+      close: () => overlayRef.current.closeCapture(),
+    })
+    controller.register('photo', {
+      open: (opts = {}) => overlayRef.current.openCapture('ask', opts),
+      close: () => overlayRef.current.closeCapture(),
+    })
+    controller.register('mood', {
+      open: (opts = {}) => overlayRef.current.openCapture('mood', opts),
+      close: () => overlayRef.current.closeCapture(),
+    })
+
+    return () => {
+      controller.unregister?.('chooser')
+      controller.unregister?.('ask')
+      controller.unregister?.('photo')
+      controller.unregister?.('mood')
+    }
+  }, [game])
+
+  return null
 }
 
 function EngineLoadFailure({ error }: { error: Error }) {

@@ -1,6 +1,6 @@
 // Ambient declarations for the engine onboarding copy registry. The runtime
 // module is `copy.js` — these types let React surfaces (Greeting, SkipButton,
-// EngineStageMount, OnboardingFlow) import the typed exports without a
+// OnboardingFlow, and step components) import the typed exports without a
 // `@ts-expect-error`. Mirror the shape of the frozen object exactly so a
 // drift between `.js` and `.d.ts` shows up as a missing-property error.
 

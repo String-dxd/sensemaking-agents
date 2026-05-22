@@ -27,8 +27,7 @@ import State from '../State/State.js'
 // OnboardingFlow lifecycle moved to React (U16–U19) — see
 // `src/components/student-space/EngineHost.tsx`. The ceremony surfaces
 // (Greeting / EggHatcher / FirstChat / FirstMood / IslandReveal /
-// EdupassLogin) still draw their own DOM; only the orchestrator's
-// construction site changed.
+// EdupassLogin) now render from React components.
 
 export default class View
 {
@@ -89,30 +88,26 @@ export default class View
         // HourHud, StatusPreviewHud, ZoomHud, FpsOverlay moved to React-owned
         // lifecycle in U13 — see `src/components/StudentSpaceHost.tsx`.
         this.sound       = new Sound()
-        // OverlayController is constructed *before* anything that registers
-        // with it (CaptureFab and TopNav). Its getInstance() lookup is the
-        // contract every surface depends on.
+        // OverlayController stays as the compatibility bridge for legacy
+        // in-world callers. React capture surfaces register proxy handlers in
+        // StudentSpaceHost so old `open('ask'|'mood')` calls still work.
         this.overlayController = new OverlayController()
-        // CaptureFab + CaptureChooser lifecycle moved to React (U10) — see
-        // `src/components/StudentSpaceHost.tsx`.
+        // CaptureFab + CaptureChooser + AskSheet + MoodSheet moved to React
+        // (U8–U10) — see `src/components/StudentSpaceHost.tsx`.
         this.facetView   = new FacetView()
         // ProfileSheet migrated to React route at /profile (U7).
         // No engine registration needed — the route owns rendering.
         // ObjectPeek + HoverCta + HoverProbe lifecycle moved to React
         // (U14). React assigns view.objectPeek, view.hoverCta, view.hoverProbe
         // so engine code (HoverProbe internals, KiraNarrator) still finds them.
-        // Vertical icon rail on the left — the primary navigation surface.
-        // Replaces the old TopNav pill cluster + standalone onboarding-restart
-        // chip; both have been folded into the rail. See SideRail.js.
-        // SideRail lifecycle moved to React (U20) — see
+        // Vertical icon rail lifecycle moved to React (U20) — see
         // `src/components/student-space/EngineHost.tsx` (rail is mounted at
         // engine-host scope so it's visible across every route, matching
         // legacy posture).
         // KiraDialogue + KiraNarrator lifecycle moved to React (U12) — see
         // `src/components/StudentSpaceHost.tsx`. The React owner assigns
         // `view.kiraDialogue` + `view.kiraNarrator` so engine code (HoverProbe,
-        // CaptureFab, KiraNarrator internals) keeps finding them at those
-        // refs.
+        // KiraNarrator internals) keeps finding them at those refs.
         // BirdPicker + TrackPicker lifecycle moved to React (U15) — see
         // `src/components/StudentSpaceHost.tsx`.
 
@@ -198,8 +193,7 @@ export default class View
         //
         // Every chrome subsystem that registers a document- or window-level
         // listener, a state-store subscription, or a Three.js scene addition
-        // now implements dispose(). CaptureFab cascades to its owned
-        // sheets (moodSheet / askSheet / photoSheet / chooser); CalendarSheet
+        // now implements dispose(). React owns capture surfaces; CalendarSheet
         // cascades to DayDetailCard. The handful of subsystems still without
         // a dispose() either don't appendChild to body (their DOM is owned
         // by a parent surface) or are pure scene-graph nodes torn down by

@@ -94,8 +94,8 @@ export function LettersSheet() {
   }
 
   const handleCapture = (prompt: string) => {
-    // Until U8 migrates AskSheet, the engine still owns the Ask flow. Open
-    // it through OverlayController so the existing flow runs unchanged.
+    // Open the React Ask flow through the compatibility OverlayController so
+    // legacy in-world callers and routed React sheets share one handoff.
     type OverlayControllerLike = { open: (name: string, opts: unknown) => void }
     const overlay = (
       engine as unknown as { view?: { overlayController?: OverlayControllerLike } } | null
@@ -121,20 +121,22 @@ export function LettersSheet() {
               Notes from your form teacher when they notice something worth saying.
             </SheetDescription>
           </SheetIdentityHeader>
-          <div className="px-4 pb-6" role="list" aria-label="Letters">
+          <div className="px-4 pb-6">
             {sorted.length === 0 ? (
               <p className="text-sm text-(--color-sheet-ink-soft)">
                 No letters yet. Your teacher will write when they notice something.
               </p>
             ) : (
-              sorted.map((letter) => (
-                <LetterRow
-                  key={letter.id}
-                  letter={letter}
-                  selected={letter.id === selectedId}
-                  onSelect={handleSelect}
-                />
-              ))
+              <ul className="space-y-1" aria-label="Letters">
+                {sorted.map((letter) => (
+                  <LetterRow
+                    key={letter.id}
+                    letter={letter}
+                    selected={letter.id === selectedId}
+                    onSelect={handleSelect}
+                  />
+                ))}
+              </ul>
             )}
           </div>
         </SheetSidebar>
@@ -185,39 +187,40 @@ function LetterRow({
   onSelect: (id: string) => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(letter.id)}
-      data-selected={selected || undefined}
-      data-unread={!letter.read || undefined}
-      role="listitem"
-      className={cn(
-        'group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors',
-        'hover:bg-black/5 data-[selected]:bg-(--color-sheet-pane-left)',
-        'active:scale-[0.98] transition-transform',
-      )}
-    >
-      <span
-        aria-hidden
+    <li>
+      <button
+        type="button"
+        onClick={() => onSelect(letter.id)}
+        data-selected={selected || undefined}
+        data-unread={!letter.read || undefined}
         className={cn(
-          'mt-1.5 size-2 shrink-0 rounded-full bg-(--color-facet-personality-accent)',
-          letter.read && 'opacity-0',
+          'group flex w-full items-start gap-3 rounded-lg px-3 py-3 text-left transition-colors',
+          'hover:bg-[rgba(43,38,32,0.045)] data-[selected]:bg-(--color-sheet-tab-active)',
+          'active:scale-[0.98] transition-transform',
         )}
-      />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-sm font-medium text-(--color-sheet-ink)">
-            {letter.from}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            'mt-1.5 size-2 shrink-0 rounded-full bg-(--color-facet-personality-accent)',
+            letter.read && 'opacity-0',
+          )}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline justify-between gap-2">
+            <span className="truncate text-sm font-medium text-(--color-sheet-ink)">
+              {letter.from}
+            </span>
+            <span className="shrink-0 text-xs text-(--color-sheet-ink-soft)">
+              {formatSent(letter.sentAt)}
+            </span>
           </span>
-          <span className="shrink-0 text-xs text-(--color-sheet-ink-soft)">
-            {formatSent(letter.sentAt)}
+          <span className="mt-0.5 line-clamp-2 block text-sm text-(--color-sheet-ink-soft)">
+            {letter.subject}
           </span>
         </span>
-        <span className="mt-0.5 line-clamp-2 block text-sm text-(--color-sheet-ink-soft)">
-          {letter.subject}
-        </span>
-      </span>
-    </button>
+      </button>
+    </li>
   )
 }
 

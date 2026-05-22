@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 
-// @ts-expect-error internal JS engine modules are intentionally untyped.
 import * as elementEvidence from '~/engine/student-space/Game/View/elementEvidence.js'
 
 const { evidenceCountText, latestEvidenceLine, metaphorLine, resolveElementEvidence } =

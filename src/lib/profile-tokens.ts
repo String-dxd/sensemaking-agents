@@ -3,7 +3,7 @@
  * dimensions' colors, student-voice headers, and typography.
  *
  * Consumed by:
- *   - React: src/components/ProfileSheetChrome.tsx, src/components/share/*
+ *   - React: src/components/student-space/sheets/ProfileSheet.tsx, src/components/share/*
  *   - PDF:   src/components/share/ProfilePdfDocument.tsx (via @react-pdf/renderer)
  *   - Engine: src/engine/student-space/Game/View/profile-tokens.constants.js
  *             (hand-maintained mirror, drift-checked by test/lib/profile-tokens.test.ts)
@@ -91,7 +91,7 @@ export interface ProfileThemeTokens extends ProfileColorTokens {
 
 /**
  * Tailwind utility-class strings layered on top of the shared color tokens.
- * Used by React surfaces (ProfileSheetChrome, PublicProfilePage). The engine
+ * Used by React surfaces (ProfileSheet, PublicProfilePage). The engine
  * substrate uses raw CSS variables instead of Tailwind, so this layer is not
  * mirrored to the engine .constants.js file.
  */

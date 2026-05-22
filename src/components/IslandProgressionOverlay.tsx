@@ -1,4 +1,6 @@
+import { Check, Move } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { WorldIconButton } from '~/components/student-space/hud/StudentSpaceHud'
 import type { Game } from '~/engine/student-space/Game'
 
 /**
@@ -177,37 +179,19 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
         </div>
       ) : null}
 
-      <button
-        type="button"
+      <WorldIconButton
         onClick={toggleEditMode}
-        aria-pressed={editMode}
-        aria-label={editMode ? 'Finish arranging' : 'Arrange island'}
-        style={{
-          position: 'absolute',
-          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 18px)',
-          left: 18,
-          padding: '8px 14px',
-          borderRadius: 999,
-          border: 'none',
-          background: editMode ? '#3B5A2B' : 'rgba(255, 251, 230, 0.94)',
-          color: editMode ? '#FFFBE6' : '#1A3A14',
-          fontFamily: 'system-ui, sans-serif',
-          fontSize: 13,
-          fontWeight: 600,
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.22)',
-          cursor: 'pointer',
-          pointerEvents: 'auto',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
+        pressed={editMode}
+        label={editMode ? 'Finish arranging' : 'Arrange island'}
+        className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+18px)] left-[18px] pointer-events-auto"
         data-arrange-toggle
       >
-        <span aria-hidden="true" style={{ fontSize: 14, lineHeight: 1 }}>
-          {editMode ? '✓' : '✥'}
-        </span>
-        {editMode ? 'Done' : 'Arrange'}
-      </button>
+        {editMode ? (
+          <Check aria-hidden="true" className="size-4" />
+        ) : (
+          <Move aria-hidden="true" className="size-4" />
+        )}
+      </WorldIconButton>
 
       <section
         // Toast stack — bottom-center, above the mood-hud band. Tray

@@ -1,6 +1,6 @@
 ---
 title: "refactor: Full DOM → React + Tailwind migration of the engine view layer"
-status: active
+status: completed
 created: 2026-05-22
 type: refactor
 depth: deep
