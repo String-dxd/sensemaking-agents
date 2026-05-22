@@ -42,6 +42,7 @@ export type StudentSpaceSurface =
   | 'growth'
   | 'history'
   | 'letters'
+  | 'settings'
   // Legacy alias — `calendar` deep-links now route into History (Timeline tab).
   // Kept in the union so the `pathnameForSurface` switch stays exhaustive.
   | 'calendar'

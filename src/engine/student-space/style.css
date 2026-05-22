@@ -8369,107 +8369,24 @@ body.is-onboarding .kira-bubble
     display: none;
 }
 
-/* ── Settings sheet ─────────────────────────────────────────────────
-   v1 hosts the moved Reset Onboarding action. Layout mirrors the rest
-   of the full-viewport sheets — column inside .sheet-chrome__body with
-   ~760px max width matching the shared header. */
-.settings-sheet .sheet-chrome__body
-{
-    padding: 24px max(24px, calc((100% - 760px) / 2 + 24px)) 48px;
-    color: #2b2620;
-    font-family: var(--font-sans);
-}
-/* Split-layout overrides — Settings uses the Gather-style two-pane
-   chrome. Left pane carries an orientation paragraph under the compact
-   title; right pane holds the 5 admin sections (no max-width centering
-   needed since the chrome pane already constrains width). */
-.settings-sheet.sheet-chrome--split .sheet-chrome__intro
-{
-    padding: 0 24px 24px;
-}
-.settings-sheet__intro-copy
-{
-    margin: 0;
-    color: rgba(43, 38, 32, 0.72);
-    font-size: 13.5px;
-    line-height: 1.55;
-}
-.settings-sheet.sheet-chrome--split .sheet-chrome__body
-{
-    padding: 24px 32px 64px;
-}
-.settings-sheet__group
-{
-    margin: 0;
-    padding: 24px 0;
-    border-bottom: 1px solid rgba(43, 38, 32, 0.06);
-}
-.settings-sheet__group:last-child { border-bottom: none; }
-.settings-sheet__group-title
-{
-    margin: 0 0 6px;
-    font-size: 12px;
-    font-weight: 600;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: rgba(43, 38, 32, 0.55);
-}
-.settings-sheet__row-help
-{
-    margin: 0 0 12px;
-    color: rgba(43, 38, 32, 0.72);
-    font-size: 14px;
-    line-height: 1.5;
-}
-.settings-sheet__row
-{
-    display: flex;
-    gap: 12px;
-    align-items: center;
-}
-.settings-sheet__action
-{
-    appearance: none;
-    border: 1px solid rgba(43, 38, 32, 0.18);
-    background: #fff;
-    color: #2b2620;
-    font: 500 14px/1 var(--font-sans);
-    padding: 10px 16px;
-    border-radius: 10px;
-    cursor: pointer;
-    transition: background 160ms ease, border-color 160ms ease;
-}
-.settings-sheet__action:hover
-{
-    background: #f7f3ea;
-    border-color: rgba(43, 38, 32, 0.32);
-}
-.settings-sheet__action:focus-visible
-{
-    outline: 3px solid rgba(255, 138, 92, 0.7);
-    outline-offset: 2px;
-}
+/* Embedded admin UIs — the four admin pickers (HourHud, TrackPicker,
+   BirdPicker, StatusPreviewHud) default to `position: fixed` so they
+   float at body level on their own. When mounted inside the React
+   SettingsSheet's slot divs, that positioning is meaningless — reset it
+   so each picker flows as content. The dark-glass tile styling is
+   preserved so the admin tier reads visually distinct from the cream
+   settings chrome around it.
 
-/* Embedded admin UIs ─────────────────────────────────────────────────
-   The four admin pickers (HourHud, TrackPicker, BirdPicker,
-   StatusPreviewHud) each carry `position: fixed` defaults so they can
-   float at body level on their own. Inside SettingsSheet, that
-   positioning is meaningless — reset it so each picker flows as the
-   content of its section. The dark-glass tile styling is preserved so
-   the admin tier still reads visually distinct from the cream settings
-   chrome around it. */
-.settings-sheet__admin-slot
-{
-    margin-top: 4px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.settings-sheet .hour-hud,
-.settings-sheet .track-picker,
-.settings-sheet .bird-picker,
-.settings-sheet .status-preview-hud
+   Kept after the U4 React migration because the React SettingsSheet
+   still mounts the engine widgets imperatively until U13/U15 migrate
+   them to React. The legacy `.settings-sheet` selector is replaced by
+   the React component's `[data-testid^=settings-mount-]` slots, but
+   class-targeted picker styles still apply since the engine widgets
+   render the same DOM. */
+[data-testid^="settings-mount-"] .hour-hud,
+[data-testid^="settings-mount-"] .track-picker,
+[data-testid^="settings-mount-"] .bird-picker,
+[data-testid^="settings-mount-"] .status-preview-hud
 {
     position: static;
     top: auto;
@@ -8479,11 +8396,7 @@ body.is-onboarding .kira-bubble
     transform: none;
     z-index: auto;
 }
-
-/* StatusPreviewHud's menu is `position: absolute`; give the root a
-   positioning context so the popout still anchors correctly to the
-   toggle (rather than escaping to the nearest fixed ancestor). */
-.settings-sheet .status-preview-hud { position: relative; }
+[data-testid="settings-mount-status"] .status-preview-hud { position: relative; }
 
 /* ── Visual primitives (shared across full-viewport sheets) ─────────
    TLDR hero, disclosure, stat tile row, and callout strip — composed

@@ -69,6 +69,8 @@ export function surfaceFromPathname(pathname: string): StudentSpaceOpenSurfaceIn
       return { surface: 'letters' }
     case 'trajectory':
       return { surface: 'trajectory' }
+    case 'settings':
+      return { surface: 'settings' }
     default:
       return null
   }
@@ -116,6 +118,8 @@ export function pathnameForSurface(opts: PathnameOptions): string {
       return `/letters${hash}`
     case 'trajectory':
       return `/trajectory${hash}`
+    case 'settings':
+      return `/settings${hash}`
     default:
       return `/${hash}`
   }
