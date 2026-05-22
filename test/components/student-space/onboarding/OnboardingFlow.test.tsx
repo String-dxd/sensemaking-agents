@@ -368,9 +368,9 @@ describe('OnboardingFlow (React)', () => {
       renderFlow(game)
 
       await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Chat a bit more' })).toBeInTheDocument(),
+        expect(screen.getByRole('button', { name: 'Tell me more' })).toBeInTheDocument(),
       )
-      await userEvent.click(screen.getByRole('button', { name: 'Chat a bit more' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Tell me more' }))
       await waitFor(() =>
         expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
           'Anything else on your mind?',

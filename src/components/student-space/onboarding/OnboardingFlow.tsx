@@ -281,18 +281,16 @@ export function OnboardingFlow() {
     ) : null
 
   return (
-    <>
-      <div
-        ref={rootRef}
-        className="fixed inset-0 z-50 block overflow-hidden"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Student Space onboarding"
-      >
-        <StageSlot stage={stage}>{surface}</StageSlot>
-      </div>
+    <div
+      ref={rootRef}
+      className="fixed inset-0 z-50 block overflow-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Student Space onboarding"
+    >
+      <StageSlot stage={stage}>{surface}</StageSlot>
       <SkipButton game={engine} stage={stage} />
-    </>
+    </div>
   )
 }
 
