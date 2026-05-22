@@ -42,7 +42,13 @@ export function StudentSpaceHost() {
         import('~/engine/student-space/Game/View/TrackPicker.js'),
         // @ts-expect-error untyped engine module
         import('~/engine/student-space/Game/View/CaptureFab.js'),
+        // @ts-expect-error untyped engine module
+        import('~/engine/student-space/Game/View/KiraDialogue.js'),
+        // @ts-expect-error untyped engine module
+        import('~/engine/student-space/Game/View/KiraNarrator.js'),
       ])) as unknown as [
+        { default?: WidgetCtor },
+        { default?: WidgetCtor },
         { default?: WidgetCtor },
         { default?: WidgetCtor },
         { default?: WidgetCtor },
@@ -59,6 +65,8 @@ export function StudentSpaceHost() {
       const BirdPicker = modules[4].default
       const TrackPicker = modules[5].default
       const CaptureFab = modules[6].default
+      const KiraDialogue = modules[7].default
+      const KiraNarrator = modules[8].default
       if (
         !HourHud ||
         !StatusPreviewHud ||
@@ -66,7 +74,9 @@ export function StudentSpaceHost() {
         !FpsOverlay ||
         !BirdPicker ||
         !TrackPicker ||
-        !CaptureFab
+        !CaptureFab ||
+        !KiraDialogue ||
+        !KiraNarrator
       )
         return
 
@@ -81,14 +91,23 @@ export function StudentSpaceHost() {
       // by this point EngineHost has booted the engine so those deps are live.
       const bird = new BirdPicker()
       const track = new TrackPicker()
+      // U12: KiraDialogue + KiraNarrator must be constructed before
+      // CaptureFab (which reads view.kiraNarrator in setKiraNarrator) and
+      // re-attached to the view so engine code (HoverProbe, KiraNarrator
+      // internals) still finds them at view.kiraNarrator / view.kiraDialogue.
+      const dialogue = new KiraDialogue()
+      const narrator = new KiraNarrator()
+      const view = (game as unknown as { view?: Record<string, unknown> } | null)?.view
+      if (view) {
+        view.kiraDialogue = dialogue
+        view.kiraNarrator = narrator
+      }
       // U10: CaptureFab owns its CaptureChooser internally; once constructed
       // we wire it to the engine's KiraNarrator so the capture-from-narrator
       // path keeps working.
       const fab = new CaptureFab() as { setKiraNarrator?: (n: unknown) => void; dispose?: () => void }
-      const narrator = (game as unknown as { view?: { kiraNarrator?: unknown } } | null)?.view
-        ?.kiraNarrator
-      if (narrator) fab.setKiraNarrator?.(narrator)
-      widgets = [hour, status, zoom, fps, bird, track, fab]
+      fab.setKiraNarrator?.(narrator)
+      widgets = [hour, status, zoom, fps, bird, track, dialogue, narrator, fab]
     })()
 
     return () => {

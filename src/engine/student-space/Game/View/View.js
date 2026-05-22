@@ -15,7 +15,6 @@ import Butterflies from './Butterflies.js'
 import Fireflies from './Fireflies.js'
 import Particles from './Particles.js'
 import Kira from './Kira.js'
-import KiraDialogue from './KiraDialogue.js'
 import Aurora from './Aurora.js'
 import Rainbow from './Rainbow.js'
 import Rain from './Rain.js'
@@ -23,7 +22,6 @@ import Sound from './Sound.js'
 import FacetView from './FacetView.js'
 import HoverCta from './HoverCta.js'
 import HoverProbe from './HoverProbe.js'
-import KiraNarrator from './KiraNarrator.js'
 import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
@@ -116,13 +114,11 @@ export default class View
         // that are also already live above.
         this.hoverCta    = new HoverCta()
         this.hoverProbe  = new HoverProbe()
-        this.kiraDialogue = new KiraDialogue()
-        // KiraNarrator is the AC-style mediated dialogue that runs on element
-        // click. Constructed after KiraDialogue so it can suppress the ambient
-        // bubble during a narration beat.
-        this.kiraNarrator = new KiraNarrator()
-        // captureFab.setKiraNarrator wiring moved to React useEffect (U10).
-        // The React owner reaches kiraNarrator via game.view.kiraNarrator.
+        // KiraDialogue + KiraNarrator lifecycle moved to React (U12) — see
+        // `src/components/StudentSpaceHost.tsx`. The React owner assigns
+        // `view.kiraDialogue` + `view.kiraNarrator` so engine code (HoverProbe,
+        // CaptureFab, KiraNarrator internals) keeps finding them at those
+        // refs.
         // BirdPicker + TrackPicker lifecycle moved to React (U15) — see
         // `src/components/StudentSpaceHost.tsx`.
 
@@ -182,8 +178,11 @@ export default class View
         this.telescope.update()
         // Narrator after kira so its yaw-tween wins over any Kira-driven
         // rotation, then dialogue (which reads Kira's screen position).
-        this.kiraNarrator.update()
-        this.kiraDialogue.update()
+        // Both widgets are React-owned (U12); they're attached to `this`
+        // via the React useEffect so engine code (and this update loop)
+        // still finds them.
+        this.kiraNarrator?.update?.()
+        this.kiraDialogue?.update?.()
         this.objectPeek.update()
         if(tickAmbient)
             this.aurora.update()
@@ -232,8 +231,6 @@ export default class View
             this.onboardingFlow,
             this.camera,
             this.sound,
-            this.kiraDialogue,
-            this.kiraNarrator,
             this.profileSheet,
             this.facetView,
             this.hoverProbe,
