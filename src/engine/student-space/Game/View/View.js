@@ -20,7 +20,6 @@ import Aurora from './Aurora.js'
 import Rainbow from './Rainbow.js'
 import Rain from './Rain.js'
 import Sound from './Sound.js'
-import CaptureFab from './CaptureFab.js'
 import FacetView from './FacetView.js'
 import HoverCta from './HoverCta.js'
 import HoverProbe from './HoverProbe.js'
@@ -97,7 +96,8 @@ export default class View
         // with it (CaptureFab and TopNav). Its getInstance() lookup is the
         // contract every surface depends on.
         this.overlayController = new OverlayController()
-        this.captureFab  = new CaptureFab()
+        // CaptureFab + CaptureChooser lifecycle moved to React (U10) — see
+        // `src/components/StudentSpaceHost.tsx`.
         this.facetView   = new FacetView()
         this.profileSheet  = new ProfileSheet()
         this.overlayController.register('profile', this.profileSheet)
@@ -119,7 +119,8 @@ export default class View
         // click. Constructed after KiraDialogue so it can suppress the ambient
         // bubble during a narration beat.
         this.kiraNarrator = new KiraNarrator()
-        this.captureFab.setKiraNarrator(this.kiraNarrator)
+        // captureFab.setKiraNarrator wiring moved to React useEffect (U10).
+        // The React owner reaches kiraNarrator via game.view.kiraNarrator.
         // BirdPicker + TrackPicker lifecycle moved to React (U15) — see
         // `src/components/StudentSpaceHost.tsx`.
 
@@ -232,7 +233,6 @@ export default class View
             this.kiraDialogue,
             this.kiraNarrator,
             this.sideRail,
-            this.captureFab,
             this.profileSheet,
             this.facetView,
             this.hoverProbe,

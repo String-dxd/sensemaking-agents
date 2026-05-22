@@ -40,7 +40,10 @@ export function StudentSpaceHost() {
         import('~/engine/student-space/Game/View/BirdPicker.js'),
         // @ts-expect-error untyped engine module
         import('~/engine/student-space/Game/View/TrackPicker.js'),
+        // @ts-expect-error untyped engine module
+        import('~/engine/student-space/Game/View/CaptureFab.js'),
       ])) as unknown as [
+        { default?: WidgetCtor },
         { default?: WidgetCtor },
         { default?: WidgetCtor },
         { default?: WidgetCtor },
@@ -55,13 +58,15 @@ export function StudentSpaceHost() {
       const FpsOverlay = modules[3].default
       const BirdPicker = modules[4].default
       const TrackPicker = modules[5].default
+      const CaptureFab = modules[6].default
       if (
         !HourHud ||
         !StatusPreviewHud ||
         !ZoomHud ||
         !FpsOverlay ||
         !BirdPicker ||
-        !TrackPicker
+        !TrackPicker ||
+        !CaptureFab
       )
         return
 
@@ -76,7 +81,14 @@ export function StudentSpaceHost() {
       // by this point EngineHost has booted the engine so those deps are live.
       const bird = new BirdPicker()
       const track = new TrackPicker()
-      widgets = [hour, status, zoom, fps, bird, track]
+      // U10: CaptureFab owns its CaptureChooser internally; once constructed
+      // we wire it to the engine's KiraNarrator so the capture-from-narrator
+      // path keeps working.
+      const fab = new CaptureFab() as { setKiraNarrator?: (n: unknown) => void; dispose?: () => void }
+      const narrator = (game as unknown as { view?: { kiraNarrator?: unknown } } | null)?.view
+        ?.kiraNarrator
+      if (narrator) fab.setKiraNarrator?.(narrator)
+      widgets = [hour, status, zoom, fps, bird, track, fab]
     })()
 
     return () => {
