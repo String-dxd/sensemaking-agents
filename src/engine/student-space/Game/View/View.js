@@ -19,9 +19,6 @@ import KiraDialogue from './KiraDialogue.js'
 import Aurora from './Aurora.js'
 import Rainbow from './Rainbow.js'
 import Rain from './Rain.js'
-import HourHud from './HourHud.js'
-import StatusPreviewHud from './StatusPreviewHud.js'
-import ZoomHud from './ZoomHud.js'
 import Sound from './Sound.js'
 import CaptureFab from './CaptureFab.js'
 import FacetView from './FacetView.js'
@@ -36,7 +33,6 @@ import OverlayController from './OverlayController.js'
 import SideRail from './SideRail.js'
 import ProfileSheet from './ProfileSheet.js'
 import ObjectPeek from './ObjectPeek.js'
-import FpsOverlay from './FpsOverlay.js'
 import State from '../State/State.js'
 import OnboardingFlow from './Onboarding/OnboardingFlow.js'
 
@@ -96,12 +92,9 @@ export default class View
         this.aurora      = new Aurora()
         this.rainbow     = new Rainbow()
         this.rain        = new Rain()
-        this.hourHud     = new HourHud()
-        this.statusPreviewHud = new StatusPreviewHud()
-        // Sound is constructed before ZoomHud so the mute button can read
-        // the persisted preference and subscribe to mute-change events.
+        // HourHud, StatusPreviewHud, ZoomHud, FpsOverlay moved to React-owned
+        // lifecycle in U13 — see `src/components/StudentSpaceHost.tsx`.
         this.sound       = new Sound()
-        this.zoomHud     = new ZoomHud()
         // OverlayController is constructed *before* anything that registers
         // with it (CaptureFab and TopNav). Its getInstance() lookup is the
         // contract every surface depends on.
@@ -135,7 +128,6 @@ export default class View
         // TrackPicker depends on view.sound existing and sits above the
         // BirdPicker chip in the dark-glass admin tier.
         this.trackPicker = new TrackPicker()
-        this.fpsOverlay = new FpsOverlay({ mount: this.hourHud.root })
 
         // First-run ceremony. Constructed last so it can hold every other
         // view subsystem (kira, kiraDialogue, camera, etc.). Skips itself
@@ -201,8 +193,9 @@ export default class View
         this.rainbow.update()
         this.rain.update()
         this.hoverProbe.update()
-        this.hourHud.update()
-        this.fpsOverlay.update()
+        // HourHud / FpsOverlay per-frame ticks moved with the widgets to
+        // React-owned lifecycle (U13). The React HUD wrappers in
+        // StudentSpaceHost call .update() themselves.
         this.sideRail.update()
         this.sound.update()
         this.camera.update()
@@ -244,10 +237,6 @@ export default class View
             this.sound,
             this.kiraDialogue,
             this.kiraNarrator,
-            this.zoomHud,
-            this.fpsOverlay,
-            this.hourHud,
-            this.statusPreviewHud,
             this.sideRail,
             this.captureFab,
             this.profileSheet,
