@@ -14,7 +14,7 @@ import Choices from './State/Choices.js'
 import IdentityStatusOverride from './State/IdentityStatusOverride.js'
 import IslandSnapshotBridge from './State/IslandSnapshotBridge.js'
 import Auth from './State/Auth.js'
-import { HOST_BODY_CLASSES } from './index.js'
+import { HOST_BODY_CLASSES } from './host-body-classes.js'
 
 /**
  * Engine composition root. Owns the rAF loop, the resize listener, and
