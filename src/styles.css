@@ -78,6 +78,16 @@
   --color-onb-card-line: rgba(43, 38, 32, 0.1);
 }
 
+/* Sky palette seed defaults. Lives in the global stylesheet (not the
+   engine's) so the `.game` gradient still resolves when the engine
+   stylesheet is briefly unloaded during HMR swaps. CssSky overrides
+   these per-frame on body + html once DayCycle is ticking. */
+:root {
+  --sky-top: rgb(26, 74, 130);
+  --sky-mid: rgb(96, 216, 232);
+  --sky-bottom: rgb(255, 240, 80);
+}
+
 html,
 body,
 #root {
