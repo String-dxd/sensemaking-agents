@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Vector3 } from 'three'
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
+import { getPreset } from '~/lib/student-space/camera-tuner'
 import { EMOTIONS } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
 
@@ -197,7 +198,12 @@ export function IslandReveal({
     const signal = abortRef.current?.signal ?? new AbortController().signal
     const treeEntry = view?.tree?.entries?.[0]
 
-    view?.camera?.zoomTo?.(new Vector3(3, 5.5, 8), new Vector3(0, 1.8, 0), cameraMs(1400))
+    const treePreset = getPreset('tree-wide')
+    view?.camera?.zoomTo?.(
+      new Vector3(treePreset.camX, treePreset.camY, treePreset.camZ),
+      new Vector3(0, treePreset.lookAtY, 0),
+      cameraMs(treePreset.durationMs),
+    )
     view?.kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.islandSeeded)
 
     await wait(ms(SEEDED_HOLD_MS), signal)
@@ -218,17 +224,22 @@ export function IslandReveal({
     // wide enough to keep the tree visible behind.
     const kira = view?.kira
     if (view?.camera && kira && !reducedMotion) {
-      const yaw = kira.perchYaw ?? 0
+      const closing = getPreset('closing-portrait')
+      const yaw = (kira.perchYaw ?? 0) + (closing.yawOffsetDeg * Math.PI) / 180
       const fx = Math.cos(yaw)
       const fz = -Math.sin(yaw)
-      const lookAt = new Vector3(kira.perchX ?? 0, (kira.perchY ?? 0) + 0.45, kira.perchZ ?? 0)
-      const camPos = new Vector3(
-        lookAt.x + fx * 3.6,
-        lookAt.y + 0.55, // slight downward tilt onto the face
-        lookAt.z + fz * 3.6,
+      const lookAt = new Vector3(
+        kira.perchX ?? 0,
+        (kira.perchY ?? 0) + closing.lookAtYAbovePerch,
+        kira.perchZ ?? 0,
       )
-      view.camera.zoomTo?.(camPos, lookAt, cameraMs(1200))
-      await wait(cameraMs(1200), signal)
+      const camPos = new Vector3(
+        lookAt.x + fx * closing.distance,
+        lookAt.y + closing.camYAboveLookAt,
+        lookAt.z + fz * closing.distance,
+      )
+      view.camera.zoomTo?.(camPos, lookAt, cameraMs(closing.durationMs))
+      await wait(cameraMs(closing.durationMs), signal)
       if (signal.aborted) return
     }
 
@@ -250,16 +261,18 @@ export function IslandReveal({
 
     view?.kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.islandPlantSetup)
     if (flower) {
-      // Look at the bloom slightly above ground (0.5) instead of 0.7 so the
-      // small flower sits centered rather than at the top of the frame;
-      // pull back to ~5.4 units (vs the prior 2.1) so the flower fits with
-      // grass + neighbours visible around it. The earlier 2.1-unit framing
-      // relied on OrbitControls' minDistance clamp to silently push the
-      // camera outward to 6 units, which is no longer happening now that
-      // we skip controls.update() while a cinematic is in flight.
-      const lookAt = new Vector3(flower.x, 0.5, flower.z)
-      const camPos = new Vector3(flower.x, lookAt.y + 2.4, flower.z + 4.8)
-      view?.camera?.zoomTo?.(camPos, lookAt, cameraMs(1100))
+      // Look at the bloom slightly above ground so the small flower sits
+      // centered rather than at the top of the frame; the camera-tuner
+      // preset controls the height + back distance so the dev HUD can
+      // adjust the framing live.
+      const bloomPreset = getPreset('bloom')
+      const lookAt = new Vector3(flower.x, bloomPreset.lookAtY, flower.z)
+      const camPos = new Vector3(
+        flower.x,
+        lookAt.y + bloomPreset.camYAboveLookAt,
+        flower.z + bloomPreset.camZBack,
+      )
+      view?.camera?.zoomTo?.(camPos, lookAt, cameraMs(bloomPreset.durationMs))
     }
 
     await wait(ms(SETUP_HOLD_MS), signal)

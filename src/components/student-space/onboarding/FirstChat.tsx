@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
+import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
 
 /**
@@ -9,16 +10,13 @@ import { cn } from '~/lib/utils'
  * The canvas still owns Kira and the camera. This component owns the DOM
  * sheen, action chips, and timing that asks Kira to fly in, speak, zoom, and
  * then hand off to the first-mood picker.
+ *
+ * Framing values (distance, yaw offset, vertical tilt) live in
+ * `~/lib/student-space/camera-tuner` so the dev HUD (Cmd+K) can tune them
+ * against the live engine and the user can copy results back into source.
  */
 const ENTER_MS = 320
 const FLY_DURATION_S = 2.4
-const ZOOM_MS = 1400
-// Start the camera move while the bird is still mid-arc so the dolly-in
-// and the bird's landing read as one continuous gesture. Tuned so the
-// camera lands ~300ms AFTER the bird settles (so the eye reads
-// "bird lands → camera settles on its face" rather than the reverse).
-// FLY_DURATION_S * 1000 = 2400ms; ZOOM_LEAD_MS + ZOOM_MS = 2700ms → tail=300.
-const ZOOM_LEAD_MS = 1300
 const INTRO_LINE_MS = 1800
 const CHAT_MORE_MS = 1800
 const FLY_START = { x: -14, y: 12, z: 8 }
@@ -169,10 +167,11 @@ export function FirstChat({
 
       // Camera 3/4 portrait on Kira. The silhouette is built facing local
       // +X, so rotated by yaw around Y the world face direction is
-      // (cos yaw, 0, -sin yaw). Offset the camera around the bird by
-      // ~25° (Math.PI / 7 ≈ 25.7°) so she reads as a 3/4 portrait rather
-      // than a flat mugshot. Distance ~3.8 units keeps the whole bird in
-      // frame with grass + mailbox context around her.
+      // (cos yaw, 0, -sin yaw). Yaw offset, distance, and vertical
+      // tilt live in the camera-tuner preset.
+      const preset = getPreset('first-chat')
+      const { zoomLeadMs, durationMs, yawOffsetDeg, distance, camYAboveLookAt, lookAtYAbovePerch } =
+        preset
       if (camera && kira && !reducedMotion) {
         // Kick the camera move off after the bird is past the apex of its
         // arc so the dolly lands a beat after the bird settles.
@@ -182,23 +181,23 @@ export function FirstChat({
           const lookAt = makeVector(
             camera,
             kira.perchX ?? 0,
-            (kira.perchY ?? 0) + 0.4,
+            (kira.perchY ?? 0) + lookAtYAbovePerch,
             kira.perchZ ?? 0,
           )
-          const yaw = (kira.perchYaw ?? 0) + Math.PI / 7 // ~25.7° offset for 3/4 angle
+          const yaw = (kira.perchYaw ?? 0) + (yawOffsetDeg * Math.PI) / 180
           const fx = Math.cos(yaw)
           const fz = -Math.sin(yaw)
           const camPos = makeVector(
             camera,
-            (kira.perchX ?? 0) + fx * 3.8,
-            (kira.perchY ?? 0) + 0.35, // slight downward tilt
-            (kira.perchZ ?? 0) + fz * 3.8,
+            (kira.perchX ?? 0) + fx * distance,
+            (kira.perchY ?? 0) + lookAtYAbovePerch + camYAboveLookAt,
+            (kira.perchZ ?? 0) + fz * distance,
           )
           if (lookAt && camPos) {
-            camera.zoomTo?.(camPos, lookAt, ZOOM_MS)
+            camera.zoomTo?.(camPos, lookAt, durationMs)
             zoomedRef.current = true
           }
-        }, ZOOM_LEAD_MS)
+        }, zoomLeadMs)
       }
 
       await flyPromise
@@ -207,7 +206,7 @@ export function FirstChat({
       // Wait out whatever portion of the camera move is still in flight
       // once the bird has landed, so the intro line lands after the camera
       // has settled (or close to it).
-      const remaining = Math.max(0, ZOOM_LEAD_MS + ZOOM_MS - FLY_DURATION_S * 1000)
+      const remaining = Math.max(0, zoomLeadMs + durationMs - FLY_DURATION_S * 1000)
       if (remaining > 0 && !reducedMotion) {
         await wait(remaining, abort.signal)
         if (abort.signal.aborted) return
