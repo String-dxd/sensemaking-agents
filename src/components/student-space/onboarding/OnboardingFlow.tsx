@@ -258,6 +258,7 @@ export function OnboardingFlow() {
         kira={engine.view?.kira}
         camera={engine.view?.camera}
         kiraDialogue={engine.view?.kiraDialogue}
+        sound={engine.view?.sound}
         onAdvance={() => advance('first-mood')}
       />
     ) : stage === 'first-mood' ? (

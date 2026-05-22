@@ -42,7 +42,19 @@ export type IslandRevealView = {
     entries?: Array<unknown>
     growIn?: (index: number, opts: { duration: number }) => Promise<void> | void
   } | null
-  sound?: { playOneShot?: (name: 'bloom' | 'grow') => void } | null
+  sound?: { playOneShot?: (name: string) => void } | null
+  kira?: {
+    perchX?: number
+    perchY?: number
+    perchZ?: number
+    perchYaw?: number
+    facing?: number
+    group?: {
+      visible?: boolean
+      position?: { set?: (x: number, y: number, z: number) => unknown }
+      rotation?: { y?: number }
+    }
+  } | null
   kiraDialogue?: {
     sayOnboarding?: (line: string) => void
     clearOnboardingBubble?: () => void
@@ -111,6 +123,20 @@ export function IslandReveal({
     const abort = new AbortController()
     abortRef.current = abort
     day?.setManualHour?.(TWILIGHT_HOUR)
+
+    // Resume guard — `kira.setOnboardingMode(true)` hides Kira at boot; the
+    // bird is normally re-shown by FirstChat's flyTo. If the user reloads
+    // the page mid-IslandReveal (first-grow / tree-narration / closing),
+    // FirstChat never runs this session and the perch sits empty during
+    // the bloom + tree + closing beats. By the time we reach this surface
+    // the bird belongs on the perch unconditionally, so force visibility on.
+    const kira = view?.kira
+    if (kira?.group && kira.group.visible === false) {
+      kira.group.position?.set?.(kira.perchX ?? 0, kira.perchY ?? 0, kira.perchZ ?? 0)
+      if (kira.group.rotation) kira.group.rotation.y = kira.perchYaw ?? 0
+      kira.facing = kira.perchYaw ?? 0
+      kira.group.visible = true
+    }
 
     const firstPin = onboarding?.firstMoodPinId
       ? moodPins?.pins?.find((pin) => pin.id === onboarding.firstMoodPinId)
@@ -184,6 +210,28 @@ export function IslandReveal({
     await wait(ms(POST_GROW_MS), signal)
     if (signal.aborted) return
 
+    // Closing beat — dolly around to the bird's face so the final line
+    // lands on Kira looking back at the student, not at her tail. Same
+    // trigonometry as FirstChat: the silhouette is built facing local +X,
+    // so rotated by yaw around Y the world face direction is
+    // (cos yaw, 0, -sin yaw); the camera sits in that direction, framed
+    // wide enough to keep the tree visible behind.
+    const kira = view?.kira
+    if (view?.camera && kira && !reducedMotion) {
+      const yaw = kira.perchYaw ?? 0
+      const fx = Math.cos(yaw)
+      const fz = -Math.sin(yaw)
+      const lookAt = new Vector3(kira.perchX ?? 0, (kira.perchY ?? 0) + 0.45, kira.perchZ ?? 0)
+      const camPos = new Vector3(
+        lookAt.x + fx * 3.6,
+        lookAt.y + 0.55, // slight downward tilt onto the face
+        lookAt.z + fz * 3.6,
+      )
+      view.camera.zoomTo?.(camPos, lookAt, cameraMs(1200))
+      await wait(cameraMs(1200), signal)
+      if (signal.aborted) return
+    }
+
     onboarding?.setStage?.('closing')
     view?.kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.islandFinal)
     await wait(ms(FINAL_HOLD_MS), signal)
@@ -191,7 +239,7 @@ export function IslandReveal({
 
     busyRef.current = false
     setChip({ label: ONBOARDING_COPY.islandReveal.beginCta, onClick: runBegin })
-  }, [cameraMs, ms, onboarding, runBegin, view])
+  }, [cameraMs, ms, onboarding, reducedMotion, runBegin, view])
 
   const runBloom = useCallback(async () => {
     if (busyRef.current) return
@@ -202,8 +250,15 @@ export function IslandReveal({
 
     view?.kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.islandPlantSetup)
     if (flower) {
-      const lookAt = new Vector3(flower.x, 0.7, flower.z)
-      const camPos = new Vector3(flower.x, lookAt.y + 1.1, flower.z + 1.8)
+      // Look at the bloom slightly above ground (0.5) instead of 0.7 so the
+      // small flower sits centered rather than at the top of the frame;
+      // pull back to ~5.4 units (vs the prior 2.1) so the flower fits with
+      // grass + neighbours visible around it. The earlier 2.1-unit framing
+      // relied on OrbitControls' minDistance clamp to silently push the
+      // camera outward to 6 units, which is no longer happening now that
+      // we skip controls.update() while a cinematic is in flight.
+      const lookAt = new Vector3(flower.x, 0.5, flower.z)
+      const camPos = new Vector3(flower.x, lookAt.y + 2.4, flower.z + 4.8)
       view?.camera?.zoomTo?.(camPos, lookAt, cameraMs(1100))
     }
 
