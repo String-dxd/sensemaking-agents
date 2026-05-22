@@ -164,6 +164,7 @@ export default class Profile
                          && (snapshot.facets || snapshot.identity)
         const facetsPart = isWrapped ? (snapshot.facets ?? {}) : snapshot
         this.facets = mergeProfile(facetsPart)
+        this._attachSeedOnlyFields()
 
         if(isWrapped && snapshot.identity && typeof snapshot.identity === 'object')
         {
@@ -190,6 +191,7 @@ export default class Profile
         if(!snapshot || typeof snapshot !== 'object') return
         const facetsPart = snapshot.facets ?? snapshot
         this.facets = mergeProfile(facetsPart)
+        this._attachSeedOnlyFields()
 
         if(snapshot.identity && typeof snapshot.identity === 'object')
         {
@@ -206,6 +208,18 @@ export default class Profile
     serialize() { return { facets: this.facets, identity: this.identity } }
 
     _persist() { Persistence.getInstance()?.save('profile', this.serialize()) }
+
+    /**
+     * Re-attach fields that the seed owns authoritatively (hand-authored,
+     * display-only, never user-writable). Snapshots persisted before such a
+     * field existed in the seed would otherwise come back without it and the
+     * view would render the missing-data fallback. Currently: bigFive.
+     */
+    _attachSeedOnlyFields()
+    {
+        if(this.facets.personality && PROFILE_SEED.personality?.bigFive)
+            this.facets.personality.bigFive = PROFILE_SEED.personality.bigFive
+    }
 
     // ── Pub/sub ────────────────────────────────────────────────────────────
 

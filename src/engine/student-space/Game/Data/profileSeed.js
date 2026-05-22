@@ -71,6 +71,89 @@ export const PROFILE_SEED = {
             q('q_p04', 'In the canteen I keep checking who\'s sitting alone before I sit down.',                   'personality.extraversion', 'medium'),
             q('q_p05', 'I replayed what I said to her about four times on the way home.',                          'personality.neuroticism',  'high'),
         ],
+        // Big-Five scaffold — hand-authored display data for the Personality
+        // tab. Five traits, two aspects each (Big Five Aspects Scale; DeYoung
+        // 2007). `position` is a 0–1 lean on the named-pole spectrum; raw
+        // aspect scores (0–20) appear only inside the per-trait disclosure.
+        // `tag` is the hand-authored identity headline shown on each
+        // Recognition card — identity language, never performance language.
+        // Copy is anchored to Mei's existing personality paragraph above:
+        // socially responsive, emotionally absorbent, warm, curious.
+        bigFive: {
+            tldr: {
+                eyebrow:  'YOUR PERSONALITY AT A GLANCE',
+                headline: 'Curious and tender — you bring imagination and a soft landing',
+                poles:    ['Curiosity', 'Warmth', 'Sensitive'],
+                meta:     'Five-trait lean, anchored in your reflections so far',
+            },
+            traits: [
+                {
+                    id:            'curiosity',
+                    name:          'Curiosity',
+                    tag:           'Imaginative explorer',
+                    position:      0.78,
+                    poleLeft:      'Sticks with familiar',
+                    poleRight:     'Tries new things',
+                    schoolReadout: 'You ask "why" before you take notes. New chapters open faster for you than for friends who need the chapter to settle first.',
+                    aspects: [
+                        { name: 'Imagination', score: 15, lean: 'right',  blurb: 'You picture the scene around the answer, not just the answer. Stories, what-ifs, and side angles are how new ideas land.' },
+                        { name: 'Intellect',   score: 13, lean: 'right',  blurb: 'You like ideas you can argue with. Puzzles, debates, "but what if" questions all hold your attention longer than rote drills.' },
+                    ],
+                },
+                {
+                    id:            'social-energy',
+                    name:          'Social Energy',
+                    tag:           'Close-circle warmer',
+                    position:      0.58,
+                    poleLeft:      'Recharges alone',
+                    poleRight:     'Recharges with people',
+                    schoolReadout: 'Time with one or two people leaves you fuller, not tired. Crowds and assemblies are not your battery — close friends are.',
+                    aspects: [
+                        { name: 'Enthusiasm',    score: 13, lean: 'right',  blurb: 'When something lands, you light up visibly. People around you can tell when you care about a project.' },
+                        { name: 'Assertiveness', score: 10, lean: 'center', blurb: 'You will speak up when something matters, but you do not push to lead. In group work you tend to steer quietly, not loudly.' },
+                    ],
+                },
+                {
+                    id:            'warmth',
+                    name:          'Warmth',
+                    tag:           'Soft lander',
+                    position:      0.82,
+                    poleLeft:      'Direct',
+                    poleRight:     'Caring',
+                    schoolReadout: 'You are often the person friends come to when something is off. Watch for the cost — care lands deeper when you also let someone carry the problem back.',
+                    aspects: [
+                        { name: 'Compassion', score: 16, lean: 'right',  blurb: 'You read the room quickly and feel what your friends feel. It is a strength and a small drain — both can be true.' },
+                        { name: 'Politeness', score: 12, lean: 'center', blurb: 'You generally keep things smooth, but you will say the hard thing when a friendship needs honesty more than peace.' },
+                    ],
+                },
+                {
+                    id:            'follow-through',
+                    name:          'Follow-Through',
+                    tag:           'Quiet finisher',
+                    position:      0.55,
+                    poleLeft:      'Spontaneous',
+                    poleRight:     'Structured',
+                    schoolReadout: 'You finish what you commit to, but plans live more in your head than on paper. A small visible list usually helps deadlines stop creeping up.',
+                    aspects: [
+                        { name: 'Industriousness', score: 14, lean: 'right',  blurb: 'You will keep going past the point where most peers stop, especially on things that matter to a person, not just a grade.' },
+                        { name: 'Orderliness',     score: 9,  lean: 'center', blurb: 'Your room and your bag are not the system. The system is how the people around you are doing.' },
+                    ],
+                },
+                {
+                    id:            'emotional-sensitivity',
+                    name:          'Emotional Sensitivity',
+                    tag:           'Deep feeler',
+                    position:      0.68,
+                    poleLeft:      'Steady',
+                    poleRight:     'Sensitive',
+                    schoolReadout: 'You feel things deeply and replay conversations on the bus home. Recovery space is not optional for you — building a short wind-down routine matters more than trying not to feel.',
+                    aspects: [
+                        { name: 'Withdrawal', score: 13, lean: 'right',  blurb: 'Under pressure you go quiet before you talk. Friends who know you can read the pause; the ones who don\'t sometimes misread it as cold.' },
+                        { name: 'Volatility', score: 11, lean: 'center', blurb: 'You do not flash hot easily, but a single hurt can sit with you for the rest of the day. Cooling down is not the same as moving on.' },
+                    ],
+                },
+            ],
+        },
     },
 
     skills: {

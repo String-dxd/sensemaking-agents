@@ -37,10 +37,10 @@ export const ONBOARDING_STAGES = new Set([
 ])
 // 6 swatch ids exposed to the picker (lilac dropped to keep a tidy 2×3 grid;
 // the seventh species still reachable via the debug BirdPicker).
-export const EGG_COLOR_IDS = new Set(['flame', 'ember', 'regent', 'emerald', 'satin', 'twilight'])
+export const EGG_COLOR_IDS = new Set(['flame', 'masked', 'regent', 'emerald', 'satin', 'twilight'])
 // All 7 species remain valid for `profile.identity.companionSpecies` — the
 // picker exposes 6, but the schema must accept what BirdPicker can write.
-export const COMPANION_SPECIES_IDS = new Set(['flame', 'ember', 'regent', 'emerald', 'satin', 'twilight', 'lilac'])
+export const COMPANION_SPECIES_IDS = new Set(['flame', 'masked', 'regent', 'emerald', 'satin', 'twilight', 'lilac'])
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const warn = (msg) => console.warn(`[schema] ${msg}`)
@@ -144,6 +144,11 @@ export function mergeProfileFacet(raw, facetId, ctx = `facet.${facetId}`)
     if(isString(raw.openQuestion))  out.openQuestion  = raw.openQuestion
     if(isISO(raw.lastRefinedAt))    out.lastRefinedAt = raw.lastRefinedAt
     if(Array.isArray(raw.quotes))   out.quotes        = raw.quotes.map((q, i) => mergeQuote(q, `${ctx}.quotes[${i}]`))
+    // `bigFive` is a hand-authored display-only scaffold (no user writes,
+    // no network). The personality facet ships it; other facets ignore it.
+    // Opaque passthrough keeps schema.js free of Big-Five shape knowledge —
+    // the renderer owns the contract.
+    if(raw.bigFive && typeof raw.bigFive === 'object') out.bigFive = raw.bigFive
     return out
 }
 

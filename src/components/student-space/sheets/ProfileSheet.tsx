@@ -1,13 +1,20 @@
 import { useNavigate, useParams } from '@tanstack/react-router'
+import type { LucideIcon } from 'lucide-react'
 import {
   Check,
+  ChevronDown,
+  Compass,
   Copy,
   ExternalLink,
+  Heart,
   Loader2,
   LogOut,
   MoreHorizontal,
   RefreshCcw,
   Share2,
+  Sparkles,
+  Users,
+  Waves,
 } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -49,12 +56,43 @@ interface ProfileQuote {
   backendTimelineEntryId?: number | null
 }
 
+interface BigFiveAspect {
+  name: string
+  score: number
+  lean?: 'left' | 'center' | 'right' | string
+  blurb?: string
+}
+
+interface BigFiveTrait {
+  id: string
+  name: string
+  tag?: string
+  position: number
+  poleLeft: string
+  poleRight: string
+  schoolReadout?: string
+  aspects?: BigFiveAspect[]
+}
+
+interface BigFiveTldr {
+  eyebrow?: string
+  headline?: string
+  poles?: string[]
+  meta?: string
+}
+
+interface BigFive {
+  tldr?: BigFiveTldr
+  traits?: BigFiveTrait[]
+}
+
 interface ProfileFacet {
   id: VipsDimension
   paragraph?: string
   openQuestion?: string
   lastRefinedAt?: string
   quotes: ProfileQuote[]
+  bigFive?: BigFive
 }
 
 interface ProfileSlice {
@@ -433,6 +471,13 @@ function VipsProfileTab({
   const cap = 3
   const shouldCap = !timelineExpanded && visibleQuotes.length > cap && !hasFilter
   const quotes = shouldCap ? visibleQuotes.slice(0, cap) : visibleQuotes
+  // Personality has only 2 canonical claims (extraversion + neuroticism), so
+  // the VIPS "most common / quietly emerging" stats and the COLLECTION bento
+  // have nothing meaningful to surface. The Big-Five Recognition cards carry
+  // the personality read instead — five hand-authored trait cards seeded
+  // into the facet.
+  const isPersonality = tab === 'personality'
+  const bigFive = isPersonality ? facet?.bigFive : undefined
 
   return (
     <>
@@ -462,95 +507,110 @@ function VipsProfileTab({
             </aside>
           ) : null}
         </div>
-        <div className="grid gap-3 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4">
-          <StatRow label="Noticings" value={String(total)} />
-          <StatRow label="Most common" value={ranked.mostCommon?.label ?? 'Still emerging'} />
-          <StatRow
-            label="Quietly emerging"
-            value={ranked.quietlyEmerging?.label ?? 'Still emerging'}
-          />
-          <StatRow label="Last refined" value={formatRefined(facet?.lastRefinedAt) || 'Not yet'} />
-        </div>
-      </section>
-
-      <TldrHero
-        tab={tab}
-        total={total}
-        claims={claims}
-        counts={counts}
-        selectedClaimId={selectedClaimId}
-        onSelectClaim={setSelectedClaimId}
-        refined={formatRefined(facet?.lastRefinedAt)}
-      />
-
-      <section>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
-            Collection
-          </h3>
-          {selectedClaimId ? (
-            <button
-              type="button"
-              onClick={() => setSelectedClaimId(null)}
-              className="rounded-full border border-(--color-sheet-divider) px-3 py-1 text-xs font-medium text-(--color-sheet-ink-soft) hover:bg-black/5"
-            >
-              Clear filter
-            </button>
-          ) : null}
-        </div>
-        {total === 0 ? (
-          <div
-            data-testid="profile-dimension-empty"
-            className="rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5 text-sm text-(--color-sheet-ink-soft)"
-          >
-            Your {header.tag.toLowerCase()} read grows as you reflect. Capture a few from the
-            island, and tiles will fill in here.
+        {isPersonality ? null : (
+          <div className="grid gap-3 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4">
+            <StatRow label="Noticings" value={String(total)} />
+            <StatRow label="Most common" value={ranked.mostCommon?.label ?? 'Still emerging'} />
+            <StatRow
+              label="Quietly emerging"
+              value={ranked.quietlyEmerging?.label ?? 'Still emerging'}
+            />
+            <StatRow
+              label="Last refined"
+              value={formatRefined(facet?.lastRefinedAt) || 'Not yet'}
+            />
           </div>
-        ) : (
-          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {claims.map((claim) => {
-              const count = counts[claim.id] ?? 0
-              const selected = selectedClaimId === claim.id
-              return (
-                <li key={claim.id}>
-                  <button
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => setSelectedClaimId(selected ? null : claim.id)}
-                    className={cn(
-                      'flex h-full w-full items-start gap-3 rounded-xl border p-4 text-left transition-[background,border-color,transform]',
-                      selected
-                        ? 'border-(--profile-accent) bg-(--profile-soft)'
-                        : 'border-(--color-sheet-divider) bg-(--color-sheet-pane-left) hover:bg-black/5',
-                      count === 0 && 'opacity-65',
-                    )}
-                  >
-                    <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-[0_8px_20px_rgba(43,38,32,0.08)]">
-                      <img
-                        src={claimThumbnailDataUri(claim.id)}
-                        alt=""
-                        loading="lazy"
-                        data-testid="profile-claim-thumbnail"
-                        className="size-full object-cover"
-                      />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-(--color-sheet-ink)">
-                        {claim.label}
-                      </span>
-                      <span className="mt-1 block text-xs leading-5 text-(--color-sheet-ink-soft)">
-                        {count === 0
-                          ? 'No noticings yet'
-                          : `${count} noticing${count === 1 ? '' : 's'}`}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
         )}
       </section>
+
+      {isPersonality && bigFive?.tldr ? (
+        <PersonalityTldr tldr={bigFive.tldr} />
+      ) : (
+        <TldrHero
+          tab={tab}
+          total={total}
+          claims={claims}
+          counts={counts}
+          selectedClaimId={selectedClaimId}
+          onSelectClaim={setSelectedClaimId}
+          refined={formatRefined(facet?.lastRefinedAt)}
+        />
+      )}
+
+      {isPersonality && Array.isArray(bigFive?.traits) ? (
+        <BigFiveCards traits={bigFive.traits} />
+      ) : null}
+
+      {isPersonality ? null : (
+        <section>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+              Collection
+            </h3>
+            {selectedClaimId ? (
+              <button
+                type="button"
+                onClick={() => setSelectedClaimId(null)}
+                className="rounded-full border border-(--color-sheet-divider) px-3 py-1 text-xs font-medium text-(--color-sheet-ink-soft) hover:bg-black/5"
+              >
+                Clear filter
+              </button>
+            ) : null}
+          </div>
+          {total === 0 ? (
+            <div
+              data-testid="profile-dimension-empty"
+              className="rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5 text-sm text-(--color-sheet-ink-soft)"
+            >
+              Your {header.tag.toLowerCase()} read grows as you reflect. Capture a few from the
+              island, and tiles will fill in here.
+            </div>
+          ) : (
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {claims.map((claim) => {
+                const count = counts[claim.id] ?? 0
+                const selected = selectedClaimId === claim.id
+                return (
+                  <li key={claim.id}>
+                    <button
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => setSelectedClaimId(selected ? null : claim.id)}
+                      className={cn(
+                        'flex h-full w-full items-start gap-3 rounded-xl border p-4 text-left transition-[background,border-color,transform]',
+                        selected
+                          ? 'border-(--profile-accent) bg-(--profile-soft)'
+                          : 'border-(--color-sheet-divider) bg-(--color-sheet-pane-left) hover:bg-black/5',
+                        count === 0 && 'opacity-65',
+                      )}
+                    >
+                      <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-[0_8px_20px_rgba(43,38,32,0.08)]">
+                        <img
+                          src={claimThumbnailDataUri(claim.id)}
+                          alt=""
+                          loading="lazy"
+                          data-testid="profile-claim-thumbnail"
+                          className="size-full object-cover"
+                        />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold text-(--color-sheet-ink)">
+                          {claim.label}
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-(--color-sheet-ink-soft)">
+                          {count === 0
+                            ? 'No noticings yet'
+                            : `${count} noticing${count === 1 ? '' : 's'}`}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -670,6 +730,188 @@ function TldrHero({
       {meta ? (
         <p className="mt-4 text-xs font-medium text-(--profile-ink) opacity-75">{meta}</p>
       ) : null}
+    </section>
+  )
+}
+
+const TRAIT_ICONS: Record<string, LucideIcon> = {
+  curiosity: Sparkles,
+  'social-energy': Users,
+  warmth: Heart,
+  'follow-through': Compass,
+  'emotional-sensitivity': Waves,
+}
+
+const TRAIT_ACCENTS: Record<string, string> = {
+  curiosity: '#E8A23A',
+  'social-energy': '#5DA8C4',
+  warmth: '#D17B68',
+  'follow-through': '#6A7BA8',
+  'emotional-sensitivity': '#8E6FB8',
+}
+
+function PersonalityTldr({ tldr }: { tldr: BigFiveTldr }) {
+  return (
+    <section
+      data-testid="personality-tldr"
+      className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5"
+    >
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--profile-ink)">
+        {tldr.eyebrow ?? 'YOUR PERSONALITY AT A GLANCE'}
+      </p>
+      {tldr.headline ? (
+        <h3 className="mt-2 max-w-3xl text-xl font-semibold leading-snug text-(--color-sheet-ink)">
+          {tldr.headline}
+        </h3>
+      ) : null}
+      {Array.isArray(tldr.poles) && tldr.poles.length > 0 ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {tldr.poles.map((pole) => (
+            <span
+              key={pole}
+              className="inline-flex items-center gap-2 rounded-full border border-(--profile-accent)/25 bg-white/65 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-(--profile-ink)"
+            >
+              <span aria-hidden className="size-1.5 rounded-full bg-(--profile-accent)" />
+              {pole.toUpperCase()}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {tldr.meta ? (
+        <p className="mt-4 text-xs font-medium text-(--profile-ink) opacity-75">{tldr.meta}</p>
+      ) : null}
+    </section>
+  )
+}
+
+/**
+ * Big-Five Recognition cards — five horizontal cards on the Personality tab.
+ * Each card carries an icon + colour signature, the hand-authored identity
+ * tag as headline, the trait name as caption, and a mini-spectrum gauge with
+ * a positioned dot. Tapping the card expands an inline disclosure with the
+ * school readout and the two aspect scores.
+ *
+ * No numbers in the primary view — the dot communicates lean. Raw 0–20
+ * aspect scores live inside the disclosure only.
+ */
+function BigFiveCards({ traits }: { traits: BigFiveTrait[] }) {
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+
+  if (traits.length === 0) return null
+
+  const toggle = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  return (
+    <section
+      aria-label="Big Five trait cards"
+      data-testid="bigfive-scaffold"
+      className="flex flex-col gap-2.5"
+    >
+      {traits.map((trait) => {
+        const isOpen = expanded.has(trait.id)
+        const accent = TRAIT_ACCENTS[trait.id] ?? '#8E6FB8'
+        const Icon = TRAIT_ICONS[trait.id] ?? Sparkles
+        const position = Math.max(0, Math.min(1, Number(trait.position) || 0.5)) * 100
+        const panelId = `bigfive-${trait.id}-panel`
+        return (
+          <article
+            key={trait.id}
+            data-trait-id={trait.id}
+            style={{ ['--trait-accent' as string]: accent } as CSSProperties}
+            className="overflow-hidden rounded-2xl border border-black/[0.10] bg-white/[0.62] shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_4px_14px_-10px_rgba(43,38,32,0.18)] transition-[border-color,box-shadow] hover:border-[color-mix(in_srgb,var(--trait-accent)_38%,rgba(43,38,32,0.10))] focus-within:border-[color-mix(in_srgb,var(--trait-accent)_38%,rgba(43,38,32,0.10))]"
+          >
+            <button
+              type="button"
+              aria-expanded={isOpen}
+              aria-controls={panelId}
+              onClick={() => toggle(trait.id)}
+              data-testid={`bigfive-card-${trait.id}`}
+              className="flex w-full cursor-pointer items-center gap-4 bg-transparent px-[18px] py-3.5 text-left max-[720px]:grid max-[720px]:grid-cols-[40px_minmax(0,1fr)_14px] max-[720px]:gap-x-3.5 max-[720px]:gap-y-2.5 max-[720px]:px-4"
+            >
+              <span
+                aria-hidden
+                style={{ backgroundColor: `color-mix(in srgb, ${accent} 14%, transparent)` }}
+                className="grid size-10 shrink-0 place-items-center rounded-full text-(--trait-accent) max-[720px]:col-start-1 max-[720px]:row-start-1"
+              >
+                <Icon className="size-5" />
+              </span>
+              <span className="flex min-w-0 shrink basis-[220px] flex-col gap-0.5 max-[720px]:col-start-2 max-[720px]:row-start-1 max-[720px]:basis-auto">
+                <span className="text-balance text-[15px] font-semibold leading-snug tracking-tight text-(--color-sheet-ink)">
+                  {trait.tag ?? trait.name}
+                </span>
+                <span className="mt-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-black/55">
+                  {trait.name}
+                </span>
+              </span>
+              <span className="flex min-w-0 grow basis-[280px] items-center gap-3 max-[720px]:col-span-3 max-[720px]:row-start-2 max-[720px]:basis-auto max-[720px]:border-t max-[720px]:border-dashed max-[720px]:border-black/[0.08] max-[720px]:pt-1.5">
+                <span className="max-w-[14ch] shrink-0 text-balance text-right text-[10.5px] font-semibold uppercase leading-tight tracking-[0.06em] text-black/[0.52] max-[720px]:max-w-none max-[720px]:text-left">
+                  {trait.poleLeft}
+                </span>
+                <span className="relative h-[3px] min-w-20 grow rounded-full bg-black/10">
+                  <span
+                    aria-hidden
+                    style={{ left: `${position.toFixed(1)}%` }}
+                    className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--trait-accent) shadow-[0_0_0_3px_color-mix(in_srgb,var(--trait-accent)_22%,transparent),0_1px_0_rgba(0,0,0,0.06)] transition-[left] duration-200 ease-out"
+                  />
+                </span>
+                <span className="max-w-[14ch] shrink-0 text-balance text-left text-[10.5px] font-semibold uppercase leading-tight tracking-[0.06em] text-black/[0.52] max-[720px]:max-w-none">
+                  {trait.poleRight}
+                </span>
+              </span>
+              <ChevronDown
+                aria-hidden
+                className={cn(
+                  'size-3.5 shrink-0 text-black/45 transition-transform duration-200 max-[720px]:col-start-3 max-[720px]:row-start-1',
+                  isOpen && 'rotate-180 text-black/80',
+                )}
+              />
+            </button>
+            {isOpen ? (
+              <div
+                id={panelId}
+                className="border-t border-black/[0.06] px-[18px] pb-4 pt-3 max-[720px]:px-4"
+              >
+                {trait.schoolReadout ? (
+                  <p className="text-pretty text-[13px] leading-[1.55] text-black/[0.74]">
+                    {trait.schoolReadout}
+                  </p>
+                ) : null}
+                {Array.isArray(trait.aspects) && trait.aspects.length > 0 ? (
+                  <ul className="mt-3 flex flex-col gap-2.5 border-t border-black/[0.06] pt-3">
+                    {trait.aspects.map((aspect) => (
+                      <li
+                        key={aspect.name}
+                        className="border-t border-black/[0.06] pt-2 first:border-t-0 first:pt-0"
+                      >
+                        <div className="mb-1 flex items-baseline justify-between gap-2">
+                          <span className="text-[12.5px] font-semibold tracking-tight text-(--trait-accent)">
+                            {aspect.name}
+                          </span>
+                          <span className="text-[12px] font-semibold tabular-nums text-black/60">
+                            {aspect.score}/20
+                          </span>
+                        </div>
+                        {aspect.blurb ? (
+                          <p className="text-pretty text-[12px] leading-[1.5] text-black/60">
+                            {aspect.blurb}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
+          </article>
+        )
+      })}
     </section>
   )
 }

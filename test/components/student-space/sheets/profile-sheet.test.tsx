@@ -254,4 +254,187 @@ describe('ProfileSheet (React)', () => {
     unmount()
     expect(document.body.classList.contains('has-overlay')).toBe(false)
   })
+
+  describe('Personality Big-Five scaffold', () => {
+    function makeProfileWithBigFive() {
+      const profile = makeProfile() as ReturnType<typeof makeProfile> & {
+        getFacet: (facet: string) => Record<string, unknown> | null
+      }
+      const personality = profile.getFacet('personality') as Record<string, unknown>
+      personality.bigFive = {
+        tldr: {
+          eyebrow: 'YOUR PERSONALITY AT A GLANCE',
+          headline: 'Curious and tender — you bring imagination and a soft landing',
+          poles: ['Curiosity', 'Warmth', 'Sensitive'],
+          meta: 'Five-trait lean, anchored in your reflections so far',
+        },
+        traits: [
+          {
+            id: 'curiosity',
+            name: 'Curiosity',
+            tag: 'Imaginative explorer',
+            position: 0.78,
+            poleLeft: 'Sticks with familiar',
+            poleRight: 'Tries new things',
+            schoolReadout: 'You ask "why" before you take notes.',
+            aspects: [
+              { name: 'Imagination', score: 15, lean: 'right', blurb: 'You picture the scene.' },
+              {
+                name: 'Intellect',
+                score: 13,
+                lean: 'right',
+                blurb: 'You like ideas you can argue with.',
+              },
+            ],
+          },
+          {
+            id: 'social-energy',
+            name: 'Social Energy',
+            tag: 'Close-circle warmer',
+            position: 0.58,
+            poleLeft: 'Recharges alone',
+            poleRight: 'Recharges with people',
+            schoolReadout: 'Time with one or two people leaves you fuller.',
+            aspects: [
+              {
+                name: 'Enthusiasm',
+                score: 13,
+                lean: 'right',
+                blurb: 'When something lands, you light up.',
+              },
+              {
+                name: 'Assertiveness',
+                score: 10,
+                lean: 'center',
+                blurb: 'You steer quietly, not loudly.',
+              },
+            ],
+          },
+          {
+            id: 'warmth',
+            name: 'Warmth',
+            tag: 'Soft lander',
+            position: 0.82,
+            poleLeft: 'Direct',
+            poleRight: 'Caring',
+            schoolReadout: 'Friends come to you when something is off.',
+            aspects: [
+              { name: 'Compassion', score: 16, lean: 'right', blurb: 'You read the room quickly.' },
+              { name: 'Politeness', score: 12, lean: 'center', blurb: 'You keep things smooth.' },
+            ],
+          },
+          {
+            id: 'follow-through',
+            name: 'Follow-Through',
+            tag: 'Quiet finisher',
+            position: 0.55,
+            poleLeft: 'Spontaneous',
+            poleRight: 'Structured',
+            schoolReadout: 'You finish what you commit to.',
+            aspects: [
+              {
+                name: 'Industriousness',
+                score: 14,
+                lean: 'right',
+                blurb: 'You keep going past where peers stop.',
+              },
+              {
+                name: 'Orderliness',
+                score: 9,
+                lean: 'center',
+                blurb: 'Your room is not the system.',
+              },
+            ],
+          },
+          {
+            id: 'emotional-sensitivity',
+            name: 'Emotional Sensitivity',
+            tag: 'Deep feeler',
+            position: 0.68,
+            poleLeft: 'Steady',
+            poleRight: 'Sensitive',
+            schoolReadout: 'You feel things deeply and replay them.',
+            aspects: [
+              {
+                name: 'Withdrawal',
+                score: 13,
+                lean: 'right',
+                blurb: 'Under pressure you go quiet first.',
+              },
+              {
+                name: 'Volatility',
+                score: 11,
+                lean: 'center',
+                blurb: 'A single hurt can sit with you.',
+              },
+            ],
+          },
+        ],
+      }
+      return profile
+    }
+
+    it('renders the personality TLDR card with the seeded headline and pole chips', async () => {
+      const profile = makeProfileWithBigFive()
+      renderProfile(makeEngine(profile), '/profile/personality')
+
+      const tldr = await screen.findByTestId('personality-tldr')
+      expect(
+        within(tldr).getByText('Curious and tender — you bring imagination and a soft landing'),
+      ).toBeInTheDocument()
+      expect(within(tldr).getByText('YOUR PERSONALITY AT A GLANCE')).toBeInTheDocument()
+      expect(within(tldr).getByText('CURIOSITY')).toBeInTheDocument()
+      expect(within(tldr).getByText('WARMTH')).toBeInTheDocument()
+      expect(within(tldr).getByText('SENSITIVE')).toBeInTheDocument()
+      expect(
+        within(tldr).getByText('Five-trait lean, anchored in your reflections so far'),
+      ).toBeInTheDocument()
+    })
+
+    it('renders five Big-Five Recognition cards in canonical order with identity tags', async () => {
+      const profile = makeProfileWithBigFive()
+      renderProfile(makeEngine(profile), '/profile/personality')
+
+      const scaffold = await screen.findByTestId('bigfive-scaffold')
+      const cards = within(scaffold).getAllByRole('button')
+      expect(cards).toHaveLength(5)
+
+      const expectedTags = [
+        'Imaginative explorer',
+        'Close-circle warmer',
+        'Soft lander',
+        'Quiet finisher',
+        'Deep feeler',
+      ]
+      cards.forEach((card, i) => {
+        expect(within(card).getByText(expectedTags[i] as string)).toBeInTheDocument()
+      })
+    })
+
+    it('hides the VIPS stat tiles and collection bento on the personality tab', async () => {
+      const profile = makeProfileWithBigFive()
+      renderProfile(makeEngine(profile), '/profile/personality')
+
+      await screen.findByTestId('bigfive-scaffold')
+      // VIPS-only chrome should not render for personality.
+      expect(screen.queryByText('Noticings')).not.toBeInTheDocument()
+      expect(screen.queryByText('Collection')).not.toBeInTheDocument()
+      expect(screen.queryByText('Most common')).not.toBeInTheDocument()
+    })
+
+    it('expands a card to reveal the school readout and aspect scores', async () => {
+      const profile = makeProfileWithBigFive()
+      renderProfile(makeEngine(profile), '/profile/personality')
+
+      const card = await screen.findByTestId('bigfive-card-curiosity')
+      expect(card).toHaveAttribute('aria-expanded', 'false')
+      await userEvent.click(card)
+      expect(card).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByText('You ask "why" before you take notes.')).toBeInTheDocument()
+      expect(screen.getByText('Imagination')).toBeInTheDocument()
+      expect(screen.getByText('15/20')).toBeInTheDocument()
+      expect(screen.getByText('Intellect')).toBeInTheDocument()
+      expect(screen.getByText('13/20')).toBeInTheDocument()
+    })
+  })
 })
