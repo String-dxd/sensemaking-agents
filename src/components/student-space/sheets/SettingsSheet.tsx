@@ -4,6 +4,7 @@ import {
   BirdPicker,
   EnvironmentHud,
   type GameLike,
+  StatusPreviewHud,
   TrackPicker,
 } from '~/components/student-space/hud/StudentSpaceHud'
 import {
@@ -101,6 +102,14 @@ export function SettingsSheet() {
             <SettingsGroup title="Companion" help="Try a different bird companion.">
               <div data-testid="settings-mount-bird" className="flex flex-wrap gap-3">
                 {typedEngine ? <BirdPicker game={typedEngine} inline /> : null}
+              </div>
+            </SettingsGroup>
+            <SettingsGroup
+              title="Path Finder preview"
+              help="Force the identity-status quadrant the Path Finder uses to skin itself."
+            >
+              <div data-testid="settings-mount-status" className="flex flex-wrap gap-3">
+                {typedEngine ? <StatusPreviewHud game={typedEngine} inline /> : null}
               </div>
             </SettingsGroup>
             <SettingsGroup

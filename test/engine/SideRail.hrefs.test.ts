@@ -41,11 +41,19 @@ describe('SideRail.SHEET_HREFS vs pathnameForSurface', () => {
     expect(SHEET_HREFS.trajectory).toBe(pathnameForSurface({ surface: 'trajectory' }))
   })
 
+  it('settings maps to /settings (React-only route, not an engine surface)', () => {
+    // Settings is a React-only routed page — it intentionally doesn't go
+    // through pathnameForSurface because the engine has no `settings`
+    // surface. Pinning the literal here so a rename can't silently
+    // diverge the sidenav from the route.
+    expect(SHEET_HREFS.settings).toBe('/settings')
+  })
+
   it('every SHEET_HREFS key is either "home" or a value that round-trips through pathnameForSurface', () => {
     // Defensive: if someone adds a new rail entry, this test catches it.
     // Either the new key is `home` (no surface) or it must round-trip via
     // pathnameForSurface for the surface name matching the rail key.
-    const knownKeys = new Set(['home', 'letters', 'history', 'profile', 'trajectory'])
+    const knownKeys = new Set(['home', 'letters', 'history', 'profile', 'trajectory', 'settings'])
     for (const key of Object.keys(SHEET_HREFS)) {
       expect(knownKeys.has(key)).toBe(true)
     }
