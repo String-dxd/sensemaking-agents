@@ -3652,8 +3652,10 @@ body.is-dev-overlay-hidden .status-preview-hud
 
 /* ── Shared cream-overlay surfaces (login / greeting / egg) ─────────── */
 
+/* Shared cream-overlay base for the engine onboarding surfaces that still
+   draw their own DOM. `.onb-greeting` has migrated to React (U16) and uses
+   Tailwind utilities instead. */
 .onb-login,
-.onb-greeting,
 .onb-egg
 {
     background: var(--onb-bg-cream);
@@ -3867,127 +3869,10 @@ body.is-dev-overlay-hidden .status-preview-hud
     color: var(--onb-ink-deep, #2b2620);
 }
 
-/* Dev escape hatch beneath the greeting CTA — small, low-contrast so it
-   reads as a back-door rather than a peer of "Let's begin." Underlined on
-   hover to land closer to a text link than a chip. */
-.onb-greeting__skip
-{
-    margin-top: 6px;
-    padding: 4px 8px;
-    border: 0;
-    background: transparent;
-    color: rgba(43, 38, 32, 0.45);
-    font: 500 11px/1.2 var(--font-sans);
-    letter-spacing: 0.04em;
-    text-transform: lowercase;
-    cursor: pointer;
-    text-decoration: underline dotted transparent;
-    text-underline-offset: 3px;
-    transition: color 160ms ease, text-decoration-color 160ms ease;
-}
-.onb-greeting__skip:hover
-{
-    color: rgba(43, 38, 32, 0.78);
-    text-decoration-color: currentColor;
-}
-
-/* Floating "Skip onboarding (dev)" button mounted by OnboardingFlow for every
-   post-login stage (greeting / egg / first-chat / first-mood / reveal). Lives
-   outside `.onboarding-root` so the per-surface fade transitions don't tween
-   it. Centered horizontally and parked roughly a CTA's-height below the
-   typical center-aligned primary action so it reads as "after the CTA" on
-   surfaces like EggHatcher's "Let's begin." Hidden on the `login` stage —
-   EdupassLogin renders its own inline `.onb-login__skip` integrated with the
-   landing wordmark. */
-.onb-skip-floating
-{
-    position: fixed;
-    left: 50%;
-    bottom: 18vh;
-    transform: translateX(-50%);
-    z-index: 60;
-    padding: 6px 12px;
-    border: 0;
-    background: transparent;
-    color: rgba(43, 38, 32, 0.45);
-    font: 500 11px/1.2 var(--font-sans);
-    letter-spacing: 0.04em;
-    text-transform: lowercase;
-    cursor: pointer;
-    text-decoration: underline dotted transparent;
-    text-underline-offset: 3px;
-    transition: color 160ms ease, text-decoration-color 160ms ease, opacity 160ms ease;
-}
-.onb-skip-floating:hover
-{
-    color: rgba(43, 38, 32, 0.78);
-    text-decoration-color: currentColor;
-}
-.onb-skip-floating.is-hidden
-{
-    opacity: 0;
-    pointer-events: none;
-}
-
-/* ── Greeting ───────────────────────────────────────────────────────── */
-
-.onb-greeting__text
-{
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    text-align: center;
-    max-width: 360px;
-}
-.onb-greeting__hello
-{
-    margin: 0;
-    font-size: clamp(28px, 7vw, 36px);
-    font-weight: 500;
-}
-.onb-greeting__sub
-{
-    margin: 0;
-    font-size: 18px;
-    color: var(--onb-ink);
-}
-.onb-greeting__hint
-{
-    margin: 4px 0 0;
-    font-size: 14px;
-    color: var(--onb-ink-faint);
-    font-style: italic;
-}
-.onb-greeting__cta
-{
-    background: var(--onb-accent);
-    color: #fff;
-    border: none;
-    border-radius: 14px;
-    padding: 0 26px;
-    min-height: 56px;
-    font-size: 16px;
-    letter-spacing: 0.02em;
-    cursor: pointer;
-    box-shadow:
-        0 8px 20px rgba(255, 138, 92, 0.30),
-        0 1px 2px  rgba(43, 38, 32, 0.06);
-    transition: transform 180ms var(--onb-ease), background 180ms ease, box-shadow 180ms ease;
-}
-.onb-greeting__cta:hover
-{
-    transform: translateY(-1px);
-    background: var(--onb-accent-deep);
-    box-shadow:
-        0 12px 26px rgba(255, 138, 92, 0.38),
-        0 2px 4px   rgba(43, 38, 32, 0.08);
-}
-.onb-greeting__cta:focus-visible
-{
-    outline: 3px solid rgba(255, 138, 92, 0.7);
-    outline-offset: 3px;
-}
+/* Greeting (U16) + SkipButton (U16) migrated to React — see
+   `src/components/student-space/onboarding/Greeting.tsx` and
+   `src/components/student-space/onboarding/SkipButton.tsx`. Their visual
+   tokens live in `src/styles.css` @theme. */
 
 /* ── Egg hatcher ────────────────────────────────────────────────────── */
 
@@ -4623,8 +4508,7 @@ body.is-onboarding .kira-bubble
     .onb-firstchat__sheen,
     .onb-firstmood__tile,
     .onb-egg__cta,
-    .onb-login__cta,
-    .onb-greeting__cta
+    .onb-login__cta
     {
         transition-duration: 80ms !important;
         animation-duration: 80ms !important;

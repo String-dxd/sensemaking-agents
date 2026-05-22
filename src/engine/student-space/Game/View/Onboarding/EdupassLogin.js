@@ -11,9 +11,37 @@
  * auto-skips the `login` stage when `state.auth.status === 'signed-in'`.
  */
 
-import { performOnboardingSkip } from './OnboardingSkip.js'
+import { OFFLINE_DEMO_STUDENTS } from './copy.js'
 import { wait } from '../../util/timing.js'
 import { escapeHtml } from '../../util/html.js'
+
+/**
+ * Inlined skip helper — the canonical implementation now lives at
+ * `src/lib/student-space/onboarding-skip.ts` and powers the React
+ * `SkipButton` (U16). EdupassLogin remains as engine-side JS until U19,
+ * so we keep an in-file copy of the same routine rather than crossing
+ * the engine/React module boundary. Once U19 lands and EdupassLogin
+ * becomes React, this function disappears with the file.
+ */
+function performOnboardingSkip(ctx)
+{
+    try
+    {
+        if(!ctx.state?.backend)
+        {
+            const pick = OFFLINE_DEMO_STUDENTS[Math.floor(Math.random() * OFFLINE_DEMO_STUDENTS.length)]
+            ctx.profile?.setIdentity?.({ name: pick.name, className: pick.className })
+        }
+        ctx.state?.onboarding?.complete?.()
+        ctx.state?.persistence?.flush?.()
+        if(typeof window !== 'undefined' && window.location.hash === '#onboarding')
+        {
+            window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        }
+    }
+    catch(_) {}
+    try { window.location.reload() } catch(_) {}
+}
 
 const CONNECTING_MS  = 600
 const ENTER_MS       = 320

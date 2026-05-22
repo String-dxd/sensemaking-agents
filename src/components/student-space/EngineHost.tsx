@@ -12,6 +12,7 @@ import {
 } from '~/lib/student-space/route-sync'
 import { EngineContext } from '~/lib/student-space/use-engine'
 import { cn } from '~/lib/utils'
+import { OnboardingFlow } from './onboarding/OnboardingFlow'
 
 // Surfaces that render empty without server data — we defer the open call
 // until the backend snapshot resolves so the student doesn't see an empty
@@ -106,13 +107,11 @@ export function EngineHost({ className, children }: { className?: string; childr
     }
   }, [game])
 
-  // U16–U19: OnboardingFlow is engine-rendered but React owns its lifecycle.
-  // The flow runs across every route (matches legacy posture — the
-  // `body.is-onboarding` class spans the world and routed surfaces alike),
-  // so EngineHost is the correct mount scope. The ceremony surfaces
-  // (Greeting / EggHatcher / FirstChat / FirstMood / IslandReveal /
-  // EdupassLogin) still draw their own DOM under `.onboarding-root`; full
-  // per-surface React rewrites layer on top of this lifecycle later.
+  // U16: OnboardingFlow is now a React component (`<OnboardingFlow />`)
+  // rendered as a child of EngineHost — see below. The reveal-prep hide-
+  // pass (flowers/tree/fruits.hideAll) runs here so it fires immediately
+  // after engine boot rather than waiting for the React orchestrator's
+  // first render.
   useEffect(() => {
     if (!game) return
     const state = (
@@ -125,53 +124,21 @@ export function EngineHost({ className, children }: { className?: string; childr
     ).state
     const onb = state?.onboarding
     if (!onb || onb.isDone || onb.stage === 'done') return
-
-    type OnboardingFlowInstance = {
-      start: () => Promise<void>
-      dispose?: () => void
-    }
-    let flow: OnboardingFlowInstance | null = null
-    let cancelled = false
-
-    void (async () => {
-      const mod = (await import(
-        // @ts-expect-error untyped engine module
-        '~/engine/student-space/Game/View/Onboarding/OnboardingFlow.js'
-      )) as { default?: new (view: unknown) => OnboardingFlowInstance }
-      if (cancelled) return
-      const OnboardingFlow = mod.default
-      const view = (
-        game as unknown as {
-          view?: {
-            flowers?: { hideAll?: () => void }
-            tree?: { hideAll?: () => void }
-            fruits?: { hideAll?: () => void }
-          }
+    const completedSignInReturn =
+      onb.stage === 'login' && Boolean(onb.completedAt) && Boolean(state?.auth?.isSignedIn)
+    if (completedSignInReturn) return
+    const view = (
+      game as unknown as {
+        view?: {
+          flowers?: { hideAll?: () => void }
+          tree?: { hideAll?: () => void }
+          fruits?: { hideAll?: () => void }
         }
-      ).view
-      if (!OnboardingFlow || !view) return
-      // Replay the auth-resume guard the engine constructor used to run:
-      // a returning signed-in student who already completed the ceremony
-      // skips the reveal-prep hide-pass.
-      const completedSignInReturn =
-        onb.stage === 'login' && Boolean(onb.completedAt) && Boolean(state?.auth?.isSignedIn)
-      if (!completedSignInReturn) {
-        view.flowers?.hideAll?.()
-        view.tree?.hideAll?.()
-        view.fruits?.hideAll?.()
       }
-      flow = new OnboardingFlow(view)
-      flow.start().catch((e: unknown) => console.error('[onboarding] flow failed', e))
-    })()
-
-    return () => {
-      cancelled = true
-      try {
-        flow?.dispose?.()
-      } catch {
-        // dispose is internally defensive; swallow any residual errors
-      }
-    }
+    ).view
+    view?.flowers?.hideAll?.()
+    view?.tree?.hideAll?.()
+    view?.fruits?.hideAll?.()
   }, [game])
 
   useEffect(() => {
@@ -270,6 +237,7 @@ export function EngineHost({ className, children }: { className?: string; childr
           Inline Tailwind `fixed inset-0` utilities would override the inset
           rules and the rounded frame would extend edge-to-edge. */}
       <div ref={containerRef} className={cn('game', className)} />
+      <OnboardingFlow />
       {children}
     </EngineContext.Provider>
   )
