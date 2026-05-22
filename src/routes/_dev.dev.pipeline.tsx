@@ -493,29 +493,107 @@ function PipelinePageInner({
 
       <PipelineHealthStrip health={health} action={action} />
 
-      <section className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+      <section className="mb-4">
         <div className="rounded border border-border bg-muted/30 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold">End-to-end run</h2>
               <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-                Run the backend path in one pass, or trigger each agent stage independently.
+                Run the backend path in one pass, or trigger each agent stage independently. Capture
+                live Kira audio to fill the transcript automatically.
               </p>
             </div>
             <StatusBadge value={action.status} />
           </div>
 
-          <label className="mt-4 block" htmlFor="pipeline-transcript">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Initial chat transcript
-            </span>
+          <div className="mt-4">
+            <div className="mb-1 flex flex-wrap items-end justify-between gap-2">
+              <label
+                htmlFor="pipeline-transcript"
+                className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                Initial chat transcript
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  onClick={() => void startRealtimeTranscriptTest()}
+                  disabled={actionRunning || realtimeStage !== 'idle'}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Mic className="size-3.5" aria-hidden="true" />
+                  Start Realtime transcript
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => void stopRealtimeTranscriptTest()}
+                  disabled={realtimeStage !== 'recording'}
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Square className="size-3.5" aria-hidden="true" />
+                  Stop
+                </Button>
+              </div>
+            </div>
             <textarea
               id="pipeline-transcript"
               value={transcript}
               onChange={(event) => setTranscript(event.target.value)}
               className="min-h-28 w-full resize-y rounded border border-border bg-background px-3 py-2 font-mono text-xs leading-relaxed outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20"
             />
-          </label>
+          </div>
+
+          {realtimeStage !== 'idle' || realtimeConversation.length > 0 ? (
+            <div
+              className="mt-3 grid min-h-16 gap-2 rounded border border-border bg-muted/20 px-3 py-2 font-mono text-xs"
+              role="log"
+              aria-live="polite"
+              data-testid="realtime-transcript-log"
+            >
+              {realtimeConversation.length === 0 ? (
+                <p className="self-center text-muted-foreground">
+                  Listening for live Realtime transcript…
+                </p>
+              ) : (
+                realtimeConversation.map((message) => (
+                  <article
+                    key={message.id}
+                    className={cn(
+                      'rounded border border-border bg-background px-2 py-1',
+                      message.status === 'streaming' ? 'opacity-75' : '',
+                    )}
+                  >
+                    <span className="font-sans text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {message.role === 'kira' ? 'Kira' : 'You'}
+                      {message.status === 'streaming' ? ' · streaming' : ''}
+                    </span>
+                    <p>{message.text}</p>
+                  </article>
+                ))
+              )}
+            </div>
+          ) : null}
+
+          {realtimePrepared ? (
+            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+              <p>
+                <span className="font-semibold text-foreground">Validation:</span>{' '}
+                {realtimePrepared.validation}
+              </p>
+              <p>
+                <span className="font-semibold text-foreground">Meaning:</span>{' '}
+                {realtimePrepared.inferredMeaning}
+              </p>
+              <p>
+                <span className="font-semibold text-foreground">Reframe:</span>{' '}
+                {realtimePrepared.storyReframe}
+              </p>
+            </div>
+          ) : null}
 
           <div className="mt-3 flex flex-wrap gap-2">
             <Button
@@ -596,84 +674,6 @@ function PipelinePageInner({
               ))}
             </ol>
           </div>
-        </div>
-
-        <div className="rounded border border-border bg-background p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold">Realtime transcript path</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Capture live Kira audio, then copy the final transcript into the backend run.
-              </p>
-            </div>
-            <StatusBadge value={realtimeStage} />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button
-              type="button"
-              onClick={() => void startRealtimeTranscriptTest()}
-              disabled={actionRunning || realtimeStage !== 'idle'}
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
-              <Mic className="size-3.5" aria-hidden="true" />
-              Start Realtime transcript
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void stopRealtimeTranscriptTest()}
-              disabled={realtimeStage !== 'recording'}
-              variant="outline"
-              size="sm"
-              className="gap-2"
-            >
-              <Square className="size-3.5" aria-hidden="true" />
-              Stop Realtime transcript
-            </Button>
-          </div>
-          <div
-            className="mt-3 grid min-h-24 gap-2 rounded border border-border bg-muted/20 px-3 py-2 font-mono text-xs"
-            role="log"
-            aria-live="polite"
-            data-testid="realtime-transcript-log"
-          >
-            {realtimeConversation.length === 0 ? (
-              <p className="self-center text-muted-foreground">No live Realtime transcript yet.</p>
-            ) : (
-              realtimeConversation.map((message) => (
-                <article
-                  key={message.id}
-                  className={cn(
-                    'rounded border border-border bg-background px-2 py-1',
-                    message.status === 'streaming' ? 'opacity-75' : '',
-                  )}
-                >
-                  <span className="font-sans text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {message.role === 'kira' ? 'Kira' : 'You'}
-                    {message.status === 'streaming' ? ' · streaming' : ''}
-                  </span>
-                  <p>{message.text}</p>
-                </article>
-              ))
-            )}
-          </div>
-          {realtimePrepared ? (
-            <div className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-              <p>
-                <span className="font-semibold text-foreground">Validation:</span>{' '}
-                {realtimePrepared.validation}
-              </p>
-              <p>
-                <span className="font-semibold text-foreground">Meaning:</span>{' '}
-                {realtimePrepared.inferredMeaning}
-              </p>
-              <p>
-                <span className="font-semibold text-foreground">Reframe:</span>{' '}
-                {realtimePrepared.storyReframe}
-              </p>
-            </div>
-          ) : null}
         </div>
       </section>
 
