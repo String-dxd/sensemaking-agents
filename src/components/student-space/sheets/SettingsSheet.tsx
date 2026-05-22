@@ -71,8 +71,9 @@ export function SettingsSheet() {
         [modules[3].default, statusRef.current],
       ]
       widgets = mounts
-        .filter((entry): entry is [EngineWidgetCtor, HTMLElement] =>
-          entry[0] !== undefined && entry[1] !== null,
+        .filter(
+          (entry): entry is [EngineWidgetCtor, HTMLElement] =>
+            entry[0] !== undefined && entry[1] !== null,
         )
         .map(([Ctor, mount]) => new Ctor({ mount }))
     })()

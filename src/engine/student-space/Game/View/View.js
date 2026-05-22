@@ -35,8 +35,6 @@ import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
 import SideRail from './SideRail.js'
 import ProfileSheet from './ProfileSheet.js'
-import CalendarSheet from './CalendarSheet.js'
-import HistorySheet from './HistorySheet.js'
 import ObjectPeek from './ObjectPeek.js'
 import FpsOverlay from './FpsOverlay.js'
 import State from '../State/State.js'
@@ -112,10 +110,6 @@ export default class View
         this.facetView   = new FacetView()
         this.profileSheet  = new ProfileSheet()
         this.overlayController.register('profile', this.profileSheet)
-        this.calendarSheet = new CalendarSheet()
-        this.overlayController.register('calendar', this.calendarSheet)
-        this.historySheet = new HistorySheet()
-        this.overlayController.register('history', this.historySheet)
         // ObjectPeek is the shared peek-then-companion interaction for
         // every clickable island object (flowers, mailbox, telescope).
         // No overlay registration — it does not own the viewport.
@@ -257,8 +251,6 @@ export default class View
             this.sideRail,
             this.captureFab,
             this.profileSheet,
-            this.calendarSheet,
-            this.historySheet,
             this.facetView,
             this.hoverProbe,
             this.hoverCta,
