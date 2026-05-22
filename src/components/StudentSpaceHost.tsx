@@ -36,7 +36,13 @@ export function StudentSpaceHost() {
         import('~/engine/student-space/Game/View/ZoomHud.js'),
         // @ts-expect-error untyped engine module
         import('~/engine/student-space/Game/View/FpsOverlay.js'),
+        // @ts-expect-error untyped engine module
+        import('~/engine/student-space/Game/View/BirdPicker.js'),
+        // @ts-expect-error untyped engine module
+        import('~/engine/student-space/Game/View/TrackPicker.js'),
       ])) as unknown as [
+        { default?: WidgetCtor },
+        { default?: WidgetCtor },
         { default?: WidgetCtor },
         { default?: WidgetCtor },
         { default?: WidgetCtor },
@@ -47,7 +53,17 @@ export function StudentSpaceHost() {
       const StatusPreviewHud = modules[1].default
       const ZoomHud = modules[2].default
       const FpsOverlay = modules[3].default
-      if (!HourHud || !StatusPreviewHud || !ZoomHud || !FpsOverlay) return
+      const BirdPicker = modules[4].default
+      const TrackPicker = modules[5].default
+      if (
+        !HourHud ||
+        !StatusPreviewHud ||
+        !ZoomHud ||
+        !FpsOverlay ||
+        !BirdPicker ||
+        !TrackPicker
+      )
+        return
 
       const hour = new HourHud()
       const status = new StatusPreviewHud()
@@ -56,7 +72,11 @@ export function StudentSpaceHost() {
       const fps = new FpsOverlay({
         mount: (hour as unknown as { root?: HTMLElement }).root,
       })
-      widgets = [hour, status, zoom, fps]
+      // U15: bird + track pickers are constructed after Kira / Sound exist;
+      // by this point EngineHost has booted the engine so those deps are live.
+      const bird = new BirdPicker()
+      const track = new TrackPicker()
+      widgets = [hour, status, zoom, fps, bird, track]
     })()
 
     return () => {

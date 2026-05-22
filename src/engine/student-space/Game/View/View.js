@@ -25,8 +25,6 @@ import FacetView from './FacetView.js'
 import HoverCta from './HoverCta.js'
 import HoverProbe from './HoverProbe.js'
 import KiraNarrator from './KiraNarrator.js'
-import BirdPicker from './BirdPicker.js'
-import TrackPicker from './TrackPicker.js'
 import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
@@ -122,12 +120,8 @@ export default class View
         // bubble during a narration beat.
         this.kiraNarrator = new KiraNarrator()
         this.captureFab.setKiraNarrator(this.kiraNarrator)
-        // BirdPicker is purely visual — depends on view.kira existing, which
-        // it does by this point.
-        this.birdPicker  = new BirdPicker()
-        // TrackPicker depends on view.sound existing and sits above the
-        // BirdPicker chip in the dark-glass admin tier.
-        this.trackPicker = new TrackPicker()
+        // BirdPicker + TrackPicker lifecycle moved to React (U15) — see
+        // `src/components/StudentSpaceHost.tsx`.
 
         // First-run ceremony. Constructed last so it can hold every other
         // view subsystem (kira, kiraDialogue, camera, etc.). Skips itself
@@ -244,8 +238,6 @@ export default class View
             this.hoverProbe,
             this.hoverCta,
             this.objectPeek,
-            this.birdPicker,
-            this.trackPicker,
             this.mailbox,
             this.telescope,
             this.sprouts,
