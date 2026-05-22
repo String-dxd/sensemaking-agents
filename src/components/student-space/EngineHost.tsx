@@ -2,6 +2,10 @@ import { useLocation } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import '~/engine/student-space/style.css'
+import {
+  studentSpaceFrameClassName,
+  studentSpaceFrameContainerClassName,
+} from '~/components/ui/sheet'
 import type { AuthMenuState, Game } from '~/engine/student-space/Game'
 import { createStudentSpaceBackendBridge } from '~/lib/student-space/backend-bridge'
 import { applyStudentSpaceBackendSnapshot } from '~/lib/student-space/backend-snapshot'
@@ -217,8 +221,8 @@ export function EngineHost({ className, children }: { className?: string; childr
     <EngineContext.Provider value={game}>
       <EngineOverlayProvider>
         {/* Engine owns positioning via `.game` (frame inset + rounded corners).
-          Inline Tailwind `fixed inset-0` utilities would override the inset
-          rules and the rounded frame would extend edge-to-edge. */}
+            Inline Tailwind `fixed inset-0` utilities would override the inset
+            rules and the rounded frame would extend edge-to-edge. */}
         <div
           ref={containerRef}
           aria-hidden={!isWorldRoute}
@@ -228,6 +232,18 @@ export function EngineHost({ className, children }: { className?: string; childr
             className,
           )}
         />
+        {/* Sheet stage — a synchronous, opaque placeholder that covers the
+            world frame whenever a routed sheet is active. Without it, leaving
+            the world (`/` → `/history`) produced a 1-2 frame flash of the
+            empty rounded frame: the `.game` canvas hid on the same React
+            commit the URL changed, but Base UI's Dialog portal — the new
+            sheet's DOM — only attached one or two frames later (the
+            `FloatingPortal` mounts in a layout effect and re-renders before
+            children land). The stage paints in the same commit as the URL
+            change, so the user sees the sheet surface land continuously.
+            The actual sheet stacks on top (z-50 vs z-40), and the stage
+            unmounts in lockstep with the canvas restore on the way back. */}
+        {!isWorldRoute ? <SheetStage /> : null}
         <RouteOverlayEffects isWorldRoute={isWorldRoute} />
         {game ? <SideRail game={game} /> : null}
         {game ? <CaptureOverlayBridge game={game} /> : null}
@@ -238,6 +254,33 @@ export function EngineHost({ className, children }: { className?: string; childr
         {children}
       </EngineOverlayProvider>
     </EngineContext.Provider>
+  )
+}
+
+/**
+ * Opaque placeholder that mirrors a routed sheet's outer frame + cream
+ * background. Mounted whenever `isWorldRoute` is false so the world frame
+ * never reads as bare html chrome between the URL change and the new sheet's
+ * Dialog portal landing. `z-40` sits above the canvas (`z-1`) and beneath
+ * the live sheet surface (`z-50`); routed sheets paint over the stage with
+ * identical positioning, so the seam is invisible. `aria-hidden` keeps the
+ * stage out of the a11y tree — the sheet's `Dialog.Title` remains the only
+ * landmark exposed to screen readers.
+ */
+function SheetStage() {
+  return (
+    <div
+      aria-hidden
+      data-testid="sheet-stage"
+      className={cn('pointer-events-none fixed z-40 bg-transparent', studentSpaceFrameClassName)}
+    >
+      <div
+        className={cn(
+          'flex h-full w-full overflow-hidden bg-(--color-sheet-bg)',
+          studentSpaceFrameContainerClassName,
+        )}
+      />
+    </div>
   )
 }
 

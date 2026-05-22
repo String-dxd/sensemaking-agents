@@ -248,6 +248,25 @@ describe('EngineHost', () => {
     expect(document.body.classList.contains('student-space-page-route')).toBe(false)
   })
 
+  // Regression — covers the routed-sheet flash fix. The sheet-stage placeholder
+  // mounts synchronously on routed-sheet pages so the world frame never reads
+  // as bare html chrome between the URL change and the new sheet's Dialog
+  // portal landing (Base UI's FloatingPortal needs an extra commit after mount
+  // to attach its children, leaving a 1-2 frame gap on `/` → `/history`-style
+  // transitions). Asserted via `data-testid="sheet-stage"` (the live sheet
+  // itself uses `data-testid="sheet-surface"`).
+  it('renders the sheet-stage placeholder on routed-sheet pages only', async () => {
+    const onRouted = renderHostAt('/profile')
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    expect(onRouted.queryByTestId('sheet-stage')).toBeInTheDocument()
+    onRouted.unmount()
+
+    createGame.mockClear()
+    const onWorld = renderHostAt('/')
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    expect(onWorld.queryByTestId('sheet-stage')).not.toBeInTheDocument()
+  })
+
   it('registers React capture overlays with the engine overlay controller and unregisters them', async () => {
     const surfaces = new Map<
       string,
