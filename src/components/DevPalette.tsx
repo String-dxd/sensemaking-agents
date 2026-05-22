@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Dialog, DialogOverlay, DialogPortal } from '~/components/ui/dialog'
 import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
 import { signOutEngine } from '~/lib/sign-out-engine'
+import {
+  applyWorldControlsVisible,
+  readWorldControlsVisible,
+} from '~/lib/student-space/world-controls-visibility'
 import { cn } from '~/lib/utils'
 
 /**
@@ -24,8 +28,6 @@ type Command = {
   run: () => void
 }
 
-const DEV_OVERLAY_STORAGE_KEY = 'sm:dev-overlay-hidden'
-const DEV_OVERLAY_HIDDEN_CLASS = 'is-dev-overlay-hidden'
 const ONBOARDING_STORAGE_KEY = 'ss:v1:onboarding'
 
 export function DevPalette() {
@@ -34,28 +36,17 @@ export function DevPalette() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
-  const [devOverlayHidden, setDevOverlayHidden] = useState(false)
+  const [worldControlsVisible, setWorldControlsVisible] = useState(false)
 
-  const applyDevOverlayHidden = useCallback((next: boolean) => {
-    setDevOverlayHidden(next)
-    document.body.classList.toggle(DEV_OVERLAY_HIDDEN_CLASS, next)
-    try {
-      if (next) localStorage.setItem(DEV_OVERLAY_STORAGE_KEY, '1')
-      else localStorage.removeItem(DEV_OVERLAY_STORAGE_KEY)
-    } catch {
-      // Non-fatal: the class still updates for this session.
-    }
+  const setVisibility = useCallback((next: boolean) => {
+    setWorldControlsVisible(next)
+    applyWorldControlsVisible(next)
   }, [])
 
   useEffect(() => {
-    let hidden = false
-    try {
-      hidden = localStorage.getItem(DEV_OVERLAY_STORAGE_KEY) === '1'
-    } catch {
-      hidden = false
-    }
-    document.body.classList.toggle(DEV_OVERLAY_HIDDEN_CLASS, hidden)
-    setDevOverlayHidden(hidden)
+    const initial = readWorldControlsVisible()
+    setWorldControlsVisible(initial)
+    applyWorldControlsVisible(initial)
   }, [])
 
   const commands = useMemo<Command[]>(() => {
@@ -72,12 +63,12 @@ export function DevPalette() {
         run: go('/dev/pipeline'),
       },
       {
-        id: 'dev-overlay',
-        label: devOverlayHidden ? 'Show world controls' : 'Hide world controls',
+        id: 'world-controls',
+        label: worldControlsVisible ? 'Hide world controls' : 'Show world controls',
         hint: 'HUD panel',
         run: () => {
           setOpen(false)
-          applyDevOverlayHidden(!devOverlayHidden)
+          setVisibility(!worldControlsVisible)
         },
       },
       {
@@ -122,7 +113,7 @@ export function DevPalette() {
         },
       },
     ]
-  }, [navigate, devOverlayHidden, applyDevOverlayHidden])
+  }, [navigate, worldControlsVisible, setVisibility])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()

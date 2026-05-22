@@ -3,9 +3,11 @@ import {
   Gauge,
   Music2,
   RotateCcw,
+  SlidersHorizontal,
   Sparkles,
   Volume2,
   VolumeX,
+  X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
@@ -14,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Hud } from '~/components/ui/hud'
 import { STATUS_IDS, statusLabelOf } from '~/engine/student-space/Game/View/statusHeuristics.js'
 import { useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
+import { useWorldControlsVisible } from '~/lib/student-space/world-controls-visibility'
 import { cn } from '~/lib/utils'
 
 const RAIN_STOPPED_LINES = [
@@ -119,31 +122,53 @@ type SoundLike = {
 
 export function StudentSpaceHud({ game }: { game: unknown }) {
   const { isOnboarding } = useEngineOverlay()
-  const panelHidden = useBodyClassPresent('is-dev-overlay-hidden')
+  const [visible, setVisible] = useWorldControlsVisible()
   if (isOnboarding) return null
   const typedGame = game as GameLike
 
   return (
     <>
       <ZoomHud game={typedGame} />
-      {panelHidden ? null : <WorldControlsPanel game={typedGame} />}
+      {visible ? (
+        <WorldControlsPanel game={typedGame} onClose={() => setVisible(false)} />
+      ) : (
+        <WorldControlsToggle onToggle={() => setVisible(true)} />
+      )}
     </>
   )
 }
 
-function WorldControlsPanel({ game }: { game: GameLike }) {
+function WorldControlsToggle({ onToggle }: { onToggle: () => void }) {
+  return (
+    <div className="fixed top-[calc(var(--inset-frame)+12px)] right-[calc(var(--inset-frame)+12px)] z-30">
+      <WorldIconButton label="Show world controls" onClick={onToggle}>
+        <SlidersHorizontal aria-hidden className="size-4" />
+      </WorldIconButton>
+    </div>
+  )
+}
+
+function WorldControlsPanel({ game, onClose }: { game: GameLike; onClose: () => void }) {
   return (
     <Hud
       dock="top-right"
       role="group"
       aria-label="World controls"
-      className="flex w-[min(340px,calc(100vw-var(--width-rail)-44px))] flex-col gap-2 rounded-2xl border border-white/16 bg-black/48 p-3 text-white shadow-2xl shadow-black/24"
+      className="flex w-[min(252px,calc(100vw-var(--width-rail)-44px))] flex-col gap-2 rounded-2xl border border-white/14 bg-black/52 p-2.5 text-white shadow-2xl shadow-black/24 backdrop-blur-md"
     >
-      <div className="flex justify-end">
+      <header className="flex items-center justify-between gap-2 pl-1">
         <FpsOverlay game={game} inline />
-      </div>
+        <button
+          type="button"
+          aria-label="Hide world controls"
+          onClick={onClose}
+          className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full text-white/60 transition-colors hover:bg-white/12 hover:text-white"
+        >
+          <X aria-hidden className="size-3.5" />
+        </button>
+      </header>
       <EnvironmentHud game={game} compact />
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="flex flex-col gap-1.5">
         <TrackPicker game={game} compact />
         <BirdPicker game={game} compact />
       </div>
@@ -560,21 +585,16 @@ function FpsOverlay({ game, inline = false }: { game: GameLike; inline?: boolean
       role="status"
       aria-label="Frames per second"
       className={cn(
-        'rounded-2xl border border-white/12 px-3 py-1.5 text-white/74',
-        inline ? 'bg-white/8' : 'bg-black/28',
+        'inline-flex items-center gap-1.5 rounded-full text-white/74',
+        inline ? 'px-1 py-0.5' : 'border border-white/12 bg-black/28 px-3 py-1.5',
       )}
     >
-      <span className="flex items-center gap-1.5 text-[8px] font-semibold tracking-[0.16em] text-white/44 uppercase">
-        <Gauge aria-hidden className="size-3" />
-        performance
+      <Gauge aria-hidden className="size-3 text-white/44" />
+      <span className="font-mono text-[11px] leading-none font-semibold tabular-nums text-white">
+        {snapshot.fps}
       </span>
-      <span className="mt-1 flex items-baseline gap-1.5">
-        <span className="font-mono text-base leading-none font-semibold tabular-nums text-white">
-          {snapshot.fps}
-        </span>
-        <span className="text-[10px] text-white/54">
-          {snapshot.tier ? `fps · ${snapshot.tier}` : 'fps'}
-        </span>
+      <span className="text-[10px] text-white/52">
+        {snapshot.tier ? `fps · ${snapshot.tier}` : 'fps'}
       </span>
     </div>
   )
