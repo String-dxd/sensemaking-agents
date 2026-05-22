@@ -56,7 +56,7 @@ import { cn } from '~/lib/utils'
 // route is opened directly in dev.
 import '~/engine/student-space/style.css'
 
-export const Route = createFileRoute('/dev/design')({
+export const Route = createFileRoute('/_dev/dev/design')({
   beforeLoad: () => {
     if (!import.meta.env.DEV) throw notFound()
   },

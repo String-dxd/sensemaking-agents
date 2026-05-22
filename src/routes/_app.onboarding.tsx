@@ -3,7 +3,7 @@ import { StudentSpaceHost } from '~/components/StudentSpaceHost'
 
 // `/onboarding` gives the first-run ceremony its own route while still
 // mounting the world interaction bridge that owns Kira's speech bubble.
-export const Route = createFileRoute('/onboarding')({
+export const Route = createFileRoute('/_app/onboarding')({
   component: OnboardingPage,
 })
 

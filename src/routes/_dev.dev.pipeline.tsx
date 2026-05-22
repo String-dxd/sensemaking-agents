@@ -32,7 +32,7 @@ import { runCartographer } from '~/server/run-cartographer.functions'
 import { runConnector } from '~/server/run-connector.functions'
 import { runMirror } from '~/server/run-mirror.functions'
 
-export const Route = createFileRoute('/dev/pipeline')({
+export const Route = createFileRoute('/_dev/dev/pipeline')({
   // Dev surface. Reachable in `vite dev` by default; in production builds it
   // 404s before the loader runs unless `VITE_ENABLE_DEV_PALETTE=1` is set at
   // build time. Vercel staging sets the flag so QA can audit the verifier
