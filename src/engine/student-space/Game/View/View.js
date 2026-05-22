@@ -36,7 +36,6 @@ import OverlayController from './OverlayController.js'
 import SideRail from './SideRail.js'
 import ProfileSheet from './ProfileSheet.js'
 import CalendarSheet from './CalendarSheet.js'
-import TrajectorySheet from './TrajectorySheet.js'
 import HistorySheet from './HistorySheet.js'
 import ObjectPeek from './ObjectPeek.js'
 import FpsOverlay from './FpsOverlay.js'
@@ -115,8 +114,6 @@ export default class View
         this.overlayController.register('profile', this.profileSheet)
         this.calendarSheet = new CalendarSheet()
         this.overlayController.register('calendar', this.calendarSheet)
-        this.trajectorySheet = new TrajectorySheet()
-        this.overlayController.register('trajectory', this.trajectorySheet)
         this.historySheet = new HistorySheet()
         this.overlayController.register('history', this.historySheet)
         // ObjectPeek is the shared peek-then-companion interaction for
@@ -262,7 +259,6 @@ export default class View
             this.profileSheet,
             this.calendarSheet,
             this.historySheet,
-            this.trajectorySheet,
             this.facetView,
             this.hoverProbe,
             this.hoverCta,

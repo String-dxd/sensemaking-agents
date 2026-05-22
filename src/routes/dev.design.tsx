@@ -1312,7 +1312,7 @@ function ButtonsSection() {
 
         <ComponentBlock
           title='"Run sense-making" / "Show me all paths"  ·  engine recipe'
-          file="src/engine/student-space/Game/View/TrajectorySheet.js (DOM)"
+          file="src/components/student-space/sheets/TrajectorySheet.tsx"
           blurb="The two Path Finder head actions. Solid cream for the primary action, outline for the escape hatch. Currently hand-rolled in engine DOM; product code mirrors the styling inline."
         >
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-4">
@@ -1978,7 +1978,7 @@ function HeadersSection() {
 
         <ComponentBlock
           title="Metadata line  ·  product / engine recipe"
-          file="TrajectorySheet.js · TrajectoryPageView.tsx"
+          file="TrajectorySheet.tsx · TrajectoryPageView.tsx"
           blurb="Inline metadata line sitting below a display title. Engine uses a single line; the React route uses a <dl> grid — same information, different presentation."
         >
           <div className="rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-6">
@@ -2495,7 +2495,7 @@ const ENGINE_SURFACES: EngineSurface[] = [
   {
     key: 'trajectory',
     label: 'Path Finder',
-    file: 'src/engine/student-space/Game/View/TrajectorySheet.js',
+    file: 'src/components/student-space/sheets/TrajectorySheet.tsx',
     blurb: 'CCE / Marcia identity-status branching. Floating preview HUD.',
     sheetParam: 'trajectory',
   },
