@@ -27,7 +27,6 @@ import KiraNarrator from './KiraNarrator.js'
 import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
-import SideRail from './SideRail.js'
 import ProfileSheet from './ProfileSheet.js'
 import ObjectPeek from './ObjectPeek.js'
 import State from '../State/State.js'
@@ -108,7 +107,10 @@ export default class View
         // Vertical icon rail on the left — the primary navigation surface.
         // Replaces the old TopNav pill cluster + standalone onboarding-restart
         // chip; both have been folded into the rail. See SideRail.js.
-        this.sideRail      = new SideRail()
+        // SideRail lifecycle moved to React (U20) — see
+        // `src/components/student-space/EngineHost.tsx` (rail is mounted at
+        // engine-host scope so it's visible across every route, matching
+        // legacy posture).
         // HoverCta + HoverProbe are constructed AFTER facetView so they can
         // route picks to it. The probe reads view.flowers/tree/kira refs
         // that are also already live above.
@@ -191,7 +193,7 @@ export default class View
         // HourHud / FpsOverlay per-frame ticks moved with the widgets to
         // React-owned lifecycle (U13). The React HUD wrappers in
         // StudentSpaceHost call .update() themselves.
-        this.sideRail.update()
+        // SideRail per-frame .update() moved with the widget (U20).
         this.sound.update()
         this.camera.update()
         this.renderer.update()
@@ -232,7 +234,6 @@ export default class View
             this.sound,
             this.kiraDialogue,
             this.kiraNarrator,
-            this.sideRail,
             this.profileSheet,
             this.facetView,
             this.hoverProbe,

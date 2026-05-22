@@ -78,6 +78,34 @@ export function EngineHost({ className, children }: { className?: string; childr
     game.setRenderActive(location.pathname === '/')
   }, [game, location.pathname])
 
+  // U20: SideRail is engine-rendered but React owns its lifecycle. It
+  // persists across every route (the nav rail is visible on / and on every
+  // routed sheet alike, so EngineHost is the correct mount scope rather
+  // than StudentSpaceHost which only mounts on `/`).
+  useEffect(() => {
+    if (!game) return
+    let widget: { dispose?: () => void; update?: () => void } | null = null
+    let cancelled = false
+    void (async () => {
+      // @ts-expect-error untyped engine module
+      const mod = (await import('~/engine/student-space/Game/View/SideRail.js')) as {
+        default?: new () => { dispose?: () => void; update?: () => void }
+      }
+      if (cancelled) return
+      const SideRail = mod.default
+      if (!SideRail) return
+      widget = new SideRail()
+    })()
+    return () => {
+      cancelled = true
+      try {
+        widget?.dispose?.()
+      } catch {
+        // engine widget dispose swallows errors; preserve that posture
+      }
+    }
+  }, [game])
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
