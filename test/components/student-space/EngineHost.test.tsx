@@ -40,6 +40,27 @@ const createGame = vi
 const localStorageAdapter = vi.fn().mockReturnValue({})
 const backendBridge = vi.hoisted(() => ({ version: 1 }))
 
+// U16–U19: OnboardingFlow lifecycle now lives in the host. Mocked here so we
+// can verify construction + start/dispose under different onboarding states.
+const onboardingStart = vi.fn(async () => {})
+const onboardingDispose = vi.fn()
+const onboardingCtor = vi.fn()
+
+vi.mock('~/engine/student-space/Game/View/Onboarding/OnboardingFlow.js', () => ({
+  default: function MockOnboardingFlow(view: unknown) {
+    onboardingCtor(view)
+    return { start: onboardingStart, dispose: onboardingDispose }
+  },
+}))
+
+// U20: SideRail is dynamically imported by the host; stub it so the
+// onboarding tests don't pull in the real engine module.
+vi.mock('~/engine/student-space/Game/View/SideRail.js', () => ({
+  default: function MockSideRail() {
+    return { dispose: vi.fn(), update: vi.fn() }
+  },
+}))
+
 vi.mock('~/lib/student-space/backend-bridge', () => ({
   createStudentSpaceBackendBridge: () => backendBridge,
 }))
@@ -79,6 +100,9 @@ afterEach(() => {
   closeActiveSurface.mockClear()
   setRenderActive.mockClear()
   localStorageAdapter.mockClear()
+  onboardingCtor.mockClear()
+  onboardingStart.mockClear()
+  onboardingDispose.mockClear()
   createGame.mockImplementation(() => ({
     dispose,
     openSurface,
@@ -89,6 +113,39 @@ afterEach(() => {
   delete (backendBridge as { loadAuthMenu?: unknown }).loadAuthMenu
   window.history.pushState({}, '', '/')
 })
+
+// Helper: build a createGame return value with the onboarding + view shape
+// the lifecycle effect probes.
+function makeGameWithOnboarding(opts: {
+  stage: string
+  isDone?: boolean
+  completedAt?: number | null
+  isSignedIn?: boolean
+}) {
+  const flowers = { hideAll: vi.fn() }
+  const tree = { hideAll: vi.fn() }
+  const fruits = { hideAll: vi.fn() }
+  return {
+    instance: {
+      dispose,
+      openSurface,
+      closeActiveSurface,
+      setRenderActive,
+      state: {
+        onboarding: {
+          stage: opts.stage,
+          isDone: opts.isDone ?? false,
+          completedAt: opts.completedAt ?? null,
+        },
+        auth: { isSignedIn: opts.isSignedIn ?? false },
+      },
+      view: { flowers, tree, fruits },
+    },
+    flowers,
+    tree,
+    fruits,
+  }
+}
 
 describe('EngineHost', () => {
   it('renders a container and mounts the engine into it', async () => {
@@ -283,6 +340,67 @@ describe('EngineHost', () => {
       const created = createGame.mock.calls.length
       const disposed = dispose.mock.calls.length
       expect(disposed).toBeGreaterThanOrEqual(Math.min(created, 1))
+    })
+  })
+
+  describe('onboarding lifecycle (U16–U19)', () => {
+    it('skips OnboardingFlow construction when stage is "done"', async () => {
+      const fixture = makeGameWithOnboarding({ stage: 'done', isDone: true })
+      createGame.mockImplementationOnce(() => fixture.instance)
+
+      renderHostAt('/')
+      await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+      // Effect runs synchronously after game state flips; give the microtask
+      // queue one drain in case the dynamic import was reached.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      expect(onboardingCtor).not.toHaveBeenCalled()
+      expect(onboardingStart).not.toHaveBeenCalled()
+      expect(fixture.flowers.hideAll).not.toHaveBeenCalled()
+    })
+
+    it('constructs and starts OnboardingFlow when stage is not "done"', async () => {
+      const fixture = makeGameWithOnboarding({ stage: 'greeting' })
+      createGame.mockImplementationOnce(() => fixture.instance)
+
+      renderHostAt('/')
+      await waitFor(() => expect(onboardingCtor).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(onboardingStart).toHaveBeenCalledTimes(1))
+      // The host passes the engine's view (not the game itself) into the
+      // OnboardingFlow constructor so the surfaces can reach view.kira etc.
+      expect(onboardingCtor).toHaveBeenCalledWith(fixture.instance.view)
+      // Reveal-prep hide-pass fires for a non-resuming first-run user.
+      expect(fixture.flowers.hideAll).toHaveBeenCalledTimes(1)
+      expect(fixture.tree.hideAll).toHaveBeenCalledTimes(1)
+      expect(fixture.fruits.hideAll).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips the reveal-prep hide-pass for a returning signed-in student at the login stage', async () => {
+      const fixture = makeGameWithOnboarding({
+        stage: 'login',
+        completedAt: 1700000000000,
+        isSignedIn: true,
+      })
+      createGame.mockImplementationOnce(() => fixture.instance)
+
+      renderHostAt('/')
+      await waitFor(() => expect(onboardingCtor).toHaveBeenCalledTimes(1))
+      // The completedSignInReturn guard keeps the world unhidden — they
+      // already saw the ceremony, no need to bare the island a second time.
+      expect(fixture.flowers.hideAll).not.toHaveBeenCalled()
+      expect(fixture.tree.hideAll).not.toHaveBeenCalled()
+      expect(fixture.fruits.hideAll).not.toHaveBeenCalled()
+    })
+
+    it('disposes the OnboardingFlow on unmount', async () => {
+      const fixture = makeGameWithOnboarding({ stage: 'greeting' })
+      createGame.mockImplementationOnce(() => fixture.instance)
+
+      const { unmount } = renderHostAt('/')
+      await waitFor(() => expect(onboardingCtor).toHaveBeenCalledTimes(1))
+      unmount()
+
+      expect(onboardingDispose.mock.calls.length).toBeGreaterThanOrEqual(1)
     })
   })
 

@@ -106,6 +106,74 @@ export function EngineHost({ className, children }: { className?: string; childr
     }
   }, [game])
 
+  // U16–U19: OnboardingFlow is engine-rendered but React owns its lifecycle.
+  // The flow runs across every route (matches legacy posture — the
+  // `body.is-onboarding` class spans the world and routed surfaces alike),
+  // so EngineHost is the correct mount scope. The ceremony surfaces
+  // (Greeting / EggHatcher / FirstChat / FirstMood / IslandReveal /
+  // EdupassLogin) still draw their own DOM under `.onboarding-root`; full
+  // per-surface React rewrites layer on top of this lifecycle later.
+  useEffect(() => {
+    if (!game) return
+    const state = (
+      game as unknown as {
+        state?: {
+          onboarding?: { stage?: string; isDone?: boolean; completedAt?: number | null }
+          auth?: { isSignedIn?: boolean }
+        }
+      }
+    ).state
+    const onb = state?.onboarding
+    if (!onb || onb.isDone || onb.stage === 'done') return
+
+    type OnboardingFlowInstance = {
+      start: () => Promise<void>
+      dispose?: () => void
+    }
+    let flow: OnboardingFlowInstance | null = null
+    let cancelled = false
+
+    void (async () => {
+      const mod = (await import(
+        // @ts-expect-error untyped engine module
+        '~/engine/student-space/Game/View/Onboarding/OnboardingFlow.js'
+      )) as { default?: new (view: unknown) => OnboardingFlowInstance }
+      if (cancelled) return
+      const OnboardingFlow = mod.default
+      const view = (
+        game as unknown as {
+          view?: {
+            flowers?: { hideAll?: () => void }
+            tree?: { hideAll?: () => void }
+            fruits?: { hideAll?: () => void }
+          }
+        }
+      ).view
+      if (!OnboardingFlow || !view) return
+      // Replay the auth-resume guard the engine constructor used to run:
+      // a returning signed-in student who already completed the ceremony
+      // skips the reveal-prep hide-pass.
+      const completedSignInReturn =
+        onb.stage === 'login' && Boolean(onb.completedAt) && Boolean(state?.auth?.isSignedIn)
+      if (!completedSignInReturn) {
+        view.flowers?.hideAll?.()
+        view.tree?.hideAll?.()
+        view.fruits?.hideAll?.()
+      }
+      flow = new OnboardingFlow(view)
+      flow.start().catch((e: unknown) => console.error('[onboarding] flow failed', e))
+    })()
+
+    return () => {
+      cancelled = true
+      try {
+        flow?.dispose?.()
+      } catch {
+        // dispose is internally defensive; swallow any residual errors
+      }
+    }
+  }, [game])
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return

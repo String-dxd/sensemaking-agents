@@ -24,7 +24,11 @@ import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
 import State from '../State/State.js'
-import OnboardingFlow from './Onboarding/OnboardingFlow.js'
+// OnboardingFlow lifecycle moved to React (U16–U19) — see
+// `src/components/student-space/EngineHost.tsx`. The ceremony surfaces
+// (Greeting / EggHatcher / FirstChat / FirstMood / IslandReveal /
+// EdupassLogin) still draw their own DOM; only the orchestrator's
+// construction site changed.
 
 export default class View
 {
@@ -112,31 +116,14 @@ export default class View
         // BirdPicker + TrackPicker lifecycle moved to React (U15) — see
         // `src/components/StudentSpaceHost.tsx`.
 
-        // First-run ceremony. Constructed last so it can hold every other
-        // view subsystem (kira, kiraDialogue, camera, etc.). Skips itself
-        // when state.onboarding.stage === 'done'. Fire-and-forget — the
-        // orchestrator runs async; chrome is hidden via body.is-onboarding.
-        const onb = this.state.onboarding
-        if(onb && onb.stage !== 'done')
-        {
-            const completedSignInReturn = onb.stage === 'login' &&
-                onb.completedAt &&
-                this.state.auth?.isSignedIn
-            if(!completedSignInReturn)
-            {
-                // Hide the world's flowers and trees so the reveal beats land
-                // dramatically (bare island → one flower → one tree). The
-                // grow/bloom APIs restore the directed entities during reveal.
-                // Tree's loader is async; tree.hideAll() handles the deferred
-                // case via a _hideAllPending flag. Fruits.hideAll() defers
-                // similarly until its first-tick placement runs.
-                this.flowers.hideAll()
-                this.tree.hideAll()
-                this.fruits.hideAll()
-            }
-            this.onboardingFlow = new OnboardingFlow(this)
-            this.onboardingFlow.start().catch((e) => console.error('[onboarding] flow failed', e))
-        }
+        // First-run ceremony (Greeting → EggHatcher → FirstChat → FirstMood →
+        // IslandReveal, plus the EdupassLogin side-branch) is mounted by
+        // React (U16–U19). EngineHost owns the OnboardingFlow lifecycle and
+        // calls the same `view.flowers/tree/fruits.hideAll()` reveal-prep
+        // pass that this constructor previously ran. The flow construction
+        // is intentionally NOT re-attached to `view.onboardingFlow` — React
+        // disposes it directly on cleanup, so we avoid a double-dispose
+        // through View.dispose()'s SUBSYSTEMS loop.
     }
 
     resize()
@@ -218,7 +205,7 @@ export default class View
         // by a parent surface) or are pure scene-graph nodes torn down by
         // Renderer.dispose() — both bounded per remount.
         const SUBSYSTEMS = [
-            this.onboardingFlow,
+            // onboardingFlow is owned by React (EngineHost) and disposed there.
             this.camera,
             this.sound,
             this.facetView,

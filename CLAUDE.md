@@ -34,8 +34,13 @@ Package manager is **pnpm only**. Do not introduce npm / yarn lockfiles.
 
 The engine's DOM-rendering surfaces are being migrated to React + Tailwind v4
 (plan: `docs/plans/2026-05-22-001-refactor-full-dom-react-tailwind-migration-plan.md`).
-The migration is **in-flight** as of this commit — 16 of 21 units shipped on
-this branch; onboarding (U16–U19) and final cleanup (U21) remain.
+The migration is **in-flight** as of this commit — 20 of 21 structural units
+have shipped on this branch (every engine widget's lifecycle is now React-
+owned). The U21 final cleanup (delete `SheetChrome.js` / `OverlayController.js`
+and prune `style.css` to the canvas baseline) is gated on per-surface React
+rewrites of the engine widgets that still draw their own DOM — capture
+sheets (Ask, Mood, Chooser) and the onboarding ceremony surfaces (Greeting,
+EggHatcher, FirstChat, FirstMood, IslandReveal, EdupassLogin).
 
 **Routed sheets** — owned by TanStack Router file routes. Each route renders
 its React sheet component directly; no engine sheet construction.
@@ -91,6 +96,9 @@ engine once at the root layout. It owns:
 - `useStudentSpaceRouteSync(game, …)` — URL ↔ surface mirroring
 - `setRenderActive(pathname === '/')` — rAF gating for routed pages
 - SideRail lifecycle (engine widget; persists across every route)
+- OnboardingFlow lifecycle (engine ceremony orchestrator; runs across
+  every route — `body.is-onboarding` and the floating skip button span
+  the world and routed surfaces alike, matching legacy posture)
 
 **StudentSpaceHost** — `src/components/StudentSpaceHost.tsx` is the world-
 route React composition (mounts only on `/`). It owns the lifecycle for
@@ -107,7 +115,11 @@ every engine widget that was previously constructed in `View.js`:
 
 These engine widgets continue to render their own DOM + CSS until a future
 per-widget React rewrite pass; what U10/U12–U15/U20 changed is **lifecycle
-ownership** (React mounts + disposes; engine still draws).
+ownership** (React mounts + disposes; engine still draws). The same pattern
+landed for onboarding in U16–U19: EngineHost owns the OnboardingFlow
+construction + dispose, while the ceremony surfaces (Greeting, EggHatcher,
+FirstChat, FirstMood, IslandReveal, EdupassLogin) still draw their own DOM
+under `.onboarding-root`.
 
 **Design tokens** — canonical store is `@theme` in `src/styles.css`:
 
@@ -132,9 +144,11 @@ selectors that capture sheets and onboarding still consume. It shrank from
 `docs/sheet-chrome-contract.md` rule said "every full-viewport sheet in the
 engine MUST be built on the shared SheetChrome primitive." That rule is now
 **partial**: routed sheets use the React `<Sheet>` primitive; capture sheets
-(Ask, Mood) and onboarding still use the engine `SheetChrome.js` class.
-Once U16–U19 (onboarding) and full Ask/Mood React rewrites land, the engine
-SheetChrome can be removed in the U21 final cleanup pass.
+(Ask, Mood) and onboarding ceremony surfaces still use the engine
+`SheetChrome.js` class. Their **lifecycle owners** have all moved to React
+(U10 / U16–U19), but the per-surface DOM/CSS still lives in the engine —
+removing `SheetChrome.js` in U21 is gated on rewriting those surfaces as
+React components.
 
 ---
 
