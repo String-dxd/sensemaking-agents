@@ -1,7 +1,57 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 
 import View from './View.js'
 import State from '../State/State.js'
+
+// Asset base — mirrors Tree.js so a subpath deployment still resolves.
+const BASE_URL = (typeof import.meta !== 'undefined'
+    && import.meta.env
+    && typeof import.meta.env.BASE_URL === 'string')
+    ? import.meta.env.BASE_URL
+    : '/'
+const ASSET_BASE = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`
+
+// GLB-backed species (currently just Masked Bower). Authored in Blender,
+// exported with feet at y=0 and beak along Blender -Y. We rotate +90° at
+// load time so the beak lands on local +X — the convention the wander
+// code uses (atan2(-dz, dx)).
+const MASKED_GLB_URL  = `${ASSET_BASE}birds/MaskedBower.glb`
+const MASKED_SCALE    = 0.30
+const MASKED_YAW_OFFS = Math.PI / 2
+
+let _maskedScenePromise = null
+function loadMaskedScene()
+{
+    if(_maskedScenePromise) return _maskedScenePromise
+
+    const draco = new DRACOLoader()
+    draco.setDecoderPath(`${ASSET_BASE}draco/`)
+    const loader = new GLTFLoader()
+    loader.setDRACOLoader(draco)
+
+    _maskedScenePromise = loader.loadAsync(MASKED_GLB_URL).then(gltf =>
+    {
+        const scene = gltf.scene
+        scene.scale.setScalar(MASKED_SCALE)
+        scene.rotation.y = MASKED_YAW_OFFS
+
+        let head = null
+        scene.traverse(o =>
+        {
+            if(o.isMesh)
+            {
+                o.castShadow = true
+                o.receiveShadow = true
+            }
+            if(!head && /MB_Head/i.test(o.name)) head = o
+        })
+
+        return { scene, head }
+    })
+    return _maskedScenePromise
+}
 
 /**
  * Kira — the resident island bird. Mesh + species data ported from the
@@ -41,10 +91,13 @@ export const SPECIES = [
         palette: { back: '#e63946', belly: '#ffd3a5', accent: '#ffb347', beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a' },
     },
     {
-        id: 'ember',
-        displayName: 'Ember Bower',
-        shape:   { crest: 'curve',   tail: 'short-fan', beak: 'stout'   },
-        palette: { back: '#f4791f', belly: '#ffe0a8', accent: '#ffd07a', beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a' },
+        id: 'masked',
+        displayName: 'Masked Bower',
+        // GLB-backed: shape fields unused by the procedural builder for this
+        // species (it loads MaskedBower.glb instead). Palette drives the
+        // picker chip dot only.
+        shape:   { crest: 'pointed', tail: 'long-fan', beak: 'slender' },
+        palette: { back: '#ffd23f', belly: '#fff3a3', accent: '#ff8c42', beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a' },
     },
     {
         id: 'regent',
@@ -142,25 +195,8 @@ const STANDING_OVERRIDES = {
         tail: { x: 0.43, y: 0.55, scaleX: 0.42, scaleY: 0.56, scaleZ: 0.62 },
         crestScale: 0.90,
     },
-    ember: {
-        scale: 0.72,
-        body: { x: 0.66, y: 0.92, z: 0.62 },
-        bodyY: 0.61,
-        headY: 1.32,
-        headSize: 0.43,
-        headScale: { x: 1.08, y: 0.98, z: 1.04 },
-        cheekSize: 0.15,
-        faceColor: '#fff0c8',
-        beak: { length: 0.36, width: 0.20, height: 0.14, gape: 0.036, open: 0.02 },
-        eyeWhite: 0.19, pupil: 0.12,
-        eyeSquash: 0.50, eyeTilt: -0.18,
-        pupilScaleX: 0.82, pupilScaleY: 0.72,
-        upperLid: 0.42, lowerLid: 0.05,
-        brow: -0.06,
-        wing: { x: 0.01, y: 0.79, z: 0.34, length: 0.50, rootW: 0.14, tipW: 0.36, rest: -0.04, feathers: 3 },
-        leg:  { y: 0.34, z: 0.22, len: 0.28, toe: 0.13 },
-        tail: { x: 0.38, y: 0.52, scaleX: 0.30, scaleY: 0.46, scaleZ: 0.46 },
-    },
+    // 'masked' has no procedural override — it ships as a Blender GLB
+    // loaded in Kira._buildMaskedAsync().
     regent: {
         scale: 0.73,
         body: { x: 0.70, y: 0.82, z: 0.56 },
@@ -325,6 +361,10 @@ export default class Kira
     /** Cycle to a specific species. Rebuilds the mesh in place. */
     setSpecies(id)
     {
+        // Legacy alias: 'ember' was retired when the Blender Masked Bower
+        // replaced the orange procedural bird. Persisted student profiles
+        // with companionSpecies='ember' route here.
+        if(id === 'ember') id = 'masked'
         if(!SPECIES_BY_ID[id] || id === this.speciesId) return
         this.speciesId = id
         this._build(id)
@@ -807,15 +847,62 @@ export default class Kira
     {
         // Tear down the previous mesh so a swap doesn't leak geometry +
         // materials. Canvas-backed face textures are the heaviest piece.
+        // The masked GLB scene is cached at module scope, so we skip
+        // dispose for it (parts.static) and only detach from the group.
         if(this.parts)
         {
             this.group.remove(this.parts.root)
-            this._dispose(this.parts.root)
+            if(!this.parts.static) this._dispose(this.parts.root)
             this.parts = null
+        }
+        if(speciesId === 'masked')
+        {
+            this._buildMaskedAsync()
+            return
         }
         const spec = SPECIES_BY_ID[speciesId] || SPECIES_BY_ID.flame
         this.parts = buildStandingBird(spec)
         this.group.add(this.parts.root)
+    }
+
+    /**
+     * Async branch for the Blender-authored Masked Bower. Plants a
+     * placeholder so getHeadWorldPosition + _animateBody don't trip while
+     * the GLB is in flight, then swaps in the cached scene on resolve.
+     * Bails if the species changed mid-load.
+     */
+    _buildMaskedAsync()
+    {
+        const placeholder = new THREE.Group()
+        const placeholderHead = new THREE.Object3D()
+        placeholderHead.position.y = 1.2
+        placeholder.add(placeholderHead)
+        this.parts = {
+            root: placeholder,
+            head: placeholderHead,
+            headBaseY: 1.2,
+            headBaseRotZ: 0,
+            static: true,
+        }
+        this.group.add(placeholder)
+
+        loadMaskedScene().then(({ scene, head }) =>
+        {
+            if(this.speciesId !== 'masked') return
+            if(!this.parts || this.parts.root !== placeholder) return
+            this.group.remove(placeholder)
+            this.parts = {
+                root: scene,
+                head: head || scene,
+                headBaseY: head ? head.position.y : 1.2,
+                headBaseRotZ: 0,
+                static: true,
+            }
+            this.group.add(scene)
+        }).catch(err =>
+        {
+            console.error('[Kira] Failed to load MaskedBower.glb', err)
+        })
     }
 
     _dispose(node)
