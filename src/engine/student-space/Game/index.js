@@ -68,7 +68,7 @@ export const HOST_BODY_CLASSES = Object.freeze([
     'is-night',            // night palette (genuinely page-level)
     'has-overlay',         // any full-screen sheet open
     'has-capture-sheet',   // capture-flow sheet open
-    'has-chooser',         // capture-chooser open
+    'has-chooser',         // React capture chooser open
 ])
 
 /**

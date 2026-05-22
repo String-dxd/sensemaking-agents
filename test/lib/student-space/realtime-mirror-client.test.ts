@@ -121,7 +121,9 @@ describe('realtime-mirror-client', () => {
     expect(responseCreate.conversation).toBe('none')
     expect(responseCreate.output_modalities).toEqual(['text'])
     expect(responseCreate.metadata.purpose).toBe('mirror_final_json')
-    expect(responseCreate.input[0].content[0].text).toContain('live voice session with Kira')
+    expect(responseCreate.input[0].content[0].text).toContain(
+      'live voice session with the Companion',
+    )
     expect(responseCreate.input[0].content[0].text).toContain('I said this live.')
     channel.message({
       type: 'response.created',

@@ -58,8 +58,8 @@ export default class ColdStart
         this.seenFlagWritten = false
 
         // Visible to the rest of the app via `state.coldStart.active`. Other
-        // systems (HourHud, future MoodSheet) can read this to suppress UI
-        // affordances while the arrival ceremony is on screen.
+        // systems can read this to suppress UI affordances while the arrival
+        // ceremony is on screen.
         this.active = false
 
         let seen = false

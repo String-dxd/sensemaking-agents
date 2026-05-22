@@ -15,34 +15,19 @@ import Butterflies from './Butterflies.js'
 import Fireflies from './Fireflies.js'
 import Particles from './Particles.js'
 import Kira from './Kira.js'
-import KiraDialogue from './KiraDialogue.js'
 import Aurora from './Aurora.js'
 import Rainbow from './Rainbow.js'
 import Rain from './Rain.js'
-import HourHud from './HourHud.js'
-import StatusPreviewHud from './StatusPreviewHud.js'
-import ZoomHud from './ZoomHud.js'
 import Sound from './Sound.js'
-import CaptureFab from './CaptureFab.js'
 import FacetView from './FacetView.js'
-import HoverCta from './HoverCta.js'
-import HoverProbe from './HoverProbe.js'
-import KiraNarrator from './KiraNarrator.js'
-import BirdPicker from './BirdPicker.js'
-import TrackPicker from './TrackPicker.js'
 import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
-import SideRail from './SideRail.js'
-import ProfileSheet from './ProfileSheet.js'
-import CalendarSheet from './CalendarSheet.js'
-import LettersSheet from './LettersSheet.js'
-import TrajectorySheet from './TrajectorySheet.js'
-import HistorySheet from './HistorySheet.js'
-import ObjectPeek from './ObjectPeek.js'
-import FpsOverlay from './FpsOverlay.js'
 import State from '../State/State.js'
-import OnboardingFlow from './Onboarding/OnboardingFlow.js'
+// OnboardingFlow lifecycle moved to React (U16–U19) — see
+// `src/components/student-space/EngineHost.tsx`. The ceremony surfaces
+// (Greeting / EggHatcher / FirstChat / FirstMood / IslandReveal /
+// EdupassLogin) now render from React components.
 
 export default class View
 {
@@ -100,80 +85,40 @@ export default class View
         this.aurora      = new Aurora()
         this.rainbow     = new Rainbow()
         this.rain        = new Rain()
-        this.hourHud     = new HourHud()
-        this.statusPreviewHud = new StatusPreviewHud()
-        // Sound is constructed before ZoomHud so the mute button can read
-        // the persisted preference and subscribe to mute-change events.
+        // HourHud, StatusPreviewHud, ZoomHud, FpsOverlay moved to React-owned
+        // lifecycle in U13 — see `src/components/StudentSpaceHost.tsx`.
         this.sound       = new Sound()
-        this.zoomHud     = new ZoomHud()
-        // OverlayController is constructed *before* anything that registers
-        // with it (CaptureFab and TopNav). Its getInstance() lookup is the
-        // contract every surface depends on.
+        // OverlayController stays as the compatibility bridge for legacy
+        // in-world callers. React capture surfaces register proxy handlers in
+        // StudentSpaceHost so old `open('ask'|'mood')` calls still work.
         this.overlayController = new OverlayController()
-        this.captureFab  = new CaptureFab()
+        // CaptureFab + CaptureChooser + AskSheet + MoodSheet moved to React
+        // (U8–U10) — see `src/components/StudentSpaceHost.tsx`.
         this.facetView   = new FacetView()
-        this.profileSheet  = new ProfileSheet()
-        this.overlayController.register('profile', this.profileSheet)
-        this.calendarSheet = new CalendarSheet()
-        this.overlayController.register('calendar', this.calendarSheet)
-        this.lettersSheet  = new LettersSheet()
-        this.overlayController.register('letters', this.lettersSheet)
-        this.trajectorySheet = new TrajectorySheet()
-        this.overlayController.register('trajectory', this.trajectorySheet)
-        this.historySheet = new HistorySheet()
-        this.overlayController.register('history', this.historySheet)
-        // ObjectPeek is the shared peek-then-companion interaction for
-        // every clickable island object (flowers, mailbox, telescope).
-        // No overlay registration — it does not own the viewport.
-        this.objectPeek    = new ObjectPeek()
-        // Vertical icon rail on the left — the primary navigation surface.
-        // Replaces the old TopNav pill cluster + standalone onboarding-restart
-        // chip; both have been folded into the rail. See SideRail.js.
-        this.sideRail      = new SideRail()
-        // HoverCta + HoverProbe are constructed AFTER facetView so they can
-        // route picks to it. The probe reads view.flowers/tree/kira refs
-        // that are also already live above.
-        this.hoverCta    = new HoverCta()
-        this.hoverProbe  = new HoverProbe()
-        this.kiraDialogue = new KiraDialogue()
-        // KiraNarrator is the AC-style mediated dialogue that runs on element
-        // click. Constructed after KiraDialogue so it can suppress the ambient
-        // bubble during a narration beat.
-        this.kiraNarrator = new KiraNarrator()
-        this.captureFab.setKiraNarrator(this.kiraNarrator)
-        // BirdPicker is purely visual — depends on view.kira existing, which
-        // it does by this point.
-        this.birdPicker  = new BirdPicker()
-        // TrackPicker depends on view.sound existing and sits above the
-        // BirdPicker chip in the dark-glass admin tier.
-        this.trackPicker = new TrackPicker()
-        this.fpsOverlay = new FpsOverlay({ mount: this.hourHud.root })
+        // ProfileSheet migrated to React route at /profile (U7).
+        // No engine registration needed — the route owns rendering.
+        // ObjectPeek + HoverCta + HoverProbe lifecycle moved to React
+        // (U14). React assigns view.objectPeek, view.hoverCta, view.hoverProbe
+        // so engine code (HoverProbe internals, KiraNarrator) still finds them.
+        // Vertical icon rail lifecycle moved to React (U20) — see
+        // `src/components/student-space/EngineHost.tsx` (rail is mounted at
+        // engine-host scope so it's visible across every route, matching
+        // legacy posture).
+        // KiraDialogue + KiraNarrator lifecycle moved to React (U12) — see
+        // `src/components/StudentSpaceHost.tsx`. The React owner assigns
+        // `view.kiraDialogue` + `view.kiraNarrator` so engine code (HoverProbe,
+        // KiraNarrator internals) keeps finding them at those refs.
+        // BirdPicker + TrackPicker lifecycle moved to React (U15) — see
+        // `src/components/StudentSpaceHost.tsx`.
 
-        // First-run ceremony. Constructed last so it can hold every other
-        // view subsystem (kira, kiraDialogue, camera, etc.). Skips itself
-        // when state.onboarding.stage === 'done'. Fire-and-forget — the
-        // orchestrator runs async; chrome is hidden via body.is-onboarding.
-        const onb = this.state.onboarding
-        if(onb && onb.stage !== 'done')
-        {
-            const completedSignInReturn = onb.stage === 'login' &&
-                onb.completedAt &&
-                this.state.auth?.isSignedIn
-            if(!completedSignInReturn)
-            {
-                // Hide the world's flowers and trees so the reveal beats land
-                // dramatically (bare island → one flower → one tree). The
-                // grow/bloom APIs restore the directed entities during reveal.
-                // Tree's loader is async; tree.hideAll() handles the deferred
-                // case via a _hideAllPending flag. Fruits.hideAll() defers
-                // similarly until its first-tick placement runs.
-                this.flowers.hideAll()
-                this.tree.hideAll()
-                this.fruits.hideAll()
-            }
-            this.onboardingFlow = new OnboardingFlow(this)
-            this.onboardingFlow.start().catch((e) => console.error('[onboarding] flow failed', e))
-        }
+        // First-run ceremony (Greeting → EggHatcher → FirstChat → FirstMood →
+        // IslandReveal, plus the EdupassLogin side-branch) is mounted by
+        // React (U16–U19). EngineHost owns the OnboardingFlow lifecycle and
+        // calls the same `view.flowers/tree/fruits.hideAll()` reveal-prep
+        // pass that this constructor previously ran. The flow construction
+        // is intentionally NOT re-attached to `view.onboardingFlow` — React
+        // disposes it directly on cleanup, so we avoid a double-dispose
+        // through View.dispose()'s SUBSYSTEMS loop.
     }
 
     resize()
@@ -205,17 +150,21 @@ export default class View
         this.telescope.update()
         // Narrator after kira so its yaw-tween wins over any Kira-driven
         // rotation, then dialogue (which reads Kira's screen position).
-        this.kiraNarrator.update()
-        this.kiraDialogue.update()
-        this.objectPeek.update()
+        // Both widgets are React-owned (U12); they're attached to `this`
+        // via the React useEffect so engine code (and this update loop)
+        // still finds them.
+        this.kiraNarrator?.update?.()
+        this.kiraDialogue?.update?.()
+        this.objectPeek?.update?.()
         if(tickAmbient)
             this.aurora.update()
         this.rainbow.update()
         this.rain.update()
-        this.hoverProbe.update()
-        this.hourHud.update()
-        this.fpsOverlay.update()
-        this.sideRail.update()
+        this.hoverProbe?.update?.()
+        // HourHud / FpsOverlay per-frame ticks moved with the widgets to
+        // React-owned lifecycle (U13). The React HUD wrappers in
+        // StudentSpaceHost call .update() themselves.
+        // SideRail per-frame .update() moved with the widget (U20).
         this.sound.update()
         this.camera.update()
         this.renderer.update()
@@ -244,35 +193,16 @@ export default class View
         //
         // Every chrome subsystem that registers a document- or window-level
         // listener, a state-store subscription, or a Three.js scene addition
-        // now implements dispose(). CaptureFab cascades to its owned
-        // sheets (moodSheet / askSheet / photoSheet / chooser); CalendarSheet
+        // now implements dispose(). React owns capture surfaces; CalendarSheet
         // cascades to DayDetailCard. The handful of subsystems still without
         // a dispose() either don't appendChild to body (their DOM is owned
         // by a parent surface) or are pure scene-graph nodes torn down by
         // Renderer.dispose() — both bounded per remount.
         const SUBSYSTEMS = [
-            this.onboardingFlow,
+            // onboardingFlow is owned by React (EngineHost) and disposed there.
             this.camera,
             this.sound,
-            this.kiraDialogue,
-            this.kiraNarrator,
-            this.zoomHud,
-            this.fpsOverlay,
-            this.hourHud,
-            this.statusPreviewHud,
-            this.sideRail,
-            this.captureFab,
-            this.profileSheet,
-            this.calendarSheet,
-            this.lettersSheet,
-            this.historySheet,
-            this.trajectorySheet,
             this.facetView,
-            this.hoverProbe,
-            this.hoverCta,
-            this.objectPeek,
-            this.birdPicker,
-            this.trackPicker,
             this.mailbox,
             this.telescope,
             this.sprouts,

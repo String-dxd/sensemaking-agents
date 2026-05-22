@@ -26,6 +26,7 @@ export default class OverlayController {
   surfaces: Map<string, OverlayControllerSurface>
   active: string | null
   register(name: string, surface: OverlayControllerSurface): void
+  unregister(name: string, surface?: OverlayControllerSurface): void
   open(name: string, opts?: unknown): void
   close(name: string): void
   noteClosed(name: string): void

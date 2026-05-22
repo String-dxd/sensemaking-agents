@@ -8,7 +8,7 @@
  *
  *   - themes:  ranked theme ids (top 2)        e.g. ['school', 'sleep']
  *   - needs:   matching need ids (top 2)       e.g. ['autonomy', 'rest']
- *   - moods:   ranked mood emotion ids (top 1–2) — matches MoodSheet EMOTIONS
+ *   - moods:   ranked mood emotion ids (top 1–2) — matches mood-shapes EMOTIONS
  *   - headline: ≤3-sentence prose, observational, no advice, no
  *               double-question, no AI disclaimer.
  *   - highlightPhrase: the transcript sentence with most keyword hits.

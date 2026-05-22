@@ -2,10 +2,9 @@
  * Cross-check: SideRail's `SHEET_HREFS` map must match what
  * `pathnameForSurface` in `route-sync.ts` produces for each surface.
  *
- * The map exists because the engine's JS layer can't import from the
- * host's TS modules (vendored engine constraint). The duplication is
- * structural — the keep-in-sync comment in SideRail.js is documentation,
- * and this test is the runtime enforcement of that contract.
+ * The map exists beside the React SideRail so navigation labels and the
+ * route-sync helper stay in lockstep. This test is the runtime enforcement
+ * of that contract.
  *
  * If a rename, a new surface, or a path change lands in route-sync.ts
  * and SideRail.SHEET_HREFS doesn't follow, this test fails. Catches the
@@ -15,8 +14,7 @@
  * the 2026-05-21 review pipeline.
  */
 import { describe, expect, it } from 'vitest'
-// @ts-expect-error vendored JS engine module
-import { SHEET_HREFS } from '~/engine/student-space/Game/View/SideRail.js'
+import { SHEET_HREFS } from '~/components/student-space/navigation/SideRail'
 import { pathnameForSurface } from '~/lib/student-space/route-sync'
 
 describe('SideRail.SHEET_HREFS vs pathnameForSurface', () => {

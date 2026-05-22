@@ -82,7 +82,7 @@ export default class MoodPins
     {
         if(!Array.isArray(snapshot) || snapshot.length === 0) return
         this.pins = mergeArray(snapshot, mergeMoodPin, 'pin')
-        // Bulk load is not a save event. Subscribers (Weather.js, CaptureFab)
+        // Bulk load is not a save event. Subscribers (Weather.js, React capture)
         // are written against `add()` semantics and assume `pin.emotion` is
         // readable; firing them with a synthetic pin would crash, and even a
         // guarded version would trigger sky tints / particle fountains on

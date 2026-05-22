@@ -1,6 +1,6 @@
 /**
  * Auth state slice — carries the server-resolved `loadAuthMenu()` payload
- * into the engine so chrome surfaces (TopNav, ProfileSheet, the onboarding
+ * into the engine so React chrome surfaces (ProfileSheet, the onboarding
  * EdupassLogin) can render the right sign-in / sign-out / demo affordance.
  *
  * Intentionally non-persistent. Auth is a server fact; reload re-reads it

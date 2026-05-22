@@ -48,11 +48,6 @@ vi.mock('~/engine/student-space/Game/View/OverlayController.js', () => ({
     }
   },
 }))
-vi.mock('~/engine/student-space/Game/View/Onboarding/OnboardingFlow.js', () => ({
-  default: class StubOnboardingFlow {
-    static instance: unknown = null
-  },
-}))
 vi.mock('~/engine/student-space/Game/State/MoodPins.js', () => ({
   default: class StubMoodPins {
     static instance: unknown = null
@@ -117,7 +112,6 @@ vi.mock('~/engine/student-space/Game/index.js', () => ({
   HOST_BODY_CLASSES: [] as readonly string[],
 }))
 
-// @ts-expect-error internal JS engine modules are intentionally untyped.
 import Game from '~/engine/student-space/Game/Game.js'
 
 interface GameInternals {

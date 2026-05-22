@@ -42,6 +42,7 @@ export type StudentSpaceSurface =
   | 'growth'
   | 'history'
   | 'letters'
+  | 'settings'
   // Legacy alias — `calendar` deep-links now route into History (Timeline tab).
   // Kept in the union so the `pathnameForSurface` switch stays exhaustive.
   | 'calendar'
@@ -129,7 +130,7 @@ export interface StudentSpaceBackendBridge {
   refreshSnapshot?: () => Promise<StudentSpaceBackendSnapshot>
   /**
    * Fetch the server-resolved auth menu once during host boot. Engines feed
-   * this into their `state.auth` slice so onboarding / TopNav / ProfileSheet
+   * this into their `state.auth` slice so onboarding / ProfileSheet
    * render the right sign-in / sign-out / demo affordance.
    */
   loadAuthMenu?: () => Promise<AuthMenuState>

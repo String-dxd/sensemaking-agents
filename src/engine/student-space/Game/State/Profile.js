@@ -39,7 +39,7 @@ export default class Profile
         // compass / Path Finder reads naturally ("Mei's current through-line").
         // setIdentity({ name }) can still override this from the UI later.
         // companionSpecies + companionName are written by the first-run
-        // ceremony (View/Onboarding/EggHatcher.js). Until then, Kira falls
+        // ceremony (React EggHatcher). Until then, Kira falls
         // back to the default 'flame' species (also Kira.js's hardcoded
         // default), and the bubble label uses the species name instead of a
         // nickname. See plan: /Users/jeongwondo/.claude/plans/steady-conjuring-panda.md

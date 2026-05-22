@@ -117,12 +117,12 @@ describe('DevPalette', () => {
     render(<DevPalette />)
     await user.keyboard('{Meta>}k{/Meta}')
 
-    await user.click(screen.getByRole('option', { name: /hide developer overlay/i }))
+    await user.click(screen.getByRole('option', { name: /hide world controls/i }))
     expect(document.body).toHaveClass('is-dev-overlay-hidden')
     expect(localStorage.getItem('sm:dev-overlay-hidden')).toBe('1')
 
     await user.keyboard('{Meta>}k{/Meta}')
-    await user.click(screen.getByRole('option', { name: /show developer overlay/i }))
+    await user.click(screen.getByRole('option', { name: /show world controls/i }))
     expect(document.body).not.toHaveClass('is-dev-overlay-hidden')
     expect(localStorage.getItem('sm:dev-overlay-hidden')).toBeNull()
   })
@@ -139,7 +139,7 @@ describe('DevPalette', () => {
     expect(signOutEngineMock).toHaveBeenCalledTimes(1)
     expect(localStorage.getItem('ss:v1:onboarding')).toBeNull()
     expect(localStorage.getItem('ss:v1:moodPins')).toBe('[]')
-    expect(assignSpy).toHaveBeenCalledWith('/#onboarding')
+    expect(assignSpy).toHaveBeenCalledWith('/onboarding')
   })
 
   it('does not open when the Cmd-K event has defaultPrevented set', async () => {

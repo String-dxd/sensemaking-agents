@@ -10,13 +10,13 @@
  * computed styles (CSS lives in `style.css` and is verified visually
  * via the design system page).
  */
-import { describe, it, expect } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import {
-  tldrHeroHTML,
+  bindDisclosureToggles,
+  calloutStripHTML,
   disclosureHTML,
   statTileRowHTML,
-  calloutStripHTML,
-  bindDisclosureToggles,
+  tldrHeroHTML,
   // @ts-expect-error — engine module is plain JS without bundled type defs
 } from '~/engine/student-space/Game/View/visualPrimitives.js'
 

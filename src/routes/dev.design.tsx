@@ -49,11 +49,11 @@ import {
   PROFILE_COLORS,
   PROFILE_HEADERS,
 } from '~/engine/student-space/Game/View/profile-tokens.constants.js'
-import type { IdentityStatusAudit, IdentityStatusId } from '~/lib/student-space/identity-status'
+import type { IdentityStatusId } from '~/lib/student-space/identity-status'
 import { cn } from '~/lib/utils'
 // Engine CSS is already loaded on `/` via StudentSpaceHost — re-importing here
-// makes the chrome classes (.sheet-chrome, .sheet-chrome__content) and engine
-// token defaults available when this route is opened directly in dev.
+// makes the remaining engine substrate and token defaults available when this
+// route is opened directly in dev.
 import '~/engine/student-space/style.css'
 
 export const Route = createFileRoute('/dev/design')({
@@ -921,9 +921,9 @@ const DRIFT_ROWS: DriftRow[] = [
   {
     topic: 'Backdrop blur',
     react: 'data-[starting-style]:opacity-0 — no blur',
-    engine: 'backdrop-filter: blur(10px) on .sheet-chrome',
+    engine: 'React Sheet/Drawer surfaces own blur via Tailwind utilities',
     verdict: 'harmonize',
-    note: "React drawers and dialogs should match the engine's 10px blur for SheetChrome parity — the CLAUDE.md sheet contract explicitly calls this out.",
+    note: 'React drawers and routed sheets should keep the same 10px blur posture for surface parity.',
   },
 ]
 
@@ -1106,89 +1106,25 @@ function SpacingAndRadii() {
 }
 
 function SurfacesAndElevation() {
-  const sheetChromeRef = useRef<HTMLDivElement | null>(null)
-  const [chromeOpen, setChromeOpen] = useState(false)
-
-  useEffect(() => {
-    // Lazy-construct a minimal SheetChrome demo. We can't import SheetChrome
-    // statically because it pulls OverlayController which calls
-    // document.body.classList — which would break SSR. Defer the import to
-    // the effect so it runs only in the browser, and only when the user
-    // clicks "Open sheet chrome demo."
-    if (!chromeOpen) return
-    let chrome: { dispose?: () => void } | null = null
-    let cancelled = false
-
-    void (async () => {
-      const [{ default: OverlayController }, { default: SheetChrome }] = await Promise.all([
-        import('~/engine/student-space/Game/View/OverlayController.js'),
-        import('~/engine/student-space/Game/View/SheetChrome.js'),
-      ])
-      if (cancelled) return
-      // The singleton may already exist if the user navigated here from `/`.
-      if (!OverlayController.getInstance()) {
-        new OverlayController()
-      }
-      const instance = new SheetChrome({
-        key: 'dev-design-demo',
-        sheetClassName: 'dev-design-demo-sheet',
-        withCloseButton: true,
-        closeOnBackdrop: true,
-        header: {
-          eyebrow: 'CHROME DEMO',
-          title: 'This is SheetChrome',
-          subtitle:
-            'Every full-viewport engine sheet sits on this primitive — backdrop, 10px blur, 200ms fade, z-60.',
-        },
-        onClose: () => setChromeOpen(false),
-      })
-      // Per-sheet content goes in bodySlot when header is provided.
-      instance.bodySlot.innerHTML = `
-        <p style="font-size: 14px; line-height: 1.6; color: var(--ink); max-width: 32rem;">
-          History, Profile, Letters, Path Finder, and Calendar all inherit this chrome.
-          The contract is locked by CLAUDE.md — no sheet may hand-roll its own backdrop.
-        </p>
-      `
-      // getInstance() may return undefined if the singleton was never
-      // constructed; we constructed it a few lines up so this branch only
-      // fires in a hypothetical race. Guard rather than non-null-assert.
-      OverlayController.getInstance()?.open('dev-design-demo')
-      chrome = instance
-    })()
-
-    return () => {
-      cancelled = true
-      try {
-        chrome?.dispose?.()
-      } catch {
-        // ignored
-      }
-    }
-  }, [chromeOpen])
-
   return (
     <SectionShell
       id="surface"
       title="Surfaces & elevation"
-      subtitle="The sheet chrome contract — backdrop (rgba 0.55 → 0.92), 10px blur, 200ms fade, z-60. Open the live demo to see the actual primitive."
+      subtitle="Routed sheets now use the React Sheet primitive, while capture and world overlays render from React-hosted drawers/dialogues."
     >
-      <div ref={sheetChromeRef} />
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">SheetChrome — live</CardTitle>
+            <CardTitle className="text-sm">React Sheet primitive</CardTitle>
             <CardDescription className="font-mono text-[11px]">
-              src/engine/student-space/Game/View/SheetChrome.js
+              src/components/ui/sheet.tsx
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="mb-3 text-xs text-muted-foreground">
-              Mounts the real engine primitive (no game state required). Demonstrates the backdrop,
-              blur, fade, and × button used by every full-viewport sheet.
+              Full-viewport student-space pages now render directly from TanStack routes using this
+              Base UI primitive. The old engine sheet demo was removed with the DOM migration.
             </p>
-            <Button variant="accent" size="sm" onClick={() => setChromeOpen(true)}>
-              Open sheet chrome demo
-            </Button>
           </CardContent>
         </Card>
         <Card>
@@ -1312,7 +1248,7 @@ function ButtonsSection() {
 
         <ComponentBlock
           title='"Run sense-making" / "Show me all paths"  ·  engine recipe'
-          file="src/engine/student-space/Game/View/TrajectorySheet.js (DOM)"
+          file="src/components/student-space/sheets/TrajectorySheet.tsx"
           blurb="The two Path Finder head actions. Solid cream for the primary action, outline for the escape hatch. Currently hand-rolled in engine DOM; product code mirrors the styling inline."
         >
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-4">
@@ -1390,8 +1326,8 @@ function PillsSection() {
         </ComponentBlock>
 
         <ComponentBlock
-          title="PREVIEW · ACHIEVED override pill  ·  engine"
-          file="src/engine/student-space/Game/View/StatusPreviewHud.js"
+          title="PREVIEW · ACHIEVED override pill  ·  React HUD"
+          file="src/components/student-space/hud/StudentSpaceHud.tsx"
           blurb="The status pill grows a `PREVIEW ·` prefix when an identity-status override is active. Same dot color as the inferred status."
         >
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-muted/30 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.10em] text-foreground/80">
@@ -1687,7 +1623,7 @@ function OverlaysSection() {
     <SectionShell
       id="overlays"
       title="Overlays"
-      subtitle="Modal surfaces — Dialog (centered), Drawer (bottom sheet), AlertDialog (destructive confirm). All built on Base UI's Dialog primitive with data-[starting-style] / data-[ending-style] for enter/exit. The engine SheetChrome (full-viewport vanilla-JS sheets) is documented under Surfaces & elevation."
+      subtitle="Modal surfaces — Dialog (centered), Drawer (bottom sheet), AlertDialog (destructive confirm). All built on Base UI's Dialog primitive with data-[starting-style] / data-[ending-style] for enter/exit. Routed sheets use the React Sheet primitive documented under Surfaces & elevation."
     >
       <div className="grid gap-5 lg:grid-cols-2">
         <ComponentBlock
@@ -1772,13 +1708,14 @@ function OverlaysSection() {
 
         <Card className="border-dashed">
           <CardHeader>
-            <CardTitle className="text-sm">SheetChrome (engine full-viewport)</CardTitle>
+            <CardTitle className="text-sm">React Sheet (full-viewport)</CardTitle>
             <CardDescription className="font-mono text-[10px]">
-              src/engine/student-space/Game/View/SheetChrome.js
+              src/components/ui/sheet.tsx
             </CardDescription>
             <p className="mt-1 text-xs text-muted-foreground">
-              The vanilla-JS full-viewport sheet primitive (History, Profile, Letters, Path Finder,
-              Calendar all build on this). Backdrop, 10px blur, 200ms fade, z-60. Live demo is in{' '}
+              The routed full-viewport sheet primitive for History, Profile, Letters, Path Finder,
+              and Settings. Backdrop, frame geometry, and fade now live in React/Tailwind. Notes are
+              in{' '}
               <a className="underline" href="#surface">
                 Surfaces & elevation
               </a>
@@ -1829,7 +1766,7 @@ function TabsSection() {
       <div className="flex flex-col gap-5">
         <ComponentBlock
           title="Profile dimension tabs  ·  product"
-          file="src/components/ProfileSheetChrome.tsx (nav block)"
+          file="src/components/student-space/sheets/ProfileSheet.tsx (nav block)"
           blurb="The active tab takes that dimension's theme color (per PROFILE_THEMES / PROFILE_TAB_THEMES). Inactive tabs are muted on a cream backdrop. This is the tab strip from the Profile sheet — same pattern shown standalone."
         >
           <nav
@@ -1897,7 +1834,7 @@ function AvatarsSection() {
       <div className="flex flex-col gap-5">
         <ComponentBlock
           title="Cream-circle initial avatar  ·  product recipe"
-          file="src/components/ProfileSheetChrome.tsx (inline JSX)"
+          file="src/components/student-space/sheets/ProfileSheet.tsx (inline JSX)"
           blurb="Soft cream circle (#fae1ce) with a warm-tan initial (#b5532a) and an inset bottom shadow. Sizes are inlined per use site — small (size-10), default (size-16), large (size-20). Candidate for a shadcn Avatar install + theme."
         >
           <div className="flex items-end gap-6">
@@ -1978,7 +1915,7 @@ function HeadersSection() {
 
         <ComponentBlock
           title="Metadata line  ·  product / engine recipe"
-          file="TrajectorySheet.js · TrajectoryPageView.tsx"
+          file="TrajectorySheet.tsx · TrajectoryPageView.tsx"
           blurb="Inline metadata line sitting below a display title. Engine uses a single line; the React route uses a <dl> grid — same information, different presentation."
         >
           <div className="rounded-2xl border border-[#e3d8c4] bg-[#fdfaf3] p-6">
@@ -2012,27 +1949,6 @@ const STATUS_LABEL: Record<IdentityStatusId, string> = {
   searching: 'Searching',
   foreclosed: 'Foreclosed',
   achieved: 'Achieved',
-}
-
-const SAMPLE_STATUS_AUDIT: IdentityStatusAudit = {
-  status: 'achieved',
-  exploration: {
-    score: 0.82,
-    band: 'high',
-    inputs: {
-      distinctClaims: 14,
-      weightedQuotes: 11,
-      askCount: 8,
-      hasBackendCartographer: true,
-    },
-  },
-  commitment: {
-    score: 0.71,
-    band: 'high',
-    inputs: { decisionCount: 6, intentionCount: 3, dominantPatternTag: 'deliberate' },
-  },
-  reason:
-    'High exploration (distinct claims across all four dimensions) and high commitment (recurring deliberate-pattern decisions) — student has both searched and chosen.',
 }
 
 const SAMPLE_PATHWAYS: CartographerPathwayDraft[] = [
@@ -2209,8 +2125,8 @@ interface InventoryEntry {
 const INVENTORY: InventoryEntry[] = [
   // Profile / dimension surfaces
   {
-    file: 'src/components/ProfileSheetChrome.tsx',
-    name: 'ProfileStudentChrome',
+    file: 'src/components/student-space/sheets/ProfileSheet.tsx',
+    name: 'ProfileSheet',
     summary: 'Avatar + name + dimension tab rail used by every per-dimension page.',
     renderedAt: 'views',
   },
@@ -2481,54 +2397,55 @@ const ENGINE_SURFACES: EngineSurface[] = [
   {
     key: 'history',
     label: 'History Sheet',
-    file: 'src/engine/student-space/Game/View/HistorySheet.js',
-    blurb: 'Timeline + Growth tabs. The canonical SheetChrome consumer.',
+    file: 'src/components/student-space/sheets/HistorySheet.tsx',
+    blurb: 'Timeline + Growth tabs. React routed sheet.',
     sheetParam: 'history',
   },
   {
     key: 'profile',
     label: 'Profile / Letters',
-    file: 'src/engine/student-space/Game/View/LettersSheet.js',
+    file: 'src/components/student-space/sheets/LettersSheet.tsx',
     blurb: 'Letters inbox + profile facets. Unread dot is in Personality lavender.',
     sheetParam: 'profile',
   },
   {
     key: 'trajectory',
     label: 'Path Finder',
-    file: 'src/engine/student-space/Game/View/TrajectorySheet.js',
+    file: 'src/components/student-space/sheets/TrajectorySheet.tsx',
     blurb: 'CCE / Marcia identity-status branching. Floating preview HUD.',
     sheetParam: 'trajectory',
   },
   {
     key: 'calendar',
     label: 'Calendar Sheet',
-    file: 'src/engine/student-space/Game/View/CalendarSheet.js',
-    blurb: 'Day-detail card renders inline beside the month grid (no portal); the calendar mounts it into a `[data-role="day-detail-slot"]` inside its own contentSlot.',
+    file: 'src/components/student-space/sheets/CalendarPane.tsx',
+    blurb:
+      'Day-detail card renders inline beside the month grid inside the History timeline route.',
     sheetParam: 'calendar',
   },
   {
     key: 'mood',
     label: 'Mood Sheet',
-    file: 'src/engine/student-space/Game/View/MoodSheet.js',
-    blurb: 'Capture tier — bottom-anchored, NOT a SheetChrome consumer.',
+    file: 'src/components/student-space/capture/MoodSheet.tsx',
+    blurb: 'React capture tier — Tailwind drawer.',
   },
   {
     key: 'ask',
     label: 'Ask Sheet',
-    file: 'src/engine/student-space/Game/View/AskSheet.js',
-    blurb: 'Capture tier. Voice-first reflection.',
+    file: 'src/components/student-space/capture/AskSheet.tsx',
+    blurb: 'React capture tier. Voice-first reflection.',
   },
   {
     key: 'chooser',
     label: 'Capture Chooser',
-    file: 'src/engine/student-space/Game/View/CaptureChooser.js',
-    blurb: 'Tier-1 popover above the FAB. Has its own has-chooser body class.',
+    file: 'src/components/student-space/capture/CaptureChooser.tsx',
+    blurb: 'React capture tier above the FAB. Has its own has-chooser body class.',
   },
   {
     key: 'kira',
     label: 'KiraDialogue',
-    file: 'src/engine/student-space/Game/View/KiraDialogue.js',
-    blurb: 'Inline character dialogue. NOT a sheet — does not register with OverlayController.',
+    file: 'src/components/student-space/world/WorldInteractions.tsx',
+    blurb: 'React-hosted world dialogue and hover tier. NOT a routed sheet.',
   },
 ]
 
@@ -2537,7 +2454,7 @@ function EngineSurfacesStage() {
     <SectionShell
       id="engine-surfaces"
       title="Engine surfaces"
-      subtitle="Engine sheets have hard runtime dependencies (View, State, Three.js, /api endpoints) — they can't be safely mounted in isolation. The SheetChrome demo above shows the shared primitive; each surface below links to the live engine route."
+      subtitle="Student Space surfaces now render through React routes or React-hosted world overlays; each row links to the live route or host component."
     >
       <Card className="mb-4 border-warning/40 bg-warning/5">
         <CardContent className="flex items-start gap-3">
