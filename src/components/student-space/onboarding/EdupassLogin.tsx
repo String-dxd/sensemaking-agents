@@ -3,6 +3,7 @@ import {
   OFFLINE_DEMO_STUDENTS,
   ONBOARDING_COPY,
 } from '~/engine/student-space/Game/View/Onboarding/copy.js'
+import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
 
 /**
@@ -113,7 +114,7 @@ export function EdupassLogin({
   useEffect(() => {
     document.body.classList.add('is-onb-landing')
     if (!reducedMotion) {
-      camera?.startLandingOrbit?.({ azimuthDegPerSec: 4, distance: 18, pitchDeg: 12 })
+      camera?.startLandingOrbit?.(getPreset('login-orbit'))
       const frame = requestAnimationFrame(() => setVisible(true))
       const focusTimer = window.setTimeout(
         () => edupassRef.current?.focus({ preventScroll: true }),

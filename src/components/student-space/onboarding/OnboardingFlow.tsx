@@ -4,6 +4,7 @@ import type { Game } from '~/engine/student-space/Game'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
+import { CameraTuneHud } from './CameraTuneHud'
 import { EdupassLogin } from './EdupassLogin'
 import { EggHatcher } from './EggHatcher'
 import { FirstChat } from './FirstChat'
@@ -291,6 +292,15 @@ export function OnboardingFlow() {
     >
       <StageSlot stage={stage}>{surface}</StageSlot>
       <SkipButton game={engine} stage={stage} />
+      {import.meta.env.DEV ? (
+        <CameraTuneHud
+          targets={{
+            camera: engine.view?.camera,
+            kira: engine.view?.kira,
+            flowers: engine.view?.flowers as { flowers?: Array<{ x: number; z: number }> } | null,
+          }}
+        />
+      ) : null}
     </div>
   )
 }
