@@ -46,27 +46,26 @@ export function StudentSpaceHost() {
         import('~/engine/student-space/Game/View/KiraDialogue.js'),
         // @ts-expect-error untyped engine module
         import('~/engine/student-space/Game/View/KiraNarrator.js'),
-      ])) as unknown as [
-        { default?: WidgetCtor },
-        { default?: WidgetCtor },
-        { default?: WidgetCtor },
-        { default?: WidgetCtor },
-        { default?: WidgetCtor },
-        { default?: WidgetCtor },
-        { default?: WidgetCtor },
-        { default?: WidgetCtor },
-        { default?: WidgetCtor },
-      ]
+        // @ts-expect-error untyped engine module
+        import('~/engine/student-space/Game/View/ObjectPeek.js'),
+        // @ts-expect-error untyped engine module
+        import('~/engine/student-space/Game/View/HoverCta.js'),
+        // @ts-expect-error untyped engine module
+        import('~/engine/student-space/Game/View/HoverProbe.js'),
+      ])) as unknown as Array<{ default?: WidgetCtor }>
       if (cancelled) return
-      const HourHud = modules[0].default
-      const StatusPreviewHud = modules[1].default
-      const ZoomHud = modules[2].default
-      const FpsOverlay = modules[3].default
-      const BirdPicker = modules[4].default
-      const TrackPicker = modules[5].default
-      const CaptureFab = modules[6].default
-      const KiraDialogue = modules[7].default
-      const KiraNarrator = modules[8].default
+      const HourHud = modules[0]?.default
+      const StatusPreviewHud = modules[1]?.default
+      const ZoomHud = modules[2]?.default
+      const FpsOverlay = modules[3]?.default
+      const BirdPicker = modules[4]?.default
+      const TrackPicker = modules[5]?.default
+      const CaptureFab = modules[6]?.default
+      const KiraDialogue = modules[7]?.default
+      const KiraNarrator = modules[8]?.default
+      const ObjectPeek = modules[9]?.default
+      const HoverCta = modules[10]?.default
+      const HoverProbe = modules[11]?.default
       if (
         !HourHud ||
         !StatusPreviewHud ||
@@ -76,7 +75,10 @@ export function StudentSpaceHost() {
         !TrackPicker ||
         !CaptureFab ||
         !KiraDialogue ||
-        !KiraNarrator
+        !KiraNarrator ||
+        !ObjectPeek ||
+        !HoverCta ||
+        !HoverProbe
       )
         return
 
@@ -97,17 +99,28 @@ export function StudentSpaceHost() {
       // internals) still finds them at view.kiraNarrator / view.kiraDialogue.
       const dialogue = new KiraDialogue()
       const narrator = new KiraNarrator()
+      // U14: ObjectPeek + HoverCta + HoverProbe must be constructed before
+      // HoverProbe references them via view.* refs in its update loop.
+      // Construct in dependency order and attach to view.
+      const peek = new ObjectPeek()
+      const cta = new HoverCta()
       const view = (game as unknown as { view?: Record<string, unknown> } | null)?.view
       if (view) {
         view.kiraDialogue = dialogue
         view.kiraNarrator = narrator
+        view.objectPeek = peek
+        view.hoverCta = cta
       }
+      // HoverProbe reads view.objectPeek / view.hoverCta on construction (or
+      // shortly after); attach to view BEFORE its update tick fires.
+      const probe = new HoverProbe()
+      if (view) view.hoverProbe = probe
       // U10: CaptureFab owns its CaptureChooser internally; once constructed
       // we wire it to the engine's KiraNarrator so the capture-from-narrator
       // path keeps working.
       const fab = new CaptureFab() as { setKiraNarrator?: (n: unknown) => void; dispose?: () => void }
       fab.setKiraNarrator?.(narrator)
-      widgets = [hour, status, zoom, fps, bird, track, dialogue, narrator, fab]
+      widgets = [hour, status, zoom, fps, bird, track, dialogue, narrator, peek, cta, probe, fab]
     })()
 
     return () => {

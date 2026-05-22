@@ -20,13 +20,10 @@ import Rainbow from './Rainbow.js'
 import Rain from './Rain.js'
 import Sound from './Sound.js'
 import FacetView from './FacetView.js'
-import HoverCta from './HoverCta.js'
-import HoverProbe from './HoverProbe.js'
 import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
 import ProfileSheet from './ProfileSheet.js'
-import ObjectPeek from './ObjectPeek.js'
 import State from '../State/State.js'
 import OnboardingFlow from './Onboarding/OnboardingFlow.js'
 
@@ -98,10 +95,9 @@ export default class View
         this.facetView   = new FacetView()
         this.profileSheet  = new ProfileSheet()
         this.overlayController.register('profile', this.profileSheet)
-        // ObjectPeek is the shared peek-then-companion interaction for
-        // every clickable island object (flowers, mailbox, telescope).
-        // No overlay registration — it does not own the viewport.
-        this.objectPeek    = new ObjectPeek()
+        // ObjectPeek + HoverCta + HoverProbe lifecycle moved to React
+        // (U14). React assigns view.objectPeek, view.hoverCta, view.hoverProbe
+        // so engine code (HoverProbe internals, KiraNarrator) still finds them.
         // Vertical icon rail on the left — the primary navigation surface.
         // Replaces the old TopNav pill cluster + standalone onboarding-restart
         // chip; both have been folded into the rail. See SideRail.js.
@@ -109,11 +105,6 @@ export default class View
         // `src/components/student-space/EngineHost.tsx` (rail is mounted at
         // engine-host scope so it's visible across every route, matching
         // legacy posture).
-        // HoverCta + HoverProbe are constructed AFTER facetView so they can
-        // route picks to it. The probe reads view.flowers/tree/kira refs
-        // that are also already live above.
-        this.hoverCta    = new HoverCta()
-        this.hoverProbe  = new HoverProbe()
         // KiraDialogue + KiraNarrator lifecycle moved to React (U12) — see
         // `src/components/StudentSpaceHost.tsx`. The React owner assigns
         // `view.kiraDialogue` + `view.kiraNarrator` so engine code (HoverProbe,
@@ -183,12 +174,12 @@ export default class View
         // still finds them.
         this.kiraNarrator?.update?.()
         this.kiraDialogue?.update?.()
-        this.objectPeek.update()
+        this.objectPeek?.update?.()
         if(tickAmbient)
             this.aurora.update()
         this.rainbow.update()
         this.rain.update()
-        this.hoverProbe.update()
+        this.hoverProbe?.update?.()
         // HourHud / FpsOverlay per-frame ticks moved with the widgets to
         // React-owned lifecycle (U13). The React HUD wrappers in
         // StudentSpaceHost call .update() themselves.
@@ -233,9 +224,6 @@ export default class View
             this.sound,
             this.profileSheet,
             this.facetView,
-            this.hoverProbe,
-            this.hoverCta,
-            this.objectPeek,
             this.mailbox,
             this.telescope,
             this.sprouts,
