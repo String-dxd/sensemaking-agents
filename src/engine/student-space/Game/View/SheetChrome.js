@@ -122,6 +122,11 @@ export default class SheetChrome
         root.className = classes.join(' ')
         root.dataset.sheetKey = key
         root.setAttribute('aria-hidden', 'true')
+        // Every chrome'd surface is a dialog landmark, regardless of whether
+        // a `header` config was passed. Sheets that opt out of the chrome's
+        // page-header (e.g., ProfileSheet uses its identity card instead)
+        // can still set `aria-label` on the chrome root to name themselves.
+        root.setAttribute('role', 'dialog')
 
         // Optional × button — shares the existing `.sheet-chrome__close` style
         // grouped with the other sheet closes in `style.css`. Sheets that want
@@ -179,37 +184,35 @@ export default class SheetChrome
             contentSlot.appendChild(leftPane)
             contentSlot.appendChild(rightPane)
 
-            if(header)
-            {
-                headerEl = document.createElement('header')
-                // The --compact modifier collapses title scale from
-                // ~56px to ~22px so the page name reads as a normal
-                // heading next to the intro content, matching the
-                // Gather Town reference.
-                headerEl.className = 'sheet-chrome__header sheet-chrome__header--compact'
-                headerEl.innerHTML = `
-                    <span class="sheet-chrome__eyebrow" data-role="eyebrow"></span>
-                    <h1 class="sheet-chrome__title sheet-chrome__title--compact" data-role="title"></h1>
-                    <p class="sheet-chrome__subtitle" data-role="subtitle"></p>
-                `
-                leftPane.appendChild(headerEl)
-            }
-
             introSlot = document.createElement('div')
             introSlot.className = 'sheet-chrome__intro'
             leftPane.appendChild(introSlot)
 
-            bodySlot = document.createElement('div')
-            bodySlot.className = 'sheet-chrome__body'
-            rightPane.appendChild(bodySlot)
-
-            if(headerEl)
+            if(header)
             {
+                // Page header lives at the TOP of the right pane (above the
+                // bodySlot, NOT inside it) so per-sheet `bodySlot.innerHTML = …`
+                // assignments don't wipe out the chrome header. The wider
+                // column gives the title room to breathe at a real page-title
+                // scale, and the left pane stays pure navigation.
+                headerEl = document.createElement('header')
+                headerEl.className = 'sheet-chrome__header sheet-chrome__header--page'
+                headerEl.innerHTML = `
+                    <span class="sheet-chrome__eyebrow" data-role="eyebrow"></span>
+                    <h1 class="sheet-chrome__title sheet-chrome__title--page" data-role="title"></h1>
+                    <p class="sheet-chrome__subtitle" data-role="subtitle"></p>
+                `
+                rightPane.appendChild(headerEl)
+
                 const titleId = `sheet-chrome-title--${key}`
                 headerEl.querySelector('[data-role="title"]').id = titleId
                 root.setAttribute('role', 'dialog')
                 root.setAttribute('aria-labelledby', titleId)
             }
+
+            bodySlot = document.createElement('div')
+            bodySlot.className = 'sheet-chrome__body'
+            rightPane.appendChild(bodySlot)
         }
         else if(header)
         {

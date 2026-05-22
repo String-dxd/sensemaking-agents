@@ -209,10 +209,11 @@ body.student-space-shell.is-night #sky-rays
     z-index: 1;
     border-radius: var(--frame-radius);
     overflow: hidden;
-    /* Combined: drop-shadow (outside) + inset ring (inside, follows the
-       rounded corner reliably). The inset ring is what makes the rounded
-       cut visible at the corners against any backdrop. */
-    box-shadow: var(--frame-shadow), var(--frame-ring);
+    /* Outside-the-rounded-corner 1px ring (non-inset). The previous
+       inset-ring version painted inside the rounded clip and read as a
+       hairline-thick stroke; the outside ring sits just past the corner
+       edge and reads as a clean frame border. */
+    box-shadow: 0 0 0 1px rgba(43, 38, 32, 0.22);
     /* Tiny-Skies-style sky: three-stop linear gradient between CSS vars.
        Sky-haze + sky-rays float above this inside the same frame envelope. */
     background: linear-gradient(
@@ -849,10 +850,27 @@ body.student-space-shell.is-night #sky-rays
     background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
     color: #2b2620;
     font-family: var(--font-sans);
-    transform: translateY(100%);
-    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    /* Push the closed sheet fully past the bottom frame-inset so its
+       rounded top corner doesn't peek above the viewport edge — same
+       pattern as `.mood-sheet`. `translateY(100%)` alone only clears
+       the element's own height, leaving a frame-inset-tall band of
+       the sheet visible. */
+    transform: translateY(calc(100% + var(--frame-inset) + 8px));
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+        transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 420ms;
 }
-.capture-chooser.is-open { transform: translateY(0); }
+.capture-chooser.is-open
+{
+    transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+        transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0s;
+}
 
 .capture-chooser__scroll
 {
@@ -1049,9 +1067,46 @@ body.has-overlay .game
 .sheet-chrome__header--compact
 {
     background: transparent;
-    border-bottom: 1px solid rgba(43, 38, 32, 0.08);
+    /* No bottom divider — separation between the title block and the
+       sidebar content (nav / list) comes from whitespace alone. The
+       prior hairline rule read as a stray line across all split sheets. */
     padding: 56px 28px 18px;
     margin-bottom: 4px;
+}
+
+/* Page header — used under split layout. Lives in the right pane above
+   the body slot (NOT inside it, so per-sheet `bodySlot.innerHTML = …` can't
+   wipe it). The wider column allows a real page-title scale; the left
+   pane stays pure navigation. */
+.sheet-chrome__header--page
+{
+    background: transparent;
+    /* Top padding tuned to match the sidebar's top breathing room without
+       creating dead space above the title — the prior 56px left a too-tall
+       empty band. */
+    padding: 28px 28px 8px;
+    margin: 0;
+}
+.sheet-chrome--split .sheet-chrome__header--page .sheet-chrome__eyebrow
+{
+    display: none;
+}
+.sheet-chrome__title--page
+{
+    font-size: clamp(1.625rem, 1.4rem + 0.8vw, 2rem);
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+    margin: 0 0 6px;
+    color: #1f1a14;
+    text-wrap: balance;
+}
+.sheet-chrome--split .sheet-chrome__header--page .sheet-chrome__subtitle
+{
+    font-size: 14.5px;
+    line-height: 1.5;
+    max-width: 60ch;
+    color: rgba(43, 38, 32, 0.62);
+    margin: 0;
 }
 .sheet-chrome__title--compact
 {
@@ -1082,7 +1137,11 @@ body.has-overlay .game
 .sheet-chrome__intro
 {
     box-sizing: border-box;
-    padding: 0 28px 32px;
+    /* Top padding gives the first sidebar element (identity card or nav)
+       breathing room from the pane's rounded top edge. Tuned to match the
+       page header's top padding so the two panes' "first content" lines
+       align horizontally across the split layout. */
+    padding: 28px 28px 32px;
     color: rgba(43, 38, 32, 0.78);
     font-family: var(--font-sans);
     font-size: 13.5px;
@@ -2381,13 +2440,32 @@ body.has-overlay .game
     background: linear-gradient(180deg, #faf6ee 0%, #f3eadd 100%);
     color: #2b2620;
     font-family: var(--font-sans);
-    transform: translateY(100%);
-    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1);
+    /* Push the closed sheet fully past the bottom frame-inset so its rounded
+       top corner doesn't peek above the viewport edge — translateY(100%) only
+       clears the element's own height, leaving a frame-inset-tall band of the
+       sheet visible at the bottom of the viewport. The slight overshoot lands
+       outside the frame, fully hidden. */
+    transform: translateY(calc(100% + var(--frame-inset) + 8px));
+    /* Pointer/visibility cleanup so the closed sheet can't intercept clicks
+       or be picked up by accidental hit-testing while it's parked offscreen. */
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+        transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 420ms;
     overflow-y: auto;
     padding: 24px 20px 48px;
     box-sizing: border-box;
 }
-.mood-sheet.is-open { transform: translateY(0%); }
+.mood-sheet.is-open
+{
+    transform: translateY(0%);
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+        transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0s;
+}
 /* mood-sheet close styling is provided by the shared sheet-close
    grouped selector at the top of this file. */
 .mood-sheet__header
@@ -2624,14 +2702,33 @@ body.has-overlay .game
     background: linear-gradient(180deg, #fdfaf3 0%, var(--facet-soft, #efe7d5) 100%);
     border-radius: 22px 22px 0 0;
     box-shadow: 0 -14px 38px rgba(0, 0, 0, 0.28);
-    transform: translateY(100%);
-    transition: transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
-                height 360ms cubic-bezier(0.22, 1, 0.36, 1);
+    /* Overshoot the close-state translate past the frame inset so the rounded
+       top corner doesn't peek above the viewport edge (same fix as
+       `.mood-sheet` and `.capture-chooser`). The parent `.half-sheet` is
+       fixed with bottom:var(--frame-inset); a bare `translateY(100%)` leaves
+       a frame-inset-tall band of the rounded top edge visible at the bottom
+       of the screen when the sheet is closed. */
+    transform: translateY(calc(100% + var(--frame-inset) + 8px));
+    pointer-events: none;
+    visibility: hidden;
+    transition:
+        transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+        height 360ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 420ms;
     overflow: hidden;
     display: flex;
     flex-direction: column;
 }
-.half-sheet.is-open .half-sheet__sheet { transform: translateY(0); }
+.half-sheet.is-open .half-sheet__sheet
+{
+    transform: translateY(0);
+    pointer-events: auto;
+    visibility: visible;
+    transition:
+        transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+        height 360ms cubic-bezier(0.22, 1, 0.36, 1),
+        visibility 0s linear 0s;
+}
 .half-sheet.is-full  .half-sheet__sheet { height: 92vh; }
 
 .half-sheet__handle
@@ -3276,10 +3373,25 @@ body.has-overlay .game
 
 .side-rail__btn.is-active
 {
-    background: rgba(253, 250, 243, 0.95);
-    color: #2b2620;
-    border-color: rgba(43, 38, 32, 0.10);
-    box-shadow: 0 4px 14px rgba(43, 38, 32, 0.12);
+    /* Active page icon — warm-amber fill (matches the in-page sidenav
+       active state) plus a left-edge accent bar so the current route reads
+       as clearly anchored, not just slightly elevated. */
+    background: color-mix(in srgb, #EAD7BE 70%, #fff);
+    color: #6A4A26;
+    border-color: color-mix(in srgb, #A07659 32%, transparent);
+    box-shadow: 0 4px 14px rgba(43, 38, 32, 0.10);
+}
+.side-rail__btn.is-active::before
+{
+    content: '';
+    position: absolute;
+    left: -10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 22px;
+    border-radius: 0 3px 3px 0;
+    background: #A07659;
 }
 
 /* Active button has no tooltip — the active styling already names where the
@@ -3562,56 +3674,27 @@ body.is-onb-landing .side-rail
 {
     min-height: 0;
 }
-/* The intro panel wraps the dimension-summary header in the left pane.
-   Strip its inherited max-width / centering so it flows naturally
-   inside the narrow intro slot. */
-.profile-sheet.sheet-chrome--split .profile-sheet__intro-panel
-{
-    margin: 0;
-    padding: 0;
-    max-width: none;
-}
-/* The dimension headline ("What you keep coming back to") was sized
-   for the wide single-column layout (clamp 1.75–2.25rem). In the
-   narrow left pane it wraps awkwardly. Scale to ~1.05rem so it reads
-   as an emphasis line, not a billboard. */
-.profile-sheet.sheet-chrome--split .profile-sheet__title
-{
-    font-size: 1.05rem;
-    line-height: 1.3;
-    margin: 6px 0 4px;
-}
-.profile-sheet.sheet-chrome--split .profile-sheet__panel-subtitle
-{
-    font-size: 12.5px;
-    margin-bottom: 10px;
-}
-.profile-sheet.sheet-chrome--split .profile-sheet__summary
-{
-    font-size: 13px;
-    line-height: 1.5;
-}
-.profile-sheet.sheet-chrome--split .profile-sheet__open-question
-{
-    margin-top: 10px;
-}
-.profile-sheet.sheet-chrome--split .profile-sheet__open-text
-{
-    font-size: 13px;
-    line-height: 1.45;
-}
-.profile-sheet.sheet-chrome--split .vips-rows--profile .vips-row__body
-{
-    font-size: 13px;
-}
-/* Identity card lives in the left pane — drop the 760px centering and
-   shrink the avatar so name + class fit alongside the slimmer column. */
+/* Identity card sits at the top of the right pane and acts as the page
+   header. Horizontal layout with the actions pushed to the end of the
+   row (Share + ⋯ flush-right). Bottom padding gives a clear breathing
+   gap before the dimension content (Values pill + "What matters to me"
+   title) below. */
 .profile-sheet.sheet-chrome--split .profile-id
 {
     max-width: none;
     margin: 0;
-    padding: 0 0 16px;
-    gap: 12px;
+    padding: 0 0 32px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+}
+.profile-sheet.sheet-chrome--split .profile-id__text   { min-width: 0; }
+.profile-sheet.sheet-chrome--split .profile-id__actions
+{
+    margin-left: auto;
+    justify-content: flex-end;
+    gap: 8px;
 }
 .profile-sheet.sheet-chrome--split .profile-id__avatar
 {
@@ -3626,29 +3709,238 @@ body.is-onb-landing .side-rail
 }
 .profile-sheet.sheet-chrome--split .profile-id__class
 {
+    /* Bump the metadata so it doesn't whisper. Senior-design review flagged
+       it as nearly invisible against the cream background. */
+    font-size: 13px;
+    color: rgba(43, 38, 32, 0.62);
+    margin-top: 2px;
+}
+/* Soften the Share button in the split layout so it stops competing with
+   the avatar — drop to a ghost treatment with a low-contrast border. */
+.profile-sheet.sheet-chrome--split .profile-share-button
+{
+    height: 30px;
+    padding: 0 12px;
+    border-color: color-mix(in srgb, var(--facet-accent) 22%, transparent);
+    background: transparent;
     font-size: 12.5px;
 }
-/* Right pane tab strip — sticky to the top of the right pane rather
-   than to the viewport, and the 760px centering trick collapses to
-   honest padding since the pane is already width-constrained. */
-.profile-sheet.sheet-chrome--split .profile-sheet__tabs
+.profile-sheet.sheet-chrome--split .profile-share-button:hover
 {
-    position: sticky;
-    top: 0;
-    padding-inline: 0;
-    margin-inline: 0;
-    z-index: 2;
+    background: color-mix(in srgb, var(--facet-soft) 38%, transparent);
+    border-color: color-mix(in srgb, var(--facet-accent) 50%, transparent);
 }
-/* The dimension-summary header inside the intro panel was sized for a
-   760px column; in the narrower intro it just flows full-width. */
-.profile-sheet.sheet-chrome--split .profile-sheet__header
+
+/* Vertical facet nav — left pane is navigation-only under the new layout.
+   Each row is a tap-target that mirrors the chrome's facet accent on hover
+   and the active state. The horizontal tab strip that used to live at the
+   top of the right pane is gone; this nav replaces it. */
+.profile-sheet.sheet-chrome--split .profile-sheet__sidenav
 {
-    max-width: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    /* Push the nav block down from the identity card's actions row so the
+       Share/⋯ button stack and the first nav item don't read as one
+       continuous cluster. */
+    margin-top: 24px;
+    /* Inset the nav so the active-state pill doesn't bleed past the column
+       edge — the senior-designer review flagged the previous flush layout
+       as making the pill read like a tab attached to the wall. */
+    padding: 4px;
+}
+.profile-sheet__sidenav-item
+{
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: #5a4f44;
+    font: 500 14.5px/1.2 var(--font-sans);
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    min-height: 40px;
+    border-radius: 12px;
+    height: auto;
+    transition:
+        background 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.profile-sheet__sidenav-item:hover
+{
+    background: color-mix(in srgb, var(--facet-soft) 42%, transparent);
+    color: var(--facet-ink);
+}
+.profile-sheet__sidenav-item:active { transform: scale(0.98); }
+.profile-sheet__sidenav-item:focus-visible
+{
+    outline: 2px solid color-mix(in srgb, var(--facet-accent) 80%, transparent);
+    outline-offset: 2px;
+}
+.profile-sheet__sidenav-item.is-active
+{
+    background: color-mix(in srgb, var(--facet-soft) 78%, #fff);
+    color: var(--facet-ink);
+    font-weight: 600;
+}
+.profile-sheet__sidenav-dot
+{
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--facet-accent) 28%, transparent);
+    /* Optical lift — a 6px dot's geometric center sits ~1px below the
+       x-height median against 14.5px text, which reads as off-baseline. */
+    margin-top: -1px;
+    transition:
+        background 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.profile-sheet__sidenav-item:hover .profile-sheet__sidenav-dot,
+.profile-sheet__sidenav-item.is-active .profile-sheet__sidenav-dot
+{
+    background: var(--facet-accent);
+    transform: scale(1.3);
+}
+
+/* Right pane is now the primary content surface — the dimension prose
+   that used to live in the left sidebar moved here. Restore the wide
+   single-column typography (the cramped 1.05rem title was sized for
+   the narrow intro slot). The 660px cap keeps the prose at ~62–68ch
+   for comfortable scanning (senior-designer review flagged the prior
+   wall-to-wall lines as too long). */
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main
+{
+    max-width: 660px;
+    margin: 0 0 28px;
+    padding: 4px 0 0;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main .profile-sheet__title
+{
+    font-size: clamp(1.625rem, 1.4rem + 0.8vw, 2rem);
+    line-height: 1.2;
+    margin: 8px 0 6px;
+    color: #1f1a14;
+    letter-spacing: -0.01em;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main .profile-sheet__panel-subtitle
+{
+    font-size: 15px;
+    line-height: 1.5;
+    color: #5a4f44;
+    margin-bottom: 16px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main .profile-sheet__summary
+{
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: #2b2620;
     margin: 0;
-    padding: 0;
 }
-/* The right-pane panel hosts TLDR + bento + timeline. Drop the 760px
-   centering since the chrome pane already constrains width. */
+/* Summary disclosure — long dimension prose clamps to 3 lines by default
+   with a soft fade so the truncation reads as intentional, not cropped.
+   The "Show more" button below lifts the clamp on click. The button is
+   hidden by default in markup and only un-hidden by JS when the text
+   actually overflows the clamp (`_refreshSummaryToggle` measures
+   scrollHeight vs clientHeight after layout). */
+.profile-sheet__summary-wrap
+{
+    margin: 16px 0;
+}
+.profile-sheet__summary-wrap .profile-sheet__summary
+{
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    position: relative;
+}
+.profile-sheet__summary-wrap.is-expanded .profile-sheet__summary
+{
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    -webkit-box-orient: unset;
+    overflow: visible;
+}
+.profile-sheet__summary-toggle
+{
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 6px 0 0;
+    margin: 0;
+    color: var(--facet-ink);
+    font: 600 13px/1.2 var(--font-sans);
+    cursor: pointer;
+    letter-spacing: 0.005em;
+    transition: opacity 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.profile-sheet__summary-toggle:hover { opacity: 0.78; }
+.profile-sheet__summary-toggle:focus-visible
+{
+    outline: 2px solid color-mix(in srgb, var(--facet-accent) 75%, transparent);
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main .profile-sheet__open-question
+{
+    margin-top: 18px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main .profile-sheet__open-text
+{
+    font-size: 14px;
+    line-height: 1.5;
+}
+/* Most Common / Quietly Emerging — give the pair a shared container so
+   the two rows read as a grouped "snapshot" rather than free-floating
+   metadata. Side-by-side on wide rights pane, stacked on narrow. */
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main .vips-rows--profile
+{
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 24px;
+    margin: 14px 0;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--facet-soft) 22%, transparent);
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main .vips-rows--profile .vips-row
+{
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main .vips-rows--profile .vips-row__label
+{
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.10em;
+    color: rgba(43, 38, 32, 0.55);
+    font-weight: 600;
+}
+.profile-sheet.sheet-chrome--split .profile-sheet__header--main .vips-rows--profile .vips-row__body
+{
+    font-size: 14px;
+    color: var(--facet-ink);
+    font-weight: 600;
+    margin: 0;
+}
+@media (max-width: 720px)
+{
+    .profile-sheet.sheet-chrome--split .profile-sheet__header--main .vips-rows--profile
+    {
+        grid-template-columns: 1fr;
+    }
+}
+/* The right-pane panel hosts the dimension header + TLDR + bento + timeline.
+   Drop the 760px centering since the chrome pane already constrains width
+   and the .profile-sheet__header--main has its own centered max-width. */
 .profile-sheet.sheet-chrome--split .profile-sheet__panel
 {
     max-width: none;
@@ -3729,6 +4021,11 @@ body.is-onb-landing .side-rail
     border-color: var(--facet-accent);
     transform: translateY(-1px);
     box-shadow: 0 4px 14px -10px color-mix(in srgb, var(--facet-accent) 60%, transparent);
+}
+.profile-share-button:active
+{
+    transform: translateY(0) scale(0.96);
+    transition: transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .profile-share-button:focus-visible
 {
@@ -4153,41 +4450,6 @@ body.is-onb-landing .side-rail
     letter-spacing: 0.02em;
 }
 
-/* Profile tabbed section — wraps the tab strip and its active panel so
-   the two read as one connected surface (the brief: "tabs are separate
-   from changing content"). The tab bar still owns its own translucent
-   backdrop, but it's now contained inside the same column as the panel
-   underneath, with no visual seam between them. */
-.profile-sheet__tabbed
-{
-    /* No explicit background — the tabs strip and panel each provide
-       their own surface; the wrapper exists for DOM hierarchy and
-       affordance only. */
-    display: flex;
-    flex-direction: column;
-}
-
-.profile-sheet__tabs
-{
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    display: flex;
-    gap: 6px;
-    padding-block: 14px;
-    /* Match the centered 760px column used by .profile-id and .profile-sheet__panel
-       so the tab pills line up with the page title. Bar itself stays full-width
-       so the sticky gradient + backdrop blur still spans the viewport. */
-    padding-inline: max(24px, calc((100% - 760px) / 2 + 24px));
-    /* Nested over the sheet's 0.55–0.92 gradient — so this bar MUST stay
-       lower (Flighty/Moonlitt rule from the Mobbin audit). Previous values
-       0.92 / 0.72 made it read as a solid beige strip; backdrop-blur alone
-       carries the legibility job underneath. */
-    background: linear-gradient(180deg, rgba(253, 250, 243, 0.45) 0%, rgba(253, 250, 243, 0.12) 100%);
-    backdrop-filter: blur(14px) saturate(115%);
-    -webkit-backdrop-filter: blur(14px) saturate(115%);
-}
-
 .profile-tab
 {
     /* DESIGN SYSTEM ROLE: Tab — squircle (12px radius at 36 tall = 33%
@@ -4489,7 +4751,10 @@ body.is-onb-landing .side-rail
 
 .profile-sheet__meta
 {
-    margin: 0;
+    /* Top margin gives a clear breathing gap between the Open Question
+       callout above and the stat-tile row below (10 NOTICINGS / 3 VOICED
+       CLAIMS). */
+    margin: 24px 0 0;
     font-size: 12px;
     color: rgba(43, 38, 32, 0.55);
 }
@@ -4514,26 +4779,18 @@ body.is-onb-landing .side-rail
     font-weight: 500;
 }
 
-/* Bento grid — Pokédex-style collection. 4 columns on desktop, 3 on
-   tablet, 2 on phone. The personality facet only has 2 tiles so it
-   centres naturally inside whichever grid is active. */
+/* Bento grid — Pokédex-style collection. Auto-fills columns based on
+   container width so the grid stays responsive and never forces horizontal
+   scroll when the right pane is narrower (e.g., the Profile right pane in
+   split layout, which can be ~620-820px depending on viewport). */
 .profile-sheet__bento
 {
     list-style: none;
     margin: 0;
     padding: 0;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 10px;
-}
-
-@media (max-width: 720px)
-{
-    .profile-sheet__bento { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 480px)
-{
-    .profile-sheet__bento { grid-template-columns: repeat(2, 1fr); }
 }
 
 .bento-tile
@@ -4542,12 +4799,13 @@ body.is-onb-landing .side-rail
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    padding: 18px 12px 14px;
+    padding: 14px 10px 12px;
     border-radius: 18px;
     border: 1.5px solid transparent;
     background: rgba(255, 255, 255, 0.62);
     cursor: pointer;
     text-align: center;
+    min-width: 0;
     transition: background 160ms ease, border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
@@ -4574,8 +4832,11 @@ body.is-onb-landing .side-rail
 
 .bento-tile__icon
 {
-    width: clamp(108px, 18vw, 160px);
-    height: clamp(108px, 18vw, 160px);
+    /* Sized to fit comfortably inside the auto-fill grid column without
+       forcing horizontal scroll. Previously 108-160px which was too wide
+       for the responsive grid at narrow right-pane widths. */
+    width: clamp(72px, 10vw, 112px);
+    height: clamp(72px, 10vw, 112px);
     color: var(--facet-accent);
     display: inline-flex;
     align-items: center;
@@ -4683,7 +4944,6 @@ body.is-onb-landing .side-rail
     background: rgba(255, 255, 255, 0.60);
     border-radius: 14px;
     padding: 14px 16px;
-    border-left: 3px solid var(--facet-accent);
     overflow: hidden;
     transition: opacity 200ms cubic-bezier(0.22, 1, 0.36, 1),
                 max-height 200ms cubic-bezier(0.22, 1, 0.36, 1),
@@ -4926,12 +5186,16 @@ body.is-onb-landing .side-rail
 .calendar-day
 {
     position: relative;
-    aspect-ratio: 1 / 1;
+    /* Reverted from square aspect-ratio (~80px tall rows at this width) to
+       a fixed compact height so the grid scans as an index, not a giant
+       empty table — senior-designer review flagged the prior rows as
+       dominating the column. */
+    min-height: 60px;
     border-radius: 10px;
     border: none;
     background: rgba(255, 255, 255, 0.55);
     color: #2b2620;
-    padding: 6px;
+    padding: 8px 10px;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -4939,16 +5203,61 @@ body.is-onb-landing .side-rail
     font: 500 12px/1 inherit;
     cursor: pointer;
     text-align: left;
-    transition: background 160ms ease, transform 160ms ease;
+    transition:
+        background 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .calendar-day:hover { background: rgba(255, 255, 255, 0.92); }
 .calendar-day:active { transform: scale(0.96); }
-.calendar-day.is-today  { outline: 1.5px solid var(--facet-personality-accent); outline-offset: -1.5px; }
+.calendar-day.is-today
+{
+    /* Switched to a warm amber ring + filled dot so the today marker
+       sits in the cream/amber palette (the prior lavender outline read
+       as a stray browser focus ring). */
+    outline: 1.5px solid #A07659;
+    outline-offset: -1.5px;
+    background: color-mix(in srgb, #EAD7BE 55%, rgba(255, 255, 255, 0.55));
+}
+.calendar-day.is-selected
+{
+    /* Distinct from `is-today` — a calm cream wash signals "you're looking
+       at this day" without competing with today's amber ring. Today + selected
+       both apply cleanly (today's ring wins on the border, this background
+       overrides the today-fill). */
+    background: color-mix(in srgb, #EAD7BE 32%, #fff);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.05);
+}
+.calendar-day.is-selected.is-today
+{
+    background: color-mix(in srgb, #EAD7BE 60%, #fff);
+}
+.calendar-day.is-today .calendar-day__num
+{
+    color: #6A4A26;
+    font-weight: 700;
+}
 .calendar-day.is-otherm { opacity: 0.35; cursor: default; pointer-events: none; }
 
 .calendar-day__num
 {
-    text-align: right;
+    /* Left-top align numerals (calendar convention) — the prior right-align
+       inside square empty cells read as a spreadsheet, not a date grid.
+       `tabular-nums` prevents 11 vs 19 sliding across rows. */
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+/* Headings inside the redesigned sheets balance their wrap so 1-2-line
+   titles don't orphan a single word on the last line. */
+.profile-sheet__header--main .profile-sheet__title,
+.day-detail-card__title
+{
+    text-wrap: balance;
+}
+/* Dynamic numbers in the stat tiles should not shift layout. */
+.profile-sheet__meta .stat-tile__value,
+.bento-tile__count
+{
     font-variant-numeric: tabular-nums;
 }
 
@@ -4997,6 +5306,9 @@ body.is-onb-landing .side-rail
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
+    /* 1px low-alpha inset gives the photo chip a consistent edge against
+       the calendar cell's variable surface (per m-i-f-b "image outlines"). */
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.10);
 }
 
 .calendar-day__overflow
@@ -5029,53 +5341,62 @@ body.is-onb-landing .side-rail
 }
 
 /* ============ day-detail-card ============ */
-/* z-index 32 is intentionally *inside* the parent sheet's stacking context —
-   DayDetailCard portals into the active sheet's root at open time (see
-   DayDetailCard.open()), so 32 only needs to beat CalendarSheet's z-30
-   among siblings. The card no longer competes with body-level z-indexes
-   like HistorySheet's z-60; DOM ancestry handles that. */
+/* Inline content panel that sits below the calendar grid (no longer a
+   slide-in side panel). Lives inside the calendar's contentSlot, so when
+   History embeds the calendar root the day-detail comes along too.
+
+   Container reads as a calm region via a warmer tint + thin neutral
+   border. No left accent rule — keeps the surface flat and stops the
+   vertical line from competing with calendar gridlines above. */
 .day-detail-card
 {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(380px, 92vw);
-    z-index: 32;
-    background: linear-gradient(180deg, #fdfaf3 0%, #efe7d5 100%);
+    position: relative;
     color: #2b2620;
     font-family: var(--font-sans);
-    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
-    transform: translateX(100%);
-    transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
-    overflow-y: auto;
-    padding: 56px 22px 48px;
+    margin-top: 22px;
+    padding: 22px 24px 18px;
+    border-radius: 14px;
+    background: color-mix(in srgb, #EAD7BE 22%, rgba(253, 250, 243, 0.6));
+    border: 1px solid rgba(43, 38, 32, 0.08);
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+        opacity 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.day-detail-card.is-open { transform: translateX(0); }
-
-/* Compact in-context close — used inside the day-detail card nested
-   within calendar-sheet. Same palette as the shared sheet-close;
-   smaller diameter so it doesn't crowd the card. */
-.day-detail-card__close
+.day-detail-card.is-open
 {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    width: 32px;
-    height: 32px;
-    border-radius: 999px;
-    border: none;
-    background: rgba(0, 0, 0, 0.06);
-    color: #2b2620;
-    font: 500 20px/1 inherit;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 160ms ease, transform 160ms ease;
+    opacity: 1;
+    transform: translateY(0);
 }
-.day-detail-card__close:hover { background: rgba(0, 0, 0, 0.12); }
-.day-detail-card__close:active { transform: scale(0.96); }
+/* Date-swap restart — applied for ~240ms by DayDetailCard.open() when the
+   card is already open and the student picks a different day, so the
+   content swap reads as motion rather than an instant replacement. */
+.day-detail-card.is-swapping
+{
+    animation: day-detail-swap 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes day-detail-swap
+{
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.day-detail-card[aria-hidden="true"]:not(.is-open)
+{
+    /* Empty-state day-detail (no day picked) keeps the placeholder visible
+       so the column has a stable shape instead of collapsing on each
+       month change. */
+    opacity: 0.85;
+    transform: none;
+}
+
+.day-detail-card__placeholder
+{
+    margin: 0;
+    font-size: 13.5px;
+    color: rgba(43, 38, 32, 0.55);
+    font-style: italic;
+}
 
 .day-detail-card__head { margin-bottom: 18px; }
 .day-detail-card__eyebrow
@@ -5141,7 +5462,17 @@ body.is-onb-landing .side-rail
     font: 600 11px/1 var(--font-sans);
     padding: 5px 9px;
     cursor: pointer;
+    transition:
+        background 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        border-color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+.day-detail-row__actions button:hover
+{
+    background: rgba(255, 255, 255, 0.92);
+    border-color: rgba(43, 38, 32, 0.22);
+}
+.day-detail-row__actions button:active { transform: scale(0.96); }
 .day-detail-row__actions button:disabled
 {
     cursor: progress;
@@ -5164,7 +5495,58 @@ body.is-onb-landing .side-rail
 
 @media (prefers-reduced-motion: reduce)
 {
-    .day-detail-card { transition-duration: 80ms; }
+    .day-detail-card
+    {
+        transition-duration: 80ms;
+        transform: none;
+    }
+}
+
+/* Calendar layout — month grid on the left, inline day-detail on the
+   right (matches the Growth tab's island-left/feed-right pattern). The
+   grid is the default for both standalone and History-embedded Calendar
+   because the History right pane is wide enough for the split at desktop
+   sizes. Narrow viewports collapse to a single column via the
+   responsive override below. */
+.calendar-sheet .sheet-chrome__content,
+.calendar-sheet.calendar-sheet--embedded .sheet-chrome__content
+{
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+    gap: 28px;
+    align-items: start;
+}
+.calendar-sheet__day-detail-slot
+{
+    min-height: 0;
+    position: sticky;
+    top: 0;
+}
+.calendar-sheet__day-detail-slot .day-detail-card
+{
+    margin-top: 0;
+}
+
+/* Collapse to a single column when the container is too narrow for the
+   side-by-side layout — keeps the day-detail accessible by stacking it
+   beneath the grid. */
+@media (max-width: 880px)
+{
+    .calendar-sheet .sheet-chrome__content,
+    .calendar-sheet.calendar-sheet--embedded .sheet-chrome__content
+    {
+        display: block;
+        grid-template-columns: none;
+        gap: 0;
+    }
+    .calendar-sheet__day-detail-slot
+    {
+        position: static;
+    }
+    .calendar-sheet__day-detail-slot .day-detail-card
+    {
+        margin-top: 22px;
+    }
 }
 
 /* ============ letters-sheet ============ */
@@ -5197,8 +5579,13 @@ body.is-onb-landing .side-rail
 
 .letter-row
 {
+    /* Match the .profile-sheet__sidenav-item / .history-sheet__sidenav-item
+       container chrome so all three split-layout sheets share the same
+       sidebar idiom (12px radius, soft tinted hover/active, scale-on-press).
+       The multi-line content layout (from/date row + subject) stays unique
+       to Letters since each item is real content, not a tab label. */
     display: grid;
-    grid-template-columns: 18px 1fr;
+    grid-template-columns: 12px 1fr;
     gap: 10px;
     align-items: start;
     width: 100%;
@@ -5207,13 +5594,28 @@ body.is-onb-landing .side-rail
     background: transparent;
     color: inherit;
     cursor: pointer;
-    padding: 12px;
-    border-radius: 10px;
+    padding: 11px 14px;
+    min-height: 40px;
+    border-radius: 12px;
     font: inherit;
-    transition: background 160ms ease;
+    transition:
+        background 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.letter-row:hover     { background: rgba(255, 255, 255, 0.65); }
-.letter-row.is-selected { background: rgba(255, 255, 255, 0.92); }
+.letter-row:hover
+{
+    /* Soft personality-accent tint mirrors the Profile/History hover treatment
+       (per-sheet accent, low alpha) instead of the prior near-white card. */
+    background: color-mix(in srgb, var(--facet-personality-accent) 12%, transparent);
+    color: #2b2620;
+}
+.letter-row:active { transform: scale(0.98); }
+.letter-row.is-selected
+{
+    background: color-mix(in srgb, var(--facet-personality-accent) 18%, #fff);
+    color: #2b2620;
+}
 
 .letter-row__unread
 {
@@ -5223,9 +5625,10 @@ body.is-onb-landing .side-rail
     background: var(--facet-personality-accent);
     margin-top: 8px;
     opacity: 0;
-    transition: opacity 160ms ease;
+    transition: opacity 160ms ease, transform 160ms ease;
 }
 .letter-row.is-unread .letter-row__unread { opacity: 1; }
+.letter-row.is-selected .letter-row__unread { opacity: 1; transform: scale(1.15); }
 
 .letter-row__meta
 {
@@ -5269,8 +5672,12 @@ body.is-onb-landing .side-rail
 
 .letters-sheet__body
 {
+    /* Left-align with the page header above ("Letters" + subtitle) so the
+       letter title and body stack flush with the page title. The previous
+       `margin: 0 auto` centered the 60ch column inside the wider panel,
+       which broke vertical alignment with the page header. */
     max-width: 60ch;
-    margin: 0 auto;
+    margin: 0;
     font-size: 15px;
     line-height: 1.6;
 }
@@ -5362,24 +5769,33 @@ body.is-onb-landing .side-rail
    list sits above the detail and both scroll naturally. */
 .letters-sheet.sheet-chrome--split .sheet-chrome__intro
 {
-    padding: 0;
-    gap: 0;
+    /* Match Profile/History intro padding so all three split sheets share
+       the same sidebar gutter. */
+    padding: 0 24px 24px;
+    gap: 12px;
 }
 .letters-sheet.sheet-chrome--split .letters-sheet__list
 {
     border-right: none;
     background: transparent;
-    padding: 8px 16px 24px;
+    margin-top: 12px;
+    padding: 4px 4px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
 .letters-sheet.sheet-chrome--split .letters-sheet__panel
 {
-    padding: 24px 32px 64px;
+    /* Left inset matches the page header's left padding (28px) so the
+       "Letters" title and the letter body stack flush vertically. */
+    padding: 24px 28px 64px;
 }
 
 @media (prefers-reduced-motion: reduce)
 {
     .letter-row,
-    .letter-row__unread { transition-duration: 80ms; }
+    .letter-row__unread { transition: none; }
+    .letter-row:active { transform: none; }
 }
 
 /* ============ trajectory-sheet (Path Finder) ====================
@@ -6357,6 +6773,17 @@ body.has-capture-sheet .object-peek
    ceremony, but we list both explicitly so a refactor that drops one doesn't
    silently leak chrome onto the other. */
 body.is-onboarding .side-rail,
+/* Dev-HUD grouping — toggling `body.hide-dev-hud` hides all developer-
+   only affordances together (preview-as dropdown, hour/performance HUD,
+   music pill, try-X teaser). Wire any "hide developer overlay" UI toggle
+   to add/remove this class on document.body. */
+body.hide-dev-hud .status-preview-hud,
+body.hide-dev-hud .hour-hud,
+body.hide-dev-hud .track-picker,
+body.hide-dev-hud .hover-cta
+{
+    display: none !important;
+}
 body.is-onboarding .capture-fab,
 body.is-onboarding .hour-hud,
 body.is-onboarding .zoom-hud,
@@ -7428,12 +7855,73 @@ body.is-onboarding .kira-bubble
     padding: 0 24px 24px;
     gap: 12px;
 }
-.history-sheet.sheet-chrome--split .history-sheet__tabs
+/* History left pane inherits the shared 360px width so all three split-
+   layout pages (Profile / Letters / History) keep the same column width
+   and the navigation rail reads as one consistent component. */
+/* Vertical sidebar nav — same idiom as `.profile-sheet__sidenav`. The
+   old `.history-sheet__tabs` horizontal pill is retired; the .history-sheet__tab
+   class survives on each item for the existing _setTab click handler. */
+.history-sheet.sheet-chrome--split .history-sheet__sidenav
 {
-    max-width: none;
-    margin: 0;
-    background: rgba(253, 250, 243, 0.55);
-    flex-direction: row;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: 12px;
+    padding: 4px;
+}
+.history-sheet__sidenav-item
+{
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: #5a4f44;
+    font: 500 14.5px/1.2 var(--font-sans);
+    text-align: left;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    min-height: 40px;
+    border-radius: 12px;
+    transition:
+        background 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.history-sheet__sidenav-item:hover
+{
+    background: color-mix(in srgb, #6F584B 12%, transparent);
+    color: #2b2620;
+}
+.history-sheet__sidenav-item:active { transform: scale(0.98); }
+.history-sheet__sidenav-item:focus-visible
+{
+    outline: 2px solid color-mix(in srgb, #6F584B 70%, transparent);
+    outline-offset: 2px;
+}
+.history-sheet__sidenav-item.is-active
+{
+    background: color-mix(in srgb, #6F584B 14%, #fff);
+    color: #3a2f24;
+    font-weight: 600;
+}
+.history-sheet__sidenav-dot
+{
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: color-mix(in srgb, #6F584B 28%, transparent);
+    margin-top: -1px;
+    transition:
+        background 160ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.history-sheet__sidenav-item:hover .history-sheet__sidenav-dot,
+.history-sheet__sidenav-item.is-active .history-sheet__sidenav-dot
+{
+    background: #6F584B;
+    transform: scale(1.3);
 }
 .history-sheet.sheet-chrome--split .history-sheet__pane--timeline,
 .history-sheet.sheet-chrome--split .history-sheet__pane--growth
@@ -7978,43 +8466,6 @@ body.is-onboarding .kira-bubble
 
 /* ============ history-sheet additions: tabs + timeline ============ */
 
-.history-sheet__tabs
-{
-    max-width: 720px;
-    margin: 0 auto 18px;
-    display: flex;
-    gap: 6px;
-    background: rgba(253, 250, 243, 0.85);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border-radius: 999px;
-    padding: 4px;
-    box-shadow: 0 2px 8px rgba(43, 38, 32, 0.06);
-}
-
-.history-sheet__tab
-{
-    appearance: none;
-    border: none;
-    background: transparent;
-    color: rgba(43, 38, 32, 0.65);
-    padding: 8px 18px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    flex: 1;
-    transition: background 150ms ease, color 150ms ease;
-}
-
-.history-sheet__tab:hover { color: #2b2620; }
-
-.history-sheet__tab.is-active
-{
-    background: #2b2620;
-    color: #fdfaf3;
-}
-
 .history-sheet__hint
 {
     margin-top: 6px;
@@ -8027,6 +8478,21 @@ body.is-onboarding .kira-bubble
 {
     max-width: 720px;
     margin: 0 auto;
+}
+
+/* Tab-swap fade — when the user switches Timeline ↔ Growth, the newly-
+   visible pane animates a quick fade-up. Selector chain has to outrank
+   `.sheet-chrome.is-open .sheet-chrome__body > :nth-child(-n+2)` which
+   was applying its own stagger animation and winning the cascade. */
+.history-sheet .sheet-chrome__body > .history-sheet__pane--timeline:not([hidden]),
+.history-sheet .sheet-chrome__body > .history-sheet__pane--growth:not([hidden])
+{
+    animation: history-pane-fade-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes history-pane-fade-in
+{
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
 }
 
 .history-sheet__timeline
@@ -8101,7 +8567,16 @@ body.is-onboarding .kira-bubble
 
 @media (prefers-reduced-motion: reduce)
 {
-    .history-sheet__tab { transition: none; }
+    .history-sheet__sidenav-item,
+    .profile-sheet__sidenav-item { transition: none; }
+    .history-sheet__sidenav-item:active,
+    .profile-sheet__sidenav-item:active { transform: none; }
+    .history-sheet__pane--timeline:not([hidden]),
+    .history-sheet__pane--growth:not([hidden]),
+    .day-detail-card.is-swapping
+    {
+        animation: none;
+    }
 }
 
 /* Embedded calendar inside History/Timeline tab — strips the standalone
@@ -8133,6 +8608,14 @@ body.is-onboarding .kira-bubble
 .calendar-sheet.calendar-sheet--embedded .sheet-chrome__content
 {
     padding: 0;
+    /* Embedded calendar inherits the side-by-side grid from the base
+       `.calendar-sheet .sheet-chrome__content` rule above. The narrow-
+       viewport stack-collapse media query also applies the same way. */
+}
+
+.calendar-sheet.calendar-sheet--embedded .calendar-sheet__day-detail-slot .day-detail-card
+{
+    margin-top: 22px;
 }
 
 .calendar-sheet.calendar-sheet--embedded .sheet-chrome__close
@@ -8451,8 +8934,14 @@ body.is-onboarding .kira-bubble
     gap: 4px;
     padding: 14px 16px;
     border-radius: 14px;
-    border: 1px solid rgba(43, 38, 32, 0.08);
+    /* Shadows over borders — the tile sits on a tinted pane, and a 1px
+       border reads as a hard edge against the soft surround. Two layered
+       low-alpha shadows give the same separation while integrating with
+       the cream backdrop. */
     background: rgba(255, 255, 255, 0.55);
+    box-shadow:
+        0 1px 0 rgba(0, 0, 0, 0.04),
+        inset 0 0 0 1px rgba(43, 38, 32, 0.04);
     color: rgba(43, 38, 32, 0.92);
 }
 .stat-tile__value
@@ -8488,14 +8977,16 @@ body.is-onboarding .kira-bubble
     }
 }
 
-/* Callout strip (left-accent prompt block) ──────────────────────── */
+/* Callout strip — soft prompt block. Reads as its own region via a
+   warmer tinted background; the prior 4px left border was retired per
+   design feedback (vertical accent rules competed with neighbouring
+   gridlines and read as a foreign element across sheets). */
 .callout-strip
 {
     margin: 0;
-    padding: 12px 14px 12px 16px;
+    padding: 12px 14px;
     border-radius: 12px;
-    border-left: 4px solid rgba(43, 38, 32, 0.32);
-    background: rgba(43, 38, 32, 0.03);
+    background: rgba(43, 38, 32, 0.045);
     color: rgba(43, 38, 32, 0.82);
 }
 .callout-strip__eyebrow
@@ -8515,13 +9006,15 @@ body.is-onboarding .kira-bubble
     font-style: italic;
     color: rgba(43, 38, 32, 0.82);
 }
-/* Per-accent left border — match the engine warm palette */
-.callout-strip[data-accent="values"]        { border-left-color: #c2a572; }
-.callout-strip[data-accent="interests"]     { border-left-color: #b88660; }
-.callout-strip[data-accent="personality"]   { border-left-color: #4f8acb; }
-.callout-strip[data-accent="skills"]        { border-left-color: #4f9b6a; }
-.callout-strip[data-accent="relationships"] { border-left-color: #c97a4e; }
-.callout-strip[data-accent="choices"]       { border-left-color: #8a6cb3; }
+/* Per-accent tint — match the engine warm palette via background-mix
+   instead of a left border. Each accent keeps a subtle hue cue without
+   the vertical-rule pattern. */
+.callout-strip[data-accent="values"]        { background: color-mix(in srgb, #c2a572 16%, rgba(255,255,255,0.4)); }
+.callout-strip[data-accent="interests"]     { background: color-mix(in srgb, #b88660 16%, rgba(255,255,255,0.4)); }
+.callout-strip[data-accent="personality"]   { background: color-mix(in srgb, #4f8acb 14%, rgba(255,255,255,0.4)); }
+.callout-strip[data-accent="skills"]        { background: color-mix(in srgb, #4f9b6a 14%, rgba(255,255,255,0.4)); }
+.callout-strip[data-accent="relationships"] { background: color-mix(in srgb, #c97a4e 14%, rgba(255,255,255,0.4)); }
+.callout-strip[data-accent="choices"]       { background: color-mix(in srgb, #8a6cb3 14%, rgba(255,255,255,0.4)); }
 
 /* Profile sheet — TLDR slot placement between header and vips-body. */
 .profile-sheet__tldr-slot
@@ -8583,33 +9076,6 @@ body.is-onboarding .kira-bubble
 {
     outline: 2px solid rgba(47, 102, 183, 0.55);
     outline-offset: 2px;
-}
-
-/* Profile sheet — "More about this dimension" disclosure wrapping the
-   existing title + paragraph + Open Question callout. Default expanded
-   on first tab open; collapsed on subsequent in-session visits. */
-.profile-sheet__more
-{
-    margin: 0 0 14px;
-}
-.profile-sheet__more-toggle
-{
-    /* The whole disclosure toggle becomes the "More about this dimension"
-       affordance — small, low-prominence so the TLDR hero stays the lede. */
-    padding: 6px 0;
-    color: rgba(43, 38, 32, 0.55);
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-.profile-sheet__more-toggle:hover
-{
-    color: rgba(43, 38, 32, 0.78);
-}
-.profile-sheet__more .disclosure__panel
-{
-    padding-top: 4px;
 }
 
 /* Path Finder — per-pathway "See evidence" disclosure inside the

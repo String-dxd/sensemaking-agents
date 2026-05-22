@@ -1,19 +1,23 @@
 /**
- * DayDetailCard — right-slide overlay child of CalendarSheet. Opens when
- * the student taps a day cell; renders the mood pins, captures, and teacher
- * events for that day in the same row idiom FacetView uses.
+ * DayDetailCard — inline content panel rendered alongside the Calendar
+ * grid. Renders the mood pins, captures, and teacher events for a single
+ * day in the same row idiom FacetView uses.
  *
- * Portals itself into the currently-active sheet's DOM at open-time (via
- * OverlayController.getActiveRoot()) so it sits inside that sheet's stacking
- * context. This is how it stays visible above History (z 60) when Calendar
- * is embedded inside the History timeline tab — z-stacking falls out of DOM
- * ancestry instead of hand-tuned z-index numbers. Closing this card does
- * NOT close the parent calendar — they are independent overlays sharing
- * semantic scope. Closing the calendar closes both.
+ * History — this used to be a right-slide overlay that portaled into the
+ * active sheet's root to fix z-stacking. Under the sidebar-nav-content-in-page
+ * redesign the day detail is no longer an overlay: the calendar grid lives
+ * in the right pane, and the day's detail content renders inline below it
+ * (or beside it, depending on viewport). The owner (CalendarSheet) mounts
+ * this card into a `data-role="day-detail-slot"` element inside the same
+ * sheet's content area; the card has no fixed position and no slide
+ * animation of its own.
+ *
+ * Lifetime is still owned by CalendarSheet — when History embeds the
+ * Calendar's root DOM into its Timeline pane, the day-detail slot comes
+ * along with it for free, so no portaling is needed.
  */
 
 import State from '../State/State.js'
-import OverlayController from './OverlayController.js'
 
 const MOOD_HEX = {
     joy:           '#FFD66B',
@@ -45,31 +49,36 @@ export default class DayDetailCard
         this.state = State.getInstance()
         this.backend = this.state.backend || null
 
-        const root = document.createElement('aside')
+        const root = document.createElement('section')
         root.className = 'day-detail-card'
         root.setAttribute('aria-hidden', 'true')
+        // No close × — the card lives inline alongside the calendar, so
+        // there's nothing to dismiss. Picking another day swaps the content;
+        // the empty placeholder paints itself when no day is selected.
         root.innerHTML = `
-            <button class="day-detail-card__close" type="button" aria-label="Close">×</button>
             <header class="day-detail-card__head">
                 <p class="day-detail-card__eyebrow">Day</p>
                 <h2 class="day-detail-card__title"></h2>
             </header>
-            <section class="day-detail-card__section" data-section="moods">
+            <p class="day-detail-card__placeholder">Pick a day to see what was captured.</p>
+            <section class="day-detail-card__section" data-section="moods" hidden>
                 <h3 class="day-detail-card__eyebrow">Moods</h3>
                 <div class="day-detail-card__rows"></div>
             </section>
-            <section class="day-detail-card__section" data-section="captures">
+            <section class="day-detail-card__section" data-section="captures" hidden>
                 <h3 class="day-detail-card__eyebrow">Reflections</h3>
                 <div class="day-detail-card__rows"></div>
             </section>
-            <section class="day-detail-card__section" data-section="events">
+            <section class="day-detail-card__section" data-section="events" hidden>
                 <h3 class="day-detail-card__eyebrow">From school</h3>
                 <div class="day-detail-card__rows"></div>
             </section>
             <p class="day-detail-card__empty" hidden>Nothing logged this day.</p>
         `
-        document.body.appendChild(root)
+        // Don't mount yet — the parent CalendarSheet calls mount(slotEl) with
+        // the inline slot inside its own contentSlot.
         this.root  = root
+        this.placeholderEl = root.querySelector('.day-detail-card__placeholder')
         this.titleEl = root.querySelector('.day-detail-card__title')
         this.emptyEl = root.querySelector('.day-detail-card__empty')
         this.reviewInFlightEntryId = null
@@ -92,9 +101,20 @@ export default class DayDetailCard
                 this._retryReflectionSync(retry)
                 return
             }
-            if(event.target.closest('.day-detail-card__close')) this.close()
         }
         root.addEventListener('click', this._onRootClick)
+    }
+
+    /**
+     * Mount the inline card into the parent calendar's day-detail slot.
+     * Called once by the owner (CalendarSheet) right after constructing
+     * the chrome — the slot lives inside the calendar's contentSlot, so
+     * embedding moves with the calendar automatically.
+     */
+    mount(slotEl)
+    {
+        if(!slotEl || !this.root) return
+        if(this.root.parentNode !== slotEl) slotEl.appendChild(this.root)
     }
 
     /**
@@ -104,6 +124,7 @@ export default class DayDetailCard
      */
     dispose()
     {
+        if(this._swapTimer) { clearTimeout(this._swapTimer); this._swapTimer = null }
         if(this._onRootClick && this.root)
         {
             try { this.root.removeEventListener('click', this._onRootClick) } catch(_) {}
@@ -113,36 +134,68 @@ export default class DayDetailCard
         this.root = null
         this.titleEl = null
         this.emptyEl = null
+        this.placeholderEl = null
     }
 
+    /**
+     * Show the day's detail inline. Replaces whatever day was previously
+     * shown — there's no separate "close" because the card lives in the
+     * calendar's content surface; picking another day swaps the content.
+     *
+     * Motion: when re-opening with a new date (card already `is-open`),
+     * we briefly toggle the `.is-swapping` class so the CSS keyframe
+     * re-fires the fade-up. Without this, swapping days while the card
+     * is open looks instant because the open-state transition already
+     * settled on the previous day.
+     */
     open({ date } = {})
     {
         if(!date) return
-        // Portal into the currently-active sheet's root so DayDetail lives
-        // inside that sheet's stacking context. When History is open the
-        // active root is the history sheet; when Calendar is standalone the
-        // active root is the calendar sheet; if nothing is active we fall
-        // back to body (the original behavior).
-        const activeRoot = OverlayController.getInstance().getActiveRoot?.() || document.body
-        if(this.root && this.root.parentNode !== activeRoot)
-        {
-            try { activeRoot.appendChild(this.root) } catch(_) {}
-        }
+        if(!this.root) return
+        const wasOpen = this.isOpen
         this.date = date
         this.titleEl.textContent = formatDate(date)
+        if(this.placeholderEl) this.placeholderEl.hidden = true
         this._render()
         this.root.setAttribute('aria-hidden', 'false')
         this.root.classList.add('is-open')
         this.isOpen = true
+        if(wasOpen)
+        {
+            // Restart the entrance keyframe so the swap reads as motion, not
+            // an instant content replacement. Force a reflow between class
+            // removal and re-add or the browser collapses both into a no-op.
+            this.root.classList.remove('is-swapping')
+            // eslint-disable-next-line no-unused-expressions
+            void this.root.offsetWidth
+            this.root.classList.add('is-swapping')
+            clearTimeout(this._swapTimer)
+            this._swapTimer = setTimeout(() => this.root?.classList?.remove('is-swapping'), 240)
+        }
     }
 
+    /**
+     * Reset the card back to the empty placeholder. Used when the calendar
+     * sheet closes; left as a noop for symmetry with the prior overlay API.
+     */
     close()
     {
         if(!this.isOpen) return
+        // Cancel any in-flight swap animation timer so a fast open→close
+        // sequence doesn't leave `.is-swapping` lingering on the detached
+        // card after the timer fires (it would also no-op via the
+        // root?.classList chain, but clearing is cleaner).
+        if(this._swapTimer) { clearTimeout(this._swapTimer); this._swapTimer = null }
         this.root.classList.remove('is-open')
+        this.root.classList.remove('is-swapping')
         this.root.setAttribute('aria-hidden', 'true')
+        if(this.titleEl) this.titleEl.textContent = ''
+        if(this.placeholderEl) this.placeholderEl.hidden = false
+        const sections = this.root.querySelectorAll('.day-detail-card__section')
+        for(const s of sections) s.hidden = true
+        if(this.emptyEl) this.emptyEl.hidden = true
         this.isOpen = false
-        OverlayController.getInstance().noteClosed('dayDetail')
+        this.date = null
     }
 
     _render()
@@ -220,6 +273,7 @@ export default class DayDetailCard
         sectionEls[1].hidden = caps.length  === 0
         sectionEls[2].hidden = evs.length   === 0
         this.emptyEl.hidden = (moods.length + caps.length + evs.length) !== 0
+        if(this.placeholderEl) this.placeholderEl.hidden = true
     }
 
     async _reviewReflection(button)
