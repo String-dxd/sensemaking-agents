@@ -23,7 +23,6 @@ import FacetView from './FacetView.js'
 import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
-import ProfileSheet from './ProfileSheet.js'
 import State from '../State/State.js'
 import OnboardingFlow from './Onboarding/OnboardingFlow.js'
 
@@ -93,8 +92,8 @@ export default class View
         // CaptureFab + CaptureChooser lifecycle moved to React (U10) — see
         // `src/components/StudentSpaceHost.tsx`.
         this.facetView   = new FacetView()
-        this.profileSheet  = new ProfileSheet()
-        this.overlayController.register('profile', this.profileSheet)
+        // ProfileSheet migrated to React route at /profile (U7).
+        // No engine registration needed — the route owns rendering.
         // ObjectPeek + HoverCta + HoverProbe lifecycle moved to React
         // (U14). React assigns view.objectPeek, view.hoverCta, view.hoverProbe
         // so engine code (HoverProbe internals, KiraNarrator) still finds them.
@@ -222,7 +221,6 @@ export default class View
             this.onboardingFlow,
             this.camera,
             this.sound,
-            this.profileSheet,
             this.facetView,
             this.mailbox,
             this.telescope,
