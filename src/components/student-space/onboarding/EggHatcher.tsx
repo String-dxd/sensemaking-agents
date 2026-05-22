@@ -12,8 +12,16 @@ import { cn } from '~/lib/utils'
  * The original surface used a small Three.js egg canvas. The live world
  * scene still stays engine-owned; this React surface keeps the same state
  * writes and timing while expressing the ceremony UI in Tailwind.
+ *
+ * The egg itself is a dedicated Three.js mini-scene (stretched flat-shaded
+ * icosahedron, three-point + hemisphere lighting) on its own canvas. Color
+ * picks tween shell + emissive in place over 320ms so the egg "warms" to
+ * the chosen swatch instead of repainting.
  */
 const HATCH_MS = 1400
+
+const COLOR_LERP_MS = 320
+const INITIAL_SHELL_COLOR = 0xf6efe1
 
 type OnboardingSlice = {
   stage?: string
@@ -106,7 +114,7 @@ export function EggHatcher({
     >
       {stage === 'egg-color' ? (
         <section className="flex w-full max-w-[420px] flex-col items-center gap-5 text-center">
-          <EggPreview color={hatchColor} state="idle" />
+          <EggCanvas color={hatchColor} reducedMotion={reducedMotion} />
           <div>
             <h2 className="m-0 text-xl font-semibold">{ONBOARDING_COPY.eggColor.title}</h2>
             <p className="mt-2 mb-0 text-sm text-(--color-onb-ink-soft)">
@@ -162,7 +170,7 @@ export function EggHatcher({
 
       {stage === 'egg-name' ? (
         <section className="flex w-full max-w-[420px] flex-col items-center gap-5 text-center">
-          <EggPreview color={hatchColor} state="idle" />
+          <EggCanvas color={hatchColor} reducedMotion={reducedMotion} />
           <div>
             <h2 className="m-0 text-xl font-semibold">{ONBOARDING_COPY.eggName.title}</h2>
             <p className="mt-2 mb-0 text-sm text-(--color-onb-ink-soft)">
@@ -211,7 +219,7 @@ export function EggHatcher({
           className="flex w-full max-w-[420px] flex-col items-center gap-6 text-center"
           aria-live="polite"
         >
-          <EggPreview color={hatchColor} state="hatching" />
+          <EggCanvas color={hatchColor} reducedMotion={reducedMotion} />
           <p className="m-0 text-sm font-medium text-(--color-onb-ink-soft)">
             {ONBOARDING_COPY.eggHatch.a11yNarration}
           </p>
@@ -221,25 +229,229 @@ export function EggHatcher({
   )
 }
 
-function EggPreview({ color, state }: { color: string; state: 'idle' | 'hatching' }) {
+/**
+ * Standalone Three.js mini-scene for the egg. Mounts a 1:1 port of the
+ * engine's `_buildScene` (stretched icosahedron, flat-shaded Lambert,
+ * 3-point + hemisphere lighting). Color picks tween shell + emissive in
+ * place over 320ms; the WebGL context is never torn down between swatches.
+ *
+ * `prefers-reduced-motion` parks the mesh at its initial pose with no
+ * idle bobbing. WebGL bring-up is wrapped in try/catch so non-WebGL hosts
+ * (test env, very old browsers) fall back to a static empty canvas.
+ */
+function EggCanvas({ color, reducedMotion }: { color: string; reducedMotion: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const colorRef = useRef<string>(color)
+  const reducedMotionRef = useRef<boolean>(reducedMotion)
+
+  // Keep the latest props inside refs so the rAF loop reads fresh values
+  // without re-booting the scene on every render.
+  colorRef.current = color
+  reducedMotionRef.current = reducedMotion
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    let cancelled = false
+    let rafId: number | null = null
+    let cleanup: (() => void) | null = null
+
+    void (async () => {
+      const THREE = await import('three')
+      if (cancelled) return
+
+      let renderer: import('three').WebGLRenderer
+      try {
+        renderer = new THREE.WebGLRenderer({
+          canvas,
+          antialias: true,
+          alpha: true,
+          powerPreference: 'low-power',
+        })
+      } catch (err) {
+        console.warn('[EggCanvas] WebGL renderer unavailable', err)
+        return
+      }
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+
+      const scene = new THREE.Scene()
+
+      // FOV + distance tuned so the egg's screen size lands close to the
+      // old SVG silhouette inside a ~160x200 canvas.
+      const camera = new THREE.PerspectiveCamera(28, 160 / 200, 0.1, 100)
+      camera.position.set(0, 0, 5.0)
+      camera.lookAt(0, 0, 0)
+
+      // 3-point + hemisphere. Lower ambient deepens facet contrast; the
+      // hemisphere bounce keeps shadowed faces from going dead-grey. Rim
+      // light (cool, behind) gives the silhouette presence.
+      scene.add(new THREE.AmbientLight(0xffffff, 0.34))
+      scene.add(new THREE.HemisphereLight(0xfff2dc, 0x2a2f3a, 0.32))
+      const key = new THREE.DirectionalLight(0xfff2dc, 1.05)
+      key.position.set(2.2, 3.0, 2.4)
+      scene.add(key)
+      const fill = new THREE.DirectionalLight(0xc8d4ff, 0.42)
+      fill.position.set(-2.4, 0.6, 1.4)
+      scene.add(fill)
+      const rim = new THREE.DirectionalLight(0xb8c4ff, 0.55)
+      rim.position.set(-0.6, 1.2, -2.6)
+      scene.add(rim)
+
+      // Stretched icosahedron — detail=1 keeps the facet count low so
+      // flat-shading reads as crisp polygons rather than mush.
+      const geo = new THREE.IcosahedronGeometry(0.55, 1)
+      geo.scale(1, 1.35, 1)
+      const mat = new THREE.MeshLambertMaterial({
+        color: INITIAL_SHELL_COLOR,
+        emissive: 0x000000,
+        emissiveIntensity: 1,
+        flatShading: true,
+      })
+      const mesh = new THREE.Mesh(geo, mat)
+      mesh.rotation.set(0.18, 0.45, 0)
+      scene.add(mesh)
+
+      // Apply the initial color immediately so a resume into egg-name or
+      // egg-hatch doesn't flash the unpainted shell.
+      const initialHex = colorRef.current
+      const colorState = {
+        from: new THREE.Color(INITIAL_SHELL_COLOR),
+        target: new THREE.Color(INITIAL_SHELL_COLOR),
+        emFrom: new THREE.Color(0x000000),
+        emTarget: new THREE.Color(0x000000),
+        startTime: 0,
+        duration: 0,
+      }
+      let lastAppliedHex = '#000000'
+      try {
+        mat.color.setStyle(initialHex)
+        colorState.from.copy(mat.color)
+        colorState.target.copy(mat.color)
+        const em = new THREE.Color(initialHex).multiplyScalar(0.06)
+        mat.emissive.copy(em)
+        colorState.emFrom.copy(em)
+        colorState.emTarget.copy(em)
+        lastAppliedHex = initialHex
+      } catch (err) {
+        console.warn('[EggCanvas] invalid initial color', err)
+      }
+
+      let lastW = 0
+      let lastH = 0
+
+      const tick = () => {
+        if (cancelled) return
+        const now = performance.now()
+        const t = now * 0.001
+
+        // Idle motion — three asynchronous oscillators so motion never
+        // collapses into one mechanical loop. Reduced-motion parks the
+        // mesh at its initial pose.
+        if (!reducedMotionRef.current) {
+          mesh.position.y = Math.sin(t * 1.4) * 0.05
+          mesh.rotation.y = 0.45 + Math.sin(t * 0.55) * 0.12
+          mesh.rotation.x = 0.18 + Math.sin(t * 0.42 + 1.1) * 0.05
+          const breath = 1 + Math.sin(t * 1.6 + Math.PI / 3) * 0.012
+          mesh.scale.set(1, breath, 1)
+        } else {
+          mesh.position.y = 0
+          mesh.rotation.y = 0.45
+          mesh.rotation.x = 0.18
+          mesh.scale.set(1, 1, 1)
+        }
+
+        // Pick up swatch changes from the parent without re-booting.
+        const desiredHex = colorRef.current
+        if (desiredHex !== lastAppliedHex) {
+          try {
+            colorState.from.copy(mat.color)
+            colorState.target.setStyle(desiredHex)
+            colorState.emFrom.copy(mat.emissive)
+            colorState.emTarget.setStyle(desiredHex).multiplyScalar(0.06)
+            colorState.startTime = now
+            colorState.duration = COLOR_LERP_MS
+            lastAppliedHex = desiredHex
+          } catch (err) {
+            console.warn('[EggCanvas] invalid color', err)
+            lastAppliedHex = desiredHex
+          }
+        }
+
+        if (colorState.duration > 0) {
+          const u = Math.min(1, (now - colorState.startTime) / colorState.duration)
+          const e = u * u * (3 - 2 * u)
+          mat.color.lerpColors(colorState.from, colorState.target, e)
+          mat.emissive.lerpColors(colorState.emFrom, colorState.emTarget, e)
+          if (u >= 1) colorState.duration = 0
+        }
+
+        // Only resize + draw when the canvas is actually composited.
+        if (canvas.offsetParent !== null) {
+          const rect = canvas.getBoundingClientRect()
+          const w = Math.max(64, Math.floor(rect.width))
+          const h = Math.max(64, Math.floor(rect.height))
+          if (w !== lastW || h !== lastH) {
+            renderer.setSize(w, h, false)
+            camera.aspect = w / h
+            camera.updateProjectionMatrix()
+            lastW = w
+            lastH = h
+          }
+          try {
+            renderer.render(scene, camera)
+          } catch (err) {
+            console.warn('[EggCanvas] render failed', err)
+          }
+        }
+
+        rafId = requestAnimationFrame(tick)
+      }
+
+      rafId = requestAnimationFrame(tick)
+
+      cleanup = () => {
+        if (rafId !== null) {
+          cancelAnimationFrame(rafId)
+          rafId = null
+        }
+        try {
+          geo.dispose()
+        } catch {
+          /* noop */
+        }
+        try {
+          mat.dispose()
+        } catch {
+          /* noop */
+        }
+        try {
+          renderer.dispose()
+        } catch {
+          /* noop */
+        }
+        try {
+          renderer.forceContextLoss?.()
+        } catch {
+          /* noop */
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId)
+        rafId = null
+      }
+      cleanup?.()
+    }
+  }, [])
+
   return (
     <div className="relative grid h-48 w-40 place-items-center" aria-hidden="true">
       <div className="absolute bottom-3 h-4 w-24 rounded-full bg-[rgba(43,38,32,0.10)] blur-sm" />
-      <div
-        className={cn(
-          'relative h-32 w-24 rounded-[50%_50%_44%_44%/58%_58%_42%_42%]',
-          'shadow-[inset_-18px_-26px_34px_rgba(43,38,32,0.18),inset_12px_16px_24px_rgba(255,255,255,0.42),0_18px_36px_rgba(15,18,36,0.18)]',
-          state === 'hatching' && 'animate-pulse',
-        )}
-        style={{ background: color }}
-      >
-        {state === 'hatching' ? (
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="h-16 w-16 rounded-full bg-white/75 shadow-[0_0_44px_rgba(255,255,255,0.95)]" />
-            <div className="absolute size-3 rounded-full bg-(--color-onb-ink)" />
-          </div>
-        ) : null}
-      </div>
+      <canvas ref={canvasRef} className="relative h-full w-full" />
     </div>
   )
 }
