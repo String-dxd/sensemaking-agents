@@ -201,6 +201,7 @@ export function AskSheet() {
   const audioCaptureRef = useRef<AudioCapture | null>(null)
   const realtimeCaptureRef = useRef<RealtimeCapture | null>(null)
   const focusTimeoutRef = useRef<number | null>(null)
+  const liveDialogueRef = useRef<HTMLDivElement | null>(null)
   const mountedRef = useRef(false)
   const openRef = useRef(open)
   const recordingRunRef = useRef(0)
@@ -293,12 +294,11 @@ export function AskSheet() {
     engine?.view?.overlayController?.noteClosed?.('ask')
   }
 
-  function close({ chooser = false }: { chooser?: boolean } = {}) {
+  function close() {
     workflowRunRef.current += 1
     abortRecording()
     overlay.closeCapture()
     noteClosed()
-    if (chooser) overlay.setActiveChooser(true)
   }
 
   function onBack() {
@@ -308,10 +308,10 @@ export function AskSheet() {
       return
     }
     if (prepareInFlight || preparedReflection || stage === 'reframe') {
-      void forgetDraft({ closeAfter: true })
+      void forgetDraft()
       return
     }
-    close({ chooser: true })
+    close()
   }
 
   function composeText() {
@@ -665,7 +665,7 @@ export function AskSheet() {
     }
   }
 
-  async function forgetDraft({ closeAfter = false }: { closeAfter?: boolean } = {}) {
+  async function forgetDraft() {
     workflowRunRef.current += 1
     const prepared = preparedReflection
     setPrepareInFlight(false)
@@ -683,8 +683,7 @@ export function AskSheet() {
     setReframe(null)
     setLogInFlight(false)
     setPendingLocalCaptureId(null)
-    if (closeAfter) close()
-    else close({ chooser: true })
+    close()
   }
 
   function isLiveWorkflow(runId: number) {
@@ -768,6 +767,14 @@ export function AskSheet() {
     if (stage === 'recording' && liveStudentText) setReviewText(liveStudentText)
   }, [liveStudentText, stage])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: liveDialogue is the scroll trigger, not read in the body.
+  useEffect(() => {
+    if (stage !== 'recording') return
+    const node = liveDialogueRef.current
+    if (!node) return
+    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
+  }, [liveDialogue, stage])
+
   return (
     <Drawer open={open} onOpenChange={(next) => (!next ? onBack() : null)}>
       <DrawerContent
@@ -775,14 +782,20 @@ export function AskSheet() {
         className="max-w-3xl bg-[#fffdf6] text-[rgba(43,38,32,0.92)]"
         fullBleed
       >
-        <DrawerTitle className="sr-only">Ask Kira</DrawerTitle>
+        <DrawerTitle className="sr-only">Capture</DrawerTitle>
         <DrawerDescription className="sr-only">
           Capture a reflection with text, voice, feeling, or image.
         </DrawerDescription>
         <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-5 py-8 sm:px-7">
+          <header className="mb-5 flex items-baseline justify-between">
+            <h1 className="m-0 text-lg font-semibold text-[rgba(43,38,32,0.92)]">Capture</h1>
+            {stage === 'compose' && !readOnly ? (
+              <span className="text-xs font-semibold text-[rgba(43,38,32,0.46)]">Only you</span>
+            ) : null}
+          </header>
           {stage === 'compose' ? (
             <section className="flex h-full flex-col gap-4">
-              <h2 className="m-0 text-2xl font-semibold">Tell me more about your day?</h2>
+              <h2 className="m-0 text-2xl font-semibold">What's on your mind?</h2>
               {letter ? (
                 <button
                   type="button"
@@ -815,7 +828,7 @@ export function AskSheet() {
                   rows={4}
                   value={text}
                   disabled={readOnly}
-                  placeholder="Write it here, or use voice, feeling, or image..."
+                  placeholder="Type, tap the mic, pick a feeling, or drop a picture..."
                   onChange={(event) => setText(event.target.value)}
                   className="min-h-32 w-full resize-none border-0 bg-transparent p-2 text-base outline-none placeholder:text-[rgba(43,38,32,0.38)]"
                 />
@@ -879,35 +892,53 @@ export function AskSheet() {
 
           {stage === 'recording' ? (
             <section className="flex h-full flex-col gap-4">
-              <p className="m-0 text-xs font-bold uppercase tracking-[0.12em] text-red-600">
-                <span
-                  className="mr-2 inline-block size-2 rounded-full bg-red-600"
-                  aria-hidden="true"
-                />
-                Live with Kira
-              </p>
-              <h2 className="m-0 text-2xl font-semibold">Tell me what's happening.</h2>
+              <div className="flex items-center gap-2">
+                <span aria-hidden="true" className="relative inline-flex size-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/60" />
+                  <span className="relative inline-flex size-2.5 rounded-full bg-red-500" />
+                </span>
+                <p className="m-0 text-xs font-bold uppercase tracking-[0.12em] text-red-600">
+                  Live with Kira
+                </p>
+              </div>
+              <h2 className="m-0 text-2xl font-semibold">I'm listening.</h2>
               <p className="m-0 text-sm text-[rgba(43,38,32,0.62)]">
-                Keep going until it feels complete.
+                Speak naturally. Pause when you're done — I'll read it back.
               </p>
               <div
+                ref={liveDialogueRef}
                 className="min-h-0 flex-1 overflow-y-auto rounded-3xl bg-white/72 p-4"
                 role="log"
                 aria-live="polite"
               >
                 {liveDialogue.length === 0 ? (
-                  <p className="m-0 text-sm text-[rgba(43,38,32,0.46)]">
-                    Start talking. A reading will appear when you pause.
-                  </p>
+                  <div className="flex h-full items-center justify-center">
+                    <div className="flex items-center gap-1.5 text-sm text-[rgba(43,38,32,0.46)]">
+                      <span
+                        aria-hidden="true"
+                        className="size-1.5 animate-pulse rounded-full bg-[rgba(43,38,32,0.32)] [animation-delay:-0.32s]"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="size-1.5 animate-pulse rounded-full bg-[rgba(43,38,32,0.32)] [animation-delay:-0.16s]"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="size-1.5 animate-pulse rounded-full bg-[rgba(43,38,32,0.32)]"
+                      />
+                    </div>
+                  </div>
                 ) : (
                   liveDialogue.map((message) => (
                     <article
                       key={message.id}
                       className={cn(
-                        'mb-3 max-w-[82%] rounded-2xl px-3 py-2 text-sm',
+                        'mb-3 max-w-[82%] rounded-2xl px-3 py-2 text-sm shadow-sm',
+                        'transition-opacity duration-300 ease-out',
                         message.role === 'kira'
                           ? 'mr-auto bg-[#edf7f5] text-[#1f5a4f]'
                           : 'ml-auto bg-[#f5eee2] text-[rgba(43,38,32,0.86)]',
+                        message.status === 'streaming' && 'opacity-80',
                       )}
                     >
                       <span className="block text-[11px] font-bold uppercase tracking-[0.08em] opacity-60">
@@ -924,9 +955,9 @@ export function AskSheet() {
               <button
                 type="button"
                 onClick={() => void stopRecording()}
-                className="min-h-12 rounded-full bg-[rgba(43,38,32,0.92)] px-5 text-sm font-semibold text-white"
+                className="min-h-12 rounded-full bg-[rgba(43,38,32,0.92)] px-5 text-sm font-semibold text-white transition-transform duration-150 hover:-translate-y-0.5"
               >
-                Stop session
+                Done
               </button>
             </section>
           ) : null}
@@ -938,7 +969,7 @@ export function AskSheet() {
               imageDataUrl={uploadedImageDataUrl}
               reframe={reframe}
               thread={thread}
-              onDiscard={() => close({ chooser: !readOnly })}
+              onDiscard={() => close()}
               onLog={logReview}
               onReframe={() => void prepareMirrorDraft()}
             />
@@ -1232,9 +1263,20 @@ function ReframeReadout({ reframe, busy }: { reframe: Reframe | null; busy?: boo
       <p className="m-0 text-xs font-bold uppercase tracking-[0.12em] text-[rgba(43,38,32,0.48)]">
         Reading
       </p>
-      <p className="mt-2 whitespace-pre-wrap text-base leading-7 text-[rgba(43,38,32,0.82)]">
-        {busy ? 'Reading this back carefully.' : reframe?.headline || ''}
-      </p>
+      {busy ? (
+        <div className="mt-3 flex items-center gap-2 text-base leading-7 text-[rgba(43,38,32,0.62)]">
+          <span className="inline-flex gap-1" aria-hidden="true">
+            <span className="size-1.5 animate-pulse rounded-full bg-(--color-onb-accent) [animation-delay:-0.32s]" />
+            <span className="size-1.5 animate-pulse rounded-full bg-(--color-onb-accent) [animation-delay:-0.16s]" />
+            <span className="size-1.5 animate-pulse rounded-full bg-(--color-onb-accent)" />
+          </span>
+          <span>Reading this back…</span>
+        </div>
+      ) : (
+        <p className="mt-2 whitespace-pre-wrap text-base leading-7 text-[rgba(43,38,32,0.82)]">
+          {reframe?.headline || ''}
+        </p>
+      )}
     </div>
   )
 }
