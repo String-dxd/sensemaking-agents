@@ -10,7 +10,6 @@
  */
 
 import State from '../State/State.js'
-import OverlayController from './OverlayController.js'
 import SheetChrome from './SheetChrome.js'
 import DayDetailCard from './DayDetailCard.js'
 
@@ -59,12 +58,11 @@ export default class CalendarSheet
         this.viewYear  = now.getFullYear()
         this.viewMonth = now.getMonth()
 
-        // DayDetailCard is a sibling overlay (not a child) — registered with
-        // OverlayController under its own name. It's owned by CalendarSheet
-        // for lifetime but portals into whatever sheet is currently active
-        // at open time (history when embedded, calendar when standalone).
+        // DayDetailCard renders inline inside this sheet's content (no longer
+        // a portaled overlay). It mounts into the `[data-role="day-detail-slot"]`
+        // element below the calendar grid so picking a day swaps inline
+        // content instead of sliding a side panel.
         this.dayDetail = new DayDetailCard()
-        OverlayController.getInstance().register('dayDetail', this.dayDetail)
 
         // SheetChrome owns backdrop, blur, fade, z-tier, the × button, and
         // the Escape-to-close listener. Calendar's grid/header content lives
@@ -79,17 +77,20 @@ export default class CalendarSheet
             closeOnBackdrop: false,
         })
         this.chrome.contentSlot.innerHTML = `
-            <header class="calendar-sheet__head">
-                <button class="cal-nav" data-dir="-1" type="button" aria-label="Previous month">‹</button>
-                <h2 class="cal-title"></h2>
-                <button class="cal-nav" data-dir="1"  type="button" aria-label="Next month">›</button>
-                <button class="cal-today" type="button" hidden>Today</button>
-                <button class="cal-connector" type="button">Run Connector</button>
-            </header>
-            <div class="calendar-sheet__weekdays">
-                ${DAY_LABELS.map((d) => `<span>${d}</span>`).join('')}
+            <div class="calendar-sheet__main">
+                <header class="calendar-sheet__head">
+                    <button class="cal-nav" data-dir="-1" type="button" aria-label="Previous month">‹</button>
+                    <h2 class="cal-title"></h2>
+                    <button class="cal-nav" data-dir="1"  type="button" aria-label="Next month">›</button>
+                    <button class="cal-today" type="button" hidden>Today</button>
+                    <button class="cal-connector" type="button">Run Connector</button>
+                </header>
+                <div class="calendar-sheet__weekdays">
+                    ${DAY_LABELS.map((d) => `<span>${d}</span>`).join('')}
+                </div>
+                <div class="calendar-sheet__grid" role="grid"></div>
             </div>
-            <div class="calendar-sheet__grid" role="grid"></div>
+            <div class="calendar-sheet__day-detail-slot" data-role="day-detail-slot"></div>
         `
         const root = this.chrome.root
         this.root      = root
@@ -97,8 +98,14 @@ export default class CalendarSheet
         this.todayBtn  = root.querySelector('.cal-today')
         this.connectorBtn = root.querySelector('.cal-connector')
         this.gridEl    = root.querySelector('.calendar-sheet__grid')
+        this.dayDetailSlotEl = root.querySelector('[data-role="day-detail-slot"]')
         this.connectorRunning = false
         this.connectorStatusText = ''
+
+        // Mount the day-detail card inline. From here on it travels with
+        // the calendar root — embedding into History's timeline pane brings
+        // both calendar grid and day detail along together.
+        this.dayDetail.mount(this.dayDetailSlotEl)
 
         // Content-level click handler — month nav, today button, connector,
         // day-cell taps. × button and Escape are owned by SheetChrome.
@@ -144,9 +151,10 @@ export default class CalendarSheet
     {
         if(!this.isOpen) return
         this.isOpen = false
-        // Closing Calendar also closes any open DayDetailCard — they share
-        // semantic scope (day detail only makes sense over a month grid).
-        if(this.dayDetail?.isOpen) this.dayDetail.close()
+        // Reset the inline day-detail slot back to its empty placeholder
+        // so the next open() doesn't show stale content.
+        this.selectedDate = null
+        try { this.dayDetail?.close?.() } catch(_) {}
         try { this.chrome?.close?.() } catch(_) {}
     }
 
@@ -160,6 +168,7 @@ export default class CalendarSheet
 
         const cells = buildMonthCells(this.viewYear, this.viewMonth)
         const todayYMD = ymd(now)
+        const selectedYMD = this.selectedDate || null
 
         // Pre-index data for fast cell rendering.
         const moodByDate = {}
@@ -242,9 +251,10 @@ export default class CalendarSheet
             const teacher = events.length > 0
                 ? `<span class="calendar-day__teacher" title="${events.map(e=>e.label).join(' · ')}">·</span>` : ''
 
+            const isSelected = date === selectedYMD
             return `
                 <button type="button"
-                        class="calendar-day${inMonth ? '' : ' is-otherm'}${isToday ? ' is-today' : ''}"
+                        class="calendar-day${inMonth ? '' : ' is-otherm'}${isToday ? ' is-today' : ''}${isSelected ? ' is-selected' : ''}"
                         data-date="${date}"
                         ${(pins.length + caps.length + events.length) === 0 && !isToday ? 'tabindex="-1"' : ''}>
                     <span class="calendar-day__num">${d.getDate()}</span>
@@ -296,6 +306,21 @@ export default class CalendarSheet
     _openDayDetail(date)
     {
         if(!date) return
+        this.selectedDate = date
+        // Targeted class swap instead of full grid rebuild — `innerHTML = ...`
+        // would destroy the focused button and eject keyboard users to <body>
+        // on every day click. Also sets `aria-selected` to expose state to
+        // ARIA-tree consumers (the parent grid carries `role="grid"`).
+        if(this.gridEl)
+        {
+            const cells = this.gridEl.querySelectorAll('.calendar-day')
+            for(const cell of cells)
+            {
+                const isSel = cell.dataset.date === date
+                cell.classList.toggle('is-selected', isSel)
+                cell.setAttribute('aria-selected', isSel ? 'true' : 'false')
+            }
+        }
         this.dayDetail?.open?.({ date })
     }
 

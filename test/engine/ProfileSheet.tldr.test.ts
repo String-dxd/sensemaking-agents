@@ -209,26 +209,13 @@ describe('ProfileSheet — TLDR hero', () => {
     }
   })
 
-  it('expands the "More about this dimension" disclosure on first tab visit', async () => {
-    state.instance = {
-      profile: profileWithValuesCounts({ 'values.contribution': 1 }),
-      backend: null,
-    }
-    OverlayController.instance = new OverlayController()
-    const sheet = new ProfileSheet() as ProfileSheetHandle
-    try {
-      sheet.open({ tab: 'values' })
-      await Promise.resolve()
-      const more = document.querySelector<HTMLElement>('[data-role="more-disclosure"]')
-      expect(more?.getAttribute('data-expanded')).toBe('true')
-      const toggle = more?.querySelector<HTMLElement>('.disclosure__toggle')
-      expect(toggle?.getAttribute('aria-expanded')).toBe('true')
-    } finally {
-      sheet.dispose?.()
-    }
-  })
+  // The "More about this dimension" disclosure was retired with the
+  // sidebar-nav-content-in-page redesign. The dimension prose is always
+  // visible in the right pane now, so the disclosure + per-tab visit
+  // memory tests no longer apply. The remaining facet-accent test
+  // targets the open-question callout at its new location.
 
-  it('collapses the "More" disclosure on second visit to the same tab within one open', async () => {
+  it('applies the facet accent to the Open Question callout strip', async () => {
     state.instance = {
       profile: profileWithValuesCounts({ 'values.contribution': 1 }),
       backend: null,
@@ -238,35 +225,7 @@ describe('ProfileSheet — TLDR hero', () => {
     try {
       sheet.open({ tab: 'values' })
       await Promise.resolve()
-      // Switch away then back; the visit memory now flags 'values' as seen.
-      const interestsTab = document.querySelector<HTMLElement>(
-        '.profile-tab[data-facet="interests"]',
-      )
-      interestsTab?.click()
-      await new Promise((r) => setTimeout(r, 150))
-      const valuesTab = document.querySelector<HTMLElement>('.profile-tab[data-facet="values"]')
-      valuesTab?.click()
-      await new Promise((r) => setTimeout(r, 150))
-      const more = document.querySelector<HTMLElement>('[data-role="more-disclosure"]')
-      expect(more?.getAttribute('data-expanded')).toBe('false')
-    } finally {
-      sheet.dispose?.()
-    }
-  })
-
-  it('applies the facet accent to the embedded Open Question callout strip', async () => {
-    state.instance = {
-      profile: profileWithValuesCounts({ 'values.contribution': 1 }),
-      backend: null,
-    }
-    OverlayController.instance = new OverlayController()
-    const sheet = new ProfileSheet() as ProfileSheetHandle
-    try {
-      sheet.open({ tab: 'values' })
-      await Promise.resolve()
-      const callout = document.querySelector<HTMLElement>(
-        '[data-role="more-disclosure"] .callout-strip',
-      )
+      const callout = document.querySelector<HTMLElement>('.profile-sheet__open-question')
       expect(callout?.getAttribute('data-accent')).toBe('values')
     } finally {
       sheet.dispose?.()

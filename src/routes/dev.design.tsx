@@ -2503,7 +2503,7 @@ const ENGINE_SURFACES: EngineSurface[] = [
     key: 'calendar',
     label: 'Calendar Sheet',
     file: 'src/engine/student-space/Game/View/CalendarSheet.js',
-    blurb: 'Day-detail card portals into the active sheet via OverlayController.getActiveRoot().',
+    blurb: 'Day-detail card renders inline beside the month grid (no portal); the calendar mounts it into a `[data-role="day-detail-slot"]` inside its own contentSlot.',
     sheetParam: 'calendar',
   },
   {

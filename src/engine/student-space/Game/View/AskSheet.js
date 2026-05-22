@@ -75,8 +75,7 @@ export default class AskSheet
 
                 <!-- STAGE: compose -->
                 <section class="ask-sheet__stage" data-stage="compose">
-                    <p class="ask-sheet__eyebrow">Talking to Kira</p>
-                    <h2 class="ask-sheet__title">What should I hold with you?</h2>
+                    <h2 class="ask-sheet__title">Tell me more about your day?</h2>
                     <button class="ask-sheet__letter-ref" type="button" hidden>
                         <span class="ask-sheet__letter-ref-icon" aria-hidden="true">
                             <svg viewBox="0 0 24 24" width="13" height="13">

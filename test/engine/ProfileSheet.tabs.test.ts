@@ -76,23 +76,28 @@ afterEach(() => {
 })
 
 describe('Engine ProfileSheet tab parity', () => {
-  it('renders tabs and panel as siblings inside the SheetChrome right pane (U7)', () => {
+  it('renders facet sidenav in the left pane and panel in the right pane (sidebar-nav-content-in-page)', () => {
     state.instance = { profile: makeProfileStub(), backend: null }
     OverlayController.instance = new OverlayController()
     const sheet = new ProfileSheet() as ProfileSheetHandle
     try {
-      // U7's intent: tabs and the active panel must read as one visual
-      // block, not as detached siblings of the identity card. Main's
-      // split-layout refactor (PR #26 Gather-style two-pane) subsumed
-      // the original `.profile-sheet__tabbed` wrapper by placing the
-      // tab strip and the panel together in SheetChrome's right pane.
-      // The contract this test enforces: both elements exist and live
-      // under the same parent (the right pane / bodySlot).
-      const tabs = document.querySelector('.profile-sheet__tabs')
+      // Sidebar-nav-content-in-page contract: the facet nav lives in the
+      // left pane (introSlot), the dimension content lives in the right
+      // pane (bodySlot). They are siblings under contentSlot but in
+      // different panes — the prior "same parent" assertion was inverted
+      // by the redesign that moved tabs from the right pane to the left.
+      const sidenav = document.querySelector('.profile-sheet__sidenav')
       const panel = document.querySelector('.profile-sheet__panel')
-      expect(tabs).toBeTruthy()
+      expect(sidenav).toBeTruthy()
       expect(panel).toBeTruthy()
-      expect(tabs?.parentElement).toBe(panel?.parentElement)
+      expect(sidenav?.parentElement).not.toBe(panel?.parentElement)
+      // Both panes are direct children of `.sheet-chrome__content` so the
+      // 0/80/160ms entry stagger keeps working.
+      const leftPane = sidenav?.closest('.sheet-chrome__pane--left')
+      const rightPane = panel?.closest('.sheet-chrome__pane--right')
+      expect(leftPane).toBeTruthy()
+      expect(rightPane).toBeTruthy()
+      expect(leftPane?.parentElement).toBe(rightPane?.parentElement)
     } finally {
       sheet.dispose?.()
     }

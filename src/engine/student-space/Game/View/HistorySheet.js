@@ -131,10 +131,18 @@ export default class HistorySheet
                 subtitle: 'A chronological feed of what you recorded, and a year-by-year read on how it\'s adding up.',
             },
         })
+        // Vertical sidebar nav — mirrors ProfileSheet's sidenav so both
+        // split-layout sheets share the "left column = navigation" idiom.
         this.chrome.introSlot.innerHTML = `
-            <nav class="history-sheet__tabs" role="tablist">
-                <button type="button" class="history-sheet__tab" data-tab="timeline" role="tab">Timeline</button>
-                <button type="button" class="history-sheet__tab" data-tab="growth" role="tab">Growth</button>
+            <nav class="history-sheet__sidenav" role="tablist" aria-label="History views">
+                <button type="button" class="history-sheet__sidenav-item" data-tab="timeline" role="tab">
+                    <span class="history-sheet__sidenav-dot" aria-hidden="true"></span>
+                    <span class="history-sheet__sidenav-label">Timeline</span>
+                </button>
+                <button type="button" class="history-sheet__sidenav-item" data-tab="growth" role="tab">
+                    <span class="history-sheet__sidenav-dot" aria-hidden="true"></span>
+                    <span class="history-sheet__sidenav-label">Growth</span>
+                </button>
             </nav>
         `
         this.chrome.bodySlot.innerHTML = `
@@ -165,7 +173,7 @@ export default class HistorySheet
         const root = this.chrome.root
         this.root = root
 
-        this.tabEls            = Array.from(root.querySelectorAll('.history-sheet__tab'))
+        this.tabEls            = Array.from(root.querySelectorAll('.history-sheet__sidenav-item'))
         this.paneTimelineEl    = root.querySelector('[data-pane="timeline"]')
         this.paneGrowthEl      = root.querySelector('[data-pane="growth"]')
         this.timelineSlotEl    = root.querySelector('[data-timeline-slot]')
@@ -315,7 +323,7 @@ export default class HistorySheet
     {
         // × button and Escape are owned by SheetChrome — no per-sheet close
         // handling needed here.
-        const tabEl = event.target.closest?.('.history-sheet__tab')
+        const tabEl = event.target.closest?.('.history-sheet__sidenav-item')
         if(tabEl && tabEl.dataset?.tab)
         {
             event.preventDefault()

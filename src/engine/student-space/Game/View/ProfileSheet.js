@@ -31,7 +31,7 @@ import { FACET_THEMES, FACET_HEADERS, applyFacetVars } from './facets.js'
 import { iconForClaim } from './claimIcons.js'
 import ThumbnailRenderer from './ThumbnailRenderer.js'
 import SheetChrome from './SheetChrome.js'
-import { tldrHeroHTML, bindDisclosureToggles, statTileRowHTML } from './visualPrimitives.js'
+import { tldrHeroHTML, statTileRowHTML } from './visualPrimitives.js'
 import {
     mountProfileTabReactPanel,
     unmountProfileTabReactPanel,
@@ -160,6 +160,11 @@ export default class ProfileSheet
         // bento + TIMELINE. The atmospheric hero now lives inside the
         // left pane behind the identity card. See CLAUDE.md "Sheet chrome
         // contract".
+        // Skip the chrome's page-header slot — the identity card (avatar +
+        // name + class + Share + ⋯) lives at the top of the right pane and
+        // acts as the page header itself, so a separate "My Identity" title
+        // would be redundant. The chrome root gets `aria-label="My Identity"`
+        // for accessibility since no labeled <h1> renders.
         this.chrome = new SheetChrome({
             key:            'profile',
             sheetClassName: 'profile-sheet',
@@ -171,17 +176,39 @@ export default class ProfileSheet
             // Escape and other dismiss paths go through the router so the
             // URL stays the source of truth for which sheet is open.
             onCloseRequest: () => Game.getInstance()?.navigate('/'),
-            header: {
-                title:    'My Identity',
-                subtitle: 'The shape of your reflections so far.',
-            },
+            // No `header` config — the identity card at the top of the
+            // right pane acts as the page header. `aria-label` below
+            // gives the dialog its accessible name since no <h1> renders
+            // inside the chrome's header slot.
         })
+        this.chrome.root.setAttribute('aria-label', 'My Identity')
+        // Left pane = navigation only: the facet nav. The identity card
+        // moved to the right pane and serves as the page header (replacing
+        // the chrome's "My Identity" title block). The atmospheric hero
+        // wash was retired — it used to sit behind the identity card and
+        // now has no anchor in the nav-only sidebar.
         this.chrome.introSlot.innerHTML = `
-            <div class="profile-sheet__hero" aria-hidden="true">
-                <div class="profile-sheet__hero-wash"></div>
-                <div class="profile-sheet__hero-shimmer"></div>
-            </div>
-            <header class="profile-id">
+            <nav class="profile-sheet__sidenav" role="tablist" aria-label="Identity dimensions">
+                ${TAB_ORDER.map((f) => {
+                    const label = FACET_THEMES[f]
+                        ? (FACET_THEMES[f].eyebrow.split(' — ')[1] || f)
+                        : (TAB_LABELS_EXTRA[f] || f)
+                    return `
+                    <button type="button"
+                            class="profile-sheet__sidenav-item${f === 'values' ? ' is-active' : ''}"
+                            role="tab"
+                            data-facet="${f}">
+                        <span class="profile-sheet__sidenav-dot" aria-hidden="true"></span>
+                        <span class="profile-sheet__sidenav-label">${label}</span>
+                    </button>
+                `}).join('')}
+            </nav>
+        `
+        // Right pane = identity card (page header) + dimension panel. The
+        // identity card carries name + class + Share + ⋯ in one cohesive
+        // block instead of a separate "My Identity" title.
+        this.chrome.bodySlot.innerHTML = `
+            <header class="profile-id profile-id--page-header">
                 <div class="profile-id__avatar" role="img" aria-label="Profile picture">
                     <span class="profile-id__initial"></span>
                 </div>
@@ -194,59 +221,39 @@ export default class ProfileSheet
                     <span class="profile-id__auth-slot" data-auth-slot></span>
                 </div>
             </header>
-            <section class="profile-sheet__intro-panel">
-                <header class="profile-sheet__header">
+            <section class="profile-sheet__panel">
+                <header class="profile-sheet__header profile-sheet__header--main">
                     <div class="profile-sheet__eyebrow-row">
                         <span class="profile-sheet__panel-eyebrow"></span>
                         <span class="profile-sheet__panel-tag"></span>
                     </div>
-                    <div class="profile-sheet__more disclosure" data-role="more-disclosure" data-expanded="true">
-                        <button class="disclosure__toggle profile-sheet__more-toggle"
-                                type="button"
-                                aria-expanded="true">
-                            <span class="disclosure__chevron" aria-hidden="true"></span>
-                            <span class="disclosure__summary">More about this dimension</span>
-                        </button>
-                        <div class="disclosure__panel">
-                            <div class="disclosure__panel-inner">
-                                <h2 class="profile-sheet__title"></h2>
-                                <p  class="profile-sheet__panel-subtitle"></p>
-                                <ul class="vips-rows vips-rows--profile" role="list">
-                                    <li class="vips-row">
-                                        <span class="vips-row__label">Most common</span>
-                                        <p class="vips-row__body" data-row="most"></p>
-                                    </li>
-                                    <li class="vips-row">
-                                        <span class="vips-row__label">Quietly emerging</span>
-                                        <p class="vips-row__body" data-row="emerge"></p>
-                                    </li>
-                                </ul>
-                                <p  class="profile-sheet__summary"></p>
-                                <aside class="callout-strip profile-sheet__open-question" data-accent="">
-                                    <p class="callout-strip__eyebrow profile-sheet__open-eyebrow">OPEN QUESTION</p>
-                                    <p class="callout-strip__body profile-sheet__open-text"></p>
-                                </aside>
-                            </div>
-                        </div>
+                    <h2 class="profile-sheet__title"></h2>
+                    <p  class="profile-sheet__panel-subtitle"></p>
+                    <ul class="vips-rows vips-rows--profile" role="list">
+                        <li class="vips-row">
+                            <span class="vips-row__label">Most common</span>
+                            <p class="vips-row__body" data-row="most"></p>
+                        </li>
+                        <li class="vips-row">
+                            <span class="vips-row__label">Quietly emerging</span>
+                            <p class="vips-row__body" data-row="emerge"></p>
+                        </li>
+                    </ul>
+                    <div class="profile-sheet__summary-wrap" data-role="summary-wrap">
+                        <p  class="profile-sheet__summary"></p>
+                        <button type="button"
+                                class="profile-sheet__summary-toggle"
+                                data-action="summary-expand"
+                                aria-expanded="false"
+                                hidden>Show more</button>
                     </div>
+                    <aside class="callout-strip profile-sheet__open-question" data-accent="">
+                        <p class="callout-strip__eyebrow profile-sheet__open-eyebrow">OPEN QUESTION</p>
+                        <p class="callout-strip__body profile-sheet__open-text"></p>
+                    </aside>
                     <p class="profile-sheet__meta"></p>
                 </header>
-            </section>
-        `
-        this.chrome.bodySlot.innerHTML = `
-            <nav class="profile-sheet__tabs" role="tablist">
-                ${TAB_ORDER.map((f) => {
-                    const label = FACET_THEMES[f]
-                        ? (FACET_THEMES[f].eyebrow.split(' — ')[1] || f)
-                        : (TAB_LABELS_EXTRA[f] || f)
-                    return `
-                    <button type="button"
-                            class="profile-tab${f === 'values' ? ' is-active' : ''}"
-                            role="tab"
-                            data-facet="${f}">${label}</button>
-                `}).join('')}
-            </nav>
-            <section class="profile-sheet__panel">
+
                 <div class="profile-sheet__tldr-slot" data-role="tldr-slot" hidden></div>
 
                 <div class="profile-sheet__vips-body">
@@ -264,7 +271,6 @@ export default class ProfileSheet
                     <p class="profile-sheet__empty" hidden>No noticings here yet — capture a few from the island.</p>
                 </div>
                 <div class="profile-sheet__react-mount" hidden></div>
-            </div>
             </section>
         `
         const root = this.chrome.root
@@ -294,20 +300,13 @@ export default class ProfileSheet
         this.rowMostEl   = root.querySelector('[data-row="most"]')
         this.rowEmergeEl = root.querySelector('[data-row="emerge"]')
         this.summaryEl   = root.querySelector('.profile-sheet__summary')
+        this.summaryWrapEl = root.querySelector('[data-role="summary-wrap"]')
+        this.summaryToggleEl = root.querySelector('[data-action="summary-expand"]')
         this.openTextEl  = root.querySelector('.profile-sheet__open-text')
         this.metaEl      = root.querySelector('.profile-sheet__meta')
         this.tldrSlotEl  = root.querySelector('[data-role="tldr-slot"]')
-        this.moreDisclosureEl = root.querySelector('[data-role="more-disclosure"]')
         this.bentoEl     = root.querySelector('.profile-sheet__bento')
 
-        /**
-         * Per-tab visit memory for the "More about this dimension" disclosure.
-         * On the first visit to a tab in a given sheet open, the disclosure
-         * stays expanded so the student sees the prose at least once. On the
-         * second visit (and beyond, in the same open), it defaults collapsed.
-         * Reset on dispose().
-         */
-        this._tabVisits = new Map()
 
         /**
          * Per-tab TIMELINE expand memory. Default behaviour: show the first
@@ -317,9 +316,6 @@ export default class ProfileSheet
          */
         this._timelineExpanded = new Set()
 
-        // Wire chevron toggles for the "More about this dimension" disclosure
-        // and any future disclosures rendered into the sheet's root.
-        this._unbindDisclosure = bindDisclosureToggles(root)
         this.collectionEyebrowEl = root.querySelector('.profile-sheet__collection-eyebrow')
         this.dimensionEmptyEl = root.querySelector('.profile-sheet__dimension-empty')
         this.dimensionEmptyTextEl = root.querySelector('.profile-sheet__dimension-empty-text')
@@ -370,12 +366,6 @@ export default class ProfileSheet
             try { this._unsubAuth() } catch(_) {}
             this._unsubAuth = null
         }
-        if(this._unbindDisclosure)
-        {
-            try { this._unbindDisclosure() } catch(_) {}
-            this._unbindDisclosure = null
-        }
-        this._tabVisits?.clear?.()
         this._timelineExpanded?.clear?.()
         this._unmountReactPanel()
         try { this.shareDialog?.dispose?.() } catch(_) {}
@@ -584,7 +574,7 @@ export default class ProfileSheet
 
         if(syncTabs)
         {
-            for(const tab of this.root.querySelectorAll('.profile-tab'))
+            for(const tab of this.root.querySelectorAll('.profile-sheet__sidenav-item'))
                 tab.classList.toggle('is-active', tab.dataset.facet === this.activeFacet)
         }
 
@@ -606,21 +596,62 @@ export default class ProfileSheet
         if(this.vipsBodyEl) this.vipsBodyEl.hidden = false
 
         const header = FACET_HEADERS[this.activeFacet] || {}
-        this.eyebrowEl.textContent  = header.eyebrow ?? ''
-        this.tagEl.textContent      = header.tag     ?? ''
-        this.titleEl.textContent    = header.title   ?? this.activeFacet
-        this.subtitleEl.textContent = header.subtitle ?? ''
+        // The all-caps eyebrow text becomes the page-section title (sentence
+        // case). The previous title + subtitle copy ("What you keep coming
+        // back to" / "A pattern across your touchstones") was retired — they
+        // duplicated what the eyebrow already named, just in different
+        // wording. The eyebrow span itself is left blank since the tag pill
+        // ("Values" / "Interests" / …) carries the dimension label on its own.
+        const sentenceCase = (s) => s ? s.charAt(0) + s.slice(1).toLowerCase() : ''
+        this.eyebrowEl.textContent  = ''
+        this.eyebrowEl.hidden       = true
+        this.tagEl.textContent      = header.tag ?? ''
+        this.titleEl.textContent    = sentenceCase(header.eyebrow) || header.title || this.activeFacet
+        this.subtitleEl.textContent = ''
+        this.subtitleEl.hidden      = true
 
         this._renderBreakdownRows()
 
         this.summaryEl.textContent  = facet.paragraph
+        this._refreshSummaryToggle()
         this.openTextEl.textContent = facet.openQuestion
         this._renderMetaTiles(facet)
 
         this._renderTldrHero()
-        this._applyMoreDisclosureState(this.activeFacet)
+        // Sync the Open-question callout's facet accent on every facet switch.
+        this.root?.querySelector?.('.profile-sheet__open-question')
+            ?.setAttribute?.('data-accent', this.activeFacet)
         this._renderBento()
         this._renderTimeline()
+    }
+
+    /**
+     * Show the "Show more / Show less" toggle only when the collapsed
+     * summary actually overflows its 3-line clamp. Resets to the collapsed
+     * state on each facet switch so the new dimension always opens compact.
+     */
+    _refreshSummaryToggle()
+    {
+        if(!this.summaryWrapEl || !this.summaryToggleEl || !this.summaryEl) return
+        // Always start collapsed when a new facet's summary loads.
+        this.summaryWrapEl.classList.remove('is-expanded')
+        this.summaryToggleEl.setAttribute('aria-expanded', 'false')
+        this.summaryToggleEl.textContent = 'Show more'
+        // Detect overflow on next frame so layout has settled.
+        requestAnimationFrame(() =>
+        {
+            if(!this.summaryEl) return
+            const overflows = this.summaryEl.scrollHeight - this.summaryEl.clientHeight > 1
+            this.summaryToggleEl.hidden = !overflows
+        })
+    }
+
+    _toggleSummary()
+    {
+        if(!this.summaryWrapEl || !this.summaryToggleEl) return
+        const expanded = this.summaryWrapEl.classList.toggle('is-expanded')
+        this.summaryToggleEl.setAttribute('aria-expanded', expanded ? 'true' : 'false')
+        this.summaryToggleEl.textContent = expanded ? 'Show less' : 'Show more'
     }
 
     /**
@@ -644,27 +675,6 @@ export default class ProfileSheet
         ]) + (refined ? `<span class="sr-only">${refined}</span>` : '')
     }
 
-    /**
-     * Set the "More about this dimension" disclosure's expanded state for
-     * the active facet. First-visit expanded; subsequent visits collapsed.
-     * Records the visit so the next render sees this tab as "seen".
-     */
-    _applyMoreDisclosureState(facet)
-    {
-        if(!this.moreDisclosureEl) return
-        const seen = this._tabVisits.get(facet) === true
-        const expanded = !seen
-        this.moreDisclosureEl.setAttribute('data-expanded', expanded ? 'true' : 'false')
-        const toggle = this.moreDisclosureEl.querySelector('.disclosure__toggle')
-        toggle?.setAttribute('aria-expanded', expanded ? 'true' : 'false')
-
-        // Apply facet accent to the embedded callout strip.
-        const callout = this.moreDisclosureEl.querySelector('.callout-strip')
-        callout?.setAttribute('data-accent', facet)
-
-        // Record the visit.
-        this._tabVisits.set(facet, true)
-    }
 
     /**
      * TLDR hero — top voiced claims at a glance. Sits between the panel
@@ -1000,7 +1010,7 @@ export default class ProfileSheet
 
         // × button and Escape are owned by SheetChrome — no per-sheet close
         // handling needed here.
-        const tab = target.closest('.profile-tab')
+        const tab = target.closest('.profile-sheet__sidenav-item')
         if(tab)
         {
             const facet = tab.dataset.facet
@@ -1077,6 +1087,14 @@ export default class ProfileSheet
             return
         }
 
+        // Summary show-more / show-less — toggles the .is-expanded class on
+        // the summary wrapper so the line-clamp lifts.
+        if(target.closest('[data-action="summary-expand"]'))
+        {
+            event.preventDefault()
+            this._toggleSummary()
+            return
+        }
     }
 
     _switchTab(facet)
