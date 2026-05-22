@@ -1,4 +1,4 @@
-import { MessageCircle, Plus } from 'lucide-react'
+import { Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EMOTION_BY_ID } from '~/lib/student-space/mood-shapes'
 import { useEngine } from '~/lib/student-space/use-engine'
@@ -84,29 +84,31 @@ export function CaptureFab() {
     }
   }, [emitParticle, engine])
 
+  const captureOpen = overlay.activeCapture === 'ask'
+
   return (
     <>
       <div className="pointer-events-none fixed right-(--inset-frame) bottom-[calc(var(--inset-frame)+18px)] left-[calc(var(--width-rail)+var(--inset-frame))] z-40 flex justify-center">
         <button
           type="button"
-          aria-label="Capture"
+          aria-label={captureOpen ? 'Close Capture' : 'Capture'}
           data-testid="capture-fab"
-          onClick={() => overlay.setActiveChooser(!overlay.activeChooser)}
+          onClick={() => (captureOpen ? overlay.closeCapture() : overlay.openCapture('ask'))}
           className={cn(
             'pointer-events-auto inline-flex min-h-12 items-center gap-2 rounded-full border border-white/45 px-4',
             'bg-white/86 text-[13px] font-semibold tracking-[0] text-[rgba(43,38,32,0.86)] shadow-[0_14px_36px_rgba(15,18,36,0.22)] backdrop-blur-md',
             'transition-[transform,background,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white',
             'focus-visible:outline-[3px] focus-visible:outline-[rgba(255,138,92,0.7)] focus-visible:outline-offset-[3px]',
-            overlay.activeChooser && 'bg-white',
+            captureOpen && 'bg-white',
           )}
           style={tint ? { boxShadow: `0 14px 36px ${tint}55` } : undefined}
         >
-          {overlay.activeChooser ? (
-            <MessageCircle aria-hidden className="size-5" />
+          {captureOpen ? (
+            <X aria-hidden className="size-5" />
           ) : (
             <Plus aria-hidden className="size-5" />
           )}
-          <span>capture</span>
+          <span>Capture</span>
         </button>
       </div>
       {particles.map((particle) => (

@@ -291,7 +291,7 @@ describe('EngineHost', () => {
 
     await waitFor(() => expect(register).toHaveBeenCalledWith('ask', expect.any(Object)))
     surfaces.get('ask')?.open?.({ prefilledText: 'Bridge prompt' })
-    expect(await screen.findByText('Tell me more about your day?')).toBeInTheDocument()
+    expect(await screen.findByText("What's on your mind?")).toBeInTheDocument()
     expect(screen.getByDisplayValue('Bridge prompt')).toBeInTheDocument()
 
     unmount()
