@@ -222,7 +222,12 @@ export function EngineHost({ className, children }: { className?: string; childr
       <EngineOverlayProvider>
         {/* Engine owns positioning via `.game` (frame inset + rounded corners).
             Inline Tailwind `fixed inset-0` utilities would override the inset
-            rules and the rounded frame would extend edge-to-edge. */}
+            rules and the rounded frame would extend edge-to-edge.
+
+            The sky gradient is inlined on the element (not just in the .game
+            CSS rule) so it survives the brief window during HMR where the
+            engine stylesheet is unloaded — without this the .game rule
+            briefly disappears and the body shows through as a white sky. */}
         <div
           ref={containerRef}
           aria-hidden={!isWorldRoute}
@@ -231,6 +236,10 @@ export function EngineHost({ className, children }: { className?: string; childr
             !isWorldRoute && 'pointer-events-none invisible opacity-0',
             className,
           )}
+          style={{
+            background:
+              'linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--sky-bottom) 100%)',
+          }}
         />
         {/* Sheet stage — a synchronous, opaque placeholder that covers the
             world frame whenever a routed sheet is active. Without it, leaving
