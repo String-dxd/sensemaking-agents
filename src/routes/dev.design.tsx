@@ -2488,7 +2488,7 @@ const ENGINE_SURFACES: EngineSurface[] = [
   {
     key: 'profile',
     label: 'Profile / Letters',
-    file: 'src/engine/student-space/Game/View/LettersSheet.js',
+    file: 'src/components/student-space/sheets/LettersSheet.tsx',
     blurb: 'Letters inbox + profile facets. Unread dot is in Personality lavender.',
     sheetParam: 'profile',
   },
@@ -2503,7 +2503,8 @@ const ENGINE_SURFACES: EngineSurface[] = [
     key: 'calendar',
     label: 'Calendar Sheet',
     file: 'src/engine/student-space/Game/View/CalendarSheet.js',
-    blurb: 'Day-detail card renders inline beside the month grid (no portal); the calendar mounts it into a `[data-role="day-detail-slot"]` inside its own contentSlot.',
+    blurb:
+      'Day-detail card renders inline beside the month grid (no portal); the calendar mounts it into a `[data-role="day-detail-slot"]` inside its own contentSlot.',
     sheetParam: 'calendar',
   },
   {

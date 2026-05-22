@@ -36,7 +36,6 @@ import OverlayController from './OverlayController.js'
 import SideRail from './SideRail.js'
 import ProfileSheet from './ProfileSheet.js'
 import CalendarSheet from './CalendarSheet.js'
-import LettersSheet from './LettersSheet.js'
 import TrajectorySheet from './TrajectorySheet.js'
 import HistorySheet from './HistorySheet.js'
 import ObjectPeek from './ObjectPeek.js'
@@ -116,8 +115,6 @@ export default class View
         this.overlayController.register('profile', this.profileSheet)
         this.calendarSheet = new CalendarSheet()
         this.overlayController.register('calendar', this.calendarSheet)
-        this.lettersSheet  = new LettersSheet()
-        this.overlayController.register('letters', this.lettersSheet)
         this.trajectorySheet = new TrajectorySheet()
         this.overlayController.register('trajectory', this.trajectorySheet)
         this.historySheet = new HistorySheet()
@@ -264,7 +261,6 @@ export default class View
             this.captureFab,
             this.profileSheet,
             this.calendarSheet,
-            this.lettersSheet,
             this.historySheet,
             this.trajectorySheet,
             this.facetView,
