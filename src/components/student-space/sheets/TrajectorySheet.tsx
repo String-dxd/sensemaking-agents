@@ -215,12 +215,14 @@ export function TrajectorySheet() {
             />
             <div className="space-y-2">
               {copy.title ? (
-                <h2 className="text-xl font-semibold leading-tight tracking-tight text-(--color-sheet-ink)">
+                <h2 className="text-balance text-xl font-semibold leading-tight tracking-tight text-(--color-sheet-ink)">
                   {copy.title}
                 </h2>
               ) : null}
               {copy.tldr ? (
-                <p className="text-sm leading-relaxed text-(--color-sheet-ink-soft)">{copy.tldr}</p>
+                <p className="text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
+                  {copy.tldr}
+                </p>
               ) : null}
             </div>
             <TrajectoryMeta capture={capture} status={renderStatus} />
@@ -231,9 +233,9 @@ export function TrajectorySheet() {
                   onClick={runBackend}
                   disabled={running}
                   data-testid="trajectory-run"
-                  className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-[rgba(160,118,89,0.28)] bg-white/70 px-3.5 text-sm font-semibold text-[#7a4b2e] transition-[background,transform,opacity] hover:bg-white active:scale-[0.96] disabled:cursor-wait disabled:opacity-70"
+                  className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-[rgba(160,118,89,0.28)] bg-white/70 px-4 text-sm font-semibold text-[#7a4b2e] transition-[background-color,transform,opacity] duration-150 ease-(--ease-sheet) hover:bg-white active:scale-[0.96] disabled:cursor-wait disabled:opacity-70"
                 >
-                  {running ? 'Running...' : 'Run sense-making'}
+                  {running ? 'Running…' : 'Run sense-making'}
                 </button>
               ) : null}
               {showEscape ? (
@@ -241,7 +243,7 @@ export function TrajectorySheet() {
                   type="button"
                   onClick={() => setEscapeHatch(true)}
                   data-testid="trajectory-escape"
-                  className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-3.5 text-sm font-medium text-(--color-sheet-ink) transition-[background,transform] hover:bg-black/5 active:scale-[0.96]"
+                  className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-4 text-sm font-medium text-(--color-sheet-ink) transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-black/5 active:scale-[0.96]"
                 >
                   Show me all paths
                 </button>
@@ -251,7 +253,7 @@ export function TrajectorySheet() {
                   type="button"
                   onClick={() => setEscapeHatch(false)}
                   data-testid="trajectory-back"
-                  className="inline-flex h-9 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-3.5 text-sm font-medium text-(--color-sheet-ink) transition-[background,transform] hover:bg-black/5 active:scale-[0.96]"
+                  className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-4 text-sm font-medium text-(--color-sheet-ink) transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-black/5 active:scale-[0.96]"
                 >
                   Back to {statusLabelOf(audit.status)}
                 </button>
@@ -389,55 +391,67 @@ function StatusPreviewSelector({
     }
   }, [open])
 
+  const activeLabel = current ? statusLabelOf(audit.status) : 'Auto'
+
   return (
     <div data-trajectory-status-root className="relative space-y-2">
+      <span className="block text-[10px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-faint)">
+        Previewing as
+      </span>
       <button
         type="button"
         aria-expanded={open}
+        aria-haspopup="menu"
         data-testid="trajectory-status-pill"
         onClick={() => setOpen((next) => !next)}
-        className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-full bg-white/76 px-3 text-xs font-semibold uppercase tracking-[0.13em] text-(--color-sheet-ink) shadow-[inset_0_0_0_1px_rgba(43,38,32,0.08)] transition-transform active:scale-[0.96]"
+        className="inline-flex min-h-10 max-w-full cursor-pointer items-center gap-2 rounded-full bg-white/76 py-1.5 pl-3 pr-2.5 text-sm font-semibold text-(--color-sheet-ink) shadow-[inset_0_0_0_1px_rgba(43,38,32,0.08)] transition-[transform,background-color] duration-150 ease-(--ease-sheet) hover:bg-white active:scale-[0.96]"
       >
-        <span aria-hidden className={cn('size-2 rounded-full', statusDotColor[audit.status])} />
-        Preview · {current ? statusLabelOf(audit.status) : 'Auto'}
+        <span
+          aria-hidden
+          className={cn('size-2.5 shrink-0 rounded-full', statusDotColor[audit.status])}
+        />
+        <span className="min-w-0 truncate">{activeLabel}</span>
         <ChevronDown
           aria-hidden
-          className={cn('size-3.5 transition-transform', open && 'rotate-180')}
+          className={cn(
+            'size-4 shrink-0 text-(--color-sheet-ink-soft) transition-transform duration-150 ease-(--ease-sheet)',
+            open && 'rotate-180',
+          )}
         />
       </button>
       {open ? (
-        <ul className="absolute left-0 top-full z-10 mt-2 w-52 overflow-hidden rounded-2xl border border-(--color-sheet-divider) bg-white p-1 shadow-xl shadow-black/10">
+        <div className="absolute left-0 top-full z-10 mt-2 w-56 origin-top-left animate-[trajectoryMenuIn_140ms_cubic-bezier(0.22,1,0.36,1)_both] overflow-hidden rounded-2xl border border-(--color-sheet-divider) bg-white p-1 shadow-xl shadow-black/10">
           {[null, ...STATUS_IDS].map((status) => {
             const key = status ?? 'auto'
             const selected = current === status
             return (
-              <li key={key}>
-                <button
-                  type="button"
-                  data-selected={selected || undefined}
-                  onClick={() => {
-                    onSelect?.()
-                    override?.setOverride?.(status as StatusKey | null)
-                    setOpen(false)
-                  }}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-semibold text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 data-[selected]:bg-(--color-sheet-tab-active) data-[selected]:text-(--color-sheet-ink)"
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'size-2.5 rounded-full',
-                      status ? statusDotColor[status] : 'bg-(--color-sheet-ink-faint)',
-                    )}
-                  />
-                  {status ? statusLabelOf(status) : 'Auto'}
-                </button>
-              </li>
+              <button
+                key={key}
+                type="button"
+                aria-pressed={selected}
+                data-selected={selected || undefined}
+                onClick={() => {
+                  onSelect?.()
+                  override?.setOverride?.(status as StatusKey | null)
+                  setOpen(false)
+                }}
+                className="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-(--color-sheet-ink-soft) transition-colors duration-100 hover:bg-black/5 hover:text-(--color-sheet-ink) data-[selected]:bg-(--color-sheet-tab-active) data-[selected]:text-(--color-sheet-ink)"
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    'size-2.5 shrink-0 rounded-full',
+                    status ? statusDotColor[status] : 'bg-(--color-sheet-ink-faint)',
+                  )}
+                />
+                <span className="min-w-0 truncate">{status ? statusLabelOf(status) : 'Auto'}</span>
+              </button>
             )
           })}
-        </ul>
+        </div>
       ) : null}
       {audit.isOverride ? (
-        <p className="max-w-[34ch] text-xs leading-relaxed text-(--color-sheet-ink-soft)">
+        <p className="max-w-[34ch] text-pretty text-xs leading-relaxed text-(--color-sheet-ink-soft)">
           {audit.reason}
         </p>
       ) : null}
@@ -474,7 +488,7 @@ function TrajectoryMeta({
 
 function StatTile({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-xl bg-white/55 px-3 py-3 shadow-[inset_0_0_0_1px_rgba(43,38,32,0.045)]">
+    <div className="rounded-xl bg-white/55 px-3.5 py-3 shadow-[inset_0_0_0_1px_rgba(43,38,32,0.045),0_1px_0_rgba(255,255,255,0.65)_inset]">
       <p className="text-lg font-bold leading-none text-(--color-sheet-ink) tabular-nums">
         {value}
       </p>
@@ -513,15 +527,22 @@ function InlineDisclosure({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((next) => !next)}
-        className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-(--color-sheet-divider) bg-white/35 px-3 py-1.5 text-xs font-semibold text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink)"
+        className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full border border-(--color-sheet-divider) bg-white/35 px-3.5 py-1.5 text-xs font-semibold text-(--color-sheet-ink-soft) transition-[background-color,color,transform] duration-150 ease-(--ease-sheet) hover:bg-black/5 hover:text-(--color-sheet-ink) active:scale-[0.96]"
       >
         <ChevronDown
           aria-hidden
-          className={cn('size-3.5 transition-transform', open && 'rotate-180')}
+          className={cn(
+            'size-3.5 transition-transform duration-150 ease-(--ease-sheet)',
+            open && 'rotate-180',
+          )}
         />
         {label}
       </button>
-      {open ? <div>{children}</div> : null}
+      {open ? (
+        <div className="animate-[trajectoryMenuIn_160ms_cubic-bezier(0.22,1,0.36,1)_both]">
+          {children}
+        </div>
+      ) : null}
     </section>
   )
 }
@@ -547,15 +568,15 @@ function StatusBody({
     const title = (STARTER_PROMPT.title as string).replace('{companionName}', companion)
     return (
       <div className="mx-auto mt-4 max-w-xl rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6">
-        <p className="text-base font-semibold text-(--color-sheet-ink)">{title}</p>
-        <p className="mt-2 text-sm leading-relaxed text-(--color-sheet-ink-soft)">
+        <p className="text-balance text-base font-semibold text-(--color-sheet-ink)">{title}</p>
+        <p className="mt-2 text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
           {STARTER_PROMPT.prompt}
         </p>
         <button
           type="button"
           onClick={() => onAsk(STARTER_PROMPT.prompt as string)}
           data-testid="trajectory-starter-cta"
-          className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-(--color-onb-accent) px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.96]"
+          className="mt-5 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-(--color-onb-accent) px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_4px_12px_-4px_rgba(226,106,60,0.45)] transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-(--color-onb-accent-deep) active:scale-[0.96]"
         >
           Start a chat with {companion} <span aria-hidden>→</span>
         </button>
@@ -576,10 +597,12 @@ function StatusBody({
               <button
                 type="button"
                 onClick={() => onAsk(nudge.prompt)}
-                className="group w-full cursor-pointer rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4 text-left text-sm transition-[background,transform] hover:bg-black/5 active:scale-[0.98]"
+                className="group w-full cursor-pointer rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4 text-left text-sm transition-[background-color,transform,border-color] duration-150 ease-(--ease-sheet) hover:border-[rgba(43,38,32,0.12)] hover:bg-black/5 active:scale-[0.98]"
               >
-                <span className="block font-semibold text-(--color-sheet-ink)">{nudge.title}</span>
-                <span className="mt-1 block leading-relaxed text-(--color-sheet-ink-soft)">
+                <span className="block text-balance font-semibold text-(--color-sheet-ink)">
+                  {nudge.title}
+                </span>
+                <span className="mt-1 block text-pretty leading-relaxed text-(--color-sheet-ink-soft)">
                   {nudge.prompt}
                 </span>
                 <span className="mt-3 block text-xs font-semibold text-[#7a4b2e]">
@@ -596,12 +619,12 @@ function StatusBody({
   if (!capture?.trajectory) {
     return (
       <div className="mx-auto mt-4 max-w-2xl rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6">
-        <p className="font-semibold text-(--color-sheet-ink)">
+        <p className="text-balance font-semibold text-(--color-sheet-ink)">
           {backendActive
             ? 'No backend trajectory has been generated yet.'
             : 'No trajectory has been generated yet.'}
         </p>
-        <p className="mt-2 text-sm text-(--color-sheet-ink-soft)">
+        <p className="mt-2 text-pretty text-sm text-(--color-sheet-ink-soft)">
           {hasBackend
             ? 'Run sense-making to generate a Cartographer trajectory.'
             : 'Open Path Finder after more profile evidence is available.'}
@@ -649,13 +672,13 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {throughLine ? (
-        <p className="max-w-[62ch] text-base leading-relaxed text-(--color-sheet-ink)">
+        <p className="max-w-[62ch] text-pretty text-base leading-relaxed text-(--color-sheet-ink)">
           {throughLine}
         </p>
       ) : null}
       <div className="grid gap-4">
         <div
-          className="grid content-start gap-1.5 rounded-2xl border border-(--color-sheet-divider) bg-white/45 p-3 sm:grid-cols-3"
+          className="grid content-start gap-1.5 rounded-2xl border border-(--color-sheet-divider) bg-white/45 p-1.5 sm:grid-cols-3"
           role="tablist"
           aria-label="Pathway options"
         >
@@ -667,15 +690,15 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
               aria-selected={i === selectedIndex}
               onClick={() => setActiveIndex(i)}
               className={cn(
-                'flex min-h-12 cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-tight transition-colors',
+                'flex min-h-12 cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-tight transition-[background-color,color,box-shadow,transform] duration-150 ease-(--ease-sheet) active:scale-[0.98]',
                 i === selectedIndex
-                  ? 'bg-white text-[#2166aa] shadow-[inset_0_0_0_1px_rgba(79,138,203,0.36)]'
+                  ? 'bg-white text-[#2166aa] shadow-[inset_0_0_0_1px_rgba(79,138,203,0.36),0_1px_2px_rgba(79,138,203,0.12)]'
                   : 'text-(--color-sheet-ink-soft) hover:bg-black/5 hover:text-(--color-sheet-ink)',
               )}
             >
               <span
                 className={cn(
-                  'grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums',
+                  'grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold tabular-nums transition-colors duration-150',
                   i === selectedIndex
                     ? 'bg-[#d4e6fb] text-[#2166aa]'
                     : 'bg-black/8 text-(--color-sheet-ink-soft)',
@@ -693,21 +716,23 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
             role="tabpanel"
           >
             <header className="flex items-start gap-4">
-              <span className="pt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-sheet-ink-soft)">
+              <span className="pt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-(--color-sheet-ink-soft) tabular-nums">
                 Path {selectedIndex + 1}
               </span>
-              <h3 className="text-xl font-semibold leading-tight text-(--color-sheet-ink)">
+              <h3 className="text-balance text-xl font-semibold leading-tight text-(--color-sheet-ink)">
                 {active.title}
               </h3>
             </header>
-            <p className="mt-4 text-sm leading-relaxed text-(--color-sheet-ink)">{active.prompt}</p>
+            <p className="mt-4 text-pretty text-sm leading-relaxed text-(--color-sheet-ink)">
+              {active.prompt}
+            </p>
             <EvidenceDisclosure key={selectedIndex} bearing={active} />
             {active.msfUrl ? (
               <a
                 href={active.msfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#2b2620] px-4 py-2 text-sm font-semibold text-white transition-transform hover:bg-[#3a342b] active:scale-[0.96]"
+                className="mt-5 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-[#2b2620] px-4 py-2 text-sm font-semibold text-white transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-[#3a342b] active:scale-[0.96]"
               >
                 Explore on MySkillsFuture
                 <ExternalLink aria-hidden className="size-3.5" />
@@ -822,7 +847,7 @@ function ForeclosedBody({
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
             Your committed direction
           </p>
-          <p className="mt-2 text-base font-semibold text-(--color-sheet-ink)">
+          <p className="mt-2 text-balance text-base font-semibold text-(--color-sheet-ink)">
             {committedDirection}
           </p>
         </section>
@@ -837,11 +862,11 @@ function ForeclosedBody({
               key={bearing.title ?? i}
               className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4"
             >
-              <h3 className="flex gap-3 text-sm font-semibold text-(--color-sheet-ink)">
+              <h3 className="flex gap-3 text-balance text-sm font-semibold text-(--color-sheet-ink)">
                 <span className="text-(--color-sheet-ink-soft) tabular-nums">{i + 1}</span>
                 {bearing.title}
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-(--color-sheet-ink-soft)">
+              <p className="mt-2 text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
                 {bearing.prompt}
               </p>
             </li>
@@ -849,13 +874,13 @@ function ForeclosedBody({
         </ol>
       </section>
       <section className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5">
-        <p className="text-sm font-semibold text-(--color-sheet-ink)">
+        <p className="text-balance text-sm font-semibold text-(--color-sheet-ink)">
           {FORECLOSED_CHALLENGE_PROMPT.title}
         </p>
         <button
           type="button"
           onClick={() => onAsk(FORECLOSED_CHALLENGE_PROMPT.prompt as string)}
-          className="mt-3 inline-flex cursor-pointer items-center rounded-full bg-(--color-onb-accent) px-4 py-2 text-sm font-semibold text-white transition-transform active:scale-[0.96]"
+          className="mt-3 inline-flex min-h-10 cursor-pointer items-center rounded-full bg-(--color-onb-accent) px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_0_rgba(255,255,255,0.25)_inset,0_4px_12px_-4px_rgba(226,106,60,0.45)] transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-(--color-onb-accent-deep) active:scale-[0.96]"
         >
           Open the question with {companion} →
         </button>
@@ -879,17 +904,21 @@ function AchievedBody({ capture }: { capture: TrajectoryCapture }) {
               <span className="text-sm font-semibold text-(--color-sheet-ink-soft) tabular-nums">
                 {i + 1}
               </span>
-              <h3 className="text-base font-semibold text-(--color-sheet-ink)">{bearing.title}</h3>
+              <h3 className="text-balance text-base font-semibold text-(--color-sheet-ink)">
+                {bearing.title}
+              </h3>
             </header>
-            <p className="mt-2 text-sm leading-relaxed text-(--color-sheet-ink-soft)">
+            <p className="mt-2 text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
               {bearing.prompt}
             </p>
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
               Next concrete steps
             </p>
-            <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-(--color-sheet-ink)">
+            <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-(--color-sheet-ink) marker:text-(--color-sheet-ink-faint)">
               {actions.map((action) => (
-                <li key={action}>{action}</li>
+                <li key={action} className="text-pretty">
+                  {action}
+                </li>
               ))}
             </ol>
             {bearing.msfUrl ? (
@@ -897,7 +926,7 @@ function AchievedBody({ capture }: { capture: TrajectoryCapture }) {
                 href={bearing.msfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#2b2620] px-4 py-2 text-sm font-semibold text-white transition-transform hover:bg-[#3a342b] active:scale-[0.96]"
+                className="mt-4 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-[#2b2620] px-4 py-2 text-sm font-semibold text-white transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-[#3a342b] active:scale-[0.96]"
               >
                 Explore on MySkillsFuture
                 <ExternalLink aria-hidden className="size-3.5" />
