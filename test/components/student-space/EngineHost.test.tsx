@@ -1,13 +1,15 @@
 /**
- * StudentSpaceHost — mounts the vendored Student Space engine through a
- * dynamic import. These tests stub the engine module so the host can be
- * exercised in `happy-dom` without instantiating any WebGL context.
+ * EngineHost — mounts the vendored Student Space engine through a dynamic
+ * import and exposes it to descendants via EngineContext. These tests stub
+ * the engine module so the host can be exercised in `happy-dom` without
+ * instantiating any WebGL context.
  *
  * Coverage:
  *  - renders a container that the engine can attach to
  *  - calls `dispose()` on unmount (React StrictMode double-mount lifecycle)
  *  - falls back to the `EngineLoadFailure` panel when `createGame` throws
- *  - keeps capture classification owned by Connector/Mirror outcomes, not UI prompts
+ *  - keeps capture classification owned by Connector/Mirror outcomes
+ *  - exposes the live engine to descendants via `useEngine()`
  *
  * The host now mounts inside the TanStack router tree and derives its
  * initial surface from `window.location.pathname` (not `?sheet=`), so tests
@@ -25,7 +27,8 @@ import {
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { StudentSpaceHost } from '~/components/StudentSpaceHost'
+import { EngineHost } from '~/components/student-space/EngineHost'
+import { useEngine } from '~/lib/student-space/use-engine'
 
 const dispose = vi.fn()
 const openSurface = vi.fn()
@@ -46,7 +49,7 @@ vi.mock('~/engine/student-space/Game', () => ({
   localStorageAdapter: () => localStorageAdapter(),
 }))
 
-function renderHostAt(pathname: string, element: ReactElement = <StudentSpaceHost />) {
+function renderHostAt(pathname: string, element: ReactElement = <EngineHost />) {
   // Build a minimal router whose root simply renders the host. Catch-all
   // path so `pathname` arguments like `/profile/values` resolve to the
   // same component the production root layout would have rendered.
@@ -87,7 +90,7 @@ afterEach(() => {
   window.history.pushState({}, '', '/')
 })
 
-describe('StudentSpaceHost', () => {
+describe('EngineHost', () => {
   it('renders a container and mounts the engine into it', async () => {
     const { container } = renderHostAt('/')
     await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
@@ -281,5 +284,19 @@ describe('StudentSpaceHost', () => {
       const disposed = dispose.mock.calls.length
       expect(disposed).toBeGreaterThanOrEqual(Math.min(created, 1))
     })
+  })
+
+  it('exposes the live engine to descendants via useEngine()', async () => {
+    function Probe() {
+      const engine = useEngine()
+      return <div data-testid="engine-status">{engine ? 'ready' : 'null'}</div>
+    }
+    renderHostAt(
+      '/',
+      <EngineHost>
+        <Probe />
+      </EngineHost>,
+    )
+    await waitFor(() => expect(screen.getByTestId('engine-status').textContent).toBe('ready'))
   })
 })

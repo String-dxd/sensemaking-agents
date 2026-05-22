@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { StudentSpaceHost } from '~/components/StudentSpaceHost'
 import { studentSpaceSurfaceFromLocation } from '~/lib/student-space/route-sheets'
 import { pathnameForSurface } from '~/lib/student-space/route-sync'
 
@@ -54,14 +55,15 @@ export const Route = createFileRoute('/')({
     throw redirect({
       to: pathname as never,
       ...(hashRaw ? { hash: hashRaw } : {}),
-      ...(Object.keys(forwardedSearch).length > 0
-        ? { search: forwardedSearch as never }
-        : {}),
+      ...(Object.keys(forwardedSearch).length > 0 ? { search: forwardedSearch as never } : {}),
     })
   },
   component: HomePage,
 })
 
 function HomePage() {
-  return null
+  // Engine + canvas are owned by EngineHost in __root.tsx. This route hosts
+  // the world-only React composition (overlays + future capture sheets, HUDs,
+  // in-world labels, onboarding).
+  return <StudentSpaceHost />
 }
