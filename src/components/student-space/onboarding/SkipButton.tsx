@@ -1,3 +1,4 @@
+import { Button as BaseButton } from '@base-ui-components/react/button'
 import type { Game } from '~/engine/student-space/Game'
 import { performOnboardingSkip } from '~/lib/student-space/onboarding-skip'
 import { cn } from '~/lib/utils'
@@ -15,7 +16,7 @@ export function SkipButton({ game, stage }: { game: Game | null; stage: string }
   if (hidden) return null
 
   return (
-    <button
+    <BaseButton
       type="button"
       aria-label="Skip onboarding"
       data-testid="onboarding-skip"
@@ -31,13 +32,13 @@ export function SkipButton({ game, stage }: { game: Game | null; stage: string }
         performOnboardingSkip({ state: state ?? null, profile: profile ?? null })
       }}
       className={cn(
-        'absolute top-4 right-4 z-10',
+        'absolute top-4 right-4 z-10 cursor-pointer',
         'inline-flex min-h-9 items-center rounded-full border border-(--color-frame-border) bg-white/85 px-4 text-[13px] font-semibold text-(--color-sheet-ink) shadow-[0_4px_12px_rgba(43,38,32,0.08)] backdrop-blur',
         'transition-[background,color,opacity,transform] duration-150 ease-out hover:bg-white active:scale-[0.96]',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-onb-accent)',
       )}
     >
       Skip
-    </button>
+    </BaseButton>
   )
 }
