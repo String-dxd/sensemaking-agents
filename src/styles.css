@@ -83,6 +83,12 @@
    stylesheet is briefly unloaded during HMR swaps. CssSky overrides
    these per-frame on body + html once DayCycle is ticking. */
 :root {
+  /* Lock the app to light mode regardless of OS-level preference. The
+     CSS palette tokens above are all light-mode; this prevents the
+     browser from auto-darkening native form controls (scrollbars,
+     selects, the canvas backdrop) when the OS reports a dark
+     preference. */
+  color-scheme: light;
   --sky-top: rgb(26, 74, 130);
   --sky-mid: rgb(96, 216, 232);
   --sky-bottom: rgb(255, 240, 80);

@@ -8,11 +8,10 @@
 export const ONBOARDING_COPY = Object.freeze({
 
     login: {
-        wordmark:   'Student Space',
+        wordmark:   'My World',
         tagline:    'a place that listens',
         cta:        'Login with Edupass',
         connecting: 'Connecting',
-        demoNote:   'Demo login.',
         // The primary action keeps the "Edupass" wordmark for the
         // Singapore-school cue while the click routes to real WorkOS
         // auth (Google as the social provider in v0.2). The dummy

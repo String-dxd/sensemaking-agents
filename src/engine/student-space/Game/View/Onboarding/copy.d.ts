@@ -16,7 +16,6 @@ type LoginCopy = {
   tagline: string
   cta: string
   connecting: string
-  demoNote: string
   actions: { edupass: string; demo: string }
 }
 

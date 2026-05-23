@@ -5,24 +5,13 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EdupassLogin } from '~/components/student-space/onboarding/EdupassLogin'
 
-function makeState(overrides: Partial<Parameters<typeof EdupassLogin>[0]['state']> = {}) {
-  return {
-    onboarding: { complete: vi.fn() },
-    persistence: { flush: vi.fn() },
-    ...overrides,
-  }
-}
-
 function renderLogin(
   props: Partial<Parameters<typeof EdupassLogin>[0]> = {},
 ): ReturnType<typeof render> {
   return render(
     <EdupassLogin
       reducedMotion
-      state={makeState()}
-      profile={{ setIdentity: vi.fn() }}
       camera={{ startLandingOrbit: vi.fn(), stopLandingOrbit: vi.fn() }}
-      onAdvance={vi.fn()}
       {...props}
     />,
   )
@@ -57,12 +46,11 @@ afterEach(() => {
 })
 
 describe('EdupassLogin (React)', () => {
-  it('renders Edupass, demo, and offline actions with the auth routes', () => {
+  it('renders Edupass and demo actions with the auth routes', () => {
     renderLogin()
 
     const edupass = screen.getByRole('link', { name: /sign in with edupass/i })
     const demo = screen.getByRole('button', { name: /use a demo account/i })
-    const offline = screen.getByRole('button', { name: /continue offline/i })
 
     expect(edupass).toHaveAttribute('data-action', 'edupass')
     expect(edupass).toHaveAttribute('href', '/api/auth/sign-in?returnPathname=%2F')
@@ -71,7 +59,6 @@ describe('EdupassLogin (React)', () => {
       'action',
       '/api/auth/sign-in?demo=1&returnPathname=%2F',
     )
-    expect(offline).toHaveAttribute('data-action', 'offline')
   })
 
   it('passes through a profile returnPathname when opened as the profile sign-in page', () => {
@@ -121,45 +108,6 @@ describe('EdupassLogin (React)', () => {
     expect(submitted.parentElement).toBe(document.body)
   })
 
-  it('offline path timer is cancelled when unmounted mid-connecting', async () => {
-    const profile = { setIdentity: vi.fn() }
-    const onAdvance = vi.fn()
-    const { unmount } = renderLogin({
-      profile,
-      onAdvance,
-      state: makeState({ backend: undefined }),
-    })
-
-    await userEvent.click(screen.getByRole('button', { name: /continue offline/i }))
-    unmount()
-    await new Promise((resolve) => setTimeout(resolve, 120))
-
-    expect(profile.setIdentity).not.toHaveBeenCalled()
-    expect(onAdvance).not.toHaveBeenCalled()
-  })
-
-  it('offline click sets a random identity without backend and advances', async () => {
-    const profile = { setIdentity: vi.fn() }
-    const onAdvance = vi.fn()
-    renderLogin({ profile, onAdvance, state: makeState({ backend: undefined }) })
-
-    await userEvent.click(screen.getByRole('button', { name: /continue offline/i }))
-    await waitFor(() => expect(onAdvance).toHaveBeenCalledTimes(1))
-
-    expect(profile.setIdentity).toHaveBeenCalledTimes(1)
-  })
-
-  it('offline click with backend advances without setting identity', async () => {
-    const profile = { setIdentity: vi.fn() }
-    const onAdvance = vi.fn()
-    renderLogin({ profile, onAdvance, state: makeState({ backend: { version: 1 } }) })
-
-    await userEvent.click(screen.getByRole('button', { name: /continue offline/i }))
-    await waitFor(() => expect(onAdvance).toHaveBeenCalledTimes(1))
-
-    expect(profile.setIdentity).not.toHaveBeenCalled()
-  })
-
   it('re-entrant clicks are ignored while connecting', async () => {
     const dispose = vi.fn()
     window.__studentSpaceGame = { dispose } as typeof window.__studentSpaceGame
@@ -178,9 +126,9 @@ describe('EdupassLogin (React)', () => {
     const { unmount } = renderLogin({ reducedMotion: false, camera })
     await waitFor(() => expect(document.body.classList.contains('is-onb-landing')).toBe(true))
     expect(camera.startLandingOrbit).toHaveBeenCalledWith({
-      azimuthDegPerSec: 4,
-      distance: 18,
-      pitchDeg: 12,
+      azimuthDegPerSec: 1,
+      distance: 33.9,
+      pitchDeg: 35,
     })
 
     unmount()

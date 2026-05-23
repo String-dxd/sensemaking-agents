@@ -20,6 +20,7 @@ import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { ChoicesPageView } from '~/components/ChoicesPageView'
 import { RelationshipsPageView } from '~/components/RelationshipsPageView'
+import { Button } from '~/components/ui/button'
 import {
   Sheet,
   SheetBody,
@@ -338,15 +339,15 @@ function IdentityHeader({
         )}
       </div>
       <div className="flex items-center gap-2">
-        <button
+        <Button
           type="button"
           onClick={onShare}
           data-testid="profile-share-button"
-          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-(--color-sheet-divider) bg-white/80 px-4 text-sm font-semibold text-(--color-sheet-ink) transition-colors hover:bg-white active:scale-[0.96]"
+          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-(--color-sheet-divider) bg-white/80 px-4 text-sm font-semibold text-(--color-sheet-ink) transition-colors hover:bg-white"
         >
           <Share2 aria-hidden className="size-4" />
           Share
-        </button>
+        </Button>
         <AuthActions menu={authMenu} />
       </div>
     </div>
@@ -359,27 +360,32 @@ function AuthActions({ menu }: { menu: AuthMenu | undefined }) {
 
   if (!menu || menu.status !== 'signed-in') {
     const profileReturnPathname = encodeURIComponent('/?sheet=profile')
+    const href = `/?auth=sign-in&returnPathname=${profileReturnPathname}#sign-in`
     return (
-      <a
-        href={`/?auth=sign-in&returnPathname=${profileReturnPathname}#sign-in`}
+      <Button
         data-testid="profile-auth-signin"
-        onClick={() => {
-          try {
-            window.__studentSpaceGame?.dispose()
-          } catch {
-            // Navigation is already in flight.
-          }
-        }}
-        className="inline-flex min-h-10 items-center rounded-full bg-(--color-onb-accent) px-4 text-sm font-semibold text-white transition-colors hover:bg-(--color-onb-accent-deep) active:scale-[0.96]"
-      >
-        Sign in
-      </a>
+        className="inline-flex min-h-10 items-center rounded-full bg-(--color-onb-accent) px-4 text-sm font-semibold text-white transition-colors hover:bg-(--color-onb-accent-deep)"
+        render={
+          <a
+            href={href}
+            onClick={() => {
+              try {
+                window.__studentSpaceGame?.dispose()
+              } catch {
+                // Navigation is already in flight.
+              }
+            }}
+          >
+            Sign in
+          </a>
+        }
+      />
     )
   }
 
   return (
     <div className="relative" data-testid="profile-auth-menu">
-      <button
+      <Button
         type="button"
         aria-label="More profile actions"
         aria-expanded={open}
@@ -388,10 +394,10 @@ function AuthActions({ menu }: { menu: AuthMenu | undefined }) {
           event.stopPropagation()
           setOpen((next) => !next)
         }}
-        className="grid size-10 place-items-center rounded-full border border-(--color-sheet-divider) bg-white/80 text-(--color-sheet-ink) transition-colors hover:bg-white active:scale-[0.96]"
+        className="grid size-10 place-items-center rounded-full border border-(--color-sheet-divider) bg-white/80 p-0 text-(--color-sheet-ink) transition-colors hover:bg-white"
       >
         <MoreHorizontal aria-hidden className="size-5" />
-      </button>
+      </Button>
       {open ? (
         <div className="absolute right-0 top-12 z-20 w-56 rounded-xl border border-(--color-sheet-divider) bg-white p-2 shadow-[0_18px_48px_rgba(43,38,32,0.14)]">
           <div className="px-3 py-2">
@@ -417,14 +423,14 @@ function AuthActions({ menu }: { menu: AuthMenu | undefined }) {
               submitBodyScopedAuthForm('/api/auth/sign-out')
             }}
           >
-            <button
+            <Button
               type="submit"
               data-testid="profile-auth-signout"
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-(--color-sheet-ink) transition-colors hover:bg-black/5"
+              className="flex w-full items-center justify-start gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-(--color-sheet-ink) transition-colors hover:bg-black/5"
             >
               <LogOut aria-hidden className="size-4" />
               Sign out
-            </button>
+            </Button>
           </form>
         </div>
       ) : null}

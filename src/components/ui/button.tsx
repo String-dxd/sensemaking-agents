@@ -1,5 +1,6 @@
+import { Button as BaseButton } from '@base-ui-components/react/button'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { type ButtonHTMLAttributes, forwardRef } from 'react'
+import { type ComponentPropsWithoutRef, forwardRef, type ReactNode } from 'react'
 import { cn } from '~/lib/utils'
 
 const buttonVariants = cva(
@@ -24,13 +25,17 @@ const buttonVariants = cva(
   },
 )
 
-export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {}
+// Compose Base UI's button props with our CVA variants. `BaseButton`'s
+// props are a union (the `render` polymorphism), so we use a type alias
+// instead of `interface extends` (which requires statically-known
+// members).
+export type ButtonProps = ComponentPropsWithoutRef<typeof BaseButton> &
+  VariantProps<typeof buttonVariants> & { children?: ReactNode }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => (
-    <button ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />
-  ),
-)
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
+  const { className, variant, size, ...rest } = props
+  return (
+    <BaseButton ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...rest} />
+  )
+})
 Button.displayName = 'Button'
