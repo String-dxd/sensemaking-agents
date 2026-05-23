@@ -38,6 +38,7 @@ import { VIPS_TAXONOMY, type VipsDimension } from '~/data/vips-taxonomy'
 import ShareTokenBridge from '~/engine/student-space/Game/State/ShareTokenBridge.js'
 import { PROFILE_HEADERS, PROFILE_THEMES } from '~/lib/profile-tokens'
 import { bootProfileTabSlices } from '~/lib/student-space/profile-tab-state'
+import { rankClaims } from '~/lib/student-space/rank-claims'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 import { cn } from '~/lib/utils'
@@ -1454,25 +1455,6 @@ function themeVars(tab: ProfileTab): CSSProperties {
     '--profile-soft': theme.soft,
     '--profile-ink': theme.ink,
   } as CSSProperties
-}
-
-function rankClaims(
-  claims: Array<(typeof VIPS_TAXONOMY)[number]>,
-  counts: Record<string, number>,
-): {
-  mostCommon: (typeof VIPS_TAXONOMY)[number] | null
-  quietlyEmerging: (typeof VIPS_TAXONOMY)[number] | null
-} {
-  const ranked = claims
-    .map((claim) => ({ ...claim, count: counts[claim.id] ?? 0 }))
-    .sort((a, b) => b.count - a.count)
-  if (ranked.length === 0) return { mostCommon: null, quietlyEmerging: null }
-  const seen = ranked.filter((claim) => claim.count > 0)
-  const unseen = ranked.filter((claim) => claim.count === 0)
-  return {
-    mostCommon: ranked[0] ?? null,
-    quietlyEmerging: unseen[0] ?? seen.at(-1) ?? ranked[0] ?? null,
-  }
 }
 
 function tldrHeadline(tab: VipsDimension, voicedCount: number): string {
