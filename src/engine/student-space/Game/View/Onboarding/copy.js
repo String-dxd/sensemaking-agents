@@ -9,7 +9,7 @@ export const ONBOARDING_COPY = Object.freeze({
 
     login: {
         wordmark:   'Student Space',
-        tagline:    'a place that listens',
+        tagline:    'A place that listens',
         cta:        'Login with Edupass',
         connecting: 'Connecting',
         demoNote:   'Demo login.',
