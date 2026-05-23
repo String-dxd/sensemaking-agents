@@ -1920,7 +1920,7 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
         } as CSSProperties
       }
       className={cn(
-        'pointer-events-none fixed z-[26] flex max-w-[296px] flex-row-reverse items-center gap-3.5 rounded-[18px] bg-white/92 pt-3 pr-3.5 pb-4 pl-5 font-sans text-[#2b2620] antialiased shadow-[0_1px_2px_rgba(34,26,18,0.06),0_12px_28px_rgba(34,26,18,0.16)] backdrop-blur-md transition duration-160',
+        'pointer-events-none fixed z-[26] flex max-w-[296px] items-center gap-3.5 rounded-[18px] bg-white/92 pt-3 pr-5 pb-4 pl-3.5 font-sans text-[#2b2620] antialiased shadow-[0_1px_2px_rgba(34,26,18,0.06),0_12px_28px_rgba(34,26,18,0.16)] backdrop-blur-md transition duration-160',
         state.open ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
       )}
     >
@@ -1932,28 +1932,23 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
         />
       ) : null}
       <div className="min-w-0">
-        {state.title ? (
-          <span
-            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] leading-tight font-semibold text-[var(--cta-ink,#7b3a20)]"
-            style={{
-              background: `color-mix(in srgb, var(--cta-soft, #fde0e0) 70%, #fff)`,
-            }}
-          >
-            {state.title}
-          </span>
-        ) : null}
-        <p
-          className={cn(
-            'm-0 text-[15px] leading-tight font-semibold tracking-[-0.005em] text-balance',
-            state.title ? 'mt-1.5' : null,
-          )}
-        >
+        <p className="m-0 text-[15px] leading-tight font-semibold tracking-[-0.005em] text-balance">
           {state.badge}
         </p>
         {state.line ? (
           <p className="m-0 mt-1 text-[12.5px] leading-[1.35] text-pretty text-[#5e5145]">
             {state.line}
           </p>
+        ) : null}
+        {state.title ? (
+          <span
+            className="mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] leading-tight font-semibold text-[var(--cta-ink,#7b3a20)]"
+            style={{
+              background: `color-mix(in srgb, var(--cta-soft, #fde0e0) 70%, #fff)`,
+            }}
+          >
+            {state.title}
+          </span>
         ) : null}
       </div>
     </div>
