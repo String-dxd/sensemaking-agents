@@ -1,6 +1,6 @@
-import { Dialog as BaseDialog } from '@base-ui-components/react/dialog'
 import { X } from 'lucide-react'
-import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes } from 'react'
+import type { ButtonHTMLAttributes, HTMLAttributes } from 'react'
+import { useEffect } from 'react'
 import { cn } from '~/lib/utils'
 
 export const studentSpaceFrameClassName =
@@ -10,14 +10,15 @@ export const studentSpaceFrameContainerClassName =
   'rounded-(--radius-frame) border border-(--color-frame-border) shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]'
 
 /**
- * Full-viewport routed-page sheet primitive. Built on Base UI Dialog with
- * `modal={false}` so the world canvas behind isn't aria-hidden — routed pages
- * pause the rAF loop separately (PR #32), and the sheet itself owns its own
- * opaque surface.
+ * Full-viewport routed page surface. Plain framed div — not a Base UI Dialog.
+ * Each routed page (History, Profile, Letters, Trajectory, Settings) is its
+ * own surface that sits above the (hidden) world canvas. There is no portal
+ * remount on navigation, so swapping page → page is a normal React subtree
+ * swap with no opacity-0 starting style.
  *
- * Layout shape (PR #33 two-pane split):
+ * Layout shape (mirrors the old SheetSurface internals):
  *
- *   <Sheet open>
+ *   <PageSurface>
  *     <SheetSidebar>
  *       <SheetIdentityHeader />
  *       <SheetSidenav />
@@ -26,89 +27,69 @@ export const studentSpaceFrameContainerClassName =
  *       <SheetPageHeader />
  *       <SheetBody>{...}</SheetBody>
  *     </SheetContent>
- *   </Sheet>
+ *   </PageSurface>
  *
- * Replaces the old engine-side sheet chrome for routed pages. Capture sheets
- * (Ask/Mood) continue to use `<Drawer>`.
+ * Capture surfaces (Ask/Mood) continue to use `<Drawer>`.
  */
-export const Sheet = BaseDialog.Root
-export const SheetTrigger = BaseDialog.Trigger
-export const SheetClose = BaseDialog.Close
-export const SheetPortal = BaseDialog.Portal
-
-export function SheetBackdrop({ className, ...props }: ComponentProps<typeof BaseDialog.Backdrop>) {
-  return (
-    <BaseDialog.Backdrop
-      data-testid="sheet-backdrop"
-      className={cn(
-        'fixed inset-0 z-40 bg-transparent transition-opacity duration-(--duration-sheet) ease-(--ease-sheet)',
-        'data-[starting-style]:opacity-0 data-[ending-style]:opacity-0',
-        className,
-      )}
-      {...props}
-    />
-  )
-}
-
-export interface SheetContentRootProps extends ComponentProps<typeof BaseDialog.Popup> {
-  /** Render the × close button. Routed sheets without a back-affordance disable this. */
-  showClose?: boolean
-  closeLabel?: string
-  /** Position inside the world frame (the rounded recessed surface). Default. */
+export interface PageSurfaceProps extends HTMLAttributes<HTMLDivElement> {
   framed?: boolean
 }
 
-/**
- * The visible sheet surface. Positions inside the world frame by default
- * (top/right/bottom inset by `--inset-frame`, left offset by rail + frame
- * inset), with the frame's rounded corner shape.
- */
-export function SheetSurface({
-  className,
-  children,
-  showClose = false,
-  closeLabel = 'Close',
-  framed = true,
-  ...props
-}: SheetContentRootProps) {
+export function PageSurface({ className, children, framed = true, ...props }: PageSurfaceProps) {
   return (
-    <SheetPortal>
-      <SheetBackdrop />
-      <BaseDialog.Popup
-        data-testid="sheet-surface"
+    <div
+      data-testid="page-surface"
+      className={cn(
+        'fixed z-30 text-(--color-sheet-ink)',
+        framed ? studentSpaceFrameClassName : 'inset-0',
+        className,
+      )}
+      {...props}
+    >
+      <div
+        data-testid="page-container"
         className={cn(
-          'fixed z-50 bg-transparent text-(--color-sheet-ink)',
-          framed ? studentSpaceFrameClassName : 'inset-0',
-          'transition-opacity duration-(--duration-sheet) ease-(--ease-sheet)',
-          'data-[starting-style]:opacity-0 data-[ending-style]:opacity-0',
-          className,
+          'flex h-full w-full overflow-hidden bg-(--color-sheet-bg)',
+          framed ? studentSpaceFrameContainerClassName : 'rounded-none',
         )}
-        {...props}
       >
-        <div
-          data-testid="sheet-page-container"
-          className={cn(
-            'flex h-full w-full overflow-hidden bg-(--color-sheet-bg)',
-            framed ? studentSpaceFrameContainerClassName : 'rounded-none',
-          )}
-        >
-          {children}
-        </div>
-        {showClose ? (
-          <BaseDialog.Close
-            aria-label={closeLabel}
-            data-testid="sheet-close"
-            className="absolute right-4 top-4 z-10 inline-flex size-9 cursor-pointer items-center justify-center rounded-full text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <X aria-hidden className="size-4" />
-          </BaseDialog.Close>
-        ) : null}
-      </BaseDialog.Popup>
-    </SheetPortal>
+        {children}
+      </div>
+    </div>
   )
 }
 
-/** Left pane — sidebar nav. ~360px fixed width, low-alpha cream wash. */
+export interface PageCloseButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  label?: string
+}
+
+export function PageCloseButton({ label = 'Close', className, ...props }: PageCloseButtonProps) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      data-testid="page-close"
+      className={cn(
+        'absolute right-4 top-4 z-10 inline-flex size-9 cursor-pointer items-center justify-center rounded-full text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        className,
+      )}
+      {...props}
+    >
+      <X aria-hidden className="size-4" />
+    </button>
+  )
+}
+
+export function usePageEscape(onEscape: () => void): void {
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onEscape()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onEscape])
+}
+
 export function SheetSidebar({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <aside
@@ -122,7 +103,6 @@ export function SheetSidebar({ className, ...props }: HTMLAttributes<HTMLDivElem
   )
 }
 
-/** Right pane — page content. Flex 1; container for page header + body. */
 export function SheetContent({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
@@ -172,9 +152,9 @@ export function SheetEyebrow({ className, ...props }: HTMLAttributes<HTMLSpanEle
   )
 }
 
-export function SheetTitle({ className, ...props }: ComponentProps<typeof BaseDialog.Title>) {
+export function SheetTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <BaseDialog.Title
+    <h2
       className={cn(
         'text-[clamp(1.5rem,3.6vw,2rem)] font-semibold leading-tight tracking-tight text-(--color-sheet-ink)',
         className,
@@ -184,12 +164,9 @@ export function SheetTitle({ className, ...props }: ComponentProps<typeof BaseDi
   )
 }
 
-export function SheetDescription({
-  className,
-  ...props
-}: ComponentProps<typeof BaseDialog.Description>) {
+export function SheetDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <BaseDialog.Description
+    <p
       className={cn('text-sm leading-relaxed text-(--color-sheet-ink-soft)', className)}
       {...props}
     />

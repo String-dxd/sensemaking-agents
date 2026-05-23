@@ -1,7 +1,8 @@
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Sheet,
+  PageCloseButton,
+  PageSurface,
   SheetBody,
   SheetContent,
   SheetDescription,
@@ -10,8 +11,8 @@ import {
   SheetPageHeader,
   SheetSidebar,
   SheetSidenav,
-  SheetSurface,
   SheetTitle,
+  usePageEscape,
 } from '~/components/ui/sheet'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
@@ -103,53 +104,49 @@ export function HistorySheet() {
     [navigate],
   )
 
+  const dismissToHome = useCallback(() => navigate({ to: '/' }), [navigate])
+  usePageEscape(dismissToHome)
+
   return (
-    <Sheet
-      open
-      modal={false}
-      onOpenChange={(next) => {
-        if (next === false) navigate({ to: '/' })
-      }}
-    >
-      <SheetSurface>
-        <SheetSidebar>
-          <SheetIdentityHeader>
-            <SheetTitle>History</SheetTitle>
-            <SheetDescription>
-              The trail of moments, moods, and bloomed claims behind you.
-            </SheetDescription>
-          </SheetIdentityHeader>
-          <SheetSidenav>
-            <SheetNavButton active={activeTab === 'timeline'} onClick={() => setTab('timeline')}>
-              Timeline
-            </SheetNavButton>
-            <SheetNavButton active={activeTab === 'growth'} onClick={() => setTab('growth')}>
-              Growth
-            </SheetNavButton>
-          </SheetSidenav>
-        </SheetSidebar>
-        <SheetContent>
-          <SheetPageHeader>
-            <SheetTitle>{activeTab === 'timeline' ? 'Timeline' : 'Growth'}</SheetTitle>
-          </SheetPageHeader>
-          <SheetBody>
-            {activeTab === 'timeline' ? (
-              <TimelinePane
-                engineState={state}
-                hash={location.hash ?? ''}
-                filter={
-                  (location.search as { filter?: unknown } | undefined)?.filter === 'need-review'
-                    ? 'need-review'
-                    : undefined
-                }
-              />
-            ) : (
-              <GrowthPane engine={engine} />
-            )}
-          </SheetBody>
-        </SheetContent>
-      </SheetSurface>
-    </Sheet>
+    <PageSurface>
+      <SheetSidebar>
+        <SheetIdentityHeader>
+          <SheetTitle>History</SheetTitle>
+          <SheetDescription>
+            The trail of moments, moods, and bloomed claims behind you.
+          </SheetDescription>
+        </SheetIdentityHeader>
+        <SheetSidenav>
+          <SheetNavButton active={activeTab === 'timeline'} onClick={() => setTab('timeline')}>
+            Timeline
+          </SheetNavButton>
+          <SheetNavButton active={activeTab === 'growth'} onClick={() => setTab('growth')}>
+            Growth
+          </SheetNavButton>
+        </SheetSidenav>
+      </SheetSidebar>
+      <SheetContent>
+        <SheetPageHeader>
+          <SheetTitle>{activeTab === 'timeline' ? 'Timeline' : 'Growth'}</SheetTitle>
+        </SheetPageHeader>
+        <SheetBody>
+          {activeTab === 'timeline' ? (
+            <TimelinePane
+              engineState={state}
+              hash={location.hash ?? ''}
+              filter={
+                (location.search as { filter?: unknown } | undefined)?.filter === 'need-review'
+                  ? 'need-review'
+                  : undefined
+              }
+            />
+          ) : (
+            <GrowthPane engine={engine} />
+          )}
+        </SheetBody>
+      </SheetContent>
+      <PageCloseButton onClick={dismissToHome} />
+    </PageSurface>
   )
 }
 

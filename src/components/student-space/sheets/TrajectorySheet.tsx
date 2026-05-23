@@ -3,15 +3,16 @@ import { ChevronDown, ExternalLink } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Sheet,
+  PageCloseButton,
+  PageSurface,
   SheetBody,
   SheetContent,
   SheetDescription,
   SheetIdentityHeader,
   SheetPageHeader,
   SheetSidebar,
-  SheetSurface,
   SheetTitle,
+  usePageEscape,
 } from '~/components/ui/sheet'
 import type {
   ChoiceDecisionShape,
@@ -167,17 +168,19 @@ export function TrajectorySheet() {
     }
   }, [state])
 
+  const dismissToHome = useCallback(() => navigate({ to: '/' }), [navigate])
+  usePageEscape(dismissToHome)
+
   if (!audit || !renderStatus) {
     return (
-      <Sheet open modal={false} onOpenChange={(next) => next === false && navigate({ to: '/' })}>
-        <SheetSurface>
-          <SheetContent>
-            <SheetBody>
-              <p className="text-sm text-(--color-sheet-ink-soft)">Loading Path Finder...</p>
-            </SheetBody>
-          </SheetContent>
-        </SheetSurface>
-      </Sheet>
+      <PageSurface>
+        <SheetContent>
+          <SheetBody>
+            <p className="text-sm text-(--color-sheet-ink-soft)">Loading Path Finder...</p>
+          </SheetBody>
+        </SheetContent>
+        <PageCloseButton onClick={dismissToHome} />
+      </PageSurface>
     )
   }
 
@@ -192,98 +195,89 @@ export function TrajectorySheet() {
   const showEscape = audit.status !== 'starter' && audit.status !== 'searching' && !escapeHatch
 
   return (
-    <Sheet
-      open
-      modal={false}
-      onOpenChange={(next) => {
-        if (next === false) navigate({ to: '/' })
-      }}
-    >
-      <SheetSurface>
-        <SheetSidebar>
-          <SheetIdentityHeader>
-            <SheetTitle>Path Finder</SheetTitle>
-            <SheetDescription>
-              Bearings drawn from the patterns in your reflections.
-            </SheetDescription>
-          </SheetIdentityHeader>
-          <div className="space-y-5 px-7 pb-8">
-            <StatusPreviewSelector
-              audit={audit}
-              override={state?.identityStatusOverride ?? null}
-              onSelect={() => setEscapeHatch(false)}
-            />
-            <div className="space-y-2">
-              {copy.title ? (
-                <h2 className="text-balance text-xl font-semibold leading-tight tracking-tight text-(--color-sheet-ink)">
-                  {copy.title}
-                </h2>
-              ) : null}
-              {copy.tldr ? (
-                <p className="text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
-                  {copy.tldr}
-                </p>
-              ) : null}
-            </div>
-            <TrajectoryMeta capture={capture} status={renderStatus} />
-            <div className="flex flex-wrap gap-2">
-              {showRun ? (
-                <button
-                  type="button"
-                  onClick={runBackend}
-                  disabled={running}
-                  data-testid="trajectory-run"
-                  className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-[rgba(160,118,89,0.28)] bg-white/70 px-4 text-sm font-semibold text-[#7a4b2e] transition-[background-color,transform,opacity] duration-150 ease-(--ease-sheet) hover:bg-white active:scale-[0.96] disabled:cursor-wait disabled:opacity-70"
-                >
-                  {running ? 'Running…' : 'Run sense-making'}
-                </button>
-              ) : null}
-              {showEscape ? (
-                <button
-                  type="button"
-                  onClick={() => setEscapeHatch(true)}
-                  data-testid="trajectory-escape"
-                  className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-4 text-sm font-medium text-(--color-sheet-ink) transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-black/5 active:scale-[0.96]"
-                >
-                  Show me all paths
-                </button>
-              ) : null}
-              {escapeHatch ? (
-                <button
-                  type="button"
-                  onClick={() => setEscapeHatch(false)}
-                  data-testid="trajectory-back"
-                  className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-4 text-sm font-medium text-(--color-sheet-ink) transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-black/5 active:scale-[0.96]"
-                >
-                  Back to {statusLabelOf(audit.status)}
-                </button>
-              ) : null}
-            </div>
-            {copy.lead && copy.lead !== (copy.tldr || copy.lead) ? (
-              <InlineDisclosure label="Why this status">
-                <p className="text-sm leading-relaxed text-(--color-sheet-ink-soft)">{copy.lead}</p>
-              </InlineDisclosure>
+    <PageSurface>
+      <SheetSidebar>
+        <SheetIdentityHeader>
+          <SheetTitle>Path Finder</SheetTitle>
+          <SheetDescription>Bearings drawn from the patterns in your reflections.</SheetDescription>
+        </SheetIdentityHeader>
+        <div className="space-y-5 px-7 pb-8">
+          <StatusPreviewSelector
+            audit={audit}
+            override={state?.identityStatusOverride ?? null}
+            onSelect={() => setEscapeHatch(false)}
+          />
+          <div className="space-y-2">
+            {copy.title ? (
+              <h2 className="text-balance text-xl font-semibold leading-tight tracking-tight text-(--color-sheet-ink)">
+                {copy.title}
+              </h2>
+            ) : null}
+            {copy.tldr ? (
+              <p className="text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
+                {copy.tldr}
+              </p>
             ) : null}
           </div>
-        </SheetSidebar>
-        <SheetContent>
-          <SheetPageHeader>
-            <SheetTitle>Path Finder</SheetTitle>
-          </SheetPageHeader>
-          <SheetBody>
-            <StatusBody
-              status={renderStatus}
-              capture={capture}
-              companion={companion}
-              backendActive={state?.backendActive}
-              hasBackend={Boolean(state?.backend?.runTrajectory)}
-              committedDirection={readCommittedDirection(state?.choices)}
-              onAsk={openAsk}
-            />
-          </SheetBody>
-        </SheetContent>
-      </SheetSurface>
-    </Sheet>
+          <TrajectoryMeta capture={capture} status={renderStatus} />
+          <div className="flex flex-wrap gap-2">
+            {showRun ? (
+              <button
+                type="button"
+                onClick={runBackend}
+                disabled={running}
+                data-testid="trajectory-run"
+                className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-[rgba(160,118,89,0.28)] bg-white/70 px-4 text-sm font-semibold text-[#7a4b2e] transition-[background-color,transform,opacity] duration-150 ease-(--ease-sheet) hover:bg-white active:scale-[0.96] disabled:cursor-wait disabled:opacity-70"
+              >
+                {running ? 'Running…' : 'Run sense-making'}
+              </button>
+            ) : null}
+            {showEscape ? (
+              <button
+                type="button"
+                onClick={() => setEscapeHatch(true)}
+                data-testid="trajectory-escape"
+                className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-4 text-sm font-medium text-(--color-sheet-ink) transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-black/5 active:scale-[0.96]"
+              >
+                Show me all paths
+              </button>
+            ) : null}
+            {escapeHatch ? (
+              <button
+                type="button"
+                onClick={() => setEscapeHatch(false)}
+                data-testid="trajectory-back"
+                className="inline-flex h-10 cursor-pointer items-center rounded-xl border border-(--color-sheet-divider) bg-white/35 px-4 text-sm font-medium text-(--color-sheet-ink) transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-black/5 active:scale-[0.96]"
+              >
+                Back to {statusLabelOf(audit.status)}
+              </button>
+            ) : null}
+          </div>
+          {copy.lead && copy.lead !== (copy.tldr || copy.lead) ? (
+            <InlineDisclosure label="Why this status">
+              <p className="text-sm leading-relaxed text-(--color-sheet-ink-soft)">{copy.lead}</p>
+            </InlineDisclosure>
+          ) : null}
+        </div>
+      </SheetSidebar>
+      <SheetContent>
+        <SheetPageHeader>
+          <SheetTitle>Path Finder</SheetTitle>
+        </SheetPageHeader>
+        <SheetBody>
+          <StatusBody
+            status={renderStatus}
+            capture={capture}
+            companion={companion}
+            backendActive={state?.backendActive}
+            hasBackend={Boolean(state?.backend?.runTrajectory)}
+            committedDirection={readCommittedDirection(state?.choices)}
+            onAsk={openAsk}
+          />
+        </SheetBody>
+      </SheetContent>
+      <PageCloseButton onClick={dismissToHome} />
+    </PageSurface>
   )
 }
 
