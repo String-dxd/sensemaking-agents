@@ -43,6 +43,7 @@ type KiraCopy = {
   firstChatInvite: string
   firstChatChatPrompt: string
   firstChatChatMore: string
+  firstChatExplainer: readonly string[]
   firstMoodAck: string
   islandPlantSetup: string
   islandPlantDone: string

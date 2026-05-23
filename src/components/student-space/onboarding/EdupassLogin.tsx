@@ -3,6 +3,7 @@ import {
   OFFLINE_DEMO_STUDENTS,
   ONBOARDING_COPY,
 } from '~/engine/student-space/Game/View/Onboarding/copy.js'
+import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
 
 /**
@@ -113,7 +114,7 @@ export function EdupassLogin({
   useEffect(() => {
     document.body.classList.add('is-onb-landing')
     if (!reducedMotion) {
-      camera?.startLandingOrbit?.({ azimuthDegPerSec: 4, distance: 18, pitchDeg: 12 })
+      camera?.startLandingOrbit?.(getPreset('login-orbit'))
       const frame = requestAnimationFrame(() => setVisible(true))
       const focusTimer = window.setTimeout(
         () => edupassRef.current?.focus({ preventScroll: true }),
@@ -195,12 +196,24 @@ export function EdupassLogin({
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(255,248,226,0.58),rgba(255,248,226,0.18)_42%,rgba(15,18,36,0.18)_100%)]"
       />
 
-      <div className="relative z-[1] flex min-h-[42vh] flex-1 items-center justify-center">
-        <div className="text-center drop-shadow-[0_8px_24px_rgba(15,18,36,0.18)]">
-          <span className="block text-[clamp(34px,8vw,56px)] font-semibold tracking-[0.02em] text-(--color-onb-ink)">
-            {ONBOARDING_COPY.login.wordmark}
-          </span>
-          <span className="mt-2 block text-sm font-medium tracking-[0.18em] text-(--color-onb-ink-soft) uppercase">
+      <div className="relative z-[1] flex min-h-[42vh] flex-1 items-start justify-center pt-[clamp(2rem,8vh,6rem)]">
+        <div className="flex flex-col items-center text-center drop-shadow-[0_8px_24px_rgba(15,18,36,0.18)]">
+          <span
+            role="img"
+            aria-label={ONBOARDING_COPY.login.wordmark}
+            className="block aspect-[150/74] w-[clamp(180px,36vw,280px)] bg-white/65"
+            style={{
+              maskImage: 'url(/logo/SVG@2x.svg)',
+              WebkitMaskImage: 'url(/logo/SVG@2x.svg)',
+              maskRepeat: 'no-repeat',
+              WebkitMaskRepeat: 'no-repeat',
+              maskSize: 'contain',
+              WebkitMaskSize: 'contain',
+              maskPosition: 'center',
+              WebkitMaskPosition: 'center',
+            }}
+          />
+          <span className="mt-3 block text-[clamp(16px,1.8vw,20px)] font-medium text-white/90">
             {ONBOARDING_COPY.login.tagline}
           </span>
         </div>

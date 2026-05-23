@@ -11,7 +11,7 @@ import { pathnameForSurface } from '~/lib/student-space/route-sync'
 // them to the canonical nested-route equivalent (`/profile/values`,
 // `/history`, `/trajectory`, …). The redirect runs before any component
 // mounts, so externally-shared URLs round-trip silently.
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/_app/')({
   validateSearch: (
     search: Record<string, unknown>,
   ): { sheet?: string; filter?: 'need-review'; authError?: string } => {

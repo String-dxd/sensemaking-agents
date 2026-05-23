@@ -131,11 +131,27 @@ afterEach(() => {
 })
 
 describe('React capture stack', () => {
-  it('opens the chooser from the FAB and commits a mood pin with a cause', async () => {
-    const game = renderCapture()
+  it('commits a mood pin with a cause when the MoodSheet is opened directly', async () => {
+    const game = makeGame()
+    const ctx = game as unknown as Parameters<typeof EngineContext.Provider>[0]['value']
+    function OpenMoodButton() {
+      const overlay = useEngineOverlay()
+      return (
+        <button type="button" onClick={() => overlay.openCapture('mood')}>
+          open mood directly
+        </button>
+      )
+    }
+    render(
+      <EngineContext.Provider value={ctx}>
+        <EngineOverlayProvider>
+          <OpenMoodButton />
+          <MoodSheet />
+        </EngineOverlayProvider>
+      </EngineContext.Provider>,
+    )
 
-    await userEvent.click(screen.getByTestId('capture-fab'))
-    await userEvent.click(screen.getByRole('button', { name: 'Name a feeling' }))
+    await userEvent.click(screen.getByText('open mood directly'))
     await userEvent.click(screen.getByTestId('mood-sheet-emotion-joy'))
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: 'How loud?' })).toBeInTheDocument(),
@@ -155,12 +171,11 @@ describe('React capture stack', () => {
     )
   })
 
-  it('logs a typed Ask capture from chooser entry', async () => {
+  it('logs a typed Ask capture directly from the FAB', async () => {
     const game = renderCapture()
 
     await userEvent.click(screen.getByTestId('capture-fab'))
-    await userEvent.click(screen.getByRole('button', { name: 'Open chat' }))
-    await userEvent.type(screen.getByPlaceholderText(/Write it here/i), 'Today I felt heard.')
+    await userEvent.type(screen.getByPlaceholderText(/Type, tap the mic/i), 'Today I felt heard.')
     await userEvent.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: "Here's what you said." })).toBeInTheDocument(),
@@ -235,7 +250,7 @@ describe('React capture stack', () => {
     expect(screen.getByText('Can you hear me?')).toBeInTheDocument()
     expect(screen.getByText('I can hear you.')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Stop session' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
     await waitFor(() =>
       expect(screen.getByText(/Kira heard the Realtime session/)).toBeInTheDocument(),

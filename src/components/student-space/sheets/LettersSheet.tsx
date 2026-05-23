@@ -1,15 +1,16 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Sheet,
+  PageCloseButton,
+  PageSurface,
   SheetBody,
   SheetContent,
   SheetDescription,
   SheetIdentityHeader,
   SheetPageHeader,
   SheetSidebar,
-  SheetSurface,
   SheetTitle,
+  usePageEscape,
 } from '~/components/ui/sheet'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
@@ -103,77 +104,71 @@ export function LettersSheet() {
     overlay?.open('ask', { prompt, dismissOnBack: true, letterId: selectedId })
   }
 
+  const dismissToHome = useCallback(() => navigate({ to: '/' }), [navigate])
+  usePageEscape(dismissToHome)
+
   return (
-    <Sheet
-      open
-      modal={false}
-      onOpenChange={(next) => {
-        // Base UI fires onOpenChange(false) on Escape and backdrop. Drive
-        // the route back home — URL stays the source of truth.
-        if (next === false) navigate({ to: '/' })
-      }}
-    >
-      <SheetSurface>
-        <SheetSidebar>
-          <SheetIdentityHeader>
-            <SheetTitle>Letters</SheetTitle>
-            <SheetDescription>
-              Notes from your form teacher when they notice something worth saying.
-            </SheetDescription>
-          </SheetIdentityHeader>
-          <div className="px-4 pb-6">
-            {sorted.length === 0 ? (
-              <p className="text-sm text-(--color-sheet-ink-soft)">
-                No letters yet. Your teacher will write when they notice something.
-              </p>
-            ) : (
-              <ul className="space-y-1" aria-label="Letters">
-                {sorted.map((letter) => (
-                  <LetterRow
-                    key={letter.id}
-                    letter={letter}
-                    selected={letter.id === selectedId}
-                    onSelect={handleSelect}
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
-        </SheetSidebar>
-        <SheetContent>
-          {selected ? (
-            <>
-              <SheetPageHeader>
-                <p className="text-sm text-(--color-sheet-ink-soft)">
-                  {selected.from} · <time>{formatSent(selected.sentAt)}</time>
-                </p>
-                <SheetTitle>{selected.subject}</SheetTitle>
-              </SheetPageHeader>
-              <SheetBody>
-                <LetterBodyContent letter={selected} />
-                {selected.prompt ? (
-                  <div className="mt-8 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5">
-                    <p className="text-sm text-(--color-sheet-ink)">{selected.prompt}</p>
-                    <button
-                      type="button"
-                      onClick={() => handleCapture(selected.prompt ?? '')}
-                      className="mt-3 inline-flex items-center gap-2 rounded-full bg-(--color-facet-personality-soft) px-4 py-2 text-sm font-semibold text-(--color-facet-personality-ink) transition-transform active:scale-[0.96]"
-                    >
-                      <CaptureIcon />
-                      Capture
-                    </button>
-                  </div>
-                ) : null}
-              </SheetBody>
-            </>
+    <PageSurface>
+      <SheetSidebar>
+        <SheetIdentityHeader>
+          <SheetTitle>Letters</SheetTitle>
+          <SheetDescription>
+            Notes from your form teacher when they notice something worth saying.
+          </SheetDescription>
+        </SheetIdentityHeader>
+        <div className="px-4 pb-6">
+          {sorted.length === 0 ? (
+            <p className="text-sm text-(--color-sheet-ink-soft)">
+              No letters yet. Your teacher will write when they notice something.
+            </p>
           ) : (
-            <SheetBody>
-              <p className="text-sm text-(--color-sheet-ink-soft)">Tap a letter to read it.</p>
-            </SheetBody>
+            <ul className="space-y-1" aria-label="Letters">
+              {sorted.map((letter) => (
+                <LetterRow
+                  key={letter.id}
+                  letter={letter}
+                  selected={letter.id === selectedId}
+                  onSelect={handleSelect}
+                />
+              ))}
+            </ul>
           )}
-        </SheetContent>
-      </SheetSurface>
-    </Sheet>
+        </div>
+      </SheetSidebar>
+      <SheetContent>
+        {selected ? (
+          <>
+            <SheetPageHeader>
+              <p className="text-sm text-(--color-sheet-ink-soft)">
+                {selected.from} · <time>{formatSent(selected.sentAt)}</time>
+              </p>
+              <SheetTitle>{selected.subject}</SheetTitle>
+            </SheetPageHeader>
+            <SheetBody>
+              <LetterBodyContent letter={selected} />
+              {selected.prompt ? (
+                <div className="mt-8 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5">
+                  <p className="text-sm text-(--color-sheet-ink)">{selected.prompt}</p>
+                  <button
+                    type="button"
+                    onClick={() => handleCapture(selected.prompt ?? '')}
+                    className="mt-3 inline-flex items-center gap-2 rounded-full bg-(--color-facet-personality-soft) px-4 py-2 text-sm font-semibold text-(--color-facet-personality-ink) transition-transform active:scale-[0.96]"
+                  >
+                    <CaptureIcon />
+                    Capture
+                  </button>
+                </div>
+              ) : null}
+            </SheetBody>
+          </>
+        ) : (
+          <SheetBody>
+            <p className="text-sm text-(--color-sheet-ink-soft)">Tap a letter to read it.</p>
+          </SheetBody>
+        )}
+      </SheetContent>
+      <PageCloseButton onClick={dismissToHome} />
+    </PageSurface>
   )
 }
 

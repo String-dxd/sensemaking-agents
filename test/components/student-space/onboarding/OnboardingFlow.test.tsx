@@ -24,6 +24,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OnboardingFlow } from '~/components/student-space/onboarding/OnboardingFlow'
+import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
 import { EngineContext } from '~/lib/student-space/use-engine'
 import { EngineOverlayProvider } from '~/lib/student-space/use-engine-overlay'
 
@@ -358,7 +359,7 @@ describe('OnboardingFlow (React)', () => {
       expect(onboarding.stage).toBe('first-mood')
     })
 
-    it('chat-more speaks the extra line and re-shows the action chips', async () => {
+    it('chat-more plays the explainer on first tap, then re-shows the action chips', async () => {
       vi.stubGlobal(
         'matchMedia',
         vi.fn(() => ({ matches: true })),
@@ -368,22 +369,56 @@ describe('OnboardingFlow (React)', () => {
       renderFlow(game)
 
       await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Chat a bit more' })).toBeInTheDocument(),
+        expect(screen.getByRole('button', { name: 'Tell me more' })).toBeInTheDocument(),
       )
-      await userEvent.click(screen.getByRole('button', { name: 'Chat a bit more' }))
+      await userEvent.click(screen.getByRole('button', { name: 'Tell me more' }))
       await waitFor(() =>
         expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
           'Anything else on your mind?',
         ),
       )
 
-      expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
-        "Take your time. I'm listening.",
-      )
+      for (const beat of ONBOARDING_COPY.kira.firstChatExplainer) {
+        expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(beat)
+      }
       expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
         'Anything else on your mind?',
       )
       expect(screen.getByRole('button', { name: 'Tell me how I feel now' })).toBeInTheDocument()
+    })
+
+    it('chat-more falls back to the listening beat after the explainer is seen', async () => {
+      vi.stubGlobal(
+        'matchMedia',
+        vi.fn(() => ({ matches: true })),
+      )
+      const onboarding = makeOnboarding({ stage: 'first-chat' })
+      const game = makeGame({ onboarding })
+      renderFlow(game)
+
+      await waitFor(() =>
+        expect(screen.getByRole('button', { name: 'Tell me more' })).toBeInTheDocument(),
+      )
+      await userEvent.click(screen.getByRole('button', { name: 'Tell me more' }))
+      await waitFor(() =>
+        expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
+          'Anything else on your mind?',
+        ),
+      )
+
+      game.view.kiraDialogue.sayOnboarding.mockClear()
+      await userEvent.click(screen.getByRole('button', { name: 'Tell me more' }))
+      await waitFor(() =>
+        expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
+          'Anything else on your mind?',
+        ),
+      )
+      expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
+        "Take your time. I'm listening.",
+      )
+      for (const beat of ONBOARDING_COPY.kira.firstChatExplainer) {
+        expect(game.view.kiraDialogue.sayOnboarding).not.toHaveBeenCalledWith(beat)
+      }
     })
   })
 

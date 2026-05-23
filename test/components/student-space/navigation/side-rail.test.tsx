@@ -120,6 +120,7 @@ describe('SideRail', () => {
     ['Letters', '/letters'],
     ['Path Finder', '/trajectory'],
     ['History', '/history'],
+    ['Settings', '/settings'],
     ['Island', '/'],
   ])('navigates to %s through the router', async (label, expectedPathname) => {
     const user = userEvent.setup()
@@ -141,18 +142,19 @@ describe('SideRail', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/history'))
   })
 
-  it('restarts onboarding without routing to a sheet', async () => {
-    const user = userEvent.setup()
-    const game = makeGame()
-    const { router } = renderRailAt('/profile', <SideRail game={game} />)
-    const restartButton = await screen.findByRole('button', { name: 'Restart onboarding' })
+  it('Settings lives in the bottom group alongside Letters', async () => {
+    renderRailAt('/')
+    const nav = await screen.findByRole('navigation', { name: 'World navigation' })
+    const groups = Array.from(nav.children) as HTMLElement[]
+    const topGroup = groups[0]
+    const bottomGroup = groups[1]
+    if (!topGroup || !bottomGroup) throw new Error('SideRail should render two button groups')
 
-    await user.click(restartButton)
+    const labelsIn = (group: HTMLElement) =>
+      Array.from(group.querySelectorAll('button')).map((b) => b.getAttribute('aria-label'))
 
-    expect(game.state.onboarding.reset).toHaveBeenCalledTimes(1)
-    expect(game.state.persistence.flush).toHaveBeenCalledTimes(1)
-    expect(window.location.pathname).toBe('/onboarding')
-    expect(router.state.location.pathname).toBe('/profile')
+    expect(labelsIn(topGroup)).toEqual(['Island', 'History', 'Profile', 'Path Finder'])
+    expect(labelsIn(bottomGroup)).toEqual(['Letters', 'Settings'])
   })
 
   it('hides while onboarding owns the world route', () => {

@@ -1,58 +1,52 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  Sheet,
+  PageCloseButton,
+  PageSurface,
   SheetBody,
   SheetContent,
   SheetIdentityHeader,
   SheetPageHeader,
   SheetSidebar,
   SheetSidenav,
-  SheetSurface,
   SheetTitle,
+  usePageEscape,
 } from '~/components/ui/sheet'
 
 afterEach(() => vi.restoreAllMocks())
 
 function Harness({
-  initialOpen = true,
+  onClose = () => {},
   showClose = false,
 }: {
-  initialOpen?: boolean
+  onClose?: () => void
   showClose?: boolean
 }) {
-  const [open, setOpen] = useState(initialOpen)
+  usePageEscape(onClose)
   return (
-    <>
-      <button type="button" onClick={() => setOpen(true)}>
-        opener
-      </button>
-      <Sheet open={open} onOpenChange={setOpen} modal={false}>
-        <SheetSurface showClose={showClose}>
-          <SheetSidebar>
-            <SheetIdentityHeader>identity</SheetIdentityHeader>
-            <SheetSidenav>nav</SheetSidenav>
-          </SheetSidebar>
-          <SheetContent>
-            <SheetPageHeader>
-              <SheetTitle>Hello</SheetTitle>
-            </SheetPageHeader>
-            <SheetBody>
-              <p>body content</p>
-            </SheetBody>
-          </SheetContent>
-        </SheetSurface>
-      </Sheet>
-    </>
+    <PageSurface>
+      <SheetSidebar>
+        <SheetIdentityHeader>identity</SheetIdentityHeader>
+        <SheetSidenav>nav</SheetSidenav>
+      </SheetSidebar>
+      <SheetContent>
+        <SheetPageHeader>
+          <SheetTitle>Hello</SheetTitle>
+        </SheetPageHeader>
+        <SheetBody>
+          <p>body content</p>
+        </SheetBody>
+      </SheetContent>
+      {showClose ? <PageCloseButton onClick={onClose} /> : null}
+    </PageSurface>
   )
 }
 
-describe('Sheet primitive', () => {
-  it('renders the split-pane surface when open', () => {
+describe('PageSurface primitive', () => {
+  it('renders the split-pane surface', () => {
     render(<Harness />)
-    expect(screen.getByTestId('sheet-surface')).toBeInTheDocument()
+    expect(screen.getByTestId('page-surface')).toBeInTheDocument()
     expect(screen.getByTestId('sheet-sidebar')).toBeInTheDocument()
     expect(screen.getByTestId('sheet-content')).toBeInTheDocument()
     expect(screen.getByTestId('sheet-page-header')).toBeInTheDocument()
@@ -61,50 +55,27 @@ describe('Sheet primitive', () => {
     expect(screen.getByText('body content')).toBeInTheDocument()
   })
 
-  it('does not render the surface when closed', () => {
-    render(<Harness initialOpen={false} />)
-    expect(screen.queryByTestId('sheet-surface')).toBeNull()
-  })
-
   it('does NOT render the × close button by default', () => {
     render(<Harness />)
-    expect(screen.queryByTestId('sheet-close')).toBeNull()
+    expect(screen.queryByTestId('page-close')).toBeNull()
   })
 
-  it('renders the × close button when showClose is set', () => {
+  it('renders the × close button when PageCloseButton is included', () => {
     render(<Harness showClose />)
-    expect(screen.getByTestId('sheet-close')).toBeInTheDocument()
+    expect(screen.getByTestId('page-close')).toBeInTheDocument()
   })
 
-  it('clicking the × invokes onOpenChange(false)', async () => {
-    const onOpenChange = vi.fn()
-    render(
-      <Sheet open={true} onOpenChange={onOpenChange} modal={false}>
-        <SheetSurface showClose>
-          <SheetContent>
-            <SheetBody>x</SheetBody>
-          </SheetContent>
-        </SheetSurface>
-      </Sheet>,
-    )
-    await userEvent.click(screen.getByTestId('sheet-close'))
-    expect(onOpenChange).toHaveBeenCalled()
-    expect(onOpenChange.mock.calls[0]?.[0]).toBe(false)
+  it('clicking the × invokes onClose', async () => {
+    const onClose = vi.fn()
+    render(<Harness onClose={onClose} showClose />)
+    await userEvent.click(screen.getByTestId('page-close'))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('pressing Escape invokes onOpenChange(false)', async () => {
-    const onOpenChange = vi.fn()
-    render(
-      <Sheet open={true} onOpenChange={onOpenChange} modal={false}>
-        <SheetSurface>
-          <SheetContent>
-            <SheetBody>x</SheetBody>
-          </SheetContent>
-        </SheetSurface>
-      </Sheet>,
-    )
+  it('pressing Escape invokes usePageEscape callback', async () => {
+    const onClose = vi.fn()
+    render(<Harness onClose={onClose} />)
     await userEvent.keyboard('{Escape}')
-    expect(onOpenChange).toHaveBeenCalled()
-    expect(onOpenChange.mock.calls[0]?.[0]).toBe(false)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

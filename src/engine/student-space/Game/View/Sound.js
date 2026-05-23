@@ -670,12 +670,109 @@ export default class Sound
      *             through a small delay tap so it shimmers without ringing.
      *   'grow'  — fundamental G3 + harmonics (D4, G4, B4) that swell
      *             over ~800ms, with a filtered-noise leaf-rustle tail.
+     *   'tap'   — 80ms sine pluck for swatch / tile picks.
+     *   'chime' — one soft bell tone (~350ms) for affirmative moments.
+     *   'crack' — short filtered-noise stick-snap for egg cracking ticks.
+     *   'whoosh'— 350ms band-passed noise sweep for the bird flying in.
      */
     playOneShot(spec)
     {
         if(!this.unlocked || !this.ctx || this._muted) return
-        if(spec === 'bloom') this._playBloom()
-        else if(spec === 'grow') this._playGrow()
+        if(spec === 'bloom')      this._playBloom()
+        else if(spec === 'grow')  this._playGrow()
+        else if(spec === 'tap')   this._playTap()
+        else if(spec === 'chime') this._playChime()
+        else if(spec === 'crack') this._playCrack()
+        else if(spec === 'whoosh')this._playWhoosh()
+    }
+
+    _playTap()
+    {
+        const ctx = this.ctx
+        const now = ctx.currentTime
+        const osc = ctx.createOscillator()
+        osc.type = 'sine'
+        // Quick downward chirp — feels like a button press, not a chime.
+        osc.frequency.setValueAtTime(880, now)
+        osc.frequency.exponentialRampToValueAtTime(440, now + 0.07)
+        const env = ctx.createGain()
+        env.gain.setValueAtTime(0, now)
+        env.gain.linearRampToValueAtTime(0.18, now + 0.008)
+        env.gain.exponentialRampToValueAtTime(0.0001, now + 0.09)
+        osc.connect(env).connect(this.master)
+        osc.start(now)
+        osc.stop(now + 0.12)
+    }
+
+    _playChime()
+    {
+        const ctx = this.ctx
+        const now = ctx.currentTime
+        // Soft single-bell — sine fundamental with a faint major-third
+        // harmonic for warmth. 350ms total; below the bloom's pings in
+        // brightness so it doesn't compete with later cues.
+        const voice = (freq, level, len = 0.35) =>
+        {
+            const osc = ctx.createOscillator()
+            osc.type = 'sine'
+            osc.frequency.value = freq
+            const env = ctx.createGain()
+            env.gain.setValueAtTime(0, now)
+            env.gain.linearRampToValueAtTime(level, now + 0.02)
+            env.gain.setTargetAtTime(0, now + 0.05, 0.12)
+            osc.connect(env).connect(this.master)
+            osc.start(now)
+            osc.stop(now + len)
+        }
+        voice(783.99, 0.20)   // G5
+        voice(987.77, 0.08)   // B5 — faint, adds shimmer
+    }
+
+    _playCrack()
+    {
+        if(!this._pinkBuffer) return
+        const ctx = this.ctx
+        const now = ctx.currentTime
+        // Short noise pulse through a high-Q bandpass — reads as a stick
+        // snap. Slight random center frequency so repeated crack calls
+        // don't feel mechanical.
+        const noise = ctx.createBufferSource()
+        noise.buffer = this._pinkBuffer
+        const bp = ctx.createBiquadFilter()
+        bp.type = 'bandpass'
+        bp.frequency.value = 1400 + Math.random() * 800   // 1.4–2.2 kHz
+        bp.Q.value = 6
+        const env = ctx.createGain()
+        env.gain.setValueAtTime(0, now)
+        env.gain.linearRampToValueAtTime(0.22, now + 0.005)
+        env.gain.exponentialRampToValueAtTime(0.0001, now + 0.08)
+        noise.connect(bp).connect(env).connect(this.master)
+        noise.start(now)
+        noise.stop(now + 0.12)
+    }
+
+    _playWhoosh()
+    {
+        if(!this._pinkBuffer) return
+        const ctx = this.ctx
+        const now = ctx.currentTime
+        // Pink-noise pulse with a rising bandpass — reads as wind/wing
+        // pass-by. 350ms; ducks low so it sits behind dialogue.
+        const noise = ctx.createBufferSource()
+        noise.buffer = this._pinkBuffer
+        noise.loop = false
+        const bp = ctx.createBiquadFilter()
+        bp.type = 'bandpass'
+        bp.frequency.setValueAtTime(450, now)
+        bp.frequency.exponentialRampToValueAtTime(1800, now + 0.32)
+        bp.Q.value = 1.4
+        const env = ctx.createGain()
+        env.gain.setValueAtTime(0, now)
+        env.gain.linearRampToValueAtTime(0.18, now + 0.10)
+        env.gain.setTargetAtTime(0, now + 0.22, 0.10)
+        noise.connect(bp).connect(env).connect(this.master)
+        noise.start(now)
+        noise.stop(now + 0.45)
     }
 
     _playBloom()

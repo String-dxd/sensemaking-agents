@@ -43,6 +43,18 @@ export default class Camera
         this.instance.lookAt(this.target)
     }
 
+    /** Default static framing as a plain {pos, target} pair. */
+    _defaultPose()
+    {
+        const pitch = THREE.MathUtils.degToRad(this.pitchDeg)
+        const y = this.target.y + Math.sin(pitch) * this.distance
+        const planar = Math.cos(pitch) * this.distance
+        return {
+            pos:    new THREE.Vector3(0, y, planar),
+            target: this.target.clone(),
+        }
+    }
+
     bindControls(domElement)
     {
         if(this.controls) return
@@ -64,29 +76,61 @@ export default class Camera
      *
      * Uses OrbitControls' built-in autoRotate (degrees per 60-frame second).
      * User drag/zoom/pan are disabled while this is active.
+     *
+     * NOTE: starting/stopping the landing orbit goes through the scene-tween
+     * path, which drops any in-flight `zoomTo` save-stack anchors so the
+     * dolly can hand control back cleanly on arrival. Don't combine a
+     * landing-orbit toggle with a concurrent narrator/peek zoom expecting
+     * its restoreZoom to still fire — it'll silently no-op.
      */
-    startLandingOrbit({ azimuthDegPerSec = 6, distance = 18, pitchDeg = 14, target } = {})
+    startLandingOrbit({ azimuthDegPerSec = 6, distance = 18, pitchDeg = 14, target, transitionMs = 900 } = {})
     {
         if(!this.controls) return
-        if(target) this.controls.target.copy(target)
+        const orbitTarget = target ? target.clone() : this.controls.target.clone()
         const pitch = THREE.MathUtils.degToRad(pitchDeg)
-        const y = this.controls.target.y + Math.sin(pitch) * distance
+        const y = orbitTarget.y + Math.sin(pitch) * distance
         const planar = Math.cos(pitch) * distance
-        this.instance.position.set(0, y, planar)
-        this.instance.lookAt(this.controls.target)
+        const endPos = new THREE.Vector3(0, y, planar)
 
         // OrbitControls autoRotateSpeed: 2.0 ≈ 30s per rotation at 60fps
         // (12 deg/s). Convert deg/s → autoRotateSpeed units linearly.
-        this.controls.autoRotate = true
         this.controls.autoRotateSpeed = azimuthDegPerSec / 6   // 6 deg/s → 1.0
         this.controls.enableZoom   = false
         this.controls.enablePan    = false
         this.controls.enableRotate = false
         this._inLandingOrbit = true
-        this.controls.update()
+
+        if(transitionMs > 0)
+        {
+            // Smooth dolly into the orbit pose, then flip autoRotate on so
+            // the rotation picks up from the landing distance/pitch without
+            // a discontinuity.
+            this._beginSceneTween({
+                endPos,
+                endTarget: orbitTarget,
+                duration: transitionMs,
+                onComplete: () =>
+                {
+                    if(!this.controls || !this._inLandingOrbit) return
+                    this.controls.autoRotate = true
+                    this.controls.update()
+                },
+            })
+        }
+        else
+        {
+            this.instance.position.copy(endPos)
+            this.controls.target.copy(orbitTarget)
+            this.instance.lookAt(orbitTarget)
+            // autoRotateSpeed=0 (from azimuthDegPerSec=0) makes this static
+            // even with autoRotate=true; we still flip it on so subsequent
+            // setAutoRotateSpeed callers don't have to also toggle the flag.
+            this.controls.autoRotate = true
+            this.controls.update()
+        }
     }
 
-    stopLandingOrbit({ snapBack = true } = {})
+    stopLandingOrbit({ snapBack = true, transitionMs = 900 } = {})
     {
         if(!this.controls || !this._inLandingOrbit) return
         this.controls.autoRotate = false
@@ -94,12 +138,55 @@ export default class Camera
         this.controls.enablePan    = true
         this.controls.enableRotate = true
         this._inLandingOrbit = false
-        if(snapBack)
+        if(!snapBack)
+        {
+            this.controls.update()
+            return
+        }
+        const home = this._defaultPose()
+        if(transitionMs <= 0)
         {
             this._placeAtDefault()
             this.controls.target.copy(this.target)
+            this.controls.update()
+            return
         }
-        this.controls.update()
+        // Smooth dolly back to the default static framing so the camera
+        // doesn't snap-cut when the login surface goes away.
+        this._beginSceneTween({
+            endPos:    home.pos,
+            endTarget: home.target,
+            duration:  transitionMs,
+        })
+    }
+
+    /**
+     * Cinematic tween for "framing changes" the save-stack doesn't model —
+     * landing-orbit on/off, hatch dolly, etc. Lives in the same _zoom slot
+     * (so the per-frame integrator handles it) but does not touch the
+     * owner-keyed save stack and uses the "scene" mode that re-enables
+     * controls on completion when the stack is empty.
+     */
+    _beginSceneTween({ endPos, endTarget, duration = 700, onComplete })
+    {
+        if(!endPos || !endTarget) return
+        // A scene tween is a top-level framing change (landing-orbit on/off,
+        // hatch dolly). Any save-stack anchors from in-flight cinematic
+        // zooms predate the new framing — restoring to them would yank the
+        // camera away from whatever the new framing just set up. Drop the
+        // stack so the tween's completion can re-enable controls cleanly.
+        if(this._saveStack) this._saveStack.clear()
+        this._zoom = {
+            startPos:    this.instance.position.clone(),
+            endPos:      endPos.clone(),
+            startTarget: this.controls ? this.controls.target.clone() : this.target.clone(),
+            endTarget:   endTarget.clone(),
+            startTime:   performance.now(),
+            duration,
+            mode:        'scene',
+            onComplete:  typeof onComplete === 'function' ? onComplete : null,
+        }
+        if(this.controls) this.controls.enabled = false
     }
 
     resize()
@@ -201,10 +288,8 @@ export default class Camera
     // camera to start over.
     resetToDefault(duration = 600)
     {
-        const pitch  = THREE.MathUtils.degToRad(this.pitchDeg)
-        const y      = this.target.y + Math.sin(pitch) * this.distance
-        const planar = Math.cos(pitch) * this.distance
-        const endPos = new THREE.Vector3(0, y, planar)
+        const home = this._defaultPose()
+        const endPos = home.pos
         this._zoom = {
             startPos:    this.instance.position.clone(),
             endPos,
@@ -222,8 +307,14 @@ export default class Camera
         if(this._zoom)
         {
             const t = Math.min(1, (performance.now() - this._zoom.startTime) / this._zoom.duration)
-            // smootherstep so the camera doesn't ease in/out hard.
-            const eased = t * t * t * (t * (t * 6 - 15) + 10)
+            // 'in' (zooming toward a subject) uses ease-out cubic — fast
+            // start, soft land — so the move reads as "going to" rather
+            // than the mushy smootherstep wait/fly/wait curve. 'out',
+            // 'reset', and 'scene' keep smootherstep so returning home
+            // and other framing changes stay symmetric.
+            const eased = this._zoom.mode === 'in'
+                ? 1 - Math.pow(1 - t, 3)
+                : t * t * t * (t * (t * 6 - 15) + 10)
             this.instance.position.lerpVectors(this._zoom.startPos, this._zoom.endPos, eased)
             const tgt = this._zoomTargetScratch.lerpVectors(this._zoom.startTarget, this._zoom.endTarget, eased)
             this.instance.lookAt(tgt)
@@ -231,6 +322,7 @@ export default class Camera
             if(t >= 1)
             {
                 const mode = this._zoom.mode
+                const onComplete = this._zoom.onComplete
                 this._zoom = null
                 // 'out' completes one owner's restore; 'reset' is a fresh
                 // return-home gesture that drops the whole save stack.
@@ -238,7 +330,7 @@ export default class Camera
                 // — otherwise an outer consumer is still zoomed and we
                 // mustn't hand the camera back to OrbitControls yet.
                 if(mode === 'reset' && this._saveStack) this._saveStack.clear()
-                if(mode === 'out' || mode === 'reset')
+                if(mode === 'out' || mode === 'reset' || mode === 'scene')
                 {
                     if((!this._saveStack || this._saveStack.size === 0) && this.controls)
                     {
@@ -246,10 +338,22 @@ export default class Camera
                         this.controls.update()
                     }
                 }
+                if(onComplete) try { onComplete() } catch(_) {}
             }
             return
         }
-        if(this.controls) this.controls.update()
+        // Skip OrbitControls.update() while a cinematic save-stack anchor is
+        // still in flight (i.e. controls.enabled === false). The vendored
+        // three.js OrbitControls.update() does NOT early-return on
+        // !enabled — it still rebuilds spherical from the current pose and
+        // clamps `radius` into [minDistance, maxDistance]. After an in-zoom
+        // lands closer than minDistance (e.g. a flower close-up at ~2 units
+        // with minDistance=6), the very next frame's clamp yanks the camera
+        // outward, manifesting as a visible jump just after the zoom ends.
+        // Letting controls.update() sit out until a restoreZoom / scene
+        // tween hands ownership back keeps the camera parked exactly where
+        // the cinematic ended.
+        if(this.controls && this.controls.enabled) this.controls.update()
     }
 
     /**

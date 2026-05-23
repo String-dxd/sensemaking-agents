@@ -5,7 +5,7 @@ import { TrajectorySheet } from '~/components/student-space/sheets/TrajectoryShe
 // EngineHost defers route-sync (paused=true) until the backend snapshot
 // resolves so the student never sees an empty trajectory shell (see
 // `SURFACES_REQUIRING_HYDRATION` in EngineHost.tsx).
-export const Route = createFileRoute('/trajectory')({
+export const Route = createFileRoute('/_app/trajectory')({
   component: TrajectoryPage,
 })
 

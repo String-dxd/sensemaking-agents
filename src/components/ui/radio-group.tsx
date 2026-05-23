@@ -8,10 +8,10 @@ export function RadioGroup({ className, ...props }: ComponentProps<typeof BaseRa
 }
 
 /**
- * A single radio. Renders a `<span>` (per Base UI). For the tile-style
- * pickers in this project (EmotionPicker, ContextTypePicker), pass tile
- * content as children and style the root with `aria-checked` selectors
- * or via the `data-checked` attribute Base UI sets automatically.
+ * A single radio. Renders a `<span>` (per Base UI). For tile-style pickers
+ * (e.g. ContextTypePicker), pass tile content as children and style the
+ * root with `aria-checked` selectors or via the `data-checked` attribute
+ * Base UI sets automatically.
  */
 export function RadioGroupItem({
   className,

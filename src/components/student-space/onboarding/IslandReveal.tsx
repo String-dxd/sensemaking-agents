@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Vector3 } from 'three'
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
+import { getPreset } from '~/lib/student-space/camera-tuner'
 import { EMOTIONS } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
 
@@ -42,7 +43,19 @@ export type IslandRevealView = {
     entries?: Array<unknown>
     growIn?: (index: number, opts: { duration: number }) => Promise<void> | void
   } | null
-  sound?: { playOneShot?: (name: 'bloom' | 'grow') => void } | null
+  sound?: { playOneShot?: (name: string) => void } | null
+  kira?: {
+    perchX?: number
+    perchY?: number
+    perchZ?: number
+    perchYaw?: number
+    facing?: number
+    group?: {
+      visible?: boolean
+      position?: { set?: (x: number, y: number, z: number) => unknown }
+      rotation?: { y?: number }
+    }
+  } | null
   kiraDialogue?: {
     sayOnboarding?: (line: string) => void
     clearOnboardingBubble?: () => void
@@ -112,6 +125,20 @@ export function IslandReveal({
     abortRef.current = abort
     day?.setManualHour?.(TWILIGHT_HOUR)
 
+    // Resume guard — `kira.setOnboardingMode(true)` hides Kira at boot; the
+    // bird is normally re-shown by FirstChat's flyTo. If the user reloads
+    // the page mid-IslandReveal (first-grow / tree-narration / closing),
+    // FirstChat never runs this session and the perch sits empty during
+    // the bloom + tree + closing beats. By the time we reach this surface
+    // the bird belongs on the perch unconditionally, so force visibility on.
+    const kira = view?.kira
+    if (kira?.group && kira.group.visible === false) {
+      kira.group.position?.set?.(kira.perchX ?? 0, kira.perchY ?? 0, kira.perchZ ?? 0)
+      if (kira.group.rotation) kira.group.rotation.y = kira.perchYaw ?? 0
+      kira.facing = kira.perchYaw ?? 0
+      kira.group.visible = true
+    }
+
     const firstPin = onboarding?.firstMoodPinId
       ? moodPins?.pins?.find((pin) => pin.id === onboarding.firstMoodPinId)
       : null
@@ -171,7 +198,12 @@ export function IslandReveal({
     const signal = abortRef.current?.signal ?? new AbortController().signal
     const treeEntry = view?.tree?.entries?.[0]
 
-    view?.camera?.zoomTo?.(new Vector3(3, 5.5, 8), new Vector3(0, 1.8, 0), cameraMs(1400))
+    const treePreset = getPreset('tree-wide')
+    view?.camera?.zoomTo?.(
+      new Vector3(treePreset.camX, treePreset.camY, treePreset.camZ),
+      new Vector3(0, treePreset.lookAtY, 0),
+      cameraMs(treePreset.durationMs),
+    )
     view?.kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.islandSeeded)
 
     await wait(ms(SEEDED_HOLD_MS), signal)
@@ -184,6 +216,33 @@ export function IslandReveal({
     await wait(ms(POST_GROW_MS), signal)
     if (signal.aborted) return
 
+    // Closing beat — dolly around to the bird's face so the final line
+    // lands on Kira looking back at the student, not at her tail. Same
+    // trigonometry as FirstChat: the silhouette is built facing local +X,
+    // so rotated by yaw around Y the world face direction is
+    // (cos yaw, 0, -sin yaw); the camera sits in that direction, framed
+    // wide enough to keep the tree visible behind.
+    const kira = view?.kira
+    if (view?.camera && kira && !reducedMotion) {
+      const closing = getPreset('closing-portrait')
+      const yaw = (kira.perchYaw ?? 0) + (closing.yawOffsetDeg * Math.PI) / 180
+      const fx = Math.cos(yaw)
+      const fz = -Math.sin(yaw)
+      const lookAt = new Vector3(
+        kira.perchX ?? 0,
+        (kira.perchY ?? 0) + closing.lookAtYAbovePerch,
+        kira.perchZ ?? 0,
+      )
+      const camPos = new Vector3(
+        lookAt.x + fx * closing.distance,
+        lookAt.y + closing.camYAboveLookAt,
+        lookAt.z + fz * closing.distance,
+      )
+      view.camera.zoomTo?.(camPos, lookAt, cameraMs(closing.durationMs))
+      await wait(cameraMs(closing.durationMs), signal)
+      if (signal.aborted) return
+    }
+
     onboarding?.setStage?.('closing')
     view?.kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.islandFinal)
     await wait(ms(FINAL_HOLD_MS), signal)
@@ -191,7 +250,7 @@ export function IslandReveal({
 
     busyRef.current = false
     setChip({ label: ONBOARDING_COPY.islandReveal.beginCta, onClick: runBegin })
-  }, [cameraMs, ms, onboarding, runBegin, view])
+  }, [cameraMs, ms, onboarding, reducedMotion, runBegin, view])
 
   const runBloom = useCallback(async () => {
     if (busyRef.current) return
@@ -202,9 +261,18 @@ export function IslandReveal({
 
     view?.kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.islandPlantSetup)
     if (flower) {
-      const lookAt = new Vector3(flower.x, 0.7, flower.z)
-      const camPos = new Vector3(flower.x, lookAt.y + 1.1, flower.z + 1.8)
-      view?.camera?.zoomTo?.(camPos, lookAt, cameraMs(1100))
+      // Look at the bloom slightly above ground so the small flower sits
+      // centered rather than at the top of the frame; the camera-tuner
+      // preset controls the height + back distance so the dev HUD can
+      // adjust the framing live.
+      const bloomPreset = getPreset('bloom')
+      const lookAt = new Vector3(flower.x, bloomPreset.lookAtY, flower.z)
+      const camPos = new Vector3(
+        flower.x,
+        lookAt.y + bloomPreset.camYAboveLookAt,
+        flower.z + bloomPreset.camZBack,
+      )
+      view?.camera?.zoomTo?.(camPos, lookAt, cameraMs(bloomPreset.durationMs))
     }
 
     await wait(ms(SETUP_HOLD_MS), signal)

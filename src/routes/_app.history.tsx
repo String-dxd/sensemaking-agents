@@ -7,7 +7,7 @@ import { HistorySheet } from '~/components/student-space/sheets/HistorySheet'
 // `validateSearch` preserves the legacy `?filter=need-review` query so the
 // route-sync hook can forward it into `openSurface`. Without it TanStack
 // strips unknown search params on the redirect path.
-export const Route = createFileRoute('/history')({
+export const Route = createFileRoute('/_app/history')({
   validateSearch: (search: Record<string, unknown>): { filter?: 'need-review' } =>
     search.filter === 'need-review' ? { filter: 'need-review' } : {},
   component: HistoryPage,

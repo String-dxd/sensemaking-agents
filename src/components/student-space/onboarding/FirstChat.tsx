@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
+import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
 
 /**
@@ -9,10 +10,13 @@ import { cn } from '~/lib/utils'
  * The canvas still owns Kira and the camera. This component owns the DOM
  * sheen, action chips, and timing that asks Kira to fly in, speak, zoom, and
  * then hand off to the first-mood picker.
+ *
+ * Framing values (distance, yaw offset, vertical tilt) live in
+ * `~/lib/student-space/camera-tuner` so the dev HUD (Cmd+K) can tune them
+ * against the live engine and the user can copy results back into source.
  */
 const ENTER_MS = 320
 const FLY_DURATION_S = 2.4
-const ZOOM_MS = 1200
 const INTRO_LINE_MS = 1800
 const CHAT_MORE_MS = 1800
 const FLY_START = { x: -14, y: 12, z: 8 }
@@ -49,6 +53,10 @@ type Camera = {
 
 type KiraDialogue = {
   sayOnboarding?: (line: string) => void
+}
+
+type SoundLike = {
+  playOneShot?: (name: string) => void
 }
 
 function wait(ms: number, signal: AbortSignal) {
@@ -91,6 +99,7 @@ export function FirstChat({
   kira,
   camera,
   kiraDialogue,
+  sound,
   onAdvance,
 }: {
   reducedMotion: boolean
@@ -99,14 +108,22 @@ export function FirstChat({
   kira: Kira | null | undefined
   camera: Camera | null | undefined
   kiraDialogue: KiraDialogue | null | undefined
+  sound?: SoundLike | null | undefined
   onAdvance: () => void
 }) {
   const [visible, setVisible] = useState(reducedMotion)
   const [chipsVisible, setChipsVisible] = useState(false)
   const [speaking, setSpeaking] = useState(false)
+  const [explainerSeen, setExplainerSeen] = useState(false)
   const zoomedRef = useRef(false)
   const primaryRef = useRef<HTMLButtonElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const zoomLeadTimerRef = useRef<number | null>(null)
+  const chipFocusTimerRef = useRef<number | null>(null)
+  // Cached so the unmount path can hand the camera anchor back if a late
+  // zoomLead fire-and-forget already started the dolly.
+  const cameraRef = useRef<Camera | null | undefined>(camera)
+  cameraRef.current = camera
 
   useEffect(() => {
     const abort = new AbortController()
@@ -122,48 +139,89 @@ export function FirstChat({
       }
       if (abort.signal.aborted) return
 
-      await kira?.flyTo?.({
-        startPos: FLY_START,
-        endPos: {
-          x: kira.perchX ?? 0,
-          y: kira.perchY ?? 0,
-          z: kira.perchZ ?? 0,
-        },
-        midOffset: FLY_MID_OFFSET,
-        duration: FLY_DURATION_S,
-        endYaw: kira.perchYaw,
-        reducedMotion,
-      })
-      if (abort.signal.aborted) return
-
-      if (camera && kira && !reducedMotion) {
-        const lookAt = makeVector(
-          camera,
-          kira.perchX ?? 0,
-          (kira.perchY ?? 0) + 0.55,
-          kira.perchZ ?? 0,
-        )
-        const yaw = kira.perchYaw ?? 0
-        const fx = Math.cos(yaw)
-        const fz = -Math.sin(yaw)
-        const camPos = makeVector(
-          camera,
-          (kira.perchX ?? 0) + fx * 1.6,
-          (kira.perchY ?? 0) + 0.9,
-          (kira.perchZ ?? 0) + fz * 1.6,
-        )
-        if (lookAt && camPos) {
-          camera.zoomTo?.(camPos, lookAt, ZOOM_MS)
-          zoomedRef.current = true
-          await wait(ZOOM_MS, abort.signal)
+      // Wing-pass whoosh as the bird crosses the frame — anchors the
+      // off-canvas arrival to an audible cue.
+      if (!reducedMotion) {
+        try {
+          sound?.playOneShot?.('whoosh')
+        } catch {
+          // SFX is best-effort; never break the ceremony on a missing sample.
         }
       }
+
+      // Fly the bird in from off-canvas onto its perch and dolly the
+      // camera toward the perch in parallel so the two motions resolve
+      // together rather than reading as bird-lands → camera-zooms.
+      const flyPromise =
+        kira?.flyTo?.({
+          startPos: FLY_START,
+          endPos: {
+            x: kira.perchX ?? 0,
+            y: kira.perchY ?? 0,
+            z: kira.perchZ ?? 0,
+          },
+          midOffset: FLY_MID_OFFSET,
+          duration: FLY_DURATION_S,
+          endYaw: kira.perchYaw,
+          reducedMotion,
+        }) ?? Promise.resolve()
+
+      // Camera 3/4 portrait on Kira. The silhouette is built facing local
+      // +X, so rotated by yaw around Y the world face direction is
+      // (cos yaw, 0, -sin yaw). Yaw offset, distance, and vertical
+      // tilt live in the camera-tuner preset.
+      const preset = getPreset('first-chat')
+      const { zoomLeadMs, durationMs, yawOffsetDeg, distance, camYAboveLookAt, lookAtYAbovePerch } =
+        preset
+      if (camera && kira && !reducedMotion) {
+        // Kick the camera move off after the bird is past the apex of its
+        // arc so the dolly lands a beat after the bird settles.
+        zoomLeadTimerRef.current = window.setTimeout(() => {
+          zoomLeadTimerRef.current = null
+          if (abort.signal.aborted) return
+          const lookAt = makeVector(
+            camera,
+            kira.perchX ?? 0,
+            (kira.perchY ?? 0) + lookAtYAbovePerch,
+            kira.perchZ ?? 0,
+          )
+          const yaw = (kira.perchYaw ?? 0) + (yawOffsetDeg * Math.PI) / 180
+          const fx = Math.cos(yaw)
+          const fz = -Math.sin(yaw)
+          const camPos = makeVector(
+            camera,
+            (kira.perchX ?? 0) + fx * distance,
+            (kira.perchY ?? 0) + lookAtYAbovePerch + camYAboveLookAt,
+            (kira.perchZ ?? 0) + fz * distance,
+          )
+          if (lookAt && camPos) {
+            camera.zoomTo?.(camPos, lookAt, durationMs)
+            zoomedRef.current = true
+          }
+        }, zoomLeadMs)
+      }
+
+      await flyPromise
       if (abort.signal.aborted) return
+
+      // Wait out whatever portion of the camera move is still in flight
+      // once the bird has landed, so the intro line lands after the camera
+      // has settled (or close to it).
+      const remaining = Math.max(0, zoomLeadMs + durationMs - FLY_DURATION_S * 1000)
+      if (remaining > 0 && !reducedMotion) {
+        await wait(remaining, abort.signal)
+        if (abort.signal.aborted) return
+      }
 
       const line = ONBOARDING_COPY.kira.firstChatIntro.replace(
         '{companionName}',
         companionNameFrom(profile, onboarding),
       )
+      try {
+        sound?.playOneShot?.('chime')
+      } catch {
+        // SFX best-effort; same rationale as above.
+      }
       kiraDialogue?.sayOnboarding?.(line)
       await wait(reducedMotion ? 80 : INTRO_LINE_MS, abort.signal)
       if (abort.signal.aborted) return
@@ -174,23 +232,61 @@ export function FirstChat({
 
     return () => {
       abort.abort()
+      if (zoomLeadTimerRef.current != null) {
+        window.clearTimeout(zoomLeadTimerRef.current)
+        zoomLeadTimerRef.current = null
+      }
+      if (chipFocusTimerRef.current != null) {
+        window.clearTimeout(chipFocusTimerRef.current)
+        chipFocusTimerRef.current = null
+      }
+      // If the camera dolly already started, hand its save-stack entry
+      // back to the camera so a follow-on cinematic doesn't restore to
+      // the wrong pose (FirstChat would be the orphaned anchor).
+      if (zoomedRef.current) {
+        try {
+          cameraRef.current?.restoreZoom?.(0)
+        } catch {
+          // restoreZoom is best-effort during teardown.
+        }
+        zoomedRef.current = false
+      }
     }
-  }, [camera, kira, kiraDialogue, onboarding, profile, reducedMotion])
+  }, [camera, kira, kiraDialogue, onboarding, profile, reducedMotion, sound])
 
   useEffect(() => {
     if (!chipsVisible || speaking) return
-    const id = window.setTimeout(() => primaryRef.current?.focus({ preventScroll: true }), 60)
-    return () => window.clearTimeout(id)
+    if (chipFocusTimerRef.current != null) window.clearTimeout(chipFocusTimerRef.current)
+    chipFocusTimerRef.current = window.setTimeout(() => {
+      chipFocusTimerRef.current = null
+      primaryRef.current?.focus({ preventScroll: true })
+    }, 60)
+    return () => {
+      if (chipFocusTimerRef.current != null) {
+        window.clearTimeout(chipFocusTimerRef.current)
+        chipFocusTimerRef.current = null
+      }
+    }
   }, [chipsVisible, speaking])
 
   const chatMore = async () => {
     if (speaking) return
     setSpeaking(true)
     setChipsVisible(false)
-    kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.firstChatChatMore)
     const abort = abortRef.current
-    await wait(reducedMotion ? 80 : CHAT_MORE_MS, abort?.signal ?? new AbortController().signal)
-    if (abort?.signal.aborted) return
+    const signal = abort?.signal ?? new AbortController().signal
+    // First tap plays the three-beat explainer so the student sees the
+    // share → sprout → bloom mechanic before tagging anything. Repeat
+    // taps fall back to the shorter "I'm listening" beat.
+    const beats = explainerSeen
+      ? [ONBOARDING_COPY.kira.firstChatChatMore]
+      : ONBOARDING_COPY.kira.firstChatExplainer
+    for (const line of beats) {
+      kiraDialogue?.sayOnboarding?.(line)
+      await wait(reducedMotion ? 80 : CHAT_MORE_MS, signal)
+      if (signal.aborted) return
+    }
+    if (!explainerSeen) setExplainerSeen(true)
     kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.firstChatChatPrompt)
     setSpeaking(false)
     setChipsVisible(true)
@@ -199,7 +295,12 @@ export function FirstChat({
   const feelNow = () => {
     if (speaking) return
     setChipsVisible(false)
-    if (zoomedRef.current) camera?.restoreZoom?.(700)
+    if (zoomedRef.current) {
+      camera?.restoreZoom?.(700)
+      // Clear the latch so unmount doesn't re-enter restoreZoom on an
+      // already-popped owner anchor.
+      zoomedRef.current = false
+    }
     onAdvance()
   }
 
@@ -229,7 +330,7 @@ export function FirstChat({
           type="button"
           onClick={() => void chatMore()}
           className={cn(
-            'min-h-11 rounded-full border-[1.5px] border-[rgba(43,38,32,0.10)]',
+            'relative min-h-11 rounded-full border-[1.5px] border-[rgba(43,38,32,0.10)]',
             'bg-white/90 px-5 py-3 text-[15px] font-medium text-(--color-onb-ink)',
             'shadow-[0_6px_18px_rgba(15,18,36,0.22)] cursor-pointer',
             'transition-[transform,background,box-shadow] duration-150 ease-out hover:-translate-y-px hover:bg-white',
@@ -237,6 +338,16 @@ export function FirstChat({
           )}
         >
           {ONBOARDING_COPY.firstChatActions.chatMore}
+          {!explainerSeen && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                'absolute -top-1 -right-1 h-2 w-2 rounded-full',
+                'bg-(--color-onb-accent) ring-2 ring-white',
+                'motion-safe:animate-pulse',
+              )}
+            />
+          )}
         </button>
         <button
           ref={primaryRef}

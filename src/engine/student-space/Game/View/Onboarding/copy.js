@@ -9,7 +9,7 @@ export const ONBOARDING_COPY = Object.freeze({
 
     login: {
         wordmark:   'Student Space',
-        tagline:    'a place that listens',
+        tagline:    'A place that listens',
         cta:        'Login with Edupass',
         connecting: 'Connecting',
         demoNote:   'Demo login.',
@@ -61,6 +61,16 @@ export const ONBOARDING_COPY = Object.freeze({
         firstChatInvite:  'How does it feel, starting this?',
         firstChatChatPrompt: 'Anything else on your mind?',
         firstChatChatMore:   "Take your time. I'm listening.",
+        // Three-beat explainer played when "Tell me more" is tapped. Each
+        // line names a real mechanic: beat 1 = capture → sprout + V/I/P/S
+        // picker, beat 2 = threshold → species bloom, beat 3 = pattern
+        // surfacing + payoff. Lines run sequentially with the same gap
+        // as firstChatChatMore → firstChatChatPrompt.
+        firstChatExplainer: [
+            "Each share starts a sprout. I'll ask what it was — a value, interest, a part of you, or a skill.",
+            'Three of the same opens it — a tree, a flower, a butterfly, or berries.',
+            "I watch what keeps showing up — and tell you. By then this place will look like you.",
+        ],
         firstMoodAck:     "Noticed. I'll hold that one.",
         islandPlantSetup: "I'll plant something small. Watch the south slope.",
         islandPlantDone:  'There. A first thing.',
@@ -70,7 +80,7 @@ export const ONBOARDING_COPY = Object.freeze({
     },
 
     firstChatActions: {
-        chatMore: 'Chat a bit more',
+        chatMore: 'Tell me more',
         feel:     'Tell me how I feel now',
     },
 

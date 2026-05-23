@@ -1,8 +1,6 @@
 # sensemaking-agents — repo guardrails
 
-This file is loaded as instructions for any agent (Claude Code, Codex, etc.) operating in this repo. Rules here override default behavior; follow them exactly.
-
-For deeper context (architecture, substrate notes, history), see `docs/` and `docs/solutions/`.
+Rules here override default behavior. For deeper context, see `docs/` and `docs/solutions/`.
 
 ---
 
@@ -16,40 +14,34 @@ For deeper context (architecture, substrate notes, history), see `docs/` and `do
 - `pnpm smoke:mirror` / `pnpm smoke:managed-connector` / `pnpm smoke:managed-cartographer` — agent smoke tests
 - `pnpm provision:managed-agents -- --update-existing connector,cartographer` — after editing managed-agent prompts or model defaults
 
-Package manager is **pnpm only**. Do not introduce npm / yarn lockfiles.
+Package manager is **pnpm only**. No npm / yarn lockfiles.
 
 ---
 
 ## Repo conventions
 
-- **Engine is a canonical fork.** `src/engine/student-space/` is the source of truth for the island scene. There is no upstream sync from `wondopamine/student-space` — edit in place.
-- **`src/components/world/` was deleted** in the 2026-05-21 cleanup. Don't re-add it; the world lives in the engine.
-- **Base UI for behavior, hand-rolled locals for visuals.** Use `@base-ui-components/react` for dialogs, drawers, radio groups, focus traps. Visual primitives in `src/components/ui/*` are hand-written in the shadcn style; do **not** install the `shadcn/ui` package.
-- **Tenancy via `withStudent`.** Every DB read/write goes through the `withStudent` envelope (`src/db/*`, server handlers). Bypassing it is a tenancy bug.
+- **Engine is canonical.** `src/engine/student-space/` is the source of truth — edit in place; no upstream sync from `wondopamine/student-space`.
+- **No `src/components/world/`.** Deleted 2026-05-21; the world lives in the engine.
+- **Base UI for behavior, hand-rolled shadcn-style visuals.** `@base-ui-components/react` for dialogs, drawers, radio groups, focus traps. Visual primitives in `src/components/ui/*` are local. Do **not** install the `shadcn/ui` package.
+- **Tenancy via `withStudent`.** Every DB read/write goes through the envelope (`src/db/*`, server handlers). Bypassing it is a tenancy bug.
 - **Agents.** Mirror = OpenAI Realtime (browser WebRTC, server-brokered key). Connector / Cartographer / self_critique = Anthropic Managed Agents. Prompts in `src/agents/*.prompt.md`; binding in `src/agents/config.ts`; transport in `src/agents/runner.ts`. The deterministic verifier (`src/agents/verifier.ts`) is the hard gate before any Connector link is persisted.
 
 ---
 
 ## Engine view architecture
 
-The engine's DOM-rendering surfaces have moved to React + Tailwind v4
-(plan: `docs/plans/2026-05-22-001-refactor-full-dom-react-tailwind-migration-plan.md`).
-Three.js scene objects, state slices, camera controls, renderer, audio, and
-heuristics remain vanilla JS. React owns the visible DOM surfaces and calls
-back into the engine for behavior.
+DOM surfaces are React + Tailwind v4 (TanStack Start + TanStack Router). Three.js scene objects, state slices, camera, renderer, audio, and heuristics stay vanilla JS in `src/engine/student-space/`. React owns visible DOM and calls back into the engine for behavior.
 
-**Routed sheets** — owned by TanStack Router file routes. Each route renders
-its React sheet component directly; no engine sheet construction.
+**Routed sheets** — TanStack Router file routes; each renders its sheet component directly. All under `src/components/student-space/sheets/`.
 
-- `/profile`, `/profile/$tab` → `src/components/student-space/sheets/ProfileSheet.tsx`
-- `/history`, `/history/$tab` → `src/components/student-space/sheets/HistorySheet.tsx`
-- `/letters` → `src/components/student-space/sheets/LettersSheet.tsx`
-- `/trajectory` → `src/components/student-space/sheets/TrajectorySheet.tsx`
-- `/settings` → `src/components/student-space/sheets/SettingsSheet.tsx`
 - `/` (world canvas) → `src/components/StudentSpaceHost.tsx` mounts overlays
+- `/profile`, `/profile/$tab` → `ProfileSheet.tsx`
+- `/history`, `/history/$tab` → `HistorySheet.tsx`
+- `/letters` → `LettersSheet.tsx`
+- `/trajectory` → `TrajectorySheet.tsx`
+- `/settings` → `SettingsSheet.tsx`
 
-**Sheet primitive** — every routed sheet composes the same shape on top of
-`src/components/ui/sheet.tsx` (Base UI `Dialog.Root` with `modal={false}`):
+**Sheet primitive** — every routed sheet composes the same shape on `src/components/ui/sheet.tsx` (Base UI `Dialog.Root`, `modal={false}`):
 
 ```tsx
 <Sheet open modal={false} onOpenChange={…}>
@@ -66,75 +58,33 @@ its React sheet component directly; no engine sheet construction.
 </Sheet>
 ```
 
+**Side rail** — `src/components/student-space/navigation/SideRail.tsx`. Two groups:
+
+- Top: Island, History, Profile, Path Finder
+- Bottom: Letters, Settings
+
+Hidden during onboarding and on `/onboarding`. "Restart onboarding" lives inside `/settings`, not on the rail. `SHEET_HREFS` is the single source of truth for nav paths; round-trip is enforced by `test/engine/SideRail.hrefs.test.ts`.
+
 **Engine ↔ React seam** (`src/lib/student-space/`):
 
-- `use-engine.ts` — `EngineContext` + `useEngine()` returns the live `Game`
-  instance (or `null` while booting). `EngineHost` provides this at the root
-  layout so any descendant can read the engine without prop drilling.
-- `use-engine-slice-version.ts` — `useEngineSliceVersion(slice)` subscribes
-  to an engine slice's mutation events via a version-bump pattern (sidesteps
-  React's cached-snapshot warning that `useSyncExternalStore` triggers).
-- `use-engine-overlay.ts` — `EngineOverlayProvider` + `useEngineOverlay()`
-  coordinates non-routed overlays (capture sheets, chooser, pickers,
-  onboarding). Toggles `body.has-capture-sheet`, `body.has-chooser`,
-  `body.is-onboarding` via React effects.
-- `use-world-position.ts` — `useWorldPosition(mesh, source)` projects a
-  Three.js mesh position to screen pixels; returns a ref-callback that
-  mutates `style.transform` / `opacity` directly per frame (keeps React
-  out of the hot path). Pair with `<WorldLabel>` primitive.
+- `use-engine.ts` — `useEngine()` returns the live `Game` (or `null` while booting). Provided by `EngineHost` at the root.
+- `use-engine-slice-version.ts` — subscribe to a slice via a version-bump pattern (sidesteps `useSyncExternalStore`'s cached-snapshot warning).
+- `use-engine-overlay.ts` — coordinates non-routed overlays via `body.has-capture-sheet`, `body.has-chooser`, `body.is-onboarding` class toggles.
+- `use-world-position.ts` — projects a Three.js mesh to screen pixels; ref-callback mutates `style.transform` / `opacity` directly per frame (no React in the hot path). Pair with `<WorldLabel>`.
 
-**EngineHost** — `src/components/student-space/EngineHost.tsx` mounts the
-engine once at the root layout. It owns:
+**Hosts**:
 
-- Engine boot (`createGame({…})`) + canvas DOM (`.game` div)
-- Backend bridge construction + snapshot hydration
-- Auth menu fetch (with 3s timeout)
-- `useStudentSpaceRouteSync(game, …)` — URL → engine compatibility mirroring
-- `setRenderActive(pathname === '/')` — rAF gating for routed pages
-- SideRail lifecycle (React navigation rail; persists across every route)
-- OnboardingFlow lifecycle (React ceremony orchestrator; runs across
-  every route — `body.is-onboarding` and the floating skip button span the
-  world and routed surfaces alike, matching legacy posture)
+- `EngineHost` (`src/components/student-space/EngineHost.tsx`) — mounts the engine + canvas once at the root layout. Owns boot, backend bridge, URL ↔ engine route sync, rAF gating (`setRenderActive(pathname === '/')`), SideRail, OnboardingFlow.
+- `StudentSpaceHost` (`src/components/StudentSpaceHost.tsx`) — world-route composition (mounts only on `/`). Owns HUDs/pickers, Kira/peek/hover overlays (`WorldInteractions.tsx`, re-attached to `view.*` for imperative engine callers), CaptureFab + Ask/Mood sheets, `IslandProgressionOverlay`.
 
-**StudentSpaceHost** — `src/components/StudentSpaceHost.tsx` is the world-
-route React composition (mounts only on `/`). It owns the lifecycle for
-non-routed world overlays:
+`OverlayController.js` survives only as a compatibility bridge for imperative engine callers that open non-routed capture overlays (`ask`, `mood`, `chooser`). Routed sheets are URL-owned.
 
-- HUDs and pickers (`StudentSpaceHud.tsx`)
-- Kira overlays, hover CTA, object peek/pickup, and hover probe
-  (`WorldInteractions.tsx`, re-attached to `view.*` so engine code that
-  reaches `view.kiraDialogue`, `view.objectPeek`, etc. keeps working)
-- CaptureFab, CaptureChooser, AskSheet, MoodSheet
-- IslandProgressionOverlay (existing React component)
+**Design tokens** — `@theme` in `src/styles.css` is the canonical store: `--font-sans`, sheet tokens (`--color-sheet-*`, `--blur-sheet`, `--duration-sheet`, `--ease-sheet`), world frame tokens (`--inset-frame`, `--width-rail`, `--radius-frame`, `--color-frame-*`), VIPS facet palette (mirrors `src/lib/profile-tokens.ts`), Marcia identity-status palette, HUD ink, onboarding palette.
 
-`OverlayController.js` remains only as a compatibility bridge for imperative
-engine callers that open non-routed capture overlays (`ask`, `mood`,
-`chooser`). Routed sheets are URL-owned; opening a routed key through the
-controller just closes active capture state.
-
-**Design tokens** — canonical store is `@theme` in `src/styles.css`:
-
-- Font stack: `--font-sans` set to Plus Jakarta Sans (engine canon)
-- Sheet motion: `--color-sheet-bg`, `--color-sheet-pane-left`,
-  `--color-sheet-ink`, `--color-sheet-divider`, `--blur-sheet`,
-  `--duration-sheet`, `--ease-sheet`
-- World frame: `--inset-frame`, `--width-rail`, `--radius-frame`,
-  `--color-frame-outer-chrome`, `--color-frame-border`
-- VIPS facet palette (mirrors `src/lib/profile-tokens.ts`)
-- Marcia identity status palette (--color-status-{starter,diffused,…})
-- HUD ink palette, onboarding palette
-
-`src/engine/student-space/style.css` carries only the remaining engine
-substrate: `.game` frame geometry, Three.js-adjacent half-sheet/FacetView
-styling, substrate utilities, and legacy canvas support. Do not add new
-per-surface DOM CSS there; new UI belongs in React components with Tailwind.
+`src/engine/student-space/style.css` now carries only engine substrate: `.game` frame geometry, FacetView and Three.js-adjacent half-sheet styling, legacy canvas support. New UI belongs in React + Tailwind — do not add per-surface DOM CSS there.
 
 ---
 
-## Topic guardrails
+## Historical contracts
 
-Read these before touching the relevant area:
-
-- **[Historical sheet chrome contract](docs/sheet-chrome-contract.md)** —
-  retained for context only. New routed sheets use `src/components/ui/sheet.tsx`;
-  new non-routed overlays use React host components and Tailwind.
+- **Sheet chrome contract** (`docs/sheet-chrome-contract.md`) — pre-React-migration. Retained for context only; new routed sheets use `src/components/ui/sheet.tsx`, new non-routed overlays use React host components.

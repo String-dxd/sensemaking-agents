@@ -32,11 +32,33 @@ export default class Renderer
         // Switching to alpha:true + setClearAlpha(0) lets the body gradient
         // show through the sky region without us having to keep Bruno's
         // sky-sphere render target alive.
-        this.instance = new THREE.WebGLRenderer({
-            alpha: true,
-            antialias: this.state.performance?.settings?.antialias !== false,
-            powerPreference: 'high-performance',
-        })
+        //
+        // We try the preferred config first (antialias + high-performance).
+        // If the browser's WebGL context pool is exhausted (Chrome caps at
+        // ~16 contexts per process; HMR + StrictMode can leak across dev
+        // reloads), the constructor throws. Retry once with cheaper
+        // settings before surfacing the failure — most exhaustion cases
+        // recover with a low-power discrete-GPU-less context, and the
+        // visual difference is mild.
+        const wantAntialias = this.state.performance?.settings?.antialias !== false
+        try
+        {
+            this.instance = new THREE.WebGLRenderer({
+                alpha: true,
+                antialias: wantAntialias,
+                powerPreference: 'high-performance',
+            })
+        }
+        catch(err)
+        {
+            console.warn('[Renderer] Preferred WebGL config failed, retrying with low-power settings.', err)
+            this.instance = new THREE.WebGLRenderer({
+                alpha: true,
+                antialias: false,
+                powerPreference: 'low-power',
+                failIfMajorPerformanceCaveat: false,
+            })
+        }
 
         this.instance.sortObjects = false
         this.instance.domElement.style.position = 'absolute'
@@ -109,8 +131,14 @@ export default class Renderer
 
     destroy()
     {
-        this.instance.renderLists.dispose()
-        this.instance.dispose()
-        this.renderTarget.dispose()
+        try { this.instance.renderLists.dispose() } catch(_) {}
+        try { this.instance.dispose() } catch(_) {}
+        // `dispose()` cleans up textures/programs/buffers but leaves the
+        // underlying GL context alive. Without forceContextLoss, every
+        // HMR cycle or StrictMode remount accumulates an orphaned context
+        // and the browser eventually throws "Error creating WebGL context"
+        // on a fresh page load.
+        try { this.instance.forceContextLoss?.() } catch(_) {}
+        try { this.renderTarget?.dispose?.() } catch(_) {}
     }
 }

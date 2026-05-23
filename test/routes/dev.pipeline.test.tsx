@@ -23,7 +23,7 @@ import {
   createRealtimeMirrorCapture,
   type StudentSpaceRealtimeMirrorInput,
 } from '~/lib/student-space/realtime-mirror-client'
-import { PipelinePageView } from '~/routes/dev.pipeline'
+import { PipelinePageView } from '~/routes/_dev.dev.pipeline'
 import type { PipelineMirrorRow, PipelineTraceResult } from '~/server/load-pipeline-trace.types'
 import { persistMirror } from '~/server/persist-mirror.functions'
 import { runCartographer } from '~/server/run-cartographer.functions'

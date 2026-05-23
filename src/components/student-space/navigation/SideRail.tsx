@@ -1,6 +1,6 @@
 import { useLocation } from '@tanstack/react-router'
 import type { LucideIcon } from 'lucide-react'
-import { Compass, History, Home, Mail, RotateCcw, User } from 'lucide-react'
+import { Compass, History, Home, Mail, Settings, User } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useStudentSpaceNavigate } from '~/lib/student-space/route-sync'
 import { useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
@@ -13,20 +13,29 @@ export const SHEET_HREFS = {
   history: '/history',
   profile: '/profile',
   trajectory: '/trajectory',
+  settings: '/settings',
 } as const
 
 type RailItemId = keyof typeof SHEET_HREFS
 
-const RAIL_ITEMS: Array<{
+const TOP_RAIL_ITEMS: Array<{
   id: RailItemId
   label: string
   Icon: LucideIcon
 }> = [
   { id: 'home', label: 'Island', Icon: Home },
-  { id: 'letters', label: 'Letters', Icon: Mail },
   { id: 'history', label: 'History', Icon: History },
   { id: 'profile', label: 'Profile', Icon: User },
   { id: 'trajectory', label: 'Path Finder', Icon: Compass },
+]
+
+const BOTTOM_RAIL_ITEMS: Array<{
+  id: RailItemId
+  label: string
+  Icon: LucideIcon
+}> = [
+  { id: 'letters', label: 'Letters', Icon: Mail },
+  { id: 'settings', label: 'Settings', Icon: Settings },
 ]
 
 type GameLike = {
@@ -34,10 +43,8 @@ type GameLike = {
     onboarding?: {
       stage?: string
       isDone?: boolean
-      reset?: () => void
       subscribe?: (cb: () => void) => () => void
     }
-    persistence?: { flush?: () => void }
   }
 }
 
@@ -75,18 +82,21 @@ export function SideRail({ game }: { game: unknown }) {
     navigate(href)
   }
 
-  const restartOnboarding = () => {
-    try {
-      typedGame?.state?.onboarding?.reset?.()
-      typedGame?.state?.persistence?.flush?.()
-    } catch {
-      // Best effort; reload still drives the ceremony hash path.
-    }
-    if (typeof window === 'undefined') return
-    window.location.assign('/onboarding')
-  }
-
   const activeKey = activeKeyFromPathname(pendingPathname ?? location.pathname)
+
+  const renderItem = ({ id, label, Icon }: { id: RailItemId; label: string; Icon: LucideIcon }) => {
+    const href = SHEET_HREFS[id]
+    const active = activeKey === id
+    return (
+      <RailButton
+        key={id}
+        label={label}
+        active={active}
+        onClick={() => handleNavigate(href)}
+        Icon={Icon}
+      />
+    )
+  }
 
   return (
     <nav
@@ -98,27 +108,10 @@ export function SideRail({ game }: { game: unknown }) {
       )}
     >
       <div className="flex flex-col gap-1 max-[640px]:flex-row">
-        {RAIL_ITEMS.map(({ id, label, Icon }) => {
-          const href = SHEET_HREFS[id]
-          const active = activeKey === id
-          return (
-            <RailButton
-              key={id}
-              label={label}
-              active={active}
-              onClick={() => handleNavigate(href)}
-              Icon={Icon}
-            />
-          )
-        })}
+        {TOP_RAIL_ITEMS.map(renderItem)}
       </div>
       <div className="flex flex-col gap-1 max-[640px]:flex-row">
-        <RailButton
-          label="Restart onboarding"
-          onClick={restartOnboarding}
-          Icon={RotateCcw}
-          compact
-        />
+        {BOTTOM_RAIL_ITEMS.map(renderItem)}
       </div>
     </nav>
   )
@@ -138,7 +131,13 @@ function activeKeyFromPathname(pathname: string): RailItemId | null {
   const normalized = normalizePathname(pathname)
   if (normalized === '/') return 'home'
   const [head] = normalized.replace(/^\/+/, '').split('/')
-  if (head === 'letters' || head === 'history' || head === 'profile' || head === 'trajectory') {
+  if (
+    head === 'letters' ||
+    head === 'history' ||
+    head === 'profile' ||
+    head === 'trajectory' ||
+    head === 'settings'
+  ) {
     return head
   }
   return null

@@ -1,21 +1,23 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import {
   BirdPicker,
   EnvironmentHud,
   type GameLike,
+  StatusPreviewHud,
   TrackPicker,
 } from '~/components/student-space/hud/StudentSpaceHud'
 import {
-  Sheet,
+  PageCloseButton,
+  PageSurface,
   SheetBody,
   SheetContent,
   SheetDescription,
   SheetIdentityHeader,
   SheetPageHeader,
   SheetSidebar,
-  SheetSurface,
   SheetTitle,
+  usePageEscape,
 } from '~/components/ui/sheet'
 import { useEngine } from '~/lib/student-space/use-engine'
 
@@ -56,70 +58,74 @@ export function SettingsSheet() {
     }
   }
 
+  const dismissToHome = useCallback(() => navigate({ to: '/' }), [navigate])
+  usePageEscape(dismissToHome)
+
   return (
-    <Sheet
-      open
-      modal={false}
-      onOpenChange={(next) => {
-        if (next === false) navigate({ to: '/' })
-      }}
-    >
-      <SheetSurface>
-        <SheetSidebar>
-          <SheetIdentityHeader>
-            <SheetTitle>Settings</SheetTitle>
-            <SheetDescription>Tools for adjusting how the world behaves.</SheetDescription>
-          </SheetIdentityHeader>
-          <div className="px-7 pb-6">
-            <p className="text-[13.5px] leading-[1.55] text-(--color-sheet-ink-soft)">
-              Adjust how the world behaves and replay the first-run ceremony. Changes apply
-              immediately and persist across sessions.
-            </p>
-          </div>
-        </SheetSidebar>
-        <SheetContent>
-          <SheetPageHeader>
-            <SheetTitle>Settings</SheetTitle>
-          </SheetPageHeader>
-          <SheetBody>
-            <SettingsGroup
-              title="World & weather"
-              help="Scrub the time of day and force weather effects."
+    <PageSurface>
+      <SheetSidebar>
+        <SheetIdentityHeader>
+          <SheetTitle>Settings</SheetTitle>
+          <SheetDescription>Tools for adjusting how the world behaves.</SheetDescription>
+        </SheetIdentityHeader>
+        <div className="px-7 pb-6">
+          <p className="text-[13.5px] leading-[1.55] text-(--color-sheet-ink-soft)">
+            Adjust how the world behaves and replay the first-run ceremony. Changes apply
+            immediately and persist across sessions.
+          </p>
+        </div>
+      </SheetSidebar>
+      <SheetContent>
+        <SheetPageHeader>
+          <SheetTitle>Settings</SheetTitle>
+        </SheetPageHeader>
+        <SheetBody>
+          <SettingsGroup
+            title="World & weather"
+            help="Scrub the time of day and force weather effects."
+          >
+            <div data-testid="settings-mount-hour" className="flex flex-wrap gap-3">
+              {typedEngine ? <EnvironmentHud game={typedEngine} inline /> : null}
+            </div>
+          </SettingsGroup>
+          <SettingsGroup
+            title="Music"
+            help="Cycle through ambient tracks. Right-click the chip to step back."
+          >
+            <div data-testid="settings-mount-track" className="flex flex-wrap gap-3">
+              {typedEngine ? <TrackPicker game={typedEngine} inline /> : null}
+            </div>
+          </SettingsGroup>
+          <SettingsGroup title="Companion" help="Try a different bird companion.">
+            <div data-testid="settings-mount-bird" className="flex flex-wrap gap-3">
+              {typedEngine ? <BirdPicker game={typedEngine} inline /> : null}
+            </div>
+          </SettingsGroup>
+          <SettingsGroup
+            title="Path Finder preview"
+            help="Force the identity-status quadrant the Path Finder uses to skin itself."
+          >
+            <div data-testid="settings-mount-status" className="flex flex-wrap gap-3">
+              {typedEngine ? <StatusPreviewHud game={typedEngine} inline /> : null}
+            </div>
+          </SettingsGroup>
+          <SettingsGroup
+            title="Onboarding"
+            help="Replay the first-run ceremony from the beginning."
+          >
+            <button
+              type="button"
+              onClick={handleRestart}
+              data-testid="settings-restart-onboarding"
+              className="inline-flex items-center rounded-[10px] border border-(--color-frame-border) bg-white px-4 py-2.5 text-sm font-medium text-(--color-sheet-ink) transition-colors hover:bg-(--color-onb-bg-cream) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-onb-accent)"
             >
-              <div data-testid="settings-mount-hour" className="flex flex-wrap gap-3">
-                {typedEngine ? <EnvironmentHud game={typedEngine} inline /> : null}
-              </div>
-            </SettingsGroup>
-            <SettingsGroup
-              title="Music"
-              help="Cycle through ambient tracks. Right-click the chip to step back."
-            >
-              <div data-testid="settings-mount-track" className="flex flex-wrap gap-3">
-                {typedEngine ? <TrackPicker game={typedEngine} inline /> : null}
-              </div>
-            </SettingsGroup>
-            <SettingsGroup title="Companion" help="Try a different bird companion.">
-              <div data-testid="settings-mount-bird" className="flex flex-wrap gap-3">
-                {typedEngine ? <BirdPicker game={typedEngine} inline /> : null}
-              </div>
-            </SettingsGroup>
-            <SettingsGroup
-              title="Onboarding"
-              help="Replay the first-run ceremony from the beginning."
-            >
-              <button
-                type="button"
-                onClick={handleRestart}
-                data-testid="settings-restart-onboarding"
-                className="inline-flex items-center rounded-[10px] border border-(--color-frame-border) bg-white px-4 py-2.5 text-sm font-medium text-(--color-sheet-ink) transition-colors hover:bg-(--color-onb-bg-cream) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-onb-accent)"
-              >
-                Restart onboarding
-              </button>
-            </SettingsGroup>
-          </SheetBody>
-        </SheetContent>
-      </SheetSurface>
-    </Sheet>
+              Restart onboarding
+            </button>
+          </SettingsGroup>
+        </SheetBody>
+      </SheetContent>
+      <PageCloseButton onClick={dismissToHome} />
+    </PageSurface>
   )
 }
 

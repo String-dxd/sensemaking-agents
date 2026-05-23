@@ -370,13 +370,24 @@ export default class Island
         this.scene.add(this.plateau)
 
         // Scene lighting for the Lambert-shaded materials (trunk, sand, cliff,
-        // tree canopy). Kept as instance refs so Island.update() can sync them
-        // to the day-cycle palette every frame — without this the static lights
-        // make the sand glow white at h=22 against an otherwise night-dark scene.
+        // tree canopy). Ambient + directional are kept as instance refs so
+        // Island.update() can sync them to the day-cycle palette every frame —
+        // without this the static lights make the sand glow white at h=22
+        // against an otherwise night-dark scene.
+        //
+        // `hemiFloor` is a constant HemisphereLight that does NOT modulate
+        // with the day cycle. The day-cycle ambient drops to ~0.20 at night,
+        // which collapses warm/dark actors (Kira's plumage, mailbox, tree
+        // trunk) to near-black against the still-readable grass. A steady
+        // hemi fill keeps subjects perceptible at night without flattening
+        // the atmospheric darkness of the world itself — a cool top tone
+        // (sky-bounce) + warm bottom (ground-bounce) reads as moonlight
+        // rather than washed-out fill.
         this.ambient = new THREE.AmbientLight(0xffffff, 0.55)
         this.directional = new THREE.DirectionalLight(0xffffff, 0.85)
         this.directional.position.set(8, 12, 6)
-        this.scene.add(this.ambient, this.directional)
+        this.hemiFloor = new THREE.HemisphereLight(0xC8DDFF, 0xA0907A, 0.32)
+        this.scene.add(this.ambient, this.directional, this.hemiFloor)
     }
 
     _buildSand()
@@ -390,7 +401,7 @@ export default class Island
         // and water at y=-0.15, the sand surface crosses the water line at
         // t = 0.33 / 0.85 roughly 0.39, so part of the ring is visible dry beach
         // and the rest disappears underwater, occluded by the water mesh.
-        const mat = new THREE.MeshLambertMaterial({ color: 0xf2eca8 })
+        const mat = new THREE.MeshLambertMaterial({ color: 0xd0b478 })
         this._applyCurvedEarth(mat, 'sand')
         this.sand = new THREE.Mesh(ring, mat)
         this.scene.add(this.sand)
