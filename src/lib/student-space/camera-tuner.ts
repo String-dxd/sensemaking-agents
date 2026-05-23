@@ -74,10 +74,10 @@ export type PresetMap = {
  */
 export const DEFAULT_PRESETS: Readonly<PresetMap> = Object.freeze({
   'first-chat': {
-    distance: 3.6,
-    yawOffsetDeg: 25.7, // ~π/7
-    camYAboveLookAt: 1.25, // was -0.05 (camera below lookAt) → now well above
-    lookAtYAbovePerch: 0.3,
+    distance: 6.2,
+    yawOffsetDeg: 0.7,
+    camYAboveLookAt: 1.35,
+    lookAtYAbovePerch: 0.4,
     durationMs: 1400,
     zoomLeadMs: 1300,
   },
