@@ -1,12 +1,11 @@
 /**
  * Shared facet theme catalog — reads cross-surface tokens from the engine
  * mirror of src/lib/profile-tokens.ts and composes them with engine-only
- * pieces (the short "V — Values" legacy eyebrow tag, the applyFacetVars
- * helper).
+ * pieces (the short "V — Values" legacy eyebrow tag).
  *
- * Consumed by FacetView (legacy on-island pick card), ProfileSheet (the
- * four-tab sheet), CalendarSheet (personality.accent for today's outline),
- * LettersSheet (personality.accent for unread dot).
+ * Consumed by ProfileSheet (the four-tab sheet) via WorldInteractions for the
+ * legacy eyebrow surface, CalendarSheet (personality.accent for today's
+ * outline), LettersSheet (personality.accent for unread dot).
  *
  * If you need to change the color or student-voice header for a facet, edit
  * src/lib/profile-tokens.ts AND mirror it in profile-tokens.constants.js —
@@ -48,13 +47,3 @@ export const FACET_THEMES = {
  * so engine callers keep their existing `import { FACET_HEADERS }` shape.
  */
 export const FACET_HEADERS = PROFILE_HEADERS
-
-/** Convenience writer — sets the three CSS vars on an element from a facet id. */
-export function applyFacetVars(el, facetId)
-{
-    const theme = FACET_THEMES[facetId]
-    if(!theme) return
-    el.style.setProperty('--facet-accent', theme.accent)
-    el.style.setProperty('--facet-soft',   theme.soft)
-    el.style.setProperty('--facet-ink',    theme.ink)
-}

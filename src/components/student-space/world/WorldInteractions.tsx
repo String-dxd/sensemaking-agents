@@ -1644,7 +1644,7 @@ export class HoverProbeController {
       const target = event.target as HTMLElement | null
       const onCanvas = target === this.dom
       const onChip = Boolean(target?.closest?.('[data-world-hover-cta]'))
-      const onCard = Boolean(target?.closest?.('.half-sheet, [data-facet-view]'))
+      const onCard = Boolean(target?.closest?.('[data-facet-sheet], [data-facet-sheet-scrim]'))
       if (!onCanvas && !onChip && !onCard) this._setHover(null)
     }
     document.addEventListener('pointerdown', this._onDocPointerDown)
