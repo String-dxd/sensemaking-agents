@@ -1927,21 +1927,28 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
       {state.thumbUrl ? (
         <span
           aria-hidden
-          className="size-10 shrink-0 rounded-full bg-cover bg-center ring-1 ring-black/5"
+          className="size-10 shrink-0 self-start rounded-full bg-white/60 bg-cover bg-center ring-1 ring-black/15"
           style={{ backgroundImage: `url(${state.thumbUrl})` }}
         />
       ) : null}
       <div className="min-w-0 flex-1">
-        <p className="m-0 truncate text-[15px] leading-tight font-semibold tracking-[-0.005em]">
+        {state.badge ? (
+          <span
+            className="inline-flex items-center rounded-full px-1.5 py-px text-[9.5px] leading-none font-semibold text-[var(--cta-ink,#7b3a20)]"
+            style={{
+              background: `color-mix(in srgb, var(--cta-soft, #fde0e0) 70%, #fff)`,
+            }}
+          >
+            {state.badge}
+          </span>
+        ) : null}
+        <p
+          className={cn(
+            'm-0 truncate text-[15px] leading-tight font-semibold tracking-[-0.005em]',
+            state.badge ? 'mt-1' : null,
+          )}
+        >
           {state.title}
-          {state.badge ? (
-            <>
-              <span aria-hidden className="mx-1.5 font-normal text-[#7a6e5e]/45">
-                ·
-              </span>
-              <span className="font-medium text-[var(--cta-ink,#7b3a20)]">{state.badge}</span>
-            </>
-          ) : null}
         </p>
         {state.line ? (
           <p className="m-0 mt-0.5 truncate text-[12.5px] leading-[1.35] text-[#5e5145]">
