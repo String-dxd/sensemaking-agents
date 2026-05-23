@@ -107,7 +107,7 @@ export const OFFLINE_DEMO_STUDENTS = [
 // SVG/3D egg shell tint. Display name appears in aria-label.
 export const EGG_COLORS = [
     { id: 'flame',    hex: '#E63946', name: 'Coral'    },
-    { id: 'masked',   hex: '#FFD23F', name: 'Yellow'   },
+    { id: 'masked',   hex: '#FF8C42', name: 'Orange'   },
     { id: 'regent',   hex: '#FFD23F', name: 'Gold'     },
     { id: 'emerald',  hex: '#3AAB48', name: 'Green'    },
     { id: 'satin',    hex: '#2C7DD2', name: 'Blue'     },
