@@ -229,13 +229,7 @@ export function OnboardingFlow() {
   }
   const surface =
     stage === 'login' ? (
-      <EdupassLogin
-        reducedMotion={reducedMotion}
-        state={engine.state as Parameters<typeof EdupassLogin>[0]['state']}
-        profile={engine.state?.profile as Parameters<typeof EdupassLogin>[0]['profile']}
-        camera={engine.view?.camera}
-        onAdvance={() => advance('greeting')}
-      />
+      <EdupassLogin reducedMotion={reducedMotion} camera={engine.view?.camera} />
     ) : stage === 'greeting' ? (
       <Greeting
         studentName={studentName}
@@ -269,6 +263,7 @@ export function OnboardingFlow() {
         onboarding={onboarding}
         day={engine.state?.day}
         kiraDialogue={engine.view?.kiraDialogue}
+        camera={engine.view?.camera}
         onAdvance={() => advance('first-grow')}
       />
     ) : stage === 'first-grow' || stage === 'tree-narration' || stage === 'closing' ? (

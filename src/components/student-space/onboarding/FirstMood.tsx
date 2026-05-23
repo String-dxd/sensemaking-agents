@@ -34,12 +34,18 @@ type KiraDialogue = {
   sayOnboarding?: (line: string) => void
 }
 
+type CameraLike = {
+  restoreZoom?: (duration: number) => void
+  resetToDefault?: (duration: number) => void
+}
+
 export function FirstMood({
   reducedMotion,
   moodPins,
   onboarding,
   day,
   kiraDialogue,
+  camera,
   onAdvance,
 }: {
   reducedMotion: boolean
@@ -47,6 +53,7 @@ export function FirstMood({
   onboarding: OnboardingSlice | null | undefined
   day: DaySlice | null | undefined
   kiraDialogue: KiraDialogue | null | undefined
+  camera?: CameraLike | null
   onAdvance: () => void
 }) {
   const [visible, setVisible] = useState(reducedMotion)
@@ -73,6 +80,23 @@ export function FirstMood({
     const id = requestAnimationFrame(() => setVisible(true))
     return () => cancelAnimationFrame(id)
   }, [reducedMotion])
+
+  // Ease the camera back to a wide pose when the picker appears. The
+  // previous stage (FirstChat) had the camera in a close-up dolly anchored
+  // to Kira's perch; without this the picker would render over a still-
+  // zoomed scene. `restoreZoom` pops the FirstChat anchor and tweens home;
+  // if there's no saved anchor (e.g. reduced-motion path skipped the
+  // dolly), `resetToDefault` is the fallback.
+  useEffect(() => {
+    if (!camera) return
+    if (reducedMotion) {
+      camera.restoreZoom?.(0)
+      camera.resetToDefault?.(0)
+      return
+    }
+    camera.restoreZoom?.(700)
+    camera.resetToDefault?.(700)
+  }, [camera, reducedMotion])
 
   // Soft fallback — Kira says a patience line if the student stalls.
   useEffect(() => {

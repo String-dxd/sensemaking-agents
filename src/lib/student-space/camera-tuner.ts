@@ -74,12 +74,12 @@ export type PresetMap = {
  */
 export const DEFAULT_PRESETS: Readonly<PresetMap> = Object.freeze({
   'first-chat': {
-    distance: 6.2,
-    yawOffsetDeg: 0.7,
-    camYAboveLookAt: 1.35,
-    lookAtYAbovePerch: 0.4,
-    durationMs: 1400,
-    zoomLeadMs: 1300,
+    distance: 6.4,
+    yawOffsetDeg: 1.7,
+    camYAboveLookAt: 2.2,
+    lookAtYAbovePerch: 0.9,
+    durationMs: 1450,
+    zoomLeadMs: 1500,
   },
   bloom: {
     camYAboveLookAt: 1.9,
@@ -88,23 +88,23 @@ export const DEFAULT_PRESETS: Readonly<PresetMap> = Object.freeze({
     durationMs: 1100,
   },
   'tree-wide': {
-    camX: 3,
-    camY: 5.5,
-    camZ: 8,
-    lookAtY: 1.8,
-    durationMs: 1400,
+    camX: -15.6,
+    camY: 7.3,
+    camZ: 2.1,
+    lookAtY: 1.7,
+    durationMs: 900,
   },
   'closing-portrait': {
-    distance: 3.4,
-    yawOffsetDeg: 0,
-    camYAboveLookAt: 1.15, // was 0.55 → camera sits noticeably higher
-    lookAtYAbovePerch: 0.45,
-    durationMs: 1200,
+    distance: 6.2,
+    yawOffsetDeg: -6,
+    camYAboveLookAt: 2.45,
+    lookAtYAbovePerch: 0.6,
+    durationMs: 800,
   },
   'login-orbit': {
-    azimuthDegPerSec: 4,
-    distance: 18,
-    pitchDeg: 12,
+    azimuthDegPerSec: 1,
+    distance: 33.9,
+    pitchDeg: 35,
   },
 })
 
