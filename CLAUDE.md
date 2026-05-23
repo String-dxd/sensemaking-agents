@@ -81,7 +81,7 @@ Hidden during onboarding and on `/onboarding`. "Restart onboarding" lives inside
 
 **Design tokens** — `@theme` in `src/styles.css` is the canonical store: `--font-sans`, sheet tokens (`--color-sheet-*`, `--blur-sheet`, `--duration-sheet`, `--ease-sheet`), world frame tokens (`--inset-frame`, `--width-rail`, `--radius-frame`, `--color-frame-*`), VIPS facet palette (mirrors `src/lib/profile-tokens.ts`), Marcia identity-status palette, HUD ink, onboarding palette.
 
-`src/engine/student-space/style.css` now carries only engine substrate: `.game` frame geometry, FacetView and Three.js-adjacent half-sheet styling, legacy canvas support. New UI belongs in React + Tailwind — do not add per-surface DOM CSS there.
+`src/engine/student-space/style.css` now carries only engine substrate: `.game` frame geometry, Three.js-adjacent canvas styling, legacy substrate. The half-sheet facet card migrated to React (`FacetSheetCard` + `FacetSheetController` in `WorldInteractions.tsx`). New UI belongs in React + Tailwind — do not add per-surface DOM CSS there.
 
 ---
 

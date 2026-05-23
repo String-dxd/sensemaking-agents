@@ -6,6 +6,11 @@ declare module '~/engine/student-space/Game/Data/flowerMeanings.js' {
 
 declare module '~/engine/student-space/Game/Data/vipsTaxonomy.js' {
   export const VIPS_TAXONOMY: any[]
+  export const VIPS_BY_FACET: Record<string, any[]>
+  export const VIPS_BY_ID: Record<string, any>
+  export const FACET_IDS: string[]
+  export function claimLabel(id: string): string
+  export function isCanonicalClaim(id: string): boolean
 }
 
 declare module '~/engine/student-space/Game/View/facets.js' {

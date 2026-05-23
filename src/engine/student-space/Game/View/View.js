@@ -19,7 +19,6 @@ import Aurora from './Aurora.js'
 import Rainbow from './Rainbow.js'
 import Rain from './Rain.js'
 import Sound from './Sound.js'
-import FacetView from './FacetView.js'
 import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
@@ -94,7 +93,8 @@ export default class View
         this.overlayController = new OverlayController()
         // CaptureFab + CaptureChooser + AskSheet + MoodSheet moved to React
         // (U8–U10) — see `src/components/StudentSpaceHost.tsx`.
-        this.facetView   = new FacetView()
+        // FacetView migrated to React (FacetSheetCard + FacetSheetController in
+        // WorldInteractions.tsx). React assigns view.facetView there.
         // ProfileSheet migrated to React route at /profile (U7).
         // No engine registration needed — the route owns rendering.
         // ObjectPeek + HoverCta + HoverProbe lifecycle moved to React
@@ -200,9 +200,9 @@ export default class View
         // Renderer.dispose() — both bounded per remount.
         const SUBSYSTEMS = [
             // onboardingFlow is owned by React (EngineHost) and disposed there.
+            // facetView is owned by React (WorldInteractions.tsx) and disposed there.
             this.camera,
             this.sound,
-            this.facetView,
             this.mailbox,
             this.telescope,
             this.sprouts,
