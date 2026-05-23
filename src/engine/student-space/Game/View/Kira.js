@@ -616,7 +616,8 @@ export default class Kira
         }
 
         const narrating = this.view.kiraNarrator && this.view.kiraNarrator.isActive
-        if(narrating)
+        const captureFocus = !!this.view.captureFocus
+        if(narrating || captureFocus)
         {
             this.mode  = 'perched'
             this.modeT = 0

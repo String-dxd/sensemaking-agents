@@ -1,3 +1,5 @@
+import { useNavigate } from '@tanstack/react-router'
+import { Sparkles } from 'lucide-react'
 import { useState } from 'react'
 
 /**
@@ -235,7 +237,7 @@ export function DayDetailCard({
         </h3>
       </header>
       {isEmpty ? (
-        <p className="text-sm text-(--color-sheet-ink-soft)">Nothing logged on this day.</p>
+        <EmptyDay date={date} />
       ) : (
         <div className="space-y-5">
           {moods.length > 0 ? (
@@ -387,6 +389,42 @@ function CaptureActions({
       ) : null}
     </div>
   )
+}
+
+function EmptyDay({ date }: { date: string }) {
+  const navigate = useNavigate()
+  const today = ymd(new Date())
+  const isFuture = date > today
+  const isToday = date === today
+  const headline = isFuture
+    ? 'Nothing here yet — this day is still ahead.'
+    : isToday
+      ? 'Nothing logged today.'
+      : 'Nothing was logged this day.'
+  const hint = isFuture
+    ? 'Moods, reflections, and photos you capture on the island will show up on the day you make them.'
+    : 'When you capture a moment on the island, it lands here on the day it happened.'
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-(--color-sheet-ink)">{headline}</p>
+      <p className="max-w-[40ch] text-xs leading-5 text-(--color-sheet-ink-soft)">{hint}</p>
+      {!isFuture ? (
+        <button
+          type="button"
+          onClick={() => navigate({ to: '/' })}
+          className="inline-flex min-h-9 items-center gap-2 rounded-full bg-(--color-sheet-ink) px-4 text-xs font-semibold text-white transition-colors hover:bg-(--color-sheet-ink)/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-status-searching) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-sheet-pane-left)"
+        >
+          <Sparkles aria-hidden className="size-3.5" />
+          Capture on the island
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function eventDate(event: { entryDate?: string; date?: string }) {

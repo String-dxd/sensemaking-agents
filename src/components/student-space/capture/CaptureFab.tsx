@@ -1,3 +1,4 @@
+import { Button as BaseButton } from '@base-ui-components/react/button'
 import { Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EMOTION_BY_ID } from '~/lib/student-space/mood-shapes'
@@ -89,15 +90,15 @@ export function CaptureFab() {
   return (
     <>
       <div className="pointer-events-none fixed right-(--inset-frame) bottom-[calc(var(--inset-frame)+18px)] left-[calc(var(--width-rail)+var(--inset-frame))] z-40 flex justify-center">
-        <button
+        <BaseButton
           type="button"
           aria-label={captureOpen ? 'Close Capture' : 'Capture'}
           data-testid="capture-fab"
           onClick={() => (captureOpen ? overlay.closeCapture() : overlay.openCapture('ask'))}
           className={cn(
-            'pointer-events-auto inline-flex min-h-12 items-center gap-2 rounded-full border border-white/45 px-4',
+            'pointer-events-auto inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-full border border-white/45 px-4',
             'bg-white/86 text-[13px] font-semibold tracking-[0] text-[rgba(43,38,32,0.86)] shadow-[0_14px_36px_rgba(15,18,36,0.22)] backdrop-blur-md',
-            'transition-[transform,background,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white',
+            'transition-[transform,background,box-shadow] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white active:scale-[0.96]',
             'focus-visible:outline-[3px] focus-visible:outline-[rgba(255,138,92,0.7)] focus-visible:outline-offset-[3px]',
             captureOpen && 'bg-white',
           )}
@@ -109,7 +110,7 @@ export function CaptureFab() {
             <Plus aria-hidden className="size-5" />
           )}
           <span>Capture</span>
-        </button>
+        </BaseButton>
       </div>
       {particles.map((particle) => (
         <span

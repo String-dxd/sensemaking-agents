@@ -32,6 +32,8 @@ export interface DrawerContentProps extends ComponentProps<typeof BaseDialog.Pop
   closeLabel?: string
   showClose?: boolean
   fullBleed?: boolean
+  /** Render as a small floating popup near the bottom-center instead of a full-width bottom sheet. */
+  popup?: boolean
 }
 
 export function DrawerContent({
@@ -40,6 +42,7 @@ export function DrawerContent({
   closeLabel = 'Close',
   showClose = true,
   fullBleed = false,
+  popup = false,
   ...props
 }: DrawerContentProps) {
   return (
@@ -47,27 +50,32 @@ export function DrawerContent({
       <DrawerOverlay />
       <BaseDialog.Popup
         className={cn(
-          'fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[82vh] w-full max-w-5xl flex-col gap-3',
-          'rounded-t-[28px] border border-border bg-background p-5 shadow-2xl sm:p-6',
+          popup
+            ? 'fixed inset-x-[max(18px,8vw)] bottom-6 z-50 mx-auto flex max-h-[min(640px,calc(100vh-7rem))] max-w-xl flex-col gap-3 rounded-3xl border border-border bg-background p-5 shadow-2xl'
+            : 'fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[82vh] w-full max-w-5xl flex-col gap-3 rounded-t-[28px] border border-border bg-background p-5 shadow-2xl sm:p-6',
           fullBleed && 'gap-0 overflow-hidden p-0 sm:p-0',
-          'transition-transform duration-200 ease-out',
-          'data-[starting-style]:translate-y-full data-[ending-style]:translate-y-full',
+          'transition-transform transition-opacity duration-200 ease-out',
+          popup
+            ? 'data-[starting-style]:translate-y-4 data-[starting-style]:opacity-0 data-[ending-style]:translate-y-4 data-[ending-style]:opacity-0'
+            : 'data-[starting-style]:translate-y-full data-[ending-style]:translate-y-full',
           className,
         )}
         {...props}
       >
-        <div
-          className={cn(
-            'flex items-center justify-center',
-            fullBleed && 'pointer-events-none absolute inset-x-0 top-4 z-10',
-          )}
-        >
-          <span
-            aria-hidden
-            data-testid="drawer-grabber"
-            className="h-1.5 w-12 rounded-full bg-muted-foreground/30"
-          />
-        </div>
+        {popup ? null : (
+          <div
+            className={cn(
+              'flex items-center justify-center',
+              fullBleed && 'pointer-events-none absolute inset-x-0 top-4 z-10',
+            )}
+          >
+            <span
+              aria-hidden
+              data-testid="drawer-grabber"
+              className="h-1.5 w-12 rounded-full bg-muted-foreground/30"
+            />
+          </div>
+        )}
         {showClose ? (
           <BaseDialog.Close
             aria-label={closeLabel}
@@ -80,7 +88,9 @@ export function DrawerContent({
             <X aria-hidden className="size-4" />
           </BaseDialog.Close>
         ) : null}
-        <div className={cn('flex-1 overflow-y-auto pt-4', fullBleed && 'pt-0')}>{children}</div>
+        <div className={cn('flex-1 overflow-y-auto pt-4', fullBleed && 'pt-0', popup && 'pt-0')}>
+          {children}
+        </div>
       </BaseDialog.Popup>
     </DrawerPortal>
   )

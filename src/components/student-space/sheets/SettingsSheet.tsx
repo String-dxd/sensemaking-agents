@@ -8,7 +8,6 @@ import {
   TrackPicker,
 } from '~/components/student-space/hud/StudentSpaceHud'
 import {
-  PageCloseButton,
   PageSurface,
   SheetBody,
   SheetContent,
@@ -124,7 +123,6 @@ export function SettingsSheet() {
           </SettingsGroup>
         </SheetBody>
       </SheetContent>
-      <PageCloseButton onClick={dismissToHome} />
     </PageSurface>
   )
 }

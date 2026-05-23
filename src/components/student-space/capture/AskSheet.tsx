@@ -1,4 +1,4 @@
-import { Image as ImageIcon, Mic, Send, Smile } from 'lucide-react'
+import { Image as ImageIcon, Mic, Send, Smile, Type } from 'lucide-react'
 import {
   type ChangeEvent,
   type KeyboardEvent,
@@ -67,6 +67,22 @@ type AudioCapture = {
   stop?: () => Promise<Blob>
   abort?: () => void
   mimeType?: string
+}
+
+type Vec3Like = {
+  x: number
+  y: number
+  z: number
+  constructor: new (x: number, y: number, z: number) => Vec3Like
+}
+type CameraInstance = {
+  zoomTo?: (pos: Vec3Like, look: Vec3Like, duration?: number, opts?: { owner?: string }) => void
+  restoreZoom?: (duration?: number, opts?: { owner?: string }) => void
+}
+type KiraCameraView = {
+  camera?: CameraInstance & { instance?: { position?: Vec3Like } }
+  kira?: { group?: { position?: Vec3Like } }
+  captureFocus?: boolean
 }
 
 type GameWithAsk = {
@@ -289,6 +305,33 @@ export function AskSheet() {
       }, 140)
     }
   }, [capture, open, prefilledText, readOnly, setAudioCaptureHandle, setRealtimeCaptureHandle])
+
+  // Camera dolly toward Kira + freeze her wander while Capture is open.
+  // Mirrors KiraNarrator's framing (`perch + unit * 2.6m` along the current
+  // viewing axis) so Kira lands centered without yanking the user out of
+  // their orientation. Restores on close.
+  useEffect(() => {
+    if (!open) return
+    const view = (engine as unknown as { view?: KiraCameraView } | null)?.view
+    const camera = view?.camera
+    const kira = view?.kira?.group?.position
+    if (!camera?.zoomTo || !kira) return
+    const Vec = kira.constructor as new (x: number, y: number, z: number) => Vec3Like
+    const liveCam = camera.instance?.position
+    const dx = (liveCam?.x ?? kira.x) - kira.x
+    const dz = (liveCam?.z ?? kira.z + 1) - kira.z
+    const flat = Math.hypot(dx, dz) || 1
+    const unitX = dx / flat
+    const unitZ = dz / flat
+    const camPos: Vec3Like = new Vec(kira.x + unitX * 2.6, kira.y + 1.05, kira.z + unitZ * 2.6)
+    const camLook: Vec3Like = new Vec(kira.x, kira.y + 0.85, kira.z)
+    camera.zoomTo(camPos, camLook, 700, { owner: 'capture' })
+    if (view) view.captureFocus = true
+    return () => {
+      camera.restoreZoom?.(620, { owner: 'capture' })
+      if (view) view.captureFocus = false
+    }
+  }, [open, engine])
 
   function noteClosed() {
     engine?.view?.overlayController?.noteClosed?.('ask')
@@ -775,139 +818,245 @@ export function AskSheet() {
     node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
   }, [liveDialogue, stage])
 
+  const [typeMode, setTypeMode] = useState(false)
+
+  const companionName =
+    (
+      (
+        engine as unknown as {
+          state?: { profile?: { displayCompanionName?: () => string } }
+        } | null
+      )?.state?.profile?.displayCompanionName?.() || 'Kira'
+    ).trim() || 'Kira'
+
+  const stagePillLabel =
+    stage === 'compose'
+      ? companionName
+      : stage === 'recording'
+        ? 'Listening'
+        : stage === 'review'
+          ? 'What I heard'
+          : stage === 'reframe'
+            ? `${companionName}'s read`
+            : 'Talking'
+
   return (
     <Drawer open={open} onOpenChange={(next) => (!next ? onBack() : null)}>
       <DrawerContent
         closeLabel={readOnly || dismissOnBack ? 'Close' : 'Back'}
-        className="max-w-3xl bg-[#fffdf6] text-[rgba(43,38,32,0.92)]"
-        fullBleed
+        className="border-white/75 bg-[#fff7e8]/96 text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md"
+        popup
       >
         <DrawerTitle className="sr-only">Capture</DrawerTitle>
         <DrawerDescription className="sr-only">
-          Capture a reflection with text, voice, feeling, or image.
+          Capture a reflection with voice, feeling, or image.
         </DrawerDescription>
-        <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-5 py-8 sm:px-7">
-          <header className="mb-5 flex items-baseline justify-between">
-            <h1 className="m-0 text-lg font-semibold text-[rgba(43,38,32,0.92)]">Capture</h1>
-            {stage === 'compose' && !readOnly ? (
-              <span className="text-xs font-semibold text-[rgba(43,38,32,0.46)]">Only you</span>
-            ) : null}
-          </header>
+        <span
+          aria-hidden
+          className="absolute -top-3 left-6 rounded-full bg-[#ffd15f] px-3 py-1 text-xs font-extrabold text-[#402a10] shadow-[0_8px_18px_rgba(64,42,16,0.18)]"
+        >
+          {stagePillLabel}
+        </span>
+        <div className="flex w-full flex-col gap-4 px-1 pt-3 pb-1">
           {stage === 'compose' ? (
-            <section className="flex h-full flex-col gap-4">
-              <h2 className="m-0 text-2xl font-semibold">What's on your mind?</h2>
+            <section className="flex flex-col gap-4">
               {letter ? (
                 <button
                   type="button"
-                  className="w-fit rounded-full bg-[#f3eee2] px-3 py-1.5 text-xs font-semibold text-[rgba(43,38,32,0.72)]"
+                  className="w-fit rounded-full bg-[#f3eee2] px-3 py-1 text-[11px] font-semibold text-[rgba(43,38,32,0.72)]"
                 >
                   From {letter.from || 'your teacher'}
                   {letter.subject ? ` - ${letter.subject}` : ''}
                 </button>
               ) : null}
               {prompt ? <p className="m-0 text-sm text-[rgba(43,38,32,0.62)]">{prompt}</p> : null}
-              <div className="rounded-3xl border border-[rgba(43,38,32,0.10)] bg-white/78 p-3 shadow-sm">
-                {uploadedImageDataUrl ? (
-                  <div className="mb-3 overflow-hidden rounded-2xl border border-[rgba(43,38,32,0.08)]">
-                    <img
-                      src={uploadedImageDataUrl}
-                      alt=""
-                      className="max-h-52 w-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setUploadedImageDataUrl(null)}
-                      className="w-full bg-white/92 py-2 text-xs font-semibold text-[rgba(43,38,32,0.62)]"
-                    >
-                      Remove image
-                    </button>
-                  </div>
-                ) : null}
-                <textarea
-                  ref={textareaRef}
-                  rows={4}
-                  value={text}
-                  disabled={readOnly}
-                  placeholder="Type, tap the mic, pick a feeling, or drop a picture..."
-                  onChange={(event) => setText(event.target.value)}
-                  className="min-h-32 w-full resize-none border-0 bg-transparent p-2 text-base outline-none placeholder:text-[rgba(43,38,32,0.38)]"
-                />
-                <div className="flex flex-wrap items-center gap-2 border-t border-[rgba(43,38,32,0.08)] pt-3">
-                  <ToolButton label="Start voice recording" onClick={() => void startRecording()}>
-                    <Mic aria-hidden className="size-5" />
-                  </ToolButton>
-                  <ToolButton
-                    label="Pick a feeling"
-                    pressed={emojiOpen}
-                    onClick={() => setEmojiOpen((next) => !next)}
-                  >
-                    <Smile aria-hidden className="size-5" />
-                  </ToolButton>
-                  <ToolButton label="Upload image" onClick={() => fileInputRef.current?.click()}>
-                    <ImageIcon aria-hidden className="size-5" />
-                  </ToolButton>
-                  <input
-                    ref={fileInputRef}
-                    hidden
-                    type="file"
-                    accept="image/*"
-                    onChange={onImageChange}
-                  />
+              {uploadedImageDataUrl ? (
+                <div className="overflow-hidden rounded-2xl border border-[rgba(43,38,32,0.08)]">
+                  <img src={uploadedImageDataUrl} alt="" className="max-h-40 w-full object-cover" />
                   <button
                     type="button"
-                    aria-label="Send"
-                    disabled={!hasComposerInput}
-                    onClick={saveTyped}
-                    className="ml-auto grid size-10 place-items-center rounded-full bg-(--color-onb-accent) text-white transition-opacity disabled:cursor-not-allowed disabled:opacity-35"
+                    onClick={() => setUploadedImageDataUrl(null)}
+                    className="w-full bg-white/92 py-1.5 text-[11px] font-semibold text-[rgba(43,38,32,0.62)]"
                   >
-                    <Send aria-hidden className="size-4" />
+                    Remove image
                   </button>
                 </div>
-                {emojiOpen ? (
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {EMOTIONS.map((emotion) => (
+              ) : null}
+              {selectedMood ? (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMood(null)}
+                  className="inline-flex w-fit items-center gap-2 rounded-full bg-[#f3eee2] px-3 py-1 text-xs font-semibold text-[rgba(43,38,32,0.72)]"
+                >
+                  {EMOTION_BY_ID[selectedMood] ? (
+                    <img
+                      src={shapeDataUri(EMOTION_BY_ID[selectedMood] as EmotionEntry)}
+                      alt=""
+                      className="size-4"
+                    />
+                  ) : null}
+                  {EMOTION_BY_ID[selectedMood]?.label ?? selectedMood}
+                  <span aria-hidden className="text-[rgba(43,38,32,0.42)]">
+                    ×
+                  </span>
+                </button>
+              ) : null}
+              <div className="flex min-h-44 flex-col justify-center">
+                {!typeMode ? (
+                  <div className="flex flex-col items-center gap-3 py-2">
+                    <button
+                      type="button"
+                      aria-label="Start voice recording"
+                      onClick={() => void startRecording()}
+                      className="grid size-20 cursor-pointer place-items-center rounded-full bg-(--color-onb-accent) text-white shadow-[0_10px_24px_-12px_rgba(214,116,58,0.55)] transition-transform hover:scale-105 active:scale-95 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-(--color-onb-accent)/35"
+                    >
+                      <Mic aria-hidden className="size-8" />
+                    </button>
+                    <p className="text-xs font-medium text-[rgba(43,38,32,0.54)]">Tap to record</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-1 flex-col gap-3">
+                    <textarea
+                      ref={textareaRef}
+                      rows={3}
+                      value={text}
+                      disabled={readOnly}
+                      placeholder="Type your reflection…"
+                      onChange={(event) => setText(event.target.value)}
+                      className="min-h-24 w-full flex-1 resize-none border-0 bg-transparent px-1 py-2 text-base outline-none placeholder:text-[rgba(43,38,32,0.40)]"
+                    />
+                    <div className="flex justify-end">
                       <button
-                        key={emotion.id}
                         type="button"
-                        aria-pressed={selectedMood === emotion.id}
-                        onClick={() => {
-                          setSelectedMood(emotion.id)
-                          setEmojiOpen(false)
-                        }}
+                        aria-label="Send"
+                        disabled={!hasComposerInput}
+                        onClick={saveTyped}
+                        className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-full bg-(--color-onb-accent) px-3.5 text-xs font-semibold text-white transition-opacity hover:bg-(--color-onb-accent-deep) disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        <Send aria-hidden className="size-3.5" />
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="relative flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    aria-pressed={emojiOpen}
+                    onClick={() => setEmojiOpen((next) => !next)}
+                    className={cn(
+                      'inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[rgba(43,38,32,0.10)] bg-white/72 px-3 py-1.5 text-xs font-semibold text-[rgba(43,38,32,0.72)] hover:bg-white',
+                      emojiOpen && 'bg-white shadow-sm',
+                    )}
+                  >
+                    <Smile aria-hidden className="size-3.5" />
+                    Add feeling
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Upload image"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-[rgba(43,38,32,0.10)] bg-white/72 px-3 py-1.5 text-xs font-semibold text-[rgba(43,38,32,0.72)] hover:bg-white"
+                  >
+                    <ImageIcon aria-hidden className="size-3.5" />
+                    Photo
+                  </button>
+                </div>
+                <div
+                  role="tablist"
+                  aria-label="Capture mode"
+                  className="inline-flex items-center rounded-full bg-[rgba(43,38,32,0.06)] p-0.5"
+                >
+                  {(
+                    [
+                      { id: 'voice', label: 'Voice', icon: Mic },
+                      { id: 'text', label: 'Text', icon: Type },
+                    ] as const
+                  ).map((option) => {
+                    const isActive = (option.id === 'text') === typeMode
+                    const Icon = option.icon
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        aria-label={`Switch to ${option.label} mode`}
+                        onClick={() => setTypeMode(option.id === 'text')}
                         className={cn(
-                          'flex items-center gap-2 rounded-2xl border border-[rgba(43,38,32,0.08)] bg-white/72 p-2 text-xs font-semibold',
-                          selectedMood === emotion.id && 'border-(--color-onb-accent) bg-white',
+                          'inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-onb-accent)',
+                          isActive
+                            ? 'bg-white text-[rgba(43,38,32,0.92)] shadow-sm'
+                            : 'text-[rgba(43,38,32,0.54)] hover:text-[rgba(43,38,32,0.78)]',
                         )}
                       >
-                        <img src={shapeDataUri(emotion)} alt="" className="size-7" />
-                        {emotion.label}
+                        <Icon aria-hidden className="size-3.5" />
+                        {option.label}
                       </button>
-                    ))}
+                    )
+                  })}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  hidden
+                  type="file"
+                  accept="image/*"
+                  onChange={onImageChange}
+                />
+                {emojiOpen ? (
+                  <div
+                    role="dialog"
+                    aria-label="Pick a feeling"
+                    className="absolute bottom-[calc(100%+10px)] left-1/2 z-10 w-[min(360px,calc(100vw-4rem))] -translate-x-1/2 rounded-2xl border border-[rgba(43,38,32,0.10)] bg-white p-2 shadow-[0_18px_48px_rgba(43,38,32,0.18)]"
+                  >
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {EMOTIONS.map((emotion) => (
+                        <button
+                          key={emotion.id}
+                          type="button"
+                          aria-pressed={selectedMood === emotion.id}
+                          onClick={() => {
+                            setSelectedMood(emotion.id)
+                            setEmojiOpen(false)
+                          }}
+                          className={cn(
+                            'flex items-center gap-1.5 rounded-xl border border-transparent bg-[#fffdf6] p-1.5 text-[11px] font-semibold text-[rgba(43,38,32,0.78)] hover:border-[rgba(43,38,32,0.10)]',
+                            selectedMood === emotion.id &&
+                              'border-(--color-onb-accent) bg-white text-(--color-onb-accent)',
+                          )}
+                        >
+                          <img src={shapeDataUri(emotion)} alt="" className="size-5" />
+                          {emotion.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ) : null}
               </div>
-              {hint ? <p className="m-0 text-sm text-red-700">{hint}</p> : null}
+              {hint ? <p className="m-0 text-xs text-red-700">{hint}</p> : null}
             </section>
           ) : null}
 
           {stage === 'recording' ? (
-            <section className="flex h-full flex-col gap-4">
+            <section className="flex min-h-0 flex-col gap-3">
               <div className="flex items-center gap-2">
                 <span aria-hidden="true" className="relative inline-flex size-2.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/60" />
                   <span className="relative inline-flex size-2.5 rounded-full bg-red-500" />
                 </span>
                 <p className="m-0 text-xs font-bold uppercase tracking-[0.12em] text-red-600">
-                  Live with Kira
+                  Recording
                 </p>
               </div>
-              <h2 className="m-0 text-2xl font-semibold">I'm listening.</h2>
+              <h2 className="m-0 text-xl font-semibold">I'm listening.</h2>
               <p className="m-0 text-sm text-[rgba(43,38,32,0.62)]">
                 Speak naturally. Pause when you're done — I'll read it back.
               </p>
               <div
                 ref={liveDialogueRef}
-                className="min-h-0 flex-1 overflow-y-auto rounded-3xl bg-white/72 p-4"
+                className="min-h-0 max-h-[320px] overflow-y-auto rounded-2xl bg-white/72 p-4"
                 role="log"
                 aria-live="polite"
               >
@@ -942,7 +1091,7 @@ export function AskSheet() {
                       )}
                     >
                       <span className="block text-[11px] font-bold uppercase tracking-[0.08em] opacity-60">
-                        {message.role === 'kira' ? 'Mirror' : 'You'}
+                        {message.role === 'kira' ? 'Kira' : 'You'}
                       </span>
                       <p className="m-0">{message.text}</p>
                     </article>
@@ -993,14 +1142,9 @@ export function AskSheet() {
           ) : null}
 
           {stage === 'chat' ? (
-            <section className="flex h-full flex-col gap-4">
-              <header>
-                <span className="text-xs font-bold uppercase tracking-[0.12em] text-[rgba(43,38,32,0.48)]">
-                  Conversation
-                </span>
-              </header>
+            <section className="flex min-h-0 flex-col gap-3">
               <div
-                className="min-h-0 flex-1 overflow-y-auto rounded-3xl bg-white/72 p-4"
+                className="min-h-0 max-h-[360px] overflow-y-auto rounded-2xl bg-white/72 p-4"
                 role="log"
               >
                 {thread.map((message) => (
@@ -1014,7 +1158,7 @@ export function AskSheet() {
                     )}
                   >
                     <span className="block text-[11px] font-bold uppercase tracking-[0.08em] opacity-60">
-                      {message.role === 'kira' ? 'Mirror' : 'you'}
+                      {message.role === 'kira' ? 'Kira' : 'You'}
                     </span>
                     <p className="m-0 whitespace-pre-wrap">{message.text}</p>
                   </article>
@@ -1058,33 +1202,6 @@ export function AskSheet() {
   )
 }
 
-function ToolButton({
-  label,
-  pressed,
-  onClick,
-  children,
-}: {
-  label: string
-  pressed?: boolean
-  onClick: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        'grid size-10 place-items-center rounded-full text-[rgba(43,38,32,0.68)] hover:bg-black/5',
-        pressed && 'bg-(--color-onb-accent) text-white',
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
 function ReviewStage({
   readOnly,
   reviewText,
@@ -1105,11 +1222,8 @@ function ReviewStage({
   onReframe: () => void
 }) {
   return (
-    <section className="flex h-full flex-col gap-4">
-      <p className="m-0 text-xs font-bold uppercase tracking-[0.12em] text-[rgba(43,38,32,0.48)]">
-        Captured
-      </p>
-      <h2 className="m-0 text-2xl font-semibold">Here's what you said.</h2>
+    <section className="flex min-h-0 flex-col gap-4">
+      <h2 className="m-0 text-xl font-semibold">Here's what you said.</h2>
       <div className="rounded-3xl bg-white/72 p-4 text-base leading-7 text-[rgba(43,38,32,0.82)]">
         {reviewText || 'Audio recorded. Transcript will appear after Mirror listens.'}
       </div>
@@ -1134,7 +1248,7 @@ function ReviewStage({
               onClick={onReframe}
               className="min-h-12 rounded-full bg-[#f3eee2] px-5 text-sm font-semibold text-[rgba(43,38,32,0.82)]"
             >
-              See the reading
+              What I heard
             </button>
           ) : null}
           <div className="mt-auto flex justify-end gap-3">

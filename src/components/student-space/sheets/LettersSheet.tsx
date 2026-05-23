@@ -1,7 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  PageCloseButton,
   PageSurface,
   SheetBody,
   SheetContent,
@@ -167,7 +166,6 @@ export function LettersSheet() {
           </SheetBody>
         )}
       </SheetContent>
-      <PageCloseButton onClick={dismissToHome} />
     </PageSurface>
   )
 }

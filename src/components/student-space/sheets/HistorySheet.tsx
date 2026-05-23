@@ -1,14 +1,13 @@
 import { useLocation, useNavigate, useParams } from '@tanstack/react-router'
+import { Check, ChevronDown, RefreshCcw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  PageCloseButton,
   PageSurface,
   SheetBody,
   SheetContent,
   SheetDescription,
   SheetIdentityHeader,
   SheetNavButton,
-  SheetPageHeader,
   SheetSidebar,
   SheetSidenav,
   SheetTitle,
@@ -112,9 +111,7 @@ export function HistorySheet() {
       <SheetSidebar>
         <SheetIdentityHeader>
           <SheetTitle>History</SheetTitle>
-          <SheetDescription>
-            The trail of moments, moods, and bloomed claims behind you.
-          </SheetDescription>
+          <SheetDescription>Your moments, moods, and reflections over time.</SheetDescription>
         </SheetIdentityHeader>
         <SheetSidenav>
           <SheetNavButton active={activeTab === 'timeline'} onClick={() => setTab('timeline')}>
@@ -126,9 +123,6 @@ export function HistorySheet() {
         </SheetSidenav>
       </SheetSidebar>
       <SheetContent>
-        <SheetPageHeader>
-          <SheetTitle>{activeTab === 'timeline' ? 'Timeline' : 'Growth'}</SheetTitle>
-        </SheetPageHeader>
         <SheetBody>
           {activeTab === 'timeline' ? (
             <TimelinePane
@@ -145,7 +139,6 @@ export function HistorySheet() {
           )}
         </SheetBody>
       </SheetContent>
-      <PageCloseButton onClick={dismissToHome} />
     </PageSurface>
   )
 }
@@ -195,14 +188,136 @@ function TimelinePane({
     )
   }, [filter, hash, selectedDate, targetDate])
 
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <CalendarPane
-        engineState={engineState}
-        selectedDate={selectedDate}
-        onSelectDate={setSelectedDate}
+    <div className="space-y-6">
+      <PaneHeader
+        tag="Timeline"
+        titleNode={
+          <>
+            Your <ViewModeDropdown value={viewMode} onChange={setViewMode} />
+          </>
+        }
       />
-      <DayDetailCard date={selectedDate} engineState={engineState as never} />
+      <div className="flex flex-col gap-6">
+        <CalendarPane
+          engineState={engineState}
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
+        <DayDetailCard date={selectedDate} engineState={engineState as never} />
+      </div>
+    </div>
+  )
+}
+
+function ViewModeDropdown({
+  value,
+  onChange,
+}: {
+  value: 'week' | 'month'
+  onChange: (next: 'week' | 'month') => void
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLSpanElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current) return
+      if (!rootRef.current.contains(event.target as Node)) setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const options = [
+    { id: 'week' as const, label: 'week' },
+    { id: 'month' as const, label: 'month' },
+  ]
+
+  return (
+    <span ref={rootRef} className="relative inline-block align-baseline">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-transparent px-1.5 -mx-1.5 text-(--color-sheet-ink) hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        {options.find((o) => o.id === value)?.label}
+        <ChevronDown aria-hidden className="size-5 text-(--color-sheet-ink-soft)" />
+      </button>
+      {open ? (
+        <span
+          role="menu"
+          className="absolute left-0 top-[calc(100%+6px)] z-10 inline-block min-w-32 rounded-xl border border-(--color-sheet-divider) bg-white p-1 text-base font-medium text-(--color-sheet-ink) shadow-[0_18px_48px_rgba(43,38,32,0.14)]"
+        >
+          {options.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={value === option.id}
+              onClick={() => {
+                onChange(option.id)
+                setOpen(false)
+              }}
+              className={cn(
+                'flex w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm capitalize transition-colors hover:bg-black/5',
+                value === option.id && 'font-semibold',
+              )}
+            >
+              {option.label}
+              {value === option.id ? (
+                <Check aria-hidden className="size-3.5 text-(--color-status-searching)" />
+              ) : null}
+            </button>
+          ))}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+function PaneHeader({
+  tag,
+  title,
+  titleNode,
+  subtitle,
+  actions,
+}: {
+  tag: string
+  title?: string
+  titleNode?: React.ReactNode
+  subtitle?: string
+  actions?: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <span className="w-fit rounded-full bg-(--color-onb-bg-cream) px-2.5 py-1 text-xs font-semibold text-(--color-sheet-ink)">
+        {tag}
+      </span>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-2xl font-semibold leading-tight text-(--color-sheet-ink)">
+            {titleNode ?? title}
+          </h2>
+          {subtitle ? (
+            <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">{subtitle}</p>
+          ) : null}
+        </div>
+        {actions ? <div className="shrink-0">{actions}</div> : null}
+      </div>
     </div>
   )
 }
@@ -251,41 +366,69 @@ function entryIdFromHash(hash: string) {
 function GrowthPane({ engine }: { engine: unknown }) {
   type EngineYears = { state?: { sprouts?: { years?: () => number[] } } }
   const yearsFn = (engine as EngineYears | null)?.state?.sprouts?.years
-  const years = useMemo<number[]>(() => {
+  const now = new Date()
+  const year = useMemo<number>(() => {
     const fromEngine = yearsFn?.() ?? []
-    if (fromEngine.length > 0) return [...fromEngine].sort((a, b) => b - a)
-    const current = new Date().getFullYear()
-    return [current, current - 1, current - 2]
-  }, [yearsFn])
+    return fromEngine[0] ?? now.getFullYear()
+  }, [yearsFn, now])
 
-  const [selectedYear, setSelectedYear] = useState<number>(years[0] ?? new Date().getFullYear())
+  const currentTerm = currentTermFor(now)
+  const isCurrentYear = year === now.getFullYear()
+  const [selectedTerm, setSelectedTerm] = useState<number>(isCurrentYear ? currentTerm : 4)
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Years">
-        {years.map((year) => (
-          <button
-            key={year}
-            type="button"
-            role="tab"
-            aria-selected={year === selectedYear}
-            onClick={() => setSelectedYear(year)}
-            data-active={year === selectedYear || undefined}
-            className={cn(
-              'inline-flex cursor-pointer items-center rounded-full border px-3 py-1.5 text-sm font-semibold tabular-nums transition-colors',
-              year === selectedYear
-                ? 'border-(--color-status-searching) bg-(--color-status-searching) text-white'
-                : 'border-(--color-sheet-divider) text-(--color-sheet-ink) hover:bg-black/5',
-            )}
-          >
-            {year}
-          </button>
-        ))}
+      <PaneHeader
+        tag="Growth"
+        title="The shape of your reflections over time"
+        subtitle="Term by term, how your island has grown."
+      />
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="School terms">
+        {[1, 2, 3, 4].map((term) => {
+          const isFuture = isCurrentYear && term > currentTerm
+          const isSelected = term === selectedTerm
+          return (
+            <button
+              key={term}
+              type="button"
+              role="tab"
+              aria-selected={isSelected}
+              aria-disabled={isFuture || undefined}
+              disabled={isFuture}
+              onClick={() => setSelectedTerm(term)}
+              data-active={isSelected || undefined}
+              className={cn(
+                'inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold tabular-nums transition-colors',
+                isSelected
+                  ? 'cursor-pointer border-(--color-sheet-ink) bg-(--color-sheet-ink) text-white'
+                  : 'border-(--color-sheet-divider) text-(--color-sheet-ink) hover:bg-black/5',
+                !isSelected && 'cursor-pointer',
+                isFuture && 'cursor-not-allowed opacity-40 hover:bg-transparent',
+              )}
+            >
+              Term {term} · {year}
+            </button>
+          )
+        })}
       </div>
-      <GrowthYearSummary year={selectedYear} />
-      <GrowthIslandPreview year={selectedYear} engine={engine} />
+      <GrowthYearSummary year={year} term={selectedTerm} />
+      <GrowthIslandPreview year={year} engine={engine} />
     </div>
   )
+}
+
+function currentTermFor(date: Date): number {
+  // Singapore academic terms (calendar year):
+  // T1 Jan–Mar, T2 Apr–Jun, T3 Jul–Aug, T4 Sep–Nov.
+  const month = date.getMonth()
+  return month <= 2 ? 1 : month <= 5 ? 2 : month <= 7 ? 3 : 4
+}
+
+function termLabelForYear(year: number, now: Date): string {
+  const currentYear = now.getFullYear()
+  if (year < currentYear) return `Term 4 · ${year}`
+  if (year > currentYear) return `Term 1 · ${year}`
+  return `Term ${currentTermFor(now)} · ${year}`
 }
 
 interface GrowthSummary {
@@ -297,12 +440,14 @@ interface GrowthSummary {
   narrative?: string
 }
 
-function GrowthYearSummary({ year }: { year: number }) {
+function GrowthYearSummary({ year, term }: { year: number; term?: number }) {
   const [summary, setSummary] = useState<GrowthSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
+    void attempt // Retry signal: bumping `attempt` re-runs this effect.
     let cancelled = false
     setLoading(true)
     setError(false)
@@ -321,13 +466,35 @@ function GrowthYearSummary({ year }: { year: number }) {
     return () => {
       cancelled = true
     }
-  }, [year])
+  }, [year, attempt])
 
+  const termLabel = term ? `Term ${term} · ${year}` : termLabelForYear(year, new Date())
   if (loading) {
-    return <p className="text-sm text-(--color-sheet-ink-soft)">Loading {year}…</p>
+    return <p className="text-sm text-(--color-sheet-ink-soft)">Loading {termLabel}…</p>
   }
-  if (error || !summary) {
-    return <p className="text-sm text-(--color-sheet-ink-soft)">Could not load this year yet.</p>
+  if (error) {
+    return (
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) px-4 py-3">
+        <p className="text-sm text-(--color-sheet-ink-soft)">
+          Couldn't load the {termLabel} summary.
+        </p>
+        <button
+          type="button"
+          onClick={() => setAttempt((n) => n + 1)}
+          className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-(--color-sheet-divider) bg-white/80 px-3 text-xs font-semibold text-(--color-sheet-ink) hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-status-searching)"
+        >
+          <RefreshCcw aria-hidden className="size-3.5" />
+          Try again
+        </button>
+      </div>
+    )
+  }
+  if (!summary) {
+    return (
+      <p className="text-sm text-(--color-sheet-ink-soft)">
+        No reflections in {termLabel} yet — captures from the island will show up as they bloom.
+      </p>
+    )
   }
 
   return (
