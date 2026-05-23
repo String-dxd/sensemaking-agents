@@ -2,7 +2,7 @@
 // `Kira.js`; React surfaces only need the species catalog typed (egg
 // onboarding palette, etc.), so the full Kira class stays untyped.
 
-export type KiraSpeciesId = 'flame' | 'ember' | 'regent' | 'emerald' | 'satin' | 'twilight' | 'lilac'
+export type KiraSpeciesId = 'flame' | 'masked' | 'regent' | 'emerald' | 'satin' | 'twilight' | 'lilac'
 
 export type KiraSpeciesPalette = {
   back: string
