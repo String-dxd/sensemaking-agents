@@ -1927,14 +1927,14 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
       {state.thumbUrl ? (
         <span
           aria-hidden
-          className="size-10 shrink-0 self-start rounded-full bg-white/60 bg-cover bg-center ring-1 ring-black/15"
+          className="size-10 shrink-0 self-center rounded-full bg-white/60 bg-cover bg-center ring-1 ring-black/15"
           style={{ backgroundImage: `url(${state.thumbUrl})` }}
         />
       ) : null}
       <div className="min-w-0 flex-1">
         {state.badge ? (
           <span
-            className="inline-flex items-center rounded-full px-1.5 py-px text-[9.5px] leading-none font-semibold text-[var(--cta-ink,#7b3a20)]"
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] leading-none font-semibold text-[var(--cta-ink,#7b3a20)]"
             style={{
               background: `color-mix(in srgb, var(--cta-soft, #fde0e0) 70%, #fff)`,
             }}
