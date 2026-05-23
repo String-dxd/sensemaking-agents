@@ -70,7 +70,7 @@ export const ONBOARDING_COPY: Readonly<{
 export const OFFLINE_DEMO_STUDENTS: ReadonlyArray<{ name: string; className: string }>
 
 export const EGG_COLORS: ReadonlyArray<{
-  id: 'flame' | 'ember' | 'regent' | 'emerald' | 'satin' | 'twilight'
+  id: 'flame' | 'masked' | 'regent' | 'emerald' | 'satin' | 'twilight'
   hex: string
   name: string
 }>

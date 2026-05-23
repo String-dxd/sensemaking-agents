@@ -36,7 +36,7 @@ const ZOOM_STEP_OUT = 1 / ZOOM_STEP_IN
 
 const SPECIES = [
   { id: 'flame', displayName: 'Flame Bower', accent: '#ffb347' },
-  { id: 'ember', displayName: 'Ember Bower', accent: '#ffd07a' },
+  { id: 'masked', displayName: 'Masked Bower', accent: '#ff8c42' },
   { id: 'regent', displayName: 'Regent Bower', accent: '#f4a261' },
   { id: 'emerald', displayName: 'Emerald Bower', accent: '#f4e07a' },
   { id: 'satin', displayName: 'Satin Bower', accent: '#5fb8ff' },
