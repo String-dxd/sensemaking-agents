@@ -1920,31 +1920,35 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
         } as CSSProperties
       }
       className={cn(
-        'pointer-events-none fixed z-[26] w-[236px] rounded-[18px] border border-white/72 bg-white/90 p-3 font-sans text-[#2b2620] shadow-[0_14px_34px_rgba(34,26,18,0.18)] backdrop-blur-md transition duration-160',
+        'pointer-events-none fixed z-[26] flex w-[256px] items-center gap-3 rounded-[18px] bg-white/92 px-3.5 py-2.5 font-sans text-[#2b2620] shadow-[0_14px_34px_rgba(34,26,18,0.18)] backdrop-blur-md transition duration-160',
         state.open ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
       )}
     >
-      <header className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[10px] font-extrabold tracking-[0.14em] text-[#66584a] uppercase">
-          {state.eyebrow}
-        </span>
-        {state.badge ? (
-          <span className="rounded-full bg-[var(--cta-soft,rgba(255,138,92,0.16))] px-2 py-0.5 text-[10px] font-extrabold text-[var(--cta-ink,#7b3a20)]">
-            {state.badge}
-          </span>
+      {state.thumbUrl ? (
+        <span
+          aria-hidden
+          className="size-10 shrink-0 rounded-full bg-cover bg-center ring-1 ring-black/5"
+          style={{ backgroundImage: `url(${state.thumbUrl})` }}
+        />
+      ) : null}
+      <div className="min-w-0 flex-1">
+        <p className="m-0 truncate text-[15px] leading-tight font-semibold tracking-[-0.005em]">
+          {state.title}
+          {state.badge ? (
+            <>
+              <span aria-hidden className="mx-1.5 font-normal text-[#7a6e5e]/45">
+                ·
+              </span>
+              <span className="font-medium text-[var(--cta-ink,#7b3a20)]">{state.badge}</span>
+            </>
+          ) : null}
+        </p>
+        {state.line ? (
+          <p className="m-0 mt-0.5 truncate text-[12.5px] leading-[1.35] text-[#5e5145]">
+            {state.line}
+          </p>
         ) : null}
-      </header>
-      <div className="flex items-center gap-2">
-        {state.thumbUrl ? (
-          <span
-            aria-hidden
-            className="size-11 shrink-0 rounded-full border border-white/80 bg-cover bg-center shadow-inner"
-            style={{ backgroundImage: `url(${state.thumbUrl})` }}
-          />
-        ) : null}
-        <span className="text-sm font-extrabold">{state.title}</span>
       </div>
-      <p className="mt-2 mb-0 text-xs leading-[1.45] text-[#5e5145]">{state.line}</p>
     </div>
   )
 }
