@@ -1,6 +1,7 @@
 import { Dialog as BaseDialog } from '@base-ui-components/react/dialog'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { CAMERA_TUNER_OPEN_EVENT } from '~/components/student-space/onboarding/CameraTuneHud'
 import { Dialog, DialogOverlay, DialogPortal } from '~/components/ui/dialog'
 import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
 import { signOutEngine } from '~/lib/sign-out-engine'
@@ -37,6 +38,7 @@ export function DevPalette() {
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
   const [worldControlsVisible, setWorldControlsVisible] = useState(false)
+  const [isOnboarding, setIsOnboarding] = useState(false)
 
   const setVisibility = useCallback((next: boolean) => {
     setWorldControlsVisible(next)
@@ -54,6 +56,18 @@ export function DevPalette() {
       setOpen(false)
       void navigate({ to: path })
     }
+    const cameraTuner: Command | null =
+      import.meta.env.DEV && isOnboarding
+        ? {
+            id: 'camera-tuner',
+            label: 'Show camera tuner',
+            hint: 'onboarding only',
+            run: () => {
+              setOpen(false)
+              window.dispatchEvent(new Event(CAMERA_TUNER_OPEN_EVENT))
+            },
+          }
+        : null
     return [
       { id: 'ui', label: 'Switch to UI mode', hint: '/', run: go('/') },
       {
@@ -71,6 +85,7 @@ export function DevPalette() {
           setVisibility(!worldControlsVisible)
         },
       },
+      ...(cameraTuner ? [cameraTuner] : []),
       {
         id: 'restart-onboarding',
         label: 'Restart onboarding',
@@ -113,7 +128,7 @@ export function DevPalette() {
         },
       },
     ]
-  }, [navigate, worldControlsVisible, setVisibility])
+  }, [navigate, worldControlsVisible, setVisibility, isOnboarding])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -144,6 +159,7 @@ export function DevPalette() {
     if (!open) return
     setQuery('')
     setActiveIndex(0)
+    setIsOnboarding(document.body.classList.contains('is-onboarding'))
   }, [open])
 
   function handleInputKey(e: React.KeyboardEvent<HTMLInputElement>) {
