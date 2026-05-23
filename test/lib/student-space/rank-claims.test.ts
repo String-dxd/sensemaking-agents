@@ -19,11 +19,7 @@ describe('rankClaims', () => {
   })
 
   it('picks the highest-count claim as mostCommon and an unseen claim as quietlyEmerging', () => {
-    const claims = [
-      claim('a', 'Alpha'),
-      claim('b', 'Beta'),
-      claim('c', 'Gamma'),
-    ]
+    const claims = [claim('a', 'Alpha'), claim('b', 'Beta'), claim('c', 'Gamma')]
     const ranked = rankClaims(claims, { a: 3, b: 0, c: 1 })
     expect(ranked.mostCommon?.id).toBe('a')
     // 'b' is the first unseen (count === 0) in sorted order.
