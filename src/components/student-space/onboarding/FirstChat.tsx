@@ -114,6 +114,7 @@ export function FirstChat({
   const [visible, setVisible] = useState(reducedMotion)
   const [chipsVisible, setChipsVisible] = useState(false)
   const [speaking, setSpeaking] = useState(false)
+  const [explainerSeen, setExplainerSeen] = useState(false)
   const zoomedRef = useRef(false)
   const primaryRef = useRef<HTMLButtonElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -272,10 +273,20 @@ export function FirstChat({
     if (speaking) return
     setSpeaking(true)
     setChipsVisible(false)
-    kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.firstChatChatMore)
     const abort = abortRef.current
-    await wait(reducedMotion ? 80 : CHAT_MORE_MS, abort?.signal ?? new AbortController().signal)
-    if (abort?.signal.aborted) return
+    const signal = abort?.signal ?? new AbortController().signal
+    // First tap plays the three-beat explainer so the student sees the
+    // share → sprout → bloom mechanic before tagging anything. Repeat
+    // taps fall back to the shorter "I'm listening" beat.
+    const beats = explainerSeen
+      ? [ONBOARDING_COPY.kira.firstChatChatMore]
+      : ONBOARDING_COPY.kira.firstChatExplainer
+    for (const line of beats) {
+      kiraDialogue?.sayOnboarding?.(line)
+      await wait(reducedMotion ? 80 : CHAT_MORE_MS, signal)
+      if (signal.aborted) return
+    }
+    if (!explainerSeen) setExplainerSeen(true)
     kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.firstChatChatPrompt)
     setSpeaking(false)
     setChipsVisible(true)
@@ -319,7 +330,7 @@ export function FirstChat({
           type="button"
           onClick={() => void chatMore()}
           className={cn(
-            'min-h-11 rounded-full border-[1.5px] border-[rgba(43,38,32,0.10)]',
+            'relative min-h-11 rounded-full border-[1.5px] border-[rgba(43,38,32,0.10)]',
             'bg-white/90 px-5 py-3 text-[15px] font-medium text-(--color-onb-ink)',
             'shadow-[0_6px_18px_rgba(15,18,36,0.22)] cursor-pointer',
             'transition-[transform,background,box-shadow] duration-150 ease-out hover:-translate-y-px hover:bg-white',
@@ -327,6 +338,16 @@ export function FirstChat({
           )}
         >
           {ONBOARDING_COPY.firstChatActions.chatMore}
+          {!explainerSeen && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                'absolute -top-1 -right-1 h-2 w-2 rounded-full',
+                'bg-(--color-onb-accent) ring-2 ring-white',
+                'motion-safe:animate-pulse',
+              )}
+            />
+          )}
         </button>
         <button
           ref={primaryRef}
