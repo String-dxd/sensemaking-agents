@@ -1932,23 +1932,23 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
         />
       ) : null}
       <div className="min-w-0">
-        {state.badge ? (
+        {state.title ? (
           <span
             className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] leading-tight font-semibold text-[var(--cta-ink,#7b3a20)]"
             style={{
               background: `color-mix(in srgb, var(--cta-soft, #fde0e0) 70%, #fff)`,
             }}
           >
-            {state.badge}
+            {state.title}
           </span>
         ) : null}
         <p
           className={cn(
             'm-0 text-[15px] leading-tight font-semibold tracking-[-0.005em] text-balance',
-            state.badge ? 'mt-1.5' : null,
+            state.title ? 'mt-1.5' : null,
           )}
         >
-          {state.title}
+          {state.badge}
         </p>
         {state.line ? (
           <p className="m-0 mt-1 text-[12.5px] leading-[1.35] text-pretty text-[#5e5145]">
