@@ -1942,7 +1942,7 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
         ) : null}
         {state.title ? (
           <span
-            className="mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] leading-tight font-semibold text-[var(--cta-ink,#7b3a20)]"
+            className="mt-1.5 -ml-0.5 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] leading-tight font-semibold text-[var(--cta-ink,#7b3a20)]"
             style={{
               background: `color-mix(in srgb, var(--cta-soft, #fde0e0) 70%, #fff)`,
             }}
