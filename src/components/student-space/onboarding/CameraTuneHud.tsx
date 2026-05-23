@@ -1,4 +1,4 @@
-import { Copy, RotateCcw } from 'lucide-react'
+import { Copy, RotateCcw, X } from 'lucide-react'
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { Vector3 } from 'three'
 import {
@@ -15,11 +15,14 @@ import { cn } from '~/lib/utils'
 /**
  * Dev HUD for tuning onboarding camera framings.
  *
- * Cmd+K (Ctrl+K on non-Mac) toggles visibility. A scene selector picks the
- * preset to edit; "Preview" re-issues the camera move against the live
- * engine; "Copy" puts the current values on the clipboard as a JS object
- * literal so they can be pasted back into `camera-tuner.ts`.
+ * Opened from the ⌘K dev palette ("Camera tuner" command, only listed during
+ * onboarding). A scene selector picks the preset to edit; "Preview" re-issues
+ * the camera move against the live engine; "Copy" puts the current values on
+ * the clipboard as a JS object literal so they can be pasted back into
+ * `camera-tuner.ts`.
  */
+
+export const CAMERA_TUNER_OPEN_EVENT = 'student-space:open-camera-tuner'
 
 type Kira = {
   perchX?: number
@@ -112,18 +115,22 @@ export function CameraTuneHud({ targets }: { targets: CameraTuneTargets | null |
   const presets = useCameraPresets()
 
   useEffect(() => {
+    const onOpen = () => setOpen(true)
+    window.addEventListener(CAMERA_TUNER_OPEN_EVENT, onOpen)
+    return () => window.removeEventListener(CAMERA_TUNER_OPEN_EVENT, onOpen)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
     const onKey = (e: KeyboardEvent) => {
-      const isToggle = (e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')
-      if (!isToggle) return
-      // Only swallow when nothing in the page wants the chord (e.g. a text
-      // input). The onboarding overlay has no text fields so this is safe in
-      // practice; the guard keeps us polite if that changes.
-      e.preventDefault()
-      setOpen((v) => !v)
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setOpen(false)
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [open])
 
   useEffect(() => {
     if (!toast) return
@@ -238,20 +245,7 @@ export function CameraTuneHud({ targets }: { targets: CameraTuneTargets | null |
     }
   }, [snippet])
 
-  if (!open) {
-    return (
-      <div
-        aria-hidden="true"
-        className={cn(
-          'fixed top-3 right-3 z-[60] pointer-events-none select-none',
-          'rounded-full bg-black/35 px-2.5 py-1 text-[11px] font-medium text-white/85',
-          'shadow-[0_2px_10px_rgba(0,0,0,0.25)] backdrop-blur-sm',
-        )}
-      >
-        ⌘K — camera tuner
-      </div>
-    )
-  }
+  if (!open) return null
 
   return (
     <div
@@ -277,7 +271,17 @@ export function CameraTuneHud({ targets }: { targets: CameraTuneTargets | null |
             </span>
           ) : null}
         </div>
-        <kbd className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-white/70">⌘K</kbd>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          aria-label="Close camera tuner"
+          className={cn(
+            'inline-flex h-5 w-5 items-center justify-center rounded text-white/65 hover:bg-white/10 hover:text-white',
+            'focus:outline-none focus:ring-1 focus:ring-white/40',
+          )}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       <label className="flex flex-col gap-1">

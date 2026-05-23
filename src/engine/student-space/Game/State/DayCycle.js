@@ -6,20 +6,20 @@ import Debug from '../Debug/Debug.js'
 // adjacent keys. Each key holds sky gradient stops, sun/ambient/hemi
 // intensities + colours, and a seaShift used by future water/grass tints.
 const DAY_KEYS = [
-    { h: 0,    skyTop:[2,8,24],     skyBottom:[90,52,200],  sunInt:0.0,  sunColor:[40,80,170],   ambInt:0.20, ambColor:[112,136,187],hemiInt:0.42, hemiTop:[40,60,128],  hemiBot:[16,32,44],   seaShift:-0.55 },
-    { h: 5,    skyTop:[14,10,42],   skyBottom:[224,120,40], sunInt:0.35, sunColor:[255,170,64],  ambInt:0.26, ambColor:[255,216,160],hemiInt:0.50, hemiTop:[255,153,68], hemiBot:[85,68,34],   seaShift:-0.30 },
-    { h: 6.5,  skyTop:[30,92,144],  skyBottom:[242,236,168],sunInt:0.90, sunColor:[255,240,208], ambInt:0.42, ambColor:[255,250,230],hemiInt:0.85, hemiTop:[128,204,221],hemiBot:[102,170,68],  seaShift:0.0 },
-    { h: 9,    skyTop:[30,92,144],  skyBottom:[242,236,168],sunInt:1.15, sunColor:[255,240,208], ambInt:0.58, ambColor:[255,255,255],hemiInt:1.00, hemiTop:[128,204,221],hemiBot:[102,170,68],  seaShift:0.08 },
-    { h: 12,   skyTop:[26,74,130],  skyBottom:[255,240,80], sunInt:1.30, sunColor:[255,240,208], ambInt:0.64, ambColor:[255,255,255],hemiInt:1.05, hemiTop:[128,204,221],hemiBot:[102,170,68],  seaShift:0.1  },
-    { h: 15,   skyTop:[42,140,180], skyBottom:[224,240,208],sunInt:1.05, sunColor:[255,240,208], ambInt:0.52, ambColor:[255,244,220],hemiInt:0.92, hemiTop:[128,204,221],hemiBot:[102,170,68],  seaShift:0.05 },
+    { h: 0,    skyTop:[14,8,46],    skyBottom:[112,56,206], sunInt:0.0,  sunColor:[126,90,198],  ambInt:0.22, ambColor:[156,128,206],hemiInt:0.44, hemiTop:[78,56,156],  hemiBot:[28,20,58],   seaShift:-0.55 },
+    { h: 5,    skyTop:[34,18,70],   skyBottom:[224,120,72], sunInt:0.35, sunColor:[255,170,96],  ambInt:0.28, ambColor:[255,206,168],hemiInt:0.52, hemiTop:[210,128,116],hemiBot:[88,62,52],   seaShift:-0.30 },
+    { h: 6.5,  skyTop:[44,108,156], skyBottom:[248,224,176],sunInt:0.62, sunColor:[255,218,178], ambInt:0.36, ambColor:[252,232,210],hemiInt:0.72, hemiTop:[148,210,224],hemiBot:[112,176,80],  seaShift:0.0 },
+    { h: 9,    skyTop:[58,128,176], skyBottom:[252,228,184],sunInt:0.70, sunColor:[255,220,180], ambInt:0.42, ambColor:[252,232,210],hemiInt:0.76, hemiTop:[156,214,228],hemiBot:[112,176,80],  seaShift:0.08 },
+    { h: 12,   skyTop:[62,134,182], skyBottom:[255,228,170],sunInt:0.78, sunColor:[255,222,184], ambInt:0.46, ambColor:[252,232,210],hemiInt:0.80, hemiTop:[156,214,228],hemiBot:[112,176,80],  seaShift:0.1  },
+    { h: 15,   skyTop:[58,142,186], skyBottom:[232,232,200],sunInt:0.72, sunColor:[255,218,178], ambInt:0.42, ambColor:[252,230,206],hemiInt:0.74, hemiTop:[152,212,226],hemiBot:[110,174,76],  seaShift:0.05 },
     { h: 17.5, skyTop:[74,32,120],  skyBottom:[240,160,48], sunInt:0.80, sunColor:[255,170,64],  ambInt:0.36, ambColor:[255,216,160],hemiInt:0.68, hemiTop:[255,153,68], hemiBot:[85,68,34],   seaShift:-0.05 },
     // v0.3 twilight signature keyframes — hero look (aurora ribbon forced on in [18, 19.5] in legacy).
     { h: 18.2, skyTop:[26,16,80],   skyBottom:[248,200,88], sunInt:0.65, sunColor:[255,170,64],  ambInt:0.34, ambColor:[255,216,160],hemiInt:0.62, hemiTop:[255,153,68], hemiBot:[85,68,34],   seaShift:-0.12 },
     { h: 18.7, skyTop:[26,16,80],   skyBottom:[224,120,40], sunInt:0.55, sunColor:[255,170,64],  ambInt:0.30, ambColor:[255,216,160],hemiInt:0.58, hemiTop:[255,153,68], hemiBot:[85,68,34],   seaShift:-0.18 },
     { h: 19,   skyTop:[14,10,42],   skyBottom:[252,224,160],sunInt:0.42, sunColor:[255,170,64],  ambInt:0.28, ambColor:[255,216,160],hemiInt:0.54, hemiTop:[255,153,68], hemiBot:[85,68,34],   seaShift:-0.22 },
-    { h: 20.5, skyTop:[12,24,52],   skyBottom:[68,40,160],  sunInt:0.16, sunColor:[40,80,170],   ambInt:0.24, ambColor:[112,136,187],hemiInt:0.46, hemiTop:[40,60,128],  hemiBot:[16,32,44],   seaShift:-0.40 },
-    { h: 22,   skyTop:[5,15,34],    skyBottom:[50,28,112],  sunInt:0.06, sunColor:[40,80,170],   ambInt:0.22, ambColor:[112,136,187],hemiInt:0.44, hemiTop:[40,60,128],  hemiBot:[16,32,44],   seaShift:-0.50 },
-    { h: 24,   skyTop:[2,8,24],     skyBottom:[90,52,200],  sunInt:0.0,  sunColor:[40,80,170],   ambInt:0.20, ambColor:[112,136,187],hemiInt:0.42, hemiTop:[40,60,128],  hemiBot:[16,32,44],   seaShift:-0.55 },
+    { h: 20.5, skyTop:[24,18,68],   skyBottom:[92,52,180],  sunInt:0.16, sunColor:[120,86,192],  ambInt:0.26, ambColor:[156,128,206],hemiInt:0.46, hemiTop:[78,56,156],  hemiBot:[28,20,58],   seaShift:-0.40 },
+    { h: 22,   skyTop:[18,12,54],   skyBottom:[82,42,160],  sunInt:0.06, sunColor:[122,88,196],  ambInt:0.24, ambColor:[156,128,206],hemiInt:0.44, hemiTop:[78,56,156],  hemiBot:[28,20,58],   seaShift:-0.50 },
+    { h: 24,   skyTop:[14,8,46],    skyBottom:[112,56,206], sunInt:0.0,  sunColor:[126,90,198],  ambInt:0.22, ambColor:[156,128,206],hemiInt:0.44, hemiTop:[78,56,156],  hemiBot:[28,20,58],   seaShift:-0.55 },
 ]
 
 const lerp = (a, b, t) => a + (b - a) * t

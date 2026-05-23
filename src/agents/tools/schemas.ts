@@ -165,9 +165,9 @@ export type VipsContextType = z.infer<typeof VipsContextTypeSchema>
 
 /**
  * Inside-Out-flavored closed emotion enum. The UI imports the 9 labels from
- * here so EmotionPicker, EmotionChip, and PostMirrorReview render share one
- * source of truth. User-selected moods persist as `mood:*` mirror-entry tags;
- * Mirror's model-inferred emotion remains a review-surface field.
+ * here so PostMirrorReview and any future mood surfaces share one source of
+ * truth. User-selected moods persist as `mood:*` mirror-entry tags; Mirror's
+ * model-inferred emotion remains a review-surface field.
  */
 export const MoodSchema = z.enum([
   'joy',

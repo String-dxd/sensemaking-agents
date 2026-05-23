@@ -17,12 +17,13 @@ import {
   Waves,
 } from 'lucide-react'
 import type { CSSProperties } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ChoicesPageView } from '~/components/ChoicesPageView'
 import { RelationshipsPageView } from '~/components/RelationshipsPageView'
 import { Button } from '~/components/ui/button'
 import {
-  Sheet,
+  PageCloseButton,
+  PageSurface,
   SheetBody,
   SheetContent,
   SheetDescription,
@@ -30,8 +31,8 @@ import {
   SheetNavButton,
   SheetPageHeader,
   SheetSidebar,
-  SheetSurface,
   SheetTitle,
+  usePageEscape,
 } from '~/components/ui/sheet'
 import { VIPS_TAXONOMY, type VipsDimension } from '~/data/vips-taxonomy'
 import ShareTokenBridge from '~/engine/student-space/Game/State/ShareTokenBridge.js'
@@ -218,88 +219,79 @@ export function ProfileSheet() {
 
   const themeStyle = themeVars(activeTab)
 
+  const dismissToHome = useCallback(() => navigate({ to: '/' }), [navigate])
+  usePageEscape(dismissToHome)
+
   return (
-    <Sheet
-      open
-      modal={false}
-      onOpenChange={(next) => {
-        if (next === false) navigate({ to: '/' })
-      }}
-    >
-      <SheetSurface className="isolate" style={themeStyle}>
-        <SheetSidebar>
-          <SheetIdentityHeader>
-            <SheetTitle>Profile</SheetTitle>
-            <SheetDescription>
-              The shape of your reflections so far across values, interests, personality, and
-              skills.
-            </SheetDescription>
-          </SheetIdentityHeader>
-          <div
-            className="flex flex-col gap-1 px-4 pb-6"
-            role="tablist"
-            aria-label="Profile sections"
-          >
-            {PROFILE_TABS.map((tab) => (
-              <SheetNavButton
-                key={tab.id}
-                role="tab"
-                aria-selected={tab.id === activeTab}
-                active={tab.id === activeTab}
-                onClick={() => setTab(tab.id)}
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    'size-2 rounded-full',
-                    tab.id === activeTab ? 'bg-(--profile-accent)' : 'bg-(--color-sheet-divider)',
-                  )}
-                />
-                {tab.label}
-              </SheetNavButton>
-            ))}
-          </div>
-        </SheetSidebar>
-        <SheetContent>
-          <SheetPageHeader className="gap-5">
-            <IdentityHeader
-              profile={profile}
-              authMenu={state?.auth?.menu}
-              onShare={() => setShareOpen(true)}
-            />
-          </SheetPageHeader>
-          <SheetBody className="space-y-8">
-            {isVipsTab(activeTab) ? (
-              <VipsProfileTab
-                tab={activeTab}
-                profile={profile}
-                backend={state?.backend}
-                applyBackendSnapshot={state?.applyBackendSnapshot}
-                overlayController={engine?.view?.overlayController}
-                captures={state?.captures}
-                moodPins={state?.moodPins}
-                selectedClaimId={selectedClaimId}
-                setSelectedClaimId={setSelectedClaimId}
-                timelineExpanded={expandedTimelines.has(activeTab)}
-                setTimelineExpanded={(expanded) => {
-                  setExpandedTimelines((prev) => {
-                    const next = new Set(prev)
-                    if (expanded) next.add(activeTab)
-                    else next.delete(activeTab)
-                    return next
-                  })
-                }}
+    <PageSurface className="isolate" style={themeStyle}>
+      <SheetSidebar>
+        <SheetIdentityHeader>
+          <SheetTitle>Profile</SheetTitle>
+          <SheetDescription>
+            The shape of your reflections so far across values, interests, personality, and skills.
+          </SheetDescription>
+        </SheetIdentityHeader>
+        <div className="flex flex-col gap-1 px-4 pb-6" role="tablist" aria-label="Profile sections">
+          {PROFILE_TABS.map((tab) => (
+            <SheetNavButton
+              key={tab.id}
+              role="tab"
+              aria-selected={tab.id === activeTab}
+              active={tab.id === activeTab}
+              onClick={() => setTab(tab.id)}
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'size-2 rounded-full',
+                  tab.id === activeTab ? 'bg-(--profile-accent)' : 'bg-(--color-sheet-divider)',
+                )}
               />
-            ) : activeTab === 'relationships' ? (
-              <RelationshipsTab />
-            ) : (
-              <ChoicesTab />
-            )}
-          </SheetBody>
-        </SheetContent>
-        <ShareDialog open={shareOpen} onOpenChange={setShareOpen} />
-      </SheetSurface>
-    </Sheet>
+              {tab.label}
+            </SheetNavButton>
+          ))}
+        </div>
+      </SheetSidebar>
+      <SheetContent>
+        <SheetPageHeader className="gap-5">
+          <IdentityHeader
+            profile={profile}
+            authMenu={state?.auth?.menu}
+            onShare={() => setShareOpen(true)}
+          />
+        </SheetPageHeader>
+        <SheetBody className="space-y-8">
+          {isVipsTab(activeTab) ? (
+            <VipsProfileTab
+              tab={activeTab}
+              profile={profile}
+              backend={state?.backend}
+              applyBackendSnapshot={state?.applyBackendSnapshot}
+              overlayController={engine?.view?.overlayController}
+              captures={state?.captures}
+              moodPins={state?.moodPins}
+              selectedClaimId={selectedClaimId}
+              setSelectedClaimId={setSelectedClaimId}
+              timelineExpanded={expandedTimelines.has(activeTab)}
+              setTimelineExpanded={(expanded) => {
+                setExpandedTimelines((prev) => {
+                  const next = new Set(prev)
+                  if (expanded) next.add(activeTab)
+                  else next.delete(activeTab)
+                  return next
+                })
+              }}
+            />
+          ) : activeTab === 'relationships' ? (
+            <RelationshipsTab />
+          ) : (
+            <ChoicesTab />
+          )}
+        </SheetBody>
+      </SheetContent>
+      <ShareDialog open={shareOpen} onOpenChange={setShareOpen} />
+      <PageCloseButton onClick={dismissToHome} />
+    </PageSurface>
   )
 }
 

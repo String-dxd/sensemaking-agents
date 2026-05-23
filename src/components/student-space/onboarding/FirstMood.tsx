@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
 import { EMOTIONS, type EmotionEntry, shapeDataUri } from '~/lib/student-space/mood-shapes'
@@ -174,6 +175,23 @@ export function FirstMood({
           'bg-(--color-onb-card) text-(--color-onb-ink) shadow-[0_18px_44px_rgba(15,18,36,0.32)]',
         )}
       >
+        <button
+          type="button"
+          aria-label="Skip this step"
+          data-testid="onboarding-first-mood-close"
+          onClick={() => {
+            if (committedRef.current) return
+            committedRef.current = true
+            onAdvance()
+          }}
+          className={cn(
+            'absolute right-2 top-2 grid size-9 place-items-center rounded-full',
+            'cursor-pointer text-(--color-onb-ink-soft) transition-colors hover:bg-black/5',
+            'focus-visible:outline-[3px] focus-visible:outline-[rgba(255,138,92,0.7)] focus-visible:outline-offset-[2px]',
+          )}
+        >
+          <X aria-hidden className="size-5" />
+        </button>
         <h2 className="m-0 mb-1 text-center text-lg font-medium">
           {ONBOARDING_COPY.firstMood.title}
         </h2>

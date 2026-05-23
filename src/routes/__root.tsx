@@ -73,13 +73,7 @@ function RootComponent() {
             public share page (`/share/$token`) and API routes opt out of
             both layouts by sitting at the top level. */}
         <Outlet />
-        {/* Cmd-K palette. On in dev by default; in production builds it is
-            included only when `VITE_ENABLE_DEV_PALETTE=1` is set at build
-            time. Vercel staging sets the flag so QA can reach `/dev/pipeline`
-            and the other developer commands. */}
-        {import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_PALETTE === '1' ? (
-          <DevPalette />
-        ) : null}
+        <DevPalette />
       </QueryClientProvider>
     </RootDocument>
   )

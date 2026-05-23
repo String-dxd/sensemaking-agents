@@ -401,7 +401,7 @@ export default class Island
         // and water at y=-0.15, the sand surface crosses the water line at
         // t = 0.33 / 0.85 roughly 0.39, so part of the ring is visible dry beach
         // and the rest disappears underwater, occluded by the water mesh.
-        const mat = new THREE.MeshLambertMaterial({ color: 0xf2eca8 })
+        const mat = new THREE.MeshLambertMaterial({ color: 0xd0b478 })
         this._applyCurvedEarth(mat, 'sand')
         this.sand = new THREE.Mesh(ring, mat)
         this.scene.add(this.sand)

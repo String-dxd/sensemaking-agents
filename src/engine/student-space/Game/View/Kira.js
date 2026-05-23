@@ -1,7 +1,150 @@
 import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
 
 import View from './View.js'
 import State from '../State/State.js'
+
+// Asset base — mirrors Tree.js so a subpath deployment still resolves.
+const BASE_URL = (typeof import.meta !== 'undefined'
+    && import.meta.env
+    && typeof import.meta.env.BASE_URL === 'string')
+    ? import.meta.env.BASE_URL
+    : '/'
+const ASSET_BASE = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`
+
+// GLB-backed species (currently just Masked Bower). Authored in Blender,
+// exported with feet at y=0 and beak along Blender -Y. We rotate +90° at
+// load time so the beak lands on local +X — the convention the wander
+// code uses (atan2(-dz, dx)).
+const MASKED_GLB_URL  = `${ASSET_BASE}birds/MaskedBower.glb`
+const MASKED_SCALE    = 0.30
+const MASKED_YAW_OFFS = Math.PI / 2
+
+// Scratch math for the GLB bird's per-frame bone-delta computation.
+// Allocated once at module scope so _animateMaskedBody never re-allocates.
+const _maskedDelta = new THREE.Quaternion()
+const _maskedAxisZ = new THREE.Vector3(0, 0, 1)
+const _maskedAxisX = new THREE.Vector3(1, 0, 0)
+
+// Hip height in MB_Rig local space — Leg.L/Leg.R bones sit at y=0.30.
+const MASKED_HIP_Y = 0.30
+
+// Reparent a (leg-post, foot) pair into a fresh pivot group anchored
+// at the hip so a single rotation.x can swing the whole leg. Both
+// meshes are direct children of MB_Rig, so they share a coord space.
+// Returns the new pivot group, or null if either piece was missing.
+function _makeMaskedLegPivot(legPost, foot, hipX)
+{
+    if(!legPost || !foot) return null
+    const parent = legPost.parent || foot.parent
+    if(!parent) return null
+
+    const pivot = new THREE.Group()
+    pivot.name = `maskedLegPivot.${hipX > 0 ? 'L' : 'R'}`
+    pivot.position.set(hipX, MASKED_HIP_Y, 0)
+    parent.add(pivot)
+
+    // Keep each child's original MB_Rig-local world position by
+    // subtracting the pivot's anchor. They were at (±0.22, 0.04, 0)
+    // and (±0.22, 0, +0.10) — after this they sit at (0, -0.26, 0)
+    // and (0, -0.30, +0.10) within the pivot.
+    legPost.position.sub(pivot.position)
+    pivot.add(legPost)
+    foot.position.sub(pivot.position)
+    pivot.add(foot)
+
+    return pivot
+}
+
+let _maskedScenePromise = null
+function loadMaskedScene()
+{
+    if(_maskedScenePromise) return _maskedScenePromise
+
+    const draco = new DRACOLoader()
+    draco.setDecoderPath(`${ASSET_BASE}draco/`)
+    const loader = new GLTFLoader()
+    loader.setDRACOLoader(draco)
+
+    _maskedScenePromise = loader.loadAsync(MASKED_GLB_URL).then(gltf =>
+    {
+        const scene = gltf.scene
+        scene.scale.setScalar(MASKED_SCALE)
+        scene.rotation.y = MASKED_YAW_OFFS
+
+        let head = null
+        let wingL = null
+        let wingR = null
+        let beakLower = null
+        let legPostL = null
+        let legPostR = null
+        let footL = null
+        let footR = null
+        scene.traverse(o =>
+        {
+            if(o.isMesh)
+            {
+                o.castShadow = true
+                o.receiveShadow = true
+
+                // Repaint a couple of materials to match the requested
+                // colorway: body+wings warm orange like the head, tie red.
+                // Idempotent — module-level promise caches the scene.
+                const mats = Array.isArray(o.material) ? o.material : [o.material]
+                for(const mat of mats)
+                {
+                    if(!mat || mat.userData.__bowerRecolor) continue
+                    if(mat.name === 'MB_BodyYellow')
+                    {
+                        mat.color.setRGB(1.0, 0.42, 0.05)
+                        mat.vertexColors = false
+                        mat.needsUpdate = true
+                        mat.userData.__bowerRecolor = true
+                    }
+                    else if(mat.name === 'Uniform_TieStriped')
+                    {
+                        mat.color.setRGB(0.82, 0.12, 0.10)
+                        mat.vertexColors = false
+                        mat.needsUpdate = true
+                        mat.userData.__bowerRecolor = true
+                    }
+                }
+            }
+            if(!head && /MB_Head/i.test(o.name)) head = o
+            // Bone refs for the talking beat. Names are the armature
+            // bones (skin joints), not the MB_* mesh nodes.
+            if(!wingL && o.name === 'Wing.L') wingL = o
+            if(!wingR && o.name === 'Wing.R') wingR = o
+            if(!beakLower && o.name === 'BeakLower') beakLower = o
+            // Leg + foot meshes are NOT skinned — they sit as flat
+            // siblings under MB_Rig. We reparent them under a pivot
+            // below so we can swing the legs around the hip.
+            if(!legPostL && o.name === 'MB_LegPost.L') legPostL = o
+            if(!legPostR && o.name === 'MB_LegPost.R') legPostR = o
+            if(!footL && o.name === 'MB_Foot.L') footL = o
+            if(!footR && o.name === 'MB_Foot.R') footR = o
+        })
+
+        // Cache base poses so the narrating animation can return to rest
+        // and apply additive deltas instead of replacing the bone's
+        // rigged orientation.
+        for(const bone of [wingL, wingR, beakLower])
+        {
+            if(bone) bone.userData.baseQuat = bone.quaternion.clone()
+        }
+
+        // Wrap each leg+foot pair in a pivot group at the hip so we can
+        // rotate them around the lateral axis (X in MB_Rig local space)
+        // to produce a human-style walking swing. Hip Y comes from the
+        // armature: the Leg.L/R bones sit at y=0.30 in MB_Rig space.
+        const legPivotL = _makeMaskedLegPivot(legPostL, footL, +0.22)
+        const legPivotR = _makeMaskedLegPivot(legPostR, footR, -0.22)
+
+        return { scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }
+    })
+    return _maskedScenePromise
+}
 
 /**
  * Kira — the resident island bird. Mesh + species data ported from the
@@ -41,10 +184,13 @@ export const SPECIES = [
         palette: { back: '#e63946', belly: '#ffd3a5', accent: '#ffb347', beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a' },
     },
     {
-        id: 'ember',
-        displayName: 'Ember Bower',
-        shape:   { crest: 'curve',   tail: 'short-fan', beak: 'stout'   },
-        palette: { back: '#f4791f', belly: '#ffe0a8', accent: '#ffd07a', beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a' },
+        id: 'masked',
+        displayName: 'Masked Bower',
+        // GLB-backed: shape fields unused by the procedural builder for this
+        // species (it loads MaskedBower.glb instead). Palette drives the
+        // picker chip dot only.
+        shape:   { crest: 'pointed', tail: 'long-fan', beak: 'slender' },
+        palette: { back: '#ffd23f', belly: '#fff3a3', accent: '#ff8c42', beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a' },
     },
     {
         id: 'regent',
@@ -142,25 +288,8 @@ const STANDING_OVERRIDES = {
         tail: { x: 0.43, y: 0.55, scaleX: 0.42, scaleY: 0.56, scaleZ: 0.62 },
         crestScale: 0.90,
     },
-    ember: {
-        scale: 0.72,
-        body: { x: 0.66, y: 0.92, z: 0.62 },
-        bodyY: 0.61,
-        headY: 1.32,
-        headSize: 0.43,
-        headScale: { x: 1.08, y: 0.98, z: 1.04 },
-        cheekSize: 0.15,
-        faceColor: '#fff0c8',
-        beak: { length: 0.36, width: 0.20, height: 0.14, gape: 0.036, open: 0.02 },
-        eyeWhite: 0.19, pupil: 0.12,
-        eyeSquash: 0.50, eyeTilt: -0.18,
-        pupilScaleX: 0.82, pupilScaleY: 0.72,
-        upperLid: 0.42, lowerLid: 0.05,
-        brow: -0.06,
-        wing: { x: 0.01, y: 0.79, z: 0.34, length: 0.50, rootW: 0.14, tipW: 0.36, rest: -0.04, feathers: 3 },
-        leg:  { y: 0.34, z: 0.22, len: 0.28, toe: 0.13 },
-        tail: { x: 0.38, y: 0.52, scaleX: 0.30, scaleY: 0.46, scaleZ: 0.46 },
-    },
+    // 'masked' has no procedural override — it ships as a Blender GLB
+    // loaded in Kira._buildMaskedAsync().
     regent: {
         scale: 0.73,
         body: { x: 0.70, y: 0.82, z: 0.56 },
@@ -325,6 +454,10 @@ export default class Kira
     /** Cycle to a specific species. Rebuilds the mesh in place. */
     setSpecies(id)
     {
+        // Legacy alias: 'ember' was retired when the Blender Masked Bower
+        // replaced the orange procedural bird. Persisted student profiles
+        // with companionSpecies='ember' route here.
+        if(id === 'ember') id = 'masked'
         if(!SPECIES_BY_ID[id] || id === this.speciesId) return
         this.speciesId = id
         this._build(id)
@@ -661,6 +794,15 @@ export default class Kira
         const parts = this.parts
         if(!parts) return
 
+        // GLB-backed species (currently Masked Bower) uses a bone-level
+        // animation pipeline — the procedural pivots/userData below don't
+        // exist on the imported skin.
+        if(parts.static)
+        {
+            this._animateMaskedBody(t, dt)
+            return
+        }
+
         // Flying beat: wings flap continuously, legs are parked, body
         // stays level. The flap amplitude tapers to 0 over the final
         // 400ms for a glide-in landing — matches the DESIGN.md
@@ -801,21 +943,147 @@ export default class Kira
         }
     }
 
+    /**
+     * GLB-backed Masked Bower has no procedural pivots — animation rides
+     * on the rigged bones (wings, beak) and on synthetic pivot groups we
+     * created at load time (legs). Three independent beats compose:
+     *
+     *   - Narrating  → wings flap, beak chatters
+     *   - Walking    → legs swing alternately, body bobs slightly
+     *   - Idle       → bones return to base, legs and body rest
+     */
+    _animateMaskedBody(t, _dt)
+    {
+        const parts = this.parts
+        const narrating = this.view.kiraNarrator && this.view.kiraNarrator.isActive
+
+        const wingL = parts.maskedWingL
+        const wingR = parts.maskedWingR
+        const beak  = parts.maskedBeakLower
+        const legL  = parts.maskedLegPivotL
+        const legR  = parts.maskedLegPivotR
+
+        // ----- legs: alternating swing scaled by walk speed -----
+        const walkAmt = THREE.MathUtils.clamp(this.speed / WALK_SPEED, 0, 1)
+        const walkPhase = this.walkPhase
+        if(legL) legL.rotation.x = Math.sin(walkPhase) * 0.38 * walkAmt
+        if(legR) legR.rotation.x = Math.sin(walkPhase + Math.PI) * 0.38 * walkAmt
+
+        // ----- body bob: small vertical step on each footfall, plus a
+        // tiny idle sway when standing still. parts.root is gltf.scene;
+        // its parent (this.group) handles world position + facing yaw,
+        // so a local Y offset reads as a clean up/down bob.
+        if(parts.root)
+        {
+            const stepBounce = Math.abs(Math.sin(walkPhase)) * 0.030 * walkAmt
+            const idleSway   = Math.sin(t * 1.05) * 0.008 * (1 - walkAmt)
+            parts.root.position.y = stepBounce + idleSway
+        }
+
+        // ----- wings + beak: only active while narrating -----
+        if(narrating)
+        {
+            // Wings flap up and down at ~1.4 Hz. Rotation around the
+            // bone-local Z axis is the natural "fold/unfold" axis for
+            // the rigged wings (perpendicular to the wingspan).
+            const flap = Math.sin(t * 3.0) * 0.45
+            if(wingL && wingL.userData.baseQuat)
+            {
+                _maskedDelta.setFromAxisAngle(_maskedAxisZ, flap)
+                wingL.quaternion.multiplyQuaternions(wingL.userData.baseQuat, _maskedDelta)
+            }
+            if(wingR && wingR.userData.baseQuat)
+            {
+                _maskedDelta.setFromAxisAngle(_maskedAxisZ, -flap)
+                wingR.quaternion.multiplyQuaternions(wingR.userData.baseQuat, _maskedDelta)
+            }
+
+            // Beak: ~9 Hz chatter gated by a slower envelope so syllables
+            // have phrasing. Rotation around bone-local X opens the jaw.
+            if(beak && beak.userData.baseQuat)
+            {
+                const envelope = 0.55 + 0.45 * Math.sin(t * 1.7)
+                const talk = envelope * Math.abs(Math.sin(t * 9.0)) * 0.35
+                _maskedDelta.setFromAxisAngle(_maskedAxisX, talk)
+                beak.quaternion.multiplyQuaternions(beak.userData.baseQuat, _maskedDelta)
+            }
+            return
+        }
+
+        // Idle / not-narrating: clear bone animation residue so wings
+        // and beak return to their rigged rest pose.
+        if(wingL && wingL.userData.baseQuat) wingL.quaternion.copy(wingL.userData.baseQuat)
+        if(wingR && wingR.userData.baseQuat) wingR.quaternion.copy(wingR.userData.baseQuat)
+        if(beak  && beak.userData.baseQuat)  beak.quaternion.copy(beak.userData.baseQuat)
+    }
+
     /* ----- build / teardown ----- */
 
     _build(speciesId)
     {
         // Tear down the previous mesh so a swap doesn't leak geometry +
         // materials. Canvas-backed face textures are the heaviest piece.
+        // The masked GLB scene is cached at module scope, so we skip
+        // dispose for it (parts.static) and only detach from the group.
         if(this.parts)
         {
             this.group.remove(this.parts.root)
-            this._dispose(this.parts.root)
+            if(!this.parts.static) this._dispose(this.parts.root)
             this.parts = null
+        }
+        if(speciesId === 'masked')
+        {
+            this._buildMaskedAsync()
+            return
         }
         const spec = SPECIES_BY_ID[speciesId] || SPECIES_BY_ID.flame
         this.parts = buildStandingBird(spec)
         this.group.add(this.parts.root)
+    }
+
+    /**
+     * Async branch for the Blender-authored Masked Bower. Plants a
+     * placeholder so getHeadWorldPosition + _animateBody don't trip while
+     * the GLB is in flight, then swaps in the cached scene on resolve.
+     * Bails if the species changed mid-load.
+     */
+    _buildMaskedAsync()
+    {
+        const placeholder = new THREE.Group()
+        const placeholderHead = new THREE.Object3D()
+        placeholderHead.position.y = 1.2
+        placeholder.add(placeholderHead)
+        this.parts = {
+            root: placeholder,
+            head: placeholderHead,
+            headBaseY: 1.2,
+            headBaseRotZ: 0,
+            static: true,
+        }
+        this.group.add(placeholder)
+
+        loadMaskedScene().then(({ scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }) =>
+        {
+            if(this.speciesId !== 'masked') return
+            if(!this.parts || this.parts.root !== placeholder) return
+            this.group.remove(placeholder)
+            this.parts = {
+                root: scene,
+                head: head || scene,
+                headBaseY: head ? head.position.y : 1.2,
+                headBaseRotZ: 0,
+                static: true,
+                maskedWingL: wingL || null,
+                maskedWingR: wingR || null,
+                maskedBeakLower: beakLower || null,
+                maskedLegPivotL: legPivotL || null,
+                maskedLegPivotR: legPivotR || null,
+            }
+            this.group.add(scene)
+        }).catch(err =>
+        {
+            console.error('[Kira] Failed to load MaskedBower.glb', err)
+        })
     }
 
     _dispose(node)
