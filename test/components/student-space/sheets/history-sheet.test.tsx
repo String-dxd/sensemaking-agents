@@ -200,7 +200,9 @@ describe('HistorySheet (React)', () => {
   it('clicking a day cell selects it and updates day detail', async () => {
     renderHistory(makeEngine())
     const cal = await screen.findByTestId('calendar-pane')
-    // Click any cell labeled "15" — every visible month has a 15th.
+    // Default is Week view; open the title dropdown and switch to Month so "15" is on-screen.
+    await userEvent.click(screen.getByRole('button', { name: /^week$/i }))
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: /^month$/i }))
     const fifteen = (await screen.findAllByRole('button', { name: /15/ }))[0]
     expect(fifteen).toBeDefined()
     await userEvent.click(fifteen as Element)

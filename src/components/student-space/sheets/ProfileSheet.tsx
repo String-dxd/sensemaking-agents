@@ -17,19 +17,17 @@ import {
   Waves,
 } from 'lucide-react'
 import type { CSSProperties } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChoicesPageView } from '~/components/ChoicesPageView'
 import { RelationshipsPageView } from '~/components/RelationshipsPageView'
 import { Button } from '~/components/ui/button'
 import {
-  PageCloseButton,
   PageSurface,
   SheetBody,
   SheetContent,
   SheetDescription,
   SheetIdentityHeader,
   SheetNavButton,
-  SheetPageHeader,
   SheetSidebar,
   SheetTitle,
   usePageEscape,
@@ -149,6 +147,54 @@ const ARM_TIMEOUT_MS = 3200
 const FORGET_FADE_MS = 200
 const REVOKE_DISARM_MS = 4000
 
+type ThumbnailRendererInstance = {
+  getThumbnail: (id: string) => string
+  prewarm?: (ids: string[]) => void
+}
+
+let thumbnailRenderer: ThumbnailRendererInstance | null = null
+let thumbnailRendererLoader: Promise<ThumbnailRendererInstance | null> | null = null
+
+function loadThumbnailRenderer(): Promise<ThumbnailRendererInstance | null> {
+  if (typeof window === 'undefined') return Promise.resolve(null)
+  if (thumbnailRenderer) return Promise.resolve(thumbnailRenderer)
+  if (thumbnailRendererLoader) return thumbnailRendererLoader
+  thumbnailRendererLoader = import('~/engine/student-space/Game/View/ThumbnailRenderer.js')
+    .then((mod) => {
+      const Ctor = (mod as { default: new () => ThumbnailRendererInstance }).default
+      thumbnailRenderer = new Ctor()
+      return thumbnailRenderer
+    })
+    .catch((err) => {
+      console.warn('[ProfileSheet] thumbnail renderer init failed', err)
+      thumbnailRendererLoader = null
+      return null
+    })
+  return thumbnailRendererLoader
+}
+
+function useClaimThumbnails(claimIds: string[]): Record<string, string> {
+  const key = claimIds.join('|')
+  const [urls, setUrls] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let cancelled = false
+    const ids = key ? key.split('|') : []
+    loadThumbnailRenderer().then((renderer) => {
+      if (cancelled || !renderer) return
+      const next: Record<string, string> = {}
+      for (const id of ids) {
+        const url = renderer.getThumbnail(id)
+        if (url) next[id] = url
+      }
+      if (!cancelled) setUrls(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [key])
+  return urls
+}
+
 type MaybeSliceSubscribable = { subscribe?: (cb: () => void) => () => void }
 type ClaimObject =
   | { kind: 'tree'; species: string }
@@ -230,6 +276,9 @@ export function ProfileSheet() {
           <SheetDescription>
             The shape of your reflections so far across values, interests, personality, and skills.
           </SheetDescription>
+          <div className="mt-2">
+            <IdentityCard profile={profile} />
+          </div>
         </SheetIdentityHeader>
         <div className="flex flex-col gap-1 px-4 pb-6" role="tablist" aria-label="Profile sections">
           {PROFILE_TABS.map((tab) => (
@@ -251,15 +300,20 @@ export function ProfileSheet() {
             </SheetNavButton>
           ))}
         </div>
+        {state?.auth?.menu?.status !== 'signed-in' ? (
+          <div className="mt-auto border-t border-(--color-sheet-divider) px-4 py-4">
+            <SignInLink />
+          </div>
+        ) : null}
       </SheetSidebar>
       <SheetContent>
-        <SheetPageHeader className="gap-5">
-          <IdentityHeader
-            profile={profile}
-            authMenu={state?.auth?.menu}
-            onShare={() => setShareOpen(true)}
-          />
-        </SheetPageHeader>
+        <header
+          data-testid="profile-page-header"
+          className="flex items-center justify-end gap-2 border-b border-(--color-sheet-divider) px-9 py-5"
+        >
+          <ShareButton onClick={() => setShareOpen(true)} />
+          <AccountMenuButton authMenu={state?.auth?.menu} />
+        </header>
         <SheetBody className="space-y-8">
           {isVipsTab(activeTab) ? (
             <VipsProfileTab
@@ -290,114 +344,88 @@ export function ProfileSheet() {
         </SheetBody>
       </SheetContent>
       <ShareDialog open={shareOpen} onOpenChange={setShareOpen} />
-      <PageCloseButton onClick={dismissToHome} />
     </PageSurface>
   )
 }
 
-function IdentityHeader({
-  profile,
-  authMenu,
-  onShare,
-}: {
-  profile: ProfileSlice | null
-  authMenu: AuthMenu | undefined
-  onShare: () => void
-}) {
+function IdentityCard({ profile }: { profile: ProfileSlice | null }) {
   const identity = profile?.identity ?? {}
   const name = identity.name?.trim() || 'Student'
-  const className = identity.className?.trim() || ''
+  const className = identity.className?.trim() || 'Student Space profile'
   const initial = name.charAt(0).toUpperCase()
 
+  const face = identity.avatarDataUrl ? (
+    <img src={identity.avatarDataUrl} alt="" className="size-full object-cover" />
+  ) : (
+    <span aria-hidden>{initial}</span>
+  )
+
   return (
-    <div className="flex flex-wrap items-center gap-4">
-      <div
-        className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full border border-(--color-sheet-divider) bg-(--color-onb-bg-cream) text-xl font-semibold text-(--color-sheet-ink)"
-        aria-label="Profile picture"
-        role="img"
-      >
-        {identity.avatarDataUrl ? (
-          <img src={identity.avatarDataUrl} alt="" className="size-full object-cover" />
-        ) : (
-          initial
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <SheetTitle className="text-[clamp(1.6rem,3vw,2.2rem)]">{name}</SheetTitle>
-        {className ? (
-          <SheetDescription className="mt-1">{className}</SheetDescription>
-        ) : (
-          <SheetDescription className="mt-1">Student Space profile</SheetDescription>
-        )}
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          onClick={onShare}
-          data-testid="profile-share-button"
-          className="inline-flex min-h-10 items-center gap-2 rounded-full border border-(--color-sheet-divider) bg-white/80 px-4 text-sm font-semibold text-(--color-sheet-ink) transition-colors hover:bg-white"
-        >
-          <Share2 aria-hidden className="size-4" />
-          Share
-        </Button>
-        <AuthActions menu={authMenu} />
+    <div
+      className="flex items-center gap-3 rounded-xl border border-(--color-sheet-divider) bg-white/45 px-3 py-2.5"
+      data-testid="profile-identity-card"
+    >
+      <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-full bg-(--color-onb-bg-cream) text-base font-semibold text-(--color-sheet-ink) shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--profile-accent)_32%,transparent)]">
+        {face}
+      </span>
+      <div className="min-w-0">
+        <h3 className="truncate text-sm font-semibold text-(--color-sheet-ink)">{name}</h3>
+        <p className="truncate text-xs text-(--color-sheet-ink-soft)">{className}</p>
       </div>
     </div>
   )
 }
 
-function AuthActions({ menu }: { menu: AuthMenu | undefined }) {
+function AccountMenuButton({ authMenu }: { authMenu: AuthMenu | undefined }) {
   const [open, setOpen] = useState(false)
-  const signedIn = menu?.status === 'signed-in'
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const signedIn = authMenu?.status === 'signed-in'
 
-  if (!menu || menu.status !== 'signed-in') {
-    const profileReturnPathname = encodeURIComponent('/?sheet=profile')
-    const href = `/?auth=sign-in&returnPathname=${profileReturnPathname}#sign-in`
-    return (
-      <Button
-        data-testid="profile-auth-signin"
-        className="inline-flex min-h-10 items-center rounded-full bg-(--color-onb-accent) px-4 text-sm font-semibold text-white transition-colors hover:bg-(--color-onb-accent-deep)"
-        render={
-          <a
-            href={href}
-            onClick={() => {
-              try {
-                window.__studentSpaceGame?.dispose()
-              } catch {
-                // Navigation is already in flight.
-              }
-            }}
-          >
-            Sign in
-          </a>
-        }
-      />
-    )
-  }
+  useEffect(() => {
+    if (!open) return
+    const onPointer = (event: PointerEvent) => {
+      if (!rootRef.current) return
+      if (!rootRef.current.contains(event.target as Node)) setOpen(false)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  if (!signedIn) return null
 
   return (
-    <div className="relative" data-testid="profile-auth-menu">
-      <Button
+    <div ref={rootRef} className="relative" data-testid="profile-auth-menu">
+      <button
         type="button"
-        aria-label="More profile actions"
+        aria-label="More account actions"
+        aria-haspopup="menu"
         aria-expanded={open}
         data-testid="profile-auth-more"
-        onClick={(event) => {
-          event.stopPropagation()
-          setOpen((next) => !next)
-        }}
-        className="grid size-10 place-items-center rounded-full border border-(--color-sheet-divider) bg-white/80 p-0 text-(--color-sheet-ink) transition-colors hover:bg-white"
+        onClick={() => setOpen((v) => !v)}
+        className="grid size-10 cursor-pointer place-items-center rounded-full border border-(--color-sheet-divider) bg-white/80 text-(--color-sheet-ink) transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--profile-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-sheet-pane-right)"
       >
         <MoreHorizontal aria-hidden className="size-5" />
-      </Button>
+      </button>
       {open ? (
-        <div className="absolute right-0 top-12 z-20 w-56 rounded-xl border border-(--color-sheet-divider) bg-white p-2 shadow-[0_18px_48px_rgba(43,38,32,0.14)]">
+        <div
+          role="menu"
+          className="absolute right-0 top-[calc(100%+8px)] z-20 w-60 rounded-xl border border-(--color-sheet-divider) bg-white p-2 shadow-[0_18px_48px_rgba(43,38,32,0.14)]"
+        >
           <div className="px-3 py-2">
-            <p className="truncate text-sm font-semibold text-(--color-sheet-ink)">
-              {signedIn ? menu.label || 'Signed in' : 'Signed out'}
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--color-sheet-ink-soft)">
+              {authMenu?.label || 'Signed in'}
             </p>
-            {signedIn && menu.detail ? (
-              <p className="truncate text-xs text-(--color-sheet-ink-soft)">{menu.detail}</p>
+            {authMenu?.detail ? (
+              <p className="mt-0.5 truncate text-xs text-(--color-sheet-ink-soft)">
+                {authMenu.detail}
+              </p>
             ) : null}
           </div>
           <form
@@ -415,18 +443,52 @@ function AuthActions({ menu }: { menu: AuthMenu | undefined }) {
               submitBodyScopedAuthForm('/api/auth/sign-out')
             }}
           >
-            <Button
+            <button
               type="submit"
               data-testid="profile-auth-signout"
-              className="flex w-full items-center justify-start gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-(--color-sheet-ink) transition-colors hover:bg-black/5"
+              className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-(--color-sheet-ink) transition-colors hover:bg-black/5"
             >
               <LogOut aria-hidden className="size-4" />
               Sign out
-            </Button>
+            </button>
           </form>
         </div>
       ) : null}
     </div>
+  )
+}
+
+function SignInLink() {
+  const profileReturnPathname = encodeURIComponent('/?sheet=profile')
+  return (
+    <a
+      href={`/?auth=sign-in&returnPathname=${profileReturnPathname}#sign-in`}
+      data-testid="profile-auth-signin"
+      onClick={() => {
+        try {
+          window.__studentSpaceGame?.dispose()
+        } catch {
+          // Navigation is already in flight.
+        }
+      }}
+      className="inline-flex min-h-10 w-full items-center justify-center rounded-full bg-(--color-onb-accent) px-4 text-sm font-semibold text-white transition-colors hover:bg-(--color-onb-accent-deep) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-onb-accent-deep) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-sheet-pane-left) active:scale-[0.96]"
+    >
+      Sign in
+    </a>
+  )
+}
+
+function ShareButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid="profile-share-button"
+      className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full border border-(--color-sheet-divider) bg-white/80 px-4 text-sm font-semibold text-(--color-sheet-ink) transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--profile-accent) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-sheet-pane-right) active:scale-[0.96]"
+    >
+      <Share2 aria-hidden className="size-4" />
+      Share
+    </button>
   )
 }
 
@@ -476,26 +538,29 @@ function VipsProfileTab({
   // into the facet.
   const isPersonality = tab === 'personality'
   const bigFive = isPersonality ? facet?.bigFive : undefined
+  const thumbnails = useClaimThumbnails(claims.map((claim) => claim.id))
 
   return (
     <>
       <section className="grid gap-5">
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-(--profile-soft) px-2.5 py-1 text-xs font-semibold text-(--profile-ink)">
-              {header.tag}
-            </span>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-(--profile-soft) px-2.5 py-1 text-xs font-semibold text-(--profile-ink)">
+                {header.tag}
+              </span>
+            </div>
+            <div>
+              <h2 className="text-2xl font-semibold leading-tight text-(--color-sheet-ink)">
+                {formatProfileHeading(header.eyebrow)}
+              </h2>
+              <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">{header.subtitle}</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-semibold leading-tight text-(--color-sheet-ink)">
-              {formatProfileHeading(header.eyebrow)}
-            </h2>
-            <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">{header.subtitle}</p>
-          </div>
-          <p className="max-w-3xl text-sm leading-7 text-(--color-sheet-ink)">
-            {facet?.paragraph ??
-              `Your ${header.tag.toLowerCase()} read grows as you capture moments on the island.`}
-          </p>
+          <ParagraphBlock
+            paragraph={facet?.paragraph}
+            fallback={`Your ${header.tag.toLowerCase()} read grows as you capture moments on the island.`}
+          />
           {facet?.openQuestion ? (
             <aside className="rounded-xl border border-(--profile-accent)/30 bg-(--profile-soft) p-4 text-(--profile-ink)">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">
@@ -584,7 +649,7 @@ function VipsProfileTab({
                     >
                       <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-[0_8px_20px_rgba(43,38,32,0.08)]">
                         <img
-                          src={claimThumbnailDataUri(claim.id)}
+                          src={thumbnails[claim.id] || claimThumbnailDataUri(claim.id)}
                           alt=""
                           loading="lazy"
                           data-testid="profile-claim-thumbnail"
@@ -663,6 +728,30 @@ function VipsProfileTab({
         )}
       </section>
     </>
+  )
+}
+
+function ParagraphBlock({
+  paragraph,
+  fallback,
+}: {
+  paragraph: string | undefined
+  fallback: string
+}) {
+  const text = paragraph?.trim()
+  if (!text) {
+    return <p className="max-w-2xl text-sm leading-6 text-(--color-sheet-ink-soft)">{fallback}</p>
+  }
+  const { thesis, evidence } = splitThesisAndEvidence(text)
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="max-w-2xl text-[15px] font-medium leading-relaxed text-(--color-sheet-ink)">
+        {thesis}
+      </p>
+      {evidence ? (
+        <p className="max-w-2xl text-[13px] leading-6 text-(--color-sheet-ink-soft)">{evidence}</p>
+      ) : null}
+    </div>
   )
 }
 
@@ -1438,6 +1527,29 @@ function isVipsTab(value: ProfileTab): value is VipsDimension {
 function formatProfileHeading(heading: string): string {
   const normalized = heading.toLowerCase()
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+const MIN_THESIS_LEN = 40
+
+function splitThesisAndEvidence(text: string): { thesis: string; evidence: string } {
+  for (let i = MIN_THESIS_LEN; i < text.length - 1; i++) {
+    const c = text.charAt(i)
+    if ((c === '.' || c === '!' || c === '?') && text.charAt(i + 1) === ' ') {
+      let j = i + 2
+      while (j < text.length && text.charAt(j) === ' ') j++
+      if (j >= text.length) {
+        return { thesis: text.slice(0, i + 1).trim(), evidence: '' }
+      }
+      const next = text.charAt(j)
+      if (next >= 'A' && next <= 'Z') {
+        return {
+          thesis: text.slice(0, i + 1).trim(),
+          evidence: text.slice(i + 1).trim(),
+        }
+      }
+    }
+  }
+  return { thesis: text, evidence: '' }
 }
 
 function themeVars(tab: ProfileTab): CSSProperties {

@@ -175,7 +175,11 @@ describe('React capture stack', () => {
     const game = renderCapture()
 
     await userEvent.click(screen.getByTestId('capture-fab'))
-    await userEvent.type(screen.getByPlaceholderText(/Type, tap the mic/i), 'Today I felt heard.')
+    await userEvent.click(screen.getByRole('tab', { name: 'Switch to Text mode' }))
+    await userEvent.type(
+      screen.getByPlaceholderText(/Type your reflection/i),
+      'Today I felt heard.',
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Send' }))
     await waitFor(() =>
       expect(screen.getByRole('heading', { name: "Here's what you said." })).toBeInTheDocument(),
@@ -246,7 +250,7 @@ describe('React capture stack', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Start voice recording' }))
 
     await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
-    expect(screen.getByText('Live with Kira')).toBeInTheDocument()
+    expect(screen.getByText('Recording')).toBeInTheDocument()
     expect(screen.getByText('Can you hear me?')).toBeInTheDocument()
     expect(screen.getByText('I can hear you.')).toBeInTheDocument()
 

@@ -3,13 +3,11 @@ import { ChevronDown, ExternalLink } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  PageCloseButton,
   PageSurface,
   SheetBody,
   SheetContent,
   SheetDescription,
   SheetIdentityHeader,
-  SheetPageHeader,
   SheetSidebar,
   SheetTitle,
   usePageEscape,
@@ -179,7 +177,6 @@ export function TrajectorySheet() {
             <p className="text-sm text-(--color-sheet-ink-soft)">Loading Path Finder...</p>
           </SheetBody>
         </SheetContent>
-        <PageCloseButton onClick={dismissToHome} />
       </PageSurface>
     )
   }
@@ -209,12 +206,12 @@ export function TrajectorySheet() {
           />
           <div className="space-y-2">
             {copy.title ? (
-              <h2 className="text-balance text-xl font-semibold leading-tight tracking-tight text-(--color-sheet-ink)">
+              <h2 className="text-balance text-2xl font-semibold leading-tight tracking-tight text-(--color-sheet-ink)">
                 {copy.title}
               </h2>
             ) : null}
             {copy.tldr ? (
-              <p className="text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
+              <p className="mt-1 text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
                 {copy.tldr}
               </p>
             ) : null}
@@ -261,9 +258,6 @@ export function TrajectorySheet() {
         </div>
       </SheetSidebar>
       <SheetContent>
-        <SheetPageHeader>
-          <SheetTitle>Path Finder</SheetTitle>
-        </SheetPageHeader>
         <SheetBody>
           <StatusBody
             status={renderStatus}
@@ -276,7 +270,6 @@ export function TrajectorySheet() {
           />
         </SheetBody>
       </SheetContent>
-      <PageCloseButton onClick={dismissToHome} />
     </PageSurface>
   )
 }

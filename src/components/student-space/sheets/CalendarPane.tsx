@@ -27,7 +27,7 @@ const MOOD_HEX: Record<string, string> = {
   ennui: '#A8A5BD',
 }
 
-const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_NAMES = [
   'January',
   'February',
@@ -62,35 +62,85 @@ function buildMonthCells(year: number, month0: number): Date[] {
   return cells
 }
 
+function buildWeekCells(anchor: Date): Date[] {
+  const sunday = new Date(anchor)
+  sunday.setDate(anchor.getDate() - anchor.getDay())
+  const cells: Date[] = []
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(sunday)
+    d.setDate(sunday.getDate() + i)
+    cells.push(d)
+  }
+  return cells
+}
+
+const SHORT_MONTH_NAMES = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
+
+function formatWeekRange(cells: Date[]): string {
+  const start = cells[0]
+  const end = cells[cells.length - 1]
+  if (!start || !end) return ''
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
+  const sameYear = start.getFullYear() === end.getFullYear()
+  if (sameMonth) {
+    return `${SHORT_MONTH_NAMES[start.getMonth()]} ${start.getDate()} – ${end.getDate()}, ${start.getFullYear()}`
+  }
+  if (sameYear) {
+    return `${SHORT_MONTH_NAMES[start.getMonth()]} ${start.getDate()} – ${SHORT_MONTH_NAMES[end.getMonth()]} ${end.getDate()}, ${start.getFullYear()}`
+  }
+  return `${SHORT_MONTH_NAMES[start.getMonth()]} ${start.getDate()}, ${start.getFullYear()} – ${SHORT_MONTH_NAMES[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`
+}
+
 export interface CalendarPaneEngineState {
   moodPins?: { pins?: Array<{ entryDate: string; emotion?: string }> }
   captures?: { entries?: Array<{ entryDate: string; kind: string }> }
   calendar?: { events?: Array<{ entryDate?: string; date?: string; kind?: string }> }
 }
 
+export type CalendarViewMode = 'week' | 'month'
+
 export function CalendarPane({
   engineState,
   selectedDate,
   onSelectDate,
+  viewMode = 'week',
+  onViewModeChange,
 }: {
   engineState: CalendarPaneEngineState | undefined
   selectedDate: string | null
   onSelectDate: (date: string) => void
+  viewMode?: CalendarViewMode
+  onViewModeChange?: (mode: CalendarViewMode) => void
 }) {
+  void onViewModeChange // Receiver wires the toggle; CalendarPane only reads viewMode now.
   const now = new Date()
-  const selectedDateParts = parseYmd(selectedDate)
-  const selectedYear = selectedDateParts?.year
-  const selectedMonth = selectedDateParts?.month
-  const [viewYear, setViewYear] = useState(selectedYear ?? now.getFullYear())
-  const [viewMonth, setViewMonth] = useState(selectedMonth ?? now.getMonth())
+  const [anchorDate, setAnchorDate] = useState<Date>(() => parseYmdToDate(selectedDate) ?? now)
 
   useEffect(() => {
-    if (selectedYear == null || selectedMonth == null) return
-    setViewYear(selectedYear)
-    setViewMonth(selectedMonth)
-  }, [selectedYear, selectedMonth])
+    const next = parseYmdToDate(selectedDate)
+    if (next) setAnchorDate(next)
+  }, [selectedDate])
 
-  const cells = useMemo(() => buildMonthCells(viewYear, viewMonth), [viewYear, viewMonth])
+  const cells = useMemo(
+    () =>
+      viewMode === 'week'
+        ? buildWeekCells(anchorDate)
+        : buildMonthCells(anchorDate.getFullYear(), anchorDate.getMonth()),
+    [viewMode, anchorDate],
+  )
   const moods = engineState?.moodPins?.pins ?? []
   const captures = engineState?.captures?.entries ?? []
   const events = engineState?.calendar?.events ?? []
@@ -116,47 +166,46 @@ export function CalendarPane({
   }
 
   const todayYmd = ymd(now)
+  const viewYear = anchorDate.getFullYear()
+  const viewMonth = anchorDate.getMonth()
 
-  const stepMonth = (delta: number) => {
-    const m = viewMonth + delta
-    if (m < 0) {
-      setViewYear(viewYear - 1)
-      setViewMonth(11)
-    } else if (m > 11) {
-      setViewYear(viewYear + 1)
-      setViewMonth(0)
-    } else {
-      setViewMonth(m)
-    }
+  const stepView = (delta: number) => {
+    const next = new Date(anchorDate)
+    if (viewMode === 'week') next.setDate(next.getDate() + delta * 7)
+    else next.setMonth(next.getMonth() + delta)
+    setAnchorDate(next)
   }
 
-  const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth()
+  const headerLabel =
+    viewMode === 'week' ? formatWeekRange(cells) : `${MONTH_NAMES[viewMonth]} ${viewYear}`
+
+  const isCurrentView =
+    viewMode === 'week'
+      ? cells.some((c) => ymd(c) === todayYmd)
+      : viewYear === now.getFullYear() && viewMonth === now.getMonth()
 
   return (
     <div
       data-testid="calendar-pane"
-      className="w-full max-w-[420px] self-start rounded-xl bg-(--color-sheet-pane-left) p-4 shadow-[inset_0_0_0_1px_var(--color-sheet-divider),0_1px_1px_rgba(43,38,32,0.04)]"
+      className="w-full self-start rounded-xl bg-(--color-sheet-pane-left) p-4 shadow-[inset_0_0_0_1px_var(--color-sheet-divider),0_1px_1px_rgba(43,38,32,0.04)]"
     >
-      <header className="mb-3 flex items-center justify-between">
+      <header className="mb-3 flex items-center justify-between gap-3">
         <BaseButton
           type="button"
-          onClick={() => stepMonth(-1)}
-          aria-label="Previous month"
+          onClick={() => stepView(-1)}
+          aria-label={viewMode === 'week' ? 'Previous week' : 'Previous month'}
           className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <ChevronLeft aria-hidden className="size-4" />
         </BaseButton>
-        <h3 className="text-sm font-semibold text-(--color-sheet-ink) tabular-nums">
-          {MONTH_NAMES[viewMonth]} {viewYear}
+        <h3 className="flex-1 truncate text-center text-sm font-semibold text-(--color-sheet-ink) tabular-nums">
+          {headerLabel}
         </h3>
         <div className="flex items-center gap-1">
-          {!isCurrentMonth ? (
+          {!isCurrentView ? (
             <BaseButton
               type="button"
-              onClick={() => {
-                setViewYear(now.getFullYear())
-                setViewMonth(now.getMonth())
-              }}
+              onClick={() => setAnchorDate(now)}
               className="h-8 cursor-pointer rounded-full px-3 text-xs font-semibold text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
             >
               Today
@@ -164,8 +213,8 @@ export function CalendarPane({
           ) : null}
           <BaseButton
             type="button"
-            onClick={() => stepMonth(1)}
-            aria-label="Next month"
+            onClick={() => stepView(1)}
+            aria-label={viewMode === 'week' ? 'Next week' : 'Next month'}
             className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
           >
             <ChevronRight aria-hidden className="size-4" />
@@ -193,7 +242,7 @@ export function CalendarPane({
         >
           {cells.map((cell) => {
             const cellYmd = ymd(cell)
-            const isOutside = cell.getMonth() !== viewMonth
+            const isOutside = viewMode === 'month' && cell.getMonth() !== viewMonth
             const isSelected = selectedDate === cellYmd
             const isToday = cellYmd === todayYmd
             const cellMoods = moodsByDay.get(cellYmd) ?? []
@@ -211,7 +260,8 @@ export function CalendarPane({
                 data-today={isToday || undefined}
                 data-outside={isOutside || undefined}
                 className={cn(
-                  'group relative flex aspect-square min-h-10 cursor-pointer flex-col rounded-lg border border-transparent p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                  'group relative flex cursor-pointer flex-col rounded-lg border border-transparent p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                  viewMode === 'week' ? 'min-h-14' : 'aspect-square min-h-10',
                   isOutside && !isSelected && 'opacity-35',
                   isToday && !isSelected && 'border-[rgba(43,38,32,0.24)] bg-white/45',
                   isSelected
@@ -254,7 +304,36 @@ export function CalendarPane({
           })}
         </ToggleGroup>
       </fieldset>
+      <CalendarLegend />
     </div>
+  )
+}
+
+function CalendarLegend() {
+  return (
+    <ul
+      aria-label="Calendar marker legend"
+      className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-(--color-sheet-divider)/70 pt-3 text-[11px] text-(--color-sheet-ink-soft)"
+    >
+      <li className="inline-flex items-center gap-1.5">
+        <span aria-hidden className="size-1.5 rounded-full bg-(--color-sheet-ink)" />
+        Mood
+      </li>
+      <li className="inline-flex items-center gap-1.5">
+        <span aria-hidden className="size-1.5 rounded-sm border border-(--color-sheet-ink)" />
+        Reflection
+      </li>
+      <li className="inline-flex items-center gap-1.5">
+        <span aria-hidden className="size-1.5 rounded-sm bg-(--color-sheet-ink)" />
+        Photo
+      </li>
+      <li className="inline-flex items-center gap-1.5">
+        <span aria-hidden className="text-[10px] leading-none text-(--color-sheet-ink)">
+          ·
+        </span>
+        Event
+      </li>
+    </ul>
   )
 }
 
@@ -262,12 +341,13 @@ function eventDate(event: { entryDate?: string; date?: string }) {
   return event.entryDate || event.date || ''
 }
 
-function parseYmd(value: string | null): { year: number; month: number } | null {
+function parseYmdToDate(value: string | null): Date | null {
   if (!value) return null
-  const match = value.match(/^(\d{4})-(\d{2})-\d{2}$/)
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return null
   const year = Number.parseInt(match[1] ?? '', 10)
   const month = Number.parseInt(match[2] ?? '', 10) - 1
-  if (!Number.isFinite(year) || !Number.isFinite(month)) return null
-  return { year, month }
+  const day = Number.parseInt(match[3] ?? '', 10)
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
+  return new Date(year, month, day)
 }
