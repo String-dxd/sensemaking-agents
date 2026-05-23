@@ -1552,7 +1552,7 @@ function InputsSection() {
     <SectionShell
       id="inputs"
       title="Inputs"
-      subtitle="Form controls — text + selection. The shadcn primitives that compose the product editors (EditableField, EmotionPicker, ContextTypePicker)."
+      subtitle="Form controls — text + selection. The shadcn primitives that compose the product editors (EditableField, ContextTypePicker)."
     >
       <div className="flex flex-col gap-5">
         <ComponentBlock
@@ -1566,7 +1566,7 @@ function InputsSection() {
         <ComponentBlock
           title="<RadioGroup> / <RadioGroupItem>  ·  shadcn primitive (Base UI)"
           file="src/components/ui/radio-group.tsx"
-          blurb="Base UI radio-group with data-[checked] styling. The product pickers (EmotionPicker, ContextTypePicker) render tile-style children inside RadioGroupItem to get the right tap-target shape."
+          blurb="Base UI radio-group with data-[checked] styling. The product pickers (ContextTypePicker) render tile-style children inside RadioGroupItem to get the right tap-target shape."
         >
           <RadioGroup defaultValue="b" className="grid-cols-3 gap-2">
             <RadioGroupItem value="a" className="px-3 py-2">
@@ -1585,8 +1585,8 @@ function InputsSection() {
           <CardHeader>
             <CardTitle className="text-sm">Not yet rendered</CardTitle>
             <CardDescription className="text-xs">
-              EditableField, EmotionPicker, ContextTypePicker, CaptureTagPicker — all listed in
-              Component inventory. Ask "render EditableField" and they migrate here.
+              EditableField, ContextTypePicker, CaptureTagPicker — all listed in Component
+              inventory. Ask "render EditableField" and they migrate here.
             </CardDescription>
           </CardHeader>
         </Card>
@@ -1723,16 +1723,6 @@ function OverlaysSection() {
             </p>
           </CardHeader>
         </Card>
-
-        <Card className="border-dashed">
-          <CardHeader>
-            <CardTitle className="text-sm">Not yet rendered</CardTitle>
-            <CardDescription className="text-xs">
-              ConfirmDialog (lightweight wrapper around AlertDialog), BottomSheet (Drawer wrapper).
-              Listed in Component inventory.
-            </CardDescription>
-          </CardHeader>
-        </Card>
       </div>
     </SectionShell>
   )
@@ -1761,7 +1751,7 @@ function TabsSection() {
     <SectionShell
       id="tabs"
       title="Tabs & navigation"
-      subtitle="Horizontal tab rails. The profile dimension rail appears across every dimension page; the SheetEntryRail is its sibling for sheet triggers."
+      subtitle="Horizontal tab rails. The profile dimension rail appears across every dimension page."
     >
       <div className="flex flex-col gap-5">
         <ComponentBlock
@@ -1783,34 +1773,6 @@ function TabsSection() {
                   className={cn(
                     'h-8 shrink-0 rounded-full border border-transparent px-3.5 text-sm font-medium transition-colors',
                     isActive ? 'border-[#C99B73] bg-[#f5e9d4] text-[#6A4A26]' : 'text-[#2b2620]/55',
-                  )}
-                >
-                  {TAB_LABEL[tab]}
-                </button>
-              )
-            })}
-          </nav>
-        </ComponentBlock>
-
-        <ComponentBlock
-          title="<SheetEntryRail>  ·  product"
-          file="src/components/SheetEntryRail.tsx"
-          blurb="Same six tabs styled differently — outlined pills on a neutral background. Used at sheet trigger points (e.g. above an embedded BottomSheet)."
-        >
-          <nav
-            aria-label="Sheet entry rail sample"
-            className="flex w-full gap-2 overflow-x-auto py-1 sm:flex-wrap"
-          >
-            {PROFILE_TABS.map((tab) => {
-              const isActive = tab === 'choices'
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  disabled
-                  className={cn(
-                    'inline-flex shrink-0 items-center rounded-full border border-border bg-background/80 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm transition-colors',
-                    isActive && 'bg-muted',
                   )}
                 >
                   {TAB_LABEL[tab]}
@@ -2161,11 +2123,6 @@ const INVENTORY: InventoryEntry[] = [
     renderedAt: 'views',
   },
   {
-    file: 'src/components/TrajectorySheetView.tsx',
-    name: 'TrajectorySheetView',
-    summary: 'Engine-side Trajectory sheet wrapper with empty-state copy.',
-  },
-  {
     file: 'src/components/ReflectionsSheetView.tsx',
     name: 'ReflectionsSheetView',
     summary: 'Reflections list sheet — entries grouped by recency.',
@@ -2209,19 +2166,6 @@ const INVENTORY: InventoryEntry[] = [
     name: 'ContextTypePicker',
     summary: 'Picker for context-type tags during capture.',
   },
-  {
-    file: 'src/components/EmotionPicker.tsx',
-    name: 'EmotionPicker',
-    summary:
-      '3×3 emotion picker — Joy / Sadness / Anger / Fear / Disgust / Anxiety / Envy / Embarrassed / Ennui.',
-  },
-  {
-    file: 'src/components/EmotionChip.tsx',
-    name: 'EmotionChip / EmotionConnector',
-    summary:
-      'Read-only chip (Mirror sensed / You felt) + a connector that says same / aligned / different.',
-    renderedAt: 'pills',
-  },
   // Cards / fields
   {
     file: 'src/components/WikiEntryCard.tsx',
@@ -2243,22 +2187,6 @@ const INVENTORY: InventoryEntry[] = [
     file: 'src/components/ConnectedVipsLinks.tsx',
     name: 'ConnectedVipsLinks',
     summary: 'Linked VIPS claims surfaced from an entry.',
-  },
-  // Chrome / nav
-  {
-    file: 'src/components/SheetEntryRail.tsx',
-    name: 'SheetEntryRail',
-    summary: 'Row of profile dimension trigger pills (similar to ProfileStudentChrome tabs).',
-  },
-  {
-    file: 'src/components/BottomSheet.tsx',
-    name: 'BottomSheet',
-    summary: 'Bottom-sheet wrapper around the Base UI Drawer.',
-  },
-  {
-    file: 'src/components/ConfirmDialog.tsx',
-    name: 'ConfirmDialog',
-    summary: 'Lightweight modal confirm built on Base UI AlertDialog.',
   },
   // World / engine integration
   {
