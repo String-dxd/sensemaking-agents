@@ -16,6 +16,9 @@ const buttonVariants = cva(
       },
       size: {
         default: 'h-10 px-4 text-sm',
+        // `sm` is intentionally compact (32px) — below the 40×40 hit-area
+        // minimum. Use only when the consumer extends the hit area via a
+        // wrapper or `before:absolute before:-inset-X` pseudo-element.
         sm: 'h-8 px-3 text-xs',
         lg: 'h-11 px-6 text-base',
         icon: 'size-10',

@@ -357,7 +357,7 @@ function IdentityCard({ profile }: { profile: ProfileSlice | null }) {
   const initial = name.charAt(0).toUpperCase()
 
   const face = identity.avatarDataUrl ? (
-    <img src={identity.avatarDataUrl} alt="" className="size-full object-cover" />
+    <img src={identity.avatarDataUrl} alt="" className="image-outline size-full object-cover" />
   ) : (
     <span aria-hidden>{initial}</span>
   )
@@ -418,7 +418,7 @@ function AccountMenuButton({ authMenu }: { authMenu: AuthMenu | undefined }) {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 top-[calc(100%+8px)] z-20 w-60 rounded-xl border border-(--color-sheet-divider) bg-white p-2 shadow-[0_18px_48px_rgba(43,38,32,0.14)]"
+          className="absolute right-0 top-[calc(100%+8px)] z-20 w-60 origin-top-right animate-[sheet-popover-in_140ms_var(--ease-sheet)_both] rounded-xl border border-(--color-sheet-divider) bg-white p-2 shadow-(--shadow-sheet-popover)"
         >
           <div className="px-3 py-2">
             <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">
@@ -589,7 +589,7 @@ function VipsProfileTab({
               <button
                 type="button"
                 onClick={() => setSelectedClaimId(null)}
-                className="rounded-full border border-(--color-sheet-divider) px-3 py-1 text-xs font-medium text-(--color-sheet-ink-soft) hover:bg-black/5"
+                className="inline-flex min-h-10 cursor-pointer items-center rounded-full border border-(--color-sheet-divider) px-3 text-xs font-medium text-(--color-sheet-ink-soft) transition-[background-color,transform] hover:bg-black/5 active:scale-[0.96]"
               >
                 Clear filter
               </button>
@@ -622,13 +622,13 @@ function VipsProfileTab({
                         count === 0 && 'opacity-65',
                       )}
                     >
-                      <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-[0_8px_20px_rgba(43,38,32,0.08)]">
+                      <span className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl bg-white shadow-(--shadow-sheet-tile)">
                         <img
                           src={thumbnails[claim.id] || claimThumbnailDataUri(claim.id)}
                           alt=""
                           loading="lazy"
                           data-testid="profile-claim-thumbnail"
-                          className="size-full object-cover"
+                          className="image-outline size-full object-cover"
                         />
                       </span>
                       <span className="min-w-0">
@@ -791,7 +791,7 @@ function TldrHero({
   const meta = [`${total} capture${total === 1 ? '' : 's'}`, refined].filter(Boolean).join(' · ')
 
   return (
-    <section className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5">
+    <section className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5 shadow-(--shadow-sheet-tile)">
       <p className="text-xs font-semibold text-(--profile-ink)">
         {voiced.length >= 3
           ? `Top voices in your ${PROFILE_HEADERS[tab].tag}`
@@ -813,7 +813,7 @@ function TldrHero({
                 aria-pressed={selected}
                 onClick={() => onSelectClaim(selected ? null : claim.id)}
                 className={cn(
-                  'rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
+                  'cursor-pointer rounded-full border px-3 py-1.5 text-xs font-semibold transition-[background-color,color,border-color,transform] duration-(--duration-fast) ease-(--ease-out) active:scale-[0.96] motion-reduce:active:scale-100',
                   selected
                     ? 'border-(--profile-accent) bg-(--profile-accent) text-white'
                     : 'border-(--profile-accent)/25 bg-white/65 text-(--profile-ink) hover:bg-white',
@@ -852,7 +852,7 @@ function PersonalityTldr({ tldr }: { tldr: BigFiveTldr }) {
   return (
     <section
       data-testid="personality-tldr"
-      className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5"
+      className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5 shadow-(--shadow-sheet-tile)"
     >
       <p className="text-xs font-semibold text-(--profile-ink)">
         {tldr.eyebrow ?? 'Your personality at a glance'}
@@ -931,7 +931,7 @@ function BigFiveCards({ traits }: { traits: BigFiveTrait[] }) {
               aria-controls={panelId}
               onClick={() => toggle(trait.id)}
               data-testid={`bigfive-card-${trait.id}`}
-              className="flex w-full cursor-pointer items-center gap-4 bg-transparent px-[18px] py-3.5 text-left max-[720px]:grid max-[720px]:grid-cols-[40px_minmax(0,1fr)_14px] max-[720px]:gap-x-3.5 max-[720px]:gap-y-2.5 max-[720px]:px-4"
+              className="flex w-full cursor-pointer items-center gap-4 bg-transparent px-[18px] py-3.5 text-left transition-transform active:scale-[0.98] max-[720px]:grid max-[720px]:grid-cols-[40px_minmax(0,1fr)_14px] max-[720px]:gap-x-3.5 max-[720px]:gap-y-2.5 max-[720px]:px-4"
             >
               <span
                 aria-hidden
@@ -1097,7 +1097,7 @@ function TimelineQuote({
           type="button"
           onClick={forget}
           className={cn(
-            'rounded-full px-3 py-1.5 text-xs font-semibold transition-colors',
+            'inline-flex min-h-10 cursor-pointer items-center rounded-full px-3 text-xs font-semibold transition-[background-color,color,transform] active:scale-[0.96]',
             armed
               ? 'bg-(--profile-accent) text-white'
               : 'bg-white text-(--color-sheet-ink-soft) hover:text-(--color-sheet-ink)',
@@ -1109,7 +1109,7 @@ function TimelineQuote({
           <button
             type="button"
             onClick={openSource}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-(--profile-ink) hover:underline"
+            className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 text-xs font-semibold text-(--profile-ink) transition-transform hover:underline active:scale-[0.96]"
           >
             see source reflection <ExternalLink aria-hidden className="size-3" />
           </button>
@@ -1200,7 +1200,7 @@ function ShareDialog({
         if (event.target === event.currentTarget) onOpenChange(false)
       }}
     >
-      <section className="w-full max-w-lg rounded-2xl border border-(--color-sheet-divider) bg-white p-5 shadow-[0_24px_80px_rgba(43,38,32,0.22)]">
+      <section className="w-full max-w-lg animate-[sheet-popover-in_180ms_var(--ease-sheet)_both] rounded-2xl border border-(--color-sheet-divider) bg-white p-5 shadow-(--shadow-sheet-dialog)">
         <header className="flex items-start justify-between gap-4">
           <div>
             <h2 id="share-dialog-title" className="text-xl font-semibold text-(--color-sheet-ink)">
@@ -1214,7 +1214,7 @@ function ShareDialog({
             type="button"
             aria-label="Close"
             onClick={() => onOpenChange(false)}
-            className="grid size-9 shrink-0 place-items-center rounded-full text-(--color-sheet-ink-soft) hover:bg-black/5"
+            className="grid size-10 shrink-0 cursor-pointer place-items-center rounded-full text-(--color-sheet-ink-soft) transition-[background-color,color,transform] hover:bg-black/5 hover:text-(--color-sheet-ink) active:scale-[0.96]"
           >
             ×
           </button>
@@ -1237,7 +1237,7 @@ function ShareDialog({
                 {isAuthError ? (
                   <a
                     href="/api/auth/sign-in?returnTo=/"
-                    className="inline-flex min-h-9 items-center rounded-full bg-(--color-onb-accent) px-4 text-sm font-semibold text-white"
+                    className="inline-flex min-h-10 items-center rounded-full bg-(--color-onb-accent) px-4 text-sm font-semibold text-white transition-[background-color,transform] hover:bg-(--color-onb-accent-deep) active:scale-[0.96]"
                   >
                     Sign in to share
                   </a>
@@ -1245,7 +1245,7 @@ function ShareDialog({
                   <button
                     type="button"
                     onClick={() => bridge.retry().catch(() => {})}
-                    className="inline-flex min-h-9 items-center gap-2 rounded-full bg-(--color-sheet-ink) px-4 text-sm font-semibold text-white"
+                    className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-(--color-sheet-ink) px-4 text-sm font-semibold text-white transition-[background-color,transform] hover:bg-(--color-sheet-ink)/90 active:scale-[0.96]"
                   >
                     <RefreshCcw aria-hidden className="size-4" />
                     Try again
@@ -1274,7 +1274,7 @@ function ShareDialog({
                 <button
                   type="button"
                   onClick={copyUrl}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-(--color-sheet-ink) px-4 text-sm font-semibold text-white"
+                  className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-xl bg-(--color-sheet-ink) px-4 text-sm font-semibold text-white transition-[background-color,transform] hover:bg-(--color-sheet-ink)/90 active:scale-[0.96]"
                 >
                   {copied ? (
                     <Check aria-hidden className="size-4" />
@@ -1304,7 +1304,7 @@ function ShareDialog({
                 aria-pressed={bridge.showQuotes}
                 onClick={() => bridge.setShowQuotes(!bridge.showQuotes).catch(() => {})}
                 className={cn(
-                  'relative h-7 w-12 rounded-full transition-colors',
+                  'relative h-7 w-12 cursor-pointer rounded-full transition-colors before:absolute before:-inset-3 before:content-[""]',
                   bridge.showQuotes ? 'bg-(--color-status-achieved)' : 'bg-(--color-sheet-divider)',
                 )}
               >
@@ -1327,7 +1327,7 @@ function ShareDialog({
               disabled={bridge.status === 'revoking'}
               onClick={revoke}
               className={cn(
-                'inline-flex min-h-9 items-center rounded-full px-4 text-sm font-semibold transition-colors',
+                'inline-flex min-h-10 cursor-pointer items-center rounded-full px-4 text-sm font-semibold transition-[background-color,color,border-color,transform] active:scale-[0.96] disabled:pointer-events-none disabled:opacity-60',
                 revokeArmed
                   ? 'bg-(--color-onb-accent) text-white'
                   : 'border border-(--color-sheet-divider) text-(--color-sheet-ink-soft) hover:bg-black/5',

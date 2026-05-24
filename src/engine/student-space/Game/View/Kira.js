@@ -99,6 +99,38 @@ function _makeMaskedLegPivot(legPost, foot, hipX)
 }
 
 let _maskedScenePromise = null
+
+/**
+ * Re-apply the masked palette's body + tie tints to the cached GLB scene's
+ * materials. Used after _buildMaskedAsync attaches the scene so that a
+ * setSpecies() call which mutated the palette takes effect, even when the
+ * GLB itself was loaded with a different palette on a prior build.
+ */
+function applyMaskedTintsTo(scene)
+{
+    const palette = SPECIES_BY_ID.masked?.palette
+    if(!palette || !scene) return
+    // Head + body share the same tint so the bird reads as one colorway.
+    // The yellow hair tufts and white cap-sleeves added by _attachMasked*
+    // helpers stay hardcoded — they're brand accents across colorways.
+    const tints = {
+        MB_BodyYellow:      palette.body,
+        MB_HeadOrange:      palette.body,
+        Uniform_TieStriped: palette.tie,
+    }
+    scene.traverse(o => {
+        if(!o.isMesh) return
+        const mats = Array.isArray(o.material) ? o.material : [o.material]
+        for(const mat of mats) {
+            const hex = tints[mat?.name]
+            if(hex) {
+                mat.color.set(hex)
+                mat.needsUpdate = true
+            }
+        }
+    })
+}
+
 export function loadMaskedScene()
 {
     if(_maskedScenePromise) return _maskedScenePromise
@@ -114,6 +146,17 @@ export function loadMaskedScene()
         scene.scale.setScalar(MASKED_SCALE)
         scene.rotation.y = MASKED_YAW_OFFS
 
+        // Palette-driven recolor: read body + tie hex from the masked
+        // species spec (SPECIES_BY_ID is module-level and defined by
+        // the time this runs). Head + body share `palette.body` so the
+        // bird reads as one colorway across egg-color picks.
+        const maskedPalette = SPECIES_BY_ID.masked?.palette ?? {}
+        const materialTints = {
+            MB_BodyYellow:      maskedPalette.body,
+            MB_HeadOrange:      maskedPalette.body,
+            Uniform_TieStriped: maskedPalette.tie,
+        }
+
         let head = null
         let wingL = null
         let wingR = null
@@ -122,6 +165,7 @@ export function loadMaskedScene()
         let legPostR = null
         let footL = null
         let footR = null
+        const crestMeshes = []
         scene.traverse(o =>
         {
             if(o.isMesh)
@@ -129,32 +173,15 @@ export function loadMaskedScene()
                 o.castShadow = true
                 o.receiveShadow = true
 
-                // The Blender export ships with stacked crest pieces on the
-                // crown. Hide them — the colorway already reads as a Masked
-                // Bower without the crest, and the user asked for a clean
-                // bald-headed silhouette.
-                if(/^MB_Crest/i.test(o.name))
-                {
-                    o.visible = false
-                }
-
-                // Repaint a couple of materials to match the requested
-                // colorway: body+wings warm orange like the head, tie red.
                 // Idempotent — module-level promise caches the scene.
                 const mats = Array.isArray(o.material) ? o.material : [o.material]
                 for(const mat of mats)
                 {
                     if(!mat || mat.userData.__bowerRecolor) continue
-                    if(mat.name === 'MB_BodyYellow')
+                    const hex = materialTints[mat.name]
+                    if(hex)
                     {
-                        mat.color.setRGB(1.0, 0.42, 0.05)
-                        mat.vertexColors = false
-                        mat.needsUpdate = true
-                        mat.userData.__bowerRecolor = true
-                    }
-                    else if(mat.name === 'Uniform_TieStriped')
-                    {
-                        mat.color.setRGB(0.82, 0.12, 0.10)
+                        mat.color.set(hex)
                         mat.vertexColors = false
                         mat.needsUpdate = true
                         mat.userData.__bowerRecolor = true
@@ -162,6 +189,11 @@ export function loadMaskedScene()
                 }
             }
             if(!head && /MB_Head/i.test(o.name)) head = o
+            // Crest meshes (MB_CrestRed / MB_CrestOrange / MB_CrestGold etc.)
+            // are authored as siblings of MB_Head under MB_Rig. Collected
+            // here so we can reparent them under MB_Head after traversal —
+            // that way the crown inherits the head's wave + tilt animation.
+            if(o.isMesh && /^MB_Crest/i.test(o.name)) crestMeshes.push(o)
             // Bone refs for the talking beat. Names are the armature
             // bones (skin joints), not the MB_* mesh nodes.
             if(!wingL && o.name === 'Wing.L') wingL = o
@@ -191,9 +223,18 @@ export function loadMaskedScene()
         const legPivotL = _makeMaskedLegPivot(legPostL, footL, +0.22)
         const legPivotR = _makeMaskedLegPivot(legPostR, footR, -0.22)
 
-        // Procedural decoration grafted onto the rig: three soft yellow
-        // tufts down the back of the head along the centerline.
-        _attachMaskedHairTufts(head)
+        // PR #57's procedural mohawk tufts + cap-sleeves are no longer
+        // attached: the GLB's original V_Crest* crown is restored
+        // (no longer hidden) per user request. The _attachMasked*
+        // helpers stay defined above in case they're wanted later.
+
+        // Reparent MB_Crest* meshes under MB_Head so the crown follows
+        // head tilt + wave animations. `Object3D.attach()` preserves the
+        // mesh's world position by recomputing the local transform.
+        if(head)
+        {
+            for(const crest of crestMeshes) head.attach(crest)
+        }
 
         return { scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }
     })
@@ -240,11 +281,19 @@ export const SPECIES = [
     {
         id: 'masked',
         displayName: 'Masked Bower',
-        // GLB-backed: shape fields unused by the procedural builder for this
-        // species (it loads MaskedBower.glb instead). Palette drives the
-        // picker chip dot only.
+        // GLB-backed: `shape` is unused by the procedural builder for this
+        // species (it loads MaskedBower.glb instead). `palette` drives the
+        // picker chip dot via `accent` AND the GLB material recolor via
+        // `body` + `tie` — read inside loadMaskedScene().
         shape:   { crest: 'pointed', tail: 'long-fan', beak: 'slender' },
-        palette: { back: '#ffd23f', belly: '#fff3a3', accent: '#ff8c42', beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a' },
+        palette: {
+            back: '#ffd23f', belly: '#fff3a3', accent: '#ff8c42',
+            beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a',
+            // GLB-specific tints. Defaults match the original
+            // hardcoded rgb(1.0, 0.42, 0.05) body and (0.82, 0.12, 0.10) tie.
+            body: '#ff6b0d',
+            tie:  '#d11f1a',
+        },
     },
     {
         id: 'regent',
@@ -514,7 +563,22 @@ export default class Kira
         if(id === 'ember') id = 'masked'
         if(!SPECIES_BY_ID[id] || id === this.speciesId) return
         this.speciesId = id
-        this._build(id)
+
+        // All species now render via the MaskedBower GLB, tinted from the
+        // chosen species's palette. Body tint comes from `palette.body`
+        // (defined on masked) or `palette.back` (defined on every species);
+        // tie tint from `palette.tie` or `palette.accent`. Mutating the
+        // masked palette before _build ensures both the loadMaskedScene
+        // first-load callback AND _buildMaskedAsync's resolve handler
+        // see the current tints.
+        const spec = SPECIES_BY_ID[id]
+        const bodyTint = spec?.palette?.body || spec?.palette?.back
+        const tieTint  = spec?.palette?.tie  || spec?.palette?.accent
+        const masked   = SPECIES_BY_ID.masked?.palette
+        if(masked && bodyTint) masked.body = bodyTint
+        if(masked && tieTint)  masked.tie  = tieTint
+
+        this._build('masked')
         for(const fn of this._listeners) fn(id)
     }
 
@@ -1119,7 +1183,7 @@ export default class Kira
 
         loadMaskedScene().then(({ scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }) =>
         {
-            if(this.speciesId !== 'masked') return
+            // Bail if a subsequent build superseded this one.
             if(!this.parts || this.parts.root !== placeholder) return
             this.group.remove(placeholder)
             this.parts = {
@@ -1135,6 +1199,10 @@ export default class Kira
                 maskedLegPivotR: legPivotR || null,
             }
             this.group.add(scene)
+            // The GLB scene is module-cached; its materials may hold a
+            // stale tint from a previous build with a different palette.
+            // Re-apply body + tie tints from the current masked palette.
+            applyMaskedTintsTo(scene)
         }).catch(err =>
         {
             console.error('[Kira] Failed to load MaskedBower.glb', err)

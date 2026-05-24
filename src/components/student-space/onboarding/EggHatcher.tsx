@@ -20,6 +20,7 @@ import {
   EGG_COLORS,
   ONBOARDING_COPY,
 } from '~/engine/student-space/Game/View/Onboarding/copy.js'
+import { getHatchPreset } from '~/lib/student-space/hatch-tuner'
 import { cn } from '~/lib/utils'
 
 /**
@@ -55,6 +56,11 @@ type KiraLike = {
   setSpecies?: (id: string) => unknown
 }
 
+/** Event fired by the hatch-tuner HUD to remount the EggCanvas so
+ * fresh tuner values take effect. Bumping a state key on receipt
+ * forces React to unmount + recreate the Three.js scene. */
+export const HATCH_TUNER_REPLAY_EVENT = 'student-space:replay-hatch-canvas'
+
 export function EggHatcher({
   stage,
   reducedMotion,
@@ -74,6 +80,13 @@ export function EggHatcher({
   const [selectedColor, setSelectedColor] = useState<string>(initialColor)
   const [name, setName] = useState(onboarding?.companionName ?? '')
   const [visible, setVisible] = useState(reducedMotion)
+  const [replayKey, setReplayKey] = useState(0)
+
+  useEffect(() => {
+    const onReplay = () => setReplayKey((k) => k + 1)
+    window.addEventListener(HATCH_TUNER_REPLAY_EVENT, onReplay)
+    return () => window.removeEventListener(HATCH_TUNER_REPLAY_EVENT, onReplay)
+  }, [])
 
   const selected = EGG_COLOR_BY_ID[selectedColor] ?? EGG_COLORS[0]
   const trimmedName = name.trim()
@@ -121,6 +134,7 @@ export function EggHatcher({
       {stage === 'egg-color' ? (
         <section className="flex w-full max-w-[420px] flex-col items-center gap-5 text-center">
           <EggCanvas
+            key={`egg-color-${replayKey}`}
             color={hatchColor}
             reducedMotion={reducedMotion}
             speciesId={selectedColor}
@@ -147,16 +161,17 @@ export function EggHatcher({
                 aria-label={ONBOARDING_COPY.eggColor.swatchAria.replace('{colorName}', color.name)}
                 data-testid={`egg-color-${color.id}`}
                 className={cn(
-                  'flex min-h-16 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-transparent bg-white/70',
-                  'text-xs font-semibold text-(--color-onb-ink) shadow-[0_8px_20px_rgba(15,18,36,0.10)]',
-                  'transition-[transform,border-color,background] duration-150 hover:-translate-y-px hover:bg-white',
+                  'flex min-h-16 cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-transparent bg-white/70 py-5',
+                  'text-xs font-semibold text-(--color-onb-ink) shadow-(--shadow-sheet-tile)',
+                  'transition-[transform,border-color,background-color,box-shadow] duration-200 ease-(--ease-sheet)',
+                  'hover:-translate-y-0.5 hover:bg-white hover:shadow-(--shadow-sheet-popover) active:scale-[0.96]',
                   'focus-visible:outline-[3px] focus-visible:outline-[rgba(255,138,92,0.7)] focus-visible:outline-offset-[3px]',
-                  'data-[checked]:border-(--color-onb-accent) data-[checked]:bg-white',
+                  'data-[checked]:-translate-y-0.5 data-[checked]:border-(--color-onb-accent) data-[checked]:bg-white data-[checked]:shadow-(--shadow-sheet-popover)',
                 )}
               >
                 <span
                   aria-hidden="true"
-                  className="size-7 rounded-full shadow-inner"
+                  className="image-outline size-8 rounded-full shadow-inner"
                   style={{ background: color.hex }}
                 />
                 {color.name}
@@ -178,6 +193,7 @@ export function EggHatcher({
       {stage === 'egg-name' ? (
         <section className="flex w-full max-w-[420px] flex-col items-center gap-5 text-center">
           <EggCanvas
+            key={`egg-name-${replayKey}`}
             color={hatchColor}
             reducedMotion={reducedMotion}
             speciesId={selectedColor}
@@ -204,7 +220,12 @@ export function EggHatcher({
                 commitName()
               }
             }}
-            className="min-h-12 w-full rounded-2xl border border-[rgba(43,38,32,0.12)] bg-white/80 px-4 text-center text-base font-semibold text-(--color-onb-ink) shadow-[0_8px_20px_rgba(15,18,36,0.10)] outline-none focus:border-(--color-onb-accent)"
+            className={cn(
+              'min-h-12 w-full max-w-[18rem] rounded-2xl border-2 border-transparent bg-white/70 px-4 text-center text-base font-semibold text-(--color-onb-ink) shadow-(--shadow-sheet-tile)',
+              'transition-[transform,border-color,background-color,box-shadow] duration-200 ease-(--ease-sheet) outline-none',
+              'hover:-translate-y-0.5 hover:bg-white hover:shadow-(--shadow-sheet-popover)',
+              'focus:-translate-y-0.5 focus:border-(--color-onb-accent) focus:bg-white focus:shadow-(--shadow-sheet-popover)',
+            )}
           />
           <div className="flex flex-wrap justify-center gap-3">
             <Button
@@ -234,6 +255,7 @@ export function EggHatcher({
           aria-live="polite"
         >
           <EggCanvas
+            key={`egg-hatch-${replayKey}`}
             color={hatchColor}
             reducedMotion={reducedMotion}
             speciesId={selectedColor}
@@ -267,8 +289,10 @@ export function EggHatcher({
 // boots (pre-reveal, scale 0). `BIRD_REVEAL_Y` is where it lands after the
 // reveal ramp; the wave bob adds ±0.025 on top.
 const BIRD_REVEAL_SCALE = 1.0
-const BIRD_START_Y = -0.8
-const BIRD_REVEAL_Y = -0.65
+// Bird Y positions + scale + camera framing all sourced from
+// `hatch-tuner.ts` (live-tunable via the Cmd+K dev HUD). Values are
+// read at scene init time — the dev HUD fires a replay event that
+// remounts the canvas so changes take effect.
 
 const HATCH_TIMELINE = {
   WIGGLE_END: 450,
@@ -285,7 +309,7 @@ const HATCH_TIMELINE = {
   WAVE_END: 2400,
 } as const
 
-function EggCanvas({
+export function EggCanvas({
   color,
   reducedMotion,
   speciesId,
@@ -337,8 +361,14 @@ function EggCanvas({
 
       const scene = new THREE.Scene()
 
-      const camera = new THREE.PerspectiveCamera(28, 160 / 200, 0.1, 100)
-      camera.position.set(0, 0, 5.0)
+      // Snapshot tuner values at scene init. The HatchTuneHud's "Replay"
+      // remounts this component so changes take effect on the next frame.
+      const tuner = getHatchPreset()
+      const BIRD_START_Y = tuner.birdStartY
+      const BIRD_REVEAL_Y = tuner.birdRevealY
+
+      const camera = new THREE.PerspectiveCamera(tuner.cameraFov, 160 / 200, 0.1, 100)
+      camera.position.set(0, 0, tuner.cameraDistance)
       camera.lookAt(0, 0, 0)
 
       scene.add(new THREE.AmbientLight(0xffffff, 0.34))
@@ -361,6 +391,10 @@ function EggCanvas({
         emissive: 0x000000,
         emissiveIntensity: 1,
         flatShading: true,
+        // Transparent so the shell halves can fade out during the wave
+        // phase (see HATCH_TIMELINE; the intact `mesh` is invisible by
+        // then so its opacity is irrelevant).
+        transparent: true,
       })
       const mesh = new THREE.Mesh(geo, mat)
       mesh.rotation.set(0.18, 0.45, 0)
@@ -451,49 +485,72 @@ function EggCanvas({
       }
       const buildBird = (id: string) => {
         const token = ++buildToken
-        if (id === 'masked') {
-          // Async path: clone the cached GLB scene so the hatchling is
-          // visually the same bird that flies in one screen later
-          // (orange body, red tie, tuft hair). SkeletonUtils.clone
-          // gives the clone its own skeleton, so animating the world
-          // Kira's bones doesn't twitch the egg bird.
-          void (async () => {
-            try {
-              const [{ scene: source }, SkeletonUtils] = await Promise.all([
-                loadMaskedScene(),
-                import('three/examples/jsm/utils/SkeletonUtils.js'),
-              ])
-              if (token !== buildToken || cancelled) return
-              const clone = SkeletonUtils.clone(source) as THREEType.Object3D
-              // The cached source scene is already scaled to MASKED_SCALE
-              // (0.30); the clone inherits that. For the egg preview we
-              // size up so the bird reads at roughly the procedural bird's
-              // footprint inside the shell.
-              clone.scale.setScalar(0.55)
-              // Re-find the head in the cloned tree (SkeletonUtils.clone
-              // creates new node instances). MB_Head is the visible head
-              // mesh, sibling to the armature inside MB_Rig.
-              let cloneHead: THREEType.Object3D | null = null
-              clone.traverse((o) => {
-                if (!cloneHead && /MB_Head/i.test(o.name)) cloneHead = o
-              })
-              birdParts = { root: clone, head: cloneHead ?? clone, kind: 'glb-clone' }
-              birdGroup.add(clone)
-            } catch (err) {
-              if (token !== buildToken || cancelled) return
-              console.warn('[EggCanvas] masked GLB clone failed, falling back to procedural', err)
-              const spec = SPECIES_BY_ID.masked ?? SPECIES_BY_ID.flame
-              const parts = buildStandingBird(spec)
-              birdParts = { root: parts.root, head: parts.head, kind: 'procedural' }
-              birdGroup.add(parts.root)
+        // All species hatch as the MaskedBower GLB, tinted from the
+        // chosen species's palette — same routing as Kira.setSpecies in
+        // the world canvas, so the egg preview matches the post-hatch
+        // bird across every egg-color pick. The procedural builder
+        // (buildStandingBird) is archived in place: still imported, but
+        // only called as a defensive fallback if the GLB load fails.
+        // SkeletonUtils.clone gives the clone its own skeleton, so
+        // animating the world Kira's bones doesn't twitch the egg bird.
+        void (async () => {
+          try {
+            const [{ scene: source }, SkeletonUtils] = await Promise.all([
+              loadMaskedScene(),
+              import('three/examples/jsm/utils/SkeletonUtils.js'),
+            ])
+            if (token !== buildToken || cancelled) return
+            const clone = SkeletonUtils.clone(source) as THREEType.Object3D
+            // Scale comes from the hatch tuner. Default 0.38 — the
+            // source GLB ships at MASKED_SCALE 0.30; the dev HUD can
+            // dial this between ~0.2 and ~0.8 to fit the canvas.
+            clone.scale.setScalar(tuner.birdScale)
+            // Tint cloned materials per the picked species's palette.
+            // Body + head share the same tint; tie uses the accent.
+            // NOTE: SkeletonUtils.clone shares materials by reference,
+            // so this mutates the cached scene's materials too. That's
+            // fine — the world Kira re-applies its own tints on the
+            // same materials when setSpecies runs after onboarding.
+            const spec = SPECIES_BY_ID[id] ?? SPECIES_BY_ID.masked
+            const bodyTint = spec?.palette?.body || spec?.palette?.back
+            const tieTint = spec?.palette?.tie || spec?.palette?.accent
+            const tints: Record<string, string | undefined> = {
+              MB_BodyYellow: bodyTint,
+              MB_HeadOrange: bodyTint,
+              Uniform_TieStriped: tieTint,
             }
-          })()
-          return
-        }
-        const spec = SPECIES_BY_ID[id] ?? SPECIES_BY_ID.flame
-        const parts = buildStandingBird(spec)
-        birdParts = { root: parts.root, head: parts.head, kind: 'procedural' }
-        birdGroup.add(parts.root)
+            clone.traverse((o) => {
+              const mesh = o as THREEType.Mesh
+              if (!mesh.isMesh) return
+              const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+              for (const mat of mats) {
+                if (!mat) continue
+                const m = mat as THREEType.MeshStandardMaterial
+                const hex = tints[m.name]
+                if (hex) {
+                  m.color?.set(hex)
+                  m.needsUpdate = true
+                }
+              }
+            })
+            // Re-find the head in the cloned tree (SkeletonUtils.clone
+            // creates new node instances). MB_Head is the visible head
+            // mesh, sibling to the armature inside MB_Rig.
+            let cloneHead: THREEType.Object3D | null = null
+            clone.traverse((o) => {
+              if (!cloneHead && /MB_Head/i.test(o.name)) cloneHead = o
+            })
+            birdParts = { root: clone, head: cloneHead ?? clone, kind: 'glb-clone' }
+            birdGroup.add(clone)
+          } catch (err) {
+            if (token !== buildToken || cancelled) return
+            console.warn('[EggCanvas] masked GLB clone failed, falling back to procedural', err)
+            const spec = SPECIES_BY_ID[id] ?? SPECIES_BY_ID.masked ?? SPECIES_BY_ID.flame
+            const parts = buildStandingBird(spec)
+            birdParts = { root: parts.root, head: parts.head, kind: 'procedural' }
+            birdGroup.add(parts.root)
+          }
+        })()
       }
       buildBird(speciesRef.current)
 
@@ -679,6 +736,13 @@ function EggCanvas({
               )
               birdParts.head.rotation.z = Math.sin(waveU * Math.PI) * 0.2
               birdGroup.position.y = BIRD_REVEAL_Y + Math.sin(waveU * Math.PI) * 0.025
+              // Fade both shell halves out during the wave so the bird is
+              // standing alone when the screen transitions to first-chat.
+              mat.opacity = 1 - easeOutCubic(waveU)
+              if (waveU >= 1) {
+                topShell.visible = false
+                bottomShell.visible = false
+              }
             }
           }
         }
@@ -748,7 +812,7 @@ function EggCanvas({
   }, [])
 
   return (
-    <div className="relative grid h-48 w-40 place-items-center" aria-hidden="true">
+    <div className="relative grid h-80 w-56 place-items-center" aria-hidden="true">
       <div className="absolute bottom-3 h-4 w-24 rounded-full bg-[rgba(43,38,32,0.10)] blur-sm" />
       <canvas ref={canvasRef} className="relative h-full w-full" />
     </div>

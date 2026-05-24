@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
 import { type ReactNode, useEffect } from 'react'
 import { DevPalette } from '~/components/DevPalette'
+import { HatchTuneHud } from '~/components/student-space/onboarding/HatchTuneHud'
 import { queryClient } from '~/router'
 import styles from '~/styles.css?url'
 
@@ -82,6 +83,7 @@ function RootComponent() {
             both layouts by sitting at the top level. */}
         <Outlet />
         <DevPalette />
+        <HatchTuneHud />
       </QueryClientProvider>
     </RootDocument>
   )
