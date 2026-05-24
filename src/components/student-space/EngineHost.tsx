@@ -228,8 +228,8 @@ export function EngineHost({ className, children }: { className?: string; childr
           ref={containerRef}
           aria-hidden={!isWorldRoute}
           className={cn(
-            'game',
-            !isWorldRoute && 'pointer-events-none invisible opacity-0',
+            'game transition-opacity duration-(--duration-base) ease-(--ease-out) motion-reduce:transition-none',
+            !isWorldRoute && 'pointer-events-none opacity-0',
             className,
           )}
           style={{
