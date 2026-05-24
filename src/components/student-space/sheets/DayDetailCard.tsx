@@ -229,7 +229,7 @@ export function DayDetailCard({
       className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5"
     >
       <header className="mb-4">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
           Day
         </p>
         <h3 className="mt-0.5 text-base font-semibold text-(--color-sheet-ink)">
@@ -242,7 +242,7 @@ export function DayDetailCard({
         <div className="space-y-5">
           {moods.length > 0 ? (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
                 Moods
               </p>
               <ul className="space-y-1.5">
@@ -275,7 +275,7 @@ export function DayDetailCard({
           ) : null}
           {captures.length > 0 ? (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
                 Captures
               </p>
               <ul className="space-y-2">
@@ -309,7 +309,7 @@ export function DayDetailCard({
           ) : null}
           {events.length > 0 ? (
             <div>
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
                 Events
               </p>
               <ul className="space-y-1.5 text-sm">

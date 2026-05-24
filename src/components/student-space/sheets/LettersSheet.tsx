@@ -123,7 +123,7 @@ export function LettersSheet() {
         </SheetIdentityHeader>
         <div className="px-4 pb-6">
           {sorted.length === 0 ? (
-            <p className="text-sm text-(--color-sheet-ink-soft)">
+            <p className="text-base leading-relaxed text-(--color-sheet-ink-soft)">
               No letters yet. Your teacher will write when they notice something.
             </p>
           ) : (
@@ -153,7 +153,9 @@ export function LettersSheet() {
               <LetterBodyContent letter={selected} />
               {selected.prompt ? (
                 <div className="mt-8 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5">
-                  <p className="text-sm text-(--color-sheet-ink)">{selected.prompt}</p>
+                  <p className="text-base leading-relaxed text-(--color-sheet-ink)">
+                    {selected.prompt}
+                  </p>
                   <button
                     type="button"
                     onClick={() => handleCapture(selected.prompt ?? '')}
@@ -168,7 +170,9 @@ export function LettersSheet() {
           </>
         ) : (
           <SheetBody>
-            <p className="text-sm text-(--color-sheet-ink-soft)">Tap a letter to read it.</p>
+            <p className="text-base leading-relaxed text-(--color-sheet-ink-soft)">
+              Tap a letter to read it.
+            </p>
           </SheetBody>
         )}
       </SheetContent>

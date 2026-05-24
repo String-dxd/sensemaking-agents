@@ -68,7 +68,7 @@ export function SettingsSheet() {
           <SheetDescription>Tools for adjusting how the world behaves.</SheetDescription>
         </SheetIdentityHeader>
         <div className="px-7 pb-6">
-          <p className="text-[13.5px] leading-[1.55] text-(--color-sheet-ink-soft)">
+          <p className="text-base leading-relaxed text-(--color-sheet-ink-soft)">
             Adjust how the world behaves and replay the first-run ceremony. Changes apply
             immediately and persist across sessions.
           </p>

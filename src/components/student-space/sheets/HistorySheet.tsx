@@ -313,7 +313,9 @@ function PaneHeader({
             {titleNode ?? title}
           </h2>
           {subtitle ? (
-            <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">{subtitle}</p>
+            <p className="mt-1 text-base leading-relaxed text-(--color-sheet-ink-soft)">
+              {subtitle}
+            </p>
           ) : null}
         </div>
         {actions ? <div className="shrink-0">{actions}</div> : null}
@@ -500,7 +502,7 @@ function GrowthYearSummary({ year, term }: { year: number; term?: number }) {
   return (
     <div className="space-y-4">
       {summary.narrative ? (
-        <p className="text-sm leading-relaxed text-(--color-sheet-ink)">{summary.narrative}</p>
+        <p className="text-base leading-relaxed text-(--color-sheet-ink)">{summary.narrative}</p>
       ) : null}
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile value={summary.reflections} label="Voice reflections" />

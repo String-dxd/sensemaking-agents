@@ -221,7 +221,7 @@ export function CalendarPane({
           </BaseButton>
         </div>
       </header>
-      <div className="mb-1.5 grid grid-cols-7 text-center text-[11px] font-semibold text-(--color-sheet-ink-soft)">
+      <div className="mb-1.5 grid grid-cols-7 text-center text-xs font-semibold text-(--color-sheet-ink-soft)">
         {DAY_LABELS.map((d, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: weekday labels are positional
           <div key={i}>{d}</div>
@@ -294,7 +294,7 @@ export function CalendarPane({
                     />
                   ) : null}
                   {cellEvents > 0 ? (
-                    <span aria-hidden className="text-[10px] leading-none">
+                    <span aria-hidden className="text-xs leading-none">
                       ·
                     </span>
                   ) : null}
@@ -313,7 +313,7 @@ function CalendarLegend() {
   return (
     <ul
       aria-label="Calendar marker legend"
-      className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-(--color-sheet-divider)/70 pt-3 text-[11px] text-(--color-sheet-ink-soft)"
+      className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-(--color-sheet-divider)/70 pt-3 text-xs text-(--color-sheet-ink-soft)"
     >
       <li className="inline-flex items-center gap-1.5">
         <span aria-hidden className="size-1.5 rounded-full bg-(--color-sheet-ink)" />
@@ -328,7 +328,7 @@ function CalendarLegend() {
         Photo
       </li>
       <li className="inline-flex items-center gap-1.5">
-        <span aria-hidden className="text-[10px] leading-none text-(--color-sheet-ink)">
+        <span aria-hidden className="text-xs leading-none text-(--color-sheet-ink)">
           ·
         </span>
         Event
