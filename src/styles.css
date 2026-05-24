@@ -200,12 +200,11 @@ body,
   }
 }
 
-/* Onboarding cross-step crossfade. Outgoing stage fades 1->0 over 200ms;
-   incoming fades 0->1 over 320ms with an 80ms delay (overlap). Per-stage
-   `visible` ramps inside each onboarding component handle the
-   intentional reveal *within* a stage; these keyframes handle the
-   *between*-stage motion. The reduced-motion global block compresses
-   both to 80ms.
+/* Onboarding stage paint-in. Each stage's slot animates opacity 0 → 1
+   over 320ms (compressed to 80ms by the global reduced-motion block).
+   Per-stage `visible` ramps inside the stage components (EdupassLogin,
+   Greeting, EggHatcher, etc.) handle the intentional reveal *within*
+   a stage.
    ────────────────────────────────────────────────────────────────────── */
 @keyframes onboardingStageIn {
   from {
@@ -213,14 +212,6 @@ body,
   }
   to {
     opacity: 1;
-  }
-}
-@keyframes onboardingStageOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
   }
 }
 

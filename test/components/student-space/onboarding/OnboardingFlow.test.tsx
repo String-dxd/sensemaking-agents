@@ -289,15 +289,11 @@ describe('OnboardingFlow (React)', () => {
       expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Hi, there.')
     })
 
-    it('mounts the React-owned stage slot with the incoming-stage animation class', async () => {
+    it('mounts the React-owned stage slot with the paint-in animation', async () => {
       const onboarding = makeOnboarding({ stage: 'greeting' })
       const game = makeGame({ onboarding })
       renderFlow(game)
       const slot = await screen.findByTestId('onboarding-stage-slot')
-      // The slot uses a CSS animation (onboardingStageIn) rather than a static
-      // opacity class; the previous opacity-100 was dead because the slot
-      // never toggled. Assert the new contract: the slot mounts with the
-      // incoming animation and the right data-stage.
       expect(slot.className).toMatch(/onboardingStageIn/)
       expect(slot).toHaveAttribute('data-stage', 'greeting')
     })
