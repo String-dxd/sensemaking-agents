@@ -1,5 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Sparkles } from 'lucide-react'
+import { EMOTION_BY_ID, shapeDataUri } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
 
 /**
@@ -8,18 +9,6 @@ import { cn } from '~/lib/utils'
  * events for the selected day. Renders an empty placeholder when no day is
  * selected.
  */
-const MOOD_HEX: Record<string, string> = {
-  joy: '#FFD66B',
-  sadness: '#7FB3D9',
-  anger: '#E36A55',
-  fear: '#B49AD6',
-  disgust: '#5E9135',
-  anxiety: '#F1A04E',
-  envy: '#6FC2B3',
-  embarrassment: '#F0A6B5',
-  ennui: '#A8A5BD',
-}
-
 function formatLongDate(ymd: string | null): string {
   if (!ymd) return ''
   try {
@@ -163,30 +152,42 @@ export function DayDetailCard({
             <div>
               <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">Moods</p>
               <ul className="space-y-1.5">
-                {moods.map((mood, i) => (
-                  <li
-                    // biome-ignore lint/suspicious/noArrayIndexKey: mood pins on a single day are positionally stable
-                    key={i}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <span
-                      aria-hidden
-                      className="size-2 rounded-full"
-                      style={{ background: MOOD_HEX[mood.emotion ?? ''] ?? '#bbb' }}
-                    />
-                    <span className="font-medium capitalize text-(--color-sheet-ink)">
-                      {mood.emotion}
-                    </span>
-                    {typeof mood.intensity === 'number' ? (
-                      <span className="text-xs text-(--color-sheet-ink-soft)">
-                        · intensity {mood.intensity}
+                {moods.map((mood, i) => {
+                  const emotion = EMOTION_BY_ID[mood.emotion ?? '']
+                  return (
+                    <li
+                      // biome-ignore lint/suspicious/noArrayIndexKey: mood pins on a single day are positionally stable
+                      key={i}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      {emotion ? (
+                        <img
+                          src={shapeDataUri(emotion)}
+                          alt=""
+                          aria-hidden
+                          className="size-5 shrink-0"
+                          draggable={false}
+                        />
+                      ) : (
+                        <span
+                          aria-hidden
+                          className="size-2 rounded-full bg-(--color-sheet-ink-soft)"
+                        />
+                      )}
+                      <span className="font-medium capitalize text-(--color-sheet-ink)">
+                        {mood.emotion}
                       </span>
-                    ) : null}
-                    {mood.note ? (
-                      <span className="text-xs text-(--color-sheet-ink-soft)">— {mood.note}</span>
-                    ) : null}
-                  </li>
-                ))}
+                      {typeof mood.intensity === 'number' ? (
+                        <span className="text-xs text-(--color-sheet-ink-soft)">
+                          · intensity {mood.intensity}
+                        </span>
+                      ) : null}
+                      {mood.note ? (
+                        <span className="text-xs text-(--color-sheet-ink-soft)">— {mood.note}</span>
+                      ) : null}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ) : null}
