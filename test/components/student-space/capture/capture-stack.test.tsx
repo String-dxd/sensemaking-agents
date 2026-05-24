@@ -273,6 +273,34 @@ describe('React capture stack', () => {
     })
   })
 
+  it('shows the listening state inside a white You bubble before transcription lands', async () => {
+    class MockRTCPeerConnection {}
+    // @ts-expect-error happy-dom does not provide RTCPeerConnection.
+    globalThis.RTCPeerConnection = MockRTCPeerConnection
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    })
+
+    const createRealtimeMirrorCapture = vi.fn(async () => ({
+      stop: vi.fn(),
+      abort: vi.fn(),
+    }))
+    const game = makeGame({
+      state: {
+        backend: { createRealtimeMirrorCapture },
+      },
+    })
+    renderDirectAsk(game)
+
+    await userEvent.click(screen.getByText('open ask directly'))
+    await userEvent.click(screen.getByRole('button', { name: 'Start voice recording' }))
+
+    await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
+    expect(screen.getByText('You')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Listening...' })).toBeInTheDocument()
+  })
+
   it('turns the companion toward the camera while Ask capture is open', async () => {
     class Vector3Stub {
       x: number

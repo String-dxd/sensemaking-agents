@@ -4,6 +4,7 @@ import {
   type KeyboardEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -227,6 +228,7 @@ export function AskSheet() {
   const realtimeCaptureRef = useRef<RealtimeCapture | null>(null)
   const focusTimeoutRef = useRef<number | null>(null)
   const liveDialogueRef = useRef<HTMLDivElement | null>(null)
+  const liveDialogueEndRef = useRef<HTMLDivElement | null>(null)
   const mountedRef = useRef(false)
   const openRef = useRef(open)
   const recordingRunRef = useRef(0)
@@ -849,13 +851,34 @@ export function AskSheet() {
     if (stage === 'recording' && liveStudentText) setReviewText(liveStudentText)
   }, [liveStudentText, stage])
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: liveDialogue is the scroll trigger, not read in the body.
-  useEffect(() => {
+  const visibleLiveDialogue = useMemo(
+    () =>
+      liveDialogue.length > 0
+        ? liveDialogue
+        : [
+            {
+              id: 'student-listening-placeholder',
+              role: 'student',
+              text: 'Listening...',
+              status: 'streaming',
+            } satisfies LiveMessage,
+          ],
+    [liveDialogue],
+  )
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: visibleLiveDialogue is the scroll trigger, not read in the body.
+  useLayoutEffect(() => {
     if (stage !== 'recording') return
     const node = liveDialogueRef.current
     if (!node) return
-    node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
-  }, [liveDialogue, stage])
+    const scrollToBottom = () => {
+      node.scrollTop = node.scrollHeight
+      liveDialogueEndRef.current?.scrollIntoView({ block: 'end' })
+    }
+    scrollToBottom()
+    const frame = window.requestAnimationFrame(scrollToBottom)
+    return () => window.cancelAnimationFrame(frame)
+  }, [visibleLiveDialogue, stage])
 
   const [typeMode, setTypeMode] = useState(false)
 
@@ -1083,43 +1106,33 @@ export function AskSheet() {
             <section className="flex min-h-0 flex-col gap-4">
               <div
                 ref={liveDialogueRef}
-                className="min-h-[260px] overflow-y-auto pr-1"
+                className="min-h-[260px] max-h-[min(430px,calc(100vh-16rem))] overflow-y-auto pr-1"
                 role="log"
                 aria-live="polite"
               >
-                {liveDialogue.length === 0 ? (
-                  <div className="flex min-h-[260px] flex-col items-center justify-center gap-3">
-                    <div className="relative grid size-20 place-items-center rounded-full bg-(--color-onb-accent) text-white shadow-[0_18px_44px_-22px_rgba(214,116,58,0.70)]">
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-0 animate-ping rounded-full bg-(--color-onb-accent)/35"
-                      />
-                      <Mic aria-hidden className="relative size-8" />
-                    </div>
-                    <p className="m-0 text-sm font-semibold text-[rgba(43,38,32,0.58)]">
-                      Listening...
-                    </p>
-                  </div>
-                ) : (
-                  liveDialogue.map((message) => (
-                    <article
-                      key={message.id}
-                      className={cn(
-                        'mb-3 max-w-[82%] rounded-2xl px-3 py-2 text-sm shadow-sm',
-                        'transition-opacity duration-300 ease-out',
-                        message.role === 'kira'
-                          ? 'mr-auto bg-[#edf7f5] text-[#1f5a4f]'
-                          : 'ml-auto bg-white text-[rgba(43,38,32,0.86)]',
-                        message.status === 'streaming' && 'opacity-80',
-                      )}
-                    >
-                      <span className="block text-[11px] font-bold opacity-60">
-                        {message.role === 'kira' ? companionName : 'You'}
-                      </span>
+                {visibleLiveDialogue.map((message) => (
+                  <article
+                    key={message.id}
+                    className={cn(
+                      'mb-3 max-w-[82%] rounded-2xl px-3 py-2 text-sm shadow-sm',
+                      'transition-opacity duration-300 ease-out',
+                      message.role === 'kira'
+                        ? 'mr-auto bg-[#edf7f5] text-[#1f5a4f]'
+                        : 'ml-auto bg-white text-[rgba(43,38,32,0.86)]',
+                      message.status === 'streaming' && 'opacity-80',
+                    )}
+                  >
+                    <span className="block text-[11px] font-bold opacity-60">
+                      {message.role === 'kira' ? companionName : 'You'}
+                    </span>
+                    {message.status === 'streaming' && message.role !== 'kira' ? (
+                      <TypingIndicator label={message.text || 'Listening...'} />
+                    ) : (
                       <p className="m-0">{message.text}</p>
-                    </article>
-                  ))
-                )}
+                    )}
+                  </article>
+                ))}
+                <div ref={liveDialogueEndRef} aria-hidden className="h-px" />
               </div>
               {liveHint ? (
                 <p className="m-0 text-xs text-[rgba(43,38,32,0.54)]">{liveHint}</p>
@@ -1357,6 +1370,26 @@ function ReframeStage({
         </button>
       </div>
     </section>
+  )
+}
+
+function TypingIndicator({ label }: { label: string }) {
+  return (
+    <div className="mt-1 inline-flex min-h-6 items-center gap-1.5" role="status" aria-label={label}>
+      <span className="sr-only">{label}</span>
+      <span
+        aria-hidden="true"
+        className="size-2 animate-pulse rounded-full bg-[rgba(43,38,32,0.42)] [animation-delay:-0.32s]"
+      />
+      <span
+        aria-hidden="true"
+        className="size-2 animate-pulse rounded-full bg-[rgba(43,38,32,0.42)] [animation-delay:-0.16s]"
+      />
+      <span
+        aria-hidden="true"
+        className="size-2 animate-pulse rounded-full bg-[rgba(43,38,32,0.42)]"
+      />
+    </div>
   )
 }
 
