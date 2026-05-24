@@ -12,7 +12,7 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import { type TenantContext, withStudent } from './client'
@@ -157,15 +157,19 @@ export async function seed(): Promise<SeedResult> {
     if (selectedStudentIds && !selectedStudentIds.has(student.student_id)) continue
 
     const result = await withStudent(student.student_id, async (ctx) => {
-      // RLS scopes this to `student.student_id`; counting all rows is fine.
+      // Explicit student_id scoping: the seed runs as a DB role with
+      // BYPASSRLS (Neon's `neondb_owner`), so the RLS policy that would
+      // normally scope `from mirror_entries` to `app.student_id` is
+      // skipped. Filtering inline keeps the seed correct under both
+      // RLS-enforced and RLS-bypass roles.
       const existing = await ctx.db.execute<{ c: number }>(
-        sql`select count(*)::int as c from ${mirrorEntries}`,
+        sql`select count(*)::int as c from ${mirrorEntries} where ${mirrorEntries.studentId} = ${student.student_id}`,
       )
       if ((existing.rows[0]?.c ?? 0) > 0) {
         if (!replaceExisting) {
           return { skipped: true, replaced: false, inserted: 0, timelineInserted: 0, trajectory: 0 }
         }
-        await resetSeedStudent(ctx.db)
+        await resetSeedStudent(ctx.db, student.student_id)
       }
 
       let count = 0
@@ -313,19 +317,24 @@ function isTruthy(value: string | undefined): boolean {
 
 type SeedTransaction = TenantContext['db']
 
-async function resetSeedStudent(db: SeedTransaction): Promise<void> {
-  await db.delete(agentTraces)
-  await db.delete(cartographerOutputs)
-  await db.delete(pathfinderOutputs)
-  await db.delete(connectorOutputs)
-  await db.delete(vipsProposedDiffs)
-  await db.delete(vipsTimelineEntries)
-  await db.delete(vipsPages)
-  await db.delete(vipsForgetCount)
-  await db.delete(memorySnapshots)
-  await db.delete(studentMemoryFiles)
-  await db.delete(mirrorEntries)
-  await db.delete(tags)
+async function resetSeedStudent(db: SeedTransaction, studentId: string): Promise<void> {
+  // Each delete is explicitly scoped by student_id. The seed CLI typically
+  // runs as `neondb_owner` (BYPASSRLS), so relying on the RLS policy to
+  // scope these deletes would silently wipe every student's rows on each
+  // iteration; tenancy-bound DELETEs are correct under both RLS-enforced
+  // and RLS-bypass roles.
+  await db.delete(agentTraces).where(eq(agentTraces.studentId, studentId))
+  await db.delete(cartographerOutputs).where(eq(cartographerOutputs.studentId, studentId))
+  await db.delete(pathfinderOutputs).where(eq(pathfinderOutputs.studentId, studentId))
+  await db.delete(connectorOutputs).where(eq(connectorOutputs.studentId, studentId))
+  await db.delete(vipsProposedDiffs).where(eq(vipsProposedDiffs.studentId, studentId))
+  await db.delete(vipsTimelineEntries).where(eq(vipsTimelineEntries.studentId, studentId))
+  await db.delete(vipsPages).where(eq(vipsPages.studentId, studentId))
+  await db.delete(vipsForgetCount).where(eq(vipsForgetCount.studentId, studentId))
+  await db.delete(memorySnapshots).where(eq(memorySnapshots.studentId, studentId))
+  await db.delete(studentMemoryFiles).where(eq(studentMemoryFiles.studentId, studentId))
+  await db.delete(mirrorEntries).where(eq(mirrorEntries.studentId, studentId))
+  await db.delete(tags).where(eq(tags.studentId, studentId))
 }
 
 async function applyMirrorReviewStatus(

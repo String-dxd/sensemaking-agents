@@ -3,6 +3,7 @@ import { Toggle } from '@base-ui-components/react/toggle'
 import { ToggleGroup } from '@base-ui-components/react/toggle-group'
 import { CalendarDays, Camera, ChevronLeft, ChevronRight, NotebookPen, Smile } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { EMOTION_BY_ID, shapeDataUri } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
 
 /**
@@ -15,18 +16,6 @@ import { cn } from '~/lib/utils'
  * Tailwind variant only, not a full re-render of the calendar (PR #33
  * invariant).
  */
-const MOOD_HEX: Record<string, string> = {
-  joy: '#FFD66B',
-  sadness: '#7FB3D9',
-  anger: '#E36A55',
-  fear: '#B49AD6',
-  disgust: '#9CC36E',
-  anxiety: '#F1A04E',
-  envy: '#6FC2B3',
-  embarrassment: '#F0A6B5',
-  ennui: '#A8A5BD',
-}
-
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTH_NAMES = [
   'January',
@@ -271,15 +260,21 @@ export function CalendarPane({
               >
                 <span className="text-xs font-medium tabular-nums">{cell.getDate()}</span>
                 <div className="mt-auto flex min-h-2 flex-wrap items-center gap-0.5">
-                  {cellMoods.slice(0, 3).map((mood, i) => (
-                    <Smile
-                      // biome-ignore lint/suspicious/noArrayIndexKey: mood badges are positional within a day
-                      key={i}
-                      aria-hidden
-                      className="size-3"
-                      style={{ color: MOOD_HEX[mood.emotion ?? ''] ?? '#bbb' }}
-                    />
-                  ))}
+                  {cellMoods.slice(0, 3).map((mood, i) => {
+                    const emotion = EMOTION_BY_ID[mood.emotion ?? '']
+                    if (!emotion) return null
+                    return (
+                      <img
+                        // biome-ignore lint/suspicious/noArrayIndexKey: mood badges are positional within a day
+                        key={i}
+                        src={shapeDataUri(emotion)}
+                        alt=""
+                        aria-hidden
+                        className="size-3.5"
+                        draggable={false}
+                      />
+                    )
+                  })}
                   {cellCaps.length > 0
                     ? (() => {
                         const hasPhoto = cellCaps.some((c) => c.kind === 'photo')

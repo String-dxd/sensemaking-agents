@@ -40,6 +40,10 @@ export interface StudentSpaceReflectionCaptureSnapshot {
   entryDate: string
   kind: 'ask'
   text: string
+  /** Mirror's empathic acknowledgement of the moment. Optional because
+   *  incremental `captures.patch` writes (AskSheet, retry sync) don't carry
+   *  this field; the detail view reads it via optional chaining. */
+  validation?: string
   reframe: {
     headline: string
     highlightPhrase: string
@@ -278,6 +282,7 @@ export function mapMirrorEntryToReflectionCapture(
     entryDate: toEntryDate(entry.created_at),
     kind: 'ask',
     text: entry.transcript,
+    validation: entry.validation,
     reframe: {
       headline: entry.story_reframe,
       highlightPhrase: entry.inferred_meaning,

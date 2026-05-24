@@ -1,6 +1,7 @@
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Sparkles } from 'lucide-react'
-import { useState } from 'react'
+import { EMOTION_BY_ID, shapeDataUri } from '~/lib/student-space/mood-shapes'
+import { cn } from '~/lib/utils'
 
 /**
  * DayDetailCard — inline content panel rendered alongside the Calendar grid
@@ -8,18 +9,6 @@ import { useState } from 'react'
  * events for the selected day. Renders an empty placeholder when no day is
  * selected.
  */
-const MOOD_HEX: Record<string, string> = {
-  joy: '#FFD66B',
-  sadness: '#7FB3D9',
-  anger: '#E36A55',
-  fear: '#B49AD6',
-  disgust: '#9CC36E',
-  anxiety: '#F1A04E',
-  envy: '#6FC2B3',
-  embarrassment: '#F0A6B5',
-  ennui: '#A8A5BD',
-}
-
 function formatLongDate(ymd: string | null): string {
   if (!ymd) return ''
   try {
@@ -39,6 +28,7 @@ interface DayDetailCapture {
   entryDate: string
   kind: string
   text?: string
+  validation?: string
   createdAt?: string
   prompt?: string | null
   backendMirrorEntryId?: number | string
@@ -47,6 +37,28 @@ interface DayDetailCapture {
   syncError?: string
   contextType?: string
   caption?: string
+  reframe?: {
+    headline?: string
+    highlightPhrase?: string
+    themes?: string[]
+    needs?: string[]
+    moods?: string[]
+  }
+}
+
+const CONTEXT_LABEL: Record<string, string> = {
+  school: 'School',
+  peer: 'Peer',
+  civic: 'Civic',
+  family: 'Family',
+  hobby: 'Hobby',
+}
+
+function formatTime(iso: string | undefined): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
 
 interface DayDetailEngineState {
@@ -100,13 +112,6 @@ export function DayDetailCard({
   date: string | null
   engineState: DayDetailEngineState | undefined
 }) {
-  const [reviewInFlight, setReviewInFlight] = useState<{
-    entryId: number
-    status: 'confirmed' | 'forgotten'
-  } | null>(null)
-  const [reviewError, setReviewError] = useState<{ entryId: number; message: string } | null>(null)
-  const [retryInFlightId, setRetryInFlightId] = useState<string | null>(null)
-
   const moods = date ? (engineState?.moodPins?.pins ?? []).filter((p) => p.entryDate === date) : []
   const captures = date
     ? (engineState?.captures?.entries ?? []).filter((c) => c.entryDate === date)
@@ -114,101 +119,6 @@ export function DayDetailCard({
   const events = date
     ? (engineState?.calendar?.events ?? []).filter((e) => eventDate(e) === date)
     : []
-
-  async function reviewCapture(capture: DayDetailCapture, status: 'confirmed' | 'forgotten') {
-    const entryId = Number(capture.backendMirrorEntryId)
-    if (!Number.isInteger(entryId) || !engineState?.backend?.updateReflectionReview) return
-    setReviewInFlight({ entryId, status })
-    setReviewError(null)
-    try {
-      const updated = await engineState.backend.updateReflectionReview({ entryId, status })
-      patchReviewCapture(capture, entryId, status, updated)
-      try {
-        const snapshot = await engineState.backend.refreshSnapshot?.()
-        if (snapshot) engineState.applyBackendSnapshot?.(snapshot)
-      } catch (refreshErr) {
-        console.warn('[DayDetailCard] reflection review snapshot refresh failed', refreshErr)
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.warn('[DayDetailCard] reflection review failed', err)
-      setReviewError({ entryId, message: `Review update failed: ${message}` })
-    } finally {
-      setReviewInFlight(null)
-    }
-  }
-
-  async function retryCaptureSync(capture: DayDetailCapture) {
-    if (!capture.id || capture.kind !== 'ask' || !engineState?.backend?.submitReflection) return
-    setRetryInFlightId(capture.id)
-    engineState.captures?.patch?.(capture.id, { syncStatus: 'syncing', syncError: '' })
-    try {
-      const result = await engineState.backend.submitReflection({
-        localCaptureId: capture.id,
-        transcript: capture.text || '',
-        contextType: capture.contextType || 'school',
-      })
-      const mirror = result?.mirrorEntry
-      if (mirror) {
-        engineState.captures?.patch?.(capture.id, {
-          backendMirrorEntryId: mirror.id,
-          text: mirror.transcript || capture.text || '',
-          reviewStatus: mirror.reviewStatus || 'pending',
-          syncStatus: 'synced',
-          syncError: '',
-          contextType: mirror.contextType || 'school',
-          reframe: {
-            headline: mirror.storyReframe || '',
-            highlightPhrase: mirror.inferredMeaning || '',
-            themes: mirror.contextType ? [mirror.contextType] : [],
-            needs: [],
-            moods: [],
-          },
-        })
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.warn('[DayDetailCard] reflection sync retry failed', err)
-      engineState.captures?.patch?.(capture.id, { syncStatus: 'failed', syncError: message })
-    } finally {
-      setRetryInFlightId(null)
-    }
-  }
-
-  function patchReviewCapture(
-    capture: DayDetailCapture,
-    entryId: number,
-    status: 'confirmed' | 'forgotten',
-    updated:
-      | {
-          reviewStatus?: string
-          transcript?: string
-          contextType?: string
-          storyReframe?: string
-          inferredMeaning?: string
-        }
-      | undefined,
-  ) {
-    const patch = {
-      reviewStatus: updated?.reviewStatus || status,
-      ...(updated?.transcript ? { text: updated.transcript } : {}),
-      ...(updated?.contextType ? { contextType: updated.contextType } : {}),
-      ...(updated
-        ? {
-            reframe: {
-              headline: updated.storyReframe || '',
-              highlightPhrase: updated.inferredMeaning || '',
-              themes: updated.contextType ? [updated.contextType] : [],
-              needs: [],
-              moods: [],
-            },
-          }
-        : {}),
-    }
-    let patched = engineState?.captures?.patch?.(`mirror:${entryId}`, patch)
-    if (patched) return
-    if (capture.id) patched = engineState?.captures?.patch?.(capture.id, patch)
-  }
 
   if (!date) {
     return (
@@ -242,62 +152,123 @@ export function DayDetailCard({
             <div>
               <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">Moods</p>
               <ul className="space-y-1.5">
-                {moods.map((mood, i) => (
-                  <li
-                    // biome-ignore lint/suspicious/noArrayIndexKey: mood pins on a single day are positionally stable
-                    key={i}
-                    className="flex items-center gap-2 text-sm"
-                  >
-                    <span
-                      aria-hidden
-                      className="size-2 rounded-full"
-                      style={{ background: MOOD_HEX[mood.emotion ?? ''] ?? '#bbb' }}
-                    />
-                    <span className="font-medium capitalize text-(--color-sheet-ink)">
-                      {mood.emotion}
-                    </span>
-                    {typeof mood.intensity === 'number' ? (
-                      <span className="text-xs text-(--color-sheet-ink-soft)">
-                        · intensity {mood.intensity}
+                {moods.map((mood, i) => {
+                  const emotion = EMOTION_BY_ID[mood.emotion ?? '']
+                  return (
+                    <li
+                      // biome-ignore lint/suspicious/noArrayIndexKey: mood pins on a single day are positionally stable
+                      key={i}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      {emotion ? (
+                        <img
+                          src={shapeDataUri(emotion)}
+                          alt=""
+                          aria-hidden
+                          className="size-5 shrink-0"
+                          draggable={false}
+                        />
+                      ) : (
+                        <span
+                          aria-hidden
+                          className="size-2 rounded-full bg-(--color-sheet-ink-soft)"
+                        />
+                      )}
+                      <span className="font-medium capitalize text-(--color-sheet-ink)">
+                        {mood.emotion}
                       </span>
-                    ) : null}
-                    {mood.note ? (
-                      <span className="text-xs text-(--color-sheet-ink-soft)">— {mood.note}</span>
-                    ) : null}
-                  </li>
-                ))}
+                      {typeof mood.intensity === 'number' ? (
+                        <span className="text-xs text-(--color-sheet-ink-soft)">
+                          · intensity {mood.intensity}
+                        </span>
+                      ) : null}
+                      {mood.note ? (
+                        <span className="text-xs text-(--color-sheet-ink-soft)">— {mood.note}</span>
+                      ) : null}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ) : null}
           {captures.length > 0 ? (
             <div>
-              <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">Captures</p>
+              <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">
+                Reflections
+              </p>
               <ul className="space-y-2">
-                {captures.map((cap) => (
-                  <li
-                    key={cap.id}
-                    className="rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink)"
-                  >
-                    <p className="text-xs text-(--color-sheet-ink-soft)">
-                      {cap.kind === 'ask' ? 'Reflection' : cap.kind}
-                    </p>
-                    {cap.text ? (
-                      <p className="mt-1 leading-relaxed">{cap.text.slice(0, 180)}</p>
-                    ) : cap.caption ? (
-                      <p className="mt-1 leading-relaxed">{cap.caption}</p>
-                    ) : null}
-                    {cap.kind === 'ask' ? (
-                      <CaptureActions
-                        capture={cap}
-                        reviewInFlight={reviewInFlight}
-                        reviewError={reviewError}
-                        retryInFlight={retryInFlightId === cap.id}
-                        onReview={(status) => void reviewCapture(cap, status)}
-                        onRetry={() => void retryCaptureSync(cap)}
-                      />
-                    ) : null}
-                  </li>
-                ))}
+                {captures.map((cap) => {
+                  if (cap.kind !== 'ask') {
+                    return (
+                      <li
+                        key={cap.id}
+                        className="rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink)"
+                      >
+                        {cap.text ? (
+                          <p className="leading-relaxed">{cap.text.slice(0, 180)}</p>
+                        ) : cap.caption ? (
+                          <p className="leading-relaxed">{cap.caption}</p>
+                        ) : null}
+                      </li>
+                    )
+                  }
+                  const headline = cap.reframe?.headline?.trim() ?? ''
+                  const highlight = cap.reframe?.highlightPhrase?.trim() ?? ''
+                  const time = formatTime(cap.createdAt)
+                  const contextLabel = cap.contextType
+                    ? (CONTEXT_LABEL[cap.contextType] ?? cap.contextType)
+                    : null
+                  const entryId = Number(cap.backendMirrorEntryId)
+                  const hasBackendId = Number.isInteger(entryId) && entryId > 0
+                  const cardClasses =
+                    'block rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink) transition-colors'
+                  const body = (
+                    <>
+                      <div className="flex items-center gap-2 text-xs text-(--color-sheet-ink-soft)">
+                        {contextLabel ? (
+                          <span className="inline-flex items-center rounded-full bg-(--color-onb-bg-cream) px-2 py-0.5 font-semibold uppercase tracking-[0.04em] text-(--color-sheet-ink)">
+                            {contextLabel}
+                          </span>
+                        ) : null}
+                        {time ? <span className="tabular-nums">{time}</span> : null}
+                      </div>
+                      {headline ? (
+                        <p className="mt-1.5 font-medium leading-snug text-(--color-sheet-ink)">
+                          {headline}
+                        </p>
+                      ) : null}
+                      {highlight ? (
+                        <p className="mt-1 text-[13px] italic leading-snug text-(--color-sheet-ink-soft)">
+                          “{highlight}”
+                        </p>
+                      ) : null}
+                      {cap.text ? (
+                        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-(--color-sheet-ink-soft)">
+                          {cap.text.slice(0, 180)}
+                        </p>
+                      ) : null}
+                    </>
+                  )
+                  return (
+                    <li key={cap.id}>
+                      {hasBackendId ? (
+                        <Link
+                          to="/mirror/$id"
+                          params={{ id: String(entryId) }}
+                          data-testid={`mirror-card-${entryId}`}
+                          className={cn(
+                            cardClasses,
+                            'cursor-pointer hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                          )}
+                        >
+                          {body}
+                        </Link>
+                      ) : (
+                        <div className={cardClasses}>{body}</div>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ) : null}
@@ -317,69 +288,6 @@ export function DayDetailCard({
         </div>
       )}
     </section>
-  )
-}
-
-function CaptureActions({
-  capture,
-  reviewInFlight,
-  reviewError,
-  retryInFlight,
-  onReview,
-  onRetry,
-}: {
-  capture: DayDetailCapture
-  reviewInFlight: { entryId: number; status: 'confirmed' | 'forgotten' } | null
-  reviewError: { entryId: number; message: string } | null
-  retryInFlight: boolean
-  onReview: (status: 'confirmed' | 'forgotten') => void
-  onRetry: () => void
-}) {
-  const entryId = Number(capture.backendMirrorEntryId)
-  const reviewing = Number.isInteger(entryId) && reviewInFlight?.entryId === entryId
-  const canReview = Number.isInteger(entryId) && capture.reviewStatus === 'pending'
-  const failed = capture.syncStatus === 'failed'
-  return (
-    <div className="mt-2 space-y-2 text-xs text-(--color-sheet-ink-soft)">
-      {capture.reviewStatus ? <p>status: {capture.reviewStatus}</p> : null}
-      {syncLine(capture) ? <p>{syncLine(capture)}</p> : null}
-      {capture.prompt ? <p>prompt: {capture.prompt}</p> : null}
-      {canReview ? (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={reviewing}
-            onClick={() => onReview('confirmed')}
-            className="min-h-10 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white active:scale-[0.96] disabled:pointer-events-none disabled:cursor-wait disabled:opacity-60"
-          >
-            {reviewing && reviewInFlight?.status === 'confirmed' ? 'Confirming...' : 'Confirm'}
-          </button>
-          <button
-            type="button"
-            disabled={reviewing}
-            onClick={() => onReview('forgotten')}
-            className="min-h-10 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white active:scale-[0.96] disabled:pointer-events-none disabled:cursor-wait disabled:opacity-60"
-          >
-            {reviewing && reviewInFlight?.status === 'forgotten' ? 'Forgetting...' : 'Forget'}
-          </button>
-        </div>
-      ) : null}
-      {failed ? (
-        <button
-          type="button"
-          disabled={retryInFlight}
-          onClick={onRetry}
-          className="min-h-10 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white active:scale-[0.96] disabled:pointer-events-none disabled:cursor-wait disabled:opacity-60"
-        >
-          {retryInFlight ? 'Retrying...' : 'Retry sync'}
-        </button>
-      ) : null}
-      {reviewError?.entryId === entryId ? (
-        <p role="alert" className="text-red-700">
-          {reviewError.message}
-        </p>
-      ) : null}
-    </div>
   )
 }
 
@@ -425,11 +333,4 @@ function eventDate(event: { entryDate?: string; date?: string }) {
 
 function eventLabel(event: { title?: string; label?: string; kind?: string }) {
   return event.title ?? event.label ?? event.kind ?? 'Event'
-}
-
-function syncLine(capture: DayDetailCapture) {
-  if (capture.syncStatus === 'failed')
-    return `sync failed${capture.syncError ? `: ${capture.syncError}` : ''}`
-  if (capture.syncStatus === 'syncing') return 'syncing...'
-  return ''
 }

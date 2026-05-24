@@ -21,7 +21,7 @@
           "inferred_meaning": "Helping feels most alive for you when another person feels respected first, not fixed.",
           "story_reframe": "A classmate opened up because Mei treated him as a thinker, not a problem to solve. The moment points toward patient, relational mentoring work where dignity comes before instruction.",
           "review_status": "confirmed",
-          "created_at": "2025-10-14T08:30:00Z"
+          "created_at": "2026-05-18T08:30:00Z"
         },
         {
           "context_type": "peer",
@@ -30,7 +30,7 @@
           "inferred_meaning": "You are learning the difference between being useful and taking ownership of a problem that belongs to someone else.",
           "story_reframe": "Mei's helper instinct ran ahead of consent. The conflict does not erase her care; it gives the care a sharper edge: ask first, then support.",
           "review_status": "confirmed",
-          "created_at": "2025-10-19T19:10:00Z"
+          "created_at": "2026-05-19T19:10:00Z"
         },
         {
           "context_type": "civic",
@@ -39,7 +39,7 @@
           "inferred_meaning": "You may have a social-service tilt: being with someone, listening closely, and making ordinary conversation meaningful.",
           "story_reframe": "A visit to Uncle Tan felt less like duty and more like fit. Mei came back full because the work was direct, human, and built on presence rather than performance.",
           "review_status": "confirmed",
-          "created_at": "2025-10-26T15:00:00Z"
+          "created_at": "2026-05-21T15:00:00Z"
         },
         {
           "context_type": "school",
@@ -48,7 +48,7 @@
           "inferred_meaning": "Teaching and explanation may be a learning style as much as a possible career direction.",
           "story_reframe": "Trigonometry became meaningful when Mei had someone to help. Content sticks for her when it is relational, translated, and useful to a real person.",
           "review_status": "confirmed",
-          "created_at": "2025-11-02T16:45:00Z"
+          "created_at": "2026-05-23T16:45:00Z"
         },
         {
           "context_type": "peer",
@@ -57,7 +57,7 @@
           "inferred_meaning": "You care about relationships enough to tolerate awkward feedback instead of defending your old role.",
           "story_reframe": "Mei started converting a painful conflict into a boundary skill. Asking first feels slower, but it may be how her care becomes trustworthy.",
           "review_status": "confirmed",
-          "created_at": "2025-11-04T20:20:00Z"
+          "created_at": "2026-05-24T17:20:00Z"
         },
         {
           "context_type": "family",
@@ -66,7 +66,7 @@
           "inferred_meaning": "You are drawn to forms of care that are quiet, sustained, and patient with resistance.",
           "story_reframe": "The kitchen conversation gave Mei a model of durable care: keep showing up without forcing the other person to receive help before they are ready.",
           "review_status": "confirmed",
-          "created_at": "2025-11-09T22:30:00Z"
+          "created_at": "2026-05-26T20:30:00Z"
         },
         {
           "context_type": "school",
@@ -75,7 +75,7 @@
           "inferred_meaning": "You may be willing to trade speed and prestige for a path that keeps you close to people-facing contribution.",
           "story_reframe": "A longer route did not scare Mei as much as a wrong-fit shortcut. The decision lens here is not prestige; it is whether the destination lets her do work that feels honest.",
           "review_status": "confirmed",
-          "created_at": "2025-11-16T09:00:00Z"
+          "created_at": "2026-05-28T09:00:00Z"
         },
         {
           "context_type": "hobby",
@@ -84,7 +84,7 @@
           "inferred_meaning": "Everyday tech help is not the point by itself; the point is that you naturally turn small practical fixes into trust and conversation.",
           "story_reframe": "Mei noticed a pattern hiding in ordinary neighbourly help. What looked like a five-minute phone fix became evidence that human-facing support rarely feels like a chore to her.",
           "review_status": "confirmed",
-          "created_at": "2025-11-23T17:15:00Z"
+          "created_at": "2026-05-30T11:15:00Z"
         }
       ],
       "vips_pages": [
@@ -118,7 +118,7 @@
           "reflection_index": 1,
           "strength": "high",
           "parallax_tag": ["school"],
-          "committed_at": "2025-10-14T08:45:00Z"
+          "committed_at": "2026-05-18T08:45:00Z"
         },
         {
           "key": "values-relationships-ask-first",
@@ -128,7 +128,7 @@
           "reflection_index": 5,
           "strength": "high",
           "parallax_tag": ["peer"],
-          "committed_at": "2025-11-04T20:35:00Z"
+          "committed_at": "2026-05-24T17:35:00Z"
         },
         {
           "key": "values-contribution-showing-up",
@@ -138,7 +138,7 @@
           "reflection_index": 6,
           "strength": "medium",
           "parallax_tag": ["family", "civic"],
-          "committed_at": "2025-11-09T22:45:00Z"
+          "committed_at": "2026-05-26T20:45:00Z"
         },
         {
           "key": "values-independence-fit",
@@ -148,7 +148,7 @@
           "reflection_index": 7,
           "strength": "medium",
           "parallax_tag": ["school"],
-          "committed_at": "2025-11-16T09:15:00Z"
+          "committed_at": "2026-05-28T09:15:00Z"
         },
         {
           "key": "interests-social-lions",
@@ -158,7 +158,7 @@
           "reflection_index": 3,
           "strength": "high",
           "parallax_tag": ["civic"],
-          "committed_at": "2025-10-26T15:15:00Z"
+          "committed_at": "2026-05-21T15:15:00Z"
         },
         {
           "key": "interests-social-neighbour",
@@ -168,7 +168,7 @@
           "reflection_index": 8,
           "strength": "high",
           "parallax_tag": ["hobby"],
-          "committed_at": "2025-11-23T17:30:00Z"
+          "committed_at": "2026-05-30T11:30:00Z"
         },
         {
           "key": "interests-social-maths",
@@ -178,7 +178,7 @@
           "reflection_index": 4,
           "strength": "medium",
           "parallax_tag": ["school"],
-          "committed_at": "2025-11-02T17:00:00Z"
+          "committed_at": "2026-05-23T17:00:00Z"
         },
         {
           "key": "interests-enterprising-mediate",
@@ -188,7 +188,7 @@
           "reflection_index": 2,
           "strength": "low",
           "parallax_tag": ["peer"],
-          "committed_at": "2025-10-19T19:25:00Z"
+          "committed_at": "2026-05-19T19:25:00Z"
         },
         {
           "key": "personality-extraversion-energised",
@@ -198,7 +198,7 @@
           "reflection_index": 3,
           "strength": "medium",
           "parallax_tag": ["civic"],
-          "committed_at": "2025-10-26T15:20:00Z"
+          "committed_at": "2026-05-21T15:15:00Z"
         },
         {
           "key": "personality-neuroticism-conflict",
@@ -208,7 +208,7 @@
           "reflection_index": 2,
           "strength": "medium",
           "parallax_tag": ["peer"],
-          "committed_at": "2025-10-19T19:30:00Z"
+          "committed_at": "2026-05-19T19:25:00Z"
         },
         {
           "key": "personality-neuroticism-repair",
@@ -218,7 +218,7 @@
           "reflection_index": 5,
           "strength": "low",
           "parallax_tag": ["peer"],
-          "committed_at": "2025-11-04T20:40:00Z"
+          "committed_at": "2026-05-24T17:35:00Z"
         },
         {
           "key": "skills-interpersonal-daryl",
@@ -228,7 +228,7 @@
           "reflection_index": 1,
           "strength": "high",
           "parallax_tag": ["school"],
-          "committed_at": "2025-10-14T08:50:00Z"
+          "committed_at": "2026-05-18T08:45:00Z"
         },
         {
           "key": "skills-communication-aisyah",
@@ -238,7 +238,7 @@
           "reflection_index": 4,
           "strength": "medium",
           "parallax_tag": ["school"],
-          "committed_at": "2025-11-02T17:05:00Z"
+          "committed_at": "2026-05-23T17:00:00Z"
         },
         {
           "key": "skills-interpersonal-mum",
@@ -248,7 +248,7 @@
           "reflection_index": 6,
           "strength": "medium",
           "parallax_tag": ["family"],
-          "committed_at": "2025-11-09T22:50:00Z"
+          "committed_at": "2026-05-26T20:45:00Z"
         },
         {
           "key": "skills-communication-neighbour",
@@ -258,7 +258,7 @@
           "reflection_index": 8,
           "strength": "medium",
           "parallax_tag": ["hobby"],
-          "committed_at": "2025-11-23T17:35:00Z"
+          "committed_at": "2026-05-30T11:30:00Z"
         }
       ],
       "trajectory": {
@@ -368,42 +368,42 @@
         {
           "context_type": "school",
           "transcript": "H2 Physics today — Mr Goh did the proof for SHM from first principles. The trig substitution at the end was the cleanest thing I've seen all term. Half the class was zoning out but I copied the whole derivation again at home just because I wanted to see if I could do it without the textbook. I could, after three tries. It was past midnight. I didn't notice it was midnight.",
-          "created_at": "2025-09-08T23:45:00Z"
+          "created_at": "2026-03-09T23:45:00Z"
         },
         {
           "context_type": "hobby",
           "transcript": "Built the eq-platform mount over the weekend, finally. The polar alignment kept drifting because I had the latitude scale 1.3 degrees off — took me until 2am to spot it. Once I corrected it Jupiter sat dead centre for the whole hour I tracked. Took photos of the Galilean moons. Showed Pa the next morning; he asked if I'd been sleeping. I have been sleeping. Just not on the nights when the sky is clear.",
-          "created_at": "2025-09-21T02:30:00Z"
+          "created_at": "2026-03-22T02:30:00Z"
         },
         {
           "context_type": "school",
           "transcript": "Econs essay back. 18 out of 25. Mr Iqbal said my reasoning was 'over-engineered for the marks available.' I get what he means but I also disagree — the simpler answer he wanted misses the actual mechanism. I'll write to the marks scheme next time. But I'm not going to pretend I think the marks scheme is the more honest answer.",
-          "created_at": "2025-09-29T15:00:00Z"
+          "created_at": "2026-03-30T15:00:00Z"
         },
         {
           "context_type": "family",
           "transcript": "Helped Anjali with her Sec 2 Maths. She was stuck on simultaneous equations because they were using the substitution method only and she'd been taught elimination first. I drew both on the same page and she got it in 10 minutes. She said 'why don't teachers do that.' I said because they have 40 of you and one of me. But the honest answer is I think most teachers don't enjoy explaining things twice and I do.",
-          "created_at": "2025-10-05T20:00:00Z"
+          "created_at": "2026-04-05T20:00:00Z"
         },
         {
           "context_type": "hobby",
           "transcript": "Astro olympiad selection round was today. I got the planetary motion question wrong because I read the problem wrong — confused aphelion with perihelion in the eccentricity formula. The maths was right but on the wrong input. Didn't make the team. I knew within 5 minutes of leaving the hall. I went home and didn't eat dinner. Mum knocked twice. The honest version is: I'm angry not because I lost but because the mistake was the kind of mistake I keep making, and I haven't found the discipline to stop making it.",
-          "created_at": "2025-10-12T22:15:00Z"
+          "created_at": "2026-04-12T22:15:00Z"
         },
         {
           "context_type": "school",
           "transcript": "Maths class today was vectors. The teacher was solving by inspection — guessing the answer and then verifying. I do the same but I don't tell anyone because it feels like cheating. After class I asked Mr Goh whether that's actually how mathematicians work or whether we should learn the formal method first. He said both — the inspection is the hypothesis, the formal method is the proof. That landed. I've been treating the inspection as a shortcut. It's actually the hypothesis step.",
-          "created_at": "2025-10-19T16:30:00Z"
+          "created_at": "2026-04-19T16:30:00Z"
         },
         {
           "context_type": "peer",
           "transcript": "Group study at Brandon's place. We were supposed to work through the chem mock. I solved questions 1 to 4 in 20 minutes and the others wanted me to explain how. I tried but I think I went too fast. Daniel said 'bro you're not actually explaining, you're showing off.' That stung because I wasn't trying to show off. I left at 9. The walk back I kept replaying it. Maybe the speed itself is the show-off, even when I don't mean it that way.",
-          "created_at": "2025-10-26T21:00:00Z"
+          "created_at": "2026-04-26T21:00:00Z"
         },
         {
           "context_type": "hobby",
           "transcript": "Two-hour stretch on the orbital mechanics simulator I'm building in Python. The two-body case works. The three-body case is chaotic and my naive RK4 step is too coarse — it diverges within 10 orbits. I knew the textbook said this. I didn't know what 'chaotic' felt like in my own code until I watched the trajectory smear. Different from reading about it. Adaptive step-size is next.",
-          "created_at": "2025-11-02T18:00:00Z"
+          "created_at": "2026-05-03T18:00:00Z"
         }
       ]
     },
@@ -423,47 +423,47 @@
         {
           "context_type": "hobby",
           "transcript": "Started a new sketchbook today. Drew the same window from my desk seven times — different times of day. The 6am one is the only one I like. The afternoon ones all feel forced because I was trying to make them good. The 6am one I drew before I was fully awake so I wasn't trying. I want to remember that — the trying is what kills it for me. But I can't just decide to not try.",
-          "created_at": "2025-08-15T07:00:00Z"
+          "created_at": "2026-02-13T07:00:00Z"
         },
         {
           "context_type": "school",
           "transcript": "Mrs Devi asked me to read the Plath poem out loud in Lit today. 'Daddy.' I didn't want to but I did. Halfway through I forgot the rest of the class was there. When I stopped Mrs Devi said 'that's how it's supposed to feel' and didn't say anything else. The class was quiet. I felt exposed but also like I'd done something real. The two feelings sit together.",
-          "created_at": "2025-08-22T11:00:00Z"
+          "created_at": "2026-02-20T11:00:00Z"
         },
         {
           "context_type": "family",
           "transcript": "Dinner argument with Ma again. She asked which CCA I want to commit to for portfolio purposes and I said Art Club. She said 'just Art Club?' as if there was a more serious option I was missing. Pa stayed quiet which is somehow worse than if he'd agreed with her. I went to my room and didn't draw, I just sat. The part that's hard is I don't think she's wrong to worry — the math of it favours her. The part that's hard is I'm still going to do what I'm going to do.",
-          "created_at": "2025-08-29T21:30:00Z"
+          "created_at": "2026-02-27T21:30:00Z"
         },
         {
           "context_type": "hobby",
           "transcript": "Spent three hours in Bras Basah today. Bought a different kind of ink — sumi, the bottled one from the Kinokuniya stationery floor. Tried it with a stick instead of a brush. The lines were ugly and I loved them. Came back and wrote a paragraph about how the wrong-tool-on-purpose feels like the move I keep making. I don't know if that paragraph is for anyone or just for me. Probably just for me.",
-          "created_at": "2025-09-05T19:00:00Z"
+          "created_at": "2026-03-06T19:00:00Z"
         },
         {
           "context_type": "school",
           "transcript": "Chemistry today. Titration. I followed every step and got the right concentration to two decimal places. Mr Pereira said well done. I wasn't happy. There was nothing in it that was mine. I knew the answer before I started because we'd been told what the answer should be. I don't want to do this for a living. I'm sure that's not new information to me but today it landed differently.",
-          "created_at": "2025-09-13T15:30:00Z"
+          "created_at": "2026-03-14T15:30:00Z"
         },
         {
           "context_type": "hobby",
           "transcript": "Tried to start the next piece for the school art show. Sat at my desk for 90 minutes. Could not start. Every line felt like a commitment I wasn't ready to make. I ended up doodling the same vine pattern in the corner over and over. Eventually I put the paper away. I'm scared the show is going to be the first time I make work that I have to make rather than work that I want to make. Maybe that's just being a grown-up artist. Maybe it's a warning.",
-          "created_at": "2025-09-20T22:00:00Z"
+          "created_at": "2026-03-21T22:00:00Z"
         },
         {
           "context_type": "school",
           "transcript": "Lit lesson on close-reading today. Mrs Devi gave us four lines from a Mary Oliver and asked us to write 300 words. I wrote 800. I couldn't stop. The way the line break sits between 'wild' and 'precious' — there's a whole essay in just that space. I handed in 300 and saved the rest. The 500 I cut were the ones I cared about most. That's the second time this week I've noticed: the work I do for myself is bigger than the work I hand in.",
-          "created_at": "2025-09-27T16:00:00Z"
+          "created_at": "2026-03-28T16:00:00Z"
         },
         {
           "context_type": "family",
           "transcript": "Pa took me to his clinic on Saturday morning. He said he wasn't trying to recruit me, he just wanted me to see what a day looks like. I watched him with a young couple whose baby had a rash. He was good with them. He was patient in a way he sometimes isn't with me. I came home and didn't know what to do with that. He was right that it changed how I see him. He was also right that it didn't change what I want.",
-          "created_at": "2025-10-04T13:30:00Z"
+          "created_at": "2026-04-04T13:30:00Z"
         },
         {
           "context_type": "peer",
           "transcript": "Showed Hannah the sketchbook today. She flipped through it for ten minutes without saying anything. I almost said 'never mind' three times. At the end she said 'the 6am window one is the best.' That's the same one I'd marked. We didn't talk much after that but I felt seen in a way I don't usually feel seen at school. I want to remember her name in this notebook so future-me knows who saw me first.",
-          "created_at": "2025-10-11T18:00:00Z"
+          "created_at": "2026-04-11T18:00:00Z"
         }
       ]
     },
@@ -483,37 +483,37 @@
         {
           "context_type": "school",
           "transcript": "Robotics CCA today. The Sec 1s were jamming on the chassis assembly — they kept stripping the M3 screws because they were over-torquing with the wrong driver. I sat with Faiz for 20 minutes and just showed him the half-turn-and-stop trick my brother taught me. By the end he was teaching the other two. Mr Selvam said 'you're the only senior they actually listen to.' That hit me funny because I'm not the smartest one in the room. I just don't make them feel stupid.",
-          "created_at": "2025-07-12T17:30:00Z"
+          "created_at": "2026-01-10T17:30:00Z"
         },
         {
           "context_type": "hobby",
           "transcript": "Pulled my hamstring at relay training today. The MO said two weeks off. I sat through the rest of the session watching from the bench and I hated it more than I expected. Not because of the race — the race I can win or lose, doesn't matter. It's because the team can't pass batons properly without the four of us actually running together. They were trying and they were failing and I couldn't help. I went home and iced it and pretended to be okay at dinner.",
-          "created_at": "2025-07-26T20:00:00Z"
+          "created_at": "2026-01-24T20:00:00Z"
         },
         {
           "context_type": "peer",
           "transcript": "Helped Jia Hao move into his new place at Hougang on Sunday. His family sold the old flat. He didn't ask anyone — I just heard from his cousin and showed up at 8am with a borrowed trolley. We were done by 2pm. He didn't say much. On the MRT back he said 'eh thanks ah' and I said 'no need' and we left it. That was enough for both of us. I think that's what 'enough' looks like for me — small actions, no speech.",
-          "created_at": "2025-08-03T18:00:00Z"
+          "created_at": "2026-02-01T18:00:00Z"
         },
         {
           "context_type": "hobby",
           "transcript": "Tried to fix Ma's broken kitchen tap myself before calling a plumber. Watched two YouTube videos. The cartridge was different from the videos. I broke the sink stopper trying to lever the old cartridge out. Plumber came and fixed it and charged 80. Ma laughed about it later but in the moment I felt small. I usually finish what I start. I don't usually fail in front of my own house.",
-          "created_at": "2025-08-10T15:00:00Z"
+          "created_at": "2026-02-08T15:00:00Z"
         },
         {
           "context_type": "school",
           "transcript": "Subject combo briefing today. Mrs Lim laid out the JC routes and a 10-minute slide at the end on poly. The poly slide was thinner. I asked her after class about SP Mechanical Engineering specifically. She was honest — said it's a strong programme but I'd be walking away from the IP advantage. I asked what advantage exactly and she said 'the keep-options-open advantage.' I left thinking — I don't actually want all the options open. I want one that fits.",
-          "created_at": "2025-08-17T10:00:00Z"
+          "created_at": "2026-02-15T10:00:00Z"
         },
         {
           "context_type": "family",
           "transcript": "Talked to Kor Kor about the poly decision. He did the JC route and he's now in NTU doing biz. He didn't try to talk me out of it — he just asked what my day-by-day would look like if I picked poly vs JC. I told him. He said 'the poly day sounds like you and the JC day sounds like me.' That's the first time anyone's said it that clearly. Ma still doesn't know I'm seriously thinking about poly. Telling her is the part I keep putting off.",
-          "created_at": "2025-08-24T22:00:00Z"
+          "created_at": "2026-02-22T22:00:00Z"
         },
         {
           "context_type": "hobby",
           "transcript": "Back at training after the two weeks. Hamstring held. I ran the 200 split slower than my PB but the baton pass with Idris was clean — we'd been doing pickups together for the whole break, off the track, just walking through the motion. Coach Yusof said the pass looked like we'd been running it for a year. We have, in a way. I don't think the speed is what makes the relay work. I think it's the handover.",
-          "created_at": "2025-09-07T19:00:00Z"
+          "created_at": "2026-03-08T19:00:00Z"
         }
       ]
     }
