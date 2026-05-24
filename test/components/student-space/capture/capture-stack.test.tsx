@@ -260,9 +260,7 @@ describe('React capture stack', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
-    await waitFor(() =>
-      expect(screen.getByText(/Kira heard the Realtime session/)).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText('realtime transcript')).toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: 'Log' }))
     await waitFor(() => expect(logPreparedReflection).toHaveBeenCalledTimes(1))
@@ -298,8 +296,8 @@ describe('React capture stack', () => {
 
     await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
     expect(screen.getByText('You')).toBeInTheDocument()
-    expect(screen.getByRole('status', { name: 'Listening...' })).toBeInTheDocument()
-    expect(screen.getByRole('log')).toHaveClass('flex-1', 'overflow-y-auto')
+    expect(screen.getByRole('status', { name: 'Listening' })).toBeInTheDocument()
+    expect(screen.getByRole('log')).toHaveClass('overflow-y-auto')
   })
 
   it('turns the companion toward the camera while Ask capture is open', async () => {

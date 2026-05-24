@@ -1,5 +1,6 @@
-import { Check, Pencil } from 'lucide-react'
+import { Check, Pencil, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { toast as sonnerToast, Toaster } from 'sonner'
 import { WorldIconButton } from '~/components/student-space/hud/StudentSpaceHud'
 import type { Game } from '~/engine/student-space/Game'
 
@@ -13,18 +14,12 @@ import type { Game } from '~/engine/student-space/Game'
  * automatically when the threshold-crossing capture lands, so there's no
  * "ready and waiting" state for the student to discover.
  *
- * useSyncExternalStore is no longer needed since the only thing rendered
- * is the toast stack — toasts are local component state, driven directly
- * by the slice's subscribe callback inside useEffect.
+ * Sonner owns the toast stack; this component only bridges world events to
+ * top-screen notifications and keeps the arrange toggle in the frame overlay.
  */
 
-type Toast = {
-  id: number
-  text: string
-  variant: 'grow' | 'ready' | 'bloom'
-}
-
 const TOAST_TTL_MS = 2400
+const PROGRESSION_TOAST_ID = 'student-space-progression'
 
 function getSproutsSlice(game: Game) {
   // Defensive: tests sometimes pass a partial game without a state surface.
@@ -43,35 +38,34 @@ function getSproutsSlice(game: Game) {
 
 const FIRST_ARRANGE_TOAST_KEY = 'ss:arrange:firstEntry:v1'
 
+function showProgressionToast(text: string, duration = Infinity) {
+  sonnerToast.custom(
+    (id) => (
+      <div className="pointer-events-auto flex w-[min(90vw,380px)] items-center justify-between gap-3 rounded-2xl bg-[rgba(20,28,18,0.92)] px-3.5 py-2.5 text-xs font-medium text-[#fffbe6] shadow-[0_10px_30px_rgba(0,0,0,0.24)] backdrop-blur-md">
+        <span className="min-w-0">{text}</span>
+        <button
+          type="button"
+          aria-label="Dismiss update"
+          onClick={() => sonnerToast.dismiss(id)}
+          className="grid size-7 shrink-0 place-items-center rounded-full bg-white/14 text-[#fffbe6] transition-colors hover:bg-white/22 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55"
+        >
+          <X aria-hidden="true" className="size-3.5" />
+        </button>
+      </div>
+    ),
+    { duration, id: PROGRESSION_TOAST_ID },
+  )
+}
+
 export function IslandProgressionOverlay({ game }: { game: Game }) {
-  const [toasts, setToasts] = useState<Toast[]>([])
   const [editMode, setEditMode] = useState(false)
 
   useEffect(() => {
-    let nextId = 1
     const sprouts = getSproutsSlice(game)
     if (!sprouts?.subscribe) return
     const unsubscribe = sprouts.subscribe((event) => {
-      let entry: Toast | null = null
       if (event.type === 'spawned') {
-        entry = {
-          id: nextId++,
-          text: 'Heard. Something is growing on the island.',
-          variant: 'grow',
-        }
-      } else if (event.type === 'grew') {
-        entry = { id: nextId++, text: 'Heard. The sprout grew.', variant: 'grow' }
-      } else if (event.type === 'markedReady') {
-        entry = { id: nextId++, text: 'This one’s ready to plant.', variant: 'ready' }
-      } else if (event.type === 'bloomed') {
-        entry = { id: nextId++, text: 'Planted. A new tree on the island.', variant: 'bloom' }
-      }
-      if (entry) {
-        const fresh: Toast = entry
-        setToasts((prev) => [...prev, fresh])
-        window.setTimeout(() => {
-          setToasts((prev) => prev.filter((t) => t.id !== fresh.id))
-        }, TOAST_TTL_MS)
+        showProgressionToast('Heard. Something is growing on the island.')
       }
     })
 
@@ -83,15 +77,7 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
       const ce = e as CustomEvent<{ count?: number; threshold?: number }>
       const count = ce.detail?.count ?? 0
       const threshold = ce.detail?.threshold ?? 0
-      const tip: Toast = {
-        id: nextId++,
-        text: `Still growing — ${count}/${threshold}.`,
-        variant: 'grow',
-      }
-      setToasts((prev) => [...prev, tip])
-      window.setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== tip.id))
-      }, TOAST_TTL_MS)
+      showProgressionToast(`Still growing — ${count}/${threshold}.`, TOAST_TTL_MS)
     }
     window.addEventListener('ss:sprout-tap-not-ready', onNotReady)
 
@@ -112,15 +98,10 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
         try {
           if (!window.sessionStorage.getItem(FIRST_ARRANGE_TOAST_KEY)) {
             window.sessionStorage.setItem(FIRST_ARRANGE_TOAST_KEY, '1')
-            const toast: Toast = {
-              id: Date.now(),
-              text: 'Drag any of your things to plant them somewhere new.',
-              variant: 'ready',
-            }
-            setToasts((current) => [...current, toast])
-            window.setTimeout(() => {
-              setToasts((current) => current.filter((t) => t.id !== toast.id))
-            }, TOAST_TTL_MS + 1200)
+            showProgressionToast(
+              'Drag any of your things to plant them somewhere new.',
+              TOAST_TTL_MS + 1200,
+            )
           }
         } catch (_) {
           /* sessionStorage blocked — banner is enough */
@@ -149,6 +130,14 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
       }}
       data-island-progression-overlay
     >
+      <Toaster
+        position="top-center"
+        expand
+        visibleToasts={4}
+        gap={8}
+        offset={{ top: 'calc(env(safe-area-inset-top, 0px) + 18px)' }}
+        toastOptions={{ unstyled: true }}
+      />
       {editMode ? (
         <div
           // Persistent banner while edit mode is on. Top-center, above
@@ -192,44 +181,6 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
           <Pencil aria-hidden="true" className="size-4" />
         )}
       </WorldIconButton>
-
-      <section
-        // Toast stack — bottom-center, above the mood-hud band. Tray
-        // removed in the auto-bloom rev so toasts move down to where the
-        // tray used to be.
-        aria-live="polite"
-        aria-label="Island progression updates"
-        style={{
-          position: 'absolute',
-          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          display: 'flex',
-          flexDirection: 'column-reverse',
-          gap: 6,
-          maxWidth: 'min(90vw, 360px)',
-        }}
-      >
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            style={{
-              padding: '6px 12px',
-              borderRadius: 12,
-              background: 'rgba(20, 28, 18, 0.86)',
-              color: '#FFFBE6',
-              fontFamily: 'system-ui, sans-serif',
-              fontSize: 12,
-              lineHeight: 1.3,
-              textAlign: 'center',
-              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.25)',
-              pointerEvents: 'none',
-            }}
-          >
-            {t.text}
-          </div>
-        ))}
-      </section>
     </div>
   )
 }
