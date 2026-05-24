@@ -299,6 +299,7 @@ describe('React capture stack', () => {
     await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
     expect(screen.getByText('You')).toBeInTheDocument()
     expect(screen.getByRole('status', { name: 'Listening...' })).toBeInTheDocument()
+    expect(screen.getByRole('log')).toHaveClass('flex-1', 'overflow-y-auto')
   })
 
   it('turns the companion toward the camera while Ask capture is open', async () => {

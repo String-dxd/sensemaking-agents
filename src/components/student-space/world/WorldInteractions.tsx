@@ -787,12 +787,12 @@ class HoverCtaController {
     }
     if (target.kind === 'kira') {
       this._setContent({
-        eyebrow: 'How today is landing',
-        badge: 'Mood',
-        title: this.deps.State.getInstance()?.profile?.displayCompanionName?.() || 'Kira',
-        line: 'Your island’s resident finch.',
+        eyebrow: '',
+        badge: 'Resident finch',
+        title: '',
+        line: 'Your island’s resident finch. Click to talk about your day.',
         thumbUrl: null,
-        theme: themeForFacet('mood'),
+        theme: null,
       })
       return
     }
