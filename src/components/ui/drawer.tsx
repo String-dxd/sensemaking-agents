@@ -79,7 +79,7 @@ export function DrawerContent({
             ? 'fixed inset-x-[max(18px,8vw)] bottom-6 z-50 mx-auto flex max-h-[min(640px,calc(100vh-7rem))] max-w-xl flex-col gap-3 rounded-3xl border border-border bg-background p-5 shadow-2xl'
             : SIDE_POSITION[side],
           fullBleed && 'gap-0 overflow-hidden p-0 sm:p-0',
-          'transition-transform transition-opacity duration-200 ease-out',
+          'transition-[transform,opacity] duration-200 ease-out',
           popup
             ? 'data-[starting-style]:translate-y-4 data-[starting-style]:opacity-0 data-[ending-style]:translate-y-4 data-[ending-style]:opacity-0'
             : SIDE_ANIMATION[side],
@@ -106,7 +106,7 @@ export function DrawerContent({
             aria-label={closeLabel}
             data-testid="drawer-close"
             className={cn(
-              'absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+              'absolute right-3 top-3 inline-flex size-10 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-[background-color,color,transform] hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.96]',
               fullBleed && 'z-10 bg-background/70 backdrop-blur',
             )}
           >

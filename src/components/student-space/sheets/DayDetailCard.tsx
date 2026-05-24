@@ -350,7 +350,7 @@ function CaptureActions({
             type="button"
             disabled={reviewing}
             onClick={() => onReview('confirmed')}
-            className="min-h-8 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) disabled:cursor-wait disabled:opacity-60"
+            className="min-h-10 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white active:scale-[0.96] disabled:pointer-events-none disabled:cursor-wait disabled:opacity-60"
           >
             {reviewing && reviewInFlight?.status === 'confirmed' ? 'Confirming...' : 'Confirm'}
           </button>
@@ -358,7 +358,7 @@ function CaptureActions({
             type="button"
             disabled={reviewing}
             onClick={() => onReview('forgotten')}
-            className="min-h-8 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) disabled:cursor-wait disabled:opacity-60"
+            className="min-h-10 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white active:scale-[0.96] disabled:pointer-events-none disabled:cursor-wait disabled:opacity-60"
           >
             {reviewing && reviewInFlight?.status === 'forgotten' ? 'Forgetting...' : 'Forget'}
           </button>
@@ -369,7 +369,7 @@ function CaptureActions({
           type="button"
           disabled={retryInFlight}
           onClick={onRetry}
-          className="min-h-8 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) disabled:cursor-wait disabled:opacity-60"
+          className="min-h-10 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white active:scale-[0.96] disabled:pointer-events-none disabled:cursor-wait disabled:opacity-60"
         >
           {retryInFlight ? 'Retrying...' : 'Retry sync'}
         </button>
@@ -405,7 +405,7 @@ function EmptyDay({ date }: { date: string }) {
         <button
           type="button"
           onClick={() => navigate({ to: '/' })}
-          className="inline-flex min-h-9 items-center gap-2 rounded-full bg-(--color-sheet-ink) px-4 text-xs font-semibold text-white transition-colors hover:bg-(--color-sheet-ink)/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-status-searching) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-sheet-pane-left)"
+          className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-(--color-sheet-ink) px-4 text-xs font-semibold text-white transition-[background-color,transform] hover:bg-(--color-sheet-ink)/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-status-searching) focus-visible:ring-offset-2 focus-visible:ring-offset-(--color-sheet-pane-left) active:scale-[0.96]"
         >
           <Sparkles aria-hidden className="size-3.5" />
           Capture on the island

@@ -1,10 +1,12 @@
 import { useLocation } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Vector3 } from 'three'
 import '~/engine/student-space/style.css'
 import type { AuthMenuState, Game } from '~/engine/student-space/Game'
 import { createStudentSpaceBackendBridge } from '~/lib/student-space/backend-bridge'
 import { applyStudentSpaceBackendSnapshot } from '~/lib/student-space/backend-snapshot'
+import { useCameraPreset } from '~/lib/student-space/camera-tuner'
 import {
   surfaceFromPathname,
   useStudentSpaceNavigate,
@@ -19,6 +21,7 @@ import { CaptureChooser } from './capture/CaptureChooser'
 import { MoodSheet } from './capture/MoodSheet'
 import { MobileNav } from './navigation/MobileNav'
 import { SideRail } from './navigation/SideRail'
+import { CameraTuneHud, type CameraTuneTargets } from './onboarding/CameraTuneHud'
 import { OnboardingFlow } from './onboarding/OnboardingFlow'
 
 // Surfaces that render empty without server data — we defer the open call
@@ -253,10 +256,42 @@ export function EngineHost({ className, children }: { className?: string; childr
         <AskSheet />
         <MoodSheet />
         <OnboardingFlow />
+        {import.meta.env.DEV && game ? <CameraTuneBridge game={game} /> : null}
         {children}
       </EngineOverlayProvider>
     </EngineContext.Provider>
   )
+}
+
+/**
+ * DEV-only bridge: mounts the camera tuner HUD globally and feeds the
+ * `world-default` preset into the live engine so tweaks land on the actual
+ * static framing without a remount. The HUD itself is hidden until the
+ * palette dispatches CAMERA_TUNER_OPEN_EVENT.
+ */
+function CameraTuneBridge({ game }: { game: Game }) {
+  const worldDefault = useCameraPreset('world-default')
+  const view = (game as unknown as { view?: CameraTuneTargets }).view ?? null
+
+  useEffect(() => {
+    const camera = view?.camera as
+      | {
+          setDefaultFraming?: (
+            pose: { fov: number; distance: number; pitchDeg: number; target: Vector3 },
+            options?: { apply?: boolean },
+          ) => void
+        }
+      | null
+      | undefined
+    camera?.setDefaultFraming?.({
+      fov: worldDefault.fov,
+      distance: worldDefault.distance,
+      pitchDeg: worldDefault.pitchDeg,
+      target: new Vector3(worldDefault.lookAtX, worldDefault.lookAtY, worldDefault.lookAtZ),
+    })
+  }, [view, worldDefault])
+
+  return <CameraTuneHud targets={view} />
 }
 
 function RouteOverlayEffects({ isWorldRoute }: { isWorldRoute: boolean }) {

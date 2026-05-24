@@ -80,7 +80,7 @@ export const ONBOARDING_COPY = Object.freeze({
 
     firstChatActions: {
         chatMore: 'Tell me more',
-        feel:     'Tell me how I feel now',
+        feel:     'Capture my how i feel now',
     },
 
     islandReveal: {
