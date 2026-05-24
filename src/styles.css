@@ -198,6 +198,22 @@ body,
   }
 }
 
+/* Tab content cross-fade. Fires on every key-swap remount of the
+   wrapper. Opacity-only, 120ms — power-use surfaces (Profile facets,
+   History timeline/growth) stay near-instant.
+   ────────────────────────────────────────────────────────────────────── */
+[data-tab-content] {
+  animation: tabCrossfade 120ms var(--ease) both;
+}
+@keyframes tabCrossfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes trajectoryMenuIn {
   from {
     opacity: 0;

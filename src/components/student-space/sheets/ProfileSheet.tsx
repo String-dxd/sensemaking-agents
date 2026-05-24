@@ -316,32 +316,34 @@ export function ProfileSheet() {
           <AccountMenuButton authMenu={state?.auth?.menu} />
         </header>
         <SheetBody data-stagger-slot="3" className="space-y-8">
-          {isVipsTab(activeTab) ? (
-            <VipsProfileTab
-              tab={activeTab}
-              profile={profile}
-              backend={state?.backend}
-              applyBackendSnapshot={state?.applyBackendSnapshot}
-              overlayController={engine?.view?.overlayController}
-              captures={state?.captures}
-              moodPins={state?.moodPins}
-              selectedClaimId={selectedClaimId}
-              setSelectedClaimId={setSelectedClaimId}
-              timelineExpanded={expandedTimelines.has(activeTab)}
-              setTimelineExpanded={(expanded) => {
-                setExpandedTimelines((prev) => {
-                  const next = new Set(prev)
-                  if (expanded) next.add(activeTab)
-                  else next.delete(activeTab)
-                  return next
-                })
-              }}
-            />
-          ) : activeTab === 'relationships' ? (
-            <RelationshipsTab />
-          ) : (
-            <ChoicesTab />
-          )}
+          <div key={activeTab} data-tab-content>
+            {isVipsTab(activeTab) ? (
+              <VipsProfileTab
+                tab={activeTab}
+                profile={profile}
+                backend={state?.backend}
+                applyBackendSnapshot={state?.applyBackendSnapshot}
+                overlayController={engine?.view?.overlayController}
+                captures={state?.captures}
+                moodPins={state?.moodPins}
+                selectedClaimId={selectedClaimId}
+                setSelectedClaimId={setSelectedClaimId}
+                timelineExpanded={expandedTimelines.has(activeTab)}
+                setTimelineExpanded={(expanded) => {
+                  setExpandedTimelines((prev) => {
+                    const next = new Set(prev)
+                    if (expanded) next.add(activeTab)
+                    else next.delete(activeTab)
+                    return next
+                  })
+                }}
+              />
+            ) : activeTab === 'relationships' ? (
+              <RelationshipsTab />
+            ) : (
+              <ChoicesTab />
+            )}
+          </div>
         </SheetBody>
       </SheetContent>
       <ShareDialog open={shareOpen} onOpenChange={setShareOpen} />

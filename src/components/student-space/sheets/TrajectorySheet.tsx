@@ -695,6 +695,8 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
         </div>
         {active ? (
           <section
+            key={selectedIndex}
+            data-tab-content
             className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6 shadow-[0_1px_0_rgba(255,255,255,0.55)_inset]"
             role="tabpanel"
           >

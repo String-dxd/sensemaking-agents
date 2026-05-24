@@ -124,19 +124,21 @@ export function HistorySheet() {
       </SheetSidebar>
       <SheetContent>
         <SheetBody data-stagger-slot="2">
-          {activeTab === 'timeline' ? (
-            <TimelinePane
-              engineState={state}
-              hash={location.hash ?? ''}
-              filter={
-                (location.search as { filter?: unknown } | undefined)?.filter === 'need-review'
-                  ? 'need-review'
-                  : undefined
-              }
-            />
-          ) : (
-            <GrowthPane engine={engine} />
-          )}
+          <div key={activeTab} data-tab-content>
+            {activeTab === 'timeline' ? (
+              <TimelinePane
+                engineState={state}
+                hash={location.hash ?? ''}
+                filter={
+                  (location.search as { filter?: unknown } | undefined)?.filter === 'need-review'
+                    ? 'need-review'
+                    : undefined
+                }
+              />
+            ) : (
+              <GrowthPane engine={engine} />
+            )}
+          </div>
         </SheetBody>
       </SheetContent>
     </PageSurface>
