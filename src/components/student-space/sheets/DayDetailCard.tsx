@@ -1,6 +1,7 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 import { useState } from 'react'
+import { cn } from '~/lib/utils'
 
 /**
  * DayDetailCard — inline content panel rendered alongside the Calendar grid
@@ -305,11 +306,10 @@ export function DayDetailCard({
                         key={cap.id}
                         className="rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink)"
                       >
-                        <p className="text-xs text-(--color-sheet-ink-soft)">{cap.kind}</p>
                         {cap.text ? (
-                          <p className="mt-1 leading-relaxed">{cap.text.slice(0, 180)}</p>
+                          <p className="leading-relaxed">{cap.text.slice(0, 180)}</p>
                         ) : cap.caption ? (
-                          <p className="mt-1 leading-relaxed">{cap.caption}</p>
+                          <p className="leading-relaxed">{cap.caption}</p>
                         ) : null}
                       </li>
                     )
@@ -319,18 +319,19 @@ export function DayDetailCard({
                   const time = formatTime(cap.createdAt)
                   const contextLabel = cap.contextType
                     ? (CONTEXT_LABEL[cap.contextType] ?? cap.contextType)
-                    : 'Mirror'
+                    : null
                   const entryId = Number(cap.backendMirrorEntryId)
                   const hasBackendId = Number.isInteger(entryId) && entryId > 0
-                  return (
-                    <li
-                      key={cap.id}
-                      className="rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink)"
-                    >
+                  const cardClasses =
+                    'block rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink) transition-colors'
+                  const body = (
+                    <>
                       <div className="flex items-center gap-2 text-xs text-(--color-sheet-ink-soft)">
-                        <span className="inline-flex items-center rounded-full bg-(--color-onb-bg-cream) px-2 py-0.5 font-semibold uppercase tracking-[0.04em] text-(--color-sheet-ink)">
-                          {contextLabel}
-                        </span>
+                        {contextLabel ? (
+                          <span className="inline-flex items-center rounded-full bg-(--color-onb-bg-cream) px-2 py-0.5 font-semibold uppercase tracking-[0.04em] text-(--color-sheet-ink)">
+                            {contextLabel}
+                          </span>
+                        ) : null}
                         {time ? <span className="tabular-nums">{time}</span> : null}
                       </div>
                       {headline ? (
@@ -348,27 +349,25 @@ export function DayDetailCard({
                           {cap.text.slice(0, 180)}
                         </p>
                       ) : null}
-                      <CaptureActions
-                        capture={cap}
-                        reviewInFlight={reviewInFlight}
-                        reviewError={reviewError}
-                        retryInFlight={retryInFlightId === cap.id}
-                        onReview={(status) => void reviewCapture(cap, status)}
-                        onRetry={() => void retryCaptureSync(cap)}
-                      />
+                    </>
+                  )
+                  return (
+                    <li key={cap.id}>
                       {hasBackendId ? (
-                        <div className="mt-2 flex justify-end">
-                          <Link
-                            to="/mirror/$id"
-                            params={{ id: String(entryId) }}
-                            data-testid={`mirror-show-more-${entryId}`}
-                            className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-xs font-semibold text-(--color-sheet-ink) transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                          >
-                            Show more
-                            <ArrowRight aria-hidden className="size-3.5" />
-                          </Link>
-                        </div>
-                      ) : null}
+                        <Link
+                          to="/mirror/$id"
+                          params={{ id: String(entryId) }}
+                          data-testid={`mirror-card-${entryId}`}
+                          className={cn(
+                            cardClasses,
+                            'cursor-pointer hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                          )}
+                        >
+                          {body}
+                        </Link>
+                      ) : (
+                        <div className={cardClasses}>{body}</div>
+                      )}
                     </li>
                   )
                 })}
