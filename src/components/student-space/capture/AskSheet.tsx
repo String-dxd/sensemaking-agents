@@ -38,7 +38,12 @@ type Reframe = {
   backend?: boolean
 }
 type ThreadMessage = { role: 'kira' | 'you'; text: string }
-type LiveMessage = { id?: string; role?: string; text?: string; status?: string }
+type LiveMessage = {
+  id?: string
+  role?: string
+  text?: string
+  status?: 'streaming' | 'final' | 'discarded' | string
+}
 type CaptureEntry = {
   id?: string
   kind?: string
@@ -79,9 +84,13 @@ type CameraInstance = {
   zoomTo?: (pos: Vec3Like, look: Vec3Like, duration?: number, opts?: { owner?: string }) => void
   restoreZoom?: (duration?: number, opts?: { owner?: string }) => void
 }
+type KiraActor = {
+  group?: { position?: Vec3Like; rotation?: { y: number } }
+  facing?: number
+}
 type KiraCameraView = {
   camera?: CameraInstance & { instance?: { position?: Vec3Like } }
-  kira?: { group?: { position?: Vec3Like } }
+  kira?: KiraActor
   captureFocus?: boolean
 }
 
@@ -307,14 +316,14 @@ export function AskSheet() {
   }, [capture, open, prefilledText, readOnly, setAudioCaptureHandle, setRealtimeCaptureHandle])
 
   // Camera dolly toward Kira + freeze her wander while Capture is open.
-  // Mirrors KiraNarrator's framing (`perch + unit * 2.6m` along the current
-  // viewing axis) so Kira lands centered without yanking the user out of
-  // their orientation. Restores on close.
+  // Uses a slightly wider composition than the first-chat framing so her face
+  // stays visible above the capture sheet. Restores on close.
   useEffect(() => {
     if (!open) return
     const view = (engine as unknown as { view?: KiraCameraView } | null)?.view
     const camera = view?.camera
-    const kira = view?.kira?.group?.position
+    const kiraActor = view?.kira
+    const kira = kiraActor?.group?.position
     if (!camera?.zoomTo || !kira) return
     const Vec = kira.constructor as new (x: number, y: number, z: number) => Vec3Like
     const liveCam = camera.instance?.position
@@ -323,12 +332,41 @@ export function AskSheet() {
     const flat = Math.hypot(dx, dz) || 1
     const unitX = dx / flat
     const unitZ = dz / flat
-    const camPos: Vec3Like = new Vec(kira.x + unitX * 2.6, kira.y + 1.05, kira.z + unitZ * 2.6)
-    const camLook: Vec3Like = new Vec(kira.x, kira.y + 0.85, kira.z)
+    const targetYaw = Math.atan2(-unitZ, unitX)
+    const camPos: Vec3Like = new Vec(kira.x + unitX * 4.2, kira.y + 1.05, kira.z + unitZ * 4.2)
+    const camLook: Vec3Like = new Vec(kira.x, kira.y + 0.72, kira.z)
+    const rotation = kiraActor?.group?.rotation
+    const initialYaw = rotation?.y
+    let yawFrame: number | null = null
+    let cancelled = false
+    const setKiraYaw = (yaw: number) => {
+      if (!rotation) return
+      rotation.y = yaw
+      if (kiraActor) kiraActor.facing = yaw
+    }
+    const animateKiraYaw = (to: number, duration: number) => {
+      if (!rotation) return
+      const from = rotation.y
+      const startedAt = performance.now()
+      const tick = (now: number) => {
+        if (cancelled) return
+        const t = Math.min(1, Math.max(0, (now - startedAt) / duration))
+        const eased = t * t * (3 - 2 * t)
+        let delta = to - from
+        delta = ((delta + Math.PI * 3) % (Math.PI * 2)) - Math.PI
+        setKiraYaw(from + delta * eased)
+        if (t < 1) yawFrame = window.requestAnimationFrame(tick)
+      }
+      yawFrame = window.requestAnimationFrame(tick)
+    }
     camera.zoomTo(camPos, camLook, 700, { owner: 'capture' })
+    animateKiraYaw(targetYaw, 700)
     if (view) view.captureFocus = true
     return () => {
+      cancelled = true
+      if (yawFrame != null) window.cancelAnimationFrame(yawFrame)
       camera.restoreZoom?.(620, { owner: 'capture' })
+      if (typeof initialYaw === 'number') setKiraYaw(initialYaw)
       if (view) view.captureFocus = false
     }
   }, [open, engine])
@@ -410,11 +448,12 @@ export function AskSheet() {
             if (!mountedRef.current || recordingRunRef.current !== runId) return
             setLiveDialogue((items) => {
               const id = message.id || `${message.role || 'student'}-${Date.now()}`
+              if (message.status === 'discarded') return items.filter((item) => item.id !== id)
               const next = items.filter((item) => item.id !== id)
               next.push({ ...message, id })
               return next
             })
-            if (message.role === 'student' && message.text) {
+            if (message.role === 'student' && message.status === 'final' && message.text) {
               setReviewText((current) => [current, message.text].filter(Boolean).join(' ').trim())
             }
           },
@@ -802,7 +841,7 @@ export function AskSheet() {
   }
 
   const liveStudentText = liveDialogue
-    .filter((message) => message.role === 'student' && message.text)
+    .filter((message) => message.role === 'student' && message.status === 'final' && message.text)
     .map((message) => message.text)
     .join(' ')
 
@@ -846,6 +885,7 @@ export function AskSheet() {
         closeLabel={readOnly || dismissOnBack ? 'Close' : 'Back'}
         className="border-white/75 bg-[#fff7e8]/96 text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md"
         popup
+        hideOverlay
       >
         <DrawerTitle className="sr-only">Capture</DrawerTitle>
         <DrawerDescription className="sr-only">
@@ -1040,40 +1080,25 @@ export function AskSheet() {
           ) : null}
 
           {stage === 'recording' ? (
-            <section className="flex min-h-0 flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <span aria-hidden="true" className="relative inline-flex size-2.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/60" />
-                  <span className="relative inline-flex size-2.5 rounded-full bg-red-500" />
-                </span>
-                <p className="m-0 text-xs font-bold text-red-600">Recording</p>
-              </div>
-              <h2 className="m-0 text-xl font-semibold">I'm listening.</h2>
-              <p className="m-0 text-sm text-[rgba(43,38,32,0.62)]">
-                Speak naturally. Pause when you're done — I'll read it back.
-              </p>
+            <section className="flex min-h-0 flex-col gap-4">
               <div
                 ref={liveDialogueRef}
-                className="min-h-0 max-h-[320px] overflow-y-auto rounded-2xl bg-white/72 p-4"
+                className="min-h-[260px] overflow-y-auto pr-1"
                 role="log"
                 aria-live="polite"
               >
                 {liveDialogue.length === 0 ? (
-                  <div className="flex h-full items-center justify-center">
-                    <div className="flex items-center gap-1.5 text-sm text-[rgba(43,38,32,0.46)]">
+                  <div className="flex min-h-[260px] flex-col items-center justify-center gap-3">
+                    <div className="relative grid size-20 place-items-center rounded-full bg-(--color-onb-accent) text-white shadow-[0_18px_44px_-22px_rgba(214,116,58,0.70)]">
                       <span
                         aria-hidden="true"
-                        className="size-1.5 animate-pulse rounded-full bg-[rgba(43,38,32,0.32)] [animation-delay:-0.32s]"
+                        className="absolute inset-0 animate-ping rounded-full bg-(--color-onb-accent)/35"
                       />
-                      <span
-                        aria-hidden="true"
-                        className="size-1.5 animate-pulse rounded-full bg-[rgba(43,38,32,0.32)] [animation-delay:-0.16s]"
-                      />
-                      <span
-                        aria-hidden="true"
-                        className="size-1.5 animate-pulse rounded-full bg-[rgba(43,38,32,0.32)]"
-                      />
+                      <Mic aria-hidden className="relative size-8" />
                     </div>
+                    <p className="m-0 text-sm font-semibold text-[rgba(43,38,32,0.58)]">
+                      Listening...
+                    </p>
                   </div>
                 ) : (
                   liveDialogue.map((message) => (
@@ -1084,12 +1109,12 @@ export function AskSheet() {
                         'transition-opacity duration-300 ease-out',
                         message.role === 'kira'
                           ? 'mr-auto bg-[#edf7f5] text-[#1f5a4f]'
-                          : 'ml-auto bg-[#f5eee2] text-[rgba(43,38,32,0.86)]',
+                          : 'ml-auto bg-white text-[rgba(43,38,32,0.86)]',
                         message.status === 'streaming' && 'opacity-80',
                       )}
                     >
                       <span className="block text-[11px] font-bold opacity-60">
-                        {message.role === 'kira' ? 'Kira' : 'You'}
+                        {message.role === 'kira' ? companionName : 'You'}
                       </span>
                       <p className="m-0">{message.text}</p>
                     </article>
@@ -1097,7 +1122,7 @@ export function AskSheet() {
                 )}
               </div>
               {liveHint ? (
-                <p className="m-0 text-sm text-[rgba(43,38,32,0.54)]">{liveHint}</p>
+                <p className="m-0 text-xs text-[rgba(43,38,32,0.54)]">{liveHint}</p>
               ) : null}
               <button
                 type="button"
@@ -1152,11 +1177,11 @@ export function AskSheet() {
                       'mb-3 max-w-[82%] rounded-2xl px-3 py-2 text-sm',
                       message.role === 'kira'
                         ? 'mr-auto bg-[#edf7f5] text-[#1f5a4f]'
-                        : 'ml-auto bg-[#f5eee2] text-[rgba(43,38,32,0.86)]',
+                        : 'ml-auto bg-white text-[rgba(43,38,32,0.86)]',
                     )}
                   >
                     <span className="block text-[11px] font-bold opacity-60">
-                      {message.role === 'kira' ? 'Kira' : 'You'}
+                      {message.role === 'kira' ? companionName : 'You'}
                     </span>
                     <p className="m-0 whitespace-pre-wrap">{message.text}</p>
                   </article>

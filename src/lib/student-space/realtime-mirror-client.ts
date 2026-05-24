@@ -1,5 +1,7 @@
 import {
+  buildRealtimeMirrorLiveAudioInputConfig,
   buildRealtimeMirrorLiveInstructions,
+  buildRealtimeMirrorLiveResponseInstructions,
   buildRealtimeMirrorRepairInput,
   buildRealtimeMirrorResponseInstructions,
   buildRealtimeMirrorUserInput,
@@ -12,7 +14,7 @@ export interface StudentSpaceRealtimeConversationUpdate {
   id: string
   role: 'student' | 'kira'
   text: string
-  status: 'streaming' | 'final'
+  status: 'streaming' | 'final' | 'discarded'
 }
 
 export interface StudentSpaceRealtimeMirrorInput {
@@ -57,6 +59,7 @@ interface RealtimeMirrorAccumulatorOptions {
   maxRepairAttempts?: number
   onRepairNeeded?: (previousText: string, transcript: string) => void
   onConversationUpdate?: (update: StudentSpaceRealtimeConversationUpdate) => void
+  onAcceptedStudentTurn?: (transcript: string) => void
 }
 
 type MinimalDataChannel = Pick<
@@ -77,6 +80,12 @@ type MinimalPeerConnection = Pick<
 
 const DEFAULT_ENDPOINT = '/api/openai/realtime-mirror'
 const DEFAULT_RESULT_TIMEOUT_MS = 30_000
+const REALTIME_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+  channelCount: 1,
+}
 
 export function canCreateRealtimeMirrorCapture(): boolean {
   return Boolean(
@@ -99,7 +108,7 @@ export async function createRealtimeMirrorCapture(
     throw new Error('Realtime voice is not available in this browser.')
   }
 
-  const stream = await mediaDevices.getUserMedia({ audio: true })
+  const stream = await mediaDevices.getUserMedia({ audio: REALTIME_AUDIO_CONSTRAINTS })
   const peer = new PeerConnection() as MinimalPeerConnection
   const remoteAudio = createRemoteAudioOutput(deps.createAudioElement)
   peer.ontrack = (event) => remoteAudio.attach(event)
@@ -110,6 +119,9 @@ export async function createRealtimeMirrorCapture(
   const accumulator = createRealtimeMirrorAccumulator(input, {
     timeoutMs: deps.resultTimeoutMs,
     onConversationUpdate: input.onConversationUpdate,
+    onAcceptedStudentTurn: () => {
+      sendRealtimeMirrorLiveCompanionResponse(dataChannel)
+    },
     onRepairNeeded: (previousText) => {
       accumulator.expectJsonResponse()
       sendRealtimeMirrorResponse(dataChannel, buildRealtimeMirrorRepairInput(previousText), {
@@ -203,8 +215,13 @@ export function createRealtimeMirrorAccumulator(
   accept: (event: Record<string, unknown>) => void
   fail: (error: Error) => void
 } {
-  const { timeoutMs, maxRepairAttempts, onRepairNeeded, onConversationUpdate } =
-    normalizeAccumulatorOptions(options)
+  const {
+    timeoutMs,
+    maxRepairAttempts,
+    onRepairNeeded,
+    onConversationUpdate,
+    onAcceptedStudentTurn,
+  } = normalizeAccumulatorOptions(options)
   const transcriptParts = new Map<string, string>()
   const transcriptOrder: string[] = []
   const assistantParts = new Map<string, string>()
@@ -286,6 +303,19 @@ export function createRealtimeMirrorAccumulator(
     if (!transcriptParts.has(id)) transcriptOrder.push(id)
     const previous = append ? (transcriptParts.get(id) ?? '') : ''
     const nextText = append ? `${previous}${value}` : value.trim()
+    if (!append && !isLikelyEnglishTranscript(nextText)) {
+      transcriptParts.delete(id)
+      const index = transcriptOrder.indexOf(id)
+      if (index >= 0) transcriptOrder.splice(index, 1)
+      onConversationUpdate?.({
+        id,
+        role: 'student',
+        text: '',
+        status: 'discarded',
+      })
+      if (!itemId) fallbackTranscriptId = null
+      return
+    }
     transcriptParts.set(id, nextText)
     onConversationUpdate?.({
       id,
@@ -293,6 +323,7 @@ export function createRealtimeMirrorAccumulator(
       text: nextText.trim(),
       status: append ? 'streaming' : 'final',
     })
+    if (!append) onAcceptedStudentTurn?.(nextText.trim())
     if (!append || itemId) fallbackTranscriptId = null
     resolveTranscript()
   }
@@ -376,6 +407,24 @@ export function createRealtimeMirrorAccumulator(
         jsonResponseIds.add(response.id)
         acceptUnidentifiedJsonResponse = false
       }
+    }
+    if (event.type === 'input_audio_buffer.speech_started') {
+      const id = typeof event.item_id === 'string' ? event.item_id : 'active-speech'
+      onConversationUpdate?.({
+        id,
+        role: 'student',
+        text: 'Listening...',
+        status: 'streaming',
+      })
+    }
+    if (event.type === 'input_audio_buffer.speech_stopped') {
+      const id = typeof event.item_id === 'string' ? event.item_id : 'active-speech'
+      onConversationUpdate?.({
+        id,
+        role: 'student',
+        text: 'Reading...',
+        status: 'streaming',
+      })
     }
     if (event.type === 'conversation.item.input_audio_transcription.completed') {
       recordTranscript(event, typeof event.transcript === 'string' ? event.transcript : '', {
@@ -470,19 +519,7 @@ async function sendRealtimeMirrorLiveSessionUpdateWhenOpen(
         instructions: buildRealtimeMirrorLiveInstructions(),
         output_modalities: ['audio'],
         audio: {
-          input: {
-            transcription: {
-              model: 'gpt-4o-mini-transcribe',
-              language: 'en',
-            },
-            noise_reduction: { type: 'near_field' },
-            turn_detection: {
-              type: 'semantic_vad',
-              create_response: true,
-              interrupt_response: true,
-              eagerness: 'auto',
-            },
-          },
+          input: buildRealtimeMirrorLiveAudioInputConfig(),
         },
         tool_choice: 'none',
         tools: [],
@@ -494,13 +531,17 @@ async function sendRealtimeMirrorLiveSessionUpdateWhenOpen(
 function normalizeAccumulatorOptions(
   options: number | RealtimeMirrorAccumulatorOptions,
 ): Required<Pick<RealtimeMirrorAccumulatorOptions, 'timeoutMs' | 'maxRepairAttempts'>> &
-  Pick<RealtimeMirrorAccumulatorOptions, 'onRepairNeeded' | 'onConversationUpdate'> {
+  Pick<
+    RealtimeMirrorAccumulatorOptions,
+    'onRepairNeeded' | 'onConversationUpdate' | 'onAcceptedStudentTurn'
+  > {
   if (typeof options === 'number') {
     return {
       timeoutMs: options,
       maxRepairAttempts: 0,
       onRepairNeeded: undefined,
       onConversationUpdate: undefined,
+      onAcceptedStudentTurn: undefined,
     }
   }
   return {
@@ -508,7 +549,15 @@ function normalizeAccumulatorOptions(
     maxRepairAttempts: options.maxRepairAttempts ?? (options.onRepairNeeded ? 1 : 0),
     onRepairNeeded: options.onRepairNeeded,
     onConversationUpdate: options.onConversationUpdate,
+    onAcceptedStudentTurn: options.onAcceptedStudentTurn,
   }
+}
+
+function isLikelyEnglishTranscript(text: string): boolean {
+  const letters = text.match(/\p{L}/gu) ?? []
+  if (letters.length === 0) return false
+  const latinLetters = text.match(/\p{Script=Latin}/gu)?.length ?? 0
+  return latinLetters > 0 && latinLetters / letters.length >= 0.8
 }
 
 function combineTranscript(...parts: Array<string | undefined>): string {
@@ -554,6 +603,25 @@ function sendRealtimeMirrorResponse(
           agent: 'mirror',
           provider: 'openai_realtime',
           voice: modality === 'audio' ? OPENAI_REALTIME_MIRROR_VOICE : undefined,
+        },
+      },
+    }),
+  )
+}
+
+function sendRealtimeMirrorLiveCompanionResponse(dataChannel: MinimalDataChannel) {
+  dataChannel.send(
+    JSON.stringify({
+      type: 'response.create',
+      response: {
+        output_modalities: ['audio'],
+        audio: { output: { voice: OPENAI_REALTIME_MIRROR_VOICE } },
+        instructions: buildRealtimeMirrorLiveResponseInstructions(),
+        metadata: {
+          purpose: 'live_companion_reply',
+          source: 'student-space',
+          provider: 'openai_realtime',
+          voice: OPENAI_REALTIME_MIRROR_VOICE,
         },
       },
     }),

@@ -2086,7 +2086,7 @@ function ObjectPickupPanel({
       data-object-pickup
       data-kira-dialogue
       className={cn(
-        'fixed inset-x-[max(18px,8vw)] bottom-6 z-[58] mx-auto max-w-3xl rounded-[26px] border border-white/75 bg-[#fff7e8]/96 px-6 pt-8 pb-5 font-sans text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md transition-[opacity,transform] duration-[220ms] ease-(--ease-out) motion-reduce:transition-none max-[640px]:inset-x-4 max-[640px]:bottom-4 max-[640px]:px-5 max-[640px]:pt-7',
+        'fixed inset-x-[max(18px,8vw)] bottom-6 z-[58] mx-auto max-w-xl rounded-[26px] border border-white/75 bg-[#fff7e8]/96 px-6 pt-8 pb-5 font-sans text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md transition-[opacity,transform] duration-[220ms] ease-(--ease-out) motion-reduce:transition-none max-[640px]:inset-x-4 max-[640px]:bottom-4 max-[640px]:px-5 max-[640px]:pt-7',
         state.open ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-5 opacity-0',
       )}
     >

@@ -22,7 +22,7 @@ describe('realtime-mirror-client', () => {
       id: string
       role: 'student' | 'kira'
       text: string
-      status: 'streaming' | 'final'
+      status: 'streaming' | 'final' | 'discarded'
     }> = []
     const fetchImpl = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       forwardedOffer = String(init?.body)
@@ -45,7 +45,14 @@ describe('realtime-mirror-client', () => {
       },
     )
 
-    expect(getUserMedia).toHaveBeenCalledWith({ audio: true })
+    expect(getUserMedia).toHaveBeenCalledWith({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
+      },
+    })
     expect(peer.addedTracks).toEqual([track])
     expect(forwardedOffer).toBe('offer-sdp')
     expect(peer.remoteDescription).toEqual({ type: 'answer', sdp: 'answer-sdp' })
@@ -64,19 +71,40 @@ describe('realtime-mirror-client', () => {
       audio: {
         input: {
           transcription: { model: 'gpt-4o-mini-transcribe', language: 'en' },
+          noise_reduction: { type: 'far_field' },
           turn_detection: {
-            type: 'semantic_vad',
-            create_response: true,
+            type: 'server_vad',
+            create_response: false,
             interrupt_response: true,
+            threshold: 0.5,
+            prefix_padding_ms: 700,
+            silence_duration_ms: 800,
           },
         },
       },
+    })
+    expect(sessionUpdate.instructions).toContain('Always respond in English')
+    channel.message({
+      type: 'input_audio_buffer.speech_started',
+      item_id: 'student-1',
+    })
+    channel.message({
+      type: 'input_audio_buffer.speech_stopped',
+      item_id: 'student-1',
     })
     channel.message({
       type: 'conversation.item.input_audio_transcription.completed',
       item_id: 'student-1',
       transcript: 'I said this live.',
     })
+    await Promise.resolve()
+    expect(channel.sent.map((payload) => JSON.parse(payload).type).slice(0, 2)).toEqual([
+      'session.update',
+      'response.create',
+    ])
+    const liveResponseCreate = JSON.parse(channel.sent[1] ?? '{}').response
+    expect(liveResponseCreate.metadata.purpose).toBe('live_companion_reply')
+    expect(liveResponseCreate.instructions).toContain('Reply in English only')
     channel.message({
       type: 'response.output_audio_transcript.delta',
       response_id: 'kira-live-1',
@@ -89,6 +117,18 @@ describe('realtime-mirror-client', () => {
     })
     await Promise.resolve()
     expect(conversationUpdates).toEqual([
+      {
+        id: 'student-1',
+        role: 'student',
+        text: 'Listening...',
+        status: 'streaming',
+      },
+      {
+        id: 'student-1',
+        role: 'student',
+        text: 'Reading...',
+        status: 'streaming',
+      },
       {
         id: 'student-1',
         role: 'student',
@@ -113,8 +153,9 @@ describe('realtime-mirror-client', () => {
     expect(channel.sent.map((payload) => JSON.parse(payload).type)).toEqual([
       'session.update',
       'response.create',
+      'response.create',
     ])
-    const responseCreatePayload = channel.sent[1]
+    const responseCreatePayload = channel.sent[2]
     expect(responseCreatePayload).toBeDefined()
     if (!responseCreatePayload) throw new Error('Realtime response was not requested.')
     const responseCreate = JSON.parse(responseCreatePayload).response
@@ -367,6 +408,45 @@ describe('realtime-mirror-client', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('ignores non-English transcript fragments before requesting a live reply', () => {
+    const updates: Array<{
+      id: string
+      role: 'student' | 'kira'
+      text: string
+      status: 'streaming' | 'final' | 'discarded'
+    }> = []
+    const acceptedTurn = vi.fn()
+    const accumulator = createRealtimeMirrorAccumulator(
+      {
+        localCaptureId: 'ask-english-only',
+        contextType: 'school',
+      },
+      {
+        onConversationUpdate: (update) => updates.push(update),
+        onAcceptedStudentTurn: acceptedTurn,
+      },
+    )
+
+    accumulator.accept({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'noise-1',
+      transcript: 'こんにちは。',
+    })
+    accumulator.accept({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'student-1',
+      transcript: 'Can you hear me?',
+    })
+
+    expect(accumulator.currentTranscript()).toBe('Can you hear me?')
+    expect(acceptedTurn).toHaveBeenCalledOnce()
+    expect(acceptedTurn).toHaveBeenCalledWith('Can you hear me?')
+    expect(updates).toEqual([
+      { id: 'noise-1', role: 'student', text: '', status: 'discarded' },
+      { id: 'student-1', role: 'student', text: 'Can you hear me?', status: 'final' },
+    ])
   })
 })
 

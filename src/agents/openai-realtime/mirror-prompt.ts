@@ -4,15 +4,21 @@ import { fileURLToPath } from 'node:url'
 import type { RealtimeSessionCreateRequest } from 'openai/resources/realtime/realtime'
 import { OPENAI_REALTIME_MIRROR_DEFAULT_MODEL } from './config'
 import {
+  buildRealtimeMirrorLiveAudioInputConfig,
   buildRealtimeMirrorLiveInstructions,
+  OPENAI_REALTIME_MIRROR_TRANSCRIPTION_LANGUAGE,
+  OPENAI_REALTIME_MIRROR_TRANSCRIPTION_MODEL,
   OPENAI_REALTIME_MIRROR_VOICE,
 } from './mirror-payloads'
 
 export {
+  buildRealtimeMirrorLiveAudioInputConfig,
   buildRealtimeMirrorLiveInstructions,
   buildRealtimeMirrorRepairInput,
   buildRealtimeMirrorResponseInstructions,
   buildRealtimeMirrorUserInput,
+  OPENAI_REALTIME_MIRROR_TRANSCRIPTION_LANGUAGE,
+  OPENAI_REALTIME_MIRROR_TRANSCRIPTION_MODEL,
   OPENAI_REALTIME_MIRROR_VOICE,
 } from './mirror-payloads'
 
@@ -32,6 +38,7 @@ export function buildRealtimeMirrorInstructions(): string {
     getMirrorSystemPrompt(),
     '',
     '## Realtime session rules',
+    '- Always write the final Mirror JSON fields in English.',
     '- The student is not in an interview. Do not ask questions.',
     '- For voice input, listen until the app sends the explicit stop/commit event.',
     '- Return text only.',
@@ -61,22 +68,17 @@ export function buildRealtimeMirrorSessionConfig({
     output_modalities: [mode === 'live_audio' ? 'audio' : 'text'],
     max_output_tokens: 1000,
     audio: {
-      input: {
-        transcription: {
-          model: 'gpt-4o-mini-transcribe',
-          language: 'en',
-        },
-        noise_reduction: { type: 'near_field' },
-        turn_detection:
-          mode === 'live_audio'
-            ? {
-                type: 'semantic_vad',
-                create_response: true,
-                interrupt_response: true,
-                eagerness: 'auto',
-              }
-            : null,
-      },
+      input:
+        mode === 'live_audio'
+          ? buildRealtimeMirrorLiveAudioInputConfig()
+          : {
+              transcription: {
+                model: OPENAI_REALTIME_MIRROR_TRANSCRIPTION_MODEL,
+                language: OPENAI_REALTIME_MIRROR_TRANSCRIPTION_LANGUAGE,
+              },
+              noise_reduction: { type: 'far_field' },
+              turn_detection: null,
+            },
       ...(mode === 'live_audio' ? { output: { voice } } : {}),
     },
     tool_choice: 'none',

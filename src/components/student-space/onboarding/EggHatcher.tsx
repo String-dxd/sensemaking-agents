@@ -10,11 +10,7 @@ import {
   smootherstep,
   smoothstep,
 } from '~/engine/student-space/Game/util/easing.js'
-import {
-  buildStandingBird,
-  loadMaskedScene,
-  SPECIES_BY_ID,
-} from '~/engine/student-space/Game/View/Kira.js'
+import { loadMaskedScene, SPECIES_BY_ID } from '~/engine/student-space/Game/View/Kira.js'
 import {
   EGG_COLOR_BY_ID,
   EGG_COLORS,
@@ -436,11 +432,11 @@ export function EggCanvas({
       const cracks = new THREE.LineSegments(crackGeo, crackMat)
       mesh.add(cracks)
 
-      // --- Bird: real world-route Kira mesh, scaled to peek out of the
-      // bottom shell. We instantiate `buildStandingBird` directly so the
-      // hatchling reads as the same character that flies in one screen
-      // later — same body, beak, plumage, face texture. `birdGroup` parents
-      // the parts and gives us a single scale/position handle.
+      // --- Bird: real world-route Kira GLB clone, scaled to peek out of
+      // the bottom shell. The retired procedural bird is not used here, so
+      // the hatchling matches the character that flies in one screen later.
+      // `birdGroup` parents the clone and gives us a single scale/position
+      // handle.
       const birdGroup = new THREE.Group()
       // Sink + face camera. The bird's beak runs along local +X, so a
       // -90° yaw rotates it toward +Z (the camera). The y-offset drops
@@ -488,9 +484,9 @@ export function EggCanvas({
         // All species hatch as the MaskedBower GLB, tinted from the
         // chosen species's palette — same routing as Kira.setSpecies in
         // the world canvas, so the egg preview matches the post-hatch
-        // bird across every egg-color pick. The procedural builder
-        // (buildStandingBird) is archived in place: still imported, but
-        // only called as a defensive fallback if the GLB load fails.
+        // bird across every egg-color pick. The old procedural builder is
+        // archived in Kira.js and intentionally not used as a fallback, so
+        // a failed GLB load cannot show the retired bird.
         // SkeletonUtils.clone gives the clone its own skeleton, so
         // animating the world Kira's bones doesn't twitch the egg bird.
         void (async () => {
@@ -544,11 +540,10 @@ export function EggCanvas({
             birdGroup.add(clone)
           } catch (err) {
             if (token !== buildToken || cancelled) return
-            console.warn('[EggCanvas] masked GLB clone failed, falling back to procedural', err)
-            const spec = SPECIES_BY_ID[id] ?? SPECIES_BY_ID.masked ?? SPECIES_BY_ID.flame
-            const parts = buildStandingBird(spec)
-            birdParts = { root: parts.root, head: parts.head, kind: 'procedural' }
-            birdGroup.add(parts.root)
+            console.error(
+              '[EggCanvas] masked GLB clone failed; archived procedural bird disabled',
+              err,
+            )
           }
         })()
       }

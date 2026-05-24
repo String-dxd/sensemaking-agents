@@ -635,10 +635,10 @@ export function BirdPicker({
   compact?: boolean
 }) {
   const kira = game.view?.kira
-  const [speciesId, setSpeciesId] = useState(() => kira?.speciesId ?? 'flame')
+  const [speciesId, setSpeciesId] = useState(() => kira?.speciesId ?? 'masked')
 
   useEffect(() => {
-    setSpeciesId(kira?.speciesId ?? 'flame')
+    setSpeciesId(kira?.speciesId ?? 'masked')
     return kira?.onSpeciesChange?.((id) => setSpeciesId(id))
   }, [kira])
 
@@ -673,7 +673,7 @@ export function BirdPicker({
       <span className="min-w-0">
         <span className="block text-[8px] font-semibold text-white/54">Try</span>
         <span className="block truncate text-[11px] font-semibold text-white/88">
-          {species?.displayName ?? 'Flame Bower'}
+          {species?.displayName ?? 'Masked Bower'}
         </span>
       </span>
       <span aria-hidden className="ml-auto text-white/46">

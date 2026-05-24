@@ -46,7 +46,17 @@ const SURFACES_REQUIRING_HYDRATION = new Set(['trajectory'])
  * is unsafe under SSR: some engine modules still expect a browser-owned
  * `window` / `document` during evaluation.
  */
-export function EngineHost({ className, children }: { className?: string; children?: ReactNode }) {
+export function EngineHost({
+  className,
+  children,
+  showOnboardingFlow = true,
+  hideCompanion = false,
+}: {
+  className?: string
+  children?: ReactNode
+  showOnboardingFlow?: boolean
+  hideCompanion?: boolean
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [error, setError] = useState<Error | null>(null)
   const backend = useMemo(() => createStudentSpaceBackendBridge(), [])
@@ -94,6 +104,18 @@ export function EngineHost({ className, children }: { className?: string; childr
     if (!game) return
     game.setRenderActive(isWorldRoute)
   }, [game, isWorldRoute])
+
+  useEffect(() => {
+    if (!game || !hideCompanion) return
+    const group = (game as unknown as { view?: { kira?: { group?: { visible: boolean } } } }).view
+      ?.kira?.group
+    if (!group) return
+    const previousVisible = group.visible
+    group.visible = false
+    return () => {
+      group.visible = previousVisible
+    }
+  }, [game, hideCompanion])
 
   useEffect(() => {
     document.body.classList.toggle('student-space-page-route', !isWorldRoute)
@@ -255,7 +277,7 @@ export function EngineHost({ className, children }: { className?: string; childr
         <CaptureChooser />
         <AskSheet />
         <MoodSheet />
-        <OnboardingFlow />
+        {showOnboardingFlow ? <OnboardingFlow /> : null}
         {import.meta.env.DEV && game ? <CameraTuneBridge game={game} /> : null}
         {children}
       </EngineOverlayProvider>
