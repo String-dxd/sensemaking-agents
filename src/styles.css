@@ -78,8 +78,23 @@
   --color-sheet-divider: rgba(43, 38, 32, 0.06);
   --color-sheet-tab-active: rgba(43, 38, 32, 0.075);
   --blur-sheet: 10px;
+  /* Aliases retained for the ~30 existing usages; new code reaches for
+     the named tokens below. */
   --duration-sheet: 200ms;
   --ease-sheet: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ── Motion tokens ──────────────────────────────────────────────────── */
+  /* Duration tiers. Per web-animation-design: UI motion stays under 300ms;
+     larger surfaces (onboarding cross-step) get the 320ms slow tier. */
+  --duration-fast: 120ms; /* press feedback, micro */
+  --duration-base: 200ms; /* sheets, drawers, route fades, capture enter */
+  --duration-slow: 320ms; /* onboarding cross-step */
+  /* Easing curves. ease-out for enters/exits, ease-in-out for on-screen
+     movement, ease for hover/color. ease-out matches --ease-sheet exactly
+     and the engine's --onb-ease — keep that invariant. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ── World frame layout ─────────────────────────────────────────────── */
   --inset-frame: 14px;
