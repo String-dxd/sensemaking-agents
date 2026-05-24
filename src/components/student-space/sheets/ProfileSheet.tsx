@@ -20,7 +20,6 @@ import type { CSSProperties } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChoicesPageView } from '~/components/ChoicesPageView'
 import { RelationshipsPageView } from '~/components/RelationshipsPageView'
-import { Button } from '~/components/ui/button'
 import {
   PageSurface,
   SheetBody,
@@ -420,7 +419,7 @@ function AccountMenuButton({ authMenu }: { authMenu: AuthMenu | undefined }) {
           className="absolute right-0 top-[calc(100%+8px)] z-20 w-60 rounded-xl border border-(--color-sheet-divider) bg-white p-2 shadow-[0_18px_48px_rgba(43,38,32,0.14)]"
         >
           <div className="px-3 py-2">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-(--color-sheet-ink-soft)">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-sheet-ink-soft)">
               {authMenu?.label || 'Signed in'}
             </p>
             {authMenu?.detail ? (
@@ -595,10 +594,10 @@ function VipsProfileTab({
 
       {facet?.openQuestion ? (
         <aside className="rounded-xl border border-(--profile-accent)/30 bg-(--profile-soft) p-4 text-(--profile-ink)">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">
             Open question
           </p>
-          <p className="mt-1 text-sm leading-6">{facet.openQuestion}</p>
+          <p className="mt-1 text-base leading-relaxed">{facet.openQuestion}</p>
         </aside>
       ) : null}
 
@@ -609,7 +608,7 @@ function VipsProfileTab({
       {isPersonality ? null : (
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
               Collection
             </h3>
             {selectedClaimId ? (
@@ -679,7 +678,7 @@ function VipsProfileTab({
 
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+          <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
             Timeline
             {selectedClaimId ? (
               <span className="ml-2 normal-case tracking-normal text-(--profile-ink)">
@@ -743,7 +742,11 @@ function ParagraphBlock({
   const [expanded, setExpanded] = useState(false)
   const text = paragraph?.trim()
   if (!text) {
-    return <p className="max-w-2xl text-sm leading-6 text-(--color-sheet-ink-soft)">{fallback}</p>
+    return (
+      <p className="max-w-2xl text-base leading-relaxed text-(--color-sheet-ink-soft)">
+        {fallback}
+      </p>
+    )
   }
   const { thesis, evidence } = splitThesisAndEvidence(text)
   // Reset back to clamped whenever the underlying paragraph changes (e.g.
@@ -755,13 +758,13 @@ function ParagraphBlock({
   const showToggle = hasEvidence && evidence.length > 160
   return (
     <div className="flex flex-col gap-3">
-      <p className="max-w-2xl text-[15px] font-medium leading-relaxed text-(--color-sheet-ink)">
+      <p className="max-w-2xl text-base font-semibold leading-relaxed text-(--color-sheet-ink)">
         {thesis}
       </p>
       {hasEvidence ? (
         <p
           className={cn(
-            'max-w-2xl text-[13px] leading-6 text-(--color-sheet-ink-soft)',
+            'max-w-2xl text-base leading-relaxed text-(--color-sheet-ink-soft)',
             showToggle && !expanded && 'line-clamp-2',
           )}
         >
@@ -808,7 +811,7 @@ function TldrHero({
 
   return (
     <section className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--profile-ink)">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--profile-ink)">
         {voiced.length >= 3
           ? `Top voices in your ${PROFILE_HEADERS[tab].tag}`
           : `In your ${PROFILE_HEADERS[tab].tag}`}
@@ -870,7 +873,7 @@ function PersonalityTldr({ tldr }: { tldr: BigFiveTldr }) {
       data-testid="personality-tldr"
       className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5"
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-(--profile-ink)">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--profile-ink)">
         {tldr.eyebrow ?? 'YOUR PERSONALITY AT A GLANCE'}
       </p>
       {tldr.headline ? (
@@ -957,15 +960,15 @@ function BigFiveCards({ traits }: { traits: BigFiveTrait[] }) {
                 <Icon className="size-5" />
               </span>
               <span className="flex min-w-0 shrink basis-[220px] flex-col gap-0.5 max-[720px]:col-start-2 max-[720px]:row-start-1 max-[720px]:basis-auto">
-                <span className="text-balance text-[15px] font-semibold leading-snug tracking-tight text-(--color-sheet-ink)">
+                <span className="text-balance text-lg font-semibold leading-snug tracking-tight text-(--color-sheet-ink)">
                   {trait.tag ?? trait.name}
                 </span>
-                <span className="mt-0.5 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-black/55">
+                <span className="mt-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-(--color-sheet-ink-soft)">
                   {trait.name}
                 </span>
               </span>
               <span className="flex min-w-0 grow basis-[280px] items-center gap-3 max-[720px]:col-span-3 max-[720px]:row-start-2 max-[720px]:basis-auto max-[720px]:border-t max-[720px]:border-dashed max-[720px]:border-black/[0.08] max-[720px]:pt-1.5">
-                <span className="max-w-[14ch] shrink-0 text-balance text-right text-[10.5px] font-semibold uppercase leading-tight tracking-[0.06em] text-black/[0.52] max-[720px]:max-w-none max-[720px]:text-left">
+                <span className="max-w-[14ch] shrink-0 text-balance text-right text-xs font-semibold uppercase leading-tight tracking-[0.06em] text-(--color-sheet-ink-soft) max-[720px]:max-w-none max-[720px]:text-left">
                   {trait.poleLeft}
                 </span>
                 <span className="relative h-[3px] min-w-20 grow rounded-full bg-black/10">
@@ -975,7 +978,7 @@ function BigFiveCards({ traits }: { traits: BigFiveTrait[] }) {
                     className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--trait-accent) shadow-[0_0_0_3px_color-mix(in_srgb,var(--trait-accent)_22%,transparent),0_1px_0_rgba(0,0,0,0.06)] transition-[left] duration-200 ease-out"
                   />
                 </span>
-                <span className="max-w-[14ch] shrink-0 text-balance text-left text-[10.5px] font-semibold uppercase leading-tight tracking-[0.06em] text-black/[0.52] max-[720px]:max-w-none">
+                <span className="max-w-[14ch] shrink-0 text-balance text-left text-xs font-semibold uppercase leading-tight tracking-[0.06em] text-(--color-sheet-ink-soft) max-[720px]:max-w-none">
                   {trait.poleRight}
                 </span>
               </span>
@@ -993,7 +996,7 @@ function BigFiveCards({ traits }: { traits: BigFiveTrait[] }) {
                 className="border-t border-black/[0.06] px-[18px] pb-4 pt-3 max-[720px]:px-4"
               >
                 {trait.schoolReadout ? (
-                  <p className="text-pretty text-[13px] leading-[1.55] text-black/[0.74]">
+                  <p className="text-pretty text-base leading-relaxed text-(--color-sheet-ink-soft)">
                     {trait.schoolReadout}
                   </p>
                 ) : null}
@@ -1005,15 +1008,15 @@ function BigFiveCards({ traits }: { traits: BigFiveTrait[] }) {
                         className="border-t border-black/[0.06] pt-2 first:border-t-0 first:pt-0"
                       >
                         <div className="mb-1 flex items-baseline justify-between gap-2">
-                          <span className="text-[12.5px] font-semibold tracking-tight text-(--trait-accent)">
+                          <span className="text-sm font-semibold tracking-tight text-(--trait-accent)">
                             {aspect.name}
                           </span>
-                          <span className="text-[12px] font-semibold tabular-nums text-black/60">
+                          <span className="text-xs font-semibold tabular-nums text-(--color-sheet-ink-soft)">
                             {aspect.score}/20
                           </span>
                         </div>
                         {aspect.blurb ? (
-                          <p className="text-pretty text-[12px] leading-[1.5] text-black/60">
+                          <p className="text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
                             {aspect.blurb}
                           </p>
                         ) : null}
@@ -1096,7 +1099,7 @@ function TimelineQuote({
       data-forgetting={forgetting || undefined}
       className="rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4 transition-opacity data-[forgetting=true]:opacity-0"
     >
-      <p className="text-[15px] italic leading-7 text-(--color-sheet-ink)">"{quote.text}"</p>
+      <p className="text-base italic leading-relaxed text-(--color-sheet-ink)">"{quote.text}"</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-(--profile-soft) px-2.5 py-1 text-xs font-semibold text-(--profile-ink)">
           {claimLabel(quote.canonicalClaimId)}
@@ -1219,7 +1222,7 @@ function ShareDialog({
             <h2 id="share-dialog-title" className="text-xl font-semibold text-(--color-sheet-ink)">
               Share your profile
             </h2>
-            <p className="mt-1 text-sm leading-6 text-(--color-sheet-ink-soft)">
+            <p className="mt-1 text-base leading-relaxed text-(--color-sheet-ink-soft)">
               Generate a link for parents, teachers, or friends. Quotes are hidden by default.
             </p>
           </div>

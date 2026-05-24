@@ -145,7 +145,7 @@ export function GrowthIslandPreview({ year, engine }: { year: number; engine: un
       className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left)"
     >
       <canvas ref={canvasRef} className="absolute inset-0 size-full" />
-      <p className="pointer-events-none absolute bottom-2 right-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+      <p className="pointer-events-none absolute bottom-2 right-3 text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
         Drag · scroll
       </p>
     </div>
