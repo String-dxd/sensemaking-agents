@@ -1,90 +1,26 @@
 import { useLocation } from '@tanstack/react-router'
 import type { LucideIcon } from 'lucide-react'
-import { Compass, History, Home, Mail, Settings, User } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useStudentSpaceNavigate } from '~/lib/student-space/route-sync'
-import { useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
-import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 import { cn } from '~/lib/utils'
+import { activeKeyFromPathname } from './nav-active'
+import { BOTTOM_RAIL_ITEMS, type RailItem, SHEET_HREFS, TOP_RAIL_ITEMS } from './nav-items'
+import { useNavGate } from './use-nav-gate'
 
-export const SHEET_HREFS = {
-  home: '/',
-  letters: '/letters',
-  history: '/history',
-  profile: '/profile',
-  trajectory: '/trajectory',
-  settings: '/settings',
-} as const
-
-type RailItemId = keyof typeof SHEET_HREFS
-
-const TOP_RAIL_ITEMS: Array<{
-  id: RailItemId
-  label: string
-  Icon: LucideIcon
-}> = [
-  { id: 'home', label: 'Island', Icon: Home },
-  { id: 'profile', label: 'My Identity', Icon: User },
-  { id: 'trajectory', label: 'Path Finder', Icon: Compass },
-  { id: 'history', label: 'History', Icon: History },
-]
-
-const BOTTOM_RAIL_ITEMS: Array<{
-  id: RailItemId
-  label: string
-  Icon: LucideIcon
-}> = [
-  { id: 'letters', label: 'Letters', Icon: Mail },
-  { id: 'settings', label: 'Settings', Icon: Settings },
-]
-
-type GameLike = {
-  state?: {
-    onboarding?: {
-      stage?: string
-      isDone?: boolean
-      subscribe?: (cb: () => void) => () => void
-    }
-  }
-}
-
+/**
+ * Desktop navigation rail (≥641px). Hidden on phone-narrow widths via
+ * `max-[640px]:hidden` — the mobile counterpart is `MobileNav.tsx`. Each
+ * viewport owns exactly one nav surface; both render the same six
+ * destinations sourced from `./nav-items` and share the onboarding-hide
+ * gate via `./use-nav-gate`.
+ */
 export function SideRail({ game }: { game: unknown }) {
-  const navigate = useStudentSpaceNavigate()
   const location = useLocation()
-  const { isOnboarding } = useEngineOverlay()
-  const [pendingPathname, setPendingPathname] = useState<string | null>(null)
-  const typedGame = game as GameLike | null
-  const onboarding = typedGame?.state?.onboarding
-  useEngineSliceVersion(
-    onboarding?.subscribe ? (onboarding as { subscribe: (cb: () => void) => () => void }) : null,
-  )
+  const { hidden, pendingPathname, navigate } = useNavGate(game)
 
-  useEffect(() => {
-    if (!pendingPathname) return
-    if (normalizePathname(location.pathname) === pendingPathname) {
-      setPendingPathname(null)
-    }
-  }, [location.pathname, pendingPathname])
-
-  const onboardingStage = onboarding?.stage
-  const onboardingActive = Boolean(
-    onboarding &&
-      !onboarding.isDone &&
-      onboardingStage &&
-      onboardingStage !== 'done' &&
-      onboardingStage !== 'pending',
-  )
-
-  if (isOnboarding || onboardingActive || location.pathname === '/onboarding') return null
-
-  const handleNavigate = (href: string) => {
-    setPendingPathname(normalizePathname(href))
-    navigate(href)
-  }
+  if (hidden) return null
 
   const activeKey = activeKeyFromPathname(pendingPathname ?? location.pathname)
 
-  const renderItem = ({ id, label, Icon }: { id: RailItemId; label: string; Icon: LucideIcon }) => {
+  const renderItem = ({ id, label, Icon }: RailItem) => {
     const href = SHEET_HREFS[id]
     const active = activeKey === id
     return (
@@ -92,7 +28,7 @@ export function SideRail({ game }: { game: unknown }) {
         key={id}
         label={label}
         active={active}
-        onClick={() => handleNavigate(href)}
+        onClick={() => navigate(href)}
         Icon={Icon}
       />
     )
@@ -104,55 +40,23 @@ export function SideRail({ game }: { game: unknown }) {
       className={cn(
         'fixed top-(--inset-frame) bottom-(--inset-frame) left-(--inset-frame) z-[70]',
         'flex w-[calc(var(--width-rail)-10px)] flex-col items-center justify-between rounded-2xl border border-transparent bg-transparent py-3 shadow-none',
-        'max-[640px]:right-(--inset-frame) max-[640px]:top-auto max-[640px]:h-14 max-[640px]:w-auto max-[640px]:flex-row max-[640px]:px-2 max-[640px]:py-0',
+        'max-[640px]:hidden',
       )}
     >
-      <div className="flex flex-col gap-1 max-[640px]:flex-row">
-        {TOP_RAIL_ITEMS.map(renderItem)}
-      </div>
-      <div className="flex flex-col gap-1 max-[640px]:flex-row">
-        {BOTTOM_RAIL_ITEMS.map(renderItem)}
-      </div>
+      <div className="flex flex-col gap-1">{TOP_RAIL_ITEMS.map(renderItem)}</div>
+      <div className="flex flex-col gap-1">{BOTTOM_RAIL_ITEMS.map(renderItem)}</div>
     </nav>
   )
-}
-
-function normalizePathname(pathnameOrHref: string): string {
-  const [beforeHash = '/'] = pathnameOrHref.split('#')
-  const [pathname = '/'] = beforeHash.split('?')
-  const segments = pathname
-    .replace(/^\/+|\/+$/g, '')
-    .split('/')
-    .filter(Boolean)
-  return segments.length === 0 ? '/' : `/${segments.join('/')}`
-}
-
-function activeKeyFromPathname(pathname: string): RailItemId | null {
-  const normalized = normalizePathname(pathname)
-  if (normalized === '/') return 'home'
-  const [head] = normalized.replace(/^\/+/, '').split('/')
-  if (
-    head === 'letters' ||
-    head === 'history' ||
-    head === 'profile' ||
-    head === 'trajectory' ||
-    head === 'settings'
-  ) {
-    return head
-  }
-  return null
 }
 
 function RailButton({
   label,
   active = false,
-  compact = false,
   Icon,
   onClick,
 }: {
   label: string
   active?: boolean
-  compact?: boolean
   Icon: LucideIcon
   onClick: () => void
 }) {
@@ -165,17 +69,16 @@ function RailButton({
       data-active={active || undefined}
       onClick={onClick}
       className={cn(
-        'group relative grid size-11 cursor-pointer place-items-center rounded-xl border border-transparent transition-[transform,background-color,border-color,color,box-shadow] duration-(--duration-fast) ease-(--ease-out) active:scale-[0.96] motion-reduce:active:scale-100',
+        'group relative grid size-11 cursor-pointer place-items-center rounded-xl border border-transparent transition-[transform,background-color,border-color,color,box-shadow] active:scale-[0.96]',
         'bg-transparent text-(--color-sheet-ink-soft) shadow-none',
         'hover:border-white/70 hover:bg-white/70 hover:text-(--color-sheet-ink)',
         'data-[active]:border-white data-[active]:bg-white data-[active]:text-(--color-sheet-ink) data-[active]:shadow-lg data-[active]:shadow-black/12',
-        compact && 'text-(--color-sheet-ink-faint)',
       )}
     >
       <Icon aria-hidden className="size-5" />
       <span
         className={cn(
-          'pointer-events-none absolute left-[calc(100%+8px)] top-1/2 z-10 -translate-y-1/2 translate-x-1 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap opacity-0 shadow-lg shadow-black/12 transition-[opacity,transform] duration-(--duration-fast) ease-(--ease-out) motion-reduce:transition-none group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 max-[640px]:hidden',
+          'pointer-events-none absolute left-[calc(100%+8px)] top-1/2 z-10 -translate-y-1/2 translate-x-1 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap opacity-0 shadow-lg shadow-black/12 transition group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100',
           'bg-white text-(--color-sheet-ink)',
         )}
       >

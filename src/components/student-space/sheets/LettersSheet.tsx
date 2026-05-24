@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { ChevronLeft } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   PageSurface,
   SheetBody,
@@ -13,6 +14,7 @@ import {
 } from '~/components/ui/sheet'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
+import { useIsMobile } from '~/lib/student-space/use-is-mobile'
 import { cn } from '~/lib/utils'
 
 /**
@@ -47,6 +49,7 @@ interface LettersSlice {
 export function LettersSheet() {
   const engine = useEngine()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
 
   // TeacherLetters is engine-internal — not part of the typed Game contract
   // (see src/engine/student-space/Game/index.d.ts comment). Cast to access it.
@@ -72,16 +75,27 @@ export function LettersSheet() {
 
   // Auto-select newest unread (or newest letter) on first paint and whenever
   // the current selection disappears from the list (e.g. backend hydration
-  // pruning).
+  // pruning). On mobile we render the list and detail as separate views
+  // (master/detail), so suppress auto-select while the viewport is mobile.
+  // Rotating mobile→desktop after mount with no selection re-runs the
+  // effect and auto-selects normally (desktop expects a letter visible);
+  // rotating desktop→mobile preserves whatever selection the user had.
+  const hasAutoSelected = useRef(false)
   useEffect(() => {
     if (sorted.length === 0) {
       if (selectedId !== null) setSelectedId(null)
+      hasAutoSelected.current = false
       return
     }
     if (selectedId && sorted.some((l) => l.id === selectedId)) return
+    if (isMobile) return
+    if (hasAutoSelected.current) return
     const first = sorted.find((l) => !l.read) ?? sorted[0]
-    if (first) setSelectedId(first.id)
-  }, [sorted, selectedId])
+    if (first) {
+      setSelectedId(first.id)
+      hasAutoSelected.current = true
+    }
+  }, [sorted, selectedId, isMobile])
 
   const selected = useMemo(
     () => (selectedId ? (sorted.find((l) => l.id === selectedId) ?? null) : null),
@@ -112,9 +126,18 @@ export function LettersSheet() {
   const dismissToHome = useCallback(() => navigate({ to: '/' }), [navigate])
   usePageEscape(dismissToHome)
 
+  const showDetailOnMobile = isMobile && selected !== null
+  const showListOnMobile = isMobile && selected === null
+
   return (
     <PageSurface>
-      <SheetSidebar data-stagger-slot="1">
+      <SheetSidebar
+        data-stagger-slot="1"
+        className={cn(
+          'max-[640px]:max-h-none max-[640px]:flex-1',
+          showDetailOnMobile && 'max-[640px]:hidden',
+        )}
+      >
         <SheetIdentityHeader>
           <SheetTitle>Letters</SheetTitle>
           <SheetDescription>
@@ -140,9 +163,18 @@ export function LettersSheet() {
           )}
         </div>
       </SheetSidebar>
-      <SheetContent>
+      <SheetContent className={cn(showListOnMobile && 'max-[640px]:hidden')}>
         {selected ? (
           <>
+            <button
+              type="button"
+              onClick={() => setSelectedId(null)}
+              data-testid="letters-back"
+              className="hidden min-h-[44px] items-center gap-2 border-b border-(--color-sheet-divider) px-5 text-sm font-medium text-(--color-sheet-ink-soft) transition-colors hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent max-[640px]:flex"
+            >
+              <ChevronLeft aria-hidden className="size-4" />
+              Letters
+            </button>
             <SheetPageHeader data-stagger-slot="2">
               <p className="text-sm text-(--color-sheet-ink-soft)">
                 {selected.from} · <time>{formatSent(selected.sentAt)}</time>

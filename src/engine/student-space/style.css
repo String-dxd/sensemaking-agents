@@ -34,10 +34,26 @@
     --frame-ring:      inset 0 0 0 1px rgba(43, 38, 32, 0.22);
 }
 
+/* Phone-narrow: rail collapses (matches Tailwind's max-[640px]: convention
+   used by React surfaces). React surfaces hide SideRail and show the
+   hamburger MobileNav in this range, so the rail offset must be 0 here.
+   This rule sits in engine CSS rather than @theme because `--rail-width`
+   is an engine-substrate token: it's consumed by `.game` canvas geometry
+   and by `CaptureFab.tsx`'s JS particle-origin calc via getComputedStyle.
+   Splitting the token across two stylesheets would create two sources of
+   truth for the same engine-frame layout value. */
+@media (max-width: 640px)
+{
+    :root { --rail-width: 0px; }
+}
+
+/* Below 520px we additionally tighten the world frame (inset + radius) so
+   the canvas hugs the viewport on small phones. Kept at the original
+   breakpoint to limit blast radius — at 521–640px the frame keeps its
+   desktop geometry while only the rail disappears. */
 @media (max-width: 520px)
 {
-    /* Mobile: rail collapses, frame hugs the viewport. */
-    :root { --rail-width: 0px; --frame-inset: 6px; --frame-radius: 14px; }
+    :root { --frame-inset: 6px; --frame-radius: 14px; }
 }
 
 /* Onboarding + Edupass landing — the ceremony owns the viewport. We collapse
