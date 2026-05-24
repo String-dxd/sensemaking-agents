@@ -795,20 +795,20 @@ function TldrHero({
   const meta = [`${total} capture${total === 1 ? '' : 's'}`, refined].filter(Boolean).join(' · ')
 
   return (
-    <section className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5 shadow-(--shadow-sheet-tile)">
-      <p className="text-xs font-semibold text-(--profile-ink)">
+    <section className="relative isolate overflow-hidden rounded-2xl border border-(--profile-accent)/15 bg-(--color-sheet-pane-left) p-6 shadow-(--shadow-sheet-tile) before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[radial-gradient(120%_140%_at_0%_0%,color-mix(in_srgb,var(--profile-accent)_22%,transparent)_0%,color-mix(in_srgb,var(--profile-accent)_8%,transparent)_38%,transparent_72%)] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-[radial-gradient(80%_100%_at_100%_100%,color-mix(in_srgb,var(--profile-accent)_10%,transparent)_0%,transparent_55%)]">
+      <p className="text-xs font-semibold tracking-wide text-(--profile-ink)">
         {voiced.length >= 3
           ? `Top voices in your ${PROFILE_HEADERS[tab].tag}`
           : `In your ${PROFILE_HEADERS[tab].tag}`}
       </p>
-      <h3 className="mt-2 max-w-3xl text-xl font-semibold leading-snug text-(--color-sheet-ink)">
+      <h3 className="mt-1.5 max-w-[34ch] text-balance text-lg font-semibold leading-snug text-(--color-sheet-ink)">
         {voiced.length >= 3
           ? tldrHeadline(tab, voiced.length)
           : 'Few captures yet — capture a moment on the island to see what shows up.'}
       </h3>
       {voiced.length >= 3 ? (
         <div className="mt-4 flex flex-wrap gap-2">
-          {voiced.slice(0, 5).map((claim) => {
+          {voiced.slice(0, 4).map((claim) => {
             const selected = selectedClaimId === claim.id
             return (
               <button
@@ -862,7 +862,7 @@ function PersonalityTldr({ tldr }: { tldr: BigFiveTldr }) {
         {tldr.eyebrow ?? 'Your personality at a glance'}
       </p>
       {tldr.headline ? (
-        <h3 className="mt-2 max-w-3xl text-xl font-semibold leading-snug text-(--color-sheet-ink)">
+        <h3 className="mt-2 max-w-3xl text-balance text-lg font-semibold leading-snug text-(--color-sheet-ink)">
           {tldr.headline}
         </h3>
       ) : null}
@@ -1207,10 +1207,13 @@ function ShareDialog({
       <section className="w-full max-w-lg animate-[sheet-popover-in_180ms_var(--ease-sheet)_both] rounded-2xl border border-(--color-sheet-divider) bg-white p-5 shadow-(--shadow-sheet-dialog)">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h2 id="share-dialog-title" className="text-xl font-semibold text-(--color-sheet-ink)">
+            <h2
+              id="share-dialog-title"
+              className="text-balance text-lg font-semibold text-(--color-sheet-ink)"
+            >
               Share your profile
             </h2>
-            <p className="mt-1 text-base leading-relaxed text-(--color-sheet-ink-soft)">
+            <p className="mt-1 text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
               Generate a link for parents, teachers, or friends. Quotes are hidden by default.
             </p>
           </div>
