@@ -11,6 +11,11 @@ export type KiraSpeciesPalette = {
   beak: string
   legs: string
   eye: string
+  // Optional GLB-specific tints (defined on the masked species spec).
+  // When present, drive the MaskedBower GLB's MB_BodyYellow + MB_HeadOrange
+  // (body) and Uniform_TieStriped (tie) materials.
+  body?: string
+  tie?: string
 }
 
 export type KiraSpecies = {
@@ -51,8 +56,10 @@ export function buildStandingBird(spec: KiraSpecies): StandingBirdParts
 
 // Loader for the Blender-authored Masked Bower GLB. Module-cached, so the
 // scene is parsed once and re-handed to every caller. The scene already has
-// the world-Kira's setup applied: yaw flip, scale, crest hidden, body/tie
-// recolor, leg pivots reparented, bone refs surfaced.
+// the world-Kira's setup applied: yaw flip, scale, palette-driven body+head
+// +tie recolor (read from SPECIES_BY_ID.masked.palette), leg pivots
+// reparented, bone refs surfaced. The GLB's V_Crest* crown pieces stay
+// visible — they're the bird's signature head element.
 //
 // IMPORTANT: a THREE.Object3D can only have one parent. Don't add the
 // returned `scene` to your own group directly while the world Kira owns

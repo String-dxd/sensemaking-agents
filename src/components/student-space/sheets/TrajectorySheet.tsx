@@ -634,9 +634,6 @@ function StatusBody({
 
 function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
   const bearings = capture.trajectory?.bearings ?? []
-  const [activeIndex, setActiveIndex] = useState(0)
-  const selectedIndex = Math.min(activeIndex, Math.max(0, bearings.length - 1))
-  const active = bearings[selectedIndex]
   const throughLine = (capture.trajectory?.throughLine ?? '').trim()
 
   if (bearings.length === 0) {
@@ -657,62 +654,27 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
           {throughLine}
         </p>
       ) : null}
-      <div className="grid gap-4">
-        <div
-          className="grid content-start gap-1.5 rounded-[18px] border border-(--color-sheet-divider) bg-white/45 p-1.5 sm:grid-cols-3"
-          role="tablist"
-          aria-label="Pathway options"
-        >
-          {bearings.map((bearing, i) => (
-            <button
-              key={bearing.title ?? i}
-              type="button"
-              role="tab"
-              aria-selected={i === selectedIndex}
-              onClick={() => setActiveIndex(i)}
-              className={cn(
-                'flex min-h-12 cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-left text-sm leading-tight transition-[background-color,color,box-shadow,transform] duration-150 ease-(--ease-sheet) active:scale-[0.98]',
-                i === selectedIndex
-                  ? 'bg-white text-[#2166aa] shadow-[inset_0_0_0_1px_rgba(79,138,203,0.36),0_1px_2px_rgba(79,138,203,0.12)]'
-                  : 'text-(--color-sheet-ink-soft) hover:bg-black/5 hover:text-(--color-sheet-ink)',
-              )}
-            >
-              <span
-                className={cn(
-                  'grid size-5 shrink-0 place-items-center rounded-full text-xs font-bold tabular-nums transition-colors duration-150',
-                  i === selectedIndex
-                    ? 'bg-[#d4e6fb] text-[#2166aa]'
-                    : 'bg-black/8 text-(--color-sheet-ink-soft)',
-                )}
-              >
-                {i + 1}
-              </span>
-              <span className="min-w-0 whitespace-normal">{bearing.title}</span>
-            </button>
-          ))}
-        </div>
-        {active ? (
-          <section
-            key={selectedIndex}
-            data-tab-content
-            className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6 shadow-[0_1px_0_rgba(255,255,255,0.55)_inset]"
-            role="tabpanel"
+      <ol className="space-y-4" aria-label="Pathway options">
+        {bearings.map((bearing, i) => (
+          <li
+            key={bearing.title ?? i}
+            className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6 shadow-(--shadow-sheet-tile) transition-[box-shadow,transform] duration-(--duration-base) ease-(--ease-out) hover:-translate-y-0.5 hover:shadow-(--shadow-sheet-popover)"
           >
             <header className="flex items-start gap-4">
-              <span className="pt-0.5 text-xs font-semibold text-(--color-sheet-ink-soft) tabular-nums">
-                Path {selectedIndex + 1}
+              <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#d4e6fb] text-sm font-bold tabular-nums text-[#2166aa]">
+                {i + 1}
               </span>
               <h3 className="text-balance text-xl font-semibold leading-tight text-(--color-sheet-ink)">
-                {active.title}
+                {bearing.title}
               </h3>
             </header>
             <p className="mt-4 text-pretty text-sm leading-relaxed text-(--color-sheet-ink)">
-              {active.prompt}
+              {bearing.prompt}
             </p>
-            <EvidenceDisclosure key={selectedIndex} bearing={active} />
-            {active.msfUrl ? (
+            <EvidenceDisclosure bearing={bearing} />
+            {bearing.msfUrl ? (
               <a
-                href={active.msfUrl}
+                href={bearing.msfUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-5 inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-full bg-[#2b2620] px-4 py-2 text-sm font-semibold text-white transition-[background-color,transform] duration-150 ease-(--ease-sheet) hover:bg-[#3a342b] active:scale-[0.96]"
@@ -721,9 +683,9 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
                 <ExternalLink aria-hidden className="size-3.5" />
               </a>
             ) : null}
-          </section>
-        ) : null}
-      </div>
+          </li>
+        ))}
+      </ol>
     </div>
   )
 }

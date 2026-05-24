@@ -2,6 +2,7 @@ import { Dialog as BaseDialog } from '@base-ui-components/react/dialog'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CAMERA_TUNER_OPEN_EVENT } from '~/components/student-space/onboarding/CameraTuneHud'
+import { HATCH_TUNER_OPEN_EVENT } from '~/components/student-space/onboarding/HatchTuneHud'
 import { Dialog, DialogOverlay, DialogPortal } from '~/components/ui/dialog'
 import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
 import { signOutEngine } from '~/lib/sign-out-engine'
@@ -68,6 +69,17 @@ export function DevPalette() {
             },
           }
         : null
+    const hatchTuner: Command | null = import.meta.env.DEV
+      ? {
+          id: 'hatch-tuner',
+          label: 'Show hatch tuner',
+          hint: 'live preview',
+          run: () => {
+            setOpen(false)
+            window.dispatchEvent(new Event(HATCH_TUNER_OPEN_EVENT))
+          },
+        }
+      : null
     return [
       { id: 'ui', label: 'Switch to UI mode', hint: '/', run: go('/') },
       {
@@ -86,6 +98,7 @@ export function DevPalette() {
         },
       },
       ...(cameraTuner ? [cameraTuner] : []),
+      ...(hatchTuner ? [hatchTuner] : []),
       {
         id: 'restart-onboarding',
         label: 'Restart onboarding',

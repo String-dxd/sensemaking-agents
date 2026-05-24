@@ -270,33 +270,39 @@ export function CalendarPane({
                 )}
               >
                 <span className="text-xs font-medium tabular-nums">{cell.getDate()}</span>
-                <div className="mt-auto flex min-h-2 flex-wrap gap-0.5">
+                <div className="mt-auto flex min-h-2 flex-wrap items-center gap-0.5">
                   {cellMoods.slice(0, 3).map((mood, i) => (
-                    <span
+                    <Smile
                       // biome-ignore lint/suspicious/noArrayIndexKey: mood badges are positional within a day
                       key={i}
                       aria-hidden
-                      className="size-1.5 rounded-full"
-                      style={{ background: MOOD_HEX[mood.emotion ?? ''] ?? '#bbb' }}
+                      className="size-3"
+                      style={{ color: MOOD_HEX[mood.emotion ?? ''] ?? '#bbb' }}
                     />
                   ))}
-                  {cellCaps.length > 0 ? (
-                    <span
+                  {cellCaps.length > 0
+                    ? (() => {
+                        const hasPhoto = cellCaps.some((c) => c.kind === 'photo')
+                        const Icon = hasPhoto ? Camera : NotebookPen
+                        return (
+                          <Icon
+                            aria-hidden
+                            className={cn(
+                              'size-3',
+                              isSelected ? 'text-white' : 'text-(--color-sheet-ink)',
+                            )}
+                          />
+                        )
+                      })()
+                    : null}
+                  {cellEvents > 0 ? (
+                    <CalendarDays
                       aria-hidden
                       className={cn(
-                        'size-1.5 rounded-sm',
-                        isSelected
-                          ? 'bg-white'
-                          : cellCaps.some((c) => c.kind === 'photo')
-                            ? 'bg-(--color-sheet-ink)'
-                            : 'border border-(--color-sheet-ink)',
+                        'size-3',
+                        isSelected ? 'text-white' : 'text-(--color-sheet-ink)',
                       )}
                     />
-                  ) : null}
-                  {cellEvents > 0 ? (
-                    <span aria-hidden className="text-xs leading-none">
-                      ·
-                    </span>
                   ) : null}
                 </div>
               </Toggle>

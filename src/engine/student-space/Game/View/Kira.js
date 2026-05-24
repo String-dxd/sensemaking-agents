@@ -110,8 +110,12 @@ function applyMaskedTintsTo(scene)
 {
     const palette = SPECIES_BY_ID.masked?.palette
     if(!palette || !scene) return
+    // Head + body share the same tint so the bird reads as one colorway.
+    // The yellow hair tufts and white cap-sleeves added by _attachMasked*
+    // helpers stay hardcoded — they're brand accents across colorways.
     const tints = {
         MB_BodyYellow:      palette.body,
+        MB_HeadOrange:      palette.body,
         Uniform_TieStriped: palette.tie,
     }
     scene.traverse(o => {
@@ -144,10 +148,12 @@ export function loadMaskedScene()
 
         // Palette-driven recolor: read body + tie hex from the masked
         // species spec (SPECIES_BY_ID is module-level and defined by
-        // the time this runs). Maps to the GLB's two named materials.
+        // the time this runs). Head + body share `palette.body` so the
+        // bird reads as one colorway across egg-color picks.
         const maskedPalette = SPECIES_BY_ID.masked?.palette ?? {}
         const materialTints = {
             MB_BodyYellow:      maskedPalette.body,
+            MB_HeadOrange:      maskedPalette.body,
             Uniform_TieStriped: maskedPalette.tie,
         }
 
@@ -159,21 +165,13 @@ export function loadMaskedScene()
         let legPostR = null
         let footL = null
         let footR = null
+        const crestMeshes = []
         scene.traverse(o =>
         {
             if(o.isMesh)
             {
                 o.castShadow = true
                 o.receiveShadow = true
-
-                // The Blender export ships with stacked crest pieces on the
-                // crown. Hide them — the colorway already reads as a Masked
-                // Bower without the crest, and the user asked for a clean
-                // bald-headed silhouette.
-                if(/^MB_Crest/i.test(o.name))
-                {
-                    o.visible = false
-                }
 
                 // Idempotent — module-level promise caches the scene.
                 const mats = Array.isArray(o.material) ? o.material : [o.material]
@@ -191,6 +189,11 @@ export function loadMaskedScene()
                 }
             }
             if(!head && /MB_Head/i.test(o.name)) head = o
+            // Crest meshes (MB_CrestRed / MB_CrestOrange / MB_CrestGold etc.)
+            // are authored as siblings of MB_Head under MB_Rig. Collected
+            // here so we can reparent them under MB_Head after traversal —
+            // that way the crown inherits the head's wave + tilt animation.
+            if(o.isMesh && /^MB_Crest/i.test(o.name)) crestMeshes.push(o)
             // Bone refs for the talking beat. Names are the armature
             // bones (skin joints), not the MB_* mesh nodes.
             if(!wingL && o.name === 'Wing.L') wingL = o
@@ -220,9 +223,18 @@ export function loadMaskedScene()
         const legPivotL = _makeMaskedLegPivot(legPostL, footL, +0.22)
         const legPivotR = _makeMaskedLegPivot(legPostR, footR, -0.22)
 
-        // Procedural decoration grafted onto the rig: three soft yellow
-        // tufts down the back of the head along the centerline.
-        _attachMaskedHairTufts(head)
+        // PR #57's procedural mohawk tufts + cap-sleeves are no longer
+        // attached: the GLB's original V_Crest* crown is restored
+        // (no longer hidden) per user request. The _attachMasked*
+        // helpers stay defined above in case they're wanted later.
+
+        // Reparent MB_Crest* meshes under MB_Head so the crown follows
+        // head tilt + wave animations. `Object3D.attach()` preserves the
+        // mesh's world position by recomputing the local transform.
+        if(head)
+        {
+            for(const crest of crestMeshes) head.attach(crest)
+        }
 
         return { scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }
     })
