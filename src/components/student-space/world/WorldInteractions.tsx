@@ -538,12 +538,28 @@ class KiraDialogueController {
 
     const cam = this.view.camera.instance
     this.kira.getHeadWorldPosition(this.worldPos)
-    this.worldPos.y += 0.4
+    // Lift a hair above the head so the tail anchors just over the crown
+    // without leaving an empty gap; tuned against the wider world-default
+    // camera (distance ~18) where 0.4 read as too detached.
+    this.worldPos.y += 0.22
     this.screenPos.copy(this.worldPos).project(cam)
-    const x = (this.screenPos.x * 0.5 + 0.5) * window.innerWidth
-    const y = (-this.screenPos.y * 0.5 + 0.5) * window.innerHeight
+    // Map NDC → pixels using the renderer canvas's bounding rect, not
+    // window.innerWidth — the canvas sits inside the `.game` frame inset
+    // and the side rail, so window-relative pixels miss the bird's
+    // horizontal position by the frame margin.
+    const canvas = this.view.renderer?.instance?.domElement as HTMLCanvasElement | undefined
+    const rect = canvas?.getBoundingClientRect()
+    const w = rect ? rect.width : window.innerWidth
+    const h = rect ? rect.height : window.innerHeight
+    const offX = rect ? rect.left : 0
+    const offY = rect ? rect.top : 0
+    const rawX = (this.screenPos.x * 0.5 + 0.5) * w + offX
+    const rawY = (-this.screenPos.y * 0.5 + 0.5) * h + offY
     const hidden = this.screenPos.z > 1
-    this.setBubble((prev) => ({ ...prev, x, y, hidden }))
+    // Tight follow — `Math.round` in the bubble's transform already
+    // absorbs sub-pixel projection jitter, and any extra smoothing here
+    // visibly trails a walking bird, leaving the caret off-center.
+    this.setBubble((prev) => ({ ...prev, x: rawX, y: rawY, hidden }))
   }
 
   _type(text: string) {
@@ -1891,11 +1907,29 @@ function KiraBubble({ state, onDismiss }: { state: KiraBubbleState; onDismiss: (
       data-kira-bubble
       onClick={onDismiss}
       style={{
-        transform: `translate(calc(${Math.round(state.x)}px - 50%), calc(${Math.round(state.y)}px - 100% - 16px))`,
+        // Anchor the bubble's bottom-center 8px above the smoothed head
+        // projection. The 8px gap leaves room for the caret without the
+        // tail tip overlapping the bird sprite.
+        transform: `translate(calc(${Math.round(state.x)}px - 50%), calc(${Math.round(state.y)}px - 100% - 8px))`,
       }}
       className={cn(
-        'pointer-events-auto fixed left-0 top-0 z-[54] max-w-[260px] rounded-[18px] border border-white/80 bg-white/92 px-4 py-3 text-left font-sans text-[13px] leading-[1.45] font-semibold text-[#2b2620] shadow-[0_10px_28px_rgba(40,30,20,0.16)] backdrop-blur-md transition-[opacity,transform] duration-(--duration-base) ease-(--ease-out) motion-reduce:transition-none',
-        'after:absolute after:left-1/2 after:top-full after:size-3 after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:border-r after:border-b after:border-white/80 after:bg-white/92',
+        'pointer-events-auto fixed left-0 top-0 z-[54] max-w-[240px] rounded-2xl bg-white px-3.5 py-2.5 text-left font-sans text-[13.5px] leading-[1.45] font-medium text-[#2b2620]',
+        'shadow-[0_2px_4px_rgba(40,30,20,0.06),0_12px_30px_rgba(40,30,20,0.14)] ring-1 ring-black/5',
+        'transition-[opacity,transform] duration-(--duration-base) ease-(--ease-out) motion-reduce:transition-none',
+        // Hide the bubble when a capture sheet or chooser covers the
+        // world — those surfaces sit above z-[54] but the bubble still
+        // bleeds through their backdrop. Onboarding intentionally reuses
+        // this bubble for the bird's dialogue, so don't hide on
+        // `is-onboarding`.
+        '[body.has-capture-sheet_&]:hidden [body.has-chooser_&]:hidden',
+        // Caret as a downward-pointing triangle. clip-path is more reliable
+        // than border-triangles in Tailwind (no border-style needed).
+        // ::before paints the outline (matched to ring-black/5), ::after
+        // sits 1px higher so the white fill covers all but a 1px rim.
+        'before:absolute before:left-1/2 before:top-full before:h-[7px] before:w-[18px] before:-translate-x-1/2 before:-translate-y-px before:bg-black/5',
+        'before:[clip-path:polygon(0_0,100%_0,50%_100%)]',
+        'after:absolute after:left-1/2 after:top-full after:h-[7px] after:w-[18px] after:-translate-x-1/2 after:-translate-y-[2px] after:bg-white',
+        'after:[clip-path:polygon(0_0,100%_0,50%_100%)]',
         state.visible ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0',
       )}
     >

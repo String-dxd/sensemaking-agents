@@ -40,6 +40,10 @@ type CameraLike = {
     pitchDeg: number
   }) => void
   stopLandingOrbit?: () => void
+  setDefaultFraming?: (
+    pose: { fov: number; distance: number; pitchDeg: number; target: Vector3 },
+    options?: { apply?: boolean },
+  ) => void
 }
 
 type FlowersLike = { flowers?: Array<{ x: number; z: number }> }
@@ -51,6 +55,7 @@ export type CameraTuneTargets = {
 }
 
 const SCENE_OPTIONS: Array<{ id: SceneId; label: string }> = [
+  { id: 'world-default', label: 'World — default framing' },
   { id: 'first-chat', label: 'FirstChat — bird portrait' },
   { id: 'closing-portrait', label: 'Closing — bird portrait' },
   { id: 'bloom', label: 'IslandReveal — flower bloom' },
@@ -59,6 +64,14 @@ const SCENE_OPTIONS: Array<{ id: SceneId; label: string }> = [
 ]
 
 const FIELD_LABELS: Record<SceneId, Array<{ key: string; label: string; step?: number }>> = {
+  'world-default': [
+    { key: 'fov', label: 'FOV (deg)', step: 1 },
+    { key: 'distance', label: 'Distance', step: 0.25 },
+    { key: 'pitchDeg', label: 'Pitch (deg)', step: 1 },
+    { key: 'lookAtX', label: 'LookAt X', step: 0.1 },
+    { key: 'lookAtY', label: 'LookAt Y', step: 0.05 },
+    { key: 'lookAtZ', label: 'LookAt Z', step: 0.1 },
+  ],
   'first-chat': [
     { key: 'distance', label: 'Distance', step: 0.1 },
     { key: 'yawOffsetDeg', label: 'Yaw offset (deg)', step: 1 },
@@ -150,6 +163,24 @@ export function CameraTuneHud({ targets }: { targets: CameraTuneTargets | null |
       return
     }
     switch (selected) {
+      case 'world-default': {
+        if (!camera.setDefaultFraming) {
+          setToast('Engine missing setDefaultFraming')
+          return
+        }
+        const p = presets['world-default']
+        camera.setDefaultFraming(
+          {
+            fov: p.fov,
+            distance: p.distance,
+            pitchDeg: p.pitchDeg,
+            target: new Vector3(p.lookAtX, p.lookAtY, p.lookAtZ),
+          },
+          { apply: true },
+        )
+        setToast('Previewing world default')
+        break
+      }
       case 'first-chat':
       case 'closing-portrait': {
         const kira = targets?.kira
