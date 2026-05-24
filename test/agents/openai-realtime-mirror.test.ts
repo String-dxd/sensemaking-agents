@@ -92,6 +92,8 @@ describe('OpenAI Realtime Mirror runner', () => {
     expect(instructions).toContain('Gathering mode')
     expect(instructions).toContain('Reflecting mode')
     expect(instructions).toContain('If the student is checking whether the mic works')
+    expect(instructions).toContain('very short or vague')
+    expect(instructions).toContain('Anything interesting happen during school or after school')
     expect(instructions).toContain('Never speak JSON')
     expect(instructions).toContain('Always respond in English')
     expect(buildRealtimeMirrorResponseInstructions()).toContain('Write every field in English')
