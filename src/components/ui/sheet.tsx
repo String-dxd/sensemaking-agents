@@ -4,8 +4,14 @@ import { useEffect } from 'react'
 import { usePageEnterState } from '~/lib/student-space/use-page-enter-state'
 import { cn } from '~/lib/utils'
 
+// Mobile top inset (`+4rem` = 64px) reserves space for the hamburger button
+// in `MobileNav.tsx`. Geometry: hamburger sits at `top-(--inset-frame)+12px`
+// with `size-11` (44px), so its bottom edge lands at +56px. The +64px sheet
+// gutter clears it with an 8px gap. HUD top-left dock uses +68px (see
+// `hud.tsx` DOCK_CLASSES) for a 12px gap from the same hamburger — sheets
+// can sit closer because the sheet has its own background and frame border.
 export const studentSpaceFrameClassName =
-  'top-(--inset-frame) right-(--inset-frame) bottom-(--inset-frame) left-[calc(var(--width-rail)+var(--inset-frame))] max-[640px]:left-(--inset-frame) max-[640px]:bottom-[calc(var(--inset-frame)+4.25rem)]'
+  'top-(--inset-frame) right-(--inset-frame) bottom-(--inset-frame) left-[calc(var(--width-rail)+var(--inset-frame))] max-[640px]:left-(--inset-frame) max-[640px]:top-[calc(var(--inset-frame)+4rem)]'
 
 export const studentSpaceFrameContainerClassName =
   'rounded-(--radius-frame) border border-(--color-frame-border) shadow-[inset_0_1px_0_rgba(255,255,255,0.72)]'
@@ -52,7 +58,7 @@ export function PageSurface({ className, children, framed = true, ...props }: Pa
       <div
         data-testid="page-container"
         className={cn(
-          'flex h-full w-full overflow-hidden bg-(--color-sheet-bg)',
+          'flex h-full w-full overflow-hidden bg-(--color-sheet-bg) max-[640px]:flex-col',
           framed ? studentSpaceFrameContainerClassName : 'rounded-none',
         )}
       >
@@ -99,6 +105,7 @@ export function SheetSidebar({ className, ...props }: HTMLAttributes<HTMLDivElem
       data-testid="sheet-sidebar"
       className={cn(
         'flex w-[360px] shrink-0 flex-col overflow-y-auto border-r border-(--color-sheet-divider) bg-(--color-sheet-pane-left)',
+        'max-[640px]:w-full max-[640px]:max-h-[40vh] max-[640px]:border-r-0 max-[640px]:border-b',
         className,
       )}
       {...props}
@@ -117,14 +124,23 @@ export function SheetContent({ className, ...props }: HTMLAttributes<HTMLDivElem
 }
 
 export function SheetIdentityHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex flex-col gap-3 px-7 py-10', className)} {...props} />
+  return (
+    <div
+      className={cn('flex flex-col gap-3 px-7 py-10 max-[640px]:px-5 max-[640px]:py-6', className)}
+      {...props}
+    />
+  )
 }
 
 export function SheetSidenav({ className, ...props }: HTMLAttributes<HTMLElement>) {
   return (
     <nav
       data-testid="sheet-sidenav"
-      className={cn('flex flex-col gap-1 px-4 pb-6', className)}
+      className={cn(
+        'flex flex-col gap-1 px-4 pb-6',
+        'max-[640px]:flex-row max-[640px]:gap-2 max-[640px]:overflow-x-auto max-[640px]:px-3 max-[640px]:pb-3',
+        className,
+      )}
       {...props}
     />
   )
@@ -136,6 +152,7 @@ export function SheetPageHeader({ className, ...props }: HTMLAttributes<HTMLDivE
       data-testid="sheet-page-header"
       className={cn(
         'flex flex-col gap-1.5 border-b border-(--color-sheet-divider) px-9 pt-12 pb-6',
+        'max-[640px]:px-5 max-[640px]:pt-6 max-[640px]:pb-4',
         className,
       )}
       {...props}
@@ -180,7 +197,10 @@ export function SheetBody({ className, ...props }: HTMLAttributes<HTMLDivElement
   return (
     <div
       data-testid="sheet-body"
-      className={cn('relative min-h-px flex-1 overflow-y-auto px-9 py-8', className)}
+      className={cn(
+        'relative min-h-px flex-1 overflow-y-auto px-9 py-8 max-[640px]:px-5 max-[640px]:py-5',
+        className,
+      )}
       {...props}
     />
   )
@@ -204,6 +224,7 @@ export function SheetNavButton({
         'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-[transform,background-color,color] duration-(--duration-fast) ease-(--ease-out) active:scale-[0.97] motion-reduce:active:scale-100',
         'cursor-pointer text-(--color-sheet-ink-soft) hover:bg-[rgba(43,38,32,0.045)]',
         'data-[active]:bg-(--color-sheet-tab-active) data-[active]:text-(--color-sheet-ink)',
+        'max-[640px]:w-auto max-[640px]:shrink-0 max-[640px]:whitespace-nowrap',
         className,
       )}
       {...props}

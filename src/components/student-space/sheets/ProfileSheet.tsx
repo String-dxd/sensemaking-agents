@@ -279,7 +279,11 @@ export function ProfileSheet() {
             <IdentityCard profile={profile} />
           </div>
         </SheetIdentityHeader>
-        <div className="flex flex-col gap-1 px-4 pb-6" role="tablist" aria-label="Profile sections">
+        <div
+          className="flex flex-col gap-1 px-4 pb-6 max-[640px]:flex-row max-[640px]:gap-2 max-[640px]:overflow-x-auto max-[640px]:px-3 max-[640px]:pb-3"
+          role="tablist"
+          aria-label="Profile sections"
+        >
           {PROFILE_TABS.map((tab) => (
             <SheetNavButton
               key={tab.id}

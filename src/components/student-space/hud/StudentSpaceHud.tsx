@@ -499,7 +499,7 @@ export function StatusPreviewHud({
         'text-white',
         inline
           ? 'relative'
-          : 'fixed top-[calc(var(--inset-frame)+12px)] left-[calc(var(--width-rail)+var(--inset-frame)+12px)] z-40',
+          : 'fixed top-[calc(var(--inset-frame)+12px)] left-[calc(var(--width-rail)+var(--inset-frame)+12px)] z-40 max-[640px]:top-[calc(var(--inset-frame)+68px)]',
         compact ? 'w-full' : 'w-44',
       )}
     >

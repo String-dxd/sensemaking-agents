@@ -19,6 +19,7 @@ import { cn } from '~/lib/utils'
 import { AskSheet } from './capture/AskSheet'
 import { CaptureChooser } from './capture/CaptureChooser'
 import { MoodSheet } from './capture/MoodSheet'
+import { MobileNav } from './navigation/MobileNav'
 import { SideRail } from './navigation/SideRail'
 import { CameraTuneHud, type CameraTuneTargets } from './onboarding/CameraTuneHud'
 import { OnboardingFlow } from './onboarding/OnboardingFlow'
@@ -249,6 +250,7 @@ export function EngineHost({ className, children }: { className?: string; childr
         />
         <RouteOverlayEffects isWorldRoute={isWorldRoute} />
         {game ? <SideRail game={game} /> : null}
+        {game ? <MobileNav game={game} /> : null}
         {game ? <CaptureOverlayBridge game={game} /> : null}
         <CaptureChooser />
         <AskSheet />

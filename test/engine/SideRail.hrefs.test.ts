@@ -14,7 +14,7 @@
  * the 2026-05-21 review pipeline.
  */
 import { describe, expect, it } from 'vitest'
-import { SHEET_HREFS } from '~/components/student-space/navigation/SideRail'
+import { SHEET_HREFS } from '~/components/student-space/navigation/nav-items'
 import { pathnameForSurface } from '~/lib/student-space/route-sync'
 
 describe('SideRail.SHEET_HREFS vs pathnameForSurface', () => {
