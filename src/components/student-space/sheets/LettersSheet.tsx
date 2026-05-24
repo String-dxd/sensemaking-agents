@@ -100,6 +100,12 @@ export function LettersSheet() {
     const overlay = (
       engine as unknown as { view?: { overlayController?: OverlayControllerLike } } | null
     )?.view?.overlayController
+    // Capture is a world-anchored ceremony — the camera dollies in on Kira
+    // and her `captureFocus` flag turns her toward the camera. That only
+    // reads correctly from the world route, so route home first and let the
+    // overlay mount inside StudentSpaceHost. The AskSheet's camera-zoom
+    // useEffect fires once it sees `open` flip true on the world canvas.
+    navigate({ to: '/' })
     overlay?.open('ask', { prompt, dismissOnBack: true, letterId: selectedId })
   }
 

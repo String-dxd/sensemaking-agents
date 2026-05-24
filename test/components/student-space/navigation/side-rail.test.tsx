@@ -96,7 +96,7 @@ describe('SideRail', () => {
   it.each([
     ['Letters', '/letters'],
     ['History', '/history'],
-    ['Profile', '/profile'],
+    ['My Identity', '/profile'],
     ['Path Finder', '/trajectory'],
   ])('marks %s active immediately while routed navigation is pending', async (label, expectedPathname) => {
     const user = userEvent.setup()
@@ -116,7 +116,7 @@ describe('SideRail', () => {
   })
 
   it.each([
-    ['Profile', '/profile'],
+    ['My Identity', '/profile'],
     ['Letters', '/letters'],
     ['Path Finder', '/trajectory'],
     ['History', '/history'],
@@ -153,7 +153,7 @@ describe('SideRail', () => {
     const labelsIn = (group: HTMLElement) =>
       Array.from(group.querySelectorAll('button')).map((b) => b.getAttribute('aria-label'))
 
-    expect(labelsIn(topGroup)).toEqual(['Island', 'History', 'Profile', 'Path Finder'])
+    expect(labelsIn(topGroup)).toEqual(['Island', 'My Identity', 'Path Finder', 'History'])
     expect(labelsIn(bottomGroup)).toEqual(['Letters', 'Settings'])
   })
 
