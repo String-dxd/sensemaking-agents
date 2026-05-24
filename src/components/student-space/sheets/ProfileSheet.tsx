@@ -273,7 +273,7 @@ export function ProfileSheet() {
     <PageSurface className="isolate" style={themeStyle}>
       <SheetSidebar>
         <SheetIdentityHeader>
-          <SheetTitle>Profile</SheetTitle>
+          <SheetTitle>My Identity</SheetTitle>
           <SheetDescription>
             The shape of your reflections so far across values, interests, personality, and skills.
           </SheetDescription>

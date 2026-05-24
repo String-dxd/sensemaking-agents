@@ -24,9 +24,9 @@ const TOP_RAIL_ITEMS: Array<{
   Icon: LucideIcon
 }> = [
   { id: 'home', label: 'Island', Icon: Home },
-  { id: 'history', label: 'History', Icon: History },
-  { id: 'profile', label: 'Profile', Icon: User },
+  { id: 'profile', label: 'My Identity', Icon: User },
   { id: 'trajectory', label: 'Path Finder', Icon: Compass },
+  { id: 'history', label: 'History', Icon: History },
 ]
 
 const BOTTOM_RAIL_ITEMS: Array<{
