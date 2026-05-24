@@ -30,6 +30,59 @@ const _maskedAxisX = new THREE.Vector3(1, 0, 0)
 // Hip height in MB_Rig local space — Leg.L/Leg.R bones sit at y=0.30.
 const MASKED_HIP_Y = 0.30
 
+// Yellow mohawk-style tuft grafted on top of MB_Head. Three small
+// cones, slightly tilted, that read as a simple bird crest at the
+// distance Kira is normally viewed. Parented to MB_Head so the tuft
+// follows any future head animation.
+function _attachMaskedHairTufts(head)
+{
+    if(!head) return
+    const HAIR_COLOR = 0xFFC72E
+    const tuftMat = new THREE.MeshLambertMaterial({ color: HAIR_COLOR })
+    const tuftGeom = new THREE.ConeGeometry(0.16, 0.55, 6)
+    // [x, y offset above head center, z, x-tilt, z-tilt]
+    const layout = [
+        [ 0.00, 0.45,  0.05,  0.10,  0.00],
+        [-0.22, 0.32,  0.00,  0.05,  0.45],
+        [ 0.22, 0.32,  0.00,  0.05, -0.45],
+    ]
+    for(const [x, y, z, rx, rz] of layout)
+    {
+        const tuft = new THREE.Mesh(tuftGeom, tuftMat)
+        tuft.position.set(x, y, z)
+        tuft.rotation.set(rx, 0, rz)
+        tuft.castShadow = true
+        tuft.receiveShadow = true
+        head.add(tuft)
+    }
+}
+
+// Cap-sleeves at the shoulders. Two short white cylinders sitting at
+// the wing-root positions (Wing.L/R bones live at x=±0.45, y=0.80
+// in MB_Rig space). Parented to MB_Rig — they hold position during
+// wing flap so they read as fabric, not feathers.
+function _attachMaskedShoulderSleeves(mbRig)
+{
+    if(!mbRig) return
+    const SLEEVE_COLOR = 0xF5F0E8
+    const sleeveMat = new THREE.MeshLambertMaterial({ color: SLEEVE_COLOR })
+    const sleeveGeom = new THREE.CylinderGeometry(0.22, 0.28, 0.34, 12, 1, false)
+
+    const sleeveL = new THREE.Mesh(sleeveGeom, sleeveMat)
+    sleeveL.position.set(0.46, 0.95, 0)
+    sleeveL.rotation.set(0, 0, -Math.PI / 2)
+    sleeveL.castShadow = true
+    sleeveL.receiveShadow = true
+    mbRig.add(sleeveL)
+
+    const sleeveR = new THREE.Mesh(sleeveGeom, sleeveMat)
+    sleeveR.position.set(-0.46, 0.95, 0)
+    sleeveR.rotation.set(0, 0, Math.PI / 2)
+    sleeveR.castShadow = true
+    sleeveR.receiveShadow = true
+    mbRig.add(sleeveR)
+}
+
 // Reparent a (leg-post, foot) pair into a fresh pivot group anchored
 // at the hip so a single rotation.x can swing the whole leg. Both
 // meshes are direct children of MB_Rig, so they share a coord space.
@@ -81,6 +134,7 @@ export function loadMaskedScene()
         let legPostR = null
         let footL = null
         let footR = null
+        let mbRig = null
         scene.traverse(o =>
         {
             if(o.isMesh)
@@ -133,6 +187,7 @@ export function loadMaskedScene()
             if(!legPostR && o.name === 'MB_LegPost.R') legPostR = o
             if(!footL && o.name === 'MB_Foot.L') footL = o
             if(!footR && o.name === 'MB_Foot.R') footR = o
+            if(!mbRig && o.name === 'MB_Rig') mbRig = o
         })
 
         // Cache base poses so the narrating animation can return to rest
@@ -149,6 +204,13 @@ export function loadMaskedScene()
         // armature: the Leg.L/R bones sit at y=0.30 in MB_Rig space.
         const legPivotL = _makeMaskedLegPivot(legPostL, footL, +0.22)
         const legPivotR = _makeMaskedLegPivot(legPostR, footR, -0.22)
+
+        // Procedural decoration grafted onto the rig: a small yellow
+        // mohawk-style tuft on top of the head and a pair of white
+        // cap-sleeves at the shoulders so the white shirt reads with
+        // visible short sleeves instead of armhole gaps.
+        _attachMaskedHairTufts(head)
+        _attachMaskedShoulderSleeves(mbRig)
 
         return { scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }
     })
