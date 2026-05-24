@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import type { ButtonHTMLAttributes, HTMLAttributes } from 'react'
 import { useEffect } from 'react'
+import { usePageEnterState } from '~/lib/student-space/use-page-enter-state'
 import { cn } from '~/lib/utils'
 
 export const studentSpaceFrameClassName =
@@ -36,9 +37,11 @@ export interface PageSurfaceProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export function PageSurface({ className, children, framed = true, ...props }: PageSurfaceProps) {
+  const enterState = usePageEnterState()
   return (
     <div
       data-testid="page-surface"
+      data-fresh-enter={enterState === 'fresh' ? 'true' : undefined}
       className={cn(
         'fixed z-30 text-(--color-sheet-ink)',
         framed ? studentSpaceFrameClassName : 'inset-0',

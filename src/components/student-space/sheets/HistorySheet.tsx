@@ -108,7 +108,7 @@ export function HistorySheet() {
 
   return (
     <PageSurface>
-      <SheetSidebar>
+      <SheetSidebar data-stagger-slot="1">
         <SheetIdentityHeader>
           <SheetTitle>History</SheetTitle>
           <SheetDescription>Your moments, moods, and reflections over time.</SheetDescription>
@@ -123,7 +123,7 @@ export function HistorySheet() {
         </SheetSidenav>
       </SheetSidebar>
       <SheetContent>
-        <SheetBody>
+        <SheetBody data-stagger-slot="2">
           {activeTab === 'timeline' ? (
             <TimelinePane
               engineState={state}

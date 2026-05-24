@@ -168,6 +168,36 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+   Sheet first-open stagger. Fires only when PageSurface carries
+   data-fresh-enter="true" (set by usePageEnterState when the previous
+   pathname was a world route or undefined). Sheets attach
+   data-stagger-slot="1|2|3" to their three top-level regions; the
+   keyframe fades each in with a 60ms offset. Animation, not transition,
+   because we need forward-fill on first render.
+   ────────────────────────────────────────────────────────────────────── */
+[data-fresh-enter='true'] [data-stagger-slot] {
+  opacity: 0;
+  animation: pageStaggerIn var(--duration-base) var(--ease-out) forwards;
+}
+[data-fresh-enter='true'] [data-stagger-slot='1'] {
+  animation-delay: 0ms;
+}
+[data-fresh-enter='true'] [data-stagger-slot='2'] {
+  animation-delay: 60ms;
+}
+[data-fresh-enter='true'] [data-stagger-slot='3'] {
+  animation-delay: 120ms;
+}
+@keyframes pageStaggerIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes trajectoryMenuIn {
   from {
     opacity: 0;
