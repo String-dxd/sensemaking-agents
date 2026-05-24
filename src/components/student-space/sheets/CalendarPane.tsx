@@ -1,7 +1,7 @@
 import { Button as BaseButton } from '@base-ui-components/react/button'
 import { Toggle } from '@base-ui-components/react/toggle'
 import { ToggleGroup } from '@base-ui-components/react/toggle-group'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarDays, Camera, ChevronLeft, ChevronRight, NotebookPen, Smile } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { cn } from '~/lib/utils'
 
@@ -194,7 +194,7 @@ export function CalendarPane({
           type="button"
           onClick={() => stepView(-1)}
           aria-label={viewMode === 'week' ? 'Previous week' : 'Previous month'}
-          className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg text-(--color-sheet-ink-soft) transition-[background-color,color,transform] hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.96]"
         >
           <ChevronLeft aria-hidden className="size-4" />
         </BaseButton>
@@ -206,7 +206,7 @@ export function CalendarPane({
             <BaseButton
               type="button"
               onClick={() => setAnchorDate(now)}
-              className="h-8 cursor-pointer rounded-full px-3 text-xs font-semibold text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="h-10 cursor-pointer rounded-full px-3 text-xs font-semibold text-(--color-sheet-ink-soft) transition-[background-color,color,transform] hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.96]"
             >
               Today
             </BaseButton>
@@ -215,7 +215,7 @@ export function CalendarPane({
             type="button"
             onClick={() => stepView(1)}
             aria-label={viewMode === 'week' ? 'Next week' : 'Next month'}
-            className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            className="inline-flex size-10 cursor-pointer items-center justify-center rounded-lg text-(--color-sheet-ink-soft) transition-[background-color,color,transform] hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.96]"
           >
             <ChevronRight aria-hidden className="size-4" />
           </BaseButton>
@@ -316,21 +316,19 @@ function CalendarLegend() {
       className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-(--color-sheet-divider)/70 pt-3 text-xs text-(--color-sheet-ink-soft)"
     >
       <li className="inline-flex items-center gap-1.5">
-        <span aria-hidden className="size-1.5 rounded-full bg-(--color-sheet-ink)" />
+        <Smile aria-hidden className="size-3.5 text-(--color-sheet-ink)" />
         Mood
       </li>
       <li className="inline-flex items-center gap-1.5">
-        <span aria-hidden className="size-1.5 rounded-sm border border-(--color-sheet-ink)" />
+        <NotebookPen aria-hidden className="size-3.5 text-(--color-sheet-ink)" />
         Reflection
       </li>
       <li className="inline-flex items-center gap-1.5">
-        <span aria-hidden className="size-1.5 rounded-sm bg-(--color-sheet-ink)" />
+        <Camera aria-hidden className="size-3.5 text-(--color-sheet-ink)" />
         Photo
       </li>
       <li className="inline-flex items-center gap-1.5">
-        <span aria-hidden className="text-xs leading-none text-(--color-sheet-ink)">
-          ·
-        </span>
+        <CalendarDays aria-hidden className="size-3.5 text-(--color-sheet-ink)" />
         Event
       </li>
     </ul>

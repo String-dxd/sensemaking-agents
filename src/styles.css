@@ -96,6 +96,18 @@
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
+  /* ── Feel-better polish tokens (skill: make-interfaces-feel-better) ─── */
+  /* Layered shadows that read as natural depth on any background
+     (principle #3). Use these instead of arbitrary shadow stacks. */
+  --shadow-sheet-popover: 0 18px 48px rgba(43, 38, 32, 0.14);
+  --shadow-sheet-dialog: 0 24px 80px rgba(43, 38, 32, 0.22);
+  --shadow-sheet-tile: 0 8px 20px rgba(43, 38, 32, 0.08);
+  --shadow-active-rail: 0 8px 24px rgba(0, 0, 0, 0.12);
+  /* Standard press-scale value (principle #12). Existing
+     `active:scale-[0.96]` literals continue to work; this token serves
+     new code and documentation. */
+  --press-scale: 0.96;
+
   /* ── World frame layout ─────────────────────────────────────────────── */
   --inset-frame: 14px;
   --width-rail: 64px;
@@ -168,6 +180,24 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Feel-better global defaults (skill: make-interfaces-feel-better).
+   Zero-specificity via :where() — any per-element text-wrap utility wins. */
+:where(h1, h2, h3, h4) {
+  text-wrap: balance;
+}
+
+:where(p, li) {
+  text-wrap: pretty;
+}
+
+/* Subtle outline for raster + SVG images so they read against any
+   background. Principle #11 — pure black at low opacity, no tinted
+   neutral, applied via outline so it doesn't add layout. */
+.image-outline {
+  outline: 1px solid rgba(0, 0, 0, 0.1);
+  outline-offset: -1px;
+}
+
 /* ──────────────────────────────────────────────────────────────────────
    Sheet first-open stagger. Fires only when PageSurface carries
    data-fresh-enter="true" (set by usePageEnterState when the previous
@@ -232,7 +262,10 @@ body,
   }
 }
 
-@keyframes trajectoryMenuIn {
+/* Shared popover-enter animation. Used by routed sheets' popovers,
+   dropdowns, and dialogs — opacity fade + tiny translate + scale.
+   Pair with `var(--ease-sheet)` for consistency. */
+@keyframes sheet-popover-in {
   from {
     opacity: 0;
     transform: translateY(-4px) scale(0.97);

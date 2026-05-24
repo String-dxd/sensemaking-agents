@@ -254,7 +254,7 @@ function ViewModeDropdown({
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-transparent px-1.5 -mx-1.5 text-(--color-sheet-ink) hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-transparent px-1.5 -mx-1.5 text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.96]"
       >
         {options.find((o) => o.id === value)?.label}
         <ChevronDown aria-hidden className="size-5 text-(--color-sheet-ink-soft)" />
@@ -262,7 +262,7 @@ function ViewModeDropdown({
       {open ? (
         <span
           role="menu"
-          className="absolute left-0 top-[calc(100%+6px)] z-10 inline-block min-w-32 rounded-xl border border-(--color-sheet-divider) bg-white p-1 text-base font-medium text-(--color-sheet-ink) shadow-[0_18px_48px_rgba(43,38,32,0.14)]"
+          className="absolute left-0 top-[calc(100%+6px)] z-10 inline-block min-w-32 origin-top-left animate-[sheet-popover-in_140ms_var(--ease-sheet)_both] rounded-xl border border-(--color-sheet-divider) bg-white p-1 text-base font-medium text-(--color-sheet-ink) shadow-(--shadow-sheet-popover)"
         >
           {options.map((option) => (
             <button
@@ -402,11 +402,12 @@ function GrowthPane({ engine }: { engine: unknown }) {
               onClick={() => setSelectedTerm(term)}
               data-active={isSelected || undefined}
               className={cn(
-                'inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold tabular-nums transition-colors',
+                'inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold tabular-nums transition-[background-color,color,border-color,transform]',
                 isSelected
                   ? 'cursor-pointer border-(--color-sheet-ink) bg-(--color-sheet-ink) text-white'
                   : 'border-(--color-sheet-divider) text-(--color-sheet-ink) hover:bg-black/5',
                 !isSelected && 'cursor-pointer',
+                !isFuture && 'active:scale-[0.96]',
                 isFuture && 'cursor-not-allowed opacity-40 hover:bg-transparent',
               )}
             >
@@ -485,7 +486,7 @@ function GrowthYearSummary({ year, term }: { year: number; term?: number }) {
         <button
           type="button"
           onClick={() => setAttempt((n) => n + 1)}
-          className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-(--color-sheet-divider) bg-white/80 px-3 text-xs font-semibold text-(--color-sheet-ink) hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-status-searching)"
+          className="inline-flex min-h-10 cursor-pointer items-center gap-1.5 rounded-full border border-(--color-sheet-divider) bg-white/80 px-3 text-xs font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-status-searching) active:scale-[0.96]"
         >
           <RefreshCcw aria-hidden className="size-3.5" />
           Try again

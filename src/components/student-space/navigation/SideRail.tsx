@@ -167,15 +167,15 @@ function RailButton({
       className={cn(
         'group relative grid size-11 cursor-pointer place-items-center rounded-xl border border-transparent transition-[transform,background-color,border-color,color,box-shadow] duration-(--duration-fast) ease-(--ease-out) active:scale-[0.96] motion-reduce:active:scale-100',
         'bg-transparent text-(--color-sheet-ink-soft) shadow-none',
-        'hover:border-white/70 hover:bg-white/70 hover:text-(--color-sheet-ink)',
-        'data-[active]:border-white data-[active]:bg-white data-[active]:text-(--color-sheet-ink) data-[active]:shadow-lg data-[active]:shadow-black/12',
+        'hover:border-black/[0.08] hover:bg-white/70 hover:text-(--color-sheet-ink)',
+        'data-[active]:border-black/[0.10] data-[active]:bg-white data-[active]:text-(--color-sheet-ink) data-[active]:shadow-[var(--shadow-active-rail)]',
         compact && 'text-(--color-sheet-ink-faint)',
       )}
     >
       <Icon aria-hidden className="size-5" />
       <span
         className={cn(
-          'pointer-events-none absolute left-[calc(100%+8px)] top-1/2 z-10 -translate-y-1/2 translate-x-1 rounded-full px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap opacity-0 shadow-lg shadow-black/12 transition-[opacity,transform] duration-(--duration-fast) ease-(--ease-out) motion-reduce:transition-none group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 max-[640px]:hidden',
+          'pointer-events-none absolute left-[calc(100%+8px)] top-1/2 z-10 -translate-y-1/2 translate-x-1 rounded-full border border-black/[0.06] px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap opacity-0 shadow-(--shadow-sheet-popover) transition-[opacity,transform] duration-(--duration-fast) ease-(--ease-out) motion-reduce:transition-none group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100 max-[640px]:hidden',
           'bg-white text-(--color-sheet-ink)',
         )}
       >

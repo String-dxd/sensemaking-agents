@@ -298,7 +298,7 @@ function PatternTagPicker({
             aria-pressed={active}
             data-testid={`choices-decision-tag-${entry.id}-${tag}`}
             className={cn(
-              'rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors',
+              'relative cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium transition-[background-color,color,border-color,transform] before:absolute before:-inset-2 before:content-[""] active:scale-[0.96] disabled:pointer-events-none',
               active
                 ? 'border-[#2b2620] bg-[#2b2620] text-white'
                 : 'border-[#e3d8c4] bg-white/70 text-[#2b2620]/65 hover:text-[#2b2620]',
@@ -415,7 +415,7 @@ function DecisionForm({
                 aria-pressed={active}
                 data-testid={`choices-decision-form-force-${f}`}
                 className={cn(
-                  'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                  'relative cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-[background-color,color,border-color,transform] before:absolute before:-inset-2 before:content-[""] active:scale-[0.96]',
                   active
                     ? cn('font-medium', theme.callout, theme.border)
                     : 'border-[#e3d8c4] bg-white text-[#2b2620]/65 hover:text-[#2b2620]',
@@ -514,7 +514,7 @@ function SectionPatterns({
                   {PATTERN_TAG_LABEL[tag]}
                 </p>
                 <p className="text-xs text-[#2b2620]/65">{PATTERN_TAG_DESCRIPTION[tag]}</p>
-                <p className="mt-2 text-2xl font-semibold">
+                <p className="mt-2 text-2xl font-semibold tabular-nums">
                   {count}
                   <span className="ml-1 text-xs font-normal text-[#2b2620]/55">
                     {count === 1 ? 'decision' : 'decisions'}

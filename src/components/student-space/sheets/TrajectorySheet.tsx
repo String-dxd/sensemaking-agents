@@ -407,7 +407,7 @@ function StatusPreviewSelector({
         />
       </button>
       {open ? (
-        <div className="absolute left-0 top-full z-10 mt-2 w-56 origin-top-left animate-[trajectoryMenuIn_140ms_cubic-bezier(0.22,1,0.36,1)_both] overflow-hidden rounded-2xl border border-(--color-sheet-divider) bg-white p-1 shadow-xl shadow-black/10">
+        <div className="absolute left-0 top-full z-10 mt-2 w-56 origin-top-left animate-[sheet-popover-in_140ms_var(--ease-sheet)_both] overflow-hidden rounded-2xl border border-(--color-sheet-divider) bg-white p-1 shadow-(--shadow-sheet-popover)">
           {[null, ...STATUS_IDS].map((status) => {
             const key = status ?? 'auto'
             const selected = current === status
@@ -524,9 +524,7 @@ function InlineDisclosure({
         {label}
       </button>
       {open ? (
-        <div className="animate-[trajectoryMenuIn_160ms_cubic-bezier(0.22,1,0.36,1)_both]">
-          {children}
-        </div>
+        <div className="animate-[sheet-popover-in_160ms_var(--ease-sheet)_both]">{children}</div>
       ) : null}
     </section>
   )
@@ -661,7 +659,7 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
       ) : null}
       <div className="grid gap-4">
         <div
-          className="grid content-start gap-1.5 rounded-2xl border border-(--color-sheet-divider) bg-white/45 p-1.5 sm:grid-cols-3"
+          className="grid content-start gap-1.5 rounded-[18px] border border-(--color-sheet-divider) bg-white/45 p-1.5 sm:grid-cols-3"
           role="tablist"
           aria-label="Pathway options"
         >

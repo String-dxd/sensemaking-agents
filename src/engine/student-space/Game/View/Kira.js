@@ -99,6 +99,34 @@ function _makeMaskedLegPivot(legPost, foot, hipX)
 }
 
 let _maskedScenePromise = null
+
+/**
+ * Re-apply the masked palette's body + tie tints to the cached GLB scene's
+ * materials. Used after _buildMaskedAsync attaches the scene so that a
+ * setSpecies() call which mutated the palette takes effect, even when the
+ * GLB itself was loaded with a different palette on a prior build.
+ */
+function applyMaskedTintsTo(scene)
+{
+    const palette = SPECIES_BY_ID.masked?.palette
+    if(!palette || !scene) return
+    const tints = {
+        MB_BodyYellow:      palette.body,
+        Uniform_TieStriped: palette.tie,
+    }
+    scene.traverse(o => {
+        if(!o.isMesh) return
+        const mats = Array.isArray(o.material) ? o.material : [o.material]
+        for(const mat of mats) {
+            const hex = tints[mat?.name]
+            if(hex) {
+                mat.color.set(hex)
+                mat.needsUpdate = true
+            }
+        }
+    })
+}
+
 export function loadMaskedScene()
 {
     if(_maskedScenePromise) return _maskedScenePromise
@@ -113,6 +141,15 @@ export function loadMaskedScene()
         const scene = gltf.scene
         scene.scale.setScalar(MASKED_SCALE)
         scene.rotation.y = MASKED_YAW_OFFS
+
+        // Palette-driven recolor: read body + tie hex from the masked
+        // species spec (SPECIES_BY_ID is module-level and defined by
+        // the time this runs). Maps to the GLB's two named materials.
+        const maskedPalette = SPECIES_BY_ID.masked?.palette ?? {}
+        const materialTints = {
+            MB_BodyYellow:      maskedPalette.body,
+            Uniform_TieStriped: maskedPalette.tie,
+        }
 
         let head = null
         let wingL = null
@@ -138,23 +175,15 @@ export function loadMaskedScene()
                     o.visible = false
                 }
 
-                // Repaint a couple of materials to match the requested
-                // colorway: body+wings warm orange like the head, tie red.
                 // Idempotent — module-level promise caches the scene.
                 const mats = Array.isArray(o.material) ? o.material : [o.material]
                 for(const mat of mats)
                 {
                     if(!mat || mat.userData.__bowerRecolor) continue
-                    if(mat.name === 'MB_BodyYellow')
+                    const hex = materialTints[mat.name]
+                    if(hex)
                     {
-                        mat.color.setRGB(1.0, 0.42, 0.05)
-                        mat.vertexColors = false
-                        mat.needsUpdate = true
-                        mat.userData.__bowerRecolor = true
-                    }
-                    else if(mat.name === 'Uniform_TieStriped')
-                    {
-                        mat.color.setRGB(0.82, 0.12, 0.10)
+                        mat.color.set(hex)
                         mat.vertexColors = false
                         mat.needsUpdate = true
                         mat.userData.__bowerRecolor = true
@@ -240,11 +269,19 @@ export const SPECIES = [
     {
         id: 'masked',
         displayName: 'Masked Bower',
-        // GLB-backed: shape fields unused by the procedural builder for this
-        // species (it loads MaskedBower.glb instead). Palette drives the
-        // picker chip dot only.
+        // GLB-backed: `shape` is unused by the procedural builder for this
+        // species (it loads MaskedBower.glb instead). `palette` drives the
+        // picker chip dot via `accent` AND the GLB material recolor via
+        // `body` + `tie` — read inside loadMaskedScene().
         shape:   { crest: 'pointed', tail: 'long-fan', beak: 'slender' },
-        palette: { back: '#ffd23f', belly: '#fff3a3', accent: '#ff8c42', beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a' },
+        palette: {
+            back: '#ffd23f', belly: '#fff3a3', accent: '#ff8c42',
+            beak: '#2a1a14', legs: '#3a2418', eye: '#1a1a1a',
+            // GLB-specific tints. Defaults match the original
+            // hardcoded rgb(1.0, 0.42, 0.05) body and (0.82, 0.12, 0.10) tie.
+            body: '#ff6b0d',
+            tie:  '#d11f1a',
+        },
     },
     {
         id: 'regent',
@@ -514,7 +551,22 @@ export default class Kira
         if(id === 'ember') id = 'masked'
         if(!SPECIES_BY_ID[id] || id === this.speciesId) return
         this.speciesId = id
-        this._build(id)
+
+        // All species now render via the MaskedBower GLB, tinted from the
+        // chosen species's palette. Body tint comes from `palette.body`
+        // (defined on masked) or `palette.back` (defined on every species);
+        // tie tint from `palette.tie` or `palette.accent`. Mutating the
+        // masked palette before _build ensures both the loadMaskedScene
+        // first-load callback AND _buildMaskedAsync's resolve handler
+        // see the current tints.
+        const spec = SPECIES_BY_ID[id]
+        const bodyTint = spec?.palette?.body || spec?.palette?.back
+        const tieTint  = spec?.palette?.tie  || spec?.palette?.accent
+        const masked   = SPECIES_BY_ID.masked?.palette
+        if(masked && bodyTint) masked.body = bodyTint
+        if(masked && tieTint)  masked.tie  = tieTint
+
+        this._build('masked')
         for(const fn of this._listeners) fn(id)
     }
 
@@ -1119,7 +1171,7 @@ export default class Kira
 
         loadMaskedScene().then(({ scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }) =>
         {
-            if(this.speciesId !== 'masked') return
+            // Bail if a subsequent build superseded this one.
             if(!this.parts || this.parts.root !== placeholder) return
             this.group.remove(placeholder)
             this.parts = {
@@ -1135,6 +1187,10 @@ export default class Kira
                 maskedLegPivotR: legPivotR || null,
             }
             this.group.add(scene)
+            // The GLB scene is module-cached; its materials may hold a
+            // stale tint from a previous build with a different palette.
+            // Re-apply body + tie tints from the current masked palette.
+            applyMaskedTintsTo(scene)
         }).catch(err =>
         {
             console.error('[Kira] Failed to load MaskedBower.glb', err)
