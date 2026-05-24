@@ -40,9 +40,9 @@ const MASKED_HIP_Y = 0.30
 function _attachMaskedHairTufts(head)
 {
     if(!head) return
-    // Same orange as the body recolor in loadMaskedScene below
-    // (mat.color.setRGB(1.0, 0.42, 0.05) ≈ 0xFF6B0D).
-    const HAIR_COLOR = 0xFF6B0D
+    // Brand-yellow accent (per PR #57). Stays hardcoded across colorways
+    // so the tufts read as the bird's signature hair, not body recolor.
+    const HAIR_COLOR = 0xFFC72E
     const tuftMat = new THREE.MeshLambertMaterial({ color: HAIR_COLOR })
     // [x, y, z, base radius, height, x-tilt]
     // x stays at 0 (centerline). z descends from slightly forward at
@@ -69,6 +69,32 @@ function _attachMaskedHairTufts(head)
         tuft.receiveShadow = true
         head.add(tuft)
     }
+}
+
+// Cap-sleeves at the shoulders. Two short white cylinders sitting at
+// the wing-root positions (Wing.L/R bones live at x=±0.45, y=0.80
+// in MB_Rig space). Parented to MB_Rig — they hold position during
+// wing flap so they read as fabric, not feathers.
+function _attachMaskedShoulderSleeves(mbRig)
+{
+    if(!mbRig) return
+    const SLEEVE_COLOR = 0xF5F0E8
+    const sleeveMat = new THREE.MeshLambertMaterial({ color: SLEEVE_COLOR })
+    const sleeveGeom = new THREE.CylinderGeometry(0.22, 0.28, 0.34, 12, 1, false)
+
+    const sleeveL = new THREE.Mesh(sleeveGeom, sleeveMat)
+    sleeveL.position.set(0.46, 0.95, 0)
+    sleeveL.rotation.set(0, 0, -Math.PI / 2)
+    sleeveL.castShadow = true
+    sleeveL.receiveShadow = true
+    mbRig.add(sleeveL)
+
+    const sleeveR = new THREE.Mesh(sleeveGeom, sleeveMat)
+    sleeveR.position.set(-0.46, 0.95, 0)
+    sleeveR.rotation.set(0, 0, Math.PI / 2)
+    sleeveR.castShadow = true
+    sleeveR.receiveShadow = true
+    mbRig.add(sleeveR)
 }
 
 // Reparent a (leg-post, foot) pair into a fresh pivot group anchored
@@ -165,13 +191,18 @@ export function loadMaskedScene()
         let legPostR = null
         let footL = null
         let footR = null
-        const crestMeshes = []
+        let mbRig = null
         scene.traverse(o =>
         {
             if(o.isMesh)
             {
                 o.castShadow = true
                 o.receiveShadow = true
+
+                // Hide the GLB's authored crest pieces (MB_CrestRed /
+                // MB_CrestOrange / MB_CrestGold etc.) — the procedural
+                // yellow tufts attached below are the canonical hair.
+                if(/^MB_Crest/i.test(o.name)) o.visible = false
 
                 // Idempotent — module-level promise caches the scene.
                 const mats = Array.isArray(o.material) ? o.material : [o.material]
@@ -189,11 +220,9 @@ export function loadMaskedScene()
                 }
             }
             if(!head && /MB_Head/i.test(o.name)) head = o
-            // Crest meshes (MB_CrestRed / MB_CrestOrange / MB_CrestGold etc.)
-            // are authored as siblings of MB_Head under MB_Rig. Collected
-            // here so we can reparent them under MB_Head after traversal —
-            // that way the crown inherits the head's wave + tilt animation.
-            if(o.isMesh && /^MB_Crest/i.test(o.name)) crestMeshes.push(o)
+            // MB_Rig is the armature root that owns the leg posts +
+            // shoulder space; the procedural cap-sleeves parent into it.
+            if(!mbRig && /MB_Rig/i.test(o.name)) mbRig = o
             // Bone refs for the talking beat. Names are the armature
             // bones (skin joints), not the MB_* mesh nodes.
             if(!wingL && o.name === 'Wing.L') wingL = o
@@ -223,18 +252,12 @@ export function loadMaskedScene()
         const legPivotL = _makeMaskedLegPivot(legPostL, footL, +0.22)
         const legPivotR = _makeMaskedLegPivot(legPostR, footR, -0.22)
 
-        // PR #57's procedural mohawk tufts + cap-sleeves are no longer
-        // attached: the GLB's original V_Crest* crown is restored
-        // (no longer hidden) per user request. The _attachMasked*
-        // helpers stay defined above in case they're wanted later.
-
-        // Reparent MB_Crest* meshes under MB_Head so the crown follows
-        // head tilt + wave animations. `Object3D.attach()` preserves the
-        // mesh's world position by recomputing the local transform.
-        if(head)
-        {
-            for(const crest of crestMeshes) head.attach(crest)
-        }
+        // Procedural yellow hair tufts on the crown + white cap-sleeves
+        // at the shoulders. Brand accents that stay constant across
+        // egg-colour palettes; the GLB's MB_Crest pieces are hidden
+        // above to keep the silhouette clean.
+        _attachMaskedHairTufts(head)
+        _attachMaskedShoulderSleeves(mbRig)
 
         return { scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }
     })

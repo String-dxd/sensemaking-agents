@@ -1,16 +1,4 @@
-import {
-  CloudRain,
-  Gauge,
-  Music2,
-  RotateCcw,
-  SlidersHorizontal,
-  Sparkles,
-  Volume2,
-  VolumeX,
-  X,
-  ZoomIn,
-  ZoomOut,
-} from 'lucide-react'
+import { CloudRain, Gauge, Music2, RotateCcw, Sparkles, Volume2, VolumeX, X } from 'lucide-react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Hud } from '~/components/ui/hud'
@@ -129,22 +117,8 @@ export function StudentSpaceHud({ game }: { game: unknown }) {
   return (
     <>
       <ZoomHud game={typedGame} />
-      {visible ? (
-        <WorldControlsPanel game={typedGame} onClose={() => setVisible(false)} />
-      ) : (
-        <WorldControlsToggle onToggle={() => setVisible(true)} />
-      )}
+      {visible ? <WorldControlsPanel game={typedGame} onClose={() => setVisible(false)} /> : null}
     </>
-  )
-}
-
-function WorldControlsToggle({ onToggle }: { onToggle: () => void }) {
-  return (
-    <div className="fixed top-[calc(var(--inset-frame)+12px)] right-[calc(var(--inset-frame)+12px)] z-30">
-      <WorldIconButton label="Show world controls" onClick={onToggle}>
-        <SlidersHorizontal aria-hidden className="size-4" />
-      </WorldIconButton>
-    </div>
   )
 }
 
@@ -399,13 +373,11 @@ function ZoomHud({ game }: { game: GameLike }) {
 
   return (
     <div className="fixed right-[calc(var(--inset-frame)+12px)] bottom-[calc(var(--inset-frame)+16px)] z-30 flex flex-col gap-2">
-      <WorldIconButton label="Zoom in" onClick={() => dispatch('zoom-in')}>
-        <ZoomIn aria-hidden className="size-4" />
-      </WorldIconButton>
-      <WorldIconButton label="Zoom out" onClick={() => dispatch('zoom-out')}>
-        <ZoomOut aria-hidden className="size-4" />
-      </WorldIconButton>
-      <WorldIconButton label="Reset view" onClick={() => dispatch('reset')}>
+      <WorldIconButton
+        label="Reset view (+ / − / 0 to zoom)"
+        title="Reset view (+ / − / 0 to zoom)"
+        onClick={() => dispatch('reset')}
+      >
         <RotateCcw aria-hidden className="size-4" />
       </WorldIconButton>
       <WorldIconButton label="Toggle sound" pressed={!muted} onClick={() => dispatch('sound')}>

@@ -1,4 +1,4 @@
-import { Check, Move } from 'lucide-react'
+import { Check, Pencil } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { WorldIconButton } from '~/components/student-space/hud/StudentSpaceHud'
 import type { Game } from '~/engine/student-space/Game'
@@ -189,7 +189,7 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
         {editMode ? (
           <Check aria-hidden="true" className="size-4" />
         ) : (
-          <Move aria-hidden="true" className="size-4" />
+          <Pencil aria-hidden="true" className="size-4" />
         )}
       </WorldIconButton>
 

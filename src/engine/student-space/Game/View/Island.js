@@ -44,6 +44,54 @@ function sandRippleAt(theta, t)
     return (bands + cross + scallop) * innerFade * outerFade
 }
 
+// Flat radial disc in the XZ plane, centred at origin. Use this for the
+// sea so the curved-earth shader produces a circular planet limb: a square
+// PlaneGeometry puts corners at √2 × radius, and the r² drop-off pulls
+// those corners much further down than the edge midpoints, scalloping the
+// horizon as the camera pans. With a true disc every rim vertex shares the
+// same r and the silhouette is a clean circle in every direction.
+function buildWaterDiscGeometry(radius, radialSegments, angularSegments)
+{
+    const vertices = [0, 0, 0]
+    const indices = []
+
+    for(let ring = 1; ring <= radialSegments; ring++)
+    {
+        const r = radius * (ring / radialSegments)
+        for(let seg = 0; seg < angularSegments; seg++)
+        {
+            const theta = (seg / angularSegments) * Math.PI * 2
+            vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r)
+        }
+    }
+
+    for(let seg = 0; seg < angularSegments; seg++)
+    {
+        const a = 1 + seg
+        const b = 1 + ((seg + 1) % angularSegments)
+        indices.push(0, b, a)
+    }
+
+    for(let ring = 2; ring <= radialSegments; ring++)
+    {
+        const prev = 1 + (ring - 2) * angularSegments
+        const curr = 1 + (ring - 1) * angularSegments
+        for(let seg = 0; seg < angularSegments; seg++)
+        {
+            const next = (seg + 1) % angularSegments
+            indices.push(
+                prev + seg, curr + next, curr + seg,
+                prev + seg, prev + next, curr + next,
+            )
+        }
+    }
+
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+    geo.setIndex(indices)
+    return geo
+}
+
 function buildDiscGeometry(island, radius, radialSegments, angularSegments)
 {
     const vertices = [0, island.heightAt(0, 0), 0]
@@ -418,9 +466,10 @@ export default class Island
 
     _buildWater()
     {
-        // Port of legacy buildWater. The plane is large (radius 60 → 120u wide)
-        // so the curved-earth drop-off has room to bend the far edge well below
-        // the visible frame; tessellation 160² keeps the curve smooth.
+        // Port of legacy buildWater. Radial disc (radius 60) so the curved-
+        // earth drop-off bends every rim point by the same amount — the
+        // horizon reads as a clean planet limb. 96 radial × 320 angular keeps
+        // the silhouette smooth and the wave displacement well-sampled.
         const waterRadius = 60
         // Visible water-meets-sand line. The sand ring slopes from sandTopY
         // (0.18) down past the water plane (y = -0.15); the OUTER sand
@@ -435,8 +484,7 @@ export default class Island
         const sandToWaterT = (this.island.sandTopY - WATER_Y) / SAND_SLOPE
         const islandR = this.island.radius
                       + (this.island.sandOuterRadius - this.island.radius) * sandToWaterT
-        const geo = new THREE.PlaneGeometry(waterRadius * 2, waterRadius * 2, 160, 160)
-        geo.rotateX(-Math.PI / 2)
+        const geo = buildWaterDiscGeometry(waterRadius, 96, 320)
 
         // uOceanTime is a CPU-integrated clock that advances at a base
         // slow rate, scaled up by current rain intensity (see update()).
@@ -455,8 +503,14 @@ export default class Island
                 // 0 = calm, 1 = downpour. Modulates wave amplitude in
                 // the vertex shader so the surface chops up with rain.
                 uRain:          { value: 0 },
-                uCurveK:        this._curveUniforms.uCurveK,
-                uCurveStrength: this._curveUniforms.uCurveStrength,
+                // Spherical planet radius for the water drop-off. Picked so
+                // the near-origin curvature matches the legacy parabolic
+                // (1/(2R) ≈ K²·S → R ≈ 45.5), so the island sits unchanged
+                // and only the far-field silhouette switches to a true
+                // circle. Other materials still use the shared parabolic
+                // curve — the island fits well inside the regime where
+                // parabolic ≈ sphere, so the discontinuity is invisible.
+                uSphereR:       { value: 45.5 },
             },
             vertexShader: `
                 varying vec2 vXZ;
@@ -464,15 +518,18 @@ export default class Island
                 uniform float uTime;
                 uniform float uWaveAmp;
                 uniform float uRain;
-                uniform float uCurveK;
-                uniform float uCurveStrength;
+                uniform float uSphereR;
                 void main() {
                     vec3 p = position;
                     vXZ = p.xz;
                     // Layered sines + small ripple. Wave amplitude dampens
-                    // toward the island so swell doesn't slap the sand ring.
+                    // toward the island so swell doesn't slap the sand ring,
+                    // and also fades off before the silhouette so the limb
+                    // arc reads as a clean circle — wave crests at the rim
+                    // would otherwise nick the silhouette and look warpy.
                     float r = length(p.xz);
                     float damp = smoothstep(${islandR.toFixed(2)} - 0.5, ${islandR.toFixed(2)} + 6.0, r);
+                    float rimFade = 1.0 - smoothstep(20.0, 28.0, r);
                     float w1 = sin(p.x * 0.45 + uTime * 0.9) * 0.6;
                     float w2 = sin(p.z * 0.38 - uTime * 0.7) * 0.5;
                     float w3 = sin((p.x + p.z) * 0.85 + uTime * 1.6) * 0.18;
@@ -480,9 +537,17 @@ export default class Island
                     // chop scales with the weather — calm surface stays
                     // glassy, stormy surface visibly heaves.
                     float ampScale = 0.85 + uRain * 0.75;
-                    float wave = (w1 + w2 + w3) * uWaveAmp * ampScale * damp;
+                    float wave = (w1 + w2 + w3) * uWaveAmp * ampScale * damp * rimFade;
                     p.y += wave;
-                    p.y -= (r * r) * (uCurveK * uCurveK) * uCurveStrength;
+                    // True spherical drop-off — surface is a cap of a sphere
+                    // of radius uSphereR centred at (0, -uSphereR, 0). The
+                    // 3D silhouette is the great circle where viewing rays
+                    // graze the sphere; under perspective it projects to a
+                    // near-perfect circular limb from any camera pose. The
+                    // legacy r² parabolic is only second-order accurate so
+                    // tilted cameras saw a warped, peaked horizon instead.
+                    float chord2 = max(uSphereR * uSphereR - r * r, 0.0);
+                    p.y -= uSphereR - sqrt(chord2);
                     vWave = wave;
                     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(p, 1.0);
                 }
