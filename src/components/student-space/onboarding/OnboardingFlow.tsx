@@ -1,9 +1,10 @@
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { type ReactNode, useEffect, useMemo, useRef } from 'react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import type { Game } from '~/engine/student-space/Game'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
+import { cn } from '~/lib/utils'
 import { CameraTuneHud } from './CameraTuneHud'
 import { EdupassLogin } from './EdupassLogin'
 import { EggHatcher } from './EggHatcher'
@@ -300,14 +301,66 @@ export function OnboardingFlow() {
   )
 }
 
+type StageLayer = {
+  stage: string
+  children: ReactNode
+  layerKey: number
+  outgoing: boolean
+}
+
 function StageSlot({ stage, children }: { stage: string; children: ReactNode }) {
+  // Layered crossfade between onboarding stages. When `stage` changes, we
+  // keep the previous stage mounted for ~200ms while it fades out, then
+  // drop it. The new stage fades in over 320ms with an 80ms delay
+  // (creates the overlap). Important: this only animates *between*
+  // stages — per-stage `visible` ramps (EdupassLogin, Greeting, etc.)
+  // and the Kira pre-land contract are owned by the stage components,
+  // not this slot.
+  const layerKeyRef = useRef(0)
+  const [layers, setLayers] = useState<StageLayer[]>(() => [
+    { stage, children, layerKey: layerKeyRef.current, outgoing: false },
+  ])
+
+  useEffect(() => {
+    setLayers((current) => {
+      const top = current[current.length - 1]
+      if (top && top.stage === stage) {
+        // Same stage, fresh children reference — just update the top layer.
+        return current.map((layer, index) =>
+          index === current.length - 1 ? { ...layer, children } : layer,
+        )
+      }
+      // New stage: mark all existing layers outgoing, append the new one.
+      layerKeyRef.current += 1
+      return [
+        ...current.map((layer) => ({ ...layer, outgoing: true })),
+        { stage, children, layerKey: layerKeyRef.current, outgoing: false },
+      ]
+    })
+
+    const id = window.setTimeout(() => {
+      setLayers((current) => current.filter((layer) => !layer.outgoing))
+    }, 240)
+    return () => window.clearTimeout(id)
+  }, [stage, children])
+
   return (
-    <div
-      className="absolute inset-0 opacity-100 transition-opacity duration-[320ms] ease-[var(--onb-ease)] motion-reduce:duration-[80ms]"
-      data-stage={stage}
-      data-testid="onboarding-stage-slot"
-    >
-      {children}
-    </div>
+    <>
+      {layers.map((layer) => (
+        <div
+          key={layer.layerKey}
+          className={cn(
+            'absolute inset-0',
+            layer.outgoing
+              ? 'pointer-events-none animate-[onboardingStageOut_200ms_var(--onb-ease)_both]'
+              : 'animate-[onboardingStageIn_320ms_var(--onb-ease)_80ms_both]',
+          )}
+          data-stage={layer.stage}
+          data-testid={layer.outgoing ? 'onboarding-stage-slot-outgoing' : 'onboarding-stage-slot'}
+        >
+          {layer.children}
+        </div>
+      ))}
+    </>
   )
 }
