@@ -70,23 +70,36 @@ export const ONBOARDING_COPY = Object.freeze({
             'Three of the same opens it — a tree, a flower, a butterfly, or berries.',
             "I watch what keeps showing up — and tell you. By then this place will look like you.",
         ],
+        // One-shot onboarding beats. Each line shows alone in the narrator
+        // panel; the user advances with the CTA. No bubbles overlap.
+        firstCaptureInvite: "Share something. Words, a voice note, a photo — anything.",
+        bloomCelebrate:     'You bloomed the first flower just now.',
+        termlyReveal:       "And there's more — we already captured a few things through your Termly Check-in.",
+        closing:            'The more you share, the more this island becomes yours.',
         firstMoodAck:     "Noticed. I'll hold that one.",
-        islandPlantSetup: "I'll plant something small. Watch the south slope.",
-        islandPlantDone:  'There. A first thing.',
-        islandSeeded:     'Some things were here before you. The island gathered them.',
-        islandFinal:      'The more you share, the more it becomes yours.',
         firstMoodPatience:"No rush. I'll wait.",
     },
 
     firstChatActions: {
         chatMore: 'Tell me more',
-        feel:     'Tell me how I feel now',
+        feel:     'Start first capture',
     },
 
-    islandReveal: {
-        bloomCta: 'Show me what just bloomed',
-        treeCta:  'What else is here?',
-        beginCta: 'Begin',
+    firstCapture: {
+        prompt:  "What's on your mind right now?",
+        cta:     'Start first capture',
+    },
+
+    bloomCelebrate: {
+        cta:     'Tell me more',
+    },
+
+    termlyReveal: {
+        cta:     'Continue',
+    },
+
+    closing: {
+        cta:     'Begin',
     },
 })
 

@@ -113,7 +113,7 @@ export default class State
         // each subscriber in try/catch so a buggy Sprouts.grow cannot abort
         // host-slice fan-out or skip its debounced _persist. See
         // wireSproutsToCaptures in ./Sprouts.js for the boundary rationale.
-        this._unwireSprouts = wireSproutsToCaptures(this.captures, this.moodPins, this.sprouts)
+        this._unwireSprouts = wireSproutsToCaptures(this.captures, this.moodPins, this.sprouts, this.onboarding)
 
         // Island snapshot bridge — POSTs the Sprouts payload to the server on
         // 'bloomed' / 'decorMoved' so the year-over-year growth timelapse has

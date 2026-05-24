@@ -176,6 +176,11 @@ export default class Sprouts
         // Cached screen-projection vector reused per frame.
         this._tmpVec = new THREE.Vector3()
 
+        // Onboarding hides EVERY sprout + bloomed mesh AND the DOM badge
+        // layer so a persisted prior-session sprout doesn't leak into the
+        // ceremony's empty island. Toggled via setOnboardingMode().
+        this._onboardingHidden = false
+
         // Initial reconcile against any hydrated sprouts + bloomed trees.
         for(const sprout of this.state.sprouts.recent(50))
         {
@@ -923,6 +928,21 @@ export default class Sprouts
      *     doesn't grow in front of the user).
      *   - null: restores live slice state by re-reading `state.sprouts.listBloomedTrees()`.
      */
+    /**
+     * Onboarding mode toggle. While on: hide the scene root + DOM badge
+     * layer so no persisted sprout / bloomed mesh / count badge leaks
+     * into the empty-island ceremony. Toggled by OnboardingFlow on entry
+     * and exit. Idempotent.
+     */
+    setOnboardingMode(on)
+    {
+        const next = !!on
+        if(next === this._onboardingHidden) return
+        this._onboardingHidden = next
+        if(this.root) this.root.visible = !next
+        if(this.badgeLayer) this.badgeLayer.style.display = next ? 'none' : ''
+    }
+
     setTimelapseSubset(bloomedTrees)
     {
         const target = bloomedTrees === null

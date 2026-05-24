@@ -359,9 +359,20 @@ export default class Flowers
         const seed = 1337
         this.species = SPECIES.slice()
 
+        // Sparse-by-default. Every flower group starts hidden with its
+        // petal scale collapsed; the onboarding ceremony reveals flower[0]
+        // explicitly via showIndex / bloomInstance, and the dev "mature
+        // island" preview reveals the rest via showAll. The 17 background
+        // flowers stay invisible during normal play so the island grows
+        // only with the student's actual captures.
         this.flowers = []
         for(let i = 0; i < INSTANCES; i++)
             this._buildOne(seed, i)
+        for(const f of this.flowers)
+        {
+            f.group.visible = false
+            f.petalGroup.scale.setScalar(0)
+        }
     }
 
     _buildOne(seed, i)
@@ -461,6 +472,30 @@ export default class Flowers
         {
             f.group.visible = false
             f.petalGroup.scale.setScalar(0)
+        }
+    }
+
+    /**
+     * Reveal a single flower without animation — sets the group visible
+     * and the petalGroup at full scale. Used by the dev "mature island"
+     * preview and by hydration paths that need a flower already present
+     * (e.g., the ceremony anchor when reloading mid-game).
+     */
+    showIndex(flowerIndex)
+    {
+        const f = this.flowers[flowerIndex]
+        if(!f) return
+        f.group.visible = true
+        f.petalGroup.scale.setScalar(1)
+    }
+
+    /** Dev / "mature island" preview helper — reveal every flower at full scale. */
+    showAll()
+    {
+        for(const f of this.flowers)
+        {
+            f.group.visible = true
+            f.petalGroup.scale.setScalar(1)
         }
     }
 

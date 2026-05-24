@@ -43,16 +43,19 @@ type KiraCopy = {
   firstChatChatPrompt: string
   firstChatChatMore: string
   firstChatExplainer: readonly string[]
+  firstCaptureInvite: string
+  bloomCelebrate: string
+  termlyReveal: string
+  closing: string
   firstMoodAck: string
-  islandPlantSetup: string
-  islandPlantDone: string
-  islandSeeded: string
-  islandFinal: string
   firstMoodPatience: string
 }
 
 type FirstChatActionsCopy = { chatMore: string; feel: string }
-type IslandRevealCopy = { bloomCta: string; treeCta: string; beginCta: string }
+type FirstCaptureCopy = { prompt: string; cta: string }
+type BloomCelebrateCopy = { cta: string }
+type TermlyRevealCopy = { cta: string }
+type ClosingCopy = { cta: string }
 
 export const ONBOARDING_COPY: Readonly<{
   login: LoginCopy
@@ -63,7 +66,10 @@ export const ONBOARDING_COPY: Readonly<{
   firstMood: FirstMoodCopy
   kira: KiraCopy
   firstChatActions: FirstChatActionsCopy
-  islandReveal: IslandRevealCopy
+  firstCapture: FirstCaptureCopy
+  bloomCelebrate: BloomCelebrateCopy
+  termlyReveal: TermlyRevealCopy
+  closing: ClosingCopy
 }>
 
 export const OFFLINE_DEMO_STUDENTS: ReadonlyArray<{ name: string; className: string }>

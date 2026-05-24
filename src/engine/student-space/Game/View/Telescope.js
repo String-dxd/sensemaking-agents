@@ -172,6 +172,16 @@ export default class Telescope
     }
 
     /**
+     * Onboarding mode toggle. Hides the telescope during the ceremony so
+     * the empty island reads cleanly. Idempotent.
+     */
+    setOnboardingMode(on)
+    {
+        if(!this.group) return
+        this.group.visible = !on
+    }
+
+    /**
      * Tear-down hook. Removes the prop group from the scene and disposes
      * its geometries + materials so GPU buffers release.
      */

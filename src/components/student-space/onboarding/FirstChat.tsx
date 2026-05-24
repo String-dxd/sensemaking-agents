@@ -221,13 +221,11 @@ export function FirstChat({
       } catch {
         // SFX best-effort; same rationale as above.
       }
-      // The explainer beats + the final "ready" prompt make up the sequence
-      // the user walks through one CTA tap at a time. Built once on intro
-      // so showNextBeat() can advance via the index ref.
-      beatsRef.current = [
-        ...ONBOARDING_COPY.kira.firstChatExplainer,
-        ONBOARDING_COPY.kira.firstChatChatPrompt,
-      ]
+      // The explainer beats make up the sequence the user walks through
+      // one CTA tap at a time. Built once on intro so showNextBeat() can
+      // advance via the index ref. The final beat hands off into the
+      // first-capture stage; its CTA reads "Start first capture".
+      beatsRef.current = [...ONBOARDING_COPY.kira.firstChatExplainer]
       beatIndexRef.current = 0
       kiraNarrator?.speak?.({
         text: line,
@@ -249,7 +247,7 @@ export function FirstChat({
       beatIndexRef.current = i + 1
       kiraNarrator?.speak?.({
         text: beats[i] ?? '',
-        cta: isLast ? "I'm ready" : 'Continue',
+        cta: isLast ? ONBOARDING_COPY.firstChatActions.feel : 'Continue',
         onConfirm: isLast ? feelNow : showNextBeat,
       })
     }

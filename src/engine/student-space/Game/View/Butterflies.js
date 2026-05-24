@@ -98,7 +98,30 @@ export default class Butterflies
         this.entries = []
         for(let i = 0; i < COUNT; i++)
             this._buildOne(2024, i)
+
+        // Sparse-by-default. The onboarding ceremony reveals 3 via
+        // showCount(3) once the termly tree appears; the dev "mature
+        // island" preview reveals all via showAll. Visible-count tracks
+        // how many of the 9 instances should render; update() respects it.
+        this._visibleCount = 0
+        for(const e of this.entries) e.group.visible = false
     }
+
+    /** Reveal exactly `n` butterflies (clamped to 0..COUNT). */
+    showCount(n)
+    {
+        const count = Math.max(0, Math.min(this.entries.length, Math.floor(n)))
+        this._visibleCount = count
+        for(let i = 0; i < this.entries.length; i++)
+        {
+            this.entries[i].group.visible = i < count
+        }
+    }
+
+    hideAll() { this.showCount(0) }
+
+    /** Dev / "mature island" preview helper — reveal every butterfly. */
+    showAll() { this.showCount(this.entries.length) }
 
     _buildOne(seed, i)
     {

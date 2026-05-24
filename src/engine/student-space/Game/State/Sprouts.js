@@ -604,22 +604,32 @@ export default class Sprouts
  * entry on tab close. The wrap is the boundary that enforces "Sprouts
  * is best-effort, never blocks captures."
  *
+ * Captures landed during onboarding (when `onboarding.isActive`) are
+ * deliberately skipped — the ceremony owns the first capture's visual
+ * (it blooms the static ceremony flower) and an extra sprout mesh
+ * appearing simultaneously would crowd the moment. Normal sprout growth
+ * resumes the instant onboarding reaches `done`.
+ *
  * Returns an `unsubscribe()` function that detaches both subscriptions.
  *
  * @param {{ subscribe: (cb: (entry: { id: string }) => void) => () => void }} captures
  * @param {{ subscribe: (cb: (pin: { id: string }) => void) => () => void }} moodPins
  * @param {Sprouts} sprouts
+ * @param {{ isActive: boolean } | null | undefined} [onboarding]
  * @returns {() => void}
  */
-export function wireSproutsToCaptures(captures, moodPins, sprouts)
+export function wireSproutsToCaptures(captures, moodPins, sprouts, onboarding)
 {
+    const skipDuringOnboarding = () => !!(onboarding && onboarding.isActive)
     const offCaptures = captures.subscribe((entry) =>
     {
+        if(skipDuringOnboarding()) return
         try { sprouts.grow({ kind: 'capture', id: entry.id }) }
         catch(err) { console.warn('[sprouts] grow from capture failed', err) }
     })
     const offMoodPins = moodPins.subscribe((pin) =>
     {
+        if(skipDuringOnboarding()) return
         try
         {
             const result = sprouts.grow({ kind: 'mood', id: pin.id })

@@ -241,11 +241,19 @@ describe('OnboardingFlow (React)', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('fast-forwards first-mood → first-grow when a mood pin has already been committed', async () => {
-    const onboarding = makeOnboarding({ stage: 'first-mood', firstMoodPinId: 'mp-1' })
-    const game = makeGame({ onboarding, isSignedIn: true })
-    renderFlow(game)
-    await waitFor(() => expect(onboarding.stage).toBe('first-grow'))
+  it('forward-maps legacy first-mood / first-grow / tree-narration onto the new stages', async () => {
+    // first-mood → first-capture
+    const moodOnb = makeOnboarding({ stage: 'first-mood' })
+    renderFlow(makeGame({ onboarding: moodOnb, isSignedIn: true }))
+    await waitFor(() => expect(moodOnb.stage).toBe('first-capture'))
+    // first-grow → bloom-celebrate
+    const growOnb = makeOnboarding({ stage: 'first-grow' })
+    renderFlow(makeGame({ onboarding: growOnb, isSignedIn: true }))
+    await waitFor(() => expect(growOnb.stage).toBe('bloom-celebrate'))
+    // tree-narration → termly-reveal
+    const treeOnb = makeOnboarding({ stage: 'tree-narration' })
+    renderFlow(makeGame({ onboarding: treeOnb, isSignedIn: true }))
+    await waitFor(() => expect(treeOnb.stage).toBe('termly-reveal'))
   })
 
   it('toggles body.is-onboarding during the ceremony and clears it on unmount', async () => {
@@ -341,7 +349,7 @@ describe('OnboardingFlow (React)', () => {
   })
 
   describe('FirstChat surface', () => {
-    it('flies Kira in, opens the intro panel, and advances to first-mood through the CTA chain', async () => {
+    it('flies Kira in, opens the intro panel, and advances to first-capture through the CTA chain', async () => {
       vi.stubGlobal(
         'matchMedia',
         vi.fn(() => ({ matches: true })),
@@ -361,22 +369,20 @@ describe('OnboardingFlow (React)', () => {
         expect.objectContaining({ reducedMotion: true }),
       )
 
-      // Walk through the explainer beats + final ready prompt by repeatedly
-      // firing whichever onConfirm was registered with the most recent
-      // speak() call. The final onConfirm is feelNow, which closes the
-      // panel and advances onboarding.
-      const beatCount = ONBOARDING_COPY.kira.firstChatExplainer.length + 1
+      // Walk through the explainer beats. The final onConfirm is feelNow,
+      // which closes the panel and advances onboarding to first-capture.
+      const beatCount = ONBOARDING_COPY.kira.firstChatExplainer.length
       for (let i = 0; i < beatCount + 1; i += 1) {
         const calls = game.view.kiraNarrator.speak.mock.calls
         const last = calls[calls.length - 1]?.[0]
         last?.onConfirm?.()
       }
 
-      expect(onboarding.stage).toBe('first-mood')
+      expect(onboarding.stage).toBe('first-capture')
       expect(game.view.kiraNarrator.close).toHaveBeenCalled()
     })
 
-    it('sequences explainer beats through the panel CTA, ending with the ready prompt', async () => {
+    it('sequences explainer beats through the panel CTA, ending with the "Start first capture" cta', async () => {
       vi.stubGlobal(
         'matchMedia',
         vi.fn(() => ({ matches: true })),
@@ -403,76 +409,10 @@ describe('OnboardingFlow (React)', () => {
         call?.onConfirm?.()
       }
 
-      // Last explainer beat shows; ready prompt comes after one more advance.
+      // Last explainer beat shows with the hand-off CTA into first-capture.
       const lastBeatCall = game.view.kiraNarrator.speak.mock.calls.at(-1)?.[0]
       expect(lastBeatCall?.text).toBe(beats[beats.length - 1])
-      expect(lastBeatCall?.cta).toBe('Continue')
-      lastBeatCall?.onConfirm?.()
-
-      const promptCall = game.view.kiraNarrator.speak.mock.calls.at(-1)?.[0]
-      expect(promptCall?.text).toBe(ONBOARDING_COPY.kira.firstChatChatPrompt)
-      expect(promptCall?.cta).toBe("I'm ready")
-    })
-  })
-
-  describe('FirstMood surface', () => {
-    it('commits the picked mood, stores the pin id, tints the day, and advances', async () => {
-      vi.stubGlobal(
-        'matchMedia',
-        vi.fn(() => ({ matches: true })),
-      )
-      const onboarding = makeOnboarding({ stage: 'first-mood' })
-      const game = makeGame({ onboarding })
-      renderFlow(game)
-
-      await userEvent.click(await screen.findByTestId('mood-tile-joy'))
-      expect(game.state.moodPins.add).toHaveBeenCalledWith({ emotion: 'joy', intensity: 2 })
-      expect(onboarding.firstMoodPinId).toBe('mood-pin-1')
-      expect(game.state.day.setMood).toHaveBeenCalledWith('joy')
-      expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
-        "Noticed. I'll hold that one.",
-      )
-
-      await waitFor(() => expect(onboarding.stage).toBe('first-grow'))
-    })
-  })
-
-  describe('IslandReveal surface', () => {
-    it('runs bloom, tree, and begin beats before completing onboarding', async () => {
-      vi.stubGlobal(
-        'matchMedia',
-        vi.fn(() => ({ matches: true })),
-      )
-      const onboarding = makeOnboarding({ stage: 'first-grow', firstMoodPinId: 'mood-pin-1' })
-      const game = makeGame({ onboarding })
-      renderFlow(game)
-
-      await waitFor(() =>
-        expect(
-          screen.getByRole('button', { name: 'Show me what just bloomed' }),
-        ).toBeInTheDocument(),
-      )
-      expect(game.state.day.setManualHour).toHaveBeenCalledWith(18.5)
-      expect(game.view.flowers.setFirstSpeciesForEmotion).toHaveBeenCalledWith('joy', '#FFD66B')
-
-      await userEvent.click(screen.getByRole('button', { name: 'Show me what just bloomed' }))
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'What else is here?' })).toBeInTheDocument(),
-      )
-      expect(onboarding.stage).toBe('tree-narration')
-      expect(game.view.sound.playOneShot).toHaveBeenCalledWith('bloom')
-      expect(game.view.flowers.bloomInstance).toHaveBeenCalledWith(0, { duration: 520 })
-
-      await userEvent.click(screen.getByRole('button', { name: 'What else is here?' }))
-      await waitFor(() => expect(screen.getByRole('button', { name: 'Begin' })).toBeInTheDocument())
-      expect(onboarding.stage).toBe('closing')
-      expect(game.view.sound.playOneShot).toHaveBeenCalledWith('grow')
-      expect(game.view.tree.growIn).toHaveBeenCalledWith(0, { duration: 1400 })
-
-      await userEvent.click(screen.getByRole('button', { name: 'Begin' }))
-      await waitFor(() => expect(onboarding.stage).toBe('done'))
-      expect(game.view.camera.resetToDefault).toHaveBeenCalledWith(200)
-      expect(game.view.kiraDialogue.clearOnboardingBubble).toHaveBeenCalled()
+      expect(lastBeatCall?.cta).toBe(ONBOARDING_COPY.firstChatActions.feel)
     })
   })
 

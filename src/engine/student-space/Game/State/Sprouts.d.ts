@@ -95,8 +95,13 @@ export interface MoodPinsLike {
   subscribe(cb: (pin: { id: string }) => void): () => void
 }
 
+export interface OnboardingLike {
+  readonly isActive: boolean
+}
+
 export function wireSproutsToCaptures(
   captures: CapturesLike,
   moodPins: MoodPinsLike,
   sprouts: Sprouts,
+  onboarding?: OnboardingLike | null,
 ): () => void

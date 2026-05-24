@@ -279,6 +279,7 @@ export function EngineHost({
         <MoodSheet />
         {showOnboardingFlow ? <OnboardingFlow /> : null}
         {import.meta.env.DEV && game ? <CameraTuneBridge game={game} /> : null}
+        {import.meta.env.DEV && game ? <MatureIslandBridge game={game} /> : null}
         {children}
       </EngineOverlayProvider>
     </EngineContext.Provider>
@@ -291,6 +292,46 @@ export function EngineHost({
  * static framing without a remount. The HUD itself is hidden until the
  * palette dispatches CAMERA_TUNER_OPEN_EVENT.
  */
+/**
+ * DEV-only bridge: listens for the dev palette's `ss:mature-island-toggle`
+ * event and flips the sparse-by-default Flowers / Tree / Butterflies views
+ * into showAll (or back to hidden — only what the student has earned by
+ * capturing stays visible).
+ */
+function MatureIslandBridge({ game }: { game: Game }) {
+  useEffect(() => {
+    const view = (
+      game as unknown as {
+        view?: {
+          flowers?: { showAll?: () => void; hideAll?: () => void }
+          tree?: { showAll?: () => void; hideAll?: () => void }
+          butterflies?: {
+            showAll?: () => void
+            hideAll?: () => void
+            showCount?: (n: number) => void
+          }
+        }
+      }
+    ).view
+    if (!view) return
+    const handler = (e: Event) => {
+      const on = (e as CustomEvent<{ on?: boolean }>).detail?.on
+      if (on) {
+        view.flowers?.showAll?.()
+        view.tree?.showAll?.()
+        view.butterflies?.showAll?.()
+      } else {
+        view.flowers?.hideAll?.()
+        view.tree?.hideAll?.()
+        view.butterflies?.hideAll?.()
+      }
+    }
+    window.addEventListener('ss:mature-island-toggle', handler)
+    return () => window.removeEventListener('ss:mature-island-toggle', handler)
+  }, [game])
+  return null
+}
+
 function CameraTuneBridge({ game }: { game: Game }) {
   const worldDefault = useCameraPreset('world-default')
   const view = (game as unknown as { view?: CameraTuneTargets }).view ?? null

@@ -4,13 +4,15 @@ import type { Game } from '~/engine/student-space/Game'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
+import { BloomCelebrate } from './BloomCelebrate'
 import { EdupassLogin } from './EdupassLogin'
 import { EggHatcher } from './EggHatcher'
+import { FirstCapture } from './FirstCapture'
 import { FirstChat } from './FirstChat'
-import { FirstMood } from './FirstMood'
 import { Greeting } from './Greeting'
-import { IslandReveal, type IslandRevealView } from './IslandReveal'
+import type { IslandRevealView } from './IslandReveal'
 import { SkipButton } from './SkipButton'
+import { TermlyReveal } from './TermlyReveal'
 
 /**
  * First-run ceremony orchestrator — React state machine.
@@ -134,7 +136,10 @@ export function OnboardingFlow() {
   }, [])
 
   // Wake-up rules. Run once per engine, on first render where stage is not
-  // already 'done'. Mirrors the engine `start()`'s pre-loop normalisation.
+  // already 'done'. Mirrors the engine `start()`'s pre-loop normalisation,
+  // and forward-maps any persisted legacy stage (`first-mood`, `first-grow`,
+  // `tree-narration`) onto the one-shot rework's stages so users mid-flight
+  // from before the rework don't break on reload.
   const wokeRef = useRef(false)
   useEffect(() => {
     void onboardingVersion
@@ -143,8 +148,16 @@ export function OnboardingFlow() {
       wokeRef.current = false
       return
     }
-    if (onboarding.stage === 'first-mood' && onboarding.firstMoodPinId) {
-      onboarding.setStage('first-grow')
+    if (onboarding.stage === 'first-mood') {
+      onboarding.setStage('first-capture')
+      return
+    }
+    if (onboarding.stage === 'first-grow') {
+      onboarding.setStage('bloom-celebrate')
+      return
+    }
+    if (onboarding.stage === 'tree-narration') {
+      onboarding.setStage('termly-reveal')
       return
     }
     if (onboarding.stage === 'pending') wokeRef.current = false
@@ -155,9 +168,6 @@ export function OnboardingFlow() {
     if (stage === 'pending') stage = onboarding.setStage('login')
     if (stage === 'login' && engine.state?.auth?.isSignedIn) {
       stage = onboarding.setStage(onboarding.completedAt ? 'done' : 'greeting')
-    }
-    if (stage === 'first-mood' && onboarding.firstMoodPinId) {
-      stage = onboarding.setStage('first-grow')
     }
   }, [engine, onboarding, onboardingVersion])
 
@@ -194,6 +204,21 @@ export function OnboardingFlow() {
     }
     engine.view?.kira?.setOnboardingMode?.(true)
     engine.view?.kiraDialogue?.setOnboardingMode?.(true)
+    // Hide every persistent-island object that would otherwise leak into
+    // the ceremony's empty stage — sprout meshes from prior captures,
+    // bloomed-sprout meshes, count badges, the mailbox, the telescope.
+    // Onboarding owns a deliberately bare island; the only things that
+    // should appear are the ceremony's directed reveals.
+    const view = engine.view as
+      | {
+          sprouts?: { setOnboardingMode?: (on: boolean) => void }
+          mailbox?: { setOnboardingMode?: (on: boolean) => void }
+          telescope?: { setOnboardingMode?: (on: boolean) => void }
+        }
+      | undefined
+    view?.sprouts?.setOnboardingMode?.(true)
+    view?.mailbox?.setOnboardingMode?.(true)
+    view?.telescope?.setOnboardingMode?.(true)
 
     return () => {
       try {
@@ -204,6 +229,9 @@ export function OnboardingFlow() {
       }
       engine.view?.kira?.setOnboardingMode?.(false)
       engine.view?.kiraDialogue?.setOnboardingMode?.(false)
+      view?.sprouts?.setOnboardingMode?.(false)
+      view?.mailbox?.setOnboardingMode?.(false)
+      view?.telescope?.setOnboardingMode?.(false)
     }
   }, [engine, onboarding, onboarding?.isDone])
 
@@ -257,26 +285,23 @@ export function OnboardingFlow() {
         camera={engine.view?.camera}
         kiraNarrator={engine.view?.kiraNarrator}
         sound={engine.view?.sound}
-        onAdvance={() => advance('first-mood')}
+        onAdvance={() => advance('first-capture')}
       />
-    ) : stage === 'first-mood' ? (
-      <FirstMood
+    ) : stage === 'first-capture' ? (
+      <FirstCapture onAdvance={() => advance('bloom-celebrate')} />
+    ) : stage === 'bloom-celebrate' ? (
+      <BloomCelebrate
         reducedMotion={reducedMotion}
-        moodPins={engine.state?.moodPins}
-        onboarding={onboarding}
-        day={engine.state?.day}
-        kiraDialogue={engine.view?.kiraDialogue}
-        camera={engine.view?.camera}
-        onAdvance={() => advance('first-grow')}
+        view={engine.view as Parameters<typeof BloomCelebrate>[0]['view']}
+        onAdvance={() => advance('termly-reveal')}
       />
-    ) : stage === 'first-grow' || stage === 'tree-narration' || stage === 'closing' ? (
-      <IslandReveal
+    ) : stage === 'termly-reveal' || stage === 'closing' ? (
+      <TermlyReveal
         stage={stage}
         reducedMotion={reducedMotion}
         onboarding={onboarding}
-        moodPins={engine.state?.moodPins}
         day={engine.state?.day}
-        view={engine.view}
+        view={engine.view as Parameters<typeof TermlyReveal>[0]['view']}
       />
     ) : null
 

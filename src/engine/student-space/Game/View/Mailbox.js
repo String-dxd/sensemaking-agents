@@ -230,6 +230,16 @@ export default class Mailbox
     }
 
     /**
+     * Onboarding mode toggle. Hides the mailbox during the ceremony so
+     * the empty island reads cleanly. Idempotent.
+     */
+    setOnboardingMode(on)
+    {
+        if(!this.group) return
+        this.group.visible = !on
+    }
+
+    /**
      * Tear-down hook called from View.dispose(). Drops the letters
      * subscription and removes the group from the scene. Geometries and
      * materials are disposed via a depth traversal so the GPU buffers

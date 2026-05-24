@@ -40,6 +40,7 @@ export function DevPalette() {
   const [activeIndex, setActiveIndex] = useState(0)
   const [worldControlsVisible, setWorldControlsVisible] = useState(false)
   const [isOnboarding, setIsOnboarding] = useState(false)
+  const [matureIslandOn, setMatureIslandOn] = useState(false)
 
   const setVisibility = useCallback((next: boolean) => {
     setWorldControlsVisible(next)
@@ -79,6 +80,25 @@ export function DevPalette() {
           },
         }
       : null
+    // Dev-only "mature island" preview — flips the sparse-by-default
+    // Flowers/Tree/Butterflies views into showAll so we can see what a
+    // saturated island looks like without scripting captures. Toggle off
+    // restores the sparse state (only what the student has actually
+    // earned through captures remains visible).
+    const matureIsland: Command | null = import.meta.env.DEV
+      ? {
+          id: 'mature-island',
+          label: matureIslandOn ? 'Hide mature island' : 'Show mature island',
+          hint: 'dev preview',
+          run: () => {
+            setOpen(false)
+            window.dispatchEvent(
+              new CustomEvent('ss:mature-island-toggle', { detail: { on: !matureIslandOn } }),
+            )
+            setMatureIslandOn((v) => !v)
+          },
+        }
+      : null
     return [
       { id: 'ui', label: 'Switch to UI mode', hint: '/', run: go('/') },
       {
@@ -98,6 +118,7 @@ export function DevPalette() {
       },
       ...(cameraTuner ? [cameraTuner] : []),
       ...(hatchTuner ? [hatchTuner] : []),
+      ...(matureIsland ? [matureIsland] : []),
       {
         id: 'restart-onboarding',
         label: 'Restart onboarding',
@@ -140,7 +161,7 @@ export function DevPalette() {
         },
       },
     ]
-  }, [navigate, worldControlsVisible, setVisibility, isOnboarding])
+  }, [navigate, worldControlsVisible, setVisibility, isOnboarding, matureIslandOn])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()

@@ -195,6 +195,11 @@ export function AskSheet() {
   const letterId = (options?.letterId as string | undefined) ?? null
   const readOnly = Boolean(options?.readOnly)
   const dismissOnBack = Boolean(options?.dismissOnBack)
+  // Onboarding mode — the first-capture stage opens the sheet with this
+  // flag so commit fires a one-shot event (FirstCapture listens for it
+  // and advances to bloom-celebrate). The reframe/chat detour is skipped
+  // so the ceremony lands directly on the bloom moment.
+  const onboardingFlag = Boolean(options?.onboarding)
   const capture = options?.capture as CaptureEntry | undefined
   const prefilledText = (options?.prefilledText as string | undefined) ?? ''
   const backend = engine?.state?.backend
@@ -425,8 +430,10 @@ export function AskSheet() {
   async function startRecording() {
     const runId = recordingRunRef.current + 1
     recordingRunRef.current = runId
+    // Onboarding skips realtime Mirror so the first capture lands cleanly
+    // in review → commit without detouring through the reframe stage.
     const useRealtimeVoice = Boolean(
-      backend?.createRealtimeMirrorCapture && canCreateRealtimeMirrorCapture(),
+      backend?.createRealtimeMirrorCapture && canCreateRealtimeMirrorCapture() && !onboardingFlag,
     )
     if ((!useRealtimeVoice && !canRecordStudentSpaceAudio()) || listening) return
     setListening(true)
@@ -568,6 +575,13 @@ export function AskSheet() {
       setStage('compose')
       return
     }
+    // Onboarding lands a single capture — no reframe detour. If the user
+    // taps "Reflect" from the review stage, we commit what they have and
+    // close so the bloom ceremony picks up immediately.
+    if (onboardingFlag) {
+      logReview()
+      return
+    }
     if (!backend?.prepareReflection || prepareInFlight) {
       const offline = reframeFor(nextText)
       setReframe({ ...offline, edited: reframe?.edited === true })
@@ -652,6 +666,13 @@ export function AskSheet() {
     const captureEntry = captures?.add?.(entry)
     if (captureEntry && backend?.submitReflection) {
       void submitBackendReflection(captureEntry, options)
+    }
+    if (onboardingFlag && typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('ss:onboarding-capture-committed', {
+          detail: { captureId: captureEntry?.id ?? null },
+        }),
+      )
     }
   }
 

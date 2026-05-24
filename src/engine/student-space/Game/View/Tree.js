@@ -339,12 +339,18 @@ export default class Tree
 
             this.ready = true
 
-            // The onboarding orchestrator may have called hideAll() before
-            // assets finished loading; apply it now.
-            if(this._hideAllPending)
+            // Sparse-by-default: every static tree starts hidden, leaves
+            // zeroed out. The onboarding ceremony reveals entries[0] via
+            // showIndex / growIn; the dev "mature island" preview reveals
+            // the rest via showAll. Any showIndex queued during async boot
+            // is replayed here so the order of hide/show calls during boot
+            // doesn't matter to callers.
+            this.hideAll()
+            if(this._pendingShow)
             {
-                this._hideAllPending = false
-                this.hideAll()
+                const indices = Array.from(this._pendingShow)
+                this._pendingShow = null
+                for(const i of indices) this.showIndex(i)
             }
         }
         catch(err)
@@ -498,11 +504,11 @@ export default class Tree
     /**
      * First-run ceremony helper. Zero every leaf instance matrix and hide
      * every trunk so the world reads as a bare island until growIn() reveals
-     * the directed tree. Idempotent.
+     * the directed tree. Idempotent and safe to call before async assets
+     * have loaded (the loops are no-ops on empty arrays).
      */
     hideAll()
     {
-        if(!this.ready) { this._hideAllPending = true; return }
         const zero = new THREE.Matrix4().compose(
             new THREE.Vector3(0, -1e3, 0),
             new THREE.Quaternion(),
@@ -513,12 +519,53 @@ export default class Tree
             entry.group.visible = false
             entry.group.scale.setScalar(0)
         }
-        for(const inst of this._leafMeshes)
+        for(const inst of (this._leafMeshes || []))
         {
             for(let i = 0; i < inst.count; i++) inst.setMatrixAt(i, zero)
             inst.instanceMatrix.needsUpdate = true
         }
         this._hidden = true
+    }
+
+    /**
+     * Reveal a single tree without animation — sets the group visible,
+     * snaps it to authored scale, and re-projects this entry's leaf
+     * instance matrices from the trunk's world transform. Queued if
+     * assets are still loading.
+     */
+    showIndex(index)
+    {
+        if(!this.ready)
+        {
+            if(!this._pendingShow) this._pendingShow = new Set()
+            this._pendingShow.add(index)
+            return
+        }
+        const entry = this.entries[index]
+        if(!entry) return
+        entry.group.visible = true
+        entry.group.scale.setScalar(entry.authoredScale)
+        entry.group.updateMatrixWorld(true)
+        const mesh = this._leafMeshBySpecies[entry.species]
+        if(!mesh) return
+        for(let i = 0; i < entry.leafLocals.length; i++)
+        {
+            this._tmpM.multiplyMatrices(entry.group.matrixWorld, entry.leafLocals[i])
+            mesh.setMatrixAt(entry.leafStart + i, this._tmpM)
+        }
+        mesh.instanceMatrix.needsUpdate = true
+    }
+
+    /** Dev / "mature island" preview helper — reveal every tree at authored scale. */
+    showAll()
+    {
+        if(!this.ready)
+        {
+            if(!this._pendingShow) this._pendingShow = new Set()
+            for(let i = 0; i < PLACEMENTS.length; i++) this._pendingShow.add(i)
+            return
+        }
+        for(let i = 0; i < this.entries.length; i++) this.showIndex(i)
     }
 
     /**

@@ -28,11 +28,18 @@ const FACET_IDS       = new Set(['values', 'interests', 'personality', 'skills']
 
 // First-run ceremony — see DESIGN.md §"First-run ceremony" + plan
 // /Users/jeongwondo/.claude/plans/steady-conjuring-panda.md
+// `first-mood`, `first-grow`, `tree-narration` are kept in the accepted
+// set so persisted snapshots from before the one-shot rework still load
+// without losing the user mid-ceremony; OnboardingFlow's wake-up rules
+// forward-map them to `first-capture` / `bloom-celebrate` / `termly-reveal`
+// on the next render tick.
 export const ONBOARDING_STAGES = new Set([
     'pending', 'login', 'greeting',
     'egg-color', 'egg-name', 'egg-hatch',
-    'first-chat', 'first-mood',
-    'first-grow', 'tree-narration', 'closing',
+    'first-chat',
+    'first-capture', 'bloom-celebrate', 'termly-reveal',
+    'closing',
+    'first-mood', 'first-grow', 'tree-narration',
     'done',
 ])
 // 6 swatch ids exposed to the picker (lilac dropped to keep a tidy 2×3 grid;
