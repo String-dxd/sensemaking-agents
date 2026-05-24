@@ -787,12 +787,12 @@ class HoverCtaController {
     }
     if (target.kind === 'kira') {
       this._setContent({
-        eyebrow: 'How today is landing',
-        badge: 'Mood',
-        title: this.deps.State.getInstance()?.profile?.displayCompanionName?.() || 'Kira',
-        line: 'Your island’s resident finch.',
+        eyebrow: '',
+        badge: 'Resident finch',
+        title: '',
+        line: 'Your island’s resident finch. Click to talk about your day.',
         thumbUrl: null,
-        theme: themeForFacet('mood'),
+        theme: null,
       })
       return
     }
@@ -1954,7 +1954,7 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
         } as CSSProperties
       }
       className={cn(
-        'pointer-events-none fixed z-[26] flex max-w-[296px] items-center gap-3.5 rounded-[18px] bg-white/92 pt-3 pr-5 pb-4 pl-3.5 font-sans text-[#2b2620] antialiased shadow-[0_1px_2px_rgba(34,26,18,0.06),0_12px_28px_rgba(34,26,18,0.16)] backdrop-blur-md transition-[opacity,transform] duration-[160ms] ease-(--ease-out) motion-reduce:transition-none',
+        'pointer-events-none fixed z-[26] flex max-w-[240px] items-center gap-3.5 rounded-[18px] bg-white/92 pt-3 pr-5 pb-4 pl-3.5 font-sans text-[#2b2620] antialiased shadow-[0_1px_2px_rgba(34,26,18,0.06),0_12px_28px_rgba(34,26,18,0.16)] backdrop-blur-md transition-[opacity,transform] duration-[160ms] ease-(--ease-out) motion-reduce:transition-none',
         state.open ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
       )}
     >
@@ -2086,7 +2086,7 @@ function ObjectPickupPanel({
       data-object-pickup
       data-kira-dialogue
       className={cn(
-        'fixed inset-x-[max(18px,8vw)] bottom-6 z-[58] mx-auto max-w-3xl rounded-[26px] border border-white/75 bg-[#fff7e8]/96 px-6 pt-8 pb-5 font-sans text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md transition-[opacity,transform] duration-[220ms] ease-(--ease-out) motion-reduce:transition-none max-[640px]:inset-x-4 max-[640px]:bottom-4 max-[640px]:px-5 max-[640px]:pt-7',
+        'fixed inset-x-[max(18px,8vw)] bottom-6 z-[58] mx-auto max-w-xl rounded-[26px] border border-white/75 bg-[#fff7e8]/96 px-6 pt-8 pb-5 font-sans text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md transition-[opacity,transform] duration-[220ms] ease-(--ease-out) motion-reduce:transition-none max-[640px]:inset-x-4 max-[640px]:bottom-4 max-[640px]:px-5 max-[640px]:pt-7',
         state.open ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-5 opacity-0',
       )}
     >

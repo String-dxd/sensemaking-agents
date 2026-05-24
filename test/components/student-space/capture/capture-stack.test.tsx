@@ -116,7 +116,10 @@ function makeGame(extra: Record<string, unknown> = {}) {
       backend: null,
       ...(extra.state as Record<string, unknown> | undefined),
     },
-    view: { overlayController: { noteClosed: vi.fn(), register: vi.fn() } },
+    view: {
+      overlayController: { noteClosed: vi.fn(), register: vi.fn() },
+      ...(extra.view as Record<string, unknown> | undefined),
+    },
   }
 }
 
@@ -241,6 +244,7 @@ describe('React capture stack', () => {
     }))
     const game = makeGame({
       state: {
+        profile: { displayCompanionName: () => 'Pip' },
         backend: { createRealtimeMirrorCapture, logPreparedReflection },
       },
     })
@@ -250,8 +254,8 @@ describe('React capture stack', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Start voice recording' }))
 
     await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
-    expect(screen.getByText('Recording')).toBeInTheDocument()
     expect(screen.getByText('Can you hear me?')).toBeInTheDocument()
+    expect(screen.getByText('Pip')).toBeInTheDocument()
     expect(screen.getByText('I can hear you.')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
@@ -267,5 +271,86 @@ describe('React capture stack', () => {
       backendMirrorEntryId: 88,
       syncStatus: 'synced',
     })
+  })
+
+  it('shows the listening state inside a white You bubble before transcription lands', async () => {
+    class MockRTCPeerConnection {}
+    // @ts-expect-error happy-dom does not provide RTCPeerConnection.
+    globalThis.RTCPeerConnection = MockRTCPeerConnection
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    })
+
+    const createRealtimeMirrorCapture = vi.fn(async () => ({
+      stop: vi.fn(),
+      abort: vi.fn(),
+    }))
+    const game = makeGame({
+      state: {
+        backend: { createRealtimeMirrorCapture },
+      },
+    })
+    renderDirectAsk(game)
+
+    await userEvent.click(screen.getByText('open ask directly'))
+    await userEvent.click(screen.getByRole('button', { name: 'Start voice recording' }))
+
+    await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
+    expect(screen.getByText('You')).toBeInTheDocument()
+    expect(screen.getByRole('status', { name: 'Listening...' })).toBeInTheDocument()
+    expect(screen.getByRole('log')).toHaveClass('flex-1', 'overflow-y-auto')
+  })
+
+  it('turns the companion toward the camera while Ask capture is open', async () => {
+    class Vector3Stub {
+      x: number
+      y: number
+      z: number
+
+      constructor(x = 0, y = 0, z = 0) {
+        this.x = x
+        this.y = y
+        this.z = z
+      }
+    }
+    const zoomTo = vi.fn()
+    const restoreZoom = vi.fn()
+    const rotation = { y: 0 }
+    const kira = {
+      group: {
+        position: new Vector3Stub(0, 0, 0),
+        rotation,
+      },
+      facing: 0,
+    }
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      const id = window.setTimeout(() => callback(performance.now() + 800), 0)
+      return id
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation((id) => {
+      window.clearTimeout(id)
+    })
+    const game = makeGame({
+      view: {
+        camera: {
+          instance: { position: new Vector3Stub(0, 1, 4) },
+          zoomTo,
+          restoreZoom,
+        },
+        kira,
+      },
+    })
+    renderDirectAsk(game)
+
+    await userEvent.click(screen.getByText('open ask directly'))
+
+    await waitFor(() => expect(zoomTo).toHaveBeenCalledTimes(1))
+    const [camPos, camLook] = zoomTo.mock.calls[0] ?? []
+    expect(camPos).toMatchObject({ x: 0, y: 1.05, z: 4.2 })
+    expect(camLook).toMatchObject({ x: 0, y: 0.72, z: 0 })
+    await waitFor(() => expect(rotation.y).toBeCloseTo(-Math.PI / 2))
+    expect(kira.facing).toBeCloseTo(-Math.PI / 2)
+    expect(screen.queryByTestId('drawer-overlay')).not.toBeInTheDocument()
   })
 })

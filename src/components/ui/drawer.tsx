@@ -43,6 +43,8 @@ export interface DrawerContentProps extends ComponentProps<typeof BaseDialog.Pop
   side?: DrawerSide
   /** Render as a small floating popup near the bottom-center instead of a full-width bottom sheet. */
   popup?: boolean
+  /** Keep focus/dismiss behavior without drawing the dimmed backdrop. */
+  hideOverlay?: boolean
 }
 
 const SIDE_POSITION: Record<DrawerSide, string> = {
@@ -64,6 +66,7 @@ export function DrawerContent({
   fullBleed = false,
   side = 'bottom',
   popup = false,
+  hideOverlay = false,
   ...props
 }: DrawerContentProps) {
   // Bottom drawers default to showing close; left drawers default to no
@@ -72,7 +75,7 @@ export function DrawerContent({
   const effectiveShowClose = showClose ?? side === 'bottom'
   return (
     <DrawerPortal>
-      <DrawerOverlay />
+      {hideOverlay ? null : <DrawerOverlay />}
       <BaseDialog.Popup
         className={cn(
           popup

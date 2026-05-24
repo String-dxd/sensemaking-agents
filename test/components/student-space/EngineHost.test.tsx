@@ -24,7 +24,8 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EngineHost } from '~/components/student-space/EngineHost'
@@ -271,8 +272,11 @@ describe('EngineHost', () => {
     const { unmount } = renderHostAt('/')
 
     await waitFor(() => expect(register).toHaveBeenCalledWith('ask', expect.any(Object)))
-    surfaces.get('ask')?.open?.({ prefilledText: 'Bridge prompt' })
-    expect(await screen.findByText("What's on your mind?")).toBeInTheDocument()
+    await act(async () => {
+      surfaces.get('ask')?.open?.({ prefilledText: 'Bridge prompt' })
+    })
+    expect(await screen.findByRole('tablist', { name: 'Capture mode' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: 'Switch to Text mode' }))
     expect(screen.getByDisplayValue('Bridge prompt')).toBeInTheDocument()
 
     unmount()

@@ -34,9 +34,8 @@ export const SPECIES_BY_ID: Readonly<
   { [K in KiraSpeciesId]: KiraSpecies } & { [k: string]: KiraSpecies | undefined }
 >
 
-// Mesh builder used by the onboarding hatch surface to reuse the real
-// world-route bird inside the egg. Returns the same parts handle the Kira
-// class wraps internally (root group + body/head/wing/leg/tail refs).
+// Archived mesh builder for the retired procedural bird. Runtime Kira and
+// onboarding hatch no longer call this; they use the MaskedBower GLB path.
 export type StandingBirdParts = {
   root: import('three').Group
   body: import('three').Mesh
@@ -52,7 +51,7 @@ export type StandingBirdParts = {
   wingBaseZL: number
   wingBaseZR: number
 }
-export function buildStandingBird(spec: KiraSpecies): StandingBirdParts
+export function buildArchivedStandingBird(spec: KiraSpecies): StandingBirdParts
 
 // Loader for the Blender-authored Masked Bower GLB. Module-cached, so the
 // scene is parsed once and re-handed to every caller. The scene already has

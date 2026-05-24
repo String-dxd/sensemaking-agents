@@ -66,10 +66,10 @@ export default class View
         this.fireflies   = new Fireflies()
         this.particles   = new Particles()
         this.kira        = new Kira()
-        // Restore the chosen companion species on every boot — Kira's
-        // constructor defaults to 'flame', so without this a returning
-        // user (or a mid-ceremony resume at egg-hatch / first-chat /
-        // later) would see the wrong plumage until the next picker tap.
+        // Restore the chosen companion species on every boot. Kira's
+        // constructor defaults to the MaskedBower GLB; this applies any
+        // persisted palette without ever flashing the archived procedural
+        // bird.
         const persistedSpecies = this.state.profile?.identity?.companionSpecies
         if(persistedSpecies) this.kira.setSpecies(persistedSpecies)
         // Mailbox is a small static prop that sits on the plateau and acts

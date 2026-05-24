@@ -20,6 +20,7 @@ const ASSET_BASE = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`
 const MASKED_GLB_URL  = `${ASSET_BASE}birds/MaskedBower.glb`
 const MASKED_SCALE    = 0.30
 const MASKED_YAW_OFFS = Math.PI / 2
+const DEFAULT_COMPANION_SPECIES_ID = 'masked'
 
 // Scratch math for the GLB bird's per-frame bone-delta computation.
 // Allocated once at module scope so _animateMaskedBody never re-allocates.
@@ -157,6 +158,17 @@ function applyMaskedTintsTo(scene)
     })
 }
 
+function applySpeciesPaletteToMasked(speciesId)
+{
+    const spec = SPECIES_BY_ID[speciesId] || SPECIES_BY_ID[DEFAULT_COMPANION_SPECIES_ID]
+    const masked = SPECIES_BY_ID.masked?.palette
+    if(!spec || !masked) return
+    const bodyTint = spec.palette?.body || spec.palette?.back
+    const tieTint  = spec.palette?.tie  || spec.palette?.accent
+    if(bodyTint) masked.body = bodyTint
+    if(tieTint)  masked.tie  = tieTint
+}
+
 export function loadMaskedScene()
 {
     if(_maskedScenePromise) return _maskedScenePromise
@@ -267,8 +279,9 @@ export function loadMaskedScene()
 /**
  * Kira — the resident island bird. Mesh + species data ported from the
  * sibling student-space-bird studio (the "standing companion" build).
- * Defaults to the Flame Bower; `setSpecies(id)` swaps to any of the seven
- * variants without disturbing position, wander state, or dependents.
+ * Defaults to the Masked Bower GLB; `setSpecies(id)` recolors that rig to
+ * any of the seven variants without disturbing position, wander state, or
+ * dependents.
  *
  * Class name + group surface preserved so KiraDialogue / KiraNarrator /
  * HoverProbe keep working unchanged. `getHeadWorldPosition()` is the new
@@ -552,7 +565,8 @@ export default class Kira
         this.scene.add(this.group)
 
         this.parts = null
-        this.speciesId = 'flame'
+        this.speciesId = DEFAULT_COMPANION_SPECIES_ID
+        applySpeciesPaletteToMasked(this.speciesId)
         this._listeners = []
         this._build(this.speciesId)
 
@@ -583,8 +597,8 @@ export default class Kira
         // Legacy alias: 'ember' was retired when the Blender Masked Bower
         // replaced the orange procedural bird. Persisted student profiles
         // with companionSpecies='ember' route here.
-        if(id === 'ember') id = 'masked'
-        if(!SPECIES_BY_ID[id] || id === this.speciesId) return
+        if(id === 'ember') id = DEFAULT_COMPANION_SPECIES_ID
+        if(!SPECIES_BY_ID[id] || (id === this.speciesId && this.parts)) return
         this.speciesId = id
 
         // All species now render via the MaskedBower GLB, tinted from the
@@ -594,13 +608,7 @@ export default class Kira
         // masked palette before _build ensures both the loadMaskedScene
         // first-load callback AND _buildMaskedAsync's resolve handler
         // see the current tints.
-        const spec = SPECIES_BY_ID[id]
-        const bodyTint = spec?.palette?.body || spec?.palette?.back
-        const tieTint  = spec?.palette?.tie  || spec?.palette?.accent
-        const masked   = SPECIES_BY_ID.masked?.palette
-        if(masked && bodyTint) masked.body = bodyTint
-        if(masked && tieTint)  masked.tie  = tieTint
-
+        applySpeciesPaletteToMasked(id)
         this._build('masked')
         for(const fn of this._listeners) fn(id)
     }
@@ -1173,14 +1181,9 @@ export default class Kira
             if(!this.parts.static) this._dispose(this.parts.root)
             this.parts = null
         }
-        if(speciesId === 'masked')
-        {
-            this._buildMaskedAsync()
-            return
-        }
-        const spec = SPECIES_BY_ID[speciesId] || SPECIES_BY_ID.flame
-        this.parts = buildStandingBird(spec)
-        this.group.add(this.parts.root)
+        const id = SPECIES_BY_ID[speciesId] ? speciesId : DEFAULT_COMPANION_SPECIES_ID
+        applySpeciesPaletteToMasked(id)
+        this._buildMaskedAsync()
     }
 
     /**
@@ -1228,7 +1231,7 @@ export default class Kira
             applyMaskedTintsTo(scene)
         }).catch(err =>
         {
-            console.error('[Kira] Failed to load MaskedBower.glb', err)
+            console.error('[Kira] Failed to load MaskedBower.glb; archived procedural bird is disabled', err)
         })
     }
 
@@ -1248,13 +1251,13 @@ export default class Kira
 }
 
 /* =====================================================================
- *  Mesh builder — standing bowerbird (any species via spec)
+ *  Archived mesh builder — old procedural standing bowerbird.
  *
- *  Adapted from buildStandingCompanionParts() in the FlameBower studio's
- *  View/Bird.js.
+ *  Kept for historical reference only. Runtime Kira and onboarding hatch
+ *  now render exclusively through the MaskedBower GLB path above.
  * ===================================================================== */
 
-export { buildStandingBird }
+export { buildStandingBird as buildArchivedStandingBird }
 function buildStandingBird(spec)
 {
     const c = getCharacter(spec.id)
