@@ -562,14 +562,6 @@ function VipsProfileTab({
             paragraph={facet?.paragraph}
             fallback={`Your ${header.tag.toLowerCase()} read grows as you capture moments on the island.`}
           />
-          {facet?.openQuestion ? (
-            <aside className="rounded-xl border border-(--profile-accent)/30 bg-(--profile-soft) p-4 text-(--profile-ink)">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">
-                Open question
-              </p>
-              <p className="mt-1 text-sm leading-6">{facet.openQuestion}</p>
-            </aside>
-          ) : null}
         </div>
         {isPersonality ? null : (
           <div className="grid gap-3 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4">
@@ -600,6 +592,15 @@ function VipsProfileTab({
           refined={formatRefined(facet?.lastRefinedAt)}
         />
       )}
+
+      {facet?.openQuestion ? (
+        <aside className="rounded-xl border border-(--profile-accent)/30 bg-(--profile-soft) p-4 text-(--profile-ink)">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] opacity-70">
+            Open question
+          </p>
+          <p className="mt-1 text-sm leading-6">{facet.openQuestion}</p>
+        </aside>
+      ) : null}
 
       {isPersonality && Array.isArray(bigFive?.traits) ? (
         <BigFiveCards traits={bigFive.traits} />
@@ -739,18 +740,43 @@ function ParagraphBlock({
   paragraph: string | undefined
   fallback: string
 }) {
+  const [expanded, setExpanded] = useState(false)
   const text = paragraph?.trim()
   if (!text) {
     return <p className="max-w-2xl text-sm leading-6 text-(--color-sheet-ink-soft)">{fallback}</p>
   }
   const { thesis, evidence } = splitThesisAndEvidence(text)
+  // Reset back to clamped whenever the underlying paragraph changes (e.g.
+  // switching VIPS tabs) — otherwise the next dimension's evidence opens
+  // already expanded.
+  const hasEvidence = Boolean(evidence)
+  // Show Read more only when there's real evidence to hide. Tight bodies
+  // (one sentence, no expansion content) skip the toggle entirely.
+  const showToggle = hasEvidence && evidence.length > 160
   return (
     <div className="flex flex-col gap-3">
       <p className="max-w-2xl text-[15px] font-medium leading-relaxed text-(--color-sheet-ink)">
         {thesis}
       </p>
-      {evidence ? (
-        <p className="max-w-2xl text-[13px] leading-6 text-(--color-sheet-ink-soft)">{evidence}</p>
+      {hasEvidence ? (
+        <p
+          className={cn(
+            'max-w-2xl text-[13px] leading-6 text-(--color-sheet-ink-soft)',
+            showToggle && !expanded && 'line-clamp-2',
+          )}
+        >
+          {evidence}
+        </p>
+      ) : null}
+      {showToggle ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          aria-expanded={expanded}
+          className="self-start rounded-full px-2 py-0.5 -ml-2 text-xs font-semibold text-(--profile-ink) hover:bg-(--profile-soft)/60 transition-colors"
+        >
+          {expanded ? 'Show less' : 'Read more'}
+        </button>
       ) : null}
     </div>
   )
