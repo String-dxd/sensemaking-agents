@@ -1,28 +1,16 @@
 import type { CSSProperties, Dispatch, SetStateAction } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import {
-  FacetSheetCard,
-  type FacetSheetState,
-  INITIAL_FACET_SHEET,
-} from '~/components/student-space/world/FacetSheetCard'
 import { meaningForSpecies } from '~/engine/student-space/Game/Data/flowerMeanings.js'
-import {
-  claimLabel,
-  VIPS_BY_FACET,
-  VIPS_TAXONOMY,
-} from '~/engine/student-space/Game/Data/vipsTaxonomy.js'
+import { VIPS_TAXONOMY } from '~/engine/student-space/Game/Data/vipsTaxonomy.js'
 import {
   elementTitle,
-  evidenceCountText,
   speciesIdOf as evidenceSpeciesIdOf,
   latestEvidenceLine,
   metaphorLine,
   resolveElementEvidence,
 } from '~/engine/student-space/Game/View/elementEvidence.js'
 import { FACET_HEADERS, FACET_THEMES } from '~/engine/student-space/Game/View/facets.js'
-import { PROFILE_COLORS, PROFILE_HEADERS } from '~/lib/profile-tokens'
-import { rankClaims } from '~/lib/student-space/rank-claims'
 import { cn } from '~/lib/utils'
 
 const GREETINGS = {
@@ -224,7 +212,6 @@ export function WorldInteractions({
   const [hoverCta, setHoverCta] = useState(INITIAL_HOVER_CTA)
   const [objectPeek, setObjectPeek] = useState(INITIAL_OBJECT_PEEK)
   const [objectPickup, setObjectPickup] = useState(INITIAL_OBJECT_PICKUP)
-  const [facetSheet, setFacetSheet] = useState(INITIAL_FACET_SHEET)
   const onboardingModeRef = useRef(onboardingMode)
   const controllersRef = useRef<{
     kiraDialogue?: KiraDialogueController
@@ -232,7 +219,6 @@ export function WorldInteractions({
     objectPeek?: ObjectPeekController
     hoverCta?: HoverCtaController
     hoverProbe?: HoverProbeController
-    facetSheet?: FacetSheetController
   }>({})
 
   useEffect(() => {
@@ -262,12 +248,10 @@ export function WorldInteractions({
       const kiraNarrator = new KiraNarratorController(deps, setNarrator)
       const objectPeekController = new ObjectPeekController(deps, setObjectPeek, setObjectPickup)
       const hoverCtaController = new HoverCtaController(deps, setHoverCta)
-      const facetSheetController = new FacetSheetController(deps, setFacetSheet)
       view.kiraDialogue = kiraDialogue
       view.kiraNarrator = kiraNarrator
       view.objectPeek = objectPeekController
       view.hoverCta = hoverCtaController
-      view.facetView = facetSheetController
       const hoverProbe = new HoverProbeController(deps)
       view.hoverProbe = hoverProbe
 
@@ -277,7 +261,6 @@ export function WorldInteractions({
         objectPeek: objectPeekController,
         hoverCta: hoverCtaController,
         hoverProbe,
-        facetSheet: facetSheetController,
       }
       controllers = [
         kiraDialogue,
@@ -285,7 +268,6 @@ export function WorldInteractions({
         objectPeekController,
         hoverCtaController,
         hoverProbe,
-        facetSheetController,
       ]
       kiraDialogue.setOnboardingMode(onboardingModeRef.current)
     })()
@@ -306,7 +288,6 @@ export function WorldInteractions({
         if (view.objectPeek === controllersRef.current.objectPeek) view.objectPeek = null
         if (view.hoverCta === controllersRef.current.hoverCta) view.hoverCta = null
         if (view.hoverProbe === controllersRef.current.hoverProbe) view.hoverProbe = null
-        if (view.facetView === controllersRef.current.facetSheet) view.facetView = null
       }
       controllersRef.current = {}
     }
@@ -335,12 +316,6 @@ export function WorldInteractions({
         onClose={() => controllersRef.current.objectPeek?.close()}
         onPrimary={() => controllersRef.current.objectPeek?._primary()}
         onSecondary={() => controllersRef.current.objectPeek?._secondary()}
-      />
-      <FacetSheetCard
-        state={facetSheet}
-        onClose={() => controllersRef.current.facetSheet?.close()}
-        onToggleFull={() => controllersRef.current.facetSheet?.toggleFull()}
-        onOpenProfile={() => controllersRef.current.facetSheet?.openProfile()}
       />
     </>
   )
@@ -572,7 +547,6 @@ class KiraNarratorController {
     this._scheduleType(narration.text, 260)
 
     this.view.kiraDialogue?.hide?.()
-    if (this.view.facetView?.isOpen) this.view.facetView.close()
     this.view.hoverCta?.hide?.()
     this.view.hoverProbe?.setEnabled?.(false)
 
@@ -646,7 +620,6 @@ class KiraNarratorController {
     this._scheduleType(text, 180)
 
     this.view.kiraDialogue?.hide?.()
-    if (this.view.facetView?.isOpen) this.view.facetView.close()
     this.view.hoverCta?.hide?.()
 
     this._schedule(() => {
@@ -694,12 +667,7 @@ class KiraNarratorController {
         if (this.disposed) return
         this.deps.OverlayController.getInstance().open('ask', { dismissOnBack: true })
       }, 280)
-      return
     }
-    if (this.view.facetView)
-      this._schedule(() => {
-        if (!this.disposed) this.view.facetView.openFor(target)
-      }, 280)
   }
 
   close() {
@@ -1089,7 +1057,6 @@ class ObjectPeekController {
     this.view.hoverCta?.hide?.()
     this.view.hoverProbe?.setEnabled?.(false)
     this.view.kiraDialogue?.hide?.()
-    if (this.view.facetView?.isOpen) this.view.facetView.close()
 
     const anchor = this._objectAnchor(target)
     const liveCam = this.view.camera.instance.position
@@ -1311,92 +1278,10 @@ class ObjectPeekController {
   }
 }
 
-const MOOD_THEME = { accent: '#7FB3D9', soft: '#DBE9F3', ink: '#365770' }
-const MOOD_HEADER = {
-  eyebrow: 'HOW TODAY IS LANDING',
-  tag: 'Mood',
-  title: "What you're carrying today",
-  subtitle: 'Small weather across the week',
-}
-const MOOD_PIN_COLORS: Record<string, string> = {
-  joy: '#FFD66B',
-  sadness: '#7FB3D9',
-  anger: '#E36A55',
-  fear: '#B49AD6',
-  disgust: '#9CC36E',
-  anxiety: '#F1A04E',
-  envy: '#6FC2B3',
-  embarrassment: '#F0A6B5',
-  ennui: '#A8A5BD',
-}
-const KIRA_BODY_TEXT =
-  'Kira watches the shape of what you say and places things on the ground that match — oaks for values, blooms for interests, fruits for skills, butterflies for thoughts passing through.'
-
-function facetIdForTarget(target: Target): string {
-  if (target.kind === 'tree') return 'values'
-  if (target.kind === 'flower') return 'interests'
-  if (target.kind === 'fruit') return 'skills'
-  if (target.kind === 'kira') return 'mood'
-  return 'values'
-}
-
-function compassBucket(x: number, z: number): string {
-  if (Math.hypot(x, z) < 0.6) return 'centre of the island'
-  const angle = Math.atan2(x, z)
-  const slice = Math.PI / 8
-  if (angle >= -slice && angle < slice) return 'north of the plateau'
-  if (angle >= slice && angle < 3 * slice) return 'northeast slope'
-  if (angle >= 3 * slice && angle < 5 * slice) return 'east toward the shore'
-  if (angle >= 5 * slice && angle < 7 * slice) return 'southeast bend'
-  if (angle >= 7 * slice || angle < -7 * slice) return 'south side'
-  if (angle >= -7 * slice && angle < -5 * slice) return 'southwest bend'
-  if (angle >= -5 * slice && angle < -3 * slice) return 'west toward the shore'
-  return 'northwest slope'
-}
-
-const FACET_PLURAL: Record<string, string> = {
-  cherry: 'cherries',
-  lily: 'lilies',
-  daisy: 'daisies',
-  berry: 'berries',
-}
-function pluralize(word: string, n: number): string {
-  if (n === 1) return word
-  if (!word) return word
-  if (FACET_PLURAL[word]) return FACET_PLURAL[word]
-  if (/[^aeiou]y$/i.test(word)) return word.replace(/y$/i, 'ies')
-  if (/(s|x|z|ch|sh)$/i.test(word)) return `${word}es`
-  return `${word}s`
-}
-
-function truncateText(text: string, maxLength: number): string {
-  const clean = String(text || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (clean.length <= maxLength) return clean
-  return `${clean.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`
-}
-
-function capitalize(value: string): string {
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : ''
-}
-
 const TREE_COPY: Record<string, string> = {
   oak: "Oaks hold the things you don't outgrow — the principles you act on without naming them. They take a long time to grow, and a long time to leave.",
   cherry:
     "Cherry trees mark something you've said once or twice but not anchored yet. They bloom early, fade if ignored — they need return visits to root.",
-}
-const FLOWER_COPY: Record<string, string> = {
-  daisy:
-    "Daisies move with attention — opening when you look at them, closing when you don't. They mark interests that breathe with curiosity.",
-  tulip:
-    'Tulips stay cupped. They mark interests you protect — not yet ready to share, but worth keeping warm.',
-  rose: 'Roses take effort. They mark practiced interests — things you return to, prune, refine.',
-  lily: 'Lilies face outward. They mark interests that pull other people in — making, performing, sharing, hosting.',
-  pansy:
-    'Pansies are observational interests. Reading, noticing patterns, taking small notes about how things work.',
-  hyacinth:
-    "Hyacinths stack. Small repeated noticings, each adding to the pillar — interests that don't reveal themselves until they're tall.",
 }
 const FRUIT_COPY: Record<string, string> = {
   apple:
@@ -1408,225 +1293,6 @@ const FRUIT_COPY: Record<string, string> = {
     'Citrus is the leadership skill — setting direction, coordinating others, taking responsibility for outcomes.',
   berry:
     'Berries are the communication skills — saying what you mean, in the register your audience needs.',
-}
-
-function elementTitleForTarget(target: Target, state: AnyEngine): string {
-  if (target.kind === 'kira') return state?.profile?.displayCompanionName?.() || 'Kira'
-  const species = evidenceSpeciesIdOf(target)
-  return species ? capitalize(species) : 'Element'
-}
-
-function elementBodyForTarget(target: Target): string {
-  if (target.kind === 'kira') return KIRA_BODY_TEXT
-  const species = evidenceSpeciesIdOf(target)
-  if (target.kind === 'tree') return TREE_COPY[species] ?? ''
-  if (target.kind === 'flower') return FLOWER_COPY[species] ?? ''
-  if (target.kind === 'fruit') return FRUIT_COPY[species] ?? ''
-  return ''
-}
-
-function elementBodyForEvidence(evidence: AnyEngine, target: Target): string {
-  if (!evidence?.claimId) return elementBodyForTarget(target)
-  const line = metaphorLine(evidence)
-  if (evidence.hasEvidence)
-    return `${line} It is backed by ${evidenceCountText(evidence).toLowerCase()} in your profile timeline.`
-  return `${line} No saved noticings have landed here yet.`
-}
-
-class FacetSheetController {
-  view: AnyEngine
-  state: AnyEngine
-  isOpen = false
-  isFull = false
-  activeFacetId: string | null = null
-  disposed = false
-
-  constructor(
-    private deps: EngineDeps,
-    private setFacetSheet: Dispatch<SetStateAction<FacetSheetState>>,
-  ) {
-    this.view = deps.View.getInstance()
-    this.state = deps.State.getInstance()
-  }
-
-  openFor(target: Target) {
-    if (!target) return
-    const evidence = resolveElementEvidence(target, this.state?.profile)
-    const facetId = evidence?.facetId || facetIdForTarget(target)
-    const header =
-      facetId === 'mood'
-        ? MOOD_HEADER
-        : (PROFILE_HEADERS[facetId as keyof typeof PROFILE_HEADERS] ?? PROFILE_HEADERS.values)
-    const theme =
-      facetId === 'mood'
-        ? MOOD_THEME
-        : (PROFILE_COLORS[facetId as keyof typeof PROFILE_COLORS] ?? PROFILE_COLORS.values)
-
-    const next = this._computeStateFor(target, facetId, header, theme, evidence)
-    this.activeFacetId = facetId
-    this.isOpen = true
-    this.isFull = false
-    this.setFacetSheet(next)
-  }
-
-  close() {
-    if (!this.isOpen) return
-    this.isOpen = false
-    this.isFull = false
-    this.setFacetSheet((prev) => ({ ...prev, open: false, isFull: false }))
-  }
-
-  toggleFull() {
-    if (!this.isOpen) return
-    this.isFull = !this.isFull
-    const next = this.isFull
-    this.setFacetSheet((prev) => ({ ...prev, isFull: next }))
-  }
-
-  openProfile() {
-    const facetId = this.activeFacetId
-    if (!facetId || facetId === 'mood') return
-    this.close()
-    const href = facetId === 'values' ? '/profile' : `/profile/${facetId}`
-    this.deps.Game.getInstance()?.navigate?.(href)
-  }
-
-  dispose() {
-    this.disposed = true
-    this.isOpen = false
-    this.activeFacetId = null
-    this.setFacetSheet(INITIAL_FACET_SHEET)
-  }
-
-  update() {}
-
-  _computeStateFor(
-    target: Target,
-    facetId: string,
-    header: { eyebrow: string; tag: string; title: string; subtitle: string },
-    theme: { accent: string; soft: string; ink: string },
-    evidence: AnyEngine,
-  ): FacetSheetState {
-    const detailTitle = elementTitle(evidence, elementTitleForTarget(target, this.state))
-    const detailBody = elementBodyForEvidence(evidence, target)
-
-    if (facetId === 'mood') {
-      const pins: AnyEngine[] = this.state?.moodPins?.recent?.(5) ?? []
-      const top = pins[0]
-      const last = pins[pins.length - 1]
-      return {
-        open: true,
-        isFull: false,
-        facetId,
-        eyebrow: header.eyebrow,
-        tag: header.tag,
-        title: header.title,
-        subtitle: header.subtitle,
-        accent: theme.accent,
-        soft: theme.soft,
-        ink: theme.ink,
-        mostCommonLabel: top
-          ? `${capitalize(top.emotion)} — ${top.intensity}/4`
-          : 'Still listening.',
-        quietlyEmergingLabel:
-          last && last !== top
-            ? `${capitalize(last.emotion)} — ${last.intensity}/4`
-            : 'Capture one today to seed the picture.',
-        detailTitle,
-        detailBody,
-        bentoRows: [],
-        moodPins: pins.map((p) => ({
-          emotion: p.emotion,
-          intensity: p.intensity,
-          entryDate: p.entryDate,
-          color: MOOD_PIN_COLORS[p.emotion] || '#888',
-        })),
-        ctaLabel: '',
-        ctaVisible: false,
-      }
-    }
-
-    const canonical = (VIPS_BY_FACET as Record<string, AnyEngine[]>)[facetId] ?? []
-    const counts: Record<string, number> = this.state?.profile?.countByClaim
-      ? this.state.profile.countByClaim(facetId)
-      : {}
-    const ranked = rankClaims(canonical, counts)
-    const mostCommonLabel = ranked.mostCommon?.label ?? ''
-    const quietlyEmergingLabel = ranked.quietlyEmerging?.label ?? ''
-
-    const rows: Array<{ label: string; value: string }> = []
-    if (evidence?.claimId) {
-      rows.push({ label: 'Claim', value: claimLabel(evidence.claimId) })
-      rows.push({ label: 'Evidence', value: evidenceCountText(evidence) })
-      if (evidence.latestQuoteText)
-        rows.push({
-          label: 'Latest noticing',
-          value: `“${truncateText(evidence.latestQuoteText, 96)}”`,
-        })
-    }
-    rows.push({ label: 'Where it lives', value: compassBucket(target.x ?? 0, target.z ?? 0) })
-
-    const species = evidenceSpeciesIdOf(target)
-    if (facetId === 'values' && this.view.tree?.entries) {
-      const others =
-        this.view.tree.entries.filter((e: AnyEngine) => evidenceSpeciesIdOf(e) === species).length -
-        1
-      rows.push({
-        label: 'Companions',
-        value:
-          others <= 0
-            ? 'only one of its kind'
-            : `${others} other ${pluralize(species, others)} on the island`,
-      })
-    } else if (facetId === 'interests' && this.view.flowers?.flowers) {
-      const others =
-        this.view.flowers.flowers.filter((e: AnyEngine) => evidenceSpeciesIdOf(e) === species)
-          .length - 1
-      rows.push({
-        label: 'Companions',
-        value:
-          others <= 0
-            ? 'first of its species'
-            : `${others} other ${pluralize(species, others)} nearby`,
-      })
-    } else if (facetId === 'skills' && this.view.fruits) {
-      const entries: AnyEngine[] = this.view.fruits.entries ?? []
-      const others = entries.filter((e: AnyEngine) => evidenceSpeciesIdOf(e) === species).length - 1
-      rows.push({
-        label: 'Companions',
-        value:
-          others <= 0
-            ? 'only one ripening'
-            : `${others} other ${pluralize(species, others)} ripening nearby`,
-      })
-    }
-
-    const tag = (header.tag || facetId).toLowerCase()
-    const ctaLabel = evidence?.claimLabel
-      ? `Open ${evidence.claimLabel} timeline →`
-      : `See all your ${tag} →`
-
-    return {
-      open: true,
-      isFull: false,
-      facetId,
-      eyebrow: header.eyebrow,
-      tag: header.tag,
-      title: header.title,
-      subtitle: header.subtitle,
-      accent: theme.accent,
-      soft: theme.soft,
-      ink: theme.ink,
-      mostCommonLabel,
-      quietlyEmergingLabel,
-      detailTitle,
-      detailBody,
-      bentoRows: rows,
-      moodPins: [],
-      ctaLabel,
-      ctaVisible: true,
-    }
-  }
 }
 
 export class HoverProbeController {
@@ -1777,8 +1443,7 @@ export class HoverProbeController {
       }
       this._setHover(hit)
       if (this.view.objectPeek?.canHandle?.(hit)) this.view.objectPeek.open(hit)
-      else if (this.view.kiraNarrator) this.view.kiraNarrator.narrate(hit)
-      else this.view.facetView.openFor(hit)
+      else this.view.kiraNarrator?.narrate?.(hit)
     } else {
       this._setHover(null)
     }
