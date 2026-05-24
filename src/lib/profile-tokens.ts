@@ -57,25 +57,25 @@ export interface ProfileHeader {
  */
 export const PROFILE_HEADERS: Record<ProfileDimension, ProfileHeader> = {
   values: {
-    eyebrow: 'WHAT MATTERS TO ME',
+    eyebrow: 'What matters to me',
     tag: 'Values',
     title: 'What you keep coming back to',
     subtitle: 'A pattern across your touchstones',
   },
   interests: {
-    eyebrow: 'WHAT PULLS YOUR ATTENTION',
+    eyebrow: 'What pulls your attention',
     tag: 'Interests',
     title: 'What lights you up',
     subtitle: 'Small sparks across your week',
   },
   personality: {
-    eyebrow: 'HOW YOU TEND TO SHOW UP',
+    eyebrow: 'How you tend to show up',
     tag: 'Personality',
     title: 'Who you are in the room',
     subtitle: 'Patterns in how others recognise you',
   },
   skills: {
-    eyebrow: "WHAT YOU'RE GETTING GOOD AT",
+    eyebrow: "What you're getting good at",
     tag: 'Skills',
     title: "What's growing in your hands",
     subtitle: "Things you've practised into shape",
@@ -127,13 +127,13 @@ export const PROFILE_THEMES: Record<ProfileDimension, ProfileThemeTokens> = {
 }
 
 /**
- * Typography tokens. React + PDF consume directly; the engine substrate keeps
- * its own font setup in style.css and does not import this.
+ * Typography tokens. React surfaces consume directly; the engine substrate
+ * keeps its own font setup in style.css and does not import this. Single
+ * Inter family across all surfaces — matches --font-sans in src/styles.css.
  */
 export const TYPOGRAPHY = {
   fontFamily: {
-    display: '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif',
-    body: '"Inter", system-ui, -apple-system, sans-serif',
+    sans: '"Inter", system-ui, -apple-system, sans-serif',
   },
   weight: {
     regular: 400,
@@ -142,10 +142,10 @@ export const TYPOGRAPHY = {
     bold: 700,
   },
   scale: {
-    eyebrow: '0.75rem',
-    body: '0.95rem',
-    subtitle: '1rem',
-    title: '1.75rem',
-    display: 'clamp(1.6rem, 4vw, 2.25rem)',
+    eyebrow: '0.8125rem', // 13px — sentence-case, medium weight, muted ink
+    body: '1rem', // 16px baseline
+    subtitle: '1.125rem', // 18px
+    title: '1.75rem', // 28px
+    display: 'clamp(1.75rem, 4vw, 2.5rem)',
   },
 } as const

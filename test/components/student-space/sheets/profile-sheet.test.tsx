@@ -383,9 +383,9 @@ describe('ProfileSheet (React)', () => {
         within(tldr).getByText('Curious and tender — you bring imagination and a soft landing'),
       ).toBeInTheDocument()
       expect(within(tldr).getByText('YOUR PERSONALITY AT A GLANCE')).toBeInTheDocument()
-      expect(within(tldr).getByText('CURIOSITY')).toBeInTheDocument()
-      expect(within(tldr).getByText('WARMTH')).toBeInTheDocument()
-      expect(within(tldr).getByText('SENSITIVE')).toBeInTheDocument()
+      expect(within(tldr).getByText('Curiosity')).toBeInTheDocument()
+      expect(within(tldr).getByText('Warmth')).toBeInTheDocument()
+      expect(within(tldr).getByText('Sensitive')).toBeInTheDocument()
       expect(
         within(tldr).getByText('Five-trait lean, anchored in your reflections so far'),
       ).toBeInTheDocument()

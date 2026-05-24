@@ -35,25 +35,25 @@ export const PROFILE_COLORS = {
 
 export const PROFILE_HEADERS = {
     values: {
-        eyebrow:  'WHAT MATTERS TO ME',
+        eyebrow:  'What matters to me',
         tag:      'Values',
         title:    'What you keep coming back to',
         subtitle: 'A pattern across your touchstones',
     },
     interests: {
-        eyebrow:  'WHAT PULLS YOUR ATTENTION',
+        eyebrow:  'What pulls your attention',
         tag:      'Interests',
         title:    'What lights you up',
         subtitle: 'Small sparks across your week',
     },
     personality: {
-        eyebrow:  'HOW YOU TEND TO SHOW UP',
+        eyebrow:  'How you tend to show up',
         tag:      'Personality',
         title:    'Who you are in the room',
         subtitle: 'Patterns in how others recognise you',
     },
     skills: {
-        eyebrow:  "WHAT YOU'RE GETTING GOOD AT",
+        eyebrow:  "What you're getting good at",
         tag:      'Skills',
         title:    "What's growing in your hands",
         subtitle: "Things you've practised into shape",

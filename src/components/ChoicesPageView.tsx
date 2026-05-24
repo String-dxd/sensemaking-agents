@@ -99,9 +99,7 @@ export function ChoicesPageView({
       <div className="w-full">
         <header className="border-b border-[#e3d8c4] pb-6">
           <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
-              {header.eyebrow}
-            </p>
+            <p className="text-xs font-semibold text-[#2b2620]/55">{header.eyebrow}</p>
             <span className="rounded-full bg-[#f1ede5] px-2 py-0.5 text-[11px] font-semibold text-[#2b2620]/70">
               {header.tag}
             </span>
@@ -157,10 +155,7 @@ function SectionDecisions({
       data-testid="choices-section-decisions"
     >
       <div className="flex items-center justify-between gap-3">
-        <h2
-          id="choices-decisions-heading"
-          className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55"
-        >
+        <h2 id="choices-decisions-heading" className="text-xs font-semibold text-[#2b2620]/55">
           Decisions I&apos;ve made and why
         </h2>
         <Button
@@ -225,17 +220,13 @@ function SectionDecisions({
                 <div className="mt-2 flex flex-col gap-1 text-[#2b2620]/80">
                   {entry.chose ? (
                     <p>
-                      <span className="text-xs font-semibold uppercase tracking-[0.1em] text-[#2b2620]/55">
-                        chose:&nbsp;
-                      </span>
+                      <span className="text-xs font-semibold text-[#2b2620]/55">chose:&nbsp;</span>
                       {entry.chose}
                     </p>
                   ) : null}
                   {entry.options.length > 0 ? (
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-semibold uppercase tracking-[0.1em] text-[#2b2620]/55">
-                        rejected:
-                      </span>
+                      <span className="text-xs font-semibold text-[#2b2620]/55">rejected:</span>
                       {entry.options
                         .filter((o) => o !== entry.chose)
                         .map((opt) => (
@@ -255,9 +246,7 @@ function SectionDecisions({
               ) : null}
               {entry.forces.length > 0 ? (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs font-semibold uppercase tracking-[0.1em] text-[#2b2620]/55">
-                    forces:
-                  </span>
+                  <span className="text-xs font-semibold text-[#2b2620]/55">forces:</span>
                   {entry.forces.map((f) => (
                     <Badge
                       key={f}
@@ -297,9 +286,7 @@ function PatternTagPicker({
 }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
-      <span className="text-xs font-semibold uppercase tracking-[0.1em] text-[#2b2620]/55">
-        pattern:
-      </span>
+      <span className="text-xs font-semibold text-[#2b2620]/55">pattern:</span>
       {DECISION_PATTERN_TAG_VALUES.map((tag) => {
         const active = entry.patternTag === tag
         return (
@@ -494,10 +481,7 @@ function SectionPatterns({
       aria-labelledby="choices-patterns-heading"
       data-testid="choices-section-patterns"
     >
-      <h2
-        id="choices-patterns-heading"
-        className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55"
-      >
+      <h2 id="choices-patterns-heading" className="text-xs font-semibold text-[#2b2620]/55">
         Patterns in how I handle hard situations
       </h2>
       {decisions.length === 0 ? (
@@ -568,10 +552,7 @@ function SectionIntentions({
       data-testid="choices-section-intentions"
     >
       <div className="flex items-center justify-between gap-3">
-        <h2
-          id="choices-intentions-heading"
-          className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55"
-        >
+        <h2 id="choices-intentions-heading" className="text-xs font-semibold text-[#2b2620]/55">
           What I want to change
         </h2>
         <Button
@@ -639,9 +620,7 @@ function SectionIntentions({
               </div>
               {entry.current ? (
                 <p className="mt-2 text-[#2b2620]/75">
-                  <span className="text-xs font-semibold uppercase tracking-[0.1em] text-[#2b2620]/55">
-                    today:&nbsp;
-                  </span>
+                  <span className="text-xs font-semibold text-[#2b2620]/55">today:&nbsp;</span>
                   {entry.current}
                 </p>
               ) : null}

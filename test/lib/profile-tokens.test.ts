@@ -39,9 +39,8 @@ describe('profile-tokens', () => {
     }
   })
 
-  it('TYPOGRAPHY exposes display/body font families and a numeric weight ramp', () => {
-    expect(TYPOGRAPHY.fontFamily.display).toBeTruthy()
-    expect(TYPOGRAPHY.fontFamily.body).toBeTruthy()
+  it('TYPOGRAPHY exposes the sans font family and a numeric weight ramp', () => {
+    expect(TYPOGRAPHY.fontFamily.sans).toBeTruthy()
     expect(TYPOGRAPHY.weight.regular).toBe(400)
     expect(TYPOGRAPHY.weight.bold).toBe(700)
   })

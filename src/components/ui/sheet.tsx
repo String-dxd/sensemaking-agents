@@ -144,7 +144,7 @@ export function SheetEyebrow({ className, ...props }: HTMLAttributes<HTMLSpanEle
   return (
     <span
       className={cn(
-        'text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)',
+        'text-[13px] font-medium leading-snug text-(--color-sheet-ink-soft)',
         className,
       )}
       {...props}
@@ -156,7 +156,7 @@ export function SheetTitle({ className, ...props }: HTMLAttributes<HTMLHeadingEl
   return (
     <h2
       className={cn(
-        'text-[clamp(1.5rem,3.6vw,2rem)] font-semibold leading-tight tracking-tight text-(--color-sheet-ink)',
+        'text-[clamp(1.5rem,3.6vw,2rem)] font-semibold leading-tight tracking-[-0.015em] text-(--color-sheet-ink)',
         className,
       )}
       {...props}

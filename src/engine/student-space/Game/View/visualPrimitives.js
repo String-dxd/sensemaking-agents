@@ -22,7 +22,7 @@ import { escapeAttr, escapeHtml } from '../util/html.js'
 /**
  * TLDR hero. Optional eyebrow + title + chip row + meta footer.
  * @param {object} opts
- * @param {string} [opts.eyebrow] short uppercase label above the title
+ * @param {string} [opts.eyebrow] short sentence-case label above the title
  * @param {string} [opts.title] one-line headline
  * @param {Array<{label: string, accent?: string, id?: string}>} [opts.chips]
  * @param {string} [opts.meta] muted meta line beneath the chips
@@ -94,7 +94,7 @@ export function statTileRowHTML(tiles = [])
 /**
  * Callout strip — left-accent prompt block. Empty body returns an empty string.
  * @param {object} opts
- * @param {string} [opts.eyebrow] small uppercase label above the body
+ * @param {string} [opts.eyebrow] small sentence-case label above the body
  * @param {string} opts.body italic prompt copy
  * @param {string} [opts.accent] accent token (cream / blue / amber etc.)
  */

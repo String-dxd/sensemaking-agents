@@ -214,41 +214,41 @@ export function statusCopyOf(id, identity)
     {
         case 'starter':
             return {
-                eyebrow: 'PATH FINDER',
+                eyebrow: 'Path Finder',
                 title:   `Hi${name ? `, ${name}` : ''} — let's find your bearings`,
                 tldr:    'Path Finder needs a bit more to read before it can suggest anything.',
                 lead:    `Path Finder reads your VIPS profile + Choices to suggest the kind of work that might fit. Right now there isn't much to read yet — a short chat with ${_companionName()} will give it something to work with.`,
             }
         case 'diffused':
             return {
-                eyebrow: 'PATH FINDER · DIFFUSED',
+                eyebrow: 'Path Finder · Diffused',
                 title:   'Your map is still mostly blank',
                 tldr:    'Three small reflections, each one adds a claim to your profile.',
                 lead:    `There aren't enough reflections yet to draw a confident bearing. Try one of the nudges below — each is a small reflection that adds a claim to ${youOrName === 'you' ? 'your' : `${youOrName}'s`} profile.`,
             }
         case 'searching':
             return {
-                eyebrow: 'PATH FINDER · SEARCHING',
+                eyebrow: 'Path Finder · Searching',
                 title:   'You\'re in active exploration',
                 tldr:    'Bearings the evidence points toward — none of these is a decision yet.',
                 lead:    `These are the bearings the profile evidence currently points toward. None of these is a decision yet — each one is a direction worth probing.`,
             }
         case 'foreclosed':
             return {
-                eyebrow: 'PATH FINDER · FORECLOSED',
+                eyebrow: 'Path Finder · Foreclosed',
                 title:   'You\'ve named a direction — worth widening the lens',
                 tldr:    'A direction is named in Choices. Here are bearings to test it against.',
                 lead:    `A direction has been committed to in Choices, but the VIPS profile is still thin. Before locking in, here are one or two adjacent bearings to test the assumption against.`,
             }
         case 'achieved':
             return {
-                eyebrow: 'PATH FINDER · ACHIEVED',
+                eyebrow: 'Path Finder · Achieved',
                 title:   'Concrete next steps for your direction',
                 tldr:    'Each bearing below now carries near-term actions you can take this term.',
                 lead:    `Profile evidence is strong and a direction has been committed to. Each bearing below now carries near-term actions you can actually take this term.`,
             }
         default:
-            return { eyebrow: 'PATH FINDER', title: 'Trajectory compass', tldr: '', lead: '' }
+            return { eyebrow: 'Path Finder', title: 'Trajectory compass', tldr: '', lead: '' }
     }
 }
 

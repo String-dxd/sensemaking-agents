@@ -382,7 +382,7 @@ function StatusPreviewSelector({
 
   return (
     <div data-trajectory-status-root className="relative space-y-2">
-      <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-faint)">
+      <span className="block text-xs font-semibold text-(--color-sheet-ink-faint)">
         Previewing as
       </span>
       <button
@@ -479,9 +479,7 @@ function StatTile({ value, label }: { value: string; label: string }) {
       <p className="text-lg font-bold leading-none text-(--color-sheet-ink) tabular-nums">
         {value}
       </p>
-      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.12em] text-(--color-sheet-ink-soft)">
-        {label}
-      </p>
+      <p className="mt-1 text-xs font-semibold text-(--color-sheet-ink-soft)">{label}</p>
     </div>
   )
 }
@@ -575,9 +573,7 @@ function StatusBody({
     const nudges = DIFFUSED_NUDGES as unknown as Array<{ title: string; prompt: string }>
     return (
       <section className="mx-auto max-w-3xl">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
-          Pick a nudge
-        </p>
+        <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">Pick a nudge</p>
         <ul className="mt-3 grid gap-3 sm:grid-cols-2">
           {nudges.map((nudge) => (
             <li key={nudge.prompt}>
@@ -703,7 +699,7 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
             role="tabpanel"
           >
             <header className="flex items-start gap-4">
-              <span className="pt-0.5 text-xs font-semibold uppercase tracking-[0.16em] text-(--color-sheet-ink-soft) tabular-nums">
+              <span className="pt-0.5 text-xs font-semibold text-(--color-sheet-ink-soft) tabular-nums">
                 Path {selectedIndex + 1}
               </span>
               <h3 className="text-balance text-xl font-semibold leading-tight text-(--color-sheet-ink)">
@@ -758,7 +754,7 @@ function EvidenceDisclosure({ bearing }: { bearing: Bearing }) {
           ) : null}
           {bearing.risk ? (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-(--color-sheet-ink-soft)">
+              <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">
                 Risks and tradeoffs
               </p>
               <p className="mt-1 text-sm leading-relaxed text-(--color-sheet-ink-soft)">
@@ -775,9 +771,7 @@ function EvidenceDisclosure({ bearing }: { bearing: Bearing }) {
 function ChipGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-(--color-sheet-ink-soft)">
-        {label}
-      </p>
+      <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">{label}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">{children}</div>
     </div>
   )
@@ -831,7 +825,7 @@ function ForeclosedBody({
     <div className="mx-auto max-w-3xl space-y-5">
       {committedDirection ? (
         <section className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+          <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">
             Your committed direction
           </p>
           <p className="mt-2 text-balance text-base font-semibold text-(--color-sheet-ink)">
@@ -840,7 +834,7 @@ function ForeclosedBody({
         </section>
       ) : null}
       <section>
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+        <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">
           Worth holding up next to yours
         </p>
         <ol className="mt-3 space-y-3">
@@ -898,7 +892,7 @@ function AchievedBody({ capture }: { capture: TrajectoryCapture }) {
             <p className="mt-2 text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
               {bearing.prompt}
             </p>
-            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+            <p className="mt-4 text-xs font-semibold text-(--color-sheet-ink-soft)">
               Next concrete steps
             </p>
             <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-(--color-sheet-ink) marker:text-(--color-sheet-ink-faint)">

@@ -913,7 +913,7 @@ const KIND_CONFIG: Record<string, AnyEngine> = {
       deps.Game.getInstance()?.navigate('/letters'),
   },
   telescope: {
-    eyebrow: 'PATH FINDER',
+    eyebrow: 'Path Finder',
     title: () => 'Telescope',
     peekText: () =>
       'A small lens fixed on the future — pointed at the directions your profile already leans toward.',
@@ -2019,9 +2019,7 @@ function ObjectPeekPopover({
           : 'pointer-events-none translate-y-[calc(-100%-4px)] opacity-0',
       )}
     >
-      <p className="m-0 text-[10px] font-extrabold tracking-[0.16em] text-[#7b6b59] uppercase">
-        {state.eyebrow}
-      </p>
+      <p className="m-0 text-[10px] font-extrabold text-[#7b6b59]">{state.eyebrow}</p>
       <h3 className="mt-1 mb-0 text-lg font-extrabold">{state.title}</h3>
       <p className="mt-2 mb-3 text-sm leading-[1.45] text-[#5d5146]">{state.meaning}</p>
       <button

@@ -1046,9 +1046,7 @@ export function AskSheet() {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500/60" />
                   <span className="relative inline-flex size-2.5 rounded-full bg-red-500" />
                 </span>
-                <p className="m-0 text-xs font-bold uppercase tracking-[0.12em] text-red-600">
-                  Recording
-                </p>
+                <p className="m-0 text-xs font-bold text-red-600">Recording</p>
               </div>
               <h2 className="m-0 text-xl font-semibold">I'm listening.</h2>
               <p className="m-0 text-sm text-[rgba(43,38,32,0.62)]">
@@ -1090,7 +1088,7 @@ export function AskSheet() {
                         message.status === 'streaming' && 'opacity-80',
                       )}
                     >
-                      <span className="block text-[11px] font-bold uppercase tracking-[0.08em] opacity-60">
+                      <span className="block text-[11px] font-bold opacity-60">
                         {message.role === 'kira' ? 'Kira' : 'You'}
                       </span>
                       <p className="m-0">{message.text}</p>
@@ -1157,7 +1155,7 @@ export function AskSheet() {
                         : 'ml-auto bg-[#f5eee2] text-[rgba(43,38,32,0.86)]',
                     )}
                   >
-                    <span className="block text-[11px] font-bold uppercase tracking-[0.08em] opacity-60">
+                    <span className="block text-[11px] font-bold opacity-60">
                       {message.role === 'kira' ? 'Kira' : 'You'}
                     </span>
                     <p className="m-0 whitespace-pre-wrap">{message.text}</p>
@@ -1374,9 +1372,7 @@ function ReframeReadout({ reframe, busy }: { reframe: Reframe | null; busy?: boo
           {reframe.highlightPhrase}
         </blockquote>
       ) : null}
-      <p className="m-0 text-xs font-bold uppercase tracking-[0.12em] text-[rgba(43,38,32,0.48)]">
-        Reading
-      </p>
+      <p className="m-0 text-xs font-bold text-[rgba(43,38,32,0.48)]">Reading</p>
       {busy ? (
         <div className="mt-3 flex items-center gap-2 text-base leading-7 text-[rgba(43,38,32,0.62)]">
           <span className="inline-flex gap-1" aria-hidden="true">

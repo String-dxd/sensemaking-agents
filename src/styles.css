@@ -12,8 +12,56 @@
   --color-warning: oklch(0.78 0.16 70);
 
   /* ── Typography ─────────────────────────────────────────────────────── */
-  /* Engine canon — Plus Jakarta Sans is the engine's display face. */
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  /* Single sans family across product UI and marketing. Inter is loaded
+     via Google Fonts in __root.tsx (weights 400/500/600/700). The
+     fallback chain matches system UI faces so first paint stays close
+     to Inter's metrics even before the webfont resolves. */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Semantic type scale. Each token bundles font-size + line-height +
+     font-weight so a single `text-h1` (or var(--text-h1)) renders the
+     intended hierarchy step without piling on leading/weight classes.
+     Ratios stay ≥1.25× between adjacent heading steps for contrast. */
+  --text-display: 2.5rem;               /* 40px */
+  --text-display--line-height: 1.15;
+  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.02em;
+
+  --text-h1: 2rem;                      /* 32px */
+  --text-h1--line-height: 1.2;
+  --text-h1--font-weight: 600;
+  --text-h1--letter-spacing: -0.015em;
+
+  --text-h2: 1.5rem;                    /* 24px */
+  --text-h2--line-height: 1.3;
+  --text-h2--font-weight: 600;
+  --text-h2--letter-spacing: -0.01em;
+
+  --text-h3: 1.125rem;                  /* 18px */
+  --text-h3--line-height: 1.4;
+  --text-h3--font-weight: 600;
+  --text-h3--letter-spacing: -0.005em;
+
+  --text-body: 1rem;                    /* 16px baseline */
+  --text-body--line-height: 1.55;
+  --text-body--font-weight: 400;
+
+  --text-body-sm: 0.875rem;             /* 14px */
+  --text-body-sm--line-height: 1.5;
+  --text-body-sm--font-weight: 400;
+
+  --text-caption: 0.75rem;              /* 12px — accessible floor */
+  --text-caption--line-height: 1.4;
+  --text-caption--font-weight: 400;
+
+  --text-label: 0.8125rem;              /* 13px */
+  --text-label--line-height: 1.4;
+  --text-label--font-weight: 500;
+
+  --text-button: 0.875rem;              /* 14px */
+  --text-button--line-height: 1.2;
+  --text-button--font-weight: 500;
 
   /* ── Sheet motion + chrome tokens ───────────────────────────────────── */
   /* Routed sheets render a solid stone-100 surface (per PR #32) — fully

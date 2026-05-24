@@ -54,9 +54,7 @@ function PageHeader({ profile }: { profile: PublicProfileBody }) {
   const lastSynced = formatLastSynced(profile.lastSyncedAt)
   return (
     <header className="flex flex-col gap-2 border-b border-[#e6dcc9]/60 pb-6">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#2b2620]/55">
-        SenseMake profile
-      </span>
+      <span className="text-[11px] font-semibold text-[#2b2620]/55">SenseMake profile</span>
       <h1 className="text-[clamp(1.8rem,4.5vw,2.6rem)] font-semibold leading-tight tracking-tight">
         {profile.nameSnapshot}
       </h1>
@@ -87,9 +85,7 @@ function SideNav() {
       aria-label="Profile dimensions"
       className="sticky top-12 hidden h-fit shrink-0 flex-col gap-1 self-start md:flex md:w-44 lg:w-52"
     >
-      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#2b2620]/45">
-        Sections
-      </span>
+      <span className="text-[10px] font-semibold text-[#2b2620]/45">Sections</span>
       {PROFILE_DIMENSIONS.map((dimension) => (
         <a
           key={dimension}
@@ -134,10 +130,7 @@ function DimensionSection({ dimension, body, nameSnapshot, showQuotes }: Dimensi
         style={{ background: `linear-gradient(135deg, ${theme.soft} 0%, #fdfaf3 60%)` }}
       >
         <div className="flex flex-col gap-2 px-6 pb-4 pt-6 sm:px-8">
-          <span
-            className="text-[11px] font-semibold uppercase tracking-[0.16em]"
-            style={{ color: theme.ink }}
-          >
+          <span className="text-[11px] font-semibold" style={{ color: theme.ink }}>
             {header.eyebrow}
           </span>
           <div className="flex flex-wrap items-baseline gap-3">
@@ -167,9 +160,7 @@ function DimensionSection({ dimension, body, nameSnapshot, showQuotes }: Dimensi
               className="rounded-xl px-4 py-3 text-sm italic"
               style={{ backgroundColor: theme.soft, color: theme.ink }}
             >
-              <span className="mr-2 text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">
-                Open question
-              </span>
+              <span className="mr-2 text-[10px] font-semibold opacity-70">Open question</span>
               {openQuestion}
             </aside>
           ) : null}
@@ -201,9 +192,7 @@ function ClaimTimeline({ entries, theme, showQuotes }: ClaimTimelineProps) {
   if (entries.length === 0) return null
   return (
     <div className="mt-6 flex flex-col gap-3">
-      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
-        Recent noticings
-      </h3>
+      <h3 className="text-[11px] font-semibold text-[#2b2620]/55">Recent noticings</h3>
       <ul className="flex flex-col gap-2">
         {entries.map((entry) => (
           <li
@@ -246,7 +235,7 @@ function StrengthChip({
     strength === 'high' ? 'Strong signal' : strength === 'medium' ? 'Repeating' : 'Light touch'
   return (
     <span
-      className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+      className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
       style={{ color: theme.ink, backgroundColor: 'rgba(43, 38, 32, 0.06)' }}
     >
       {label}

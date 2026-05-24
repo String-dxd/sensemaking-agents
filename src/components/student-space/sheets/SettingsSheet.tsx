@@ -138,9 +138,7 @@ function SettingsGroup({
 }) {
   return (
     <section className="border-b border-(--color-sheet-divider) py-6 last:border-b-0">
-      <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-(--color-sheet-ink-soft)">
-        {title}
-      </h2>
+      <h2 className="mb-1.5 text-xs font-semibold text-(--color-sheet-ink-soft)">{title}</h2>
       <p className="mb-3 text-sm leading-[1.5] text-(--color-sheet-ink-soft)">{help}</p>
       {children}
     </section>

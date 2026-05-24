@@ -30,60 +30,45 @@ const _maskedAxisX = new THREE.Vector3(1, 0, 0)
 // Hip height in MB_Rig local space — Leg.L/Leg.R bones sit at y=0.30.
 const MASKED_HIP_Y = 0.30
 
-// Yellow mohawk-style tuft grafted on top of MB_Head. Three slim spikes
-// sit on the crown — center spike taller and forward, side spikes
-// shorter and fanned out. Positioned well above head center (y=1.0+)
-// so the cones clear the head sphere instead of embedding inside it.
+// Three triangular scale-style tufts along the back centerline of the
+// head — same orange as the body (matches the MB_BodyYellow recolor),
+// chunky and pointed like the spike row on the reference creature.
+// Front tuft sits on the crown leaning slightly forward, then two more
+// cascade down toward the nape, each leaning further back so the chain
+// follows the head-to-neck arc. All three positioned to peek above the
+// head sphere from any 3/4 view angle.
 function _attachMaskedHairTufts(head)
 {
     if(!head) return
-    const HAIR_COLOR = 0xFFC72E
+    // Same orange as the body recolor in loadMaskedScene below
+    // (mat.color.setRGB(1.0, 0.42, 0.05) ≈ 0xFF6B0D).
+    const HAIR_COLOR = 0xFF6B0D
     const tuftMat = new THREE.MeshLambertMaterial({ color: HAIR_COLOR })
-    // [x, y above head center, z, height, radius, x-tilt, z-tilt]
+    // [x, y, z, base radius, height, x-tilt]
+    // x stays at 0 (centerline). z descends from slightly forward at
+    // the crown to behind the head at the nape. Each tuft leans further
+    // back so the chain follows the head-to-neck arc.
     const layout = [
-        [ 0.00, 1.10,  0.10, 0.80, 0.20,  0.15,  0.00], // center, tallest, tilts forward
-        [-0.30, 0.90,  0.00, 0.65, 0.16,  0.05,  0.40], // left, fanned out
-        [ 0.30, 0.90,  0.00, 0.65, 0.16,  0.05, -0.40], // right, fanned out
+        [0.00, 1.05,  0.18, 0.18, 0.34,  0.10], // front: on crown, slight forward lean
+        [0.00, 0.95, -0.22, 0.16, 0.30, -0.20], // middle: back of crown, near-upright
+        [0.00, 0.65, -0.55, 0.13, 0.24, -0.55], // rear: nape, leaning well back
     ]
-    for(const [x, y, z, h, r, rx, rz] of layout)
+    for(const [x, y, z, r, h, rx] of layout)
     {
-        const tuft = new THREE.Mesh(new THREE.ConeGeometry(r, h, 5), tuftMat)
-        // Cone geometry centers at its midpoint; nudge up by h/2 so the
-        // base sits at y (not the center).
-        tuft.position.set(x, y + h / 2, z)
-        tuft.rotation.set(rx, 0, rz)
+        // Smooth-shaded cone — 16 radial segments so the surface reads as
+        // a soft triangular spike rather than a faceted pyramid. The
+        // base anchors the tuft to the scalp and the tip points up.
+        const geom = new THREE.ConeGeometry(r, h, 16)
+        // ConeGeometry centers at its midpoint; offset up by h/2 so the
+        // base sits at the requested y (not the center).
+        geom.translate(0, h / 2, 0)
+        const tuft = new THREE.Mesh(geom, tuftMat)
+        tuft.position.set(x, y, z)
+        tuft.rotation.x = rx
         tuft.castShadow = true
         tuft.receiveShadow = true
         head.add(tuft)
     }
-}
-
-// Cap-sleeves at the shoulders. Two short white cylinders wrap the
-// wing-root area (Wing.L/R bones live at x=±0.45, y=0.80 in MB_Rig
-// space). Sized + positioned so the OUTER face shows clearly past
-// the body surface, since the inner half is buried inside the torso.
-function _attachMaskedShoulderSleeves(mbRig)
-{
-    if(!mbRig) return
-    const SLEEVE_COLOR = 0xF6F1E6
-    const sleeveMat = new THREE.MeshLambertMaterial({ color: SLEEVE_COLOR })
-    // Slightly tapered short sleeve: wider at the shoulder cap, narrower
-    // toward the elbow side. Length runs along the bird's lateral X axis.
-    const sleeveGeom = new THREE.CylinderGeometry(0.34, 0.40, 0.50, 16, 1, false)
-
-    const sleeveL = new THREE.Mesh(sleeveGeom, sleeveMat)
-    sleeveL.position.set(0.55, 1.00, 0)
-    sleeveL.rotation.set(0, 0, -Math.PI / 2)
-    sleeveL.castShadow = true
-    sleeveL.receiveShadow = true
-    mbRig.add(sleeveL)
-
-    const sleeveR = new THREE.Mesh(sleeveGeom, sleeveMat)
-    sleeveR.position.set(-0.55, 1.00, 0)
-    sleeveR.rotation.set(0, 0, Math.PI / 2)
-    sleeveR.castShadow = true
-    sleeveR.receiveShadow = true
-    mbRig.add(sleeveR)
 }
 
 // Reparent a (leg-post, foot) pair into a fresh pivot group anchored
@@ -137,7 +122,6 @@ export function loadMaskedScene()
         let legPostR = null
         let footL = null
         let footR = null
-        let mbRig = null
         scene.traverse(o =>
         {
             if(o.isMesh)
@@ -190,7 +174,6 @@ export function loadMaskedScene()
             if(!legPostR && o.name === 'MB_LegPost.R') legPostR = o
             if(!footL && o.name === 'MB_Foot.L') footL = o
             if(!footR && o.name === 'MB_Foot.R') footR = o
-            if(!mbRig && o.name === 'MB_Rig') mbRig = o
         })
 
         // Cache base poses so the narrating animation can return to rest
@@ -208,12 +191,9 @@ export function loadMaskedScene()
         const legPivotL = _makeMaskedLegPivot(legPostL, footL, +0.22)
         const legPivotR = _makeMaskedLegPivot(legPostR, footR, -0.22)
 
-        // Procedural decoration grafted onto the rig: a small yellow
-        // mohawk-style tuft on top of the head and a pair of white
-        // cap-sleeves at the shoulders so the white shirt reads with
-        // visible short sleeves instead of armhole gaps.
+        // Procedural decoration grafted onto the rig: three soft yellow
+        // tufts down the back of the head along the centerline.
         _attachMaskedHairTufts(head)
-        _attachMaskedShoulderSleeves(mbRig)
 
         return { scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }
     })

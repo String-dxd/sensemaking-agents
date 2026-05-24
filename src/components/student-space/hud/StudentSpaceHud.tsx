@@ -220,9 +220,7 @@ export function EnvironmentHud({
   const content = (
     <>
       <label className="grid grid-cols-[38px_1fr_34px] items-center gap-2">
-        <span className="text-[9px] font-semibold tracking-[0.14em] text-white/58 uppercase">
-          hour
-        </span>
+        <span className="text-[9px] font-semibold text-white/58">hour</span>
         <input
           type="range"
           min="0"
@@ -335,7 +333,7 @@ function EnvironmentSwitch({
         'data-[active]:border-white/20 data-[active]:bg-white/16',
       )}
     >
-      <span className="inline-flex items-center gap-2 text-[10px] font-semibold tracking-[0.08em] text-white/72 uppercase">
+      <span className="inline-flex items-center gap-2 text-[10px] font-semibold text-white/72">
         {icon}
         {label}
       </span>
@@ -517,9 +515,7 @@ export function StatusPreviewHud({
         )}
       >
         <span className="min-w-0">
-          <span className="block text-[8px] font-semibold tracking-[0.16em] text-white/56 uppercase">
-            preview as
-          </span>
+          <span className="block text-[8px] font-semibold text-white/56">preview as</span>
           <span className="mt-1 flex items-center gap-2 text-[11px] font-semibold text-white/88">
             <StatusDot status={currentKey} />
             {current ? statusLabelOf(current) : 'Auto'}
@@ -642,9 +638,7 @@ export function TrackPicker({
     >
       <Music2 aria-hidden className="size-4 shrink-0 text-white/66" />
       <span className="min-w-0">
-        <span className="block text-[8px] font-semibold tracking-[0.14em] text-white/54 uppercase">
-          Music
-        </span>
+        <span className="block text-[8px] font-semibold text-white/54">Music</span>
         <span className="block truncate text-[11px] font-semibold text-white/88">
           {track?.name ?? 'Ambient'}
         </span>
@@ -705,9 +699,7 @@ export function BirdPicker({
         style={{ background: species?.accent }}
       />
       <span className="min-w-0">
-        <span className="block text-[8px] font-semibold tracking-[0.14em] text-white/54 uppercase">
-          Try
-        </span>
+        <span className="block text-[8px] font-semibold text-white/54">Try</span>
         <span className="block truncate text-[11px] font-semibold text-white/88">
           {species?.displayName ?? 'Flame Bower'}
         </span>

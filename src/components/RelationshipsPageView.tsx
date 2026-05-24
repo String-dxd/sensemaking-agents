@@ -109,9 +109,7 @@ export function RelationshipsPageView({
       <div className="w-full">
         <header className="border-b border-[#e3d8c4] pb-6">
           <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
-              {header.eyebrow}
-            </p>
+            <p className="text-xs font-semibold text-[#2b2620]/55">{header.eyebrow}</p>
             <span className="rounded-full bg-[#f1ede5] px-2 py-0.5 text-[11px] font-semibold text-[#2b2620]/70">
               {header.tag}
             </span>
@@ -157,10 +155,7 @@ function SectionMap({
       data-testid="relationships-section-map"
     >
       <div className="flex items-center justify-between gap-3">
-        <h2
-          id="relationships-map-heading"
-          className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55"
-        >
+        <h2 id="relationships-map-heading" className="text-xs font-semibold text-[#2b2620]/55">
           My relationship map
         </h2>
         <Button
@@ -362,7 +357,7 @@ function SectionBelonging({
       <div className="flex items-center justify-between gap-3">
         <h2
           id="relationships-belonging-heading"
-          className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55"
+          className="text-xs font-semibold text-[#2b2620]/55"
         >
           Where I belong
         </h2>
@@ -587,7 +582,7 @@ function SectionPerspectives({
       <div className="flex items-center justify-between gap-3">
         <h2
           id="relationships-perspectives-heading"
-          className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55"
+          className="text-xs font-semibold text-[#2b2620]/55"
         >
           How others see me differently from how I see myself
         </h2>
@@ -608,7 +603,7 @@ function SectionPerspectives({
           className="rounded-[14px] border border-dashed border-[#e3d8c4] bg-white/50 p-4"
           data-testid="relationships-perspectives-self-side"
         >
-          <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2b2620]/55">
+          <h3 className="text-[11px] font-semibold text-[#2b2620]/55">
             How I see myself (from VIPS)
           </h3>
           {selfSide && selfSide.length > 0 ? (
@@ -619,7 +614,7 @@ function SectionPerspectives({
                   className="rounded-md bg-white/70 px-3 py-2"
                   data-testid={`relationships-self-side-${claim.dimension}`}
                 >
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#2b2620]/55">
+                  <span className="text-[11px] font-semibold text-[#2b2620]/55">
                     {claim.dimension}
                   </span>
                   <p className="text-[#2b2620]">{claim.topClaimLabel}</p>

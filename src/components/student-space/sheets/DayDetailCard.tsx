@@ -229,9 +229,7 @@ export function DayDetailCard({
       className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5"
     >
       <header className="mb-4">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
-          Day
-        </p>
+        <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">Day</p>
         <h3 className="mt-0.5 text-base font-semibold text-(--color-sheet-ink)">
           {formatLongDate(date)}
         </h3>
@@ -242,9 +240,7 @@ export function DayDetailCard({
         <div className="space-y-5">
           {moods.length > 0 ? (
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
-                Moods
-              </p>
+              <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">Moods</p>
               <ul className="space-y-1.5">
                 {moods.map((mood, i) => (
                   <li
@@ -275,16 +271,14 @@ export function DayDetailCard({
           ) : null}
           {captures.length > 0 ? (
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
-                Captures
-              </p>
+              <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">Captures</p>
               <ul className="space-y-2">
                 {captures.map((cap) => (
                   <li
                     key={cap.id}
                     className="rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink)"
                   >
-                    <p className="text-xs uppercase tracking-[0.12em] text-(--color-sheet-ink-soft)">
+                    <p className="text-xs text-(--color-sheet-ink-soft)">
                       {cap.kind === 'ask' ? 'Reflection' : cap.kind}
                     </p>
                     {cap.text ? (
@@ -309,9 +303,7 @@ export function DayDetailCard({
           ) : null}
           {events.length > 0 ? (
             <div>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
-                Events
-              </p>
+              <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">Events</p>
               <ul className="space-y-1.5 text-sm">
                 {events.map((ev, i) => (
                   // biome-ignore lint/suspicious/noArrayIndexKey: events on a single day are positionally stable

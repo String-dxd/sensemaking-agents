@@ -81,7 +81,7 @@ export const PROFILE_SEED = {
         // socially responsive, emotionally absorbent, warm, curious.
         bigFive: {
             tldr: {
-                eyebrow:  'YOUR PERSONALITY AT A GLANCE',
+                eyebrow:  'Your personality at a glance',
                 headline: 'Curious and tender — you bring imagination and a soft landing',
                 poles:    ['Curiosity', 'Warmth', 'Sensitive'],
                 meta:     'Five-trait lean, anchored in your reflections so far',

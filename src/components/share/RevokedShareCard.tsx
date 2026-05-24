@@ -36,9 +36,7 @@ function ShareTerminalCard({
       className="mx-auto flex min-h-svh w-full max-w-2xl flex-col items-center justify-center gap-4 px-6 py-12 text-center"
       data-testid={testId}
     >
-      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2b2620]/55">
-        {eyebrow}
-      </span>
+      <span className="text-[11px] font-semibold text-[#2b2620]/55">{eyebrow}</span>
       <h1 className="text-[clamp(1.4rem,3vw,1.8rem)] font-semibold leading-tight tracking-tight text-[#2b2620]">
         {title}
       </h1>

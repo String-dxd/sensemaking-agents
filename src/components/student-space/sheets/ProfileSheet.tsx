@@ -419,7 +419,7 @@ function AccountMenuButton({ authMenu }: { authMenu: AuthMenu | undefined }) {
           className="absolute right-0 top-[calc(100%+8px)] z-20 w-60 rounded-xl border border-(--color-sheet-divider) bg-white p-2 shadow-[0_18px_48px_rgba(43,38,32,0.14)]"
         >
           <div className="px-3 py-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-sheet-ink-soft)">
+            <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">
               {authMenu?.label || 'Signed in'}
             </p>
             {authMenu?.detail ? (
@@ -594,9 +594,7 @@ function VipsProfileTab({
 
       {facet?.openQuestion ? (
         <aside className="rounded-xl border border-(--profile-accent)/30 bg-(--profile-soft) p-4 text-(--profile-ink)">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] opacity-70">
-            Open question
-          </p>
+          <p className="text-xs font-semibold opacity-70">Open question</p>
           <p className="mt-1 text-base leading-relaxed">{facet.openQuestion}</p>
         </aside>
       ) : null}
@@ -608,9 +606,7 @@ function VipsProfileTab({
       {isPersonality ? null : (
         <section>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
-              Collection
-            </h3>
+            <h3 className="text-xs font-semibold text-(--color-sheet-ink-soft)">Collection</h3>
             {selectedClaimId ? (
               <button
                 type="button"
@@ -678,14 +674,12 @@ function VipsProfileTab({
 
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-(--color-sheet-ink-soft)">
+          <h3 className="text-xs font-semibold text-(--color-sheet-ink-soft)">
             Timeline
             {selectedClaimId ? (
-              <span className="ml-2 normal-case tracking-normal text-(--profile-ink)">
-                {claimLabel(selectedClaimId)}
-              </span>
+              <span className="ml-2 text-(--profile-ink)">{claimLabel(selectedClaimId)}</span>
             ) : shouldCap ? (
-              <span className="ml-2 normal-case tracking-normal">
+              <span className="ml-2">
                 showing {quotes.length} of {visibleQuotes.length}
               </span>
             ) : null}
@@ -811,7 +805,7 @@ function TldrHero({
 
   return (
     <section className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--profile-ink)">
+      <p className="text-xs font-semibold text-(--profile-ink)">
         {voiced.length >= 3
           ? `Top voices in your ${PROFILE_HEADERS[tab].tag}`
           : `In your ${PROFILE_HEADERS[tab].tag}`}
@@ -832,7 +826,7 @@ function TldrHero({
                 aria-pressed={selected}
                 onClick={() => onSelectClaim(selected ? null : claim.id)}
                 className={cn(
-                  'rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] transition-colors',
+                  'rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors',
                   selected
                     ? 'border-(--profile-accent) bg-(--profile-accent) text-white'
                     : 'border-(--profile-accent)/25 bg-white/65 text-(--profile-ink) hover:bg-white',
@@ -873,8 +867,8 @@ function PersonalityTldr({ tldr }: { tldr: BigFiveTldr }) {
       data-testid="personality-tldr"
       className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5"
     >
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-(--profile-ink)">
-        {tldr.eyebrow ?? 'YOUR PERSONALITY AT A GLANCE'}
+      <p className="text-xs font-semibold text-(--profile-ink)">
+        {tldr.eyebrow ?? 'Your personality at a glance'}
       </p>
       {tldr.headline ? (
         <h3 className="mt-2 max-w-3xl text-xl font-semibold leading-snug text-(--color-sheet-ink)">
@@ -886,10 +880,10 @@ function PersonalityTldr({ tldr }: { tldr: BigFiveTldr }) {
           {tldr.poles.map((pole) => (
             <span
               key={pole}
-              className="inline-flex items-center gap-2 rounded-full border border-(--profile-accent)/25 bg-white/65 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-(--profile-ink)"
+              className="inline-flex items-center gap-2 rounded-full border border-(--profile-accent)/25 bg-white/65 px-3 py-1.5 text-xs font-semibold text-(--profile-ink)"
             >
               <span aria-hidden className="size-1.5 rounded-full bg-(--profile-accent)" />
-              {pole.toUpperCase()}
+              {pole}
             </span>
           ))}
         </div>
@@ -963,12 +957,12 @@ function BigFiveCards({ traits }: { traits: BigFiveTrait[] }) {
                 <span className="text-balance text-lg font-semibold leading-snug tracking-tight text-(--color-sheet-ink)">
                   {trait.tag ?? trait.name}
                 </span>
-                <span className="mt-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-(--color-sheet-ink-soft)">
+                <span className="mt-0.5 text-xs font-semibold text-(--color-sheet-ink-soft)">
                   {trait.name}
                 </span>
               </span>
               <span className="flex min-w-0 grow basis-[280px] items-center gap-3 max-[720px]:col-span-3 max-[720px]:row-start-2 max-[720px]:basis-auto max-[720px]:border-t max-[720px]:border-dashed max-[720px]:border-black/[0.08] max-[720px]:pt-1.5">
-                <span className="max-w-[14ch] shrink-0 text-balance text-right text-xs font-semibold uppercase leading-tight tracking-[0.06em] text-(--color-sheet-ink-soft) max-[720px]:max-w-none max-[720px]:text-left">
+                <span className="max-w-[14ch] shrink-0 text-balance text-right text-xs font-semibold leading-tight text-(--color-sheet-ink-soft) max-[720px]:max-w-none max-[720px]:text-left">
                   {trait.poleLeft}
                 </span>
                 <span className="relative h-[3px] min-w-20 grow rounded-full bg-black/10">
@@ -978,7 +972,7 @@ function BigFiveCards({ traits }: { traits: BigFiveTrait[] }) {
                     className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-(--trait-accent) shadow-[0_0_0_3px_color-mix(in_srgb,var(--trait-accent)_22%,transparent),0_1px_0_rgba(0,0,0,0.06)] transition-[left] duration-200 ease-out"
                   />
                 </span>
-                <span className="max-w-[14ch] shrink-0 text-balance text-left text-xs font-semibold uppercase leading-tight tracking-[0.06em] text-(--color-sheet-ink-soft) max-[720px]:max-w-none">
+                <span className="max-w-[14ch] shrink-0 text-balance text-left text-xs font-semibold leading-tight text-(--color-sheet-ink-soft) max-[720px]:max-w-none">
                   {trait.poleRight}
                 </span>
               </span>
@@ -1094,6 +1088,9 @@ function TimelineQuote({
     }, FORGET_FADE_MS)
   }
 
+  const confidence = quote.confidence ?? 'medium'
+  const confidenceLabel = confidence.charAt(0).toUpperCase() + confidence.slice(1)
+
   return (
     <li
       data-forgetting={forgetting || undefined}
@@ -1104,8 +1101,8 @@ function TimelineQuote({
         <span className="rounded-full bg-(--profile-soft) px-2.5 py-1 text-xs font-semibold text-(--profile-ink)">
           {claimLabel(quote.canonicalClaimId)}
         </span>
-        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-(--color-sheet-ink-soft)">
-          {(quote.confidence ?? 'medium').toUpperCase()}
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-(--color-sheet-ink-soft)">
+          {confidenceLabel}
         </span>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -1275,7 +1272,7 @@ function ShareDialog({
             <>
               <label
                 htmlFor="share-dialog-url"
-                className="text-xs font-semibold uppercase tracking-[0.16em] text-(--color-sheet-ink-soft)"
+                className="text-xs font-semibold text-(--color-sheet-ink-soft)"
               >
                 Your link
               </label>
@@ -1536,9 +1533,7 @@ function claimObjectMarkup(object: ClaimObject | undefined, palette: { main: str
 function StatRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-4 border-b border-(--color-sheet-divider) pb-2 last:border-0 last:pb-0">
-      <span className="text-xs font-semibold uppercase tracking-[0.14em] text-(--color-sheet-ink-soft)">
-        {label}
-      </span>
+      <span className="text-xs font-semibold text-(--color-sheet-ink-soft)">{label}</span>
       <span className="max-w-[60%] text-right text-sm font-semibold text-(--color-sheet-ink)">
         {value}
       </span>

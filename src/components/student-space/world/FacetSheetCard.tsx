@@ -160,7 +160,7 @@ export function FacetSheetCard({
               <div className="mb-2 flex items-center gap-2.5">
                 <BaseDialog.Title
                   render={<span />}
-                  className="text-[11px] font-semibold tracking-[0.10em] text-[rgba(43,38,32,0.55)] uppercase"
+                  className="text-[11px] font-semibold text-[rgba(43,38,32,0.55)]"
                 >
                   {state.eyebrow}
                 </BaseDialog.Title>
@@ -183,7 +183,7 @@ export function FacetSheetCard({
 
             <ul className="mb-[22px] list-none border-t border-black/7 p-0">
               <li className="border-b border-black/7 px-0 pt-3.5 pb-3">
-                <span className="mb-1 block text-[11px] font-semibold tracking-[0.10em] text-(--facet-accent) uppercase">
+                <span className="mb-1 block text-[11px] font-semibold text-(--facet-accent)">
                   Most common
                 </span>
                 <p className="m-0 text-[15px] leading-[1.4] text-(--facet-ink)">
@@ -191,7 +191,7 @@ export function FacetSheetCard({
                 </p>
               </li>
               <li className="border-b border-black/7 px-0 pt-3.5 pb-3">
-                <span className="mb-1 block text-[11px] font-semibold tracking-[0.10em] text-(--facet-accent) uppercase">
+                <span className="mb-1 block text-[11px] font-semibold text-(--facet-accent)">
                   Quietly emerging
                 </span>
                 <p className="m-0 text-[15px] leading-[1.4] text-(--facet-ink)">
@@ -255,7 +255,7 @@ function BentoRowGrid({ rows }: { rows: FacetSheetBentoRow[] }) {
           key={`${row.label}-${row.value}`}
           className="flex items-baseline justify-between gap-3 rounded-[10px] bg-white/55 px-3 py-2.5"
         >
-          <span className="flex-shrink-0 text-[11px] font-semibold tracking-[0.06em] text-(--facet-accent) uppercase">
+          <span className="flex-shrink-0 text-[11px] font-semibold text-(--facet-accent)">
             {row.label}
           </span>
           <span className="text-right text-[13px] text-(--facet-ink) opacity-92">{row.value}</span>
