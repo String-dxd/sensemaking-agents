@@ -178,3 +178,23 @@ body,
     transform: translateY(0) scale(1);
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────
+   Reduced-motion safety net.
+   Any transition or animation declared in user code is capped at 80ms
+   here. Surfaces that need to disable motion entirely (rather than
+   compress it) should use `motion-reduce:transition-none` or equivalent
+   at the class level — that variant takes precedence over this block.
+   The engine substrate (src/engine/student-space/style.css) has its own
+   reduced-motion blocks; both layers coexist.
+   ────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 80ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 80ms !important;
+    transition-delay: 0ms !important;
+  }
+}
