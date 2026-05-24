@@ -903,7 +903,8 @@ const KIND_CONFIG: Record<string, AnyEngine> = {
         : meaning?.ask || `Tell me about your interest in ${speciesIdOf(target) || 'this flower'}.`
       deps.OverlayController.getInstance().open('ask', { prompt, dismissOnBack: true })
     },
-    secondaryAction: (target: Target, view: AnyEngine) => view.facetView?.openFor(target),
+    secondaryAction: (_target: Target, _view: AnyEngine, _state: AnyEngine, deps: EngineDeps) =>
+      deps.Game.getInstance()?.navigate('/profile/interests'),
   },
   tree: {
     eyebrow: 'VALUE',
@@ -937,7 +938,8 @@ const KIND_CONFIG: Record<string, AnyEngine> = {
         : `Tell me about your value of ${speciesIdOf(target) || 'this tree'}.`
       deps.OverlayController.getInstance().open('ask', { prompt, dismissOnBack: true })
     },
-    secondaryAction: (target: Target, view: AnyEngine) => view.facetView?.openFor(target),
+    secondaryAction: (_target: Target, _view: AnyEngine, _state: AnyEngine, deps: EngineDeps) =>
+      deps.Game.getInstance()?.navigate('/profile'),
   },
   fruit: {
     eyebrow: 'SKILL',
@@ -974,7 +976,8 @@ const KIND_CONFIG: Record<string, AnyEngine> = {
         : `Tell me about your skill in ${speciesIdOf(target) || 'this'}.`
       deps.OverlayController.getInstance().open('ask', { prompt, dismissOnBack: true })
     },
-    secondaryAction: (target: Target, view: AnyEngine) => view.facetView?.openFor(target),
+    secondaryAction: (_target: Target, _view: AnyEngine, _state: AnyEngine, deps: EngineDeps) =>
+      deps.Game.getInstance()?.navigate('/profile/skills'),
   },
   mailbox: {
     eyebrow: 'MAIL',
