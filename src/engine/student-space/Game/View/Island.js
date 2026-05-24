@@ -599,7 +599,16 @@ export default class Island
                                    * smoothstep(0.04, 0.10, shoreT);
                     float ripples = ringMask * ringFade;
 
-                    col = mix(col, uFoam, edgeFoam * 0.85);
+                    /* ----- SHORELINE FLOW —————————————————————————————————
+                     * Modulate the halo's brightness with two slow waves
+                     * that travel ALONG the shoreline (in theta) at
+                     * different speeds + directions. Stays confined to
+                     * the edgeFoam band so it never bleeds into the
+                     * ocean — reads as water washing along the beach. */
+                    float flowA = 0.5 + 0.5 * sin(theta * 3.0 + uTime * 0.90);
+                    float flowB = 0.5 + 0.5 * sin(theta * 5.0 - uTime * 1.30 + 1.7);
+                    float foamFlow = mix(flowA, flowB, 0.5);
+                    col = mix(col, uFoam, edgeFoam * (0.75 + foamFlow * 0.45));
                     col = mix(col, uFoam, ripples * 0.32);
 
                     // Wave-crest highlight — much softer now (water is calm).
