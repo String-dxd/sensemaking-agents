@@ -104,6 +104,10 @@ type EngineRich = Game & {
       sayOnboarding?: (line: string) => void
       clearOnboardingBubble?: () => void
     }
+    kiraNarrator?: {
+      speak?: (opts: { text: string; cta?: string; onConfirm?: () => void }) => void
+      close?: () => void
+    }
     flowers?: IslandRevealView['flowers']
     tree?: IslandRevealView['tree']
     sound?: IslandRevealView['sound']
@@ -251,7 +255,7 @@ export function OnboardingFlow() {
         onboarding={onboarding}
         kira={engine.view?.kira}
         camera={engine.view?.camera}
-        kiraDialogue={engine.view?.kiraDialogue}
+        kiraNarrator={engine.view?.kiraNarrator}
         sound={engine.view?.sound}
         onAdvance={() => advance('first-mood')}
       />

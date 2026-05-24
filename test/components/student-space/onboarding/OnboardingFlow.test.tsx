@@ -152,6 +152,10 @@ function makeGame(opts: {
         sayOnboarding: vi.fn(),
         clearOnboardingBubble: vi.fn(),
       },
+      kiraNarrator: {
+        speak: vi.fn(),
+        close: vi.fn(),
+      },
     },
   }
 }
@@ -337,7 +341,7 @@ describe('OnboardingFlow (React)', () => {
   })
 
   describe('FirstChat surface', () => {
-    it('flies Kira in, speaks the intro, and advances to first-mood from the primary chip', async () => {
+    it('flies Kira in, opens the intro panel, and advances to first-mood through the CTA chain', async () => {
       vi.stubGlobal(
         'matchMedia',
         vi.fn(() => ({ matches: true })),
@@ -346,20 +350,33 @@ describe('OnboardingFlow (React)', () => {
       const game = makeGame({ onboarding })
       renderFlow(game)
 
+      // Bird flies in and the panel is asked to render the intro line via
+      // kiraNarrator.speak, with the "Tell me more" CTA wired to advance.
       await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Tell me how I feel now' })).toBeInTheDocument(),
+        expect(game.view.kiraNarrator.speak).toHaveBeenCalledWith(
+          expect.objectContaining({ text: "Hi. I'm Pip.", cta: 'Tell me more' }),
+        ),
       )
-
       expect(game.view.kira.flyTo).toHaveBeenCalledWith(
         expect.objectContaining({ reducedMotion: true }),
       )
-      expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith("Hi. I'm Pip.")
 
-      await userEvent.click(screen.getByRole('button', { name: 'Tell me how I feel now' }))
+      // Walk through the explainer beats + final ready prompt by repeatedly
+      // firing whichever onConfirm was registered with the most recent
+      // speak() call. The final onConfirm is feelNow, which closes the
+      // panel and advances onboarding.
+      const beatCount = ONBOARDING_COPY.kira.firstChatExplainer.length + 1
+      for (let i = 0; i < beatCount + 1; i += 1) {
+        const calls = game.view.kiraNarrator.speak.mock.calls
+        const last = calls[calls.length - 1]?.[0]
+        last?.onConfirm?.()
+      }
+
       expect(onboarding.stage).toBe('first-mood')
+      expect(game.view.kiraNarrator.close).toHaveBeenCalled()
     })
 
-    it('chat-more plays the explainer on first tap, then re-shows the action chips', async () => {
+    it('sequences explainer beats through the panel CTA, ending with the ready prompt', async () => {
       vi.stubGlobal(
         'matchMedia',
         vi.fn(() => ({ matches: true })),
@@ -369,56 +386,32 @@ describe('OnboardingFlow (React)', () => {
       renderFlow(game)
 
       await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Tell me more' })).toBeInTheDocument(),
-      )
-      await userEvent.click(screen.getByRole('button', { name: 'Tell me more' }))
-      await waitFor(() =>
-        expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
-          'Anything else on your mind?',
+        expect(game.view.kiraNarrator.speak).toHaveBeenCalledWith(
+          expect.objectContaining({ cta: 'Tell me more' }),
         ),
       )
 
-      for (const beat of ONBOARDING_COPY.kira.firstChatExplainer) {
-        expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(beat)
+      // First CTA tap kicks off the explainer chain.
+      const introCall = game.view.kiraNarrator.speak.mock.calls.at(-1)?.[0]
+      introCall?.onConfirm?.()
+
+      const beats = ONBOARDING_COPY.kira.firstChatExplainer
+      for (let i = 0; i < beats.length - 1; i += 1) {
+        const call = game.view.kiraNarrator.speak.mock.calls.at(-1)?.[0]
+        expect(call?.text).toBe(beats[i])
+        expect(call?.cta).toBe('Continue')
+        call?.onConfirm?.()
       }
-      expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
-        'Anything else on your mind?',
-      )
-      expect(screen.getByRole('button', { name: 'Tell me how I feel now' })).toBeInTheDocument()
-    })
 
-    it('chat-more falls back to the listening beat after the explainer is seen', async () => {
-      vi.stubGlobal(
-        'matchMedia',
-        vi.fn(() => ({ matches: true })),
-      )
-      const onboarding = makeOnboarding({ stage: 'first-chat' })
-      const game = makeGame({ onboarding })
-      renderFlow(game)
+      // Last explainer beat shows; ready prompt comes after one more advance.
+      const lastBeatCall = game.view.kiraNarrator.speak.mock.calls.at(-1)?.[0]
+      expect(lastBeatCall?.text).toBe(beats[beats.length - 1])
+      expect(lastBeatCall?.cta).toBe('Continue')
+      lastBeatCall?.onConfirm?.()
 
-      await waitFor(() =>
-        expect(screen.getByRole('button', { name: 'Tell me more' })).toBeInTheDocument(),
-      )
-      await userEvent.click(screen.getByRole('button', { name: 'Tell me more' }))
-      await waitFor(() =>
-        expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
-          'Anything else on your mind?',
-        ),
-      )
-
-      game.view.kiraDialogue.sayOnboarding.mockClear()
-      await userEvent.click(screen.getByRole('button', { name: 'Tell me more' }))
-      await waitFor(() =>
-        expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
-          'Anything else on your mind?',
-        ),
-      )
-      expect(game.view.kiraDialogue.sayOnboarding).toHaveBeenCalledWith(
-        "Take your time. I'm listening.",
-      )
-      for (const beat of ONBOARDING_COPY.kira.firstChatExplainer) {
-        expect(game.view.kiraDialogue.sayOnboarding).not.toHaveBeenCalledWith(beat)
-      }
+      const promptCall = game.view.kiraNarrator.speak.mock.calls.at(-1)?.[0]
+      expect(promptCall?.text).toBe(ONBOARDING_COPY.kira.firstChatChatPrompt)
+      expect(promptCall?.cta).toBe("I'm ready")
     })
   })
 

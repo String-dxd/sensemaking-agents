@@ -17,8 +17,6 @@ import { cn } from '~/lib/utils'
  */
 const ENTER_MS = 320
 const FLY_DURATION_S = 2.4
-const INTRO_LINE_MS = 1800
-const CHAT_MORE_MS = 1800
 const FLY_START = { x: -14, y: 12, z: 8 }
 const FLY_MID_OFFSET = { x: 0, y: 4, z: 0 }
 
@@ -51,8 +49,9 @@ type Camera = {
   restoreZoom?: (duration: number) => void
 }
 
-type KiraDialogue = {
-  sayOnboarding?: (line: string) => void
+type KiraNarrator = {
+  speak?: (opts: { text: string; cta?: string; onConfirm?: () => void }) => void
+  close?: () => void
 }
 
 type SoundLike = {
@@ -98,7 +97,7 @@ export function FirstChat({
   onboarding,
   kira,
   camera,
-  kiraDialogue,
+  kiraNarrator,
   sound,
   onAdvance,
 }: {
@@ -107,19 +106,19 @@ export function FirstChat({
   onboarding: { companionName?: string | null }
   kira: Kira | null | undefined
   camera: Camera | null | undefined
-  kiraDialogue: KiraDialogue | null | undefined
+  kiraNarrator: KiraNarrator | null | undefined
   sound?: SoundLike | null | undefined
   onAdvance: () => void
 }) {
   const [visible, setVisible] = useState(reducedMotion)
-  const [chipsVisible, setChipsVisible] = useState(false)
-  const [speaking, setSpeaking] = useState(false)
-  const [explainerSeen, setExplainerSeen] = useState(false)
   const zoomedRef = useRef(false)
-  const primaryRef = useRef<HTMLButtonElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const zoomLeadTimerRef = useRef<number | null>(null)
-  const chipFocusTimerRef = useRef<number | null>(null)
+  // Progression now lives entirely in the bottom NarratorPanel — its single
+  // CTA fires the next beat. These refs track where we are in the sequence
+  // so callbacks captured by `speak()` can read the latest index.
+  const beatsRef = useRef<string[]>([])
+  const beatIndexRef = useRef(0)
   // Cached so the unmount path can hand the camera anchor back if a late
   // zoomLead fire-and-forget already started the dolly.
   const cameraRef = useRef<Camera | null | undefined>(camera)
@@ -222,13 +221,47 @@ export function FirstChat({
       } catch {
         // SFX best-effort; same rationale as above.
       }
-      kiraDialogue?.sayOnboarding?.(line)
-      await wait(reducedMotion ? 80 : INTRO_LINE_MS, abort.signal)
-      if (abort.signal.aborted) return
-      setChipsVisible(true)
+      // The explainer beats + the final "ready" prompt make up the sequence
+      // the user walks through one CTA tap at a time. Built once on intro
+      // so showNextBeat() can advance via the index ref.
+      beatsRef.current = [
+        ...ONBOARDING_COPY.kira.firstChatExplainer,
+        ONBOARDING_COPY.kira.firstChatChatPrompt,
+      ]
+      beatIndexRef.current = 0
+      kiraNarrator?.speak?.({
+        text: line,
+        cta: 'Tell me more',
+        onConfirm: showNextBeat,
+      })
     }
 
     void runIntro()
+
+    function showNextBeat() {
+      const beats = beatsRef.current
+      const i = beatIndexRef.current
+      if (i >= beats.length) {
+        feelNow()
+        return
+      }
+      const isLast = i === beats.length - 1
+      beatIndexRef.current = i + 1
+      kiraNarrator?.speak?.({
+        text: beats[i] ?? '',
+        cta: isLast ? "I'm ready" : 'Continue',
+        onConfirm: isLast ? feelNow : showNextBeat,
+      })
+    }
+
+    function feelNow() {
+      kiraNarrator?.close?.()
+      if (zoomedRef.current) {
+        camera?.restoreZoom?.(700)
+        zoomedRef.current = false
+      }
+      onAdvance()
+    }
 
     return () => {
       abort.abort()
@@ -236,10 +269,9 @@ export function FirstChat({
         window.clearTimeout(zoomLeadTimerRef.current)
         zoomLeadTimerRef.current = null
       }
-      if (chipFocusTimerRef.current != null) {
-        window.clearTimeout(chipFocusTimerRef.current)
-        chipFocusTimerRef.current = null
-      }
+      // Drop the panel cleanly if FirstChat unmounts mid-flow (e.g. the user
+      // navigates away). The narrator's own close handles camera restore.
+      kiraNarrator?.close?.()
       // If the camera dolly already started, hand its save-stack entry
       // back to the camera so a follow-on cinematic doesn't restore to
       // the wrong pose (FirstChat would be the orphaned anchor).
@@ -252,57 +284,7 @@ export function FirstChat({
         zoomedRef.current = false
       }
     }
-  }, [camera, kira, kiraDialogue, onboarding, profile, reducedMotion, sound])
-
-  useEffect(() => {
-    if (!chipsVisible || speaking) return
-    if (chipFocusTimerRef.current != null) window.clearTimeout(chipFocusTimerRef.current)
-    chipFocusTimerRef.current = window.setTimeout(() => {
-      chipFocusTimerRef.current = null
-      primaryRef.current?.focus({ preventScroll: true })
-    }, 60)
-    return () => {
-      if (chipFocusTimerRef.current != null) {
-        window.clearTimeout(chipFocusTimerRef.current)
-        chipFocusTimerRef.current = null
-      }
-    }
-  }, [chipsVisible, speaking])
-
-  const chatMore = async () => {
-    if (speaking) return
-    setSpeaking(true)
-    setChipsVisible(false)
-    const abort = abortRef.current
-    const signal = abort?.signal ?? new AbortController().signal
-    // First tap plays the three-beat explainer so the student sees the
-    // share → sprout → bloom mechanic before tagging anything. Repeat
-    // taps fall back to the shorter "I'm listening" beat.
-    const beats = explainerSeen
-      ? [ONBOARDING_COPY.kira.firstChatChatMore]
-      : ONBOARDING_COPY.kira.firstChatExplainer
-    for (const line of beats) {
-      kiraDialogue?.sayOnboarding?.(line)
-      await wait(reducedMotion ? 80 : CHAT_MORE_MS, signal)
-      if (signal.aborted) return
-    }
-    if (!explainerSeen) setExplainerSeen(true)
-    kiraDialogue?.sayOnboarding?.(ONBOARDING_COPY.kira.firstChatChatPrompt)
-    setSpeaking(false)
-    setChipsVisible(true)
-  }
-
-  const feelNow = () => {
-    if (speaking) return
-    setChipsVisible(false)
-    if (zoomedRef.current) {
-      camera?.restoreZoom?.(700)
-      // Clear the latch so unmount doesn't re-enter restoreZoom on an
-      // already-popped owner anchor.
-      zoomedRef.current = false
-    }
-    onAdvance()
-  }
+  }, [camera, kira, kiraNarrator, onAdvance, onboarding, profile, reducedMotion, sound])
 
   return (
     <div
@@ -317,53 +299,6 @@ export function FirstChat({
           visible && 'bg-[rgba(15,18,36,0.18)]',
         )}
       />
-      <fieldset
-        hidden={!chipsVisible}
-        className={cn(
-          'm-0 border-0',
-          'absolute left-1/2 bottom-[max(28px,env(safe-area-inset-bottom,0px))] z-[5]',
-          '-translate-x-1/2 flex flex-wrap justify-center gap-2.5 px-4',
-        )}
-      >
-        <legend className="sr-only">Talk with your companion</legend>
-        <button
-          type="button"
-          onClick={() => void chatMore()}
-          className={cn(
-            'relative min-h-11 rounded-full border-[1.5px] border-[rgba(43,38,32,0.10)]',
-            'bg-white/90 px-5 py-3 text-[15px] font-medium text-(--color-onb-ink)',
-            'shadow-[0_6px_18px_rgba(15,18,36,0.22)] cursor-pointer',
-            'transition-[transform,background,box-shadow] duration-150 ease-out hover:-translate-y-px hover:bg-white',
-            'focus-visible:outline-[3px] focus-visible:outline-[rgba(255,138,92,0.7)] focus-visible:outline-offset-[3px]',
-          )}
-        >
-          {ONBOARDING_COPY.firstChatActions.chatMore}
-          {!explainerSeen && (
-            <span
-              aria-hidden="true"
-              className={cn(
-                'absolute -top-1 -right-1 h-2 w-2 rounded-full',
-                'bg-(--color-onb-accent) ring-2 ring-white',
-                'motion-safe:animate-pulse',
-              )}
-            />
-          )}
-        </button>
-        <button
-          ref={primaryRef}
-          type="button"
-          onClick={feelNow}
-          className={cn(
-            'min-h-11 rounded-full border-[1.5px] border-transparent',
-            'bg-(--color-onb-accent) px-5 py-3 text-[15px] font-medium text-white',
-            'shadow-[0_8px_20px_rgba(255,138,92,0.32)] cursor-pointer',
-            'transition-[transform,background,box-shadow] duration-150 ease-out hover:-translate-y-px hover:bg-(--onb-accent-deep)',
-            'focus-visible:outline-[3px] focus-visible:outline-[rgba(255,138,92,0.7)] focus-visible:outline-offset-[3px]',
-          )}
-        >
-          {ONBOARDING_COPY.firstChatActions.feel}
-        </button>
-      </fieldset>
     </div>
   )
 }

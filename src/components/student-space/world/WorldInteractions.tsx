@@ -514,13 +514,18 @@ class KiraDialogueController {
 
   sayOnboarding(text: string) {
     if (!this.onboardingMode) return
-    this.activeUntil = 0
-    this.setBubble((prev) => ({ ...prev, visible: true }))
-    this._type(text)
+    // Onboarding speech lands in the bottom NarratorPanel (interaction
+    // surface), not the head bubble. Callers that want a CTA on the panel
+    // (e.g., FirstChat) drive `view.kiraNarrator.speak({...})` directly;
+    // this entry point stays around for fire-and-forget beats.
+    this.view.kiraNarrator?.speak?.({ text })
   }
 
   clearOnboardingBubble() {
-    if (this.onboardingMode) this.hide()
+    if (this.onboardingMode) {
+      this.view.kiraNarrator?.close?.()
+      this.hide()
+    }
   }
 
   update() {
@@ -593,6 +598,7 @@ class KiraNarratorController {
   _timers = new Set<ReturnType<typeof setTimeout>>()
   _kiraTurn: AnyEngine = null
   _kiraRestYaw: number | null = null
+  _speakConfirm: (() => void) | null = null
   _onKeyDown = (event: KeyboardEvent) => {
     if (this.isActive && event.key === 'Escape') this.close()
   }
@@ -660,6 +666,54 @@ class KiraNarratorController {
     this.isActive = true
   }
 
+  /**
+   * Open the bottom panel with arbitrary text (no target dispatch, no camera
+   * dolly, no Kira yaw turn). Caller owns framing — used by onboarding flows
+   * that have already positioned the camera. If the panel is already open,
+   * just updates text + cta + confirm callback in place (cheap re-type).
+   *
+   * `cta` is optional: omit it to render the panel as read-only text, with
+   * only the close X for dismissal. `onConfirm` fires when the CTA is tapped.
+   */
+  speak({
+    text,
+    cta = '',
+    name,
+    onConfirm,
+  }: {
+    text: string
+    cta?: string
+    name?: string
+    onConfirm?: () => void
+  }) {
+    this.target = null
+    this._speakConfirm = onConfirm ?? null
+
+    if (this.isActive) {
+      this.setNarrator((prev) => ({ ...prev, cta, text: '' }))
+      this._scheduleType(text, 0)
+      return
+    }
+
+    this.setNarrator((prev) => ({
+      ...prev,
+      cta,
+      text: '',
+      name: name ?? this.state?.profile?.displayCompanionName?.() ?? 'Kira',
+    }))
+    this._scheduleType(text, 180)
+
+    this.view.kiraDialogue?.hide?.()
+    if (this.view.facetView?.isOpen) this.view.facetView.close()
+    this.view.hoverCta?.hide?.()
+
+    this._schedule(() => {
+      if (this.disposed) return
+      this.setNarrator((prev) => ({ ...prev, open: true }))
+    }, 180)
+    this.isActive = true
+  }
+
   _scheduleType(text: string, delay = 0) {
     this.typerId += 1
     const myId = this.typerId
@@ -681,6 +735,15 @@ class KiraNarratorController {
   }
 
   _confirm() {
+    // speak() callers register their own continuation; honor it instead of
+    // closing the panel + dispatching by target.kind. The callback owns
+    // whether to call speak() again (next beat) or close().
+    if (this._speakConfirm) {
+      const cb = this._speakConfirm
+      this._speakConfirm = null
+      cb()
+      return
+    }
     const target = this.target
     this.close()
     if (!target) return
@@ -701,6 +764,7 @@ class KiraNarratorController {
     if (!this.isActive) return
     this.isActive = false
     this.typerId += 1
+    this._speakConfirm = null
     this._clearTimers()
     this.setNarrator((prev) => ({ ...prev, open: false }))
     this.view.camera.restoreZoom(ZOOM_DURATION, { owner: 'kira-narrator' })
@@ -2021,15 +2085,17 @@ function NarratorPanel({
         ×
       </button>
       <p className="m-0 min-h-[3lh] text-[17px] leading-[1.65] font-semibold">{state.text}</p>
-      <div className="mt-4 flex justify-end">
-        <button
-          type="button"
-          onClick={onConfirm}
-          className="rounded-full bg-[#ff8a5c] px-4 py-2 text-sm font-extrabold text-white shadow-[0_10px_20px_rgba(255,120,66,0.24)] transition-[transform,background-color] duration-(--duration-fast) ease-(--ease-out) hover:-translate-y-px hover:bg-[#ff7842] active:translate-y-0"
-        >
-          {state.cta} <span aria-hidden>→</span>
-        </button>
-      </div>
+      {state.cta ? (
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-full bg-[#ff8a5c] px-4 py-2 text-sm font-extrabold text-white shadow-[0_10px_20px_rgba(255,120,66,0.24)] transition-[transform,background-color] duration-(--duration-fast) ease-(--ease-out) hover:-translate-y-px hover:bg-[#ff7842] active:translate-y-0"
+          >
+            {state.cta} <span aria-hidden>→</span>
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
