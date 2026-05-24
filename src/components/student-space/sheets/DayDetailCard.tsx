@@ -294,7 +294,9 @@ export function DayDetailCard({
           ) : null}
           {captures.length > 0 ? (
             <div>
-              <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">Mirrors</p>
+              <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">
+                Reflections
+              </p>
               <ul className="space-y-2">
                 {captures.map((cap) => {
                   if (cap.kind !== 'ask') {
