@@ -471,7 +471,19 @@ export default class Island
         // horizon reads as a clean planet limb. 96 radial × 320 angular keeps
         // the silhouette smooth and the wave displacement well-sampled.
         const waterRadius = 60
-        const islandR     = this.island.sandOuterRadius
+        // Visible water-meets-sand line. The sand ring slopes from sandTopY
+        // (0.18) down past the water plane (y = -0.15); the OUTER sand
+        // vertex is well below the waterline. Centering the foam halo and
+        // depth gradient at the actual visible shoreline (where the sand
+        // mesh crosses y=waterY) makes the bright band hug the island
+        // instead of floating ~1.3u out into the water. Slope (0.85) and
+        // water y must stay in sync with buildDiscGeometry + water.position
+        // assignment below.
+        const SAND_SLOPE = 0.85
+        const WATER_Y    = -0.15
+        const sandToWaterT = (this.island.sandTopY - WATER_Y) / SAND_SLOPE
+        const islandR = this.island.radius
+                      + (this.island.sandOuterRadius - this.island.radius) * sandToWaterT
         const geo = buildWaterDiscGeometry(waterRadius, 96, 320)
 
         // uOceanTime is a CPU-integrated clock that advances at a base
@@ -487,7 +499,7 @@ export default class Island
                 uFoam:          { value: FOAM.clone() },
                 uSkyTint:       { value: new THREE.Color(0xffffff) },
                 uIslandR:       { value: islandR },
-                uWaveAmp:       { value: 0.32 },
+                uWaveAmp:       { value: 0.18 },
                 // 0 = calm, 1 = downpour. Modulates wave amplitude in
                 // the vertex shader so the surface chops up with rain.
                 uRain:          { value: 0 },
@@ -550,10 +562,25 @@ export default class Island
                 uniform float uIslandR;
                 uniform float uTime;
 
+                // Mirror of Island.silhouetteAt() in State/Island.js. Returns
+                // a multiplier so the effective shore radius at this azimuth
+                // is uIslandR * silhouette(theta) — same peanut/leaf shape as
+                // the actual sand outline. Keep in sync with the JS version.
+                float silhouette(float theta) {
+                    return 1.0
+                        + sin(theta * 2.0 + 0.7) * 0.13
+                        + sin(theta * 3.0 - 1.3) * 0.07
+                        + sin(theta * 5.0 + 2.1) * 0.04;
+                }
+
                 void main() {
                     float r = length(vXZ);
+                    float theta = atan(vXZ.y, vXZ.x);
+                    // Per-azimuth shore radius — foam + depth gradient track
+                    // the actual island silhouette instead of a perfect circle.
+                    float shoreR = uIslandR * silhouette(theta);
                     // Depth gradient — shallow at island, deep at outer edge.
-                    float depthT = smoothstep(uIslandR, uIslandR + 14.0, r);
+                    float depthT = smoothstep(shoreR, shoreR + 14.0, r);
                     vec3 col = mix(uSea, uDeep, depthT);
                     // Sky-reactive tint (sunset/twilight/night washes the surface).
                     col = mix(col, col * uSkyTint, 0.35);
@@ -572,16 +599,14 @@ export default class Island
                     float oy = vXZ.y;
                     float t  = uTime;
 
+                    float shallowness = 1.0 - depthT;
+
                     /* ----- ORGANIC FOAM PATTERN —————————————————————————————
-                     * Seven sine waves at different angles + speeds. The
-                     * trick is they're MULTIPLIED, not added. A narrow
-                     * smoothstep picks the zones where they all align near
-                     * zero — that's what gives the lacy caustic pattern you
-                     * see on a pool floor. Direct port of TinySkies' ocean.
-                     * ----- */
-                    // Frequencies halved vs the TinySkies original so the
-                    // blobs read at ~2× their previous scale — larger,
-                    // gentler shapes that don't feel busy.
+                     * Seven multiplied sines that occasionally align near
+                     * zero — the lacy caustic pattern you see on a pool
+                     * floor. Direct port of TinySkies' ocean, but dialed
+                     * way down so the surface reads CALM and graphic
+                     * instead of busy. ----- */
                     float w1 = sin(ox * 2.15 + oy * 1.35 + y * 0.55 + t * 3.6) * 0.5 + 0.5;
                     float w2 = sin(oy * 1.85 + y  * 2.65 + ox * 0.35 - t * 2.7) * 0.5 + 0.5;
                     float w3 = sin(y  * 1.55 + ox * 0.95 + oy * 2.35 + t * 2.1) * 0.5 + 0.5;
@@ -590,22 +615,15 @@ export default class Island
                     float w6 = sin(y  * 2.05 - oy * 0.35 + ox * 1.65 + t * 1.8) * 0.5 + 0.5;
                     float w7 = sin(ox * 3.35 - y  * 2.15 + oy * 0.15 - t * 0.9) * 0.5 + 0.5;
                     float blobs = w1 * w2 * w4 * w6 + w3 * w5 * w7 * 0.3;
-                    blobs = 1.0 - smoothstep(0.002, 0.015, blobs);
-                    float shallowness = 1.0 - depthT;
-                    // Hold back the blobs immediately at the shore so the
-                    // shoreline foam reads cleanly.
-                    blobs *= smoothstep(uIslandR + 0.6, uIslandR + 2.5, r);
-                    // Intensity dialed to ~30% of the prior pass — pattern
-                    // reads as gentle, not busy.
-                    col += vec3(0.7, 1.0, 1.0) * blobs * mix(0.03, 0.17, shallowness);
+                    blobs = 1.0 - smoothstep(0.002, 0.012, blobs);
+                    // Keep the shore zone clean so the foam edge reads first.
+                    blobs *= smoothstep(shoreR + 1.2, shoreR + 4.0, r);
+                    col += vec3(0.7, 1.0, 1.0) * blobs * mix(0.012, 0.06, shallowness);
 
                     /* ----- SPARKLES —————————————————————————————————————————
-                     * Pinpoint highlights, gated by a slow macro mask so
-                     * they appear in patches instead of evenly speckled. Five
-                     * fast sines for the points, three slow sines for the
-                     * mask. Same TinySkies recipe. ----- */
-                    // Sparkle frequencies + mask freqs also halved for the
-                    // matched 2× scale.
+                     * Sparse pinpoint highlights gated by a slow macro mask
+                     * so they appear in quiet patches. Intensity is ~½ what
+                     * it used to be — twinkle that doesn't compete. ----- */
                     float sp1 = sin(ox * 2.00 + oy * 1.15 + y * 0.45 + t * 3.5);
                     float sp2 = sin(oy * 1.75 + y  * 1.45 + ox * 0.65 - t * 2.8);
                     float sp3 = sin(y  * 1.35 + ox * 1.85 - oy * 0.85 + t * 4.1);
@@ -614,35 +632,55 @@ export default class Island
                     float spMask = sin(ox * 0.155 + y * 0.235 + t * 0.25)
                                  * sin(oy * 0.265 - ox * 0.145 - t * 0.18);
                     spMask *= sin(y * 0.115 + oy * 0.195 + t * 0.35);
-                    spMask = smoothstep(0.15, 0.5, spMask);
+                    spMask = smoothstep(0.20, 0.55, spMask);
                     float sparkle = sp1 * sp2 * sp3 * sp4 + sp2 * sp3 * sp5 * 0.5;
-                    float sparkleThresh = mix(0.70, 0.30, shallowness);
+                    float sparkleThresh = mix(0.78, 0.45, shallowness);
                     sparkle = smoothstep(sparkleThresh, 0.97, sparkle) * spMask;
-                    sparkle *= smoothstep(uIslandR + 0.6, uIslandR + 4.0, r);
-                    // ~30% intensity — quieter twinkle that doesn't compete
-                    // with the rest of the scene.
-                    col += vec3(1.0) * sparkle * mix(0.18, 0.30, shallowness);
+                    sparkle *= smoothstep(shoreR + 0.6, shoreR + 4.0, r);
+                    col += vec3(1.0) * sparkle * mix(0.08, 0.16, shallowness);
 
                     /* ----- SHORE FOAM ——————————————————————————————————————
-                     * Crisp band at the waterline + two staggered outward
-                     * pulses for the lapping rhythm. Independent of the
-                     * caustic pattern above so the shoreline always reads. */
-                    float edgeFoam = smoothstep(uIslandR + 0.65, uIslandR + 0.10, r)
-                                   * smoothstep(uIslandR - 0.40, uIslandR + 0.20, r);
-                    float pulseA = fract(uTime * 0.18);
-                    float pulseB = fract(uTime * 0.18 + 0.5);
-                    float ringA = smoothstep(0.35, 0.0, abs(r - (uIslandR + 0.4 + pulseA * 2.6)))
-                                  * (1.0 - pulseA);
-                    float ringB = smoothstep(0.35, 0.0, abs(r - (uIslandR + 0.4 + pulseB * 2.6)))
-                                  * (1.0 - pulseB);
-                    float foam = max(edgeFoam, max(ringA, ringB) * 0.55);
-                    col = mix(col, uFoam, foam * 0.78);
+                     * Two layers, both silhouette-aware:
+                     *
+                     *  1. A crisp primary band right at the waterline — the
+                     *     bright halo around the island. Picks up warm
+                     *     sunset tints via uFoam × uSkyTint.
+                     *  2. TinySkies-style scrolling concentric contour
+                     *     ripples in the shallow band, riding the same
+                     *     silhouette-aware shoreR so they hug the peanut
+                     *     shape. Kept subtle so they whisper outward from
+                     *     the shore instead of competing with the halo. */
+                    float edgeFoam = smoothstep(shoreR + 0.70, shoreR + 0.10, r)
+                                   * smoothstep(shoreR - 0.40, shoreR + 0.20, r);
 
-                    // Wave-crest highlight — bright on crests, dark in troughs.
-                    col += vec3(0.15) * max(0.0, vWave) * 4.5;
-                    col -= vec3(0.08) * max(0.0, -vWave) * 3.0;
+                    float shoreT = clamp((r - shoreR) / 6.0, 0.0, 1.0);
+                    float noiseOff = sin(ox * 1.2 + oy * 0.8 + uTime * 0.5) * 0.05;
+                    // + time → rings drift INWARD toward the shore (waves
+                    // rolling in). - time would scroll outward (radiating).
+                    float contour = fract((shoreT + noiseOff) * 4.0 + uTime * 0.10);
+                    float ringMask = smoothstep(0.82, 0.95, contour)
+                                   * (1.0 - smoothstep(0.95, 1.00, contour));
+                    float ringFade = (1.0 - smoothstep(0.05, 0.55, shoreT))
+                                   * smoothstep(0.04, 0.10, shoreT);
+                    float ripples = ringMask * ringFade;
+
+                    /* ----- SHORELINE FLOW —————————————————————————————————
+                     * Modulate the halo's brightness with two slow waves
+                     * that travel ALONG the shoreline (in theta) at
+                     * different speeds + directions. Stays confined to
+                     * the edgeFoam band so it never bleeds into the
+                     * ocean — reads as water washing along the beach. */
+                    float flowA = 0.5 + 0.5 * sin(theta * 3.0 + uTime * 0.90);
+                    float flowB = 0.5 + 0.5 * sin(theta * 5.0 - uTime * 1.30 + 1.7);
+                    float foamFlow = mix(flowA, flowB, 0.5);
+                    col = mix(col, uFoam, edgeFoam * (0.75 + foamFlow * 0.45));
+                    col = mix(col, uFoam, ripples * 0.32);
+
+                    // Wave-crest highlight — much softer now (water is calm).
+                    col += vec3(0.10) * max(0.0, vWave) * 3.0;
+                    col -= vec3(0.05) * max(0.0, -vWave) * 2.0;
                     // Far edge fades to sky tint (atmospheric blend).
-                    float farFade = smoothstep(uIslandR + 12.0, uIslandR + 22.0, r);
+                    float farFade = smoothstep(shoreR + 12.0, shoreR + 22.0, r);
                     col = mix(col, uSkyTint, farFade * 0.45);
                     gl_FragColor = vec4(col, 1.0);
                 }

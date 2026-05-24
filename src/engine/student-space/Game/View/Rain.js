@@ -68,10 +68,15 @@ const dropsVert = /* glsl */`
     }
 `
 
-// Cellular noise from Tiny Skies' RainOverlay translated to a "where is a
-// drop" decision + signed-distance-style shape. Each live cell acts like a
-// little lens: it samples a displaced/magnified copy of the current view, adds
-// a bright caustic rim, and only lightly tints the result.
+// Cellular noise refraction lifted from Tiny Skies' RainOverlay. Each live
+// cell shows the framebuffer DISPLACED along a per-drop direction vector —
+// the lens-like distortion IS the drop. No rim/glint/meniscus painting; the
+// drop is visible only because it shows a different slice of the scene than
+// its surround. Direct port of TS's glassFrag, plus two adaptations:
+//   1. `discard` when no cell is live at this pixel (our canvas is
+//      transparent — alpha=1 would hide the CSS sky).
+//   2. `skyAt` fallback so refracted samples that hit sky-only pixels (where
+//      framebuffer alpha is ~0) still produce the day-cycle gradient.
 const dropsFrag = /* glsl */`
     uniform sampler2D sceneTex;
     uniform sampler2D noiseTex;
@@ -105,92 +110,38 @@ const dropsFrag = /* glsl */`
         vec2 u = vUv;
         vec2 n = texture2D(noiseTex, u * 0.1).rg;
 
-        float bestShape = 0.0;
-        float bestDist  = 1.0;
-        vec2  bestLocal = vec2(0.0);
-        vec2  bestUvOffset = vec2(0.0);
-        float bestScale = 1.0;
+        vec3 col = vec3(0.0);
+        bool hit = false;
 
         // 4 cell scales (Tiny Skies' r-loop): bigger r → coarser cells →
-        // bigger, rarer drops; smaller r → finer cells → smaller, denser.
+        // bigger rarer drops; smaller r → finer cells → smaller denser.
+        // Smaller r wins (overwrites) so finer drops sit on top of larger.
         for(float r = 4.0; r > 0.0; r -= 1.0)
         {
             vec2 x      = resolution * r * 0.009;
             vec2 nShift = (n - 0.5) * 0.8 / 6.28318;
 
-            // Which cell of this grid are we in?
             vec2 cellCoord = floor(u * x + nShift + 0.25) / x;
             vec4 d         = texture2D(noiseTex, cellCoord);
 
-            // Position WITHIN the cell, in [0,1] per axis.
-            vec2 inCell = fract(u * x + nShift + 0.25);
-
-            // Per-drop lifecycle: a sin-wave phase based on noise channels
+            // Per-drop lifecycle: a sin-wave phase from noise channels
             // gives each drop its own birth/peak/decay over time.
             vec2 p = 6.28318 * u * x + (n - 0.5) * 0.8;
             vec2 s = sin(p);
             float t = (s.x + s.y) * max(0.0, 1.0 - fract(time * (d.b + 0.1) * 0.45 + d.g) * 1.4);
 
-            // Is this cell "live"? Same gating as Tiny Skies.
-            if(d.r < (5.0 - r) * 0.074 && t > 0.42)
+            // Same live-cell gate as TS (d.r threshold + t > 0.5).
+            if(d.r < (5.0 - r) * 0.056 && t > 0.5)
             {
-                // Distance from the cell centre, normalised. Cell centre is
-                // (0.5, 0.5); aspect-correct so drops are circular.
-                vec2 dropOffset = (inCell - 0.5);
-                float aspect = resolution.x / max(1.0, resolution.y);
-                vec2 local = dropOffset;
-                local.x *= aspect / x.x * x.y;
-                float distN = length(local) * 1.28;
-
-                if(distN < 1.0)
-                {
-                    // Drop body shape — soft falloff toward rim.
-                    float shape = smoothstep(1.0, 0.0, distN);
-                    if(shape > bestShape)
-                    {
-                        bestShape = shape;
-                        bestDist  = distN;
-                        bestLocal = local;
-                        bestUvOffset = dropOffset / x;
-                        bestScale = r;
-                    }
-                }
+                vec3 v = normalize(-vec3(cos(p), mix(0.2, 2.0, t - 0.5)));
+                col = sampleView(u - v.xy * 0.4);
+                hit = true;
             }
         }
 
-        if(bestShape <= 0.0) discard;
+        if(!hit) discard;
 
-        vec2 normal2D = bestLocal / max(0.001, length(bestLocal));
-        float dome = sqrt(max(0.0, 1.0 - bestDist * bestDist));
-        float rim = smoothstep(0.62, 1.0, bestDist);
-
-        // Tiny lens: pull the sample toward the cell centre to magnify the
-        // scene, then add a normal-based offset so the world bends at the rim.
-        vec2 cellCenter = u - bestUvOffset;
-        float lensSize = mix(0.024, 0.065, (bestScale - 1.0) / 3.0);
-        vec2 magnifiedUv = mix(u, cellCenter, 0.28 + dome * 0.18);
-        vec2 refractUv = magnifiedUv - normal2D * lensSize * (0.35 + rim * 1.4);
-        refractUv.y -= lensSize * 0.45 * dome;
-
-        vec3 behind = sampleView(refractUv);
-        vec3 inner  = sampleView(refractUv + vec2(0.006, -0.009) * (1.0 + rim));
-        vec3 col = mix(behind, inner, 0.35);
-
-        // Glass lighting: white glint, darker lower rim, cyan top edge.
-        vec2 highlightPos = bestLocal - vec2(-0.18, 0.22);
-        float glint = exp(-dot(highlightPos, highlightPos) * 95.0);
-        float topEdge = smoothstep(0.0, 0.78, normal2D.y) * rim;
-        float lowerEdge = smoothstep(0.25, 0.95, -normal2D.y) * rim;
-        float meniscus = smoothstep(0.72, 0.98, bestDist) * (1.0 - smoothstep(0.98, 1.0, bestDist));
-
-        col = mix(col, col * vec3(0.64, 0.82, 0.96), lowerEdge * 0.42);
-        col = mix(col, vec3(0.72, 1.0, 1.0), topEdge * 0.28);
-        col += vec3(glint * 1.45);
-        col += vec3(meniscus * 0.22);
-
-        float a = (0.48 + rim * 0.34 + glint * 0.42) * opacity;
-        a *= smoothstep(1.0, 0.86, bestDist);
-
+        float a = opacity;
         gl_FragColor = vec4(col * a, a);
     }
 `
