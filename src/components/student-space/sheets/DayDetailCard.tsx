@@ -415,7 +415,6 @@ function CaptureActions({
   const failed = capture.syncStatus === 'failed'
   return (
     <div className="mt-2 space-y-2 text-xs text-(--color-sheet-ink-soft)">
-      {capture.reviewStatus ? <p>status: {capture.reviewStatus}</p> : null}
       {syncLine(capture) ? <p>{syncLine(capture)}</p> : null}
       {capture.prompt ? <p>prompt: {capture.prompt}</p> : null}
       {canReview ? (
