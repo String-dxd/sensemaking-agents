@@ -20,7 +20,7 @@ const MOOD_HEX: Record<string, string> = {
   sadness: '#7FB3D9',
   anger: '#E36A55',
   fear: '#B49AD6',
-  disgust: '#9CC36E',
+  disgust: '#5E9135',
   anxiety: '#F1A04E',
   envy: '#6FC2B3',
   embarrassment: '#F0A6B5',
