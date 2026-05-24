@@ -417,7 +417,7 @@ describe('ProfileSheet (React)', () => {
 
       await screen.findByTestId('bigfive-scaffold')
       // VIPS-only chrome should not render for personality.
-      expect(screen.queryByText('Noticings')).not.toBeInTheDocument()
+      expect(screen.queryByText('Captures')).not.toBeInTheDocument()
       expect(screen.queryByText('Collection')).not.toBeInTheDocument()
       expect(screen.queryByText('Most common')).not.toBeInTheDocument()
     })

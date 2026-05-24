@@ -35,7 +35,6 @@ import { VIPS_TAXONOMY, type VipsDimension } from '~/data/vips-taxonomy'
 import ShareTokenBridge from '~/engine/student-space/Game/State/ShareTokenBridge.js'
 import { PROFILE_HEADERS, PROFILE_THEMES } from '~/lib/profile-tokens'
 import { bootProfileTabSlices } from '~/lib/student-space/profile-tab-state'
-import { rankClaims } from '~/lib/student-space/rank-claims'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 import { cn } from '~/lib/utils'
@@ -525,7 +524,6 @@ function VipsProfileTab({
   const counts = profile?.countByClaim?.(tab) ?? {}
   const total = claims.reduce((sum, claim) => sum + (counts[claim.id] ?? 0), 0)
   const header = PROFILE_HEADERS[tab]
-  const ranked = rankClaims(claims, counts)
   const visibleQuotes = (facet?.quotes ?? [])
     .filter((quote) => !selectedClaimId || quote.canonicalClaimId === selectedClaimId)
     .slice()
@@ -545,40 +543,24 @@ function VipsProfileTab({
 
   return (
     <>
-      <section className="grid gap-5">
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-(--profile-soft) px-2.5 py-1 text-xs font-semibold text-(--profile-ink)">
-                {header.tag}
-              </span>
-            </div>
-            <div>
-              <h2 className="text-2xl font-semibold leading-tight text-(--color-sheet-ink)">
-                {formatProfileHeading(header.eyebrow)}
-              </h2>
-              <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">{header.subtitle}</p>
-            </div>
+      <section className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-(--profile-soft) px-2.5 py-1 text-xs font-semibold text-(--profile-ink)">
+              {header.tag}
+            </span>
           </div>
-          <ParagraphBlock
-            paragraph={facet?.paragraph}
-            fallback={`Your ${header.tag.toLowerCase()} read grows as you capture moments on the island.`}
-          />
+          <div>
+            <h2 className="text-2xl font-semibold leading-tight text-(--color-sheet-ink)">
+              {formatProfileHeading(header.eyebrow)}
+            </h2>
+            <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">{header.subtitle}</p>
+          </div>
         </div>
-        {isPersonality ? null : (
-          <div className="grid gap-3 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4">
-            <StatRow label="Noticings" value={String(total)} />
-            <StatRow label="Most common" value={ranked.mostCommon?.label ?? 'Still emerging'} />
-            <StatRow
-              label="Quietly emerging"
-              value={ranked.quietlyEmerging?.label ?? 'Still emerging'}
-            />
-            <StatRow
-              label="Last refined"
-              value={formatRefined(facet?.lastRefinedAt) || 'Not yet'}
-            />
-          </div>
-        )}
+        <ParagraphBlock
+          paragraph={facet?.paragraph}
+          fallback={`Your ${header.tag.toLowerCase()} read grows as you capture moments on the island.`}
+        />
       </section>
 
       {isPersonality && bigFive?.tldr ? (
@@ -594,13 +576,6 @@ function VipsProfileTab({
           refined={formatRefined(facet?.lastRefinedAt)}
         />
       )}
-
-      {facet?.openQuestion ? (
-        <aside className="rounded-xl border border-(--profile-accent)/30 bg-(--profile-soft) p-4 text-(--profile-ink)">
-          <p className="text-xs font-semibold opacity-70">Open question</p>
-          <p className="mt-1 text-base leading-relaxed">{facet.openQuestion}</p>
-        </aside>
-      ) : null}
 
       {isPersonality && Array.isArray(bigFive?.traits) ? (
         <BigFiveCards traits={bigFive.traits} />
@@ -662,8 +637,8 @@ function VipsProfileTab({
                         </span>
                         <span className="mt-1 block text-xs leading-5 text-(--color-sheet-ink-soft)">
                           {count === 0
-                            ? 'No noticings yet'
-                            : `${count} noticing${count === 1 ? '' : 's'}`}
+                            ? 'No captures yet'
+                            : `${count} capture${count === 1 ? '' : 's'}`}
                         </span>
                       </span>
                     </button>
@@ -690,7 +665,7 @@ function VipsProfileTab({
         </div>
         {visibleQuotes.length === 0 ? (
           <p className="rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5 text-sm text-(--color-sheet-ink-soft)">
-            No noticings here yet — capture a few from the island.
+            No captures here yet — capture a few from the island.
           </p>
         ) : (
           <ul className="space-y-3">
@@ -716,7 +691,7 @@ function VipsProfileTab({
                 >
                   {timelineExpanded
                     ? 'Show fewer'
-                    : `Show all ${visibleQuotes.length - quotes.length} more noticing${
+                    : `Show all ${visibleQuotes.length - quotes.length} more capture${
                         visibleQuotes.length - quotes.length === 1 ? '' : 's'
                       }`}
                 </button>
@@ -725,6 +700,15 @@ function VipsProfileTab({
           </ul>
         )}
       </section>
+
+      {facet?.openQuestion ? (
+        <aside className="rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4 text-(--color-sheet-ink)">
+          <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">
+            Something to think about
+          </p>
+          <p className="mt-1 text-base leading-relaxed">{facet.openQuestion}</p>
+        </aside>
+      ) : null}
     </>
   )
 }
@@ -804,7 +788,7 @@ function TldrHero({
     .map((claim) => ({ ...claim, count: counts[claim.id] ?? 0 }))
     .filter((claim) => claim.count > 0)
     .sort((a, b) => b.count - a.count)
-  const meta = [`${total} noticing${total === 1 ? '' : 's'}`, refined].filter(Boolean).join(' · ')
+  const meta = [`${total} capture${total === 1 ? '' : 's'}`, refined].filter(Boolean).join(' · ')
 
   return (
     <section className="rounded-2xl border border-(--profile-accent)/20 bg-[linear-gradient(135deg,var(--profile-soft),rgba(255,255,255,0.78))] p-5">
@@ -816,7 +800,7 @@ function TldrHero({
       <h3 className="mt-2 max-w-3xl text-xl font-semibold leading-snug text-(--color-sheet-ink)">
         {voiced.length >= 3
           ? tldrHeadline(tab, voiced.length)
-          : 'Few noticings yet — capture a moment on the island to see what shows up.'}
+          : 'Few captures yet — capture a moment on the island to see what shows up.'}
       </h3>
       {voiced.length >= 3 ? (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -1531,17 +1515,6 @@ function claimObjectMarkup(object: ClaimObject | undefined, palette: { main: str
   }
   return `<path d="M32 22h32l7 22-23 31-23-31z" fill="${palette.main}"/>
     <path d="M35 43h26M40 53h16" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity=".55"/>`
-}
-
-function StatRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-(--color-sheet-divider) pb-2 last:border-0 last:pb-0">
-      <span className="text-xs font-semibold text-(--color-sheet-ink-soft)">{label}</span>
-      <span className="max-w-[60%] text-right text-sm font-semibold text-(--color-sheet-ink)">
-        {value}
-      </span>
-    </div>
-  )
 }
 
 function isProfileTab(value: unknown): value is ProfileTab {
