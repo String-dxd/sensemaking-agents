@@ -1,10 +1,29 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StudentSpaceHud } from '~/components/student-space/hud/StudentSpaceHud'
 import { EngineOverlayProvider } from '~/lib/student-space/use-engine-overlay'
+import { WORLD_CONTROLS_STORAGE_KEY } from '~/lib/student-space/world-controls-visibility'
 
-function renderHud(engine = makeFakeEngine()) {
+let originalStorageDescriptor: PropertyDescriptor | undefined
+
+function createStorageStub() {
+  const map = new Map<string, string>()
+  return {
+    getItem(key: string) {
+      return map.has(key) ? (map.get(key) ?? null) : null
+    },
+    setItem(key: string, value: string) {
+      map.set(key, String(value))
+    },
+    removeItem(key: string) {
+      map.delete(key)
+    },
+  }
+}
+
+function renderHud(engine = makeFakeEngine(), { panelOpen = false } = {}) {
+  if (panelOpen) window.localStorage.setItem(WORLD_CONTROLS_STORAGE_KEY, '1')
   render(
     <EngineOverlayProvider>
       <StudentSpaceHud game={engine} />
@@ -61,16 +80,29 @@ function makeFakeEngine() {
   }
 }
 
+beforeEach(() => {
+  originalStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage')
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: createStorageStub(),
+  })
+})
+
 afterEach(() => {
   document.body.className = ''
+  if (originalStorageDescriptor) {
+    Object.defineProperty(window, 'localStorage', originalStorageDescriptor)
+  } else {
+    delete (window as { localStorage?: unknown }).localStorage
+  }
 })
 
 describe('StudentSpaceHud', () => {
   it('renders React HUD controls and dispatches engine actions', async () => {
-    const engine = renderHud()
+    const engine = renderHud(makeFakeEngine(), { panelOpen: true })
 
-    await userEvent.click(screen.getByRole('button', { name: 'Zoom in' }))
-    expect(engine.view.camera.zoomBy).toHaveBeenCalledWith(0.85)
+    await userEvent.click(screen.getByRole('button', { name: /Reset view/ }))
+    expect(engine.view.camera.resetToDefault).toHaveBeenCalled()
 
     await userEvent.click(screen.getByRole('button', { name: 'Toggle sound' }))
     expect(engine.view.sound.toggleMuted).toHaveBeenCalled()
@@ -85,6 +117,11 @@ describe('StudentSpaceHud', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Cycle through bird companions' }))
     expect(engine.view.kira.cycleSpecies).toHaveBeenCalledWith(1)
+  })
+
+  it('does not render the legacy slider toggle button', () => {
+    renderHud()
+    expect(screen.queryByRole('button', { name: /show world controls/i })).not.toBeInTheDocument()
   })
 
   it('hides dev-only status and fps controls behind the DevPalette body class', () => {
