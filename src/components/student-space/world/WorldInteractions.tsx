@@ -1954,7 +1954,7 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
         } as CSSProperties
       }
       className={cn(
-        'pointer-events-none fixed z-[26] flex max-w-[296px] items-center gap-3.5 rounded-[18px] bg-white/92 pt-3 pr-5 pb-4 pl-3.5 font-sans text-[#2b2620] antialiased shadow-[0_1px_2px_rgba(34,26,18,0.06),0_12px_28px_rgba(34,26,18,0.16)] backdrop-blur-md transition-[opacity,transform] duration-[160ms] ease-(--ease-out) motion-reduce:transition-none',
+        'pointer-events-none fixed z-[26] flex max-w-[240px] items-center gap-3.5 rounded-[18px] bg-white/92 pt-3 pr-5 pb-4 pl-3.5 font-sans text-[#2b2620] antialiased shadow-[0_1px_2px_rgba(34,26,18,0.06),0_12px_28px_rgba(34,26,18,0.16)] backdrop-blur-md transition-[opacity,transform] duration-[160ms] ease-(--ease-out) motion-reduce:transition-none',
         state.open ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
       )}
     >
