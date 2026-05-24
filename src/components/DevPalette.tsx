@@ -183,7 +183,7 @@ export function DevPalette() {
           className={cn(
             'fixed left-1/2 top-[16svh] z-50 w-full max-w-xl -translate-x-1/2',
             'rounded-lg border border-border bg-background shadow-2xl',
-            'transition-all duration-150 ease-out',
+            'transition-[opacity,transform] duration-(--duration-fast) ease-(--ease-out) motion-reduce:transition-none',
             'data-[starting-style]:opacity-0 data-[starting-style]:scale-95',
             'data-[ending-style]:opacity-0 data-[ending-style]:scale-95',
           )}
