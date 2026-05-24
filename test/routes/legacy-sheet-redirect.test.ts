@@ -10,8 +10,20 @@
  */
 import { QueryClient } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { routeTree } from '~/routeTree.gen'
+
+// The `_app` layout gates on `loadAuthMenu` — these tests don't care about
+// auth, only about the legacy `?sheet=` redirect, so stub the server fn to
+// always return a signed-in counselor.
+vi.mock('~/server/auth-menu.functions', () => ({
+  loadAuthMenu: async () => ({
+    status: 'signed-in' as const,
+    label: 'Test',
+    detail: null,
+    kind: 'demo' as const,
+  }),
+}))
 
 async function locationAfterNavigation(initial: string): Promise<{
   pathname: string
