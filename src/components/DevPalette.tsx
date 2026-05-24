@@ -57,18 +57,17 @@ export function DevPalette() {
       setOpen(false)
       void navigate({ to: path })
     }
-    const cameraTuner: Command | null =
-      import.meta.env.DEV && isOnboarding
-        ? {
-            id: 'camera-tuner',
-            label: 'Show camera tuner',
-            hint: 'onboarding only',
-            run: () => {
-              setOpen(false)
-              window.dispatchEvent(new Event(CAMERA_TUNER_OPEN_EVENT))
-            },
-          }
-        : null
+    const cameraTuner: Command | null = import.meta.env.DEV
+      ? {
+          id: 'camera-tuner',
+          label: 'Show camera tuner',
+          hint: isOnboarding ? 'onboarding + world' : 'world default',
+          run: () => {
+            setOpen(false)
+            window.dispatchEvent(new Event(CAMERA_TUNER_OPEN_EVENT))
+          },
+        }
+      : null
     const hatchTuner: Command | null = import.meta.env.DEV
       ? {
           id: 'hatch-tuner',

@@ -10,7 +10,27 @@ import { useSyncExternalStore } from 'react'
  * localStorage so a refresh keeps the tuner state.
  */
 
-export type SceneId = 'first-chat' | 'bloom' | 'tree-wide' | 'closing-portrait' | 'login-orbit'
+export type SceneId =
+  | 'world-default'
+  | 'first-chat'
+  | 'bloom'
+  | 'tree-wide'
+  | 'closing-portrait'
+  | 'login-orbit'
+
+/**
+ * Static framing the world view lands on at boot and after a reset-view tap.
+ * Mirrors Camera.js's hardcoded ctor defaults so DEFAULT_PRESETS stays the
+ * source of truth; the engine pulls from this store via setDefaultFraming.
+ */
+export type WorldDefaultPreset = {
+  fov: number
+  distance: number
+  pitchDeg: number
+  lookAtX: number
+  lookAtY: number
+  lookAtZ: number
+}
 
 export type FirstChatPreset = {
   /** Planar distance from the bird's perch point. */
@@ -60,6 +80,7 @@ export type LoginOrbitPreset = {
 }
 
 export type PresetMap = {
+  'world-default': WorldDefaultPreset
   'first-chat': FirstChatPreset
   bloom: BloomPreset
   'tree-wide': TreeWidePreset
@@ -73,6 +94,14 @@ export type PresetMap = {
  * earlier nearly-horizontal pose.
  */
 export const DEFAULT_PRESETS: Readonly<PresetMap> = Object.freeze({
+  'world-default': {
+    fov: 41,
+    distance: 18,
+    pitchDeg: 24,
+    lookAtX: 0,
+    lookAtY: 1.9,
+    lookAtZ: 0,
+  },
   'first-chat': {
     distance: 6.4,
     yawOffsetDeg: 1.7,
@@ -135,6 +164,7 @@ let snapshot: PresetMap = computeSnapshot(overrides)
 
 function computeSnapshot(o: OverrideMap): PresetMap {
   return {
+    'world-default': { ...DEFAULT_PRESETS['world-default'], ...(o['world-default'] ?? {}) },
     'first-chat': { ...DEFAULT_PRESETS['first-chat'], ...(o['first-chat'] ?? {}) },
     bloom: { ...DEFAULT_PRESETS.bloom, ...(o.bloom ?? {}) },
     'tree-wide': { ...DEFAULT_PRESETS['tree-wide'], ...(o['tree-wide'] ?? {}) },

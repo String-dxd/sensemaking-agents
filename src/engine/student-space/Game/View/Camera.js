@@ -16,15 +16,15 @@ export default class Camera
         this.state = State.getInstance()
         this.viewport = this.state.viewport
 
-        // Phase 2b: pitch softened from 40° → 28° and target lifted 1.3 → 1.7
-        // so the 3D frustum's top edge sits above the world horizon. That lets
-        // the aurora ribbon (y≈3.9, ringRadius 22) and other sky-band assets
-        // actually enter the visible region; at 40°/1.3 the top edge was at
-        // pitch -21° from camera and aurora sat at -11° — fully clipped.
-        this.fov = 38
-        this.distance = 14
-        this.pitchDeg = 28
-        this.target = new THREE.Vector3(0, 1.7, 0)
+        // Pitch softened to ~24° and target lifted to 1.9 keep the 3D
+        // frustum's top edge above the world horizon so the aurora ribbon
+        // (y≈3.9, ringRadius 22) and other sky-band assets stay in frame.
+        // Distance widened to 18 / fov 41 frame the whole island silhouette
+        // by default — matches the camera-tuner 'world-default' preset.
+        this.fov = 41
+        this.distance = 18
+        this.pitchDeg = 24
+        this.target = new THREE.Vector3(0, 1.9, 0)
 
         this.instance = new THREE.PerspectiveCamera(this.fov, this.viewport.width / this.viewport.height, 0.1, 2000)
         this.instance.rotation.reorder('YXZ')
@@ -193,6 +193,31 @@ export default class Camera
     {
         this.instance.aspect = this.viewport.width / this.viewport.height
         this.instance.updateProjectionMatrix()
+    }
+
+    /**
+     * Replace the static framing's ctor seeds — used by the camera tuner so
+     * tweaks to fov / distance / pitch / lookAt apply to `_defaultPose()`
+     * (the anchor `resetToDefault()` returns to) without forcing an engine
+     * remount. Pass `{ apply: true }` to also dolly the camera into the new
+     * pose immediately; otherwise the change takes effect on the next reset.
+     */
+    setDefaultFraming({ fov, distance, pitchDeg, target } = {}, { apply = false } = {})
+    {
+        if(Number.isFinite(fov)) this.fov = fov
+        if(Number.isFinite(distance)) this.distance = distance
+        if(Number.isFinite(pitchDeg)) this.pitchDeg = pitchDeg
+        if(target && Number.isFinite(target.x) && Number.isFinite(target.y) && Number.isFinite(target.z))
+        {
+            this.target.set(target.x, target.y, target.z)
+        }
+        if(Number.isFinite(fov))
+        {
+            this.instance.fov = fov
+            this.instance.updateProjectionMatrix()
+        }
+        if(this.controls) this.controls.target.copy(this.target)
+        if(apply) this.resetToDefault(450)
     }
 
     // -----------------------------------------------------------------

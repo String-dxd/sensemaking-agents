@@ -64,7 +64,7 @@ function submitBodyScopedAuthForm(action: string, method = 'post') {
 }
 
 const EDUPASS_BUTTON_CLASS = cn(
-  'min-h-14 w-full gap-2 rounded-2xl px-5 text-base font-semibold',
+  'min-h-12 w-full gap-2 rounded-2xl px-5 text-sm font-semibold',
   'bg-(--color-onb-accent) text-white no-underline shadow-[0_10px_26px_rgba(255,138,92,0.36)]',
   'transition-[transform,background,opacity] duration-150 ease-out hover:-translate-y-px hover:bg-(--onb-accent-deep)',
   'focus-visible:outline-[3px] focus-visible:outline-[rgba(255,138,92,0.7)] focus-visible:outline-offset-[3px]',
