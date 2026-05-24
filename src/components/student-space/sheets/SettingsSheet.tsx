@@ -13,7 +13,6 @@ import {
   SheetContent,
   SheetDescription,
   SheetIdentityHeader,
-  SheetPageHeader,
   SheetSidebar,
   SheetTitle,
   usePageEscape,
@@ -68,17 +67,14 @@ export function SettingsSheet() {
           <SheetDescription>Tools for adjusting how the world behaves.</SheetDescription>
         </SheetIdentityHeader>
         <div className="px-7 pb-6">
-          <p className="text-base leading-relaxed text-(--color-sheet-ink-soft)">
+          <p className="text-pretty text-sm leading-relaxed text-(--color-sheet-ink-soft)">
             Adjust how the world behaves and replay the first-run ceremony. Changes apply
             immediately and persist across sessions.
           </p>
         </div>
       </SheetSidebar>
       <SheetContent>
-        <SheetPageHeader data-stagger-slot="2">
-          <SheetTitle>Settings</SheetTitle>
-        </SheetPageHeader>
-        <SheetBody data-stagger-slot="3">
+        <SheetBody data-stagger-slot="2">
           <SettingsGroup
             title="World & weather"
             help="Scrub the time of day and force weather effects."
@@ -138,7 +134,7 @@ function SettingsGroup({
 }) {
   return (
     <section className="border-b border-(--color-sheet-divider) py-6 last:border-b-0">
-      <h2 className="mb-1.5 text-xs font-semibold text-(--color-sheet-ink-soft)">{title}</h2>
+      <h2 className="mb-1 text-sm font-semibold text-(--color-sheet-ink)">{title}</h2>
       <p className="mb-3 text-sm leading-[1.5] text-(--color-sheet-ink-soft)">{help}</p>
       {children}
     </section>
