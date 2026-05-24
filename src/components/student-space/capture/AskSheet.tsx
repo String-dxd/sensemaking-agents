@@ -65,6 +65,9 @@ type PreparedReflection = {
   mood?: string
   transcription?: unknown
 }
+
+const ASK_CAPTURE_COMMITTED_EVENT = 'ss:ask-capture-committed'
+const DEFAULT_CAPTURE_PROMPT = "What's on your mind right now?"
 type RealtimeCapture = {
   stop?: () => Promise<PreparedReflection>
   abort?: () => void
@@ -173,6 +176,15 @@ function preparedToReframe(prepared: PreparedReflection): Reframe {
   }
 }
 
+function dispatchAskCaptureCommitted(captureId: string | null | undefined) {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(
+    new CustomEvent(ASK_CAPTURE_COMMITTED_EVENT, {
+      detail: { captureId: captureId ?? null },
+    }),
+  )
+}
+
 function readImageAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -195,11 +207,7 @@ export function AskSheet() {
   const letterId = (options?.letterId as string | undefined) ?? null
   const readOnly = Boolean(options?.readOnly)
   const dismissOnBack = Boolean(options?.dismissOnBack)
-  // Onboarding mode — the first-capture stage opens the sheet with this
-  // flag so commit fires a one-shot event (FirstCapture listens for it
-  // and advances to bloom-celebrate). The reframe/chat detour is skipped
-  // so the ceremony lands directly on the bloom moment.
-  const onboardingFlag = Boolean(options?.onboarding)
+  const visiblePrompt = prompt?.trim() || (!readOnly ? DEFAULT_CAPTURE_PROMPT : '')
   const capture = options?.capture as CaptureEntry | undefined
   const prefilledText = (options?.prefilledText as string | undefined) ?? ''
   const backend = engine?.state?.backend
@@ -430,21 +438,28 @@ export function AskSheet() {
   async function startRecording() {
     const runId = recordingRunRef.current + 1
     recordingRunRef.current = runId
-    // Onboarding skips realtime Mirror so the first capture lands cleanly
-    // in review → commit without detouring through the reframe stage.
     const useRealtimeVoice = Boolean(
-      backend?.createRealtimeMirrorCapture && canCreateRealtimeMirrorCapture() && !onboardingFlag,
+      backend?.createRealtimeMirrorCapture && canCreateRealtimeMirrorCapture(),
     )
     if ((!useRealtimeVoice && !canRecordStudentSpaceAudio()) || listening) return
     setListening(true)
     setHint('')
     setLiveHint('')
-    setLiveDialogue([])
     const seed = text.trim()
+    const openingPrompt = prompt?.trim() || "I'm here. What's on your mind from today?"
     setReviewText(seed)
     setStage('recording')
-    if (seed)
-      setLiveDialogue([{ id: 'typed-preface', role: 'student', text: seed, status: 'final' }])
+    setLiveDialogue([
+      { id: 'kira-opening', role: 'kira', text: openingPrompt, status: 'final' },
+      seed
+        ? { id: 'typed-preface', role: 'student', text: seed, status: 'final' }
+        : {
+            id: 'student-listening-placeholder',
+            role: 'student',
+            text: 'Listening...',
+            status: 'streaming',
+          },
+    ])
 
     try {
       if (useRealtimeVoice) {
@@ -457,9 +472,20 @@ export function AskSheet() {
             if (!mountedRef.current || recordingRunRef.current !== runId) return
             setLiveDialogue((items) => {
               const id = message.id || `${message.role || 'student'}-${Date.now()}`
+              const role =
+                message.role === 'assistant' || message.role === 'kira'
+                  ? 'kira'
+                  : message.role === 'user' || message.role === 'student'
+                    ? 'student'
+                    : message.role
               if (message.status === 'discarded') return items.filter((item) => item.id !== id)
-              const next = items.filter((item) => item.id !== id)
-              next.push({ ...message, id })
+              const next = items.filter((item) => {
+                if (item.id === id) return false
+                if (role === 'student' && item.id === 'student-listening-placeholder') return false
+                if (role === 'kira' && item.id === 'kira-opening') return false
+                return true
+              })
+              next.push({ ...message, id, role })
               return next
             })
             if (message.role === 'student' && message.status === 'final' && message.text) {
@@ -506,40 +532,27 @@ export function AskSheet() {
     const liveRealtimeCapture = realtimeCaptureRef.current
     if (liveRealtimeCapture) {
       const session = liveRealtimeCapture
+      const transcriptSoFar = (liveStudentText || reviewText || text.trim()).trim()
       setRealtimeCaptureHandle(null)
       setPrepareInFlight(true)
       setPreparedReflection(null)
-      setReframe({
-        headline: 'Mirroring and summarising the session.',
-        highlightPhrase: reviewText || 'Voice reflection',
-        themes: [],
-        needs: [],
-        moods: selectedMood ? [selectedMood] : ['ennui'],
-      })
+      setReviewText(transcriptSoFar)
       setReframeActionMode('preparing')
-      setStage('reframe')
+      setStage('review')
       try {
         const prepared = await session.stop?.()
         if (!mountedRef.current || recordingRunRef.current !== runId) return
         setPrepareInFlight(false)
         if (!prepared) throw new Error('Realtime Mirror returned no reading.')
         setPreparedReflection(prepared)
-        const transcript = prepared.transcript || reviewText
+        const transcript = prepared.transcript || transcriptSoFar
         setReviewText(transcript)
         setReframe(preparedToReframe(prepared))
         setReframeActionMode('ready')
-      } catch (err) {
+      } catch (_err) {
         if (!mountedRef.current || recordingRunRef.current !== runId) return
-        const message = err instanceof Error ? err.message : String(err)
         setPrepareInFlight(false)
         setPreparedReflection(null)
-        setReframe({
-          headline: `Could not prepare this reading yet. ${message}`,
-          highlightPhrase: reviewText || 'Voice reflection',
-          themes: [],
-          needs: [],
-          moods: ['ennui'],
-        })
         setReframeActionMode('failed')
       }
       return
@@ -573,13 +586,6 @@ export function AskSheet() {
     if (!nextText && !audioBlob) {
       setHint("Didn't catch anything. Try again or type it.")
       setStage('compose')
-      return
-    }
-    // Onboarding lands a single capture — no reframe detour. If the user
-    // taps "Reflect" from the review stage, we commit what they have and
-    // close so the bloom ceremony picks up immediately.
-    if (onboardingFlag) {
-      logReview()
       return
     }
     if (!backend?.prepareReflection || prepareInFlight) {
@@ -667,13 +673,7 @@ export function AskSheet() {
     if (captureEntry && backend?.submitReflection) {
       void submitBackendReflection(captureEntry, options)
     }
-    if (onboardingFlag && typeof window !== 'undefined') {
-      window.dispatchEvent(
-        new CustomEvent('ss:onboarding-capture-committed', {
-          detail: { captureId: captureEntry?.id ?? null },
-        }),
-      )
-    }
+    dispatchAskCaptureCommitted(captureEntry?.id)
   }
 
   async function submitBackendReflection(
@@ -718,28 +718,28 @@ export function AskSheet() {
 
   async function logPreparedReframe() {
     if (logInFlight || !preparedReflection) return
-    const runId = workflowRunRef.current
+    const prepared = preparedReflection
     setLogInFlight(true)
     setReframeActionMode('logging')
     const captureEntry = captures?.add?.({
-      id: preparedReflection.localCaptureId,
+      id: prepared.localCaptureId,
       kind: 'ask',
       prompt,
-      text: preparedReflection.transcript || '',
+      text: prepared.transcript || '',
       reframe,
       syncStatus: backend?.logPreparedReflection ? 'syncing' : 'local',
-      contextType: preparedReflection.contextType || 'school',
+      contextType: prepared.contextType || 'school',
       ...(uploadedImageDataUrl ? { dataUrl: uploadedImageDataUrl } : {}),
       ...(letterId ? { letterId } : {}),
     })
+    dispatchAskCaptureCommitted(captureEntry?.id)
+    close()
     if (!backend?.logPreparedReflection) {
-      close()
       return
     }
     try {
-      const result = await backend.logPreparedReflection(preparedReflection)
+      const result = await backend.logPreparedReflection(prepared)
       const mirror = result?.mirrorEntry
-      if (!isLiveWorkflow(runId)) return
       if (mirror && captureEntry?.id) {
         captures?.patch?.(captureEntry.id, {
           backendMirrorEntryId: mirror.id,
@@ -759,14 +759,11 @@ export function AskSheet() {
           },
         })
       }
-      close()
     } catch (err) {
-      if (!isLiveWorkflow(runId)) return
       const message = err instanceof Error ? err.message : String(err)
       console.warn('[AskSheet] prepared reflection log failed', err)
       if (captureEntry?.id)
         captures?.patch?.(captureEntry.id, { syncStatus: 'failed', syncError: message })
-      close()
     }
   }
 
@@ -796,6 +793,10 @@ export function AskSheet() {
   }
 
   function logReview() {
+    if (preparedReflection) {
+      void logPreparedReframe()
+      return
+    }
     const nextText = reviewText.trim()
     if (!nextText && !recordedAudioBlob) return
     commitCapture(
@@ -941,7 +942,12 @@ export function AskSheet() {
         >
           {stagePillLabel}
         </span>
-        <div className="flex w-full flex-col gap-4 px-1 pt-3 pb-1">
+        <div
+          className={cn(
+            'flex w-full flex-col px-1 pb-1',
+            stage === 'recording' ? 'gap-2 pt-0' : 'gap-4 pt-3',
+          )}
+        >
           {stage === 'compose' ? (
             <section className="flex flex-col gap-4">
               {letter ? (
@@ -953,7 +959,9 @@ export function AskSheet() {
                   {letter.subject ? ` - ${letter.subject}` : ''}
                 </button>
               ) : null}
-              {prompt ? <p className="m-0 text-sm text-[rgba(43,38,32,0.62)]">{prompt}</p> : null}
+              {visiblePrompt ? (
+                <p className="m-0 text-sm text-[rgba(43,38,32,0.62)]">{visiblePrompt}</p>
+              ) : null}
               {uploadedImageDataUrl ? (
                 <div className="overflow-hidden rounded-2xl border border-[rgba(43,38,32,0.08)]">
                   <img src={uploadedImageDataUrl} alt="" className="max-h-40 w-full object-cover" />
@@ -1124,10 +1132,10 @@ export function AskSheet() {
           ) : null}
 
           {stage === 'recording' ? (
-            <section className="flex h-[min(520px,calc(100vh-12rem))] min-h-0 flex-col gap-4">
+            <section className="flex max-h-[min(280px,calc(100vh-18rem))] min-h-0 flex-col gap-2">
               <div
                 ref={liveDialogueRef}
-                className="min-h-0 flex-1 overflow-y-auto pr-1 scroll-pb-3"
+                className="max-h-40 overflow-y-auto overscroll-contain pr-1 scroll-pb-2"
                 role="log"
                 aria-live="polite"
               >
@@ -1395,39 +1403,41 @@ function ReframeStage({
 }
 
 function TypingIndicator({ label }: { label: string }) {
+  const visibleLabel = label.replace(/\.+$/, '') || 'Listening'
+
   return (
-    <div className="mt-1 inline-flex min-h-6 items-center gap-1.5" role="status" aria-label={label}>
-      <span className="sr-only">{label}</span>
+    <div
+      className="mt-1 inline-flex min-h-6 items-center gap-2 text-sm font-semibold text-[rgba(43,38,32,0.58)]"
+      role="status"
+      aria-label={visibleLabel}
+    >
+      <span>{visibleLabel}</span>
       <span
         aria-hidden="true"
-        className="size-2 animate-pulse rounded-full bg-[rgba(43,38,32,0.42)] [animation-delay:-0.32s]"
+        className="size-2 animate-bounce rounded-full bg-[rgba(43,38,32,0.42)] [animation-delay:-0.24s]"
       />
       <span
         aria-hidden="true"
-        className="size-2 animate-pulse rounded-full bg-[rgba(43,38,32,0.42)] [animation-delay:-0.16s]"
+        className="size-2 animate-bounce rounded-full bg-[rgba(43,38,32,0.42)] [animation-delay:-0.12s]"
       />
       <span
         aria-hidden="true"
-        className="size-2 animate-pulse rounded-full bg-[rgba(43,38,32,0.42)]"
+        className="size-2 animate-bounce rounded-full bg-[rgba(43,38,32,0.42)]"
       />
     </div>
   )
 }
 
 function ReframeReadout({ reframe, busy }: { reframe: Reframe | null; busy?: boolean }) {
-  const moods = reframe?.moods?.length ? reframe.moods.slice(0, 2) : ['ennui']
   const themes = reframe?.themes ?? []
+
   return (
-    <div className="rounded-3xl bg-white/74 p-5 shadow-sm">
-      <div className="flex gap-2" aria-hidden="true">
-        {moods.map((id) => {
-          const emotion = EMOTION_BY_ID[id] as EmotionEntry | undefined
-          if (!emotion) return null
-          return <img key={id} src={shapeDataUri(emotion)} alt="" className="size-12" />
-        })}
-      </div>
+    <div className="rounded-2xl bg-white/72 px-4 py-3 text-[rgba(43,38,32,0.82)] shadow-sm">
+      {reframe?.highlightPhrase ? (
+        <p className="m-0 whitespace-pre-wrap text-base leading-7">{reframe.highlightPhrase}</p>
+      ) : null}
       {themes.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           {themes.slice(0, 3).map((theme, index) => {
             const pill = THEME_PILL[theme] || {
               label: theme,
@@ -1446,23 +1456,10 @@ function ReframeReadout({ reframe, busy }: { reframe: Reframe | null; busy?: boo
           })}
         </div>
       ) : null}
-      {reframe?.highlightPhrase ? (
-        <blockquote className="my-5 border-l-4 border-(--color-onb-accent) pl-4 text-lg italic leading-7 text-[rgba(43,38,32,0.82)]">
-          {reframe.highlightPhrase}
-        </blockquote>
-      ) : null}
-      <p className="m-0 text-xs font-bold text-[rgba(43,38,32,0.48)]">Reading</p>
       {busy ? (
-        <div className="mt-3 flex items-center gap-2 text-base leading-7 text-[rgba(43,38,32,0.62)]">
-          <span className="inline-flex gap-1" aria-hidden="true">
-            <span className="size-1.5 animate-pulse rounded-full bg-(--color-onb-accent) [animation-delay:-0.32s]" />
-            <span className="size-1.5 animate-pulse rounded-full bg-(--color-onb-accent) [animation-delay:-0.16s]" />
-            <span className="size-1.5 animate-pulse rounded-full bg-(--color-onb-accent)" />
-          </span>
-          <span>Reading this back…</span>
-        </div>
+        <TypingIndicator label="Reading" />
       ) : (
-        <p className="mt-2 whitespace-pre-wrap text-base leading-7 text-[rgba(43,38,32,0.82)]">
+        <p className="mt-3 whitespace-pre-wrap text-base leading-7 text-[rgba(43,38,32,0.82)]">
           {reframe?.headline || ''}
         </p>
       )}

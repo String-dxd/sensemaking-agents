@@ -18,7 +18,7 @@ export default class Island
     constructor()
     {
         this.radius        = 5.0         // plateau radius (m)
-        this.sandOuterRadius = 7.2       // visible beach reach before water
+        this.sandOuterRadius = 8.2       // visible beach reach before water
         this.plateauTopY   = 1.0         // top of the grass plateau
         this.sandTopY      = 0.18        // sand ring top elevation
         this.cliffHeight   = 0.55        // cliff face between sand and plateau
@@ -34,6 +34,8 @@ export default class Island
             + Math.sin(theta * 2.0 + 0.7) * 0.13
             + Math.sin(theta * 3.0 - 1.3) * 0.07
             + Math.sin(theta * 5.0 + 2.1) * 0.04
+            + Math.sin(theta * 7.0 - 0.4) * 0.018
+            + Math.sin(theta * 9.0 + 1.8) * 0.012
     }
 
     radiusAtTheta(theta, baseRadius = this.radius)

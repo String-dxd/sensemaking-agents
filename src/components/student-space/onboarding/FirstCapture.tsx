@@ -5,14 +5,13 @@ import { useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
 /**
  * `first-capture` stage surface.
  *
- * Headless — it owns no DOM of its own. On mount it opens the AskSheet
- * with the onboarding flag set, listens for the commit event the sheet
- * dispatches, and advances to `bloom-celebrate`. If the user closes the
- * sheet without committing we re-open it on the next tick so the only
- * way out of this stage is to actually share something (or use the
- * SkipButton).
+ * Headless — it owns no DOM of its own. On mount it opens the same
+ * AskSheet used from the home capture button, listens for its commit
+ * event, and advances to `bloom-celebrate`. If the user closes the sheet
+ * without committing we re-open it on the next tick so the only way out
+ * of this stage is to actually share something (or use the SkipButton).
  */
-const ONBOARDING_COMMIT_EVENT = 'ss:onboarding-capture-committed'
+const ASK_CAPTURE_COMMITTED_EVENT = 'ss:ask-capture-committed'
 
 export function FirstCapture({ onAdvance }: { onAdvance: () => void }) {
   const overlay = useEngineOverlay()
@@ -32,9 +31,9 @@ export function FirstCapture({ onAdvance }: { onAdvance: () => void }) {
       // while the bloom ceremony tries to run behind it.
       window.setTimeout(() => onAdvance(), 0)
     }
-    window.addEventListener(ONBOARDING_COMMIT_EVENT, handler)
+    window.addEventListener(ASK_CAPTURE_COMMITTED_EVENT, handler)
     return () => {
-      window.removeEventListener(ONBOARDING_COMMIT_EVENT, handler)
+      window.removeEventListener(ASK_CAPTURE_COMMITTED_EVENT, handler)
     }
   }, [onAdvance])
 
@@ -45,7 +44,6 @@ export function FirstCapture({ onAdvance }: { onAdvance: () => void }) {
       if (committedRef.current) return
       openCaptureRef.current('ask', {
         prompt: ONBOARDING_COPY.firstCapture.prompt,
-        onboarding: true,
       })
     }, 80)
     return () => window.clearTimeout(id)

@@ -19,6 +19,7 @@
  *   - the cross-slice subscription survives the React render cycle
  */
 import { act, render, screen } from '@testing-library/react'
+import { toast as sonnerToast } from 'sonner'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { IslandProgressionOverlay } from '~/components/IslandProgressionOverlay'
@@ -67,6 +68,7 @@ function expectReadySprout(sprouts: Sprouts) {
 }
 
 afterEach(() => {
+  sonnerToast.dismiss()
   resetSingletons()
 })
 
@@ -78,12 +80,12 @@ describe('island progression — captures → sprouts → overlay e2e', () => {
     bundle = buildFakeGame()
   })
 
-  it('a single capture surfaces the spawn toast', () => {
+  it('a single capture surfaces the spawn toast', async () => {
     render(<IslandProgressionOverlay game={bundle.game} />)
     act(() => {
       bundle.captures.add({ kind: 'ask', text: 'hello' })
     })
-    expect(screen.getByText(/heard\. something is growing/i)).toBeInTheDocument()
+    expect(await screen.findByText(/heard\. something is growing/i)).toBeInTheDocument()
   })
 
   it('threshold-crossing capture flips the sprout to readyToBloom', () => {
@@ -100,7 +102,7 @@ describe('island progression — captures → sprouts → overlay e2e', () => {
     expect(bundle.sprouts.readyToBloom()).toHaveLength(1)
   })
 
-  it('explicit bloom() removes the sprout and surfaces the planted toast', () => {
+  it('explicit bloom() removes the sprout without adding a second progression toast', () => {
     render(<IslandProgressionOverlay game={bundle.game} />)
     act(() => {
       for (let i = 0; i < BLOOM_THRESHOLD; i++) {
@@ -111,7 +113,7 @@ describe('island progression — captures → sprouts → overlay e2e', () => {
     act(() => {
       bundle.sprouts.bloom(ready.id)
     })
-    expect(screen.getByText(/planted\. a new tree/i)).toBeInTheDocument()
+    expect(screen.queryByText(/planted\. a new tree/i)).toBeNull()
     expect(bundle.sprouts.listBloomedTrees()).toHaveLength(1)
     expect(bundle.sprouts.recent(10)).toHaveLength(0)
   })
