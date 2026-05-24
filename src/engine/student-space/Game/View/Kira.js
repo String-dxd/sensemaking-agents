@@ -58,7 +58,7 @@ function _makeMaskedLegPivot(legPost, foot, hipX)
 }
 
 let _maskedScenePromise = null
-function loadMaskedScene()
+export function loadMaskedScene()
 {
     if(_maskedScenePromise) return _maskedScenePromise
 
@@ -87,6 +87,15 @@ function loadMaskedScene()
             {
                 o.castShadow = true
                 o.receiveShadow = true
+
+                // The Blender export ships with stacked crest pieces on the
+                // crown. Hide them — the colorway already reads as a Masked
+                // Bower without the crest, and the user asked for a clean
+                // bald-headed silhouette.
+                if(/^MB_Crest/i.test(o.name))
+                {
+                    o.visible = false
+                }
 
                 // Repaint a couple of materials to match the requested
                 // colorway: body+wings warm orange like the head, tie red.
