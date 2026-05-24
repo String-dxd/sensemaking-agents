@@ -1,5 +1,5 @@
-import { useNavigate } from '@tanstack/react-router'
-import { Sparkles } from 'lucide-react'
+import { Link, useNavigate } from '@tanstack/react-router'
+import { ArrowRight, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 
 /**
@@ -39,6 +39,7 @@ interface DayDetailCapture {
   entryDate: string
   kind: string
   text?: string
+  validation?: string
   createdAt?: string
   prompt?: string | null
   backendMirrorEntryId?: number | string
@@ -47,6 +48,28 @@ interface DayDetailCapture {
   syncError?: string
   contextType?: string
   caption?: string
+  reframe?: {
+    headline?: string
+    highlightPhrase?: string
+    themes?: string[]
+    needs?: string[]
+    moods?: string[]
+  }
+}
+
+const CONTEXT_LABEL: Record<string, string> = {
+  school: 'School',
+  peer: 'Peer',
+  civic: 'Civic',
+  family: 'Family',
+  hobby: 'Hobby',
+}
+
+function formatTime(iso: string | undefined): string {
+  if (!iso) return ''
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 }
 
 interface DayDetailEngineState {
@@ -271,22 +294,58 @@ export function DayDetailCard({
           ) : null}
           {captures.length > 0 ? (
             <div>
-              <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">Captures</p>
+              <p className="mb-2 text-xs font-semibold text-(--color-sheet-ink-soft)">Mirrors</p>
               <ul className="space-y-2">
-                {captures.map((cap) => (
-                  <li
-                    key={cap.id}
-                    className="rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink)"
-                  >
-                    <p className="text-xs text-(--color-sheet-ink-soft)">
-                      {cap.kind === 'ask' ? 'Reflection' : cap.kind}
-                    </p>
-                    {cap.text ? (
-                      <p className="mt-1 leading-relaxed">{cap.text.slice(0, 180)}</p>
-                    ) : cap.caption ? (
-                      <p className="mt-1 leading-relaxed">{cap.caption}</p>
-                    ) : null}
-                    {cap.kind === 'ask' ? (
+                {captures.map((cap) => {
+                  if (cap.kind !== 'ask') {
+                    return (
+                      <li
+                        key={cap.id}
+                        className="rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink)"
+                      >
+                        <p className="text-xs text-(--color-sheet-ink-soft)">{cap.kind}</p>
+                        {cap.text ? (
+                          <p className="mt-1 leading-relaxed">{cap.text.slice(0, 180)}</p>
+                        ) : cap.caption ? (
+                          <p className="mt-1 leading-relaxed">{cap.caption}</p>
+                        ) : null}
+                      </li>
+                    )
+                  }
+                  const headline = cap.reframe?.headline?.trim() ?? ''
+                  const highlight = cap.reframe?.highlightPhrase?.trim() ?? ''
+                  const time = formatTime(cap.createdAt)
+                  const contextLabel = cap.contextType
+                    ? (CONTEXT_LABEL[cap.contextType] ?? cap.contextType)
+                    : 'Mirror'
+                  const entryId = Number(cap.backendMirrorEntryId)
+                  const hasBackendId = Number.isInteger(entryId) && entryId > 0
+                  return (
+                    <li
+                      key={cap.id}
+                      className="rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink)"
+                    >
+                      <div className="flex items-center gap-2 text-xs text-(--color-sheet-ink-soft)">
+                        <span className="inline-flex items-center rounded-full bg-(--color-onb-bg-cream) px-2 py-0.5 font-semibold uppercase tracking-[0.04em] text-(--color-sheet-ink)">
+                          {contextLabel}
+                        </span>
+                        {time ? <span className="tabular-nums">{time}</span> : null}
+                      </div>
+                      {headline ? (
+                        <p className="mt-1.5 font-medium leading-snug text-(--color-sheet-ink)">
+                          {headline}
+                        </p>
+                      ) : null}
+                      {highlight ? (
+                        <p className="mt-1 text-[13px] italic leading-snug text-(--color-sheet-ink-soft)">
+                          “{highlight}”
+                        </p>
+                      ) : null}
+                      {cap.text ? (
+                        <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-(--color-sheet-ink-soft)">
+                          {cap.text.slice(0, 180)}
+                        </p>
+                      ) : null}
                       <CaptureActions
                         capture={cap}
                         reviewInFlight={reviewInFlight}
@@ -295,9 +354,22 @@ export function DayDetailCard({
                         onReview={(status) => void reviewCapture(cap, status)}
                         onRetry={() => void retryCaptureSync(cap)}
                       />
-                    ) : null}
-                  </li>
-                ))}
+                      {hasBackendId ? (
+                        <div className="mt-2 flex justify-end">
+                          <Link
+                            to="/mirror/$id"
+                            params={{ id: String(entryId) }}
+                            data-testid={`mirror-show-more-${entryId}`}
+                            className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 text-xs font-semibold text-(--color-sheet-ink) transition-colors hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          >
+                            Show more
+                            <ArrowRight aria-hidden className="size-3.5" />
+                          </Link>
+                        </div>
+                      ) : null}
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ) : null}
