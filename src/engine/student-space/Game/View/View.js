@@ -149,7 +149,7 @@ export default class View
         this.mailbox.update()
         this.telescope.update()
         // Narrator after kira so its yaw-tween wins over any Kira-driven
-        // rotation, then dialogue (which reads Kira's screen position).
+        // rotation, then dialogue (timer-driven hide + idle-invite checks).
         // Both widgets are React-owned (U12); they're attached to `this`
         // via the React useEffect so engine code (and this update loop)
         // still finds them.

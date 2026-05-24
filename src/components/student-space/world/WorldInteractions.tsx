@@ -198,9 +198,7 @@ type Target = Record<string, any>
 type KiraBubbleState = {
   visible: boolean
   text: string
-  x: number
-  y: number
-  hidden: boolean
+  name: string
 }
 
 type NarratorState = {
@@ -240,7 +238,7 @@ type ObjectPickupState = {
   detailIcon: boolean
 }
 
-const INITIAL_BUBBLE: KiraBubbleState = { visible: false, text: '', x: 0, y: 0, hidden: false }
+const INITIAL_BUBBLE: KiraBubbleState = { visible: false, text: '', name: 'Kira' }
 const INITIAL_NARRATOR: NarratorState = { open: false, name: 'Kira', text: '', cta: 'Open' }
 const INITIAL_HOVER_CTA: HoverCtaState = {
   open: false,
@@ -408,15 +406,12 @@ class KiraDialogueController {
   view: AnyEngine
   state: AnyEngine
   dayCycle: AnyEngine
-  kira: AnyEngine
   spoken = 0
   invited = false
   activeUntil = 0
   lastActivity = performance.now()
   typerId = 0
   onboardingMode = false
-  worldPos = new THREE.Vector3()
-  screenPos = new THREE.Vector3()
   disposed = false
   _lastSay = 0
   _greetTimerId: ReturnType<typeof setTimeout> | null = null
@@ -432,7 +427,6 @@ class KiraDialogueController {
     this.view = deps.View.getInstance()
     this.state = deps.State.getInstance()
     this.dayCycle = this.state.day
-    this.kira = this.view.kira
 
     for (const evt of this._activityEvents ?? []) {
       window.addEventListener(evt, this._onActivity as EventListener)
@@ -486,7 +480,7 @@ class KiraDialogueController {
   show(text: string) {
     this.activeUntil = performance.now() + HOLD_MS
     this.spoken += 1
-    this.setBubble((prev) => ({ ...prev, visible: true }))
+    this.setBubble((prev) => ({ ...prev, visible: true, name: this._companionName() }))
     this._type(text)
   }
 
@@ -495,13 +489,23 @@ class KiraDialogueController {
     if (now - this._lastSay < cooldown) return
     this._lastSay = now
     this.activeUntil = now + HOLD_MS
-    this.setBubble((prev) => ({ ...prev, visible: true }))
+    this.setBubble((prev) => ({ ...prev, visible: true, name: this._companionName() }))
     this._type(text)
   }
 
   hide() {
     this.activeUntil = 0
     this.setBubble((prev) => ({ ...prev, visible: false }))
+  }
+
+  _companionName(): string {
+    try {
+      const name = this.state.profile?.displayCompanionName?.()
+      if (typeof name === 'string' && name.trim()) return name.trim()
+    } catch {
+      // profile may not be ready during boot; fall through to the default.
+    }
+    return 'Kira'
   }
 
   setOnboardingMode(active: boolean) {
@@ -515,7 +519,7 @@ class KiraDialogueController {
   sayOnboarding(text: string) {
     if (!this.onboardingMode) return
     this.activeUntil = 0
-    this.setBubble((prev) => ({ ...prev, visible: true }))
+    this.setBubble((prev) => ({ ...prev, visible: true, name: this._companionName() }))
     this._type(text)
   }
 
@@ -535,31 +539,6 @@ class KiraDialogueController {
     ) {
       this._invite()
     }
-
-    const cam = this.view.camera.instance
-    this.kira.getHeadWorldPosition(this.worldPos)
-    // Lift a hair above the head so the tail anchors just over the crown
-    // without leaving an empty gap; tuned against the wider world-default
-    // camera (distance ~18) where 0.4 read as too detached.
-    this.worldPos.y += 0.22
-    this.screenPos.copy(this.worldPos).project(cam)
-    // Map NDC → pixels using the renderer canvas's bounding rect, not
-    // window.innerWidth — the canvas sits inside the `.game` frame inset
-    // and the side rail, so window-relative pixels miss the bird's
-    // horizontal position by the frame margin.
-    const canvas = this.view.renderer?.instance?.domElement as HTMLCanvasElement | undefined
-    const rect = canvas?.getBoundingClientRect()
-    const w = rect ? rect.width : window.innerWidth
-    const h = rect ? rect.height : window.innerHeight
-    const offX = rect ? rect.left : 0
-    const offY = rect ? rect.top : 0
-    const rawX = (this.screenPos.x * 0.5 + 0.5) * w + offX
-    const rawY = (-this.screenPos.y * 0.5 + 0.5) * h + offY
-    const hidden = this.screenPos.z > 1
-    // Tight follow — `Math.round` in the bubble's transform already
-    // absorbs sub-pixel projection jitter, and any extra smoothing here
-    // visibly trails a walking bird, leaving the caret off-center.
-    this.setBubble((prev) => ({ ...prev, x: rawX, y: rawY, hidden }))
   }
 
   _type(text: string) {
@@ -1900,41 +1879,37 @@ export class HoverProbeController {
 }
 
 function KiraBubble({ state, onDismiss }: { state: KiraBubbleState; onDismiss: () => void }) {
-  if (!state.visible || state.hidden) return null
+  if (!state.visible) return null
   return (
-    <button
-      type="button"
+    <div
       data-kira-bubble
-      onClick={onDismiss}
-      style={{
-        // Anchor the bubble's bottom-center 8px above the smoothed head
-        // projection. The 8px gap leaves room for the caret without the
-        // tail tip overlapping the bird sprite.
-        transform: `translate(calc(${Math.round(state.x)}px - 50%), calc(${Math.round(state.y)}px - 100% - 8px))`,
-      }}
       className={cn(
-        'pointer-events-auto fixed left-0 top-0 z-[54] max-w-[240px] rounded-2xl bg-white px-3.5 py-2.5 text-left font-sans text-[13.5px] leading-[1.45] font-medium text-[#2b2620]',
-        'shadow-[0_2px_4px_rgba(40,30,20,0.06),0_12px_30px_rgba(40,30,20,0.14)] ring-1 ring-black/5',
-        'transition-[opacity,transform] duration-(--duration-base) ease-(--ease-out) motion-reduce:transition-none',
-        // Hide the bubble when a capture sheet or chooser covers the
-        // world — those surfaces sit above z-[54] but the bubble still
-        // bleeds through their backdrop. Onboarding intentionally reuses
-        // this bubble for the bird's dialogue, so don't hide on
-        // `is-onboarding`.
+        'pointer-events-none fixed inset-x-0 z-[54] flex justify-center px-4',
+        'bottom-[max(96px,calc(env(safe-area-inset-bottom,0px)+96px))]',
+        // Hide when a capture sheet or chooser covers the world — those
+        // surfaces sit above z-[54] but the card still bleeds through.
+        // Onboarding intentionally reuses this surface for Kira's dialogue,
+        // so don't hide on `is-onboarding`.
         '[body.has-capture-sheet_&]:hidden [body.has-chooser_&]:hidden',
-        // Caret as a downward-pointing triangle. clip-path is more reliable
-        // than border-triangles in Tailwind (no border-style needed).
-        // ::before paints the outline (matched to ring-black/5), ::after
-        // sits 1px higher so the white fill covers all but a 1px rim.
-        'before:absolute before:left-1/2 before:top-full before:h-[7px] before:w-[18px] before:-translate-x-1/2 before:-translate-y-px before:bg-black/5',
-        'before:[clip-path:polygon(0_0,100%_0,50%_100%)]',
-        'after:absolute after:left-1/2 after:top-full after:h-[7px] after:w-[18px] after:-translate-x-1/2 after:-translate-y-[2px] after:bg-white',
-        'after:[clip-path:polygon(0_0,100%_0,50%_100%)]',
-        state.visible ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0',
       )}
     >
-      <span>{state.text}</span>
-    </button>
+      <button
+        type="button"
+        aria-label="Dismiss message"
+        onClick={onDismiss}
+        className={cn(
+          'pointer-events-auto w-full max-w-[420px] rounded-2xl border border-white/70 bg-white/92 px-4 py-3 text-left font-sans shadow-[0_12px_32px_rgba(40,30,20,0.18)] backdrop-blur-md',
+          'transition-[opacity,transform] duration-(--duration-base) ease-(--ease-out) motion-reduce:transition-none',
+        )}
+      >
+        <span className="block text-[11px] font-bold tracking-wide text-[#1f5a4f]/70 uppercase">
+          {state.name}
+        </span>
+        <p className="m-0 mt-1 text-[14px] leading-[1.45] font-medium whitespace-pre-wrap text-[#2b2620]">
+          {state.text}
+        </p>
+      </button>
+    </div>
   )
 }
 

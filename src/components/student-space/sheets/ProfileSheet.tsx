@@ -318,8 +318,8 @@ export function ProfileSheet() {
           <ShareButton onClick={() => setShareOpen(true)} />
           <AccountMenuButton authMenu={state?.auth?.menu} />
         </header>
-        <SheetBody data-stagger-slot="3" className="space-y-8">
-          <div key={activeTab} data-tab-content>
+        <SheetBody data-stagger-slot="3">
+          <div key={activeTab} data-tab-content className="space-y-8">
             {isVipsTab(activeTab) ? (
               <VipsProfileTab
                 tab={activeTab}
