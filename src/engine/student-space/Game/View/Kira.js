@@ -31,28 +31,27 @@ const _maskedAxisX = new THREE.Vector3(1, 0, 0)
 // Hip height in MB_Rig local space — Leg.L/Leg.R bones sit at y=0.30.
 const MASKED_HIP_Y = 0.30
 
-// Three triangular scale-style tufts along the back centerline of the
-// head — same orange as the body (matches the MB_BodyYellow recolor),
-// chunky and pointed like the spike row on the reference creature.
-// Front tuft sits on the crown leaning slightly forward, then two more
-// cascade down toward the nape, each leaning further back so the chain
-// follows the head-to-neck arc. All three positioned to peek above the
-// head sphere from any 3/4 view angle.
+// Three triangular tufts along the crown centerline — same orange as the
+// head (palette.body), graded clearly bigger→smaller from front to back
+// so the silhouette reads as a mohawk crest. Material name is set so
+// applyMaskedTintsTo() recolors the tufts alongside the body when the
+// species palette changes.
 function _attachMaskedHairTufts(head)
 {
     if(!head) return
-    // Brand-yellow accent (per PR #57). Stays hardcoded across colorways
-    // so the tufts read as the bird's signature hair, not body recolor.
-    const HAIR_COLOR = 0xFFC72E
+    const palette = SPECIES_BY_ID.masked?.palette ?? {}
+    const HAIR_COLOR = palette.body ?? 0xff6b0d
     const tuftMat = new THREE.MeshLambertMaterial({ color: HAIR_COLOR })
+    tuftMat.name = 'MB_HairTuft'
     // [x, y, z, base radius, height, x-tilt]
-    // x stays at 0 (centerline). z descends from slightly forward at
-    // the crown to behind the head at the nape. Each tuft leans further
-    // back so the chain follows the head-to-neck arc.
+    // All three sit on the top of the head along the centerline so they
+    // peek above the silhouette from any 3/4 angle. Sizes step down
+    // noticeably so the chain reads as a mohawk crest, not three matching
+    // spikes.
     const layout = [
-        [0.00, 1.05,  0.18, 0.18, 0.34,  0.10], // front: on crown, slight forward lean
-        [0.00, 0.95, -0.22, 0.16, 0.30, -0.20], // middle: back of crown, near-upright
-        [0.00, 0.65, -0.55, 0.13, 0.24, -0.55], // rear: nape, leaning well back
+        [0.00, 1.06,  0.18, 0.22, 0.46,  0.05], // front: biggest, slight forward lean
+        [0.00, 1.04, -0.02, 0.16, 0.34, -0.05], // middle: near-upright
+        [0.00, 0.99, -0.22, 0.11, 0.24, -0.18], // rear: smallest, leaning back
     ]
     for(const [x, y, z, r, h, rx] of layout)
     {
@@ -98,6 +97,71 @@ function _attachMaskedShoulderSleeves(mbRig)
     mbRig.add(sleeveR)
 }
 
+function _attachMaskedMotionWings(mbRig)
+{
+    if(!mbRig) return { motionWingL: null, motionWingR: null }
+
+    const palette = SPECIES_BY_ID.masked?.palette ?? {}
+    const wingMat = new THREE.MeshLambertMaterial({
+        color: palette.body ?? 0xff6b0d,
+        side: THREE.DoubleSide,
+    })
+    wingMat.name = 'MB_MotionWing'
+    const featherMat = new THREE.MeshLambertMaterial({
+        color: palette.tie ?? 0xd11f1a,
+        side: THREE.DoubleSide,
+    })
+    featherMat.name = 'MB_MotionWingAccent'
+
+    const makeWing = (side) =>
+    {
+        const sx = side === 'L' ? 1 : -1
+        const group = new THREE.Group()
+        group.name = `maskedMotionWing.${side}`
+        group.position.set(0.44 * sx, 0.88, 0.02)
+
+        const geo = new THREE.BufferGeometry()
+        geo.setAttribute('position', new THREE.Float32BufferAttribute([
+            0.00,  0.04, 0.03,
+            0.34 * sx, -0.12, 0.05,
+            0.20 * sx, -0.62, 0.02,
+            0.02 * sx, -0.48, 0.01,
+        ], 3))
+        geo.setIndex([0, 1, 2, 0, 2, 3])
+        geo.computeVertexNormals()
+        const wing = new THREE.Mesh(geo, wingMat)
+        wing.castShadow = true
+        wing.receiveShadow = true
+        group.add(wing)
+
+        for(let i = 0; i < 3; i++)
+        {
+            const y0 = -0.18 - i * 0.12
+            const featherGeo = new THREE.BufferGeometry()
+            featherGeo.setAttribute('position', new THREE.Float32BufferAttribute([
+                0.05 * sx, y0, 0.055,
+                (0.24 + i * 0.025) * sx, y0 - 0.07, 0.065,
+                (0.12 + i * 0.02) * sx, y0 - 0.22, 0.055,
+            ], 3))
+            featherGeo.setIndex([0, 1, 2])
+            featherGeo.computeVertexNormals()
+            const feather = new THREE.Mesh(featherGeo, featherMat)
+            feather.castShadow = true
+            feather.receiveShadow = true
+            group.add(feather)
+        }
+
+        group.userData.baseRotZ = 0
+        mbRig.add(group)
+        return group
+    }
+
+    return {
+        motionWingL: makeWing('L'),
+        motionWingR: makeWing('R'),
+    }
+}
+
 // Reparent a (leg-post, foot) pair into a fresh pivot group anchored
 // at the hip so a single rotation.x can swing the whole leg. Both
 // meshes are direct children of MB_Rig, so they share a coord space.
@@ -137,12 +201,14 @@ function applyMaskedTintsTo(scene)
 {
     const palette = SPECIES_BY_ID.masked?.palette
     if(!palette || !scene) return
-    // Head + body share the same tint so the bird reads as one colorway.
-    // The yellow hair tufts and white cap-sleeves added by _attachMasked*
-    // helpers stay hardcoded — they're brand accents across colorways.
+    // Head, body, and hair tufts share palette.body so the bird reads as
+    // one colorway. The white cap-sleeves stay hardcoded — brand accent.
     const tints = {
         MB_BodyYellow:      palette.body,
         MB_HeadOrange:      palette.body,
+        MB_HairTuft:        palette.body,
+        MB_MotionWing:      palette.body,
+        MB_MotionWingAccent: palette.tie,
         Uniform_TieStriped: palette.tie,
     }
     scene.traverse(o => {
@@ -204,6 +270,8 @@ export function loadMaskedScene()
         let footL = null
         let footR = null
         let mbRig = null
+        let motionWingL = null
+        let motionWingR = null
         scene.traverse(o =>
         {
             if(o.isMesh)
@@ -215,6 +283,10 @@ export function loadMaskedScene()
                 // MB_CrestOrange / MB_CrestGold etc.) — the procedural
                 // yellow tufts attached below are the canonical hair.
                 if(/^MB_Crest/i.test(o.name)) o.visible = false
+                // The authored skinned wing barely reads at this scale
+                // during onboarding. A procedural motion wing replaces it
+                // so up/down flaps are visible from the student camera.
+                if(/^MB_Wing\./i.test(o.name)) o.visible = false
 
                 // Idempotent — module-level promise caches the scene.
                 const mats = Array.isArray(o.material) ? o.material : [o.material]
@@ -264,14 +336,17 @@ export function loadMaskedScene()
         const legPivotL = _makeMaskedLegPivot(legPostL, footL, +0.22)
         const legPivotR = _makeMaskedLegPivot(legPostR, footR, -0.22)
 
-        // Procedural yellow hair tufts on the crown + white cap-sleeves
-        // at the shoulders. Brand accents that stay constant across
-        // egg-colour palettes; the GLB's MB_Crest pieces are hidden
-        // above to keep the silhouette clean.
+        // Procedural mohawk-style hair tufts on the crown (palette.body
+        // tinted, recolored by applyMaskedTintsTo on species switches) +
+        // white cap-sleeves at the shoulders. The GLB's MB_Crest pieces
+        // are hidden above to keep the silhouette clean.
         _attachMaskedHairTufts(head)
         _attachMaskedShoulderSleeves(mbRig)
+        const motionWings = _attachMaskedMotionWings(mbRig)
+        motionWingL = motionWings.motionWingL
+        motionWingR = motionWings.motionWingR
 
-        return { scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }
+        return { scene, head, wingL, wingR, beakLower, legPivotL, legPivotR, motionWingL, motionWingR }
     })
     return _maskedScenePromise
 }
@@ -749,6 +824,20 @@ export default class Kira
 
     /* ----- update + wander ----- */
 
+    /**
+     * True while the companion is "talking" — either the narrator panel is
+     * open, or an object peek has advanced to its lore/pickup panel (the
+     * one whose name badge shows the companion's name). Both states freeze
+     * the wander and switch the body animator into talking gestures so the
+     * camera framing stays aligned with the words on screen.
+     */
+    isTalking()
+    {
+        if(this.view.kiraNarrator && this.view.kiraNarrator.isActive) return true
+        if(this.view.objectPeek && this.view.objectPeek.step === 'pickup') return true
+        return false
+    }
+
     update()
     {
         const dt = Math.min(this.state.time.delta || 0, 0.06)
@@ -764,7 +853,11 @@ export default class Kira
             return
         }
 
-        const narrating = this.view.kiraNarrator && this.view.kiraNarrator.isActive
+        // "Talking" = the narrator panel is open OR an object's pickup
+        // panel is showing lore. Either way the player is reading the
+        // companion's words; if she wanders she drifts out of frame and
+        // the moment feels broken. Freeze + animate talking gestures.
+        const narrating = this.isTalking()
         const captureFocus = !!this.view.captureFocus
         if(narrating || captureFocus)
         {
@@ -989,7 +1082,7 @@ export default class Kira
         // the beak chatters in a talking rhythm. We override the idle
         // + walk pipelines instead of layering so the gesture reads
         // clearly against the otherwise calm body.
-        const narrating = this.view.kiraNarrator && this.view.kiraNarrator.isActive
+        const narrating = this.isTalking()
         if(narrating)
         {
             // Wings open-and-close around the body's forward axis (X).
@@ -1098,26 +1191,69 @@ export default class Kira
      * on the rigged bones (wings, beak) and on synthetic pivot groups we
      * created at load time (legs). Three independent beats compose:
      *
-     *   - Narrating  → wings flap, beak chatters
+     *   - Flying     → wings flap, legs tuck then extend for touchdown
+     *   - Narrating  → wings flap, beak chatters, feet shift gently
      *   - Walking    → legs swing alternately, body bobs slightly
      *   - Idle       → bones return to base, legs and body rest
      */
     _animateMaskedBody(t, _dt)
     {
         const parts = this.parts
-        const narrating = this.view.kiraNarrator && this.view.kiraNarrator.isActive
+        const narrating = this.isTalking()
 
         const wingL = parts.maskedWingL
         const wingR = parts.maskedWingR
+        const motionWingL = parts.maskedMotionWingL
+        const motionWingR = parts.maskedMotionWingR
         const beak  = parts.maskedBeakLower
         const legL  = parts.maskedLegPivotL
         const legR  = parts.maskedLegPivotR
+
+        const setMotionWings = (flap) =>
+        {
+            if(motionWingL) motionWingL.rotation.z = flap
+            if(motionWingR) motionWingR.rotation.z = -flap
+        }
 
         // ----- legs: alternating swing scaled by walk speed -----
         const walkAmt = THREE.MathUtils.clamp(this.speed / WALK_SPEED, 0, 1)
         const walkPhase = this.walkPhase
         if(legL) legL.rotation.x = Math.sin(walkPhase) * 0.38 * walkAmt
         if(legR) legR.rotation.x = Math.sin(walkPhase + Math.PI) * 0.38 * walkAmt
+
+        // ----- cinematic landing: the GLB path bypasses the procedural
+        // fly branch above, so give the rig its own wing + leg beat while
+        // flyTo() moves the world group along the bezier.
+        if(this.mode === 'fly' && this._fly)
+        {
+            const u = THREE.MathUtils.clamp(this.modeT / this._fly.duration, 0, 1)
+            const landingU = THREE.MathUtils.smoothstep(u, 0.70, 1)
+            const flapTaper = 1 - THREE.MathUtils.smoothstep(u, 0.78, 1)
+            const flap = Math.sin(t * 12.0) * (0.92 * flapTaper + 0.12)
+            setMotionWings(flap)
+
+            if(wingL && wingL.userData.baseQuat)
+            {
+                _maskedDelta.setFromAxisAngle(_maskedAxisZ, flap)
+                wingL.quaternion.multiplyQuaternions(wingL.userData.baseQuat, _maskedDelta)
+            }
+            if(wingR && wingR.userData.baseQuat)
+            {
+                _maskedDelta.setFromAxisAngle(_maskedAxisZ, -flap)
+                wingR.quaternion.multiplyQuaternions(wingR.userData.baseQuat, _maskedDelta)
+            }
+
+            // Tuck during the arc, then extend both feet as the bird
+            // reaches the perch. A small alternating tremor avoids a
+            // locked mannequin pose in the last few frames.
+            const legExtend = -0.85 + landingU * 1.05
+            const toeFind = Math.sin(t * 16.0) * 0.12 * landingU
+            if(legL) legL.rotation.x = legExtend + toeFind
+            if(legR) legR.rotation.x = legExtend - toeFind
+            if(parts.root) parts.root.position.y = Math.sin(t * 9.0) * 0.006 * flapTaper
+            if(beak && beak.userData.baseQuat) beak.quaternion.copy(beak.userData.baseQuat)
+            return
+        }
 
         // ----- body bob: small vertical step on each footfall, plus a
         // tiny idle sway when standing still. parts.root is gltf.scene;
@@ -1136,7 +1272,8 @@ export default class Kira
             // Wings flap up and down at ~1.4 Hz. Rotation around the
             // bone-local Z axis is the natural "fold/unfold" axis for
             // the rigged wings (perpendicular to the wingspan).
-            const flap = Math.sin(t * 3.0) * 0.45
+            const flap = Math.sin(t * 4.2) * 0.58
+            setMotionWings(flap)
             if(wingL && wingL.userData.baseQuat)
             {
                 _maskedDelta.setFromAxisAngle(_maskedAxisZ, flap)
@@ -1157,13 +1294,35 @@ export default class Kira
                 _maskedDelta.setFromAxisAngle(_maskedAxisX, talk)
                 beak.quaternion.multiplyQuaternions(beak.userData.baseQuat, _maskedDelta)
             }
+
+            // Keep the lower body alive while she talks. This is deliberately
+            // subtler than the walk cycle: feet shift weight instead of
+            // taking steps, so the portrait framing stays stable.
+            const footShift = Math.sin(t * 4.2) * 0.32
+            if(legL) legL.rotation.x = footShift
+            if(legR) legR.rotation.x = -footShift
             return
         }
 
-        // Idle / not-narrating: clear bone animation residue so wings
-        // and beak return to their rigged rest pose.
-        if(wingL && wingL.userData.baseQuat) wingL.quaternion.copy(wingL.userData.baseQuat)
-        if(wingR && wingR.userData.baseQuat) wingR.quaternion.copy(wingR.userData.baseQuat)
+        // Idle / walking: beak returns to rest, wings add a gentle
+        // step-synced flap while moving. Same bone-local Z axis as the
+        // narration fold/unfold flap, with mirrored signs across the two
+        // wings. Amplitude (~0.18 rad ≈ 10°) is well below the narration
+        // flap (0.45) so it reads as a walking flutter, not a flight
+        // cycle. When walkAmt is 0 the delta becomes an identity
+        // quaternion and the wings sit at rest.
+        const walkFlap = Math.sin(walkPhase) * 0.42 * walkAmt
+        setMotionWings(walkFlap)
+        if(wingL && wingL.userData.baseQuat)
+        {
+            _maskedDelta.setFromAxisAngle(_maskedAxisZ, walkFlap)
+            wingL.quaternion.multiplyQuaternions(wingL.userData.baseQuat, _maskedDelta)
+        }
+        if(wingR && wingR.userData.baseQuat)
+        {
+            _maskedDelta.setFromAxisAngle(_maskedAxisZ, -walkFlap)
+            wingR.quaternion.multiplyQuaternions(wingR.userData.baseQuat, _maskedDelta)
+        }
         if(beak  && beak.userData.baseQuat)  beak.quaternion.copy(beak.userData.baseQuat)
     }
 
@@ -1207,7 +1366,17 @@ export default class Kira
         }
         this.group.add(placeholder)
 
-        loadMaskedScene().then(({ scene, head, wingL, wingR, beakLower, legPivotL, legPivotR }) =>
+        loadMaskedScene().then(({
+            scene,
+            head,
+            wingL,
+            wingR,
+            beakLower,
+            legPivotL,
+            legPivotR,
+            motionWingL,
+            motionWingR,
+        }) =>
         {
             // Bail if a subsequent build superseded this one.
             if(!this.parts || this.parts.root !== placeholder) return
@@ -1223,6 +1392,8 @@ export default class Kira
                 maskedBeakLower: beakLower || null,
                 maskedLegPivotL: legPivotL || null,
                 maskedLegPivotR: legPivotR || null,
+                maskedMotionWingL: motionWingL || null,
+                maskedMotionWingR: motionWingR || null,
             }
             this.group.add(scene)
             // The GLB scene is module-cached; its materials may hold a

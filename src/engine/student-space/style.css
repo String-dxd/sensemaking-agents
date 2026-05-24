@@ -436,15 +436,6 @@ body.student-space-shell.is-night #sky-rays
    so the surface owns the viewport. The landing class is a sub-state of the
    ceremony, but we list both explicitly so a refactor that drops one doesn't
    silently leak chrome onto the other. */
-/* ── Pick-and-plant edit mode ───────────────────────────────────────── */
-/* While the student is arranging the island, give every sprout's count
-   chip a dashed outline so it's clear which objects respond to drag. */
-.sprouts-badge-layer.edit-mode .sprout-badge
-{
-    outline: 1px dashed rgba(60, 88, 36, 0.85);
-    outline-offset: 2px;
-}
-
 /* ── Visual primitives (shared across full-viewport sheets) ─────────
    TLDR hero, disclosure, stat tile row, and callout strip — composed
    by ProfileSheet, TrajectorySheet, and any future surface that wants

@@ -65,73 +65,6 @@ const SOFT_INVITES = [
   "I noticed. That's all.",
 ]
 
-type Narration = { text: string; cta: string }
-
-const TREE_NARRATION: Record<string, Narration> = {
-  oak: {
-    text: 'That one is an oak. They take their time — they hold the things you keep coming back to. Want me to show you what this oak is rooted in?',
-    cta: 'Show me',
-  },
-  cherry: {
-    text: 'A cherry. Those grow around values that are still becoming — something you’ve only said once or twice. I’ve been watching this one.',
-    cta: 'Tell me more',
-  },
-}
-
-const FLOWER_NARRATION: Record<string, Narration> = {
-  daisy: {
-    text: 'A daisy — small interest in motion. They open with attention and close when you look away. Curious about this one?',
-    cta: 'Open',
-  },
-  tulip: {
-    text: 'A tulip. Held close, like a secret. Sometimes the interests we don’t share yet are the ones that matter most.',
-    cta: 'Open',
-  },
-  rose: {
-    text: 'A rose. Interests with layers — practice, return, prune. The reward is the time you put in.',
-    cta: 'Open',
-  },
-  lily: {
-    text: 'A lily. Generous, reaching. These are the interests that pull other people in — making, sharing, performing.',
-    cta: 'Open',
-  },
-  pansy: {
-    text: 'A pansy. Curious, watching. Interests that are mostly about noticing — reading, observing, taking small notes.',
-    cta: 'Open',
-  },
-  hyacinth: {
-    text: 'A hyacinth. Quiet build of attention — small noticings stacked over time, becoming something tall.',
-    cta: 'Open',
-  },
-}
-
-const FRUIT_NARRATION: Record<string, Narration> = {
-  apple: {
-    text: 'An apple — a practical skill. The kind of thing that gets done when nobody’s watching.',
-    cta: 'Open',
-  },
-  pear: {
-    text: 'A pear — analytical. Slicing a problem until the shape underneath shows.',
-    cta: 'Open',
-  },
-  plum: {
-    text: 'A plum — something you’ve made where the path wasn’t drawn for you.',
-    cta: 'Open',
-  },
-  fig: {
-    text: 'A fig — reading people. Knowing what to say and when to leave it alone.',
-    cta: 'Open',
-  },
-  citrus: {
-    text: 'A citrus — leading. Setting direction, then carrying the weight of it.',
-    cta: 'Open',
-  },
-  berry: {
-    text: 'A berry — saying what you mean, in the register the listener needs.',
-    cta: 'Open',
-  },
-}
-
 const KIRA_NARRATION = {
   text: 'It’s me. If anything is on your mind, I’m here. Choose whatever feels easiest — words, voice, a feeling, or a picture.',
   cta: 'Talk to me',
@@ -175,7 +108,6 @@ const SOFT_MODE_THRESHOLD = 3
 const HOLD_MS = 12_000
 const IDLE_MS = 45_000
 const ZOOM_DURATION = 600
-const PICKUP_LIFT_MS = 520
 const TYPER_BASE_MS = 32
 const TYPER_COMMA_MS = 140
 const TYPER_STOP_MS = 220
@@ -194,6 +126,16 @@ type EngineDeps = {
 
 // biome-ignore lint/suspicious/noExplicitAny: hover targets are engine-shaped records from JS scene classes.
 type Target = Record<string, any>
+
+// Yaw tween shared by KiraNarratorController and ObjectPeekController:
+// both swing Kira to face the camera while she speaks and back on close.
+type KiraTurnState = {
+  mode: 'in' | 'out'
+  startTime: number
+  from: number
+  to: number
+  duration: number
+}
 
 type KiraBubbleState = {
   visible: boolean
@@ -596,7 +538,7 @@ class KiraNarratorController {
   typerId = 0
   disposed = false
   _timers = new Set<ReturnType<typeof setTimeout>>()
-  _kiraTurn: AnyEngine = null
+  _kiraTurn: KiraTurnState | null = null
   _kiraRestYaw: number | null = null
   _speakConfirm: (() => void) | null = null
   _onKeyDown = (event: KeyboardEvent) => {
@@ -927,7 +869,7 @@ class HoverCtaController {
 
 const KIND_CONFIG: Record<string, AnyEngine> = {
   flower: {
-    eyebrow: 'FLOWER',
+    eyebrow: 'INTEREST',
     title: (target: Target, _view: AnyEngine, state: AnyEngine) => {
       const evidence = resolveElementEvidence(target, state?.profile)
       return elementTitle(evidence, cap(speciesIdOf(target)) || 'Flower')
@@ -951,7 +893,6 @@ const KIND_CONFIG: Record<string, AnyEngine> = {
     },
     cameraOffset: { dist: 1.8, lift: 0.42, lookLift: 0.2 },
     peekAnchorLift: 0.32,
-    pickup: true,
     primaryCta: { label: 'Talk about it more' },
     secondaryCta: { label: 'Open detail page', icon: true },
     primaryAction: (target: Target, _view: AnyEngine, state: AnyEngine, deps: EngineDeps) => {
@@ -960,6 +901,77 @@ const KIND_CONFIG: Record<string, AnyEngine> = {
       const prompt = evidence.claimLabel
         ? `Tell me about ${evidence.claimLabel.toLowerCase()} as an interest.`
         : meaning?.ask || `Tell me about your interest in ${speciesIdOf(target) || 'this flower'}.`
+      deps.OverlayController.getInstance().open('ask', { prompt, dismissOnBack: true })
+    },
+    secondaryAction: (target: Target, view: AnyEngine) => view.facetView?.openFor(target),
+  },
+  tree: {
+    eyebrow: 'VALUE',
+    title: (target: Target, _view: AnyEngine, state: AnyEngine) => {
+      const evidence = resolveElementEvidence(target, state?.profile)
+      return elementTitle(evidence, cap(speciesIdOf(target)) || 'Tree')
+    },
+    peekText: (target: Target, _view: AnyEngine, state: AnyEngine) => {
+      const evidence = resolveElementEvidence(target, state?.profile)
+      if (evidence.claimId) return `${metaphorLine(evidence)} ${latestEvidenceLine(evidence, 86)}`
+      return TREE_COPY[speciesIdOf(target)] ?? 'A tree — a value taking root.'
+    },
+    loreText: (target: Target, _view: AnyEngine, state: AnyEngine) => {
+      const evidence = resolveElementEvidence(target, state?.profile)
+      if (evidence.claimId && evidence.hasEvidence) {
+        return `${evidence.definition} Latest noticing: “${evidence.latestQuoteText}”`
+      }
+      if (evidence.claimId) {
+        return `${metaphorLine(evidence)} No noticings have landed here yet. When a noticing lands here, this tree will open onto the matching timeline.`
+      }
+      return TREE_COPY[speciesIdOf(target)] ?? 'A tree — a value taking root.'
+    },
+    cameraOffset: { dist: 3.2, lift: 1.6, lookLift: 1.4 },
+    peekAnchorLift: 1.8,
+    primaryCta: { label: 'Talk about it more' },
+    secondaryCta: { label: 'Open detail page', icon: true },
+    primaryAction: (target: Target, _view: AnyEngine, state: AnyEngine, deps: EngineDeps) => {
+      const evidence = resolveElementEvidence(target, state?.profile)
+      const prompt = evidence.claimLabel
+        ? `Tell me about ${evidence.claimLabel.toLowerCase()} as a value.`
+        : `Tell me about your value of ${speciesIdOf(target) || 'this tree'}.`
+      deps.OverlayController.getInstance().open('ask', { prompt, dismissOnBack: true })
+    },
+    secondaryAction: (target: Target, view: AnyEngine) => view.facetView?.openFor(target),
+  },
+  fruit: {
+    eyebrow: 'SKILL',
+    title: (target: Target, _view: AnyEngine, state: AnyEngine) => {
+      const evidence = resolveElementEvidence(target, state?.profile)
+      return elementTitle(evidence, cap(speciesIdOf(target)) || 'Fruit')
+    },
+    peekText: (target: Target, _view: AnyEngine, state: AnyEngine) => {
+      const evidence = resolveElementEvidence(target, state?.profile)
+      if (evidence.claimId) return `${metaphorLine(evidence)} ${latestEvidenceLine(evidence, 86)}`
+      return FRUIT_COPY[speciesIdOf(target)] ?? 'A fruit — a skill ripening.'
+    },
+    loreText: (target: Target, _view: AnyEngine, state: AnyEngine) => {
+      const evidence = resolveElementEvidence(target, state?.profile)
+      if (evidence.claimId && evidence.hasEvidence) {
+        return `${evidence.definition} Latest noticing: “${evidence.latestQuoteText}”`
+      }
+      if (evidence.claimId) {
+        return `${metaphorLine(evidence)} No noticings have landed here yet. When a noticing lands here, this fruit will open onto the matching timeline.`
+      }
+      return FRUIT_COPY[speciesIdOf(target)] ?? 'A fruit — a skill ripening.'
+    },
+    cameraOffset: { dist: 2.0, lift: 0.55, lookLift: 0.4 },
+    // Match the host-aware hover lift in HoverProbe._screenPos for bush
+    // fruits (the only host today; tree-hosted fruits would need a peek
+    // anchor closer to 1.6 when they ship).
+    peekAnchorLift: 0.35,
+    primaryCta: { label: 'Talk about it more' },
+    secondaryCta: { label: 'Open detail page', icon: true },
+    primaryAction: (target: Target, _view: AnyEngine, state: AnyEngine, deps: EngineDeps) => {
+      const evidence = resolveElementEvidence(target, state?.profile)
+      const prompt = evidence.claimLabel
+        ? `Tell me about ${evidence.claimLabel.toLowerCase()} as a skill.`
+        : `Tell me about your skill in ${speciesIdOf(target) || 'this'}.`
       deps.OverlayController.getInstance().open('ask', { prompt, dismissOnBack: true })
     },
     secondaryAction: (target: Target, view: AnyEngine) => view.facetView?.openFor(target),
@@ -981,7 +993,6 @@ const KIND_CONFIG: Record<string, AnyEngine> = {
     },
     cameraOffset: { dist: 2.4, lift: 0.85, lookLift: 1.05 },
     peekAnchorLift: 1.4,
-    pickup: false,
     primaryCta: { label: 'Talk about it more' },
     secondaryCta: { label: 'Open mail', icon: true },
     primaryAction: (_target: Target, _view: AnyEngine, _state: AnyEngine, deps: EngineDeps) =>
@@ -1001,7 +1012,6 @@ const KIND_CONFIG: Record<string, AnyEngine> = {
       "The compass reads everything the island has noticed about you — values, interests, skills, the way you respond — and translates it into pathways worth trying next. Three at a time, not many; each one carries its own risks. You're not deciding here; you're picking what to test.",
     cameraOffset: { dist: 2.6, lift: 0.55, lookLift: 0.7 },
     peekAnchorLift: 1.1,
-    pickup: false,
     primaryCta: { label: 'Talk about it more' },
     secondaryCta: { label: 'Open Path Finder', icon: true },
     primaryAction: (_target: Target, _view: AnyEngine, _state: AnyEngine, deps: EngineDeps) =>
@@ -1022,12 +1032,12 @@ class ObjectPeekController {
   step: 'peek' | 'pickup' | null = null
   target: Target | null = null
   config: AnyEngine = null
-  pickupGroup: THREE.Group | null = null
-  pickupTween: AnyEngine = null
   typerId = 0
   disposed = false
   _timers = new Set<ReturnType<typeof setTimeout>>()
   tmpVec = new THREE.Vector3()
+  _kiraTurn: KiraTurnState | null = null
+  _kiraRestYaw: number | null = null
   _onKeyDown = (event: KeyboardEvent) => {
     if (this.isOpen && event.key === 'Escape') this.close()
   }
@@ -1061,6 +1071,13 @@ class ObjectPeekController {
     if (!config) return
     this.disposed = false
     this._clearTimers()
+    // Drop any in-flight Kira turn from a prior session so the next
+    // _goPickup captures a fresh rest yaw. Without this, a quick
+    // open→close→open within ZOOM_DURATION lets the new open record a
+    // tween-intermediate rotation as "rest" and Kira ends up stuck at
+    // the camera-facing yaw forever.
+    this._kiraTurn = null
+    this._kiraRestYaw = null
     this.target = target
     this.config = config
     this.isOpen = true
@@ -1120,7 +1137,18 @@ class ObjectPeekController {
       const camPos = new THREE.Vector3(perch.x + unitX * 2.6, perch.y + 1.05, perch.z + unitZ * 2.6)
       const camLook = new THREE.Vector3(perch.x, perch.y + 0.85, perch.z)
       this.view.camera.zoomTo(camPos, camLook, ZOOM_DURATION, { owner: 'object-peek' })
-      if (config.pickup) this._spawnPickup(kira)
+
+      // Turn Kira to face the camera while she speaks the lore. Kira's
+      // own update freezes wander while objectPeek.step === 'pickup', so
+      // this rotation holds until close.
+      if (this._kiraRestYaw === null) this._kiraRestYaw = kira.group.rotation.y
+      this._kiraTurn = {
+        mode: 'in',
+        startTime: performance.now(),
+        from: kira.group.rotation.y,
+        to: Math.atan2(-unitZ, unitX),
+        duration: ZOOM_DURATION,
+      }
     }
 
     this.setObjectPickup({
@@ -1167,7 +1195,17 @@ class ObjectPeekController {
     this.setObjectPeek((prev) => ({ ...prev, open: false }))
     this.setObjectPickup((prev) => ({ ...prev, open: false }))
     this.view.camera.restoreZoom(ZOOM_DURATION, { owner: 'object-peek' })
-    this._despawnPickup()
+
+    // Swing Kira back to her resting yaw so wander resumes seamlessly.
+    if (this._kiraRestYaw !== null && this.view.kira) {
+      this._kiraTurn = {
+        mode: 'out',
+        startTime: performance.now(),
+        from: this.view.kira.group.rotation.y,
+        to: this._kiraRestYaw,
+        duration: ZOOM_DURATION,
+      }
+    }
     this._schedule(() => {
       if (!this.disposed) this.view.hoverProbe?.setEnabled?.(true)
     }, ZOOM_DURATION + 80)
@@ -1184,9 +1222,11 @@ class ObjectPeekController {
     document.removeEventListener('pointerdown', this._onDocPointerDown)
     this.typerId += 1
     this._clearTimers()
-    if (this.pickupGroup) disposeGroup(this.pickupGroup)
-    this.pickupGroup = null
-    this.pickupTween = null
+    // Clear talking-state markers so a late RAF tick before React nulls
+    // view.objectPeek doesn't keep Kira frozen on a dead controller.
+    this.step = null
+    this._kiraTurn = null
+    this._kiraRestYaw = null
     this.isOpen = false
     this.target = null
     this.config = null
@@ -1196,21 +1236,21 @@ class ObjectPeekController {
 
   update() {
     if (this.isOpen && this.step === 'peek' && this.target) this._anchorPeek()
-    if (this.pickupTween && this.pickupGroup) {
-      const t = Math.min(
-        1,
-        (performance.now() - this.pickupTween.start) / this.pickupTween.duration,
-      )
+    const turn = this._kiraTurn
+    if (turn && this.view.kira) {
+      const t = Math.min(1, (performance.now() - turn.startTime) / turn.duration)
       const eased = smootherStep(t)
-      this.pickupGroup.position.y =
-        this.pickupTween.from + (this.pickupTween.to - this.pickupTween.from) * eased
+      let delta = turn.to - turn.from
+      delta = ((delta + Math.PI * 3) % (Math.PI * 2)) - Math.PI
+      this.view.kira.group.rotation.y = turn.from + delta * eased
+      // Keep Kira's wander-facing in sync so resuming walk doesn't snap.
+      if (typeof this.view.kira.facing === 'number') {
+        this.view.kira.facing = this.view.kira.group.rotation.y
+      }
       if (t >= 1) {
-        const mode = this.pickupTween.mode
-        this.pickupTween = null
-        if (mode === 'down') {
-          disposeGroup(this.pickupGroup)
-          this.pickupGroup = null
-        }
+        const mode = turn.mode
+        this._kiraTurn = null
+        if (mode === 'out') this._kiraRestYaw = null
       }
     }
   }
@@ -1251,48 +1291,6 @@ class ObjectPeekController {
       this._schedule(step, typeDelay(ch))
     }
     this._schedule(step, delay)
-  }
-
-  _spawnPickup(kira: AnyEngine) {
-    const target = this.target
-    if (!target || !kira?.group) return
-    const grp = new THREE.Group()
-    const petalMat = new THREE.MeshLambertMaterial({
-      color: speciesColor(target),
-      flatShading: true,
-    })
-    const stemMat = new THREE.MeshLambertMaterial({ color: 0x6f8a4a, flatShading: true })
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 6), stemMat)
-    stem.position.y = 0.06
-    grp.add(stem)
-    for (let i = 0; i < 5; i += 1) {
-      const angle = (i / 5) * Math.PI * 2
-      const petal = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), petalMat)
-      petal.position.set(Math.cos(angle) * 0.05, 0.13, Math.sin(angle) * 0.05)
-      petal.scale.set(1, 0.5, 1)
-      grp.add(petal)
-    }
-    grp.position.set(0.12, 0, 0.12)
-    kira.group.add(grp)
-    this.pickupGroup = grp
-    this.pickupTween = {
-      start: performance.now(),
-      from: 0.02,
-      to: 0.78,
-      duration: PICKUP_LIFT_MS,
-      mode: 'up',
-    }
-  }
-
-  _despawnPickup() {
-    if (!this.pickupGroup) return
-    this.pickupTween = {
-      start: performance.now(),
-      from: this.pickupGroup.position.y,
-      to: 0,
-      duration: PICKUP_LIFT_MS,
-      mode: 'down',
-    }
   }
 
   _schedule(callback: () => void, delay: number) {
@@ -2188,20 +2186,10 @@ function ObjectPickupPanel({
   )
 }
 
-function narrationFor(target: Target, state: AnyEngine) {
+// Tree / flower / fruit clicks route through ObjectPeekController now; the
+// direct kiraNarrator.narrate(hit) fallback only fires for `kira` herself.
+function narrationFor(target: Target, _state: AnyEngine) {
   if (target.kind === 'kira') return KIRA_NARRATION
-  const evidence = resolveElementEvidence(target, state?.profile)
-  if (evidence.claimId && ['tree', 'flower', 'fruit'].includes(target.kind)) {
-    const text = evidence.hasEvidence
-      ? `${metaphorLine(evidence)} ${latestEvidenceLine(evidence, 110)}`
-      : `${metaphorLine(evidence)} No noticings have landed here yet.`
-    return { text, cta: 'Open' }
-  }
-  const sp = speciesIdOf(target)
-  if (target.kind === 'tree') return TREE_NARRATION[sp] ?? { text: 'A tree.', cta: 'Open' }
-  if (target.kind === 'flower') return FLOWER_NARRATION[sp] ?? { text: 'A flower.', cta: 'Open' }
-  if (target.kind === 'fruit')
-    return FRUIT_NARRATION[sp] ?? { text: 'A fruit — a skill ripening.', cta: 'Open' }
   return { text: '...', cta: 'Open' }
 }
 
@@ -2217,10 +2205,6 @@ function speciesIdOf(target: Target) {
   const raw = target?.species
   if (typeof raw === 'string') return raw
   return String(raw?.id ?? raw?.species ?? '')
-}
-
-function speciesColor(target: Target) {
-  return target?.species?.petal ?? 0xe0a0c0
 }
 
 function prefersReducedMotion() {
@@ -2240,12 +2224,4 @@ function smootherStep(t: number) {
 function themeForFacet(facetId: string | undefined) {
   const theme = facetId ? FACET_THEMES[facetId] : null
   return theme ? { accent: theme.accent, soft: theme.soft, ink: theme.ink } : null
-}
-
-function disposeGroup(group: THREE.Group) {
-  if (group.parent) group.parent.remove(group)
-  group.traverse((node: AnyEngine) => {
-    node.geometry?.dispose?.()
-    node.material?.dispose?.()
-  })
 }

@@ -148,7 +148,7 @@ export default class Sprouts
         this.scene = this.view.scene
         this.island = this.state.island
 
-        // Map<sproutId, { sprout, group, parts, badgeEl, pulsePhase, bobPhase, dissolveStartMs }>
+        // Map<sproutId, { sprout, group, parts, pulsePhase, bobPhase, dissolveStartMs }>
         this.nodes = new Map()
         // Map<bloomedTreeId, { tree, group }>
         this.bloomedNodes = new Map()
@@ -158,27 +158,12 @@ export default class Sprouts
         this.root = new THREE.Group()
         this.scene.add(this.root)
 
-        // Badge layer — DOM container that hosts the count chip for every
-        // live sprout. Appended to document.body to match ObjectPeek's
-        // overlay pattern; the engine's body classes are not touched.
-        this.badgeLayer = null
-        if(typeof document !== 'undefined')
-        {
-            this.badgeLayer = document.createElement('div')
-            this.badgeLayer.className = 'sprouts-badge-layer'
-            this.badgeLayer.style.position = 'fixed'
-            this.badgeLayer.style.inset = '0'
-            this.badgeLayer.style.pointerEvents = 'none'
-            this.badgeLayer.style.zIndex = '20'  // below ObjectPeek (z=26), above the canvas
-            document.body.appendChild(this.badgeLayer)
-        }
-
         // Cached screen-projection vector reused per frame.
         this._tmpVec = new THREE.Vector3()
 
-        // Onboarding hides EVERY sprout + bloomed mesh AND the DOM badge
-        // layer so a persisted prior-session sprout doesn't leak into the
-        // ceremony's empty island. Toggled via setOnboardingMode().
+        // Onboarding hides EVERY sprout + bloomed mesh so a persisted
+        // prior-session sprout doesn't leak into the ceremony's empty
+        // island. Toggled via setOnboardingMode().
         this._onboardingHidden = false
 
         // Initial reconcile against any hydrated sprouts + bloomed trees.
@@ -227,11 +212,6 @@ export default class Sprouts
         {
             const next = !!(e && e.detail && e.detail.on)
             this._editMode = next
-            if(this.badgeLayer)
-            {
-                if(next) this.badgeLayer.classList.add('edit-mode')
-                else this.badgeLayer.classList.remove('edit-mode')
-            }
             // Exiting edit mode mid-drag cancels the gesture so the
             // half-moved object doesn't strand in the air with no way
             // to commit.
@@ -940,7 +920,6 @@ export default class Sprouts
         if(next === this._onboardingHidden) return
         this._onboardingHidden = next
         if(this.root) this.root.visible = !next
-        if(this.badgeLayer) this.badgeLayer.style.display = next ? 'none' : ''
     }
 
     setTimelapseSubset(bloomedTrees)
@@ -1206,31 +1185,6 @@ export default class Sprouts
         group.add(parts.glow)
         group.scale.set(0.7, 0.7, 0.7)  // grows up to 1.0 as count rises
 
-        // DOM badge — small chip showing `n/threshold` (or "Ready" when
-        // readyToBloom). Positioned in update() via camera projection.
-        let badgeEl = null
-        if(this.badgeLayer)
-        {
-            badgeEl = document.createElement('div')
-            badgeEl.className = 'sprout-badge'
-            badgeEl.dataset.sproutId = sprout.id
-            badgeEl.style.position = 'absolute'
-            badgeEl.style.transform = 'translate(-50%, -100%)'
-            badgeEl.style.padding = '2px 8px'
-            badgeEl.style.borderRadius = '999px'
-            badgeEl.style.fontSize = '11px'
-            badgeEl.style.fontFamily = 'system-ui, sans-serif'
-            badgeEl.style.fontWeight = '600'
-            badgeEl.style.color = '#1a3a14'
-            badgeEl.style.background = 'rgba(255, 251, 230, 0.92)'
-            badgeEl.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.18)'
-            badgeEl.style.whiteSpace = 'nowrap'
-            badgeEl.style.pointerEvents = 'none'
-            badgeEl.style.userSelect = 'none'
-            badgeEl.textContent = `${sprout.count}/${sprout.threshold}`
-            this.badgeLayer.appendChild(badgeEl)
-        }
-
         // Invisible hit target for U5's click handler. A simple
         // bounding sphere so raycasting picks the sprout regardless of
         // which leaf the ray hits.
@@ -1247,7 +1201,6 @@ export default class Sprouts
             sprout,
             group,
             parts,
-            badgeEl,
             targetScale: Math.min(1.0, 0.7 + 0.1 * sprout.count),
             pulsePhase: 0,
             bobPhase: 0,
@@ -1615,7 +1568,6 @@ export default class Sprouts
                     }
                     part.material.opacity = 1 - t
                 }
-                if(node.badgeEl) node.badgeEl.style.opacity = String(1 - t)
                 if(t >= 1)
                 {
                     toDelete.push(id)
@@ -1659,29 +1611,6 @@ export default class Sprouts
                 node.parts.leafC.position.y = 0.20
                 node.parts.stem.scale.y = 1
             }
-
-            // Badge projection + label update
-            if(node.badgeEl && camera)
-            {
-                this._tmpVec.set(node.group.position.x, node.group.position.y + 0.36, node.group.position.z)
-                this._tmpVec.project(camera)
-                const sx = (this._tmpVec.x * 0.5 + 0.5) * window.innerWidth
-                const sy = (-this._tmpVec.y * 0.5 + 0.5) * window.innerHeight
-                // Hide if behind camera or off-screen by a margin
-                if(this._tmpVec.z > 1 || sx < -40 || sx > window.innerWidth + 40 || sy < -20 || sy > window.innerHeight + 20)
-                {
-                    node.badgeEl.style.opacity = '0'
-                }
-                else
-                {
-                    node.badgeEl.style.opacity = '1'
-                    node.badgeEl.style.left = `${sx}px`
-                    node.badgeEl.style.top = `${sy}px`
-                    node.badgeEl.textContent = node.sprout.readyToBloom
-                        ? 'Ready'
-                        : `${node.sprout.count}/${node.sprout.threshold}`
-                }
-            }
         }
 
         for(const id of toDelete)
@@ -1714,10 +1643,6 @@ export default class Sprouts
             if(obj.geometry) { try { obj.geometry.dispose() } catch(_) {} }
             if(obj.material) { try { obj.material.dispose() } catch(_) {} }
         })
-        if(node.badgeEl && node.badgeEl.parentNode)
-        {
-            node.badgeEl.parentNode.removeChild(node.badgeEl)
-        }
         this.nodes.delete(id)
     }
 
@@ -1761,11 +1686,6 @@ export default class Sprouts
         {
             try { this.scene?.remove?.(this.root) } catch(_) {}
             this.root = null
-        }
-        if(this.badgeLayer && this.badgeLayer.parentNode)
-        {
-            try { this.badgeLayer.parentNode.removeChild(this.badgeLayer) } catch(_) {}
-            this.badgeLayer = null
         }
     }
 }
