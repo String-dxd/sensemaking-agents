@@ -276,8 +276,10 @@ export function CalendarPane({
                       // biome-ignore lint/suspicious/noArrayIndexKey: mood badges are positional within a day
                       key={i}
                       aria-hidden
-                      className="size-3"
-                      style={{ color: MOOD_HEX[mood.emotion ?? ''] ?? '#bbb' }}
+                      className={cn('size-3', isSelected && 'text-white')}
+                      style={
+                        isSelected ? undefined : { color: MOOD_HEX[mood.emotion ?? ''] ?? '#bbb' }
+                      }
                     />
                   ))}
                   {cellCaps.length > 0

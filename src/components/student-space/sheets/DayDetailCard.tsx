@@ -1,6 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Sparkles } from 'lucide-react'
-import { useState } from 'react'
 import { cn } from '~/lib/utils'
 
 /**
@@ -124,13 +123,6 @@ export function DayDetailCard({
   date: string | null
   engineState: DayDetailEngineState | undefined
 }) {
-  const [reviewInFlight, setReviewInFlight] = useState<{
-    entryId: number
-    status: 'confirmed' | 'forgotten'
-  } | null>(null)
-  const [reviewError, setReviewError] = useState<{ entryId: number; message: string } | null>(null)
-  const [retryInFlightId, setRetryInFlightId] = useState<string | null>(null)
-
   const moods = date ? (engineState?.moodPins?.pins ?? []).filter((p) => p.entryDate === date) : []
   const captures = date
     ? (engineState?.captures?.entries ?? []).filter((c) => c.entryDate === date)
@@ -138,101 +130,6 @@ export function DayDetailCard({
   const events = date
     ? (engineState?.calendar?.events ?? []).filter((e) => eventDate(e) === date)
     : []
-
-  async function reviewCapture(capture: DayDetailCapture, status: 'confirmed' | 'forgotten') {
-    const entryId = Number(capture.backendMirrorEntryId)
-    if (!Number.isInteger(entryId) || !engineState?.backend?.updateReflectionReview) return
-    setReviewInFlight({ entryId, status })
-    setReviewError(null)
-    try {
-      const updated = await engineState.backend.updateReflectionReview({ entryId, status })
-      patchReviewCapture(capture, entryId, status, updated)
-      try {
-        const snapshot = await engineState.backend.refreshSnapshot?.()
-        if (snapshot) engineState.applyBackendSnapshot?.(snapshot)
-      } catch (refreshErr) {
-        console.warn('[DayDetailCard] reflection review snapshot refresh failed', refreshErr)
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.warn('[DayDetailCard] reflection review failed', err)
-      setReviewError({ entryId, message: `Review update failed: ${message}` })
-    } finally {
-      setReviewInFlight(null)
-    }
-  }
-
-  async function retryCaptureSync(capture: DayDetailCapture) {
-    if (!capture.id || capture.kind !== 'ask' || !engineState?.backend?.submitReflection) return
-    setRetryInFlightId(capture.id)
-    engineState.captures?.patch?.(capture.id, { syncStatus: 'syncing', syncError: '' })
-    try {
-      const result = await engineState.backend.submitReflection({
-        localCaptureId: capture.id,
-        transcript: capture.text || '',
-        contextType: capture.contextType || 'school',
-      })
-      const mirror = result?.mirrorEntry
-      if (mirror) {
-        engineState.captures?.patch?.(capture.id, {
-          backendMirrorEntryId: mirror.id,
-          text: mirror.transcript || capture.text || '',
-          reviewStatus: mirror.reviewStatus || 'pending',
-          syncStatus: 'synced',
-          syncError: '',
-          contextType: mirror.contextType || 'school',
-          reframe: {
-            headline: mirror.storyReframe || '',
-            highlightPhrase: mirror.inferredMeaning || '',
-            themes: mirror.contextType ? [mirror.contextType] : [],
-            needs: [],
-            moods: [],
-          },
-        })
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      console.warn('[DayDetailCard] reflection sync retry failed', err)
-      engineState.captures?.patch?.(capture.id, { syncStatus: 'failed', syncError: message })
-    } finally {
-      setRetryInFlightId(null)
-    }
-  }
-
-  function patchReviewCapture(
-    capture: DayDetailCapture,
-    entryId: number,
-    status: 'confirmed' | 'forgotten',
-    updated:
-      | {
-          reviewStatus?: string
-          transcript?: string
-          contextType?: string
-          storyReframe?: string
-          inferredMeaning?: string
-        }
-      | undefined,
-  ) {
-    const patch = {
-      reviewStatus: updated?.reviewStatus || status,
-      ...(updated?.transcript ? { text: updated.transcript } : {}),
-      ...(updated?.contextType ? { contextType: updated.contextType } : {}),
-      ...(updated
-        ? {
-            reframe: {
-              headline: updated.storyReframe || '',
-              highlightPhrase: updated.inferredMeaning || '',
-              themes: updated.contextType ? [updated.contextType] : [],
-              needs: [],
-              moods: [],
-            },
-          }
-        : {}),
-    }
-    let patched = engineState?.captures?.patch?.(`mirror:${entryId}`, patch)
-    if (patched) return
-    if (capture.id) patched = engineState?.captures?.patch?.(capture.id, patch)
-  }
 
   if (!date) {
     return (
@@ -393,68 +290,6 @@ export function DayDetailCard({
   )
 }
 
-function CaptureActions({
-  capture,
-  reviewInFlight,
-  reviewError,
-  retryInFlight,
-  onReview,
-  onRetry,
-}: {
-  capture: DayDetailCapture
-  reviewInFlight: { entryId: number; status: 'confirmed' | 'forgotten' } | null
-  reviewError: { entryId: number; message: string } | null
-  retryInFlight: boolean
-  onReview: (status: 'confirmed' | 'forgotten') => void
-  onRetry: () => void
-}) {
-  const entryId = Number(capture.backendMirrorEntryId)
-  const reviewing = Number.isInteger(entryId) && reviewInFlight?.entryId === entryId
-  const canReview = Number.isInteger(entryId) && capture.reviewStatus === 'pending'
-  const failed = capture.syncStatus === 'failed'
-  return (
-    <div className="mt-2 space-y-2 text-xs text-(--color-sheet-ink-soft)">
-      {syncLine(capture) ? <p>{syncLine(capture)}</p> : null}
-      {capture.prompt ? <p>prompt: {capture.prompt}</p> : null}
-      {canReview ? (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={reviewing}
-            onClick={() => onReview('confirmed')}
-            className="min-h-10 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white active:scale-[0.96] disabled:pointer-events-none disabled:cursor-wait disabled:opacity-60"
-          >
-            {reviewing && reviewInFlight?.status === 'confirmed' ? 'Confirming...' : 'Confirm'}
-          </button>
-          <button
-            type="button"
-            disabled={reviewing}
-            onClick={() => onReview('forgotten')}
-            className="min-h-10 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white active:scale-[0.96] disabled:pointer-events-none disabled:cursor-wait disabled:opacity-60"
-          >
-            {reviewing && reviewInFlight?.status === 'forgotten' ? 'Forgetting...' : 'Forget'}
-          </button>
-        </div>
-      ) : null}
-      {failed ? (
-        <button
-          type="button"
-          disabled={retryInFlight}
-          onClick={onRetry}
-          className="min-h-10 cursor-pointer rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 font-semibold text-(--color-sheet-ink) transition-[background-color,transform] hover:bg-white active:scale-[0.96] disabled:pointer-events-none disabled:cursor-wait disabled:opacity-60"
-        >
-          {retryInFlight ? 'Retrying...' : 'Retry sync'}
-        </button>
-      ) : null}
-      {reviewError?.entryId === entryId ? (
-        <p role="alert" className="text-red-700">
-          {reviewError.message}
-        </p>
-      ) : null}
-    </div>
-  )
-}
-
 function EmptyDay({ date }: { date: string }) {
   const navigate = useNavigate()
   const today = ymd(new Date())
@@ -497,11 +332,4 @@ function eventDate(event: { entryDate?: string; date?: string }) {
 
 function eventLabel(event: { title?: string; label?: string; kind?: string }) {
   return event.title ?? event.label ?? event.kind ?? 'Event'
-}
-
-function syncLine(capture: DayDetailCapture) {
-  if (capture.syncStatus === 'failed')
-    return `sync failed${capture.syncError ? `: ${capture.syncError}` : ''}`
-  if (capture.syncStatus === 'syncing') return 'syncing...'
-  return ''
 }
