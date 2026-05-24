@@ -10,7 +10,11 @@ import {
   smootherstep,
   smoothstep,
 } from '~/engine/student-space/Game/util/easing.js'
-import { buildStandingBird, SPECIES_BY_ID } from '~/engine/student-space/Game/View/Kira.js'
+import {
+  buildStandingBird,
+  loadMaskedScene,
+  SPECIES_BY_ID,
+} from '~/engine/student-space/Game/View/Kira.js'
 import {
   EGG_COLOR_BY_ID,
   EGG_COLORS,
@@ -412,28 +416,84 @@ function EggCanvas({
       birdGroup.scale.setScalar(0)
       scene.add(birdGroup)
 
-      let birdParts: ReturnType<typeof buildStandingBird> | null = null
+      // birdParts carries only the fields the hatch timeline reads —
+      // `root` (mounted in birdGroup) and `head` (waved in phase 5).
+      // The procedural builder returns more, but the GLB clone path
+      // can't promise the same shape so we normalize down here.
+      type BirdParts = {
+        root: THREEType.Object3D
+        head: THREEType.Object3D
+        kind: 'procedural' | 'glb-clone'
+      }
+      let birdParts: BirdParts | null = null
+      let buildToken = 0
       const disposeBird = () => {
         if (!birdParts) return
         birdGroup.remove(birdParts.root)
-        birdParts.root.traverse((obj) => {
-          const node = obj as THREEType.Mesh
-          node.geometry?.dispose?.()
-          const m = node.material as THREEType.Material | THREEType.Material[] | undefined
-          if (Array.isArray(m)) {
-            for (const mm of m) mm.dispose?.()
-          } else {
-            const tex = (m as THREEType.MeshLambertMaterial | undefined)?.map
-            tex?.dispose?.()
-            m?.dispose?.()
-          }
-        })
+        // GLB clones share materials and geometries with the world
+        // Kira's cached scene — disposing them would tear those down
+        // mid-flight. Only the procedural builder owns its allocations.
+        if (birdParts.kind === 'procedural') {
+          birdParts.root.traverse((obj) => {
+            const node = obj as THREEType.Mesh
+            node.geometry?.dispose?.()
+            const m = node.material as THREEType.Material | THREEType.Material[] | undefined
+            if (Array.isArray(m)) {
+              for (const mm of m) mm.dispose?.()
+            } else {
+              const tex = (m as THREEType.MeshLambertMaterial | undefined)?.map
+              tex?.dispose?.()
+              m?.dispose?.()
+            }
+          })
+        }
         birdParts = null
       }
       const buildBird = (id: string) => {
+        const token = ++buildToken
+        if (id === 'masked') {
+          // Async path: clone the cached GLB scene so the hatchling is
+          // visually the same bird that flies in one screen later
+          // (orange body, red tie, tuft hair). SkeletonUtils.clone
+          // gives the clone its own skeleton, so animating the world
+          // Kira's bones doesn't twitch the egg bird.
+          void (async () => {
+            try {
+              const [{ scene: source }, SkeletonUtils] = await Promise.all([
+                loadMaskedScene(),
+                import('three/examples/jsm/utils/SkeletonUtils.js'),
+              ])
+              if (token !== buildToken || cancelled) return
+              const clone = SkeletonUtils.clone(source) as THREEType.Object3D
+              // The cached source scene is already scaled to MASKED_SCALE
+              // (0.30); the clone inherits that. For the egg preview we
+              // size up so the bird reads at roughly the procedural bird's
+              // footprint inside the shell.
+              clone.scale.setScalar(0.55)
+              // Re-find the head in the cloned tree (SkeletonUtils.clone
+              // creates new node instances). MB_Head is the visible head
+              // mesh, sibling to the armature inside MB_Rig.
+              let cloneHead: THREEType.Object3D | null = null
+              clone.traverse((o) => {
+                if (!cloneHead && /MB_Head/i.test(o.name)) cloneHead = o
+              })
+              birdParts = { root: clone, head: cloneHead ?? clone, kind: 'glb-clone' }
+              birdGroup.add(clone)
+            } catch (err) {
+              if (token !== buildToken || cancelled) return
+              console.warn('[EggCanvas] masked GLB clone failed, falling back to procedural', err)
+              const spec = SPECIES_BY_ID.masked ?? SPECIES_BY_ID.flame
+              const parts = buildStandingBird(spec)
+              birdParts = { root: parts.root, head: parts.head, kind: 'procedural' }
+              birdGroup.add(parts.root)
+            }
+          })()
+          return
+        }
         const spec = SPECIES_BY_ID[id] ?? SPECIES_BY_ID.flame
-        birdParts = buildStandingBird(spec)
-        birdGroup.add(birdParts.root)
+        const parts = buildStandingBird(spec)
+        birdParts = { root: parts.root, head: parts.head, kind: 'procedural' }
+        birdGroup.add(parts.root)
       }
       buildBird(speciesRef.current)
 
