@@ -270,7 +270,7 @@ export function ProfileSheet() {
 
   return (
     <PageSurface className="isolate" style={themeStyle}>
-      <SheetSidebar>
+      <SheetSidebar data-stagger-slot="1">
         <SheetIdentityHeader>
           <SheetTitle>My Identity</SheetTitle>
           <SheetDescription>
@@ -309,38 +309,41 @@ export function ProfileSheet() {
       <SheetContent>
         <header
           data-testid="profile-page-header"
+          data-stagger-slot="2"
           className="flex items-center justify-end gap-2 border-b border-(--color-sheet-divider) px-9 py-5"
         >
           <ShareButton onClick={() => setShareOpen(true)} />
           <AccountMenuButton authMenu={state?.auth?.menu} />
         </header>
-        <SheetBody className="space-y-8">
-          {isVipsTab(activeTab) ? (
-            <VipsProfileTab
-              tab={activeTab}
-              profile={profile}
-              backend={state?.backend}
-              applyBackendSnapshot={state?.applyBackendSnapshot}
-              overlayController={engine?.view?.overlayController}
-              captures={state?.captures}
-              moodPins={state?.moodPins}
-              selectedClaimId={selectedClaimId}
-              setSelectedClaimId={setSelectedClaimId}
-              timelineExpanded={expandedTimelines.has(activeTab)}
-              setTimelineExpanded={(expanded) => {
-                setExpandedTimelines((prev) => {
-                  const next = new Set(prev)
-                  if (expanded) next.add(activeTab)
-                  else next.delete(activeTab)
-                  return next
-                })
-              }}
-            />
-          ) : activeTab === 'relationships' ? (
-            <RelationshipsTab />
-          ) : (
-            <ChoicesTab />
-          )}
+        <SheetBody data-stagger-slot="3" className="space-y-8">
+          <div key={activeTab} data-tab-content>
+            {isVipsTab(activeTab) ? (
+              <VipsProfileTab
+                tab={activeTab}
+                profile={profile}
+                backend={state?.backend}
+                applyBackendSnapshot={state?.applyBackendSnapshot}
+                overlayController={engine?.view?.overlayController}
+                captures={state?.captures}
+                moodPins={state?.moodPins}
+                selectedClaimId={selectedClaimId}
+                setSelectedClaimId={setSelectedClaimId}
+                timelineExpanded={expandedTimelines.has(activeTab)}
+                setTimelineExpanded={(expanded) => {
+                  setExpandedTimelines((prev) => {
+                    const next = new Set(prev)
+                    if (expanded) next.add(activeTab)
+                    else next.delete(activeTab)
+                    return next
+                  })
+                }}
+              />
+            ) : activeTab === 'relationships' ? (
+              <RelationshipsTab />
+            ) : (
+              <ChoicesTab />
+            )}
+          </div>
         </SheetBody>
       </SheetContent>
       <ShareDialog open={shareOpen} onOpenChange={setShareOpen} />

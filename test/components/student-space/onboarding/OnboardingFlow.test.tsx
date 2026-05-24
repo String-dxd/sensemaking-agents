@@ -289,12 +289,12 @@ describe('OnboardingFlow (React)', () => {
       expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Hi, there.')
     })
 
-    it('marks the React-owned stage slot visible for the fade substrate', async () => {
+    it('mounts the React-owned stage slot with the paint-in animation', async () => {
       const onboarding = makeOnboarding({ stage: 'greeting' })
       const game = makeGame({ onboarding })
       renderFlow(game)
       const slot = await screen.findByTestId('onboarding-stage-slot')
-      expect(slot).toHaveClass('opacity-100')
+      expect(slot.className).toMatch(/onboardingStageIn/)
       expect(slot).toHaveAttribute('data-stage', 'greeting')
     })
 

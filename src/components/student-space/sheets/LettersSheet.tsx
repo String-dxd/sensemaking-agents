@@ -114,7 +114,7 @@ export function LettersSheet() {
 
   return (
     <PageSurface>
-      <SheetSidebar>
+      <SheetSidebar data-stagger-slot="1">
         <SheetIdentityHeader>
           <SheetTitle>Letters</SheetTitle>
           <SheetDescription>
@@ -143,13 +143,13 @@ export function LettersSheet() {
       <SheetContent>
         {selected ? (
           <>
-            <SheetPageHeader>
+            <SheetPageHeader data-stagger-slot="2">
               <p className="text-sm text-(--color-sheet-ink-soft)">
                 {selected.from} · <time>{formatSent(selected.sentAt)}</time>
               </p>
               <SheetTitle>{selected.subject}</SheetTitle>
             </SheetPageHeader>
-            <SheetBody>
+            <SheetBody data-stagger-slot="3">
               <LetterBodyContent letter={selected} />
               {selected.prompt ? (
                 <div className="mt-8 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5">
@@ -169,7 +169,7 @@ export function LettersSheet() {
             </SheetBody>
           </>
         ) : (
-          <SheetBody>
+          <SheetBody data-stagger-slot="2">
             <p className="text-base leading-relaxed text-(--color-sheet-ink-soft)">
               Tap a letter to read it.
             </p>

@@ -108,7 +108,7 @@ export function HistorySheet() {
 
   return (
     <PageSurface>
-      <SheetSidebar>
+      <SheetSidebar data-stagger-slot="1">
         <SheetIdentityHeader>
           <SheetTitle>History</SheetTitle>
           <SheetDescription>Your moments, moods, and reflections over time.</SheetDescription>
@@ -123,20 +123,22 @@ export function HistorySheet() {
         </SheetSidenav>
       </SheetSidebar>
       <SheetContent>
-        <SheetBody>
-          {activeTab === 'timeline' ? (
-            <TimelinePane
-              engineState={state}
-              hash={location.hash ?? ''}
-              filter={
-                (location.search as { filter?: unknown } | undefined)?.filter === 'need-review'
-                  ? 'need-review'
-                  : undefined
-              }
-            />
-          ) : (
-            <GrowthPane engine={engine} />
-          )}
+        <SheetBody data-stagger-slot="2">
+          <div key={activeTab} data-tab-content>
+            {activeTab === 'timeline' ? (
+              <TimelinePane
+                engineState={state}
+                hash={location.hash ?? ''}
+                filter={
+                  (location.search as { filter?: unknown } | undefined)?.filter === 'need-review'
+                    ? 'need-review'
+                    : undefined
+                }
+              />
+            ) : (
+              <GrowthPane engine={engine} />
+            )}
+          </div>
         </SheetBody>
       </SheetContent>
     </PageSurface>

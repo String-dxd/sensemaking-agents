@@ -62,7 +62,7 @@ export function SettingsSheet() {
 
   return (
     <PageSurface>
-      <SheetSidebar>
+      <SheetSidebar data-stagger-slot="1">
         <SheetIdentityHeader>
           <SheetTitle>Settings</SheetTitle>
           <SheetDescription>Tools for adjusting how the world behaves.</SheetDescription>
@@ -75,10 +75,10 @@ export function SettingsSheet() {
         </div>
       </SheetSidebar>
       <SheetContent>
-        <SheetPageHeader>
+        <SheetPageHeader data-stagger-slot="2">
           <SheetTitle>Settings</SheetTitle>
         </SheetPageHeader>
-        <SheetBody>
+        <SheetBody data-stagger-slot="3">
           <SettingsGroup
             title="World & weather"
             help="Scrub the time of day and force weather effects."

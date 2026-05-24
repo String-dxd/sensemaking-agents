@@ -173,7 +173,7 @@ export function TrajectorySheet() {
     return (
       <PageSurface>
         <SheetContent>
-          <SheetBody>
+          <SheetBody data-stagger-slot="1">
             <p className="text-sm text-(--color-sheet-ink-soft)">Loading Path Finder...</p>
           </SheetBody>
         </SheetContent>
@@ -193,7 +193,7 @@ export function TrajectorySheet() {
 
   return (
     <PageSurface>
-      <SheetSidebar>
+      <SheetSidebar data-stagger-slot="1">
         <SheetIdentityHeader>
           <SheetTitle>Path Finder</SheetTitle>
           <SheetDescription>Bearings drawn from the patterns in your reflections.</SheetDescription>
@@ -258,7 +258,7 @@ export function TrajectorySheet() {
         </div>
       </SheetSidebar>
       <SheetContent>
-        <SheetBody>
+        <SheetBody data-stagger-slot="2">
           <StatusBody
             status={renderStatus}
             capture={capture}
@@ -695,6 +695,8 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
         </div>
         {active ? (
           <section
+            key={selectedIndex}
+            data-tab-content
             className="rounded-2xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-6 shadow-[0_1px_0_rgba(255,255,255,0.55)_inset]"
             role="tabpanel"
           >

@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import type { ButtonHTMLAttributes, HTMLAttributes } from 'react'
 import { useEffect } from 'react'
+import { usePageEnterState } from '~/lib/student-space/use-page-enter-state'
 import { cn } from '~/lib/utils'
 
 export const studentSpaceFrameClassName =
@@ -36,9 +37,11 @@ export interface PageSurfaceProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export function PageSurface({ className, children, framed = true, ...props }: PageSurfaceProps) {
+  const enterState = usePageEnterState()
   return (
     <div
       data-testid="page-surface"
+      data-fresh-enter={enterState === 'fresh' ? 'true' : undefined}
       className={cn(
         'fixed z-30 text-(--color-sheet-ink)',
         framed ? studentSpaceFrameClassName : 'inset-0',
@@ -70,7 +73,7 @@ export function PageCloseButton({ label = 'Close', className, ...props }: PageCl
       aria-label={label}
       data-testid="page-close"
       className={cn(
-        'absolute right-4 top-4 z-10 inline-flex size-9 cursor-pointer items-center justify-center rounded-full text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+        'absolute right-4 top-4 z-10 inline-flex size-9 cursor-pointer items-center justify-center rounded-full text-(--color-sheet-ink-soft) transition-[transform,background-color,color] duration-(--duration-fast) ease-(--ease-out) active:scale-[0.96] motion-reduce:active:scale-100 hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
         className,
       )}
       {...props}
@@ -198,7 +201,7 @@ export function SheetNavButton({
       type="button"
       data-active={active || undefined}
       className={cn(
-        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors',
+        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-[transform,background-color,color] duration-(--duration-fast) ease-(--ease-out) active:scale-[0.98] motion-reduce:active:scale-100',
         'cursor-pointer text-(--color-sheet-ink-soft) hover:bg-[rgba(43,38,32,0.045)]',
         'data-[active]:bg-(--color-sheet-tab-active) data-[active]:text-(--color-sheet-ink)',
         className,

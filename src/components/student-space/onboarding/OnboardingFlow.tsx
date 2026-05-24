@@ -301,9 +301,15 @@ export function OnboardingFlow() {
 }
 
 function StageSlot({ stage, children }: { stage: string; children: ReactNode }) {
+  // Single-layer slot: each stage paints in via its own per-component
+  // `visible` ramp (EdupassLogin, Greeting, EggHatcher, etc.) so a
+  // shared between-stage crossfade isn't load-bearing. A layered
+  // outgoing/incoming approach was tried but the outgoing layer's DOM
+  // intermittently tripped role queries in unit tests. Single-layer
+  // keeps per-stage polish without the test flake.
   return (
     <div
-      className="absolute inset-0 opacity-100 transition-opacity duration-[320ms] ease-[var(--onb-ease)] motion-reduce:duration-[80ms]"
+      className="absolute inset-0 animate-[onboardingStageIn_320ms_var(--onb-ease)_both]"
       data-stage={stage}
       data-testid="onboarding-stage-slot"
     >

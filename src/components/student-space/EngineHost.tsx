@@ -12,6 +12,7 @@ import {
 } from '~/lib/student-space/route-sync'
 import { EngineContext } from '~/lib/student-space/use-engine'
 import { EngineOverlayProvider, useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
+import { useTrackPreviousPathnameForEnterState } from '~/lib/student-space/use-page-enter-state'
 import { cn } from '~/lib/utils'
 import { AskSheet } from './capture/AskSheet'
 import { CaptureChooser } from './capture/CaptureChooser'
@@ -62,6 +63,12 @@ export function EngineHost({ className, children }: { className?: string; childr
     [location.pathname],
   )
   const isWorldRoute = location.pathname === '/' || location.pathname === '/onboarding'
+
+  // Keep the page-enter-state module in sync with the live pathname, even
+  // on world routes where no PageSurface is mounted. Without this, a
+  // /profile → / → /history navigation would skip the fresh-enter stagger
+  // on /history because previousPathname would still be '/profile'.
+  useTrackPreviousPathnameForEnterState()
 
   // Defer the open call for surfaces that render empty without server
   // data, until the snapshot promise has resolved.
@@ -228,8 +235,8 @@ export function EngineHost({ className, children }: { className?: string; childr
           ref={containerRef}
           aria-hidden={!isWorldRoute}
           className={cn(
-            'game',
-            !isWorldRoute && 'pointer-events-none invisible opacity-0',
+            'game transition-opacity duration-[280ms] ease-(--ease-out) motion-reduce:transition-none',
+            !isWorldRoute && 'pointer-events-none opacity-0',
             className,
           )}
           style={{

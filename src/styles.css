@@ -78,8 +78,23 @@
   --color-sheet-divider: rgba(43, 38, 32, 0.06);
   --color-sheet-tab-active: rgba(43, 38, 32, 0.075);
   --blur-sheet: 10px;
+  /* Aliases retained for the ~30 existing usages; new code reaches for
+     the named tokens below. */
   --duration-sheet: 200ms;
   --ease-sheet: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* ── Motion tokens ──────────────────────────────────────────────────── */
+  /* Duration tiers. Per web-animation-design: UI motion stays under 300ms;
+     larger surfaces (onboarding cross-step) get the 320ms slow tier. */
+  --duration-fast: 120ms; /* press feedback, micro */
+  --duration-base: 200ms; /* sheets, drawers, route fades, capture enter */
+  --duration-slow: 320ms; /* onboarding cross-step */
+  /* Easing curves. ease-out for enters/exits, ease-in-out for on-screen
+     movement, ease for hover/color. ease-out matches --ease-sheet exactly
+     and the engine's --onb-ease — keep that invariant. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* ── World frame layout ─────────────────────────────────────────────── */
   --inset-frame: 14px;
@@ -153,6 +168,70 @@ body,
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ──────────────────────────────────────────────────────────────────────
+   Sheet first-open stagger. Fires only when PageSurface carries
+   data-fresh-enter="true" (set by usePageEnterState when the previous
+   pathname was a world route or undefined). Sheets attach
+   data-stagger-slot="1|2|3" to their three top-level regions; the
+   keyframe fades each in with a 60ms offset. Animation, not transition,
+   because we need forward-fill on first render.
+   ────────────────────────────────────────────────────────────────────── */
+[data-fresh-enter='true'] [data-stagger-slot] {
+  opacity: 0;
+  animation: pageStaggerIn var(--duration-base) var(--ease-out) forwards;
+}
+[data-fresh-enter='true'] [data-stagger-slot='1'] {
+  animation-delay: 0ms;
+}
+[data-fresh-enter='true'] [data-stagger-slot='2'] {
+  animation-delay: 60ms;
+}
+[data-fresh-enter='true'] [data-stagger-slot='3'] {
+  animation-delay: 120ms;
+}
+@keyframes pageStaggerIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Onboarding stage paint-in. Each stage's slot animates opacity 0 → 1
+   over 320ms (compressed to 80ms by the global reduced-motion block).
+   Per-stage `visible` ramps inside the stage components (EdupassLogin,
+   Greeting, EggHatcher, etc.) handle the intentional reveal *within*
+   a stage.
+   ────────────────────────────────────────────────────────────────────── */
+@keyframes onboardingStageIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Tab content cross-fade. Fires on every key-swap remount of the
+   wrapper. Tab content is entering the viewport, so ease-out (not ease).
+   160ms hits the skill's "Standard UI" floor while staying snappy on
+   power-use surfaces (Profile facets, History timeline/growth).
+   ────────────────────────────────────────────────────────────────────── */
+[data-tab-content] {
+  animation: tabCrossfade 160ms var(--ease-out) both;
+}
+@keyframes tabCrossfade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 @keyframes trajectoryMenuIn {
   from {
     opacity: 0;
@@ -161,5 +240,25 @@ body,
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────
+   Reduced-motion safety net.
+   Any transition or animation declared in user code is capped at 80ms
+   here. Surfaces that need to disable motion entirely (rather than
+   compress it) should use `motion-reduce:transition-none` or equivalent
+   at the class level — that variant takes precedence over this block.
+   The engine substrate (src/engine/student-space/style.css) has its own
+   reduced-motion blocks; both layers coexist.
+   ────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 80ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 80ms !important;
+    transition-delay: 0ms !important;
   }
 }

@@ -1894,7 +1894,7 @@ function KiraBubble({ state, onDismiss }: { state: KiraBubbleState; onDismiss: (
         transform: `translate(calc(${Math.round(state.x)}px - 50%), calc(${Math.round(state.y)}px - 100% - 16px))`,
       }}
       className={cn(
-        'pointer-events-auto fixed left-0 top-0 z-[54] max-w-[260px] rounded-[18px] border border-white/80 bg-white/92 px-4 py-3 text-left font-sans text-[13px] leading-[1.45] font-semibold text-[#2b2620] shadow-[0_10px_28px_rgba(40,30,20,0.16)] backdrop-blur-md transition duration-200',
+        'pointer-events-auto fixed left-0 top-0 z-[54] max-w-[260px] rounded-[18px] border border-white/80 bg-white/92 px-4 py-3 text-left font-sans text-[13px] leading-[1.45] font-semibold text-[#2b2620] shadow-[0_10px_28px_rgba(40,30,20,0.16)] backdrop-blur-md transition-[opacity,transform] duration-(--duration-base) ease-(--ease-out) motion-reduce:transition-none',
         'after:absolute after:left-1/2 after:top-full after:size-3 after:-translate-x-1/2 after:-translate-y-1/2 after:rotate-45 after:border-r after:border-b after:border-white/80 after:bg-white/92',
         state.visible ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0',
       )}
@@ -1920,7 +1920,7 @@ function HoverCtaChip({ state }: { state: HoverCtaState }) {
         } as CSSProperties
       }
       className={cn(
-        'pointer-events-none fixed z-[26] flex max-w-[296px] items-center gap-3.5 rounded-[18px] bg-white/92 pt-3 pr-5 pb-4 pl-3.5 font-sans text-[#2b2620] antialiased shadow-[0_1px_2px_rgba(34,26,18,0.06),0_12px_28px_rgba(34,26,18,0.16)] backdrop-blur-md transition duration-160',
+        'pointer-events-none fixed z-[26] flex max-w-[296px] items-center gap-3.5 rounded-[18px] bg-white/92 pt-3 pr-5 pb-4 pl-3.5 font-sans text-[#2b2620] antialiased shadow-[0_1px_2px_rgba(34,26,18,0.06),0_12px_28px_rgba(34,26,18,0.16)] backdrop-blur-md transition-[opacity,transform] duration-[160ms] ease-(--ease-out) motion-reduce:transition-none',
         state.open ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
       )}
     >
@@ -1971,7 +1971,7 @@ function NarratorPanel({
       aria-label={`${state.name || 'Kira'} dialogue`}
       data-kira-dialogue
       className={cn(
-        'fixed inset-x-[max(18px,8vw)] bottom-6 z-[58] mx-auto max-w-3xl rounded-[26px] border border-white/75 bg-[#fff7e8]/96 px-6 pt-8 pb-5 font-sans text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md transition duration-220 max-[640px]:inset-x-4 max-[640px]:bottom-4 max-[640px]:px-5 max-[640px]:pt-7',
+        'fixed inset-x-[max(18px,8vw)] bottom-6 z-[58] mx-auto max-w-3xl rounded-[26px] border border-white/75 bg-[#fff7e8]/96 px-6 pt-8 pb-5 font-sans text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md transition-[opacity,transform] duration-[220ms] ease-(--ease-out) motion-reduce:transition-none max-[640px]:inset-x-4 max-[640px]:bottom-4 max-[640px]:px-5 max-[640px]:pt-7',
         state.open ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-5 opacity-0',
       )}
     >
@@ -1982,7 +1982,7 @@ function NarratorPanel({
         type="button"
         aria-label="Close"
         onClick={onClose}
-        className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-lg leading-none text-[#4c4034]/72 transition hover:bg-black/10 hover:text-[#2b2620] active:scale-95"
+        className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-lg leading-none text-[#4c4034]/72 transition-[transform,background-color,color] duration-(--duration-fast) ease-(--ease-out) hover:bg-black/10 hover:text-[#2b2620] active:scale-95 motion-reduce:active:scale-100"
       >
         ×
       </button>
@@ -1991,7 +1991,7 @@ function NarratorPanel({
         <button
           type="button"
           onClick={onConfirm}
-          className="rounded-full bg-[#ff8a5c] px-4 py-2 text-sm font-extrabold text-white shadow-[0_10px_20px_rgba(255,120,66,0.24)] transition hover:-translate-y-px hover:bg-[#ff7842] active:translate-y-0"
+          className="rounded-full bg-[#ff8a5c] px-4 py-2 text-sm font-extrabold text-white shadow-[0_10px_20px_rgba(255,120,66,0.24)] transition-[transform,background-color] duration-(--duration-fast) ease-(--ease-out) hover:-translate-y-px hover:bg-[#ff7842] active:translate-y-0"
         >
           {state.cta} <span aria-hidden>→</span>
         </button>
@@ -2013,7 +2013,7 @@ function ObjectPeekPopover({
       data-object-peek
       style={{ left: state.x, top: state.y }}
       className={cn(
-        'fixed z-[56] w-[250px] -translate-x-1/2 -translate-y-full rounded-[18px] border border-white/76 bg-white/94 p-4 font-sans text-[#2b2620] shadow-[0_16px_40px_rgba(32,24,18,0.2)] backdrop-blur-md transition duration-180',
+        'fixed z-[56] w-[250px] -translate-x-1/2 -translate-y-full rounded-[18px] border border-white/76 bg-white/94 p-4 font-sans text-[#2b2620] shadow-[0_16px_40px_rgba(32,24,18,0.2)] backdrop-blur-md transition-[opacity,transform] duration-[180ms] ease-(--ease-out) motion-reduce:transition-none',
         state.open
           ? 'translate-y-[calc(-100%-12px)] opacity-100'
           : 'pointer-events-none translate-y-[calc(-100%-4px)] opacity-0',
@@ -2025,7 +2025,7 @@ function ObjectPeekPopover({
       <button
         type="button"
         onClick={onAdvance}
-        className="rounded-full bg-[#2f2a24] px-3 py-2 text-xs font-extrabold text-white transition hover:bg-[#3a342b] active:scale-95"
+        className="rounded-full bg-[#2f2a24] px-3 py-2 text-xs font-extrabold text-white transition-[transform,background-color] duration-(--duration-fast) ease-(--ease-out) hover:bg-[#3a342b] active:scale-95 motion-reduce:active:scale-100"
       >
         Find out more <span aria-hidden>→</span>
       </button>
@@ -2052,7 +2052,7 @@ function ObjectPickupPanel({
       data-object-pickup
       data-kira-dialogue
       className={cn(
-        'fixed inset-x-[max(18px,8vw)] bottom-6 z-[58] mx-auto max-w-3xl rounded-[26px] border border-white/75 bg-[#fff7e8]/96 px-6 pt-8 pb-5 font-sans text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md transition duration-220 max-[640px]:inset-x-4 max-[640px]:bottom-4 max-[640px]:px-5 max-[640px]:pt-7',
+        'fixed inset-x-[max(18px,8vw)] bottom-6 z-[58] mx-auto max-w-3xl rounded-[26px] border border-white/75 bg-[#fff7e8]/96 px-6 pt-8 pb-5 font-sans text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md transition-[opacity,transform] duration-[220ms] ease-(--ease-out) motion-reduce:transition-none max-[640px]:inset-x-4 max-[640px]:bottom-4 max-[640px]:px-5 max-[640px]:pt-7',
         state.open ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-5 opacity-0',
       )}
     >
@@ -2063,7 +2063,7 @@ function ObjectPickupPanel({
         type="button"
         aria-label="Close"
         onClick={onClose}
-        className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-lg leading-none text-[#4c4034]/72 transition hover:bg-black/10 hover:text-[#2b2620] active:scale-95"
+        className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-lg leading-none text-[#4c4034]/72 transition-[transform,background-color,color] duration-(--duration-fast) ease-(--ease-out) hover:bg-black/10 hover:text-[#2b2620] active:scale-95 motion-reduce:active:scale-100"
       >
         ×
       </button>
@@ -2072,14 +2072,14 @@ function ObjectPickupPanel({
         <button
           type="button"
           onClick={onPrimary}
-          className="rounded-full border border-[#ff8a5c]/35 bg-white/70 px-4 py-2 text-sm font-extrabold text-[#9b4a28] transition hover:-translate-y-px hover:bg-white active:translate-y-0"
+          className="rounded-full border border-[#ff8a5c]/35 bg-white/70 px-4 py-2 text-sm font-extrabold text-[#9b4a28] transition-[transform,background-color] duration-(--duration-fast) ease-(--ease-out) hover:-translate-y-px hover:bg-white active:translate-y-0"
         >
           {state.talkLabel}
         </button>
         <button
           type="button"
           onClick={onSecondary}
-          className="rounded-full bg-[#ff8a5c] px-4 py-2 text-sm font-extrabold text-white shadow-[0_10px_20px_rgba(255,120,66,0.24)] transition hover:-translate-y-px hover:bg-[#ff7842] active:translate-y-0"
+          className="rounded-full bg-[#ff8a5c] px-4 py-2 text-sm font-extrabold text-white shadow-[0_10px_20px_rgba(255,120,66,0.24)] transition-[transform,background-color] duration-(--duration-fast) ease-(--ease-out) hover:-translate-y-px hover:bg-[#ff7842] active:translate-y-0"
         >
           {state.detailLabel} {state.detailIcon ? <span aria-hidden>→</span> : null}
         </button>
