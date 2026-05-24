@@ -192,9 +192,11 @@ body,
 @keyframes pageStaggerIn {
   from {
     opacity: 0;
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -223,11 +225,12 @@ body,
 }
 
 /* Tab content cross-fade. Fires on every key-swap remount of the
-   wrapper. Opacity-only, 120ms — power-use surfaces (Profile facets,
-   History timeline/growth) stay near-instant.
+   wrapper. Tab content is entering the viewport, so ease-out (not ease).
+   160ms hits the skill's "Standard UI" floor while staying snappy on
+   power-use surfaces (Profile facets, History timeline/growth).
    ────────────────────────────────────────────────────────────────────── */
 [data-tab-content] {
-  animation: tabCrossfade 120ms var(--ease) both;
+  animation: tabCrossfade 160ms var(--ease-out) both;
 }
 @keyframes tabCrossfade {
   from {
