@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet, redirect, useLocation } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
 import { EngineHost } from '~/components/student-space/EngineHost'
 import { EdupassLogin } from '~/components/student-space/onboarding/EdupassLogin'
+import { useEngine } from '~/lib/student-space/use-engine'
 import { loadAuthMenu } from '~/server/auth-menu.functions'
 import type { AuthMenuState } from '~/server/auth-menu.handler.server'
 
@@ -51,7 +53,7 @@ function AppLayout() {
 
   if (isOnboardingPath(location.pathname) && authMenu?.status !== 'signed-in') {
     return (
-      <EngineHost showOnboardingFlow={false} hideCompanion>
+      <EngineHost showOnboardingFlow={false} hideCompanion landingShowcase>
         <SignedOutOnboarding />
       </EngineHost>
     )
@@ -73,9 +75,26 @@ export function isOnboardingPath(pathname: string) {
 }
 
 function SignedOutOnboarding() {
+  const game = useEngine()
+  // biome-ignore lint/suspicious/noExplicitAny: engine view bag is untyped.
+  const camera = (game as any)?.view?.camera ?? null
+  const reducedMotion = useReducedMotion()
   return (
     <main aria-label="Sign in" className="fixed inset-0 z-50 block overflow-hidden">
-      <EdupassLogin reducedMotion camera={null} />
+      <EdupassLogin reducedMotion={reducedMotion} camera={camera} />
     </main>
   )
+}
+
+function useReducedMotion() {
+  const [reduced, setReduced] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setReduced(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setReduced(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return reduced
 }

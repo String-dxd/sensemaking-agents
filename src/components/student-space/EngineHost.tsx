@@ -51,11 +51,17 @@ export function EngineHost({
   children,
   showOnboardingFlow = true,
   hideCompanion = false,
+  landingShowcase = false,
 }: {
   className?: string
   children?: ReactNode
   showOnboardingFlow?: boolean
   hideCompanion?: boolean
+  // When true, populate the island (all flowers, the tree, butterflies)
+  // so signed-out visitors see a mature island instead of the sparse
+  // one. Reverts on cleanup so a sign-in transition lands cleanly on
+  // the empty onboarding stage.
+  landingShowcase?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [error, setError] = useState<Error | null>(null)
@@ -155,6 +161,38 @@ export function EngineHost({
     view?.tree?.hideAll?.()
     view?.fruits?.hideAll?.()
   }, [game])
+
+  // Landing-page showcase: when a signed-out visitor is on /onboarding the
+  // engine renders behind the login surface. Surface every flower, the
+  // tree, and the full butterfly count so the preview reads as "what a
+  // mature island looks like" rather than the sparse onboarding start
+  // state. Cleanup re-hides them so a sign-in transition drops cleanly
+  // onto the empty onboarding stage.
+  useEffect(() => {
+    if (!game || !landingShowcase) return
+    const view = (
+      game as unknown as {
+        view?: {
+          flowers?: { showAll?: () => void; hideAll?: () => void }
+          tree?: { showAll?: () => void; hideAll?: () => void }
+          butterflies?: {
+            showAll?: () => void
+            hideAll?: () => void
+            showCount?: (n: number) => void
+          }
+        }
+      }
+    ).view
+    if (!view) return
+    view.flowers?.showAll?.()
+    view.tree?.showAll?.()
+    view.butterflies?.showAll?.()
+    return () => {
+      view.flowers?.hideAll?.()
+      view.tree?.hideAll?.()
+      view.butterflies?.hideAll?.()
+    }
+  }, [game, landingShowcase])
 
   useEffect(() => {
     const container = containerRef.current
