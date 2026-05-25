@@ -80,25 +80,18 @@ export function DevPalette() {
           },
         }
       : null
-    // Dev-only "mature island" preview — flips the sparse-by-default
-    // Flowers/Tree/Butterflies views into showAll so we can see what a
-    // saturated island looks like without scripting captures. Toggle off
-    // restores the sparse state (only what the student has actually
-    // earned through captures remains visible).
-    const matureIsland: Command | null = import.meta.env.DEV
-      ? {
-          id: 'mature-island',
-          label: matureIslandOn ? 'Hide mature island' : 'Show mature island',
-          hint: 'dev preview',
-          run: () => {
-            setOpen(false)
-            window.dispatchEvent(
-              new CustomEvent('ss:mature-island-toggle', { detail: { on: !matureIslandOn } }),
-            )
-            setMatureIslandOn((v) => !v)
-          },
-        }
-      : null
+    const matureIsland: Command = {
+      id: 'mature-island',
+      label: matureIslandOn ? 'Hide mature island' : 'Show mature island',
+      hint: 'island preview',
+      run: () => {
+        setOpen(false)
+        window.dispatchEvent(
+          new CustomEvent('ss:mature-island-toggle', { detail: { on: !matureIslandOn } }),
+        )
+        setMatureIslandOn((v) => !v)
+      },
+    }
     return [
       { id: 'ui', label: 'Switch to UI mode', hint: '/', run: go('/') },
       {
@@ -118,7 +111,7 @@ export function DevPalette() {
       },
       ...(cameraTuner ? [cameraTuner] : []),
       ...(hatchTuner ? [hatchTuner] : []),
-      ...(matureIsland ? [matureIsland] : []),
+      matureIsland,
       {
         id: 'restart-onboarding',
         label: 'Restart onboarding',
