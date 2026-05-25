@@ -46,13 +46,17 @@ export function Greeting({
       className={cn(
         'absolute inset-0 flex flex-col items-center justify-center',
         'px-6 pt-8 pb-[max(2rem,env(safe-area-inset-bottom))] gap-7',
-        'bg-(--color-onb-bg-cream) text-(--color-onb-ink)',
+        'overflow-hidden bg-transparent text-(--color-onb-ink)',
         'transition-opacity duration-[320ms] ease-out',
         visible ? 'opacity-100' : 'opacity-0',
       )}
       data-testid="onboarding-greeting"
     >
-      <div className="flex max-w-[360px] flex-col items-center gap-3 text-center">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_52%,rgba(250,242,227,0.82),rgba(250,242,227,0.52)_32%,rgba(250,242,227,0.16)_58%,rgba(250,242,227,0)_78%)]"
+      />
+      <div className="relative z-[1] flex max-w-[360px] flex-col items-center gap-3 text-center">
         <h1 className="m-0 font-medium text-[clamp(28px,7vw,36px)]">{hello}</h1>
         <p className="m-0 text-[18px] text-(--color-onb-ink)">{ONBOARDING_COPY.greeting.sub}</p>
         <p className="mx-0 mt-1 mb-0 text-sm italic text-(--color-onb-ink-faint)">
@@ -65,6 +69,7 @@ export function Greeting({
         data-testid="onboarding-greeting-cta"
         onClick={onAdvance}
         className={cn(
+          'relative z-[1]',
           'min-h-[56px] rounded-[14px] border-0 px-[26px] text-base tracking-[0.02em]',
           'cursor-pointer bg-(--color-onb-accent) text-white',
           'shadow-[0_8px_20px_rgba(255,138,92,0.30),0_1px_2px_rgba(43,38,32,0.06)]',

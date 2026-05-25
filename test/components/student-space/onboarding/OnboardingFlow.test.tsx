@@ -294,6 +294,15 @@ describe('OnboardingFlow (React)', () => {
       expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Hi, Mei.')
     })
 
+    it('keeps the live world visible behind the first greeting screen', async () => {
+      const onboarding = makeOnboarding({ stage: 'greeting' })
+      const game = makeGame({ onboarding })
+      renderFlow(game)
+      const greeting = await screen.findByTestId('onboarding-greeting')
+      expect(greeting.className).toContain('bg-transparent')
+      expect(greeting.className).not.toContain('bg-(--color-onb-bg-cream)')
+    })
+
     it('falls back to "there" when no profile name is available', async () => {
       const onboarding = makeOnboarding({ stage: 'greeting' })
       const game = makeGame({ onboarding, studentName: '' })
