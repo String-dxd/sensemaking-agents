@@ -63,7 +63,9 @@ beforeEach(() => {
 
 afterEach(() => {
   document.body.classList.remove('is-dev-overlay-hidden')
+  document.body.classList.remove('is-world-controls-visible')
   navigate.mockClear()
+  vi.unstubAllEnvs()
   Object.defineProperty(window.location, 'assign', {
     configurable: true,
     writable: true,
@@ -117,14 +119,35 @@ describe('DevPalette', () => {
     render(<DevPalette />)
     await user.keyboard('{Meta>}k{/Meta}')
 
-    await user.click(screen.getByRole('option', { name: /hide world controls/i }))
-    expect(document.body).toHaveClass('is-dev-overlay-hidden')
-    expect(localStorage.getItem('sm:dev-overlay-hidden')).toBe('1')
+    await user.click(screen.getByRole('option', { name: /show world controls/i }))
+    expect(document.body).toHaveClass('is-world-controls-visible')
+    expect(localStorage.getItem('sm:world-controls-visible')).toBe('1')
 
     await user.keyboard('{Meta>}k{/Meta}')
-    await user.click(screen.getByRole('option', { name: /show world controls/i }))
-    expect(document.body).not.toHaveClass('is-dev-overlay-hidden')
-    expect(localStorage.getItem('sm:dev-overlay-hidden')).toBeNull()
+    await user.click(screen.getByRole('option', { name: /hide world controls/i }))
+    expect(document.body).not.toHaveClass('is-world-controls-visible')
+    expect(localStorage.getItem('sm:world-controls-visible')).toBeNull()
+  })
+
+  it('keeps mature island preview available in production builds', async () => {
+    vi.stubEnv('DEV', false)
+    const user = userEvent.setup()
+    const matureIslandListener = vi.fn()
+    window.addEventListener('ss:mature-island-toggle', matureIslandListener)
+    render(<DevPalette />)
+
+    await user.keyboard('{Meta>}k{/Meta}')
+    expect(screen.getByRole('option', { name: /show mature island/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /show camera tuner/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /show hatch tuner/i })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('option', { name: /show mature island/i }))
+    expect(matureIslandListener).toHaveBeenCalledTimes(1)
+    expect(matureIslandListener.mock.calls[0]?.[0]).toMatchObject({
+      detail: { on: true },
+    })
+
+    window.removeEventListener('ss:mature-island-toggle', matureIslandListener)
   })
 
   it('restarts onboarding from Cmd-K without clearing the full student-space state', async () => {

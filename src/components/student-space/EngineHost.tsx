@@ -279,7 +279,7 @@ export function EngineHost({
         <MoodSheet />
         {showOnboardingFlow ? <OnboardingFlow /> : null}
         {import.meta.env.DEV && game ? <CameraTuneBridge game={game} /> : null}
-        {import.meta.env.DEV && game ? <MatureIslandBridge game={game} /> : null}
+        {game ? <MatureIslandBridge game={game} /> : null}
         {children}
       </EngineOverlayProvider>
     </EngineContext.Provider>
@@ -291,12 +291,6 @@ export function EngineHost({
  * `world-default` preset into the live engine so tweaks land on the actual
  * static framing without a remount. The HUD itself is hidden until the
  * palette dispatches CAMERA_TUNER_OPEN_EVENT.
- */
-/**
- * DEV-only bridge: listens for the dev palette's `ss:mature-island-toggle`
- * event and flips the sparse-by-default Flowers / Tree / Butterflies views
- * into showAll (or back to hidden — only what the student has earned by
- * capturing stays visible).
  */
 function MatureIslandBridge({ game }: { game: Game }) {
   useEffect(() => {
