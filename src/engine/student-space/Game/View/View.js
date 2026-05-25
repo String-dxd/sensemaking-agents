@@ -93,10 +93,10 @@ export default class View
         this.overlayController = new OverlayController()
         // CaptureFab + CaptureChooser + AskSheet + MoodSheet moved to React
         // (U8–U10) — see `src/components/StudentSpaceHost.tsx`.
-        // FacetView migrated to React (FacetSheetCard + FacetSheetController in
-        // WorldInteractions.tsx). React assigns view.facetView there.
-        // ProfileSheet migrated to React route at /profile (U7).
-        // No engine registration needed — the route owns rendering.
+        // Object detail surfaces live at the routed /profile sheet now;
+        // the in-world FacetSheet half-sheet was removed. Engine callers
+        // navigate via Game.navigate('/profile/<tab>') instead of opening
+        // an inline sheet.
         // ObjectPeek + HoverCta + HoverProbe lifecycle moved to React
         // (U14). React assigns view.objectPeek, view.hoverCta, view.hoverProbe
         // so engine code (HoverProbe internals, KiraNarrator) still finds them.
@@ -200,7 +200,6 @@ export default class View
         // Renderer.dispose() — both bounded per remount.
         const SUBSYSTEMS = [
             // onboardingFlow is owned by React (EngineHost) and disposed there.
-            // facetView is owned by React (WorldInteractions.tsx) and disposed there.
             this.camera,
             this.sound,
             this.mailbox,

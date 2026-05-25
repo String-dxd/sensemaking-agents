@@ -664,7 +664,7 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-[#d4e6fb] text-sm font-bold tabular-nums text-[#2166aa]">
                 {i + 1}
               </span>
-              <h3 className="text-balance text-xl font-semibold leading-tight text-(--color-sheet-ink)">
+              <h3 className="text-balance text-lg font-semibold leading-snug text-(--color-sheet-ink)">
                 {bearing.title}
               </h3>
             </header>
