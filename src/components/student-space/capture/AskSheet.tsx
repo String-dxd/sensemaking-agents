@@ -657,6 +657,16 @@ export function AskSheet() {
     }
   }
 
+  function showPreparedReading() {
+    if (preparedReflection) {
+      setReframe((current) => current ?? preparedToReframe(preparedReflection))
+      setReframeActionMode('ready')
+      setStage('reframe')
+      return
+    }
+    void prepareMirrorDraft()
+  }
+
   function commitCapture(payload: Record<string, unknown>, options: Record<string, unknown> = {}) {
     const entry: Record<string, unknown> = {
       kind: 'ask',
@@ -793,6 +803,7 @@ export function AskSheet() {
   }
 
   function logReview() {
+    if (prepareInFlight) return
     if (preparedReflection) {
       void logPreparedReframe()
       return
@@ -1183,9 +1194,10 @@ export function AskSheet() {
               imageDataUrl={uploadedImageDataUrl}
               reframe={reframe}
               thread={thread}
+              busy={prepareInFlight}
               onDiscard={() => close()}
               onLog={logReview}
-              onReframe={() => void prepareMirrorDraft()}
+              onReframe={showPreparedReading}
             />
           ) : null}
 
@@ -1273,6 +1285,7 @@ function ReviewStage({
   imageDataUrl,
   reframe,
   thread,
+  busy = false,
   onDiscard,
   onLog,
   onReframe,
@@ -1282,6 +1295,7 @@ function ReviewStage({
   imageDataUrl: string | null
   reframe: Reframe | null
   thread: ThreadMessage[]
+  busy?: boolean
   onDiscard: () => void
   onLog: () => void
   onReframe: () => void
@@ -1290,7 +1304,10 @@ function ReviewStage({
     <section className="flex min-h-0 flex-col gap-4">
       <h2 className="m-0 text-xl font-semibold">Here's what you said.</h2>
       <div className="rounded-3xl bg-white/72 p-4 text-base leading-7 text-[rgba(43,38,32,0.82)]">
-        {reviewText || 'Audio recorded. Transcript will appear after Mirror listens.'}
+        <p className="m-0 whitespace-pre-wrap">
+          {reviewText || 'Audio recorded. Transcript will appear after Mirror listens.'}
+        </p>
+        {busy ? <TypingIndicator label="Reading" /> : null}
       </div>
       {imageDataUrl ? (
         <img src={imageDataUrl} alt="" className="max-h-56 rounded-3xl object-cover" />
@@ -1310,8 +1327,9 @@ function ReviewStage({
           {reviewText ? (
             <button
               type="button"
+              disabled={busy}
               onClick={onReframe}
-              className="min-h-12 rounded-full bg-[#f3eee2] px-5 text-sm font-semibold text-[rgba(43,38,32,0.82)]"
+              className="min-h-12 rounded-full bg-[#f3eee2] px-5 text-sm font-semibold text-[rgba(43,38,32,0.82)] disabled:cursor-not-allowed disabled:opacity-45"
             >
               What I heard
             </button>
@@ -1326,8 +1344,9 @@ function ReviewStage({
             </button>
             <button
               type="button"
+              disabled={busy}
               onClick={onLog}
-              className="min-h-11 rounded-full bg-(--color-onb-accent) px-5 text-sm font-semibold text-white"
+              className="min-h-11 rounded-full bg-(--color-onb-accent) px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
             >
               Log
             </button>

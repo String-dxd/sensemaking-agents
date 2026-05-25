@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -12,6 +12,16 @@ import { EngineContext } from '~/lib/student-space/use-engine'
 import { EngineOverlayProvider, useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
 
 type CaptureEntry = Record<string, unknown> & { id: string }
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
 
 function makeCaptures() {
   const subscribers = new Set<(entry: CaptureEntry) => void>()
@@ -261,6 +271,93 @@ describe('React capture stack', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Done' }))
     await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
     await waitFor(() => expect(screen.getByText('realtime transcript')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Log' }))
+    await waitFor(() => expect(logPreparedReflection).toHaveBeenCalledTimes(1))
+    expect(game.state.captures.entries[0]).toMatchObject({
+      text: 'realtime transcript',
+      backendMirrorEntryId: 88,
+      syncStatus: 'synced',
+    })
+  })
+
+  it('keeps realtime Log disabled until prepared reflection is ready', async () => {
+    class MockRTCPeerConnection {}
+    // @ts-expect-error happy-dom does not provide RTCPeerConnection.
+    globalThis.RTCPeerConnection = MockRTCPeerConnection
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    })
+
+    const prepared = {
+      localCaptureId: 'ask-realtime',
+      transcript: 'realtime transcript',
+      validation: 'That was heard live.',
+      inferredMeaning: 'Voice went through Realtime.',
+      storyReframe: 'Kira heard the Realtime session.',
+      contextType: 'school',
+      transcription: { provider: 'openai_realtime', transcript: 'realtime transcript' },
+    }
+    const stopped = deferred<typeof prepared>()
+    const stop = vi.fn(() => stopped.promise)
+    const createRealtimeMirrorCapture = vi.fn(async (input: Record<string, unknown>) => {
+      const onConversationUpdate = input.onConversationUpdate as
+        | ((message: Record<string, unknown>) => void)
+        | undefined
+      onConversationUpdate?.({
+        id: 'student-1',
+        role: 'student',
+        text: 'Can you hear me?',
+        status: 'final',
+      })
+      return { stop, abort: vi.fn() }
+    })
+    const logPreparedReflection = vi.fn(async () => ({
+      mirrorEntry: {
+        id: 88,
+        transcript: 'realtime transcript',
+        validation: 'That was heard live.',
+        storyReframe: 'Kira heard the Realtime session.',
+        inferredMeaning: 'Voice went through Realtime.',
+        contextType: 'school',
+        reviewStatus: 'confirmed',
+      },
+    }))
+    const prepareReflection = vi.fn(async () => {
+      throw new Error('Realtime reading should be reused instead of prepared again.')
+    })
+    const game = makeGame({
+      state: {
+        backend: { createRealtimeMirrorCapture, logPreparedReflection, prepareReflection },
+      },
+    })
+    renderDirectAsk(game)
+
+    await userEvent.click(screen.getByText('open ask directly'))
+    await userEvent.click(screen.getByRole('button', { name: 'Start voice recording' }))
+    await waitFor(() => expect(createRealtimeMirrorCapture).toHaveBeenCalledTimes(1))
+
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }))
+    await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(screen.getByRole('status', { name: 'Reading' })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: 'What I heard' })).toBeDisabled()
+    const pendingLog = screen.getByRole('button', { name: 'Log' })
+    expect(pendingLog).toBeDisabled()
+    await userEvent.click(pendingLog)
+    expect(game.state.captures.add).not.toHaveBeenCalled()
+    expect(logPreparedReflection).not.toHaveBeenCalled()
+
+    await act(async () => {
+      stopped.resolve(prepared)
+      await stopped.promise
+    })
+    await waitFor(() => expect(screen.getByText('realtime transcript')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Log' })).not.toBeDisabled())
+
+    await userEvent.click(screen.getByRole('button', { name: 'What I heard' }))
+    expect(prepareReflection).not.toHaveBeenCalled()
+    expect(screen.getByText(/Kira heard the Realtime session/)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Log' }))
     await waitFor(() => expect(logPreparedReflection).toHaveBeenCalledTimes(1))
