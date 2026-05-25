@@ -131,9 +131,12 @@ export const DEFAULT_PRESETS: Readonly<PresetMap> = Object.freeze({
     durationMs: 800,
   },
   'login-orbit': {
-    azimuthDegPerSec: 1,
-    distance: 33.9,
-    pitchDeg: 35,
+    // Slow, cinematic arc — ~3°/s reads as ambient sweep without the
+    // dizziness a faster rotation would introduce; the populated island
+    // gets to show off over the dwell time on the login surface.
+    azimuthDegPerSec: 3,
+    distance: 32,
+    pitchDeg: 28,
   },
 })
 
