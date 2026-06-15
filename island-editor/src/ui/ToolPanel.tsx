@@ -11,6 +11,14 @@ interface ToolPanelProps {
   onProfileChange: (p: HeightProfile) => void
   brush: BrushParams
   onBrushChange: (b: BrushParams) => void
+  canUndo: boolean
+  canRedo: boolean
+  onUndo: () => void
+  onRedo: () => void
+  onReset: () => void
+  onExport: () => void
+  onImport: () => void
+  onTopView: () => void
 }
 
 const PROFILE_FIELDS: { key: keyof HeightProfile; label: string; min: number; max: number; step: number }[] = [
@@ -22,17 +30,42 @@ const PROFILE_FIELDS: { key: keyof HeightProfile; label: string; min: number; ma
 ]
 const BRUSH_MODES: BrushMode[] = ['raise', 'lower', 'smooth', 'flatten']
 
-export function ToolPanel({ mode, onModeChange, profile, onProfileChange, brush, onBrushChange }: ToolPanelProps) {
+export function ToolPanel({
+  mode,
+  onModeChange,
+  profile,
+  onProfileChange,
+  brush,
+  onBrushChange,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onReset,
+  onExport,
+  onImport,
+  onTopView,
+}: ToolPanelProps) {
   return (
     <div className="tool-panel">
       <div className="tool-panel__title">Island editor</div>
-      <div className="tool-panel__tabs">
-        <button type="button" className={mode === 'shape' ? 'is-active' : ''} onClick={() => onModeChange('shape')}>
-          Shape
-        </button>
-        <button type="button" className={mode === 'sculpt' ? 'is-active' : ''} onClick={() => onModeChange('sculpt')}>
-          Sculpt
-        </button>
+      <div className="tool-panel__topbar">
+        <div className="tool-panel__tabs">
+          <button type="button" className={mode === 'shape' ? 'is-active' : ''} onClick={() => onModeChange('shape')}>
+            Shape
+          </button>
+          <button type="button" className={mode === 'sculpt' ? 'is-active' : ''} onClick={() => onModeChange('sculpt')}>
+            Sculpt
+          </button>
+        </div>
+        <div className="tool-panel__history">
+          <button type="button" title="Undo (⌘Z)" aria-label="Undo" disabled={!canUndo} onClick={onUndo}>
+            ↶
+          </button>
+          <button type="button" title="Redo (⇧⌘Z)" aria-label="Redo" disabled={!canRedo} onClick={onRedo}>
+            ↷
+          </button>
+        </div>
       </div>
 
       {mode === 'shape' ? (
@@ -96,6 +129,22 @@ export function ToolPanel({ mode, onModeChange, profile, onProfileChange, brush,
           <div className="tool-panel__hint">Drag on the island to sculpt relief. Switch to Shape to edit the coastline.</div>
         </>
       )}
+
+      <div className="tool-panel__section">Scene</div>
+      <div className="tool-panel__actions">
+        <button type="button" onClick={onTopView}>
+          Top view
+        </button>
+        <button type="button" onClick={onExport}>
+          Export
+        </button>
+        <button type="button" onClick={onImport}>
+          Import
+        </button>
+        <button type="button" onClick={onReset}>
+          Reset
+        </button>
+      </div>
     </div>
   )
 }
