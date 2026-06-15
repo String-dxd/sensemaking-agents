@@ -58,6 +58,8 @@ interface IslandLayoutSlice {
   updateObject(id: string, patch: Partial<PlacedObject>): void
   isDiverged(): boolean
   revertToDefault(): void
+  serialize(): { v: number; objects: PlacedObject[] }
+  setLayout(snapshot: unknown): void
 }
 
 interface CommandStack {
@@ -160,6 +162,42 @@ function PanelInner({ game }: IslandEditorPanelProps) {
   const undoCount = ctrl?.commandStack.undoCount ?? 0
   const redoCount = ctrl?.commandStack.redoCount ?? 0
 
+  // ── Export / Import ──────────────────────────────────────────────────────
+
+  function handleExport() {
+    if (!layout) return
+    const json = JSON.stringify(layout.serialize(), null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `island-layout-${Date.now().toString(36)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function handleImport() {
+    if (!layout) return
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json,application/json'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target?.result as string)
+          layout.setLayout(parsed)
+        } catch {
+          alert('Invalid JSON file')
+        }
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  }
+
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   function handleAdd() {
@@ -258,13 +296,33 @@ function PanelInner({ game }: IslandEditorPanelProps) {
     >
       <div
         style={{
-          fontWeight: 'bold',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           marginBottom: '8px',
-          color: '#94a3b8',
-          letterSpacing: '0.05em',
         }}
       >
-        ⬡ ISLAND EDITOR
+        <span style={{ fontWeight: 'bold', color: '#94a3b8', letterSpacing: '0.05em' }}>
+          ⬡ ISLAND EDITOR
+        </span>
+        <span style={{ display: 'flex', gap: '4px' }}>
+          <button
+            type="button"
+            onClick={handleExport}
+            style={btnStyle(false)}
+            title="Export layout JSON"
+          >
+            ↓
+          </button>
+          <button
+            type="button"
+            onClick={handleImport}
+            style={btnStyle(false)}
+            title="Import layout JSON"
+          >
+            ↑
+          </button>
+        </span>
       </div>
 
       {/* ── Add palette ────────────────────────────────────────────── */}

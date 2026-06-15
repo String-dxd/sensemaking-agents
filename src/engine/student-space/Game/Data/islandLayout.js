@@ -25,6 +25,9 @@
  * @property {boolean} [locked] - default false; mailbox/telescope are locked
  */
 
+import committed from './defaultIslandLayout.json'
+import { mergeIslandLayout } from '../State/schema.js'
+
 // ── Constants mirroring the view modules ──────────────────────────────────────
 
 // Tree.js PLACEMENTS (lines 66-74)
@@ -107,23 +110,39 @@ const FLOWER_SPECIES = ['daisy', 'tulip', 'rose', 'lily', 'pansy', 'hyacinth']
 // ── Default builder ────────────────────────────────────────────────────────────
 
 /**
- * Build the canonical default `IslandLayout` from the baked constants.
+ * Return the committed default island layout.
  *
- * Produces 31 objects:
- *   - tree-0 … tree-6       (7, from TREE_PLACEMENTS)
- *   - flower-0 … flower-17  (18, from flowerBasePlacement)
- *   - fruit-0 … fruit-3     (4, from FRUIT_PLACEMENTS)
- *   - mailbox-0             (1, locked)
- *   - telescope-0           (1, locked)
+ * Loads from `defaultIslandLayout.json` (the authored, version-controlled
+ * default) and validates it through `mergeIslandLayout`. Falls back to
+ * `defaultIslandLayoutFromConstants()` if the file is missing or invalid,
+ * so the app never boots to an empty island.
+ *
+ * To update the default: edit the island in `/#editor`, click Export, and
+ * commit the downloaded JSON as `Game/Data/defaultIslandLayout.json`.
  *
  * @returns {{ v: 1, objects: PlacedObject[] }}
  */
 export function defaultIslandLayout()
 {
+    const merged = mergeIslandLayout(committed)
+    if(merged && merged.objects.length > 0) return merged
+    return defaultIslandLayoutFromConstants()
+}
+
+/**
+ * Build the canonical default layout from baked constants — the authoritative
+ * fallback if `defaultIslandLayout.json` is empty or invalid.
+ *
+ * Produces 31 objects: tree-0…tree-6, flower-0…flower-17, fruit-0…fruit-3,
+ * mailbox-0, telescope-0.
+ *
+ * @returns {{ v: 1, objects: PlacedObject[] }}
+ */
+export function defaultIslandLayoutFromConstants()
+{
     /** @type {PlacedObject[]} */
     const objects = []
 
-    // Trees
     for(let i = 0; i < TREE_PLACEMENTS.length; i++)
     {
         const p = TREE_PLACEMENTS[i]
@@ -139,7 +158,6 @@ export function defaultIslandLayout()
         })
     }
 
-    // Flowers
     for(let i = 0; i < 18; i++)
     {
         const { x, z, yaw } = flowerBasePlacement(i)
@@ -156,7 +174,6 @@ export function defaultIslandLayout()
         })
     }
 
-    // Fruits
     for(let i = 0; i < FRUIT_PLACEMENTS.length; i++)
     {
         const p = FRUIT_PLACEMENTS[i]
@@ -172,7 +189,6 @@ export function defaultIslandLayout()
         })
     }
 
-    // Mailbox
     objects.push({
         id:      'mailbox-0',
         kind:    'mailbox',
@@ -184,7 +200,6 @@ export function defaultIslandLayout()
         locked:  true,
     })
 
-    // Telescope
     objects.push({
         id:      'telescope-0',
         kind:    'telescope',
@@ -197,13 +212,4 @@ export function defaultIslandLayout()
     })
 
     return { v: 1, objects }
-}
-
-/**
- * Alias kept for back-compat / tests. Same as `defaultIslandLayout()`.
- * @returns {{ v: 1, objects: PlacedObject[] }}
- */
-export function defaultIslandLayoutFromConstants()
-{
-    return defaultIslandLayout()
 }

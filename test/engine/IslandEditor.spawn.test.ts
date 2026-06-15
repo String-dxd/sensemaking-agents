@@ -29,19 +29,23 @@ function makeIsland() {
 }
 
 function makeViewStub(layout: IslandLayout, island: ReturnType<typeof makeIsland>) {
-  const firstTree   = layout.listByKind('tree')[0]
+  const firstTree = layout.listByKind('tree')[0]
   const firstFlower = layout.listByKind('flower')[0]
-  const firstFruit  = layout.listByKind('fruit')[0]
+  const firstFruit = layout.listByKind('fruit')[0]
 
-  const treeGroup    = new THREE.Group()
-  const flowerGroup  = new THREE.Group()
-  const fruitGroup   = new THREE.Group()
+  const treeGroup = new THREE.Group()
+  const flowerGroup = new THREE.Group()
+  const fruitGroup = new THREE.Group()
   const mailboxGroup = new THREE.Group()
-  const teleGroup    = new THREE.Group()
+  const teleGroup = new THREE.Group()
 
   return {
     scene: new THREE.Scene(),
-    camera: { instance: new THREE.PerspectiveCamera(), controls: { enabled: true }, bindControls: vi.fn() },
+    camera: {
+      instance: new THREE.PerspectiveCamera(),
+      controls: { enabled: true },
+      bindControls: vi.fn(),
+    },
     renderer: { instance: { domElement: document.createElement('canvas') } },
     tree: {
       ready: true,
@@ -87,8 +91,8 @@ describe('EditController spawn/remove reconcile', () => {
   it('addObject(flower) calls flowers.ensureFromLayout with updated list', () => {
     const layout = freshLayout()
     const island = makeIsland()
-    const view   = makeViewStub(layout, island)
-    const state  = makeState(layout, island)
+    const view = makeViewStub(layout, island)
+    const state = makeState(layout, island)
 
     const ctrl = new EditController({ view: view as never, state: state as never })
     ctrl.activate()
@@ -99,7 +103,9 @@ describe('EditController spawn/remove reconcile', () => {
 
     expect(layout.listByKind('flower').length).toBe(beforeCount + 1)
     expect(view.flowers.ensureFromLayout).toHaveBeenCalled()
-    const lastCall = (view.flowers.ensureFromLayout as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as { id: string }[]
+    const lastCall = (view.flowers.ensureFromLayout as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1,
+    )![0] as { id: string }[]
     expect(lastCall.some((o) => o.id === 'flower-new')).toBe(true)
 
     ctrl.dispose()
@@ -108,8 +114,8 @@ describe('EditController spawn/remove reconcile', () => {
   it('addObject(tree) calls tree.ensureFromLayout', () => {
     const layout = freshLayout()
     const island = makeIsland()
-    const view   = makeViewStub(layout, island)
-    const state  = makeState(layout, island)
+    const view = makeViewStub(layout, island)
+    const state = makeState(layout, island)
 
     const ctrl = new EditController({ view: view as never, state: state as never })
     ctrl.activate()
@@ -124,8 +130,8 @@ describe('EditController spawn/remove reconcile', () => {
   it('addObject(fruit) calls fruits.ensureFromLayout', () => {
     const layout = freshLayout()
     const island = makeIsland()
-    const view   = makeViewStub(layout, island)
-    const state  = makeState(layout, island)
+    const view = makeViewStub(layout, island)
+    const state = makeState(layout, island)
 
     const ctrl = new EditController({ view: view as never, state: state as never })
     ctrl.activate()
@@ -140,8 +146,8 @@ describe('EditController spawn/remove reconcile', () => {
   it('removeObject(flower) calls flowers.ensureFromLayout with reduced list', () => {
     const layout = freshLayout()
     const island = makeIsland()
-    const view   = makeViewStub(layout, island)
-    const state  = makeState(layout, island)
+    const view = makeViewStub(layout, island)
+    const state = makeState(layout, island)
 
     const firstFlowerId = layout.listByKind('flower')[0]!.id
 
@@ -152,7 +158,9 @@ describe('EditController spawn/remove reconcile', () => {
     layout.removeObject(firstFlowerId)
 
     expect(view.flowers.ensureFromLayout).toHaveBeenCalled()
-    const lastCall = (view.flowers.ensureFromLayout as ReturnType<typeof vi.fn>).mock.calls.at(-1)![0] as { id: string }[]
+    const lastCall = (view.flowers.ensureFromLayout as ReturnType<typeof vi.fn>).mock.calls.at(
+      -1,
+    )![0] as { id: string }[]
     expect(lastCall.some((o) => o.id === firstFlowerId)).toBe(false)
 
     ctrl.dispose()
@@ -161,8 +169,8 @@ describe('EditController spawn/remove reconcile', () => {
   it('revertToDefault triggers all-kind reconcile (layoutReplaced)', () => {
     const layout = freshLayout()
     const island = makeIsland()
-    const view   = makeViewStub(layout, island)
-    const state  = makeState(layout, island)
+    const view = makeViewStub(layout, island)
+    const state = makeState(layout, island)
 
     const ctrl = new EditController({ view: view as never, state: state as never })
     ctrl.activate()
