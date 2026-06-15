@@ -47,7 +47,7 @@ export default class EditController
         this._camera  = view.camera
         this._scene   = view.scene
 
-        this.editableViews = buildEditableViews(view, this._island)
+        this.editableViews = buildEditableViews(view, this._island, state.islandLayout)
         this.selection     = new Selection(this._scene)
         this.commandStack  = new CommandStack()
 
@@ -76,7 +76,17 @@ export default class EditController
         // changes come from undo, the inspector, or external callers.
         this._unsubLayout = this._state.islandLayout?.subscribe((event) =>
         {
-            if(event.type === 'objectUpdated') this._syncMesh(event.object)
+            if(event.type === 'objectUpdated')
+            {
+                this._syncMesh(event.object)
+                return
+            }
+
+            // Structural events — reconcile the appropriate view kind.
+            if(event.type === 'objectAdded' || event.type === 'objectRemoved' || event.type === 'layoutReplaced')
+            {
+                this._reconcileAfterStructural(event)
+            }
         })
     }
 
@@ -570,5 +580,65 @@ export default class EditController
             })
         }
         catch(err) { console.warn('[EditController] _syncMesh threw', err) }
+    }
+
+    /**
+     * Called when objectAdded / objectRemoved / layoutReplaced fires.
+     * Reconciles the affected view kind(s) via ensureFromLayout.
+     *
+     * @param {{ type: string, object?: { kind: string }, kind?: string }} event
+     */
+    _reconcileAfterStructural(event)
+    {
+        const layout = this._state.islandLayout
+        if(!layout) return
+
+        // Determine which kinds to reconcile.
+        const kindsToReconcile = new Set()
+
+        if(event.type === 'layoutReplaced')
+        {
+            // All editable kinds.
+            for(const k of ['tree', 'flower', 'fruit', 'mailbox', 'telescope']) kindsToReconcile.add(k)
+        }
+        else if(event.object?.kind)
+        {
+            kindsToReconcile.add(event.object.kind)
+        }
+
+        for(const kind of kindsToReconcile)
+        {
+            const objs = layout.listByKind(kind)
+            try
+            {
+                // Trees and flowers/fruits have ensureFromLayout.
+                if(kind === 'tree')
+                {
+                    this._view.tree?.ensureFromLayout?.(objs)
+                }
+                else if(kind === 'flower')
+                {
+                    this._view.flowers?.ensureFromLayout?.(objs)
+                }
+                else if(kind === 'fruit')
+                {
+                    this._view.fruits?.ensureFromLayout?.(objs)
+                }
+                else if(kind === 'mailbox')
+                {
+                    const obj = objs[0]
+                    if(obj) this._view.mailbox?.move?.(obj.x, obj.z)
+                }
+                else if(kind === 'telescope')
+                {
+                    const obj = objs[0]
+                    if(obj) this._view.telescope?.move?.(obj.x, obj.z)
+                }
+            }
+            catch(err)
+            {
+                console.warn(`[EditController] reconcile threw for kind=${kind}`, err)
+            }
+        }
     }
 }

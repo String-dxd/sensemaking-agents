@@ -503,6 +503,65 @@ export default class Tree
     }
 
     /**
+     * Island editor (plan 003): reconcile placed trees with a new layout list.
+     * Tears down all existing InstancedMeshes and entry groups, then calls
+     * _placeAll() which reads from the (already-mutated) IslandLayout slice.
+     * A brief flash is accepted — incremental InstancedMesh surgery is
+     * explicitly out of scope per the locked decision.
+     *
+     * No-op until assets are ready (guards against a pre-boot call).
+     *
+     * @param {readonly import('../State/IslandLayout.js').PlacedObject[]} _objs — provided by the
+     *   caller for symmetry with Flowers/Fruits, but Tree reads its layout from the slice directly.
+     */
+    ensureFromLayout(_objs)
+    {
+        if(!this.ready) return
+        try
+        {
+            this._teardownPlacements()
+            this._placeAll()
+            // Re-apply visibility state. If the editor was in "preview" mode,
+            // showAll is called by the panel; otherwise hide as normal.
+            if(!this._hidden) this.showAll()
+        }
+        catch(err)
+        {
+            console.error('[Tree.ensureFromLayout] rebuild threw — layout may be partial', err)
+        }
+    }
+
+    /**
+     * Tear down all authored-placement meshes and leaf InstancedMeshes so
+     * _placeAll() can rebuild cleanly. Does NOT dispose the shared
+     * leafCloudGeo or the species templates — those survive rebuilds.
+     */
+    _teardownPlacements()
+    {
+        for(const entry of (this.entries || []))
+        {
+            if(entry.group)
+            {
+                this.scene.remove(entry.group)
+                entry.group.traverse((child) =>
+                {
+                    if(child.geometry) try { child.geometry.dispose() } catch(_) {}
+                    if(child.material) try { child.material.dispose() } catch(_) {}
+                })
+            }
+        }
+        for(const inst of (this._leafMeshes || []))
+        {
+            this.scene.remove(inst)
+            try { inst.dispose() } catch(_) {}
+        }
+        this.entries = []
+        this._leafMeshBySpecies = {}
+        this._leafMeshes = []
+        this._hidden = false
+    }
+
+    /**
      * First-run ceremony helper. Zero every leaf instance matrix and hide
      * every trunk so the world reads as a bare island until growIn() reveals
      * the directed tree. Idempotent and safe to call before async assets

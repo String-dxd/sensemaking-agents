@@ -16,34 +16,50 @@
 
 /**
  * @param {import('../View.js').default} view
- * @param {import('../Island.js').default} island
+ * @param {import('../../State/Island.js').default} island
+ * @param {import('../../State/IslandLayout.js').default} [layout]
  */
-export function buildEditableViews(view, island)
+export function buildEditableViews(view, island, layout)
 {
     return {
-        tree:      buildTreeAdapter(view, island),
-        flower:    buildFlowerAdapter(view, island),
-        fruit:     buildFruitAdapter(view, island),
-        mailbox:   buildMailboxAdapter(view, island),
-        telescope: buildTelescopeAdapter(view, island),
+        tree:      buildTreeAdapter(view, island, layout),
+        flower:    buildFlowerAdapter(view, island, layout),
+        fruit:     buildFruitAdapter(view, island, layout),
+        mailbox:   buildMailboxAdapter(view, island, layout),
+        telescope: buildTelescopeAdapter(view, island, layout),
     }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function stubSpawn(kind)
+/**
+ * Build spawn/remove helpers for a given kind that delegate to the view's
+ * ensureFromLayout. The layout slice has already been mutated before these
+ * are called, so we just trigger the reconcile.
+ *
+ * @param {object} view
+ * @param {import('../../State/IslandLayout.js').default} layout
+ * @param {string} kind
+ */
+function buildSpawnRemove(view, layout, kind)
 {
-    return (obj) => console.warn(`[editableViews:${kind}] spawn() not yet implemented — see plan 003`, obj)
-}
+    const reconcile = () =>
+    {
+        const objs = layout?.listByKind?.(kind) ?? []
+        // Try both singular and plural names (tree→view.tree, flower→view.flowers).
+        const target = view[kind] ?? view[`${kind}s`]
+        target?.ensureFromLayout?.(objs)
+    }
 
-function stubRemove(kind)
-{
-    return (id) => console.warn(`[editableViews:${kind}] remove() not yet implemented — see plan 003`, id)
+    return {
+        spawn: (_obj) => reconcile(),
+        remove: (_id) => reconcile(),
+    }
 }
 
 // ── Tree ─────────────────────────────────────────────────────────────────────
 
-function buildTreeAdapter(view, island)
+function buildTreeAdapter(view, island, layout)
 {
     return {
         getObject3D(layoutId)
@@ -83,14 +99,13 @@ function buildTreeAdapter(view, island)
             if(typeof t.scale === 'number') entry.group.scale.setScalar(t.scale)
         },
 
-        spawn: stubSpawn('tree'),
-        remove: stubRemove('tree'),
+        ...buildSpawnRemove(view, layout, 'tree'),
     }
 }
 
 // ── Flower ────────────────────────────────────────────────────────────────────
 
-function buildFlowerAdapter(view, island)
+function buildFlowerAdapter(view, island, layout)
 {
     return {
         getObject3D(layoutId)
@@ -130,14 +145,13 @@ function buildFlowerAdapter(view, island)
             if(typeof t.scale === 'number') f.group.scale.setScalar(t.scale)
         },
 
-        spawn: stubSpawn('flower'),
-        remove: stubRemove('flower'),
+        ...buildSpawnRemove(view, layout, 'flower'),
     }
 }
 
 // ── Fruit ─────────────────────────────────────────────────────────────────────
 
-function buildFruitAdapter(view, island)
+function buildFruitAdapter(view, island, layout)
 {
     return {
         getObject3D(layoutId)
@@ -177,14 +191,13 @@ function buildFruitAdapter(view, island)
             if(typeof t.scale === 'number') entry.group.scale.setScalar(t.scale)
         },
 
-        spawn: stubSpawn('fruit'),
-        remove: stubRemove('fruit'),
+        ...buildSpawnRemove(view, layout, 'fruit'),
     }
 }
 
 // ── Mailbox ───────────────────────────────────────────────────────────────────
 
-function buildMailboxAdapter(view, island)
+function buildMailboxAdapter(view, island, layout)
 {
     return {
         getObject3D(_layoutId)
@@ -220,14 +233,13 @@ function buildMailboxAdapter(view, island)
             if(typeof t.scale === 'number') g.scale.setScalar(t.scale)
         },
 
-        spawn: stubSpawn('mailbox'),
-        remove: stubRemove('mailbox'),
+        ...buildSpawnRemove(view, layout, 'mailbox'),
     }
 }
 
 // ── Telescope ─────────────────────────────────────────────────────────────────
 
-function buildTelescopeAdapter(view, island)
+function buildTelescopeAdapter(view, island, layout)
 {
     return {
         getObject3D(_layoutId)
@@ -263,7 +275,6 @@ function buildTelescopeAdapter(view, island)
             if(typeof t.scale === 'number') g.scale.setScalar(t.scale)
         },
 
-        spawn: stubSpawn('telescope'),
-        remove: stubRemove('telescope'),
+        ...buildSpawnRemove(view, layout, 'telescope'),
     }
 }

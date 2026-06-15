@@ -225,6 +225,122 @@ export default class Fruits
             // If hideAll was requested while we were waiting for tree.ready,
             // apply it now that the bushes exist.
             if(this._hidePending) this.hideAll()
+            // If ensureFromLayout was called before placement, run it now.
+            if(this._pendingEnsure)
+            {
+                const objs = this._pendingEnsure
+                this._pendingEnsure = null
+                this.ensureFromLayout(objs)
+            }
+        }
+    }
+
+    /**
+     * Island editor (plan 003): reconcile live fruit entries with a new
+     * layout list. Adds groups for new layout ids; disposes and removes
+     * groups for ids no longer in the layout.
+     *
+     * Requires tree.ready (bushes use the leaf shader), so it defers if
+     * not yet placed.
+     *
+     * @param {readonly import('../State/IslandLayout.js').PlacedObject[]} objs
+     */
+    ensureFromLayout(objs)
+    {
+        if(!this._placed)
+        {
+            // Not yet placed — schedule a reconcile after _placeBushes runs.
+            this._pendingEnsure = objs
+            return
+        }
+
+        const existing = new Map(this.entries.map((e) => [e.layoutId, e]))
+        const newIds   = new Set(objs.map((o) => o.id))
+
+        // Remove entries whose layout id is gone.
+        const kept = []
+        for(const entry of this.entries)
+        {
+            if(!entry.layoutId || newIds.has(entry.layoutId))
+            {
+                kept.push(entry)
+            }
+            else
+            {
+                this.scene.remove(entry.group)
+                entry.group.traverse?.((n) =>
+                {
+                    if(n.geometry) try { n.geometry.dispose() } catch(_) {}
+                    if(n.material) try { n.material.dispose() } catch(_) {}
+                })
+            }
+        }
+        this.entries = kept
+
+        // Build bushes for new ids.
+        const tree = this.view.tree
+        if(!tree?.ready) return
+        const leafGeo = tree.leafCloudGeo
+        const leafMat = tree.templates.oak.leavesMat
+
+        for(const obj of objs)
+        {
+            if(existing.has(obj.id)) continue
+            const cfg = FRUIT_SPECIES[obj.species]
+            if(!cfg) continue
+
+            const { x, z } = obj
+            const groundY = this.island.heightAt(x, z)
+            const rnd = mulberry32(hashSeed(x, z, obj.species))
+
+            const group = new THREE.Group()
+            group.position.set(x, groundY, z)
+            group.userData.fruitBush = true
+            this.scene.add(group)
+
+            const blobs = [
+                { dx: 0, dz: 0, r: 0.32 + rnd() * 0.04 },
+                { dx: (rnd() - 0.5) * 0.42, dz: (rnd() - 0.5) * 0.42, r: 0.20 + rnd() * 0.05 },
+            ]
+            const matrices = blobs.map((b) =>
+                new THREE.Matrix4().compose(
+                    new THREE.Vector3(b.dx, b.r * 0.88, b.dz),
+                    new THREE.Quaternion(),
+                    new THREE.Vector3(b.r, b.r, b.r),
+                )
+            )
+            const inst = new THREE.InstancedMesh(leafGeo, leafMat, matrices.length)
+            inst.frustumCulled = false
+            for(let i = 0; i < matrices.length; i++) inst.setMatrixAt(i, matrices[i])
+            inst.instanceMatrix.needsUpdate = true
+            group.add(inst)
+
+            const canopy = blobs.map((b) => ({ cx: b.dx, cy: b.r * 0.88, cz: b.dz, r: b.r }))
+            for(let i = 0; i < FRUITS_PER_BUSH; i++)
+            {
+                const blob = canopy[Math.min(i, canopy.length - 1)]
+                const thetaF = rnd() * Math.PI * 2
+                const phi    = Math.acos(2 * rnd() - 1)
+                const r      = blob.r * (0.94 + rnd() * 0.12)
+                const cluster = this._buildBerryCluster(obj.species, rnd)
+                cluster.position.set(
+                    blob.cx + r * Math.sin(phi) * Math.cos(thetaF),
+                    blob.cy + r * Math.cos(phi) - blob.r * 0.05,
+                    blob.cz + r * Math.sin(phi) * Math.sin(thetaF),
+                )
+                group.add(cluster)
+            }
+
+            group.visible = true
+            this.entries.push({
+                kind: 'fruit',
+                group,
+                species: obj.species,
+                x, z,
+                host: 'bush',
+                index: this.entries.length,
+                layoutId: obj.id,
+            })
         }
     }
 

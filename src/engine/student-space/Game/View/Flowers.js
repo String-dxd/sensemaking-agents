@@ -494,6 +494,68 @@ export default class Flowers
     }
 
     /**
+     * Island editor (plan 003): reconcile the live flowers array with
+     * a new layout list. Adds groups for new layout ids; disposes and
+     * removes groups for ids that are no longer in the layout.
+     *
+     * @param {readonly import('../State/IslandLayout.js').PlacedObject[]} objs
+     */
+    ensureFromLayout(objs)
+    {
+        const seed = 1337
+
+        // Build an id→flower map for quick lookup.
+        const existing = new Map(this.flowers.map((f) => [f.layoutId, f]))
+        const newIds   = new Set(objs.map((o) => o.id))
+
+        // Remove flowers whose layout id is no longer present.
+        const kept = []
+        for(const f of this.flowers)
+        {
+            if(!f.layoutId || newIds.has(f.layoutId))
+            {
+                kept.push(f)
+            }
+            else
+            {
+                // Dispose bloom
+                for(let c = f.petalGroup.children.length - 1; c >= 0; c--)
+                {
+                    const child = f.petalGroup.children[c]
+                    f.petalGroup.remove(child)
+                    child.traverse?.((n) =>
+                    {
+                        if(n.geometry) try { n.geometry.dispose() } catch(_) {}
+                        if(n.material) try { n.material.dispose() } catch(_) {}
+                    })
+                }
+                this.group.remove(f.group)
+                f.group.traverse?.((n) =>
+                {
+                    if(n.geometry) try { n.geometry.dispose() } catch(_) {}
+                    if(n.material) try { n.material.dispose() } catch(_) {}
+                })
+            }
+        }
+        this.flowers = kept
+
+        // Add flowers for new layout ids not yet in the array.
+        for(let i = 0; i < objs.length; i++)
+        {
+            const obj = objs[i]
+            if(existing.has(obj.id)) continue
+            this._buildOne(seed, this.flowers.length, obj)
+            // New flowers start visible in the editor preview.
+            const f = this.flowers[this.flowers.length - 1]
+            if(f)
+            {
+                f.group.visible = true
+                f.petalGroup.scale.setScalar(1)
+            }
+        }
+    }
+
+    /**
      * First-run ceremony helper. Hide every flower group so the plateau
      * reads as bare until bloomInstance() reveals the directed one.
      */
