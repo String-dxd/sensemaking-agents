@@ -425,9 +425,9 @@ export default class Tree
         this._leafMeshBySpecies = {}
         this._leafMeshes = []
 
-        for(const placement of PLACEMENTS)
+        for(const placement of this.state.islandLayout.listByKind('tree'))
         {
-            const { species, x, z, scale, yaw } = placement
+            const { id: layoutId, species, x, z, scale, yaw } = placement
             const tpl = this.templates[species]
             const groundY = this.island.heightAt(x, z)
 
@@ -480,6 +480,7 @@ export default class Tree
                 canopy,
                 index:      this.entries.length,
                 authoredScale: scale,
+                layoutId,
                 leafLocals,
                 leafStart,
                 leafEnd,
@@ -562,7 +563,7 @@ export default class Tree
         if(!this.ready)
         {
             if(!this._pendingShow) this._pendingShow = new Set()
-            for(let i = 0; i < PLACEMENTS.length; i++) this._pendingShow.add(i)
+            for(let i = 0; i < this.entries.length; i++) this._pendingShow.add(i)
             return
         }
         for(let i = 0; i < this.entries.length; i++) this.showIndex(i)

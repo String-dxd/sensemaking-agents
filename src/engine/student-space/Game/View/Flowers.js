@@ -366,8 +366,16 @@ export default class Flowers
         // flowers stay invisible during normal play so the island grows
         // only with the student's actual captures.
         this.flowers = []
-        for(let i = 0; i < INSTANCES; i++)
-            this._buildOne(seed, i)
+        // Read base placements from the IslandLayout slice so the layout is
+        // data-driven. The slice's default reproduces the seed=1337 formula
+        // exactly (visual no-op). Each entry carries a layoutId for plan 002+.
+        const layoutPlacements = this.state.islandLayout.listByKind('flower')
+        const count = layoutPlacements.length > 0 ? layoutPlacements.length : INSTANCES
+        for(let i = 0; i < count; i++)
+        {
+            const placement = layoutPlacements[i]
+            this._buildOne(seed, i, placement)
+        }
         for(const f of this.flowers)
         {
             f.group.visible = false
@@ -375,40 +383,62 @@ export default class Flowers
         }
     }
 
-    _buildOne(seed, i)
+    /**
+     * Build one flower instance. If `placement` is provided, its `x`, `z`,
+     * `yaw`, and `species` override the seeded defaults; otherwise the hash
+     * formula is used (backward-compatible fallback).
+     *
+     * @param {number} seed
+     * @param {number} i
+     * @param {{ id?: string, x?: number, z?: number, yaw?: number, species?: string } | undefined} [placement]
+     */
+    _buildOne(seed, i, placement)
     {
-        const species = this.species[i % this.species.length]
-
-        // Flower 0 is the ceremony anchor — pinned to a deliberate spot
-        // forward-left of the centre tree so IslandReveal's beat J
-        // close-up and beat K wide both compose cleanly. Every other
-        // flower samples a position uniformly inside the plateau, inset
-        // from the rim so they don't poke through the cliff face.
-        let x, z
-        if(i === 0)
+        // Species: from placement if provided, otherwise cycle through SPECIES
+        let speciesObj
+        if(placement?.species)
         {
-            x = -1.4
-            z =  1.0
+            speciesObj = SPECIES_BY_ID[placement.species] || this.species[i % this.species.length]
+        }
+        else
+        {
+            speciesObj = this.species[i % this.species.length]
+        }
+
+        // Position: from placement if provided, otherwise seeded formula
+        let x, z, yaw
+        if(placement && typeof placement.x === 'number' && typeof placement.z === 'number')
+        {
+            x   = placement.x
+            z   = placement.z
+            yaw = typeof placement.yaw === 'number' ? placement.yaw : hash(seed, 3000 + i) * Math.PI * 2
+        }
+        else if(i === 0)
+        {
+            x   = -1.4
+            z   =  1.0
+            yaw = hash(seed, 3000 + i) * Math.PI * 2
         }
         else
         {
             const radiusMax = this.island.radius - 0.6
             const theta  = hash(seed, 1000 + i) * Math.PI * 2
             const radial = Math.sqrt(hash(seed, 2000 + i)) * radiusMax
-            x = Math.cos(theta) * radial
-            z = Math.sin(theta) * radial
+            x   = Math.cos(theta) * radial
+            z   = Math.sin(theta) * radial
+            yaw = hash(seed, 3000 + i) * Math.PI * 2
         }
         const y = this.island.heightAt(x, z)
 
         const flower = new THREE.Group()
         flower.position.set(x, y, z)
-        flower.rotation.y = hash(seed, 3000 + i) * Math.PI * 2
+        flower.rotation.y = yaw
 
         flower.add(buildStem())
 
         const petalGroup = new THREE.Group()
         petalGroup.position.y = STEM_HEIGHT
-        const bloom = SHAPE_BUILDERS[species.id](species)
+        const bloom = SHAPE_BUILDERS[speciesObj.id](speciesObj)
         petalGroup.add(bloom)
         flower.add(petalGroup)
 
@@ -416,10 +446,11 @@ export default class Flowers
         this.flowers.push({
             group: flower,
             petalGroup,
-            species,
-            index: i,
+            species:  speciesObj,
+            index:    i,
             x, z,
-            phase: hash(seed, 4000 + i) * Math.PI * 2,
+            layoutId: placement?.id,
+            phase:    hash(seed, 4000 + i) * Math.PI * 2,
         })
     }
 

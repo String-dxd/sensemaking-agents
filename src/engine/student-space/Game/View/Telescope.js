@@ -40,8 +40,12 @@ export default class Telescope
         this.scene = this.view.scene
         this.island = this.state.island
 
-        const x = Math.cos(RIM_THETA) * RIM_RADIUS
-        const z = Math.sin(RIM_THETA) * RIM_RADIUS
+        // Base placement is driven by the IslandLayout slice; fallback to the
+        // authored rim constants so the constructor never throws if the slice is
+        // not yet available (e.g. during isolated unit tests).
+        const _telescopePlacement = this.state.islandLayout?.get('telescope-0')
+        const x = _telescopePlacement ? _telescopePlacement.x : Math.cos(RIM_THETA) * RIM_RADIUS
+        const z = _telescopePlacement ? _telescopePlacement.z : Math.sin(RIM_THETA) * RIM_RADIUS
         const groundY = this.island.heightAt(x, z)
         this.position = { x, y: groundY, z }
 

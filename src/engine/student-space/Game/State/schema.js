@@ -846,3 +846,47 @@ export function mergeChoices(raw)
     if(Array.isArray(raw.intentions)) out.intentions = mergeArray(raw.intentions, mergeChangeIntention,   'choices.intentions')
     return out
 }
+
+// ── IslandLayout ───────────────────────────────────────────────────────────────
+
+const PLACED_OBJECT_KINDS = new Set(['tree', 'flower', 'fruit', 'mailbox', 'telescope'])
+const KNOWN_PLACED_OBJECT_KEYS = new Set(['id', 'kind', 'species', 'x', 'z', 'yaw', 'scale', 'locked'])
+
+const defaultPlacedObject = () => ({
+    id:      '',
+    kind:    'tree',
+    species: undefined,
+    x:       0,
+    z:       0,
+    yaw:     0,
+    scale:   1,
+    locked:  false,
+})
+
+export function mergePlacedObject(raw, ctx = 'placedObject')
+{
+    if(!raw || typeof raw !== 'object') { warn(`${ctx}: not an object`); return null }
+    const out = defaultPlacedObject()
+    for(const k of Object.keys(raw))
+    {
+        if(!KNOWN_PLACED_OBJECT_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
+        const v = raw[k]
+        if(k === 'kind' && !PLACED_OBJECT_KINDS.has(v)) { warn(`${ctx}.kind invalid: "${v}"`); continue }
+        if(k === 'id' && !isString(v)) { warn(`${ctx}.id not string`); continue }
+        if((k === 'x' || k === 'z' || k === 'yaw' || k === 'scale') && (typeof v !== 'number' || !Number.isFinite(v))) { warn(`${ctx}.${k} not finite number`); continue }
+        if(k === 'locked' && !isBool(v)) { warn(`${ctx}.locked not bool`); continue }
+        if(k === 'species' && v !== null && v !== undefined && !isString(v)) { warn(`${ctx}.species not string`); continue }
+        out[k] = v
+    }
+    if(!out.id || !out.kind) return null
+    return out
+}
+
+export function mergeIslandLayout(raw)
+{
+    if(!raw || typeof raw !== 'object') return null
+    if(!Array.isArray(raw.objects)) return null
+    const objects = mergeArray(raw.objects, mergePlacedObject, 'islandLayout.objects')
+    if(objects.length === 0) return null
+    return { v: 1, objects }
+}

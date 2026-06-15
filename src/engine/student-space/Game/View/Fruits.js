@@ -89,9 +89,9 @@ export default class Fruits
         const leafGeo = tree.leafCloudGeo
         const leafMat = tree.templates.oak.leavesMat   // shared shader — wind + sun sync for free
 
-        for(const placement of BUSH_PLACEMENTS)
+        for(const placement of this.state.islandLayout.listByKind('fruit'))
         {
-            const { species, x, z } = placement
+            const { id: layoutId, species, x, z } = placement
             const cfg = FRUIT_SPECIES[species]
             if(!cfg) continue
 
@@ -171,6 +171,7 @@ export default class Fruits
                 x, z,
                 host:    'bush',
                 index:   this.entries.length,
+                layoutId,
             })
         }
     }
