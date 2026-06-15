@@ -72,7 +72,7 @@ describe('SpeciesPalette slice', () => {
   it('setColor fires paletteChanged', () => {
     const pal = freshPalette()
     const events: unknown[] = []
-    pal.subscribe((e) => events.push(e))
+    pal.subscribe((e: unknown) => events.push(e))
     pal.setColor('tree', 'oak', { colorA: '#112233' })
     expect(events).toHaveLength(1)
     expect((events[0] as { type: string }).type).toBe('paletteChanged')
@@ -99,7 +99,7 @@ describe('SpeciesPalette slice', () => {
     const pal = freshPalette()
     pal.setColor('fruit', 'plum', { color: '#AABBCC' })
     const events: { type: string }[] = []
-    pal.subscribe((e) => events.push(e as { type: string }))
+    pal.subscribe((e: unknown) => events.push(e as { type: string }))
     pal.revertToDefault()
     expect(events.some((e) => e.type === 'paletteReplaced')).toBe(true)
   })
