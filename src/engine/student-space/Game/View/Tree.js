@@ -312,6 +312,32 @@ export default class Tree
 
         this._loadAndBuild()
         this.setDebug()
+
+        // Subscribe to live palette changes (plan 005).
+        const palette = this.state.speciesPalette
+        if(palette)
+        {
+            this._unsubPalette = palette.subscribe((event) =>
+            {
+                if((event.type === 'paletteChanged' && event.kind === 'tree') || event.type === 'paletteReplaced')
+                {
+                    const species = event.type === 'paletteReplaced' ? ['oak', 'cherry'] : [event.species]
+                    for(const s of species) this._applyTreeColors(s)
+                }
+            })
+        }
+    }
+
+    _applyTreeColors(species)
+    {
+        const palette = this.state.speciesPalette
+        if(!palette || !this.templates) return
+        const c = palette.get('tree', species)
+        if(!c) return
+        const tpl = this.templates[species]
+        if(!tpl?.leavesMat?.uniforms) return
+        if(c.colorA) tpl.leavesMat.uniforms.uColorA.value.set(c.colorA)
+        if(c.colorB) tpl.leavesMat.uniforms.uColorB.value.set(c.colorB)
     }
 
     async _loadAndBuild()
@@ -327,6 +353,10 @@ export default class Tree
                 oak:    this._extractTemplate(oakGltf,    OAK_COLOR_A,    OAK_COLOR_B),
                 cherry: this._extractTemplate(cherryGltf, CHERRY_COLOR_A, CHERRY_COLOR_B),
             }
+
+            // Apply any persisted palette overrides now that templates exist.
+            this._applyTreeColors('oak')
+            this._applyTreeColors('cherry')
 
             // Shared billboard-cloud geometry (unit sphere local) — one mesh,
             // every instance reuses it.

@@ -76,6 +76,31 @@ export default class Fruits
         this._peduncleGeo = new THREE.CylinderGeometry(0.005, 0.006, 0.03, 5)
         this._peduncleMat = new THREE.MeshLambertMaterial({ color: PEDUNCLE_COLOR, flatShading: true })
 
+        // Apply palette colors from SpeciesPalette if diverged from defaults.
+        const palette = this.state.speciesPalette
+        if(palette)
+        {
+            for(const [id] of Object.entries(FRUIT_SPECIES))
+            {
+                const c = palette.get('fruit', id)
+                if(c?.color) this._berryMats[id]?.color.set(c.color)
+            }
+            this._unsubPalette = palette.subscribe((event) =>
+            {
+                if((event.type === 'paletteChanged' && event.kind === 'fruit') || event.type === 'paletteReplaced')
+                {
+                    const kinds = event.type === 'paletteReplaced'
+                        ? Object.keys(FRUIT_SPECIES)
+                        : [event.species]
+                    for(const id of kinds)
+                    {
+                        const c = palette.get('fruit', id)
+                        if(c?.color && this._berryMats[id]) this._berryMats[id].color.set(c.color)
+                    }
+                }
+            })
+        }
+
         // Bushes reuse Tree's billboard cloud + leaves shader; placement is
         // deferred to update() so we wait for Tree.ready.
         this._placed = false

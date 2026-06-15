@@ -85,9 +85,26 @@ interface EditController {
   commandStack: CommandStack
 }
 
+interface SpeciesPaletteSlice {
+  get(kind: string, species: string): Record<string, string> | null
+  setColor(kind: string, species: string, colors: Record<string, string>): void
+  list(): {
+    v: number
+    tree: Record<string, Record<string, string>>
+    flower: Record<string, Record<string, string>>
+    fruit: Record<string, Record<string, string>>
+  }
+  isDiverged(): boolean
+  revertToDefault(): void
+  serialize(): unknown
+  setFromSnapshot(raw: unknown): void
+  subscribe(cb: (event: unknown) => void): () => void
+}
+
 interface InternalGame {
   state?: {
     islandLayout?: IslandLayoutSlice
+    speciesPalette?: SpeciesPaletteSlice
     island?: { isPlaceable(x: number, z: number): boolean }
   }
   view?: {
@@ -122,10 +139,12 @@ export function IslandEditorPanel({ game }: IslandEditorPanelProps) {
 function PanelInner({ game }: IslandEditorPanelProps) {
   const internal = game as unknown as InternalGame
   const layout = internal.state?.islandLayout
+  const palette = internal.state?.speciesPalette
   const ctrl = internal.view?.editController
 
-  // Subscribe to layout mutations for re-render.
+  // Subscribe to layout + palette mutations for re-render.
   useEngineSliceVersion(layout ?? null)
+  useEngineSliceVersion(palette ?? null)
 
   // Track selected object id.
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -189,6 +208,40 @@ function PanelInner({ game }: IslandEditorPanelProps) {
         try {
           const parsed = JSON.parse(e.target?.result as string)
           layout.setLayout(parsed)
+        } catch {
+          alert('Invalid JSON file')
+        }
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  }
+
+  function handlePaletteExport() {
+    if (!palette) return
+    const json = JSON.stringify(palette.serialize(), null, 2)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `species-palette-${Date.now().toString(36)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function handlePaletteImport() {
+    if (!palette) return
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json,application/json'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target?.result as string)
+          palette.setFromSnapshot(parsed)
         } catch {
           alert('Invalid JSON file')
         }
@@ -479,7 +532,7 @@ function PanelInner({ game }: IslandEditorPanelProps) {
       )}
 
       {/* ── Preview toggle ──────────────────────────────────────────── */}
-      <section>
+      <section style={{ marginBottom: '10px' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
           <input
             type="checkbox"
@@ -489,6 +542,139 @@ function PanelInner({ game }: IslandEditorPanelProps) {
           <span>Preview (populated)</span>
         </label>
       </section>
+
+      <hr style={{ borderColor: 'rgba(255,255,255,0.1)', marginBottom: '10px' }} />
+
+      {/* ── Species Palette ─────────────────────────────────────────── */}
+      {palette && (
+        <section>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '6px',
+            }}
+          >
+            <span style={{ color: '#64748b' }}>PALETTE</span>
+            <span style={{ display: 'flex', gap: '4px' }}>
+              <button
+                type="button"
+                onClick={handlePaletteExport}
+                style={btnStyle(false)}
+                title="Export palette JSON"
+              >
+                ↓
+              </button>
+              <button
+                type="button"
+                onClick={handlePaletteImport}
+                style={btnStyle(false)}
+                title="Import palette JSON"
+              >
+                ↑
+              </button>
+            </span>
+          </div>
+
+          <PaletteEditor palette={palette} />
+
+          {palette.isDiverged() && (
+            <button
+              type="button"
+              onClick={() => palette.revertToDefault()}
+              style={{ ...actionBtnStyle, background: '#78350f', marginTop: '6px' }}
+            >
+              ↺ Revert palette
+            </button>
+          )}
+        </section>
+      )}
+    </div>
+  )
+}
+
+// ── Palette color editor ─────────────────────────────────────────────────────
+
+const PALETTE_KINDS: Array<{
+  kind: string
+  species: string[]
+  slots: string[]
+}> = [
+  { kind: 'tree', species: ['oak', 'cherry'], slots: ['colorA', 'colorB'] },
+  {
+    kind: 'flower',
+    species: ['daisy', 'tulip', 'rose', 'lily', 'pansy', 'hyacinth'],
+    slots: ['petal', 'centre', 'face'],
+  },
+  {
+    kind: 'fruit',
+    species: ['apple', 'pear', 'plum', 'fig', 'citrus', 'berry'],
+    slots: ['color'],
+  },
+]
+
+function PaletteEditor({ palette }: { palette: SpeciesPaletteSlice }) {
+  const paletteList = palette.list()
+
+  return (
+    <div>
+      {PALETTE_KINDS.map(({ kind, species, slots }) => (
+        <div key={kind} style={{ marginBottom: '8px' }}>
+          <div style={{ color: '#475569', fontSize: '10px', marginBottom: '4px' }}>
+            {kind.toUpperCase()}
+          </div>
+          {species.map((sp) => {
+            const colors = (
+              paletteList as unknown as Record<string, Record<string, Record<string, string>>>
+            )[kind]?.[sp]
+            if (!colors) return null
+            return (
+              <div
+                key={sp}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '3px' }}
+              >
+                <span style={{ width: '56px', color: '#64748b', fontSize: '10px' }}>{sp}</span>
+                {slots.map((slot) => {
+                  const val = colors[slot]
+                  if (!val) return null
+                  return (
+                    <label
+                      key={slot}
+                      title={`${sp}.${slot}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="color"
+                        value={val.toLowerCase()}
+                        onChange={(e) => {
+                          palette.setColor(kind, sp, {
+                            [slot]: e.currentTarget.value.toUpperCase(),
+                          })
+                        }}
+                        style={{
+                          width: '22px',
+                          height: '18px',
+                          padding: 0,
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: 'none',
+                        }}
+                      />
+                      <span style={{ fontSize: '9px', color: '#475569' }}>{slot}</span>
+                    </label>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      ))}
     </div>
   )
 }

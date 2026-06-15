@@ -15,6 +15,7 @@ import IdentityStatusOverride from './State/IdentityStatusOverride.js'
 import IslandSnapshotBridge from './State/IslandSnapshotBridge.js'
 import Auth from './State/Auth.js'
 import IslandLayout from './State/IslandLayout.js'
+import SpeciesPalette from './State/SpeciesPalette.js'
 import { HOST_BODY_CLASSES } from './host-body-classes.js'
 
 /**
@@ -356,7 +357,8 @@ export default class Game
         IdentityStatusOverride.instance = null
         try { this.state?.islandSnapshots?.dispose?.() } catch(_) {}
         IslandSnapshotBridge.instance = null
-        IslandLayout.instance = null
+        IslandLayout.instance   = null
+        SpeciesPalette.instance = null
         Game.instance = null
     }
 }
