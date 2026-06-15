@@ -351,6 +351,9 @@ export default class Sprouts
         this._dragGuard.downY = e.clientY
 
         if(!this._editMode) return
+        // Guard: island editor is exclusive while #editor is active so both
+        // drag systems don't fight over the same pointer events.
+        if(typeof window !== 'undefined' && window.location.hash.includes('editor')) return
         const target = this._raycastDraggable(e)
         if(!target) return
 
