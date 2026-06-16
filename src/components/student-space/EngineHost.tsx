@@ -19,7 +19,6 @@ import { cn } from '~/lib/utils'
 import { AskSheet } from './capture/AskSheet'
 import { CaptureChooser } from './capture/CaptureChooser'
 import { MoodSheet } from './capture/MoodSheet'
-import { IslandEditorPanel } from './editor/IslandEditorPanel'
 import { MobileNav } from './navigation/MobileNav'
 import { SideRail } from './navigation/SideRail'
 import { CameraTuneHud, type CameraTuneTargets } from './onboarding/CameraTuneHud'
@@ -318,7 +317,6 @@ export function EngineHost({
         <MoodSheet />
         {showOnboardingFlow ? <OnboardingFlow /> : null}
         {import.meta.env.DEV && game ? <CameraTuneBridge game={game} /> : null}
-        {import.meta.env.DEV && game ? <IslandEditorPanel game={game} /> : null}
         {game ? <MatureIslandBridge game={game} /> : null}
         {children}
       </EngineOverlayProvider>

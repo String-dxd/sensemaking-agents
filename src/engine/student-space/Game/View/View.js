@@ -22,7 +22,6 @@ import Sound from './Sound.js'
 import Mailbox from './Mailbox.js'
 import Telescope from './Telescope.js'
 import OverlayController from './OverlayController.js'
-import EditController from './edit/EditController.js'
 import State from '../State/State.js'
 // OnboardingFlow lifecycle moved to React (U16–U19) — see
 // `src/components/student-space/EngineHost.tsx`. The ceremony surfaces
@@ -120,19 +119,6 @@ export default class View
         // is intentionally NOT re-attached to `view.onboardingFlow` — React
         // disposes it directly on cleanup, so we avoid a double-dispose
         // through View.dispose()'s SUBSYSTEMS loop.
-
-        // Island editor (plan 002). Constructed after all view kinds so
-        // the EditableView adapters can reference the fully-built views.
-        // NOT activated by default — plan 003's panel calls activate().
-        // Exposed on window.__islandEditor in dev for pre-UI console testing.
-        this.editController = new EditController({ view: this, state: this.state })
-        if(typeof import.meta !== 'undefined' && import.meta.env?.DEV)
-        {
-            if(typeof window !== 'undefined')
-            {
-                window.__islandEditor = { editController: this.editController }
-            }
-        }
     }
 
     resize()
@@ -219,7 +205,6 @@ export default class View
             this.mailbox,
             this.telescope,
             this.sprouts,
-            this.editController,
         ]
         for(const sub of SUBSYSTEMS)
         {
