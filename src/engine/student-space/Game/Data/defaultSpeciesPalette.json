@@ -1,0 +1,56 @@
+{
+  "v": 1,
+  "tree": {
+    "oak": {
+      "colorA": "#3A7D2A",
+      "colorB": "#8AAA35"
+    },
+    "cherry": {
+      "colorA": "#FF66A3",
+      "colorB": "#FFCC66"
+    }
+  },
+  "flower": {
+    "daisy": {
+      "petal": "#FF8E8E",
+      "centre": "#FFD45A"
+    },
+    "tulip": {
+      "petal": "#FFB0D5"
+    },
+    "rose": {
+      "petal": "#F0A86A"
+    },
+    "lily": {
+      "petal": "#FFD45A",
+      "centre": "#FAF1DC"
+    },
+    "pansy": {
+      "petal": "#D09EE8",
+      "face": "#2B2620"
+    },
+    "hyacinth": {
+      "petal": "#FAF1DC"
+    }
+  },
+  "fruit": {
+    "apple": {
+      "color": "#D64242"
+    },
+    "pear": {
+      "color": "#C9D659"
+    },
+    "plum": {
+      "color": "#7B3F8E"
+    },
+    "fig": {
+      "color": "#6A3F62"
+    },
+    "citrus": {
+      "color": "#F1A22F"
+    },
+    "berry": {
+      "color": "#B02A5E"
+    }
+  }
+}

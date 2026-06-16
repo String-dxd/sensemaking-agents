@@ -846,3 +846,105 @@ export function mergeChoices(raw)
     if(Array.isArray(raw.intentions)) out.intentions = mergeArray(raw.intentions, mergeChangeIntention,   'choices.intentions')
     return out
 }
+
+// ── IslandLayout ───────────────────────────────────────────────────────────────
+
+const PLACED_OBJECT_KINDS = new Set(['tree', 'flower', 'fruit', 'mailbox', 'telescope'])
+const KNOWN_PLACED_OBJECT_KEYS = new Set(['id', 'kind', 'species', 'x', 'z', 'yaw', 'scale', 'locked'])
+
+const defaultPlacedObject = () => ({
+    id:      '',
+    kind:    'tree',
+    species: undefined,
+    x:       0,
+    z:       0,
+    yaw:     0,
+    scale:   1,
+    locked:  false,
+})
+
+export function mergePlacedObject(raw, ctx = 'placedObject')
+{
+    if(!raw || typeof raw !== 'object') { warn(`${ctx}: not an object`); return null }
+    const out = defaultPlacedObject()
+    for(const k of Object.keys(raw))
+    {
+        if(!KNOWN_PLACED_OBJECT_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
+        const v = raw[k]
+        if(k === 'kind' && !PLACED_OBJECT_KINDS.has(v)) { warn(`${ctx}.kind invalid: "${v}"`); continue }
+        if(k === 'id' && !isString(v)) { warn(`${ctx}.id not string`); continue }
+        if((k === 'x' || k === 'z' || k === 'yaw' || k === 'scale') && (typeof v !== 'number' || !Number.isFinite(v))) { warn(`${ctx}.${k} not finite number`); continue }
+        if(k === 'locked' && !isBool(v)) { warn(`${ctx}.locked not bool`); continue }
+        if(k === 'species' && v !== null && v !== undefined && !isString(v)) { warn(`${ctx}.species not string`); continue }
+        out[k] = v
+    }
+    if(!out.id || !out.kind) return null
+    return out
+}
+
+export function mergeIslandLayout(raw)
+{
+    if(!raw || typeof raw !== 'object') return null
+    if(!Array.isArray(raw.objects)) return null
+    const objects = mergeArray(raw.objects, mergePlacedObject, 'islandLayout.objects')
+    if(objects.length === 0) return null
+    return { v: 1, objects }
+}
+
+const HEX_COLOR_RE = /^#[0-9A-Fa-f]{6}$/
+
+export function mergeSpeciesPalette(raw)
+{
+    if(!raw || typeof raw !== 'object') return null
+
+    const TREE_SPECIES   = ['oak', 'cherry']
+    const FLOWER_SPECIES = ['daisy', 'tulip', 'rose', 'lily', 'pansy', 'hyacinth']
+    const FRUIT_SPECIES  = ['apple', 'pear', 'plum', 'fig', 'citrus', 'berry']
+
+    const isHex = (v) => typeof v === 'string' && HEX_COLOR_RE.test(v)
+
+    /** @param {unknown} obj @param {string[]} slots */
+    function mergeColors(obj, slots)
+    {
+        if(!obj || typeof obj !== 'object') return null
+        const out = {}
+        for(const slot of slots)
+        {
+            const v = obj[slot]
+            if(v !== undefined)
+            {
+                if(!isHex(v)) { warn(`mergeSpeciesPalette: ${slot} invalid hex "${v}"`); continue }
+                out[slot] = v
+            }
+        }
+        return out
+    }
+
+    const tree   = {}
+    const flower = {}
+    const fruit  = {}
+
+    const rawTree = raw.tree || {}
+    for(const s of TREE_SPECIES)
+    {
+        const m = mergeColors(rawTree[s], ['colorA', 'colorB'])
+        if(m) tree[s] = m
+    }
+
+    const rawFlower = raw.flower || {}
+    for(const s of FLOWER_SPECIES)
+    {
+        const m = mergeColors(rawFlower[s], ['petal', 'centre', 'face'])
+        if(m) flower[s] = m
+    }
+
+    const rawFruit = raw.fruit || {}
+    for(const s of FRUIT_SPECIES)
+    {
+        const m = mergeColors(rawFruit[s], ['color'])
+        if(m) fruit[s] = m
+    }
+
+    if(Object.keys(tree).length === 0 && Object.keys(flower).length === 0 && Object.keys(fruit).length === 0) return null
+    return { v: 1, tree, flower, fruit }
+}

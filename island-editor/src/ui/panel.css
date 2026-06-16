@@ -1,0 +1,126 @@
+.tool-panel {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  width: 252px;
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+  background: rgba(16, 22, 38, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #e7ecf6;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  opacity: 0.22;
+  transition: opacity 160ms ease;
+  user-select: none;
+  z-index: 10;
+}
+.tool-panel:hover {
+  opacity: 1;
+}
+
+.tool-panel__title {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+
+.tool-panel__topbar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.tool-panel__tabs {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+}
+.tool-panel__tabs button {
+  flex: 1;
+}
+.tool-panel__history {
+  display: flex;
+  gap: 4px;
+}
+.tool-panel__history button {
+  width: 26px;
+  padding: 5px 0;
+  font-size: 13px;
+  line-height: 1;
+}
+.tool-panel button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.tool-panel button:disabled:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+.tool-panel__modes {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.tool-panel button {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #cfd8ea;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-transform: capitalize;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.tool-panel button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.tool-panel button.is-active {
+  background: #ff7b54;
+  border-color: #ff7b54;
+  color: #1a1206;
+  font-weight: 600;
+}
+
+.tool-panel__section {
+  text-transform: uppercase;
+  font-size: 10px;
+  opacity: 0.55;
+  margin: 8px 0 4px;
+  letter-spacing: 0.08em;
+}
+.tool-panel__row {
+  display: grid;
+  grid-template-columns: 92px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  margin: 5px 0;
+}
+.tool-panel__label {
+  opacity: 0.85;
+}
+.tool-panel__row input[type='range'] {
+  width: 100%;
+  accent-color: #ff7b54;
+}
+.tool-panel__value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.tool-panel__hint {
+  font-size: 10px;
+  opacity: 0.5;
+  margin-top: 10px;
+  line-height: 1.35;
+}
+.tool-panel__actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}

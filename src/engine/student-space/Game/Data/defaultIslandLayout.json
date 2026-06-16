@@ -1,0 +1,313 @@
+{
+  "v": 1,
+  "objects": [
+    {
+      "id": "tree-0",
+      "kind": "tree",
+      "species": "oak",
+      "x": 0,
+      "z": 0,
+      "yaw": 0,
+      "scale": 0.78,
+      "locked": false
+    },
+    {
+      "id": "tree-1",
+      "kind": "tree",
+      "species": "oak",
+      "x": -2.1,
+      "z": -1.6,
+      "yaw": 0.85,
+      "scale": 0.52,
+      "locked": false
+    },
+    {
+      "id": "tree-2",
+      "kind": "tree",
+      "species": "cherry",
+      "x": 2.4,
+      "z": -1.1,
+      "yaw": 1.6,
+      "scale": 0.5,
+      "locked": false
+    },
+    {
+      "id": "tree-3",
+      "kind": "tree",
+      "species": "cherry",
+      "x": -1.8,
+      "z": 2.1,
+      "yaw": -0.7,
+      "scale": 0.56,
+      "locked": false
+    },
+    {
+      "id": "tree-4",
+      "kind": "tree",
+      "species": "oak",
+      "x": 1.6,
+      "z": 2.4,
+      "yaw": 2.35,
+      "scale": 0.54,
+      "locked": false
+    },
+    {
+      "id": "tree-5",
+      "kind": "tree",
+      "species": "oak",
+      "x": -3.2,
+      "z": 0.3,
+      "yaw": -1.3,
+      "scale": 0.6,
+      "locked": false
+    },
+    {
+      "id": "tree-6",
+      "kind": "tree",
+      "species": "cherry",
+      "x": 3,
+      "z": 0.9,
+      "yaw": 2.2,
+      "scale": 0.48,
+      "locked": false
+    },
+    {
+      "id": "flower-0",
+      "kind": "flower",
+      "species": "daisy",
+      "x": -1.4,
+      "z": 1,
+      "yaw": 2.1092653076201873,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-1",
+      "kind": "flower",
+      "species": "tulip",
+      "x": -2.8758599373080176,
+      "z": 1.3865315073905555,
+      "yaw": 3.1893448619243583,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-2",
+      "kind": "flower",
+      "species": "rose",
+      "x": -1.2056196542577522,
+      "z": 1.7223150842013257,
+      "yaw": 5.444380068671112,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-3",
+      "kind": "flower",
+      "species": "lily",
+      "x": -0.9265056038766047,
+      "z": 0.8516075187463108,
+      "yaw": 4.574787222157457,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-4",
+      "kind": "flower",
+      "species": "pansy",
+      "x": 3.2186737898751656,
+      "z": -2.81972109159233,
+      "yaw": 1.4551857171427922,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-5",
+      "kind": "flower",
+      "species": "hyacinth",
+      "x": 2.628259163992561,
+      "z": -2.736131167705439,
+      "yaw": 6.11605257800861,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-6",
+      "kind": "flower",
+      "species": "daisy",
+      "x": 1.961298691314374,
+      "z": 0.2452660666470689,
+      "yaw": 4.734380128959818,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-7",
+      "kind": "flower",
+      "species": "tulip",
+      "x": 1.6276786315074756,
+      "z": -3.915639190800648,
+      "yaw": 1.9647520455550564,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-8",
+      "kind": "flower",
+      "species": "rose",
+      "x": -1.128378132058721,
+      "z": -2.9194045267985165,
+      "yaw": 0.9072919583567323,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-9",
+      "kind": "flower",
+      "species": "lily",
+      "x": 1.41890598685407,
+      "z": -1.4278493619670383,
+      "yaw": 5.718326948064141,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-10",
+      "kind": "flower",
+      "species": "pansy",
+      "x": -1.3948753083935188,
+      "z": -2.365384297325508,
+      "yaw": 1.2063715789784806,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-11",
+      "kind": "flower",
+      "species": "hyacinth",
+      "x": 2.4013968979038176,
+      "z": -0.9753014604407813,
+      "yaw": 1.9088316963211585,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-12",
+      "kind": "flower",
+      "species": "daisy",
+      "x": -1.2835937934485506,
+      "z": 0.6858359668465628,
+      "yaw": 1.411831738523253,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-13",
+      "kind": "flower",
+      "species": "tulip",
+      "x": -4.057538368989501,
+      "z": -0.6452645846302301,
+      "yaw": 3.719017383319597,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-14",
+      "kind": "flower",
+      "species": "rose",
+      "x": -0.26504208044249605,
+      "z": 0.037211498151961585,
+      "yaw": 5.804406586772502,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-15",
+      "kind": "flower",
+      "species": "lily",
+      "x": -0.8593829744512366,
+      "z": -3.118269536653839,
+      "yaw": 2.339858208393678,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-16",
+      "kind": "flower",
+      "species": "pansy",
+      "x": 1.7245655918113776,
+      "z": -1.167267544113291,
+      "yaw": 0.3820176666765188,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "flower-17",
+      "kind": "flower",
+      "species": "hyacinth",
+      "x": -0.5925352299312808,
+      "z": 1.970024873266905,
+      "yaw": 0.1564513141487717,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "fruit-0",
+      "kind": "fruit",
+      "species": "plum",
+      "x": 2.6,
+      "z": 0.1,
+      "yaw": 0,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "fruit-1",
+      "kind": "fruit",
+      "species": "fig",
+      "x": -2.4,
+      "z": 0.9,
+      "yaw": 0,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "fruit-2",
+      "kind": "fruit",
+      "species": "citrus",
+      "x": 0.8,
+      "z": -2.6,
+      "yaw": 0,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "fruit-3",
+      "kind": "fruit",
+      "species": "berry",
+      "x": -1,
+      "z": -2.4,
+      "yaw": 0,
+      "scale": 1,
+      "locked": false
+    },
+    {
+      "id": "mailbox-0",
+      "kind": "mailbox",
+      "x": -0.6,
+      "z": 2.5,
+      "yaw": 0,
+      "scale": 1,
+      "locked": true
+    },
+    {
+      "id": "telescope-0",
+      "kind": "telescope",
+      "x": 1.2973693188292486,
+      "z": 4.673257199273386,
+      "yaw": 0,
+      "scale": 1,
+      "locked": true
+    }
+  ]
+}

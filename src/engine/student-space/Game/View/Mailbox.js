@@ -46,7 +46,12 @@ export default class Mailbox
         // closer to the centre line than before to keep clear of the cherry
         // tree at (-1.8, 2.1) — the previous (-1.8, 2.4) spot overlapped its
         // foliage envelope.
-        const x = -0.6, z = 2.5
+        // Base placement is driven by the IslandLayout slice; fallback to the
+        // authored constants so the constructor never throws if the slice is not
+        // yet available (e.g. during isolated unit tests).
+        const _mailboxPlacement = this.state.islandLayout?.get('mailbox-0')
+        const x = _mailboxPlacement ? _mailboxPlacement.x : -0.6
+        const z = _mailboxPlacement ? _mailboxPlacement.z : 2.5
         const groundY = this.island.heightAt(x, z)
         this.position = { x, y: groundY, z }
 

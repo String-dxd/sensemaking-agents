@@ -1,0 +1,262 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { OrbitControls } from '@react-three/drei'
+import { Canvas } from '@react-three/fiber'
+import type { Camera, Vector3 } from 'three'
+import { createCommandStack } from './editor/commandStack'
+import { downloadSpec, importSpecFromFile } from './editor/exportSpec'
+import { clearSaved, createAutosaver, loadSpec } from './editor/persistence'
+import { Backdrop } from './scene/Backdrop'
+import { CoastlineHandles } from './scene/CoastlineHandles'
+import { Sea } from './scene/Sea'
+import { Terrain } from './scene/Terrain'
+import { applyBrush, type BrushParams } from './terrain/brush'
+import {
+  type HeightProfile,
+  type IslandSpec,
+  type ReliefGrid,
+  seedFromCurrentIsland,
+  type Vec2,
+} from './terrain/islandSpec'
+import { type EditMode, ToolPanel } from './ui/ToolPanel'
+
+const SAVED = loadSpec()
+const INITIAL: IslandSpec = SAVED ?? seedFromCurrentIsland()
+
+const autosave = createAutosaver()
+
+/** Minimal shape of the three OrbitControls instance drei forwards. */
+type OrbitControlsLike = { object: Camera; target: Vector3; update: () => void }
+
+export function App() {
+  const [mode, setMode] = useState<EditMode>('shape')
+  const [coastline, setCoastline] = useState<Vec2[]>(INITIAL.coastline)
+  const [profile, setProfile] = useState<HeightProfile>(INITIAL.heightProfile)
+  const [brush, setBrush] = useState<BrushParams>({ radius: 3, strength: 0.3, mode: 'raise' })
+  const [orbitEnabled, setOrbitEnabled] = useState(true)
+
+  // Relief lives in a ref (mutated in place by the brush, cheaply) with a tick
+  // to trigger spec recompute — keeps brush dabs out of a React updater so
+  // StrictMode's double-invoke can't double-apply a stroke.
+  const reliefRef = useRef<ReliefGrid>(INITIAL.relief)
+  const [reliefTick, setReliefTick] = useState(0)
+  const refreshRelief = useCallback(() => setReliefTick((t) => t + 1), [])
+  const brushRef = useRef(brush)
+  brushRef.current = brush
+
+  // Mutable undo/redo history. A version counter forces the undo/redo buttons
+  // to re-evaluate canUndo()/canRedo() after each push/undo/redo.
+  const stack = useRef(createCommandStack()).current
+  const [, setStackVersion] = useState(0)
+  const bumpStack = useCallback(() => setStackVersion((v) => v + 1), [])
+
+  const spec: IslandSpec = useMemo(
+    () => ({
+      version: 1,
+      worldSize: INITIAL.worldSize,
+      coastline,
+      heightProfile: profile,
+      relief: { resolution: reliefRef.current.resolution, data: reliefRef.current.data },
+    }),
+    [coastline, profile, reliefTick],
+  )
+
+  // Latest spec, kept in a ref so command-stack closures and export read the
+  // current value without re-subscribing.
+  const specRef = useRef(spec)
+  specRef.current = spec
+
+  // Autosave on every spec change (debounced internally).
+  useEffect(() => {
+    autosave(spec)
+  }, [spec])
+
+  const movePoint = useCallback((index: number, next: Vec2) => {
+    setCoastline((pts) => pts.map((p, i) => (i === index ? next : p)))
+  }, [])
+
+  // ── Coastline drag → one undoable command per drag ──────────────────────────
+  const dragBefore = useRef<Vec2[] | null>(null)
+  const onDragChange = useCallback(
+    (dragging: boolean) => {
+      setOrbitEnabled(!dragging)
+      if (dragging) {
+        dragBefore.current = specRef.current.coastline
+        return
+      }
+      const before = dragBefore.current
+      dragBefore.current = null
+      if (!before) return
+      const after = specRef.current.coastline
+      if (after === before) return // no movement recorded
+      stack.push({
+        label: 'Move coastline',
+        do: () => setCoastline(after),
+        undo: () => setCoastline(before),
+      })
+      bumpStack()
+    },
+    [stack, bumpStack],
+  )
+
+  // ── Brush stroke → one undoable command per stroke ──────────────────────────
+  const strokeBefore = useRef<number[] | null>(null)
+  const applyRelief = useCallback(
+    (data: number[]) => {
+      reliefRef.current = { resolution: reliefRef.current.resolution, data }
+      refreshRelief()
+    },
+    [refreshRelief],
+  )
+  const onPaintStart = useCallback(() => {
+    setOrbitEnabled(false)
+    strokeBefore.current = reliefRef.current.data.slice()
+  }, [])
+  const paint = useCallback((x: number, z: number) => {
+    applyBrush(reliefRef.current, INITIAL.worldSize, x, z, brushRef.current)
+    setReliefTick((t) => t + 1)
+  }, [])
+  const onPaintEnd = useCallback(() => {
+    setOrbitEnabled(true)
+    const before = strokeBefore.current
+    strokeBefore.current = null
+    if (!before) return
+    const after = reliefRef.current.data.slice()
+    stack.push({
+      label: 'Brush stroke',
+      do: () => applyRelief(after),
+      undo: () => applyRelief(before),
+    })
+    bumpStack()
+  }, [stack, bumpStack, applyRelief])
+
+  // ── Undo / redo ─────────────────────────────────────────────────────────────
+  const undo = useCallback(() => {
+    if (stack.undo()) bumpStack()
+  }, [stack, bumpStack])
+  const redo = useCallback(() => {
+    if (stack.redo()) bumpStack()
+  }, [stack, bumpStack])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const inEditable =
+        !!target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      if (inEditable) return
+      const mod = e.metaKey || e.ctrlKey
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+      } else if (e.ctrlKey && e.key.toLowerCase() === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [undo, redo])
+
+  // ── Reset / Export / Import ──────────────────────────────────────────────────
+  const reset = useCallback(() => {
+    clearSaved()
+    const fresh = seedFromCurrentIsland()
+    reliefRef.current = fresh.relief
+    setCoastline(fresh.coastline)
+    setProfile(fresh.heightProfile)
+    setReliefTick((t) => t + 1)
+    stack.clear()
+    bumpStack()
+  }, [stack, bumpStack])
+
+  const exportSpec = useCallback(() => {
+    downloadSpec(specRef.current)
+  }, [])
+
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const openImport = useCallback(() => importInputRef.current?.click(), [])
+  const onImportFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = '' // allow re-importing the same file
+      if (!file) return
+      try {
+        const imported = await importSpecFromFile(file)
+        reliefRef.current = imported.relief
+        setCoastline(imported.coastline)
+        setProfile(imported.heightProfile)
+        setReliefTick((t) => t + 1)
+        stack.clear() // never let undo resurrect pre-import state
+        bumpStack()
+      } catch (err) {
+        alert(`Could not import island: ${err instanceof Error ? err.message : String(err)}`)
+      }
+    },
+    [stack, bumpStack],
+  )
+
+  // ── Top view ──────────────────────────────────────────────────────────────────
+  // Capture the three OrbitControls instance drei forwards via a callback ref,
+  // narrowed to the minimal shape we touch (no three-stdlib type dependency).
+  const controlsRef = useRef<OrbitControlsLike | null>(null)
+  const setControls = useCallback((instance: OrbitControlsLike | null) => {
+    controlsRef.current = instance
+  }, [])
+  const topView = useCallback(() => {
+    const controls = controlsRef.current
+    if (!controls) return
+    const { object, target } = controls
+    const dist = object.position.distanceTo(target)
+    object.position.set(target.x, target.y + dist, target.z + 0.001)
+    controls.update()
+  }, [])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0 }}>
+      <Canvas shadows camera={{ position: [14, 11, 14], fov: 50 }}>
+        <Backdrop />
+        <Sea level={profile.seaLevel} />
+        <Terrain
+          spec={spec}
+          sculptActive={mode === 'sculpt'}
+          onPaintStart={onPaintStart}
+          onPaint={paint}
+          onPaintEnd={onPaintEnd}
+        />
+        {mode === 'shape' && (
+          <CoastlineHandles
+            points={coastline}
+            seaLevel={profile.seaLevel}
+            onChange={movePoint}
+            onDragChange={onDragChange}
+          />
+        )}
+        <OrbitControls ref={setControls} makeDefault enabled={orbitEnabled} />
+      </Canvas>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: 'none' }}
+        onChange={onImportFile}
+      />
+      <ToolPanel
+        mode={mode}
+        onModeChange={setMode}
+        profile={profile}
+        onProfileChange={setProfile}
+        brush={brush}
+        onBrushChange={setBrush}
+        canUndo={stack.canUndo()}
+        canRedo={stack.canRedo()}
+        onUndo={undo}
+        onRedo={redo}
+        onReset={reset}
+        onExport={exportSpec}
+        onImport={openImport}
+        onTopView={topView}
+      />
+    </div>
+  )
+}

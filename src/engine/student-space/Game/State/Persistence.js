@@ -42,9 +42,11 @@ const KEY = {
     relationships:            `${NS}:relationships`,
     choices:                  `${NS}:choices`,
     identityStatusOverride:   `${NS}:identityStatusOverride`,
+    islandLayout:             `${NS}:islandLayout`,
+    speciesPalette:           `${NS}:speciesPalette`,
 }
 
-const SLICES = ['moodPins', 'captures', 'profile', 'letters', 'calendar', 'onboarding', 'sprouts', 'relationships', 'choices', 'identityStatusOverride']
+const SLICES = ['moodPins', 'captures', 'profile', 'letters', 'calendar', 'onboarding', 'sprouts', 'relationships', 'choices', 'identityStatusOverride', 'islandLayout', 'speciesPalette']
 const DEBOUNCE_MS = 250
 
 /**
@@ -231,7 +233,7 @@ export default class Persistence
      */
     load()
     {
-        const empty = { moodPins: [], captures: [], profile: null, letters: [], calendar: [], onboarding: null, sprouts: null, relationships: null, choices: null, identityStatusOverride: null }
+        const empty = { moodPins: [], captures: [], profile: null, letters: [], calendar: [], onboarding: null, sprouts: null, relationships: null, choices: null, identityStatusOverride: null, islandLayout: null, speciesPalette: null }
         if(!this._available) return empty
 
         let storedV = 0

@@ -312,6 +312,32 @@ export default class Tree
 
         this._loadAndBuild()
         this.setDebug()
+
+        // Subscribe to live palette changes (plan 005).
+        const palette = this.state.speciesPalette
+        if(palette)
+        {
+            this._unsubPalette = palette.subscribe((event) =>
+            {
+                if((event.type === 'paletteChanged' && event.kind === 'tree') || event.type === 'paletteReplaced')
+                {
+                    const species = event.type === 'paletteReplaced' ? ['oak', 'cherry'] : [event.species]
+                    for(const s of species) this._applyTreeColors(s)
+                }
+            })
+        }
+    }
+
+    _applyTreeColors(species)
+    {
+        const palette = this.state.speciesPalette
+        if(!palette || !this.templates) return
+        const c = palette.get('tree', species)
+        if(!c) return
+        const tpl = this.templates[species]
+        if(!tpl?.leavesMat?.uniforms) return
+        if(c.colorA) tpl.leavesMat.uniforms.uColorA.value.set(c.colorA)
+        if(c.colorB) tpl.leavesMat.uniforms.uColorB.value.set(c.colorB)
     }
 
     async _loadAndBuild()
@@ -327,6 +353,10 @@ export default class Tree
                 oak:    this._extractTemplate(oakGltf,    OAK_COLOR_A,    OAK_COLOR_B),
                 cherry: this._extractTemplate(cherryGltf, CHERRY_COLOR_A, CHERRY_COLOR_B),
             }
+
+            // Apply any persisted palette overrides now that templates exist.
+            this._applyTreeColors('oak')
+            this._applyTreeColors('cherry')
 
             // Shared billboard-cloud geometry (unit sphere local) — one mesh,
             // every instance reuses it.
@@ -425,9 +455,9 @@ export default class Tree
         this._leafMeshBySpecies = {}
         this._leafMeshes = []
 
-        for(const placement of PLACEMENTS)
+        for(const placement of this.state.islandLayout.listByKind('tree'))
         {
-            const { species, x, z, scale, yaw } = placement
+            const { id: layoutId, species, x, z, scale, yaw } = placement
             const tpl = this.templates[species]
             const groundY = this.island.heightAt(x, z)
 
@@ -480,6 +510,7 @@ export default class Tree
                 canopy,
                 index:      this.entries.length,
                 authoredScale: scale,
+                layoutId,
                 leafLocals,
                 leafStart,
                 leafEnd,
@@ -499,6 +530,65 @@ export default class Tree
             this._leafMeshBySpecies[species] = inst
             this._leafMeshes.push(inst)
         }
+    }
+
+    /**
+     * Island editor (plan 003): reconcile placed trees with a new layout list.
+     * Tears down all existing InstancedMeshes and entry groups, then calls
+     * _placeAll() which reads from the (already-mutated) IslandLayout slice.
+     * A brief flash is accepted — incremental InstancedMesh surgery is
+     * explicitly out of scope per the locked decision.
+     *
+     * No-op until assets are ready (guards against a pre-boot call).
+     *
+     * @param {readonly import('../State/IslandLayout.js').PlacedObject[]} _objs — provided by the
+     *   caller for symmetry with Flowers/Fruits, but Tree reads its layout from the slice directly.
+     */
+    ensureFromLayout(_objs)
+    {
+        if(!this.ready) return
+        try
+        {
+            this._teardownPlacements()
+            this._placeAll()
+            // Re-apply visibility state. If the editor was in "preview" mode,
+            // showAll is called by the panel; otherwise hide as normal.
+            if(!this._hidden) this.showAll()
+        }
+        catch(err)
+        {
+            console.error('[Tree.ensureFromLayout] rebuild threw — layout may be partial', err)
+        }
+    }
+
+    /**
+     * Tear down all authored-placement meshes and leaf InstancedMeshes so
+     * _placeAll() can rebuild cleanly. Does NOT dispose the shared
+     * leafCloudGeo or the species templates — those survive rebuilds.
+     */
+    _teardownPlacements()
+    {
+        for(const entry of (this.entries || []))
+        {
+            if(entry.group)
+            {
+                this.scene.remove(entry.group)
+                entry.group.traverse((child) =>
+                {
+                    if(child.geometry) try { child.geometry.dispose() } catch(_) {}
+                    if(child.material) try { child.material.dispose() } catch(_) {}
+                })
+            }
+        }
+        for(const inst of (this._leafMeshes || []))
+        {
+            this.scene.remove(inst)
+            try { inst.dispose() } catch(_) {}
+        }
+        this.entries = []
+        this._leafMeshBySpecies = {}
+        this._leafMeshes = []
+        this._hidden = false
     }
 
     /**
@@ -562,7 +652,7 @@ export default class Tree
         if(!this.ready)
         {
             if(!this._pendingShow) this._pendingShow = new Set()
-            for(let i = 0; i < PLACEMENTS.length; i++) this._pendingShow.add(i)
+            for(let i = 0; i < this.entries.length; i++) this._pendingShow.add(i)
             return
         }
         for(let i = 0; i < this.entries.length; i++) this.showIndex(i)
