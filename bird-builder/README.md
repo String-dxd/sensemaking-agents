@@ -1,12 +1,19 @@
 # bird-builder
 
-A standalone, **asset-driven bird dress-up & customization studio** (React Three Fiber + drei).
+A standalone, **procedural-parametric bird character creator** (React Three Fiber + drei).
 Sibling to `island-editor/`; an isolated pnpm workspace with its own `three@0.171` — it never
 touches the product app or its pinned `three@0.149`.
 
-It loads a **rigged base bird**, lets you **dress it in swappable costumes**, **recolor** every
-layer + the feathers, **randomize**, undo/redo, **save to the URL**, and **export** a JSON config
-or a PNG — previewed on a turntable with AC-style toon shading.
+It **generates** a charming toon bird from code — pick a **species**, reshape it with
+**parts** (crest · tail · beak) and **morphology sliders**, recolor **6 plumage zones**, give it
+an **eye archetype + cheeks + a painted face**, ink a **plumage pattern**, dress it in
+**accessories**, and name it — then **randomize**, undo/redo, **save to the URL**, and **export**
+a JSON genome or a PNG, previewed on a turntable with AC-style toon shading + outlines.
+
+Variety comes from **our own primitives** (publication-safe, no art team needed): 6 species ×
+5 crests × 5 tails × 4 beaks × a 6-zone palette × 8 eye archetypes × bounded morph deltas ×
+patterns ≈ a very large, always-coherent space — the literal answer to "more than just colour."
+See `docs/plans/2026-06-17-002-feat-bird-builder-procedural-variety-refactor-plan.md`.
 
 ## Run
 
@@ -22,37 +29,40 @@ pnpm build
 Assets are reused from the repo-root `public/` via Vite `publicDir` (the canonical
 `/birds/MaskedBower.glb` + `/draco/`), so there's no duplicated GLB.
 
-## The honest split (read this)
+## Two lanes: procedural floor, authored ceiling
 
-The builder is the **runtime** — slot management, swap, recolor, preview, serialization. It
-contributes **no visual quality on its own**. Animal-Crossing-grade fidelity comes from
-**authored art** (a softly-proportioned base bird + a clothing catalog), produced by the
-character pipeline and authored to **`ASSET-CONTRACT.md`**. Swap conforming assets in and the
-quality bar is reached with no code change.
+- **Procedural lane (default).** The bird is assembled from our own primitives + a canvas-painted
+  face + a toon ramp — ported and grown from the product engine's proven parametric bird
+  (`src/engine/student-space/Game/View/Kira.js`). This is where variety lives, it ships **now**,
+  and it's **publication-safe** (app-authored — see `docs/audit/2026-06-12-asset-provenance-audit.md`).
+- **GLB lane (upgrade).** A hero bird authored to **`ASSET-CONTRACT.md`** still drops in: the
+  legacy `MaskedBower.glb` loads via the `kind: 'glb'` base with full 6-zone recolor. When a real
+  hero species lands it becomes one more picker card — art makes the studio *better* over time, it
+  is never a prerequisite for variety.
 
-**V1 status:** the runtime is real and tested, but it ships against the *existing* (below-bar)
-`MaskedBower` bird + **crude procedural placeholder garments** (a cap, beanie, scarf, leaf) to
-prove the system. Accessory fit (`src/rig/buildItem.ts` `fit`) is a first-guess and needs visual
-tuning. So V1 *works as a dress-up system* but does not *look* AC-grade yet — that's the art.
+## What's here (V2)
 
-## What's here (V1)
-
-- **Pure model** (`src/bird/*`): `BirdConfig` (the export artifact), the slot registry + item
-  catalog, curated palettes, constrained randomize. Unit-tested.
-- **Editor primitives** (`src/editor/*`): command stack (undo/redo), localStorage autosave,
-  JSON export/import, URL-hash share. Unit-tested.
-- **Rig** (`src/rig/*`): base load + clone + bone/attach-node indexing; toon materials + 3-step
-  gradient + feather recolor; placeholder garment builders.
-- **Scene** (`src/scene/*`): neutral toon-lit turntable; the bird; clothing portaled to bones.
-- **UI** (`src/ui/*`): hover-reveal panel — slot tabs, item chips, recolor swatches, feather
-  presets, randomize/undo/redo/reset/export/import/screenshot/copy-link.
+- **Pure model** (`src/bird/*`): `BirdGenome` (the export artifact — a tagged-union procedural|glb
+  base + identity + slots), `morphology.ts` (species catalog + `resolveCharacter`), eye archetypes,
+  v1→v2 `migrate`, curated per-zone palettes, constrained randomize. Unit-tested (no three/DOM).
+- **Rig** (`src/rig/*`): `buildProceduralBird` (assembles the bird + paints the face + builds
+  beak/crest/tail/wings/legs, returns `{root, attach, dispose}`), `plumagePattern` (CanvasTexture
+  patterns), shared `toonMat` factory + 3-step gradient, GLB load/clone/recolor, placeholder
+  accessory builders.
+- **Editor** (`src/editor/*`): command stack (undo/redo), localStorage autosave (migrate-on-load),
+  JSON export/import, URL-hash share (with an encode-side size guard). Unit-tested.
+- **Scene** (`src/scene/*`): neutral toon-lit turntable; the bird (branches procedural/glb);
+  accessories portaled to attach nodes.
+- **UI** (`src/ui/*`): layered hover-reveal panel — species cards · identity (name + personality) ·
+  crest/tail/beak chips · 6-zone colours · eye archetypes + cheeks · plumage pattern · advanced
+  morphology sliders · accessories · randomize/undo/redo/reset/export/import/screenshot/copy-link.
 
 ## Deferred (clearly noted)
 
-- **Skinned garments** (skeleton-rebind) — the runtime path is contracted; V1 placeholders are
-  rigid. Lands with authored skinned outfits.
-- **Body masking** under clothing (morph/hidden-UV) — needed once real outfits land.
-- **Spline-like fit/morph handles** (drag accessories / pull base morphs, à la the island
-  editor) — secondary to slot-swap + recolor; the next interaction to add.
-- **Outline pass** (back-face inflation) — toon banding is in; the AC outline line is polish.
-- The **AC-grade base + clothing catalog** — the art pipeline's job (the long pole).
+- **Authored hero-species GLBs + the SpeciesManifest "rig card"** + load-time GLB validator —
+  the zero-code drop-in lane is spec'd in the plan; built when conforming hero art exists (the
+  pebble5 picker remains deferred to 3+ hero GLBs).
+- **Skinned garments** (skeleton-rebind) + **body masking** — for authored outfits; V1 placeholder
+  accessories are rigid.
+- **WebGPU/TSL shader patterns** — deliberately off the critical path (patterns ride CanvasTexture);
+  an optional far-future enhancement, never a dependency.

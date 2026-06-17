@@ -16,7 +16,7 @@ Rules here override default behavior. For deeper context, see `docs/` and `docs/
 
 Package manager is **pnpm only**. No npm / yarn lockfiles.
 
-**Standalone studios.** `island-editor/` (island shape designer) and `bird-builder/` (bird dress-up studio) are **isolated pnpm workspace roots** with their own `pnpm-workspace.yaml` + lockfile + modern `three@0.171` (r3f/drei) — deliberately separate from the product app's pinned `three@0.149`. Root tooling never sees them (`biome.json`/`vitest.config.ts`/`tsconfig.json` are scoped to `src`+`test`), so `pnpm check`/`test`/`build` are unaffected. Run each from its own dir (`cd bird-builder && pnpm install && pnpm dev`). The bird-builder is asset-driven; see `bird-builder/ASSET-CONTRACT.md`.
+**Standalone studios.** `island-editor/` (island shape designer) and `bird-builder/` (bird dress-up studio) are **isolated pnpm workspace roots** with their own `pnpm-workspace.yaml` + lockfile + modern `three@0.171` (r3f/drei) — deliberately separate from the product app's pinned `three@0.149`. Root tooling never sees them (`biome.json`/`vitest.config.ts`/`tsconfig.json` are scoped to `src`+`test`), so `pnpm check`/`test`/`build` are unaffected. Run each from its own dir (`cd bird-builder && pnpm install && pnpm dev`). The bird-builder is a **procedural-parametric** bird character creator (V2): variety from our own primitives (`BirdGenome` + `src/rig/buildProceduralBird.ts`, ported from the engine's `Kira.js`), with an authored-GLB upgrade lane (`bird-builder/ASSET-CONTRACT.md`). See `docs/plans/2026-06-17-002-feat-bird-builder-procedural-variety-refactor-plan.md`.
 
 ---
 
