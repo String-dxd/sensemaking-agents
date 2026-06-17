@@ -1,7 +1,10 @@
 import * as THREE from 'three'
-import type { BeakType, CrestType, ProceduralBase, TailType } from '../bird/genome'
+import type { BeakType, CrestType, PatternZone, ProceduralBase, TailType } from '../bird/genome'
 import { type CharacterConfig, resolveCharacter } from '../bird/morphology'
+import { makePlumagePattern } from './plumagePattern'
 import { toonMat } from './toon'
+
+const OUTLINE_COLOR = '#251a1a'
 
 // The procedural bird assembler — ported from the product engine's proven
 // buildStandingBird (src/engine/student-space/Game/View/Kira.js). The geometry +
@@ -63,14 +66,35 @@ export function buildProceduralBird(base: ProceduralBase, gradient: THREE.Textur
   const root = new THREE.Group()
   root.scale.setScalar(c.scale)
 
-  const bodyMat = toonMat({ gradientMap: gradient, color: p.back, name: 'zone:back' })
-  const bellyMat = toonMat({ gradientMap: gradient, color: p.belly, name: 'zone:belly' })
+  // Plumage pattern (P3) — a CanvasTexture map on the matching UV-bearing zone.
+  const pat = base.pattern && base.pattern.type !== 'none' ? base.pattern : null
+  const zoneMat = (zone: PatternZone, color: string, name: string): THREE.MeshToonMaterial => {
+    if (pat && pat.zone === zone) {
+      const tex = makePlumagePattern(color, pat)
+      if (tex) return toonMat({ gradientMap: gradient, map: tex, color: '#ffffff', name })
+    }
+    return toonMat({ gradientMap: gradient, color, name })
+  }
+
+  // Inverted-hull toon outline — applied only to the rounded body + head spheres
+  // (skip the flat wing/tail fans, which produce broken hulls — stress-test #5).
+  const outlineMat = new THREE.MeshBasicMaterial({ color: OUTLINE_COLOR, side: THREE.BackSide })
+  const addOutline = (mesh: THREE.Mesh, parent: THREE.Object3D, factor = 1.045): void => {
+    const o = new THREE.Mesh(mesh.geometry, outlineMat)
+    o.position.copy(mesh.position)
+    o.scale.setScalar(factor)
+    parent.add(o)
+  }
+
+  const bodyMat = zoneMat('back', p.back, 'zone:back')
+  const bellyMat = zoneMat('belly', p.belly, 'zone:belly')
   const accentMat = toonMat({ gradientMap: gradient, color: p.accent, name: 'zone:accent' })
 
   const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 28, 18), bodyMat)
   body.geometry.scale(c.body.x, c.body.y, c.body.z)
   body.position.set(0, c.bodyY, 0)
   root.add(body)
+  addOutline(body, root)
 
   const bellyPatch = new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 14), bellyMat)
   bellyPatch.geometry.scale(0.065, c.belly.y, c.belly.z)
@@ -88,6 +112,7 @@ export function buildProceduralBird(base: ProceduralBase, gradient: THREE.Textur
   const headMesh = new THREE.Mesh(new THREE.SphereGeometry(c.headSize, 48, 28), headMat)
   headMesh.geometry.scale(c.headScale.x, c.headScale.y, c.headScale.z)
   head.add(headMesh)
+  addOutline(headMesh, head)
 
   const friendlyBeak = getFriendlyBeakColor(p.beak, p.accent, p.belly, c.beakKeepsDark)
   head.add(makeStandingBeak(friendlyBeak, c.headSize, c.beak, base.parts.beak, gradient))

@@ -23,7 +23,9 @@ export type EyeArchetype = 'button' | 'sweet' | 'sharp' | 'sleepy' | 'wide' | 's
 export type Personality = 'bright' | 'bold' | 'gentle' | 'grumpy' | 'sporty' | 'quirky'
 export type PatternType = 'none' | 'stripe' | 'speckle' | 'gradient' | 'chevron'
 export type ZoneId = 'back' | 'belly' | 'accent' | 'beak' | 'legs' | 'eye'
-export type PatternZone = 'back' | 'belly' | 'wing'
+// Patterns paint onto the UV-bearing sphere meshes only (the body + belly); the
+// hand-built wing/tail/crest geometries carry no UVs, so a map can't land there.
+export type PatternZone = 'back' | 'belly'
 
 export const SPECIES_IDS: SpeciesId[] = ['flame', 'regent', 'emerald', 'satin', 'twilight', 'lilac']
 export const CREST_TYPES: CrestType[] = ['pointed', 'tuft', 'fan', 'curve', 'none']
@@ -33,7 +35,7 @@ export const EYE_ARCHETYPES: EyeArchetype[] = ['button', 'sweet', 'sharp', 'slee
 export const PERSONALITIES: Personality[] = ['bright', 'bold', 'gentle', 'grumpy', 'sporty', 'quirky']
 export const PATTERN_TYPES: PatternType[] = ['none', 'stripe', 'speckle', 'gradient', 'chevron']
 export const ZONE_IDS: ZoneId[] = ['back', 'belly', 'accent', 'beak', 'legs', 'eye']
-export const PATTERN_ZONES: PatternZone[] = ['back', 'belly', 'wing']
+export const PATTERN_ZONES: PatternZone[] = ['back', 'belly']
 
 export const NAME_MAX = 24
 

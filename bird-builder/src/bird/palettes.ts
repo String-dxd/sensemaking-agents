@@ -46,5 +46,4 @@ export const PATTERN_SWATCHES: string[] = ['#1a1a1a', '#ffffff', '#2a1a14', '#3a
 export const PATTERN_ZONE_LABELS: Record<PatternZone, string> = {
   back: 'Body',
   belly: 'Belly',
-  wing: 'Wings',
 }

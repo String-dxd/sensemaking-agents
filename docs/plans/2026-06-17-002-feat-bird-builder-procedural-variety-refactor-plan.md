@@ -1,7 +1,7 @@
 ---
 title: "feat: Bird Builder V2 — procedural-parametric variety refactor (AC-grade variety without an art team)"
 type: feat
-status: proposed
+status: implemented
 date: 2026-06-17
 plan_id: 2026-06-17-002
 revisits: docs/plans/2026-06-17-001-feat-bird-builder-plan.md
@@ -12,9 +12,13 @@ relates_to:
 
 # Bird Builder V2 — Procedural-Parametric Variety Refactor
 
-> **Status: proposed — awaiting sign-off on the architectural pivot + build scope (see §11).**
-> Designed via a 14-agent research/design/judge/stress-test pass; every load-bearing claim
-> below was verified against repo source.
+> **Status: implemented (2026-06-17).** P0–P3 shipped to `feat/character-studio`: the procedural
+> core + per-individual identity (commit `7b94c23`) and plumage patterns + toon outlines.
+> Verified in-browser (6 distinct species, randomize, patterns, outlines render; no console
+> errors); 45 tests green; typecheck + build clean. Designed via a 14-agent
+> research/design/judge/stress-test pass; every load-bearing claim below was verified against
+> repo source. The decisions in §11 were taken: pivot adopted, full P0–P3 built; rig-layer
+> visuals verified by manual/browser QA while the pure `resolveCharacter` test is the automated gate.
 
 ## 1. Why this plan exists (the pivot)
 

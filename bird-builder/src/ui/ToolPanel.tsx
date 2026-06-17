@@ -7,6 +7,8 @@ import {
   type EyeArchetype,
   type FaceSpec,
   type MorphDelta,
+  PATTERN_TYPES,
+  PATTERN_ZONES,
   PERSONALITIES,
   type Personality,
   type PatternSpec,
@@ -17,7 +19,7 @@ import {
   TAIL_TYPES,
 } from '../bird/genome'
 import { SPECIES_BY_ID } from '../bird/morphology'
-import { SWATCHES, ZONE_SWATCHES } from '../bird/palettes'
+import { PATTERN_SWATCHES, PATTERN_ZONE_LABELS, SWATCHES, ZONE_SWATCHES } from '../bird/palettes'
 import { itemsForSlot, NONE_ITEM, SLOT_BY_ID, SLOTS } from '../bird/slots'
 
 interface Props {
@@ -261,6 +263,9 @@ function ProceduralControls({ procedural, props }: { procedural: ProceduralBase;
         ))}
       </div>
 
+      {/* ── Pattern ───────────────────────────────────────────── */}
+      <PatternSection procedural={procedural} onSetPattern={props.onSetPattern} />
+
       {/* ── Advanced morphology (chips first, sliders on demand) ── */}
       <details className="bb-adv">
         <summary>Advanced shape</summary>
@@ -273,6 +278,44 @@ function ProceduralControls({ procedural, props }: { procedural: ProceduralBase;
         <Slider label="tail" value={mv(m.tail?.scaleY)} min={0.6} max={1.5} step={0.02} onChange={(v) => props.onSetMorph({ tail: { scaleY: v } })} />
         <Slider label="crest" value={mv(m.crestScale)} min={0.5} max={1.6} step={0.02} onChange={(v) => props.onSetMorph({ crestScale: v })} />
       </details>
+    </>
+  )
+}
+
+function PatternSection({ procedural, onSetPattern }: { procedural: ProceduralBase; onSetPattern: (p: PatternSpec | null) => void }) {
+  const pat = procedural.pattern
+  const activeType = pat?.type ?? 'none'
+  return (
+    <>
+      <div className="bb-section">Pattern</div>
+      <div className="bb-chips">
+        {PATTERN_TYPES.map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={activeType === t ? 'is-active' : ''}
+            onClick={() => onSetPattern(t === 'none' ? null : { type: t, zone: pat?.zone ?? 'back', scale: pat?.scale ?? 0.6, color: pat?.color ?? '#1a1a1a' })}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+      {pat ? (
+        <>
+          <div className="bb-chips" style={{ marginTop: 6 }}>
+            {PATTERN_ZONES.map((z) => (
+              <button key={z} type="button" className={pat.zone === z ? 'is-active' : ''} onClick={() => onSetPattern({ ...pat, zone: z })}>
+                {PATTERN_ZONE_LABELS[z]}
+              </button>
+            ))}
+          </div>
+          <Slider label="size" value={pat.scale} min={0.1} max={1} step={0.05} onChange={(v) => onSetPattern({ ...pat, scale: v })} />
+          <div className="bb-colorrow">
+            <span className="bb-label">ink</span>
+            <Swatches list={PATTERN_SWATCHES} value={pat.color} onPick={(hex) => onSetPattern({ ...pat, color: hex })} />
+          </div>
+        </>
+      ) : null}
     </>
   )
 }
