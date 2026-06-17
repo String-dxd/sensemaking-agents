@@ -40,14 +40,8 @@ function validateRelief(v: unknown): v is ReliefGrid {
   return (o.data as unknown[]).every((d) => typeof d === 'number')
 }
 
-export function deserializeSpec(json: string): IslandSpec {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(json)
-  } catch (e) {
-    throw new Error('Invalid island spec: malformed JSON')
-  }
-
+/** Validate an already-parsed value as an IslandSpec; throws with a field-level message on failure. */
+export function validateSpecObject(parsed: unknown): IslandSpec {
   if (typeof parsed !== 'object' || parsed === null) {
     throw new Error('Invalid island spec: root must be an object')
   }
@@ -87,6 +81,16 @@ export function deserializeSpec(json: string): IslandSpec {
   }
 
   return parsed as IslandSpec
+}
+
+export function deserializeSpec(json: string): IslandSpec {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch {
+    throw new Error('Invalid island spec: malformed JSON')
+  }
+  return validateSpecObject(parsed)
 }
 
 // ── Download (browser-only) ──────────────────────────────────────────────────

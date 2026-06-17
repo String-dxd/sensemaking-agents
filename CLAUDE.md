@@ -8,6 +8,7 @@ Rules here override default behavior. For deeper context, see `docs/` and `docs/
 
 - `pnpm dev` — dev server at `http://localhost:3000`
 - `pnpm check` — Biome + `tsc --noEmit` (run before declaring a change done)
+- `pnpm check:island-editor` — typecheck + tests for the standalone island editor (its own isolated workspace; **not** covered by `pnpm check`)
 - `pnpm test` — Vitest (one-shot); `pnpm test:watch` for the loop
 - `pnpm build` — production build
 - `pnpm db:migrate` / `pnpm seed` — local DB setup

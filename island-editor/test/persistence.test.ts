@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { seedFromCurrentIsland } from '../src/terrain/islandSpec'
+import type { IslandSpec } from '../src/terrain/islandSpec'
 import {
   STORAGE_KEY,
   clearSaved,
@@ -76,6 +77,13 @@ describe('persistence', () => {
     expect(loadSpec(storage)).toBeNull()
   })
 
+  it('loadSpec returns null when relief.data length != resolution²', () => {
+    const storage = makeStorage()
+    const spec = { ...seedFromCurrentIsland(), relief: { resolution: 4, data: [0, 1, 2] } }
+    storage.setItem(STORAGE_KEY, JSON.stringify(spec))
+    expect(loadSpec(storage)).toBeNull()
+  })
+
   it('clearSaved removes the stored spec', () => {
     const storage = makeStorage()
     const spec = seedFromCurrentIsland()
@@ -102,6 +110,15 @@ describe('persistence', () => {
     expect(loadSpec(storage)).toEqual(spec)
 
     vi.useRealTimers()
+  })
+
+  it('saveSpec does not overwrite a good spec with an invalid one', () => {
+    const storage = makeStorage()
+    const good = seedFromCurrentIsland()
+    saveSpec(good, storage)
+    const bad = { ...seedFromCurrentIsland(), worldSize: Number.NaN } as IslandSpec
+    saveSpec(bad, storage)
+    expect(loadSpec(storage)).toEqual(good) // last-good retained, invalid write skipped
   })
 
   it('saveSpec is a no-op when storage is null', () => {

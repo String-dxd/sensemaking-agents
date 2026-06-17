@@ -1,6 +1,7 @@
 import './panel.css'
+import { useState } from 'react'
 import type { BrushMode, BrushParams } from '../terrain/brush'
-import type { HeightProfile } from '../terrain/islandSpec'
+import type { HeightProfile, Vec2 } from '../terrain/islandSpec'
 
 export type EditMode = 'shape' | 'sculpt'
 
@@ -19,6 +20,54 @@ interface ToolPanelProps {
   onExport: () => void
   onImport: () => void
   onTopView: () => void
+  selectedPos: Vec2 | null
+  canDelete: boolean
+  onPointFieldFocus: () => void
+  onPointFieldChange: (next: Vec2) => void
+  onPointFieldBlur: () => void
+  onInsertAfter: () => void
+  onDeleteSelected: () => void
+  worldSize: number
+  onWorldSizeChange: (v: number) => void
+}
+
+function NumberField({
+  value, step, min, format, onStart, onLiveChange, onCommit,
+}: {
+  value: number
+  step?: number
+  min?: number
+  format: (v: number) => string
+  onStart?: () => void
+  onLiveChange?: (v: number) => void
+  onCommit?: () => void
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const parse = (s: string): number | null => {
+    const v = Number(s)
+    return Number.isFinite(v) && (min === undefined || v >= min) ? v : null
+  }
+  return (
+    <input
+      type="number"
+      step={step}
+      min={min}
+      value={draft ?? format(value)}
+      onFocus={() => onStart?.()}
+      onChange={(e) => {
+        setDraft(e.target.value)
+        const v = parse(e.target.value)
+        if (v !== null) onLiveChange?.(v)
+      }}
+      onBlur={() => {
+        setDraft(null)
+        onCommit?.()
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.currentTarget as HTMLInputElement).blur()
+      }}
+    />
+  )
 }
 
 const PROFILE_FIELDS: { key: keyof HeightProfile; label: string; min: number; max: number; step: number }[] = [
@@ -45,6 +94,15 @@ export function ToolPanel({
   onExport,
   onImport,
   onTopView,
+  selectedPos,
+  canDelete,
+  onPointFieldFocus,
+  onPointFieldChange,
+  onPointFieldBlur,
+  onInsertAfter,
+  onDeleteSelected,
+  worldSize,
+  onWorldSizeChange,
 }: ToolPanelProps) {
   return (
     <div className="tool-panel">
@@ -86,6 +144,45 @@ export function ToolPanel({
             </label>
           ))}
           <div className="tool-panel__hint">Drag the orange handles to reshape the coastline.</div>
+          <div className="tool-panel__section">Coastline</div>
+          {selectedPos ? (
+            <>
+              <div className="tool-panel__coords">
+                <label>
+                  x
+                  <NumberField
+                    value={selectedPos.x}
+                    step={0.1}
+                    format={(v) => v.toFixed(2)}
+                    onStart={onPointFieldFocus}
+                    onLiveChange={(v) => onPointFieldChange({ x: v, z: selectedPos.z })}
+                    onCommit={onPointFieldBlur}
+                  />
+                </label>
+                <label>
+                  z
+                  <NumberField
+                    value={selectedPos.z}
+                    step={0.1}
+                    format={(v) => v.toFixed(2)}
+                    onStart={onPointFieldFocus}
+                    onLiveChange={(v) => onPointFieldChange({ x: selectedPos.x, z: v })}
+                    onCommit={onPointFieldBlur}
+                  />
+                </label>
+              </div>
+              <div className="tool-panel__pointbtns">
+                <button type="button" onClick={onInsertAfter}>
+                  Insert after
+                </button>
+                <button type="button" disabled={!canDelete} onClick={onDeleteSelected}>
+                  Delete
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="tool-panel__hint">Click a handle to select a point, then edit or insert/delete it.</div>
+          )}
         </>
       ) : (
         <>
@@ -131,6 +228,17 @@ export function ToolPanel({
       )}
 
       <div className="tool-panel__section">Scene</div>
+      <label className="tool-panel__row">
+        <span className="tool-panel__label">World size</span>
+        <NumberField
+          value={worldSize}
+          step={1}
+          min={1}
+          format={(v) => v.toFixed(0)}
+          onLiveChange={onWorldSizeChange}
+        />
+        <span className="tool-panel__value">{worldSize.toFixed(0)}</span>
+      </label>
       <div className="tool-panel__actions">
         <button type="button" onClick={onTopView}>
           Top view
