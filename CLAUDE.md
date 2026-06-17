@@ -16,6 +16,8 @@ Rules here override default behavior. For deeper context, see `docs/` and `docs/
 
 Package manager is **pnpm only**. No npm / yarn lockfiles.
 
+**Standalone studios.** `island-editor/` (island shape designer) and `bird-builder/` (bird dress-up studio) are **isolated pnpm workspace roots** with their own `pnpm-workspace.yaml` + lockfile + modern `three@0.171` (r3f/drei) — deliberately separate from the product app's pinned `three@0.149`. Root tooling never sees them (`biome.json`/`vitest.config.ts`/`tsconfig.json` are scoped to `src`+`test`), so `pnpm check`/`test`/`build` are unaffected. Run each from its own dir (`cd bird-builder && pnpm install && pnpm dev`). The bird-builder is asset-driven; see `bird-builder/ASSET-CONTRACT.md`.
+
 ---
 
 ## Repo conventions

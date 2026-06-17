@@ -193,6 +193,8 @@ src/
   server/       Server function wrappers and handlers
 test/           Vitest specs and ablation fixtures/reports
 plans/          Planning artifacts and current state snapshot
+island-editor/  Standalone island shape designer — isolated pnpm root (r3f + drei)
+bird-builder/   Standalone bird dress-up studio — isolated pnpm root (r3f + drei)
 ```
 
 ## Historical Plans

@@ -1,0 +1,8 @@
+# bird-builder is its OWN isolated pnpm workspace root, deliberately separate
+# from the parent sensemaking-agents workspace (a sibling to island-editor/,
+# which does the same). pnpm stops at the first pnpm-workspace.yaml walking up
+# from the CWD, so installs here use THIS file — the product app's lockfile,
+# overrides, and pinned three@0.149 are never touched. This studio renders with
+# its own modern three@0.171 + r3f/drei.
+allowBuilds:
+  esbuild: true
