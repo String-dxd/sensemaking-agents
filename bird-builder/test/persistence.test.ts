@@ -1,13 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defaultBirdConfig } from '../src/bird/birdConfig'
-import {
-  clearSaved,
-  createAutosaver,
-  loadConfig,
-  saveConfig,
-  STORAGE_KEY,
-  type StorageLike,
-} from '../src/editor/persistence'
+import { defaultGenome } from '../src/bird/genome'
+import { clearSaved, createAutosaver, loadConfig, saveConfig, STORAGE_KEY, type StorageLike } from '../src/editor/persistence'
 
 function makeStorage(): StorageLike {
   const store = new Map<string, string>()
@@ -23,29 +17,35 @@ function makeStorage(): StorageLike {
 }
 
 describe('persistence', () => {
-  it('round-trips a valid config', () => {
+  it('round-trips a valid genome', () => {
     const storage = makeStorage()
-    const config = defaultBirdConfig()
+    const config = defaultGenome()
     saveConfig(config, storage)
     expect(loadConfig(storage)).toEqual(config)
   })
 
-  it('returns null on empty / corrupt / wrong-version / invalid-palette', () => {
+  it('upgrades a stale v1 autosave in place (does not reset to null)', () => {
+    const storage = makeStorage()
+    storage.setItem(STORAGE_KEY, JSON.stringify(defaultBirdConfig()))
+    const loaded = loadConfig(storage)
+    expect(loaded?.version).toBe(2)
+    expect(loaded?.base.kind).toBe('glb')
+  })
+
+  it('returns null on empty / corrupt / invalid', () => {
     const storage = makeStorage()
     expect(loadConfig(storage)).toBeNull()
     storage.setItem(STORAGE_KEY, '{not json}}}')
     expect(loadConfig(storage)).toBeNull()
-    storage.setItem(STORAGE_KEY, JSON.stringify({ ...defaultBirdConfig(), version: 2 }))
-    expect(loadConfig(storage)).toBeNull()
-    const badPalette = defaultBirdConfig()
-    badPalette.featherPalette = { body: 'red', accent: '#fff' }
-    storage.setItem(STORAGE_KEY, JSON.stringify(badPalette))
+    const bad = defaultGenome()
+    bad.base.palette.back = 'red'
+    storage.setItem(STORAGE_KEY, JSON.stringify(bad))
     expect(loadConfig(storage)).toBeNull()
   })
 
   it('clearSaved removes the stored config', () => {
     const storage = makeStorage()
-    saveConfig(defaultBirdConfig(), storage)
+    saveConfig(defaultGenome(), storage)
     expect(loadConfig(storage)).not.toBeNull()
     clearSaved(storage)
     expect(loadConfig(storage)).toBeNull()
@@ -55,7 +55,7 @@ describe('persistence', () => {
     vi.useFakeTimers()
     const storage = makeStorage()
     const save = createAutosaver(400, storage)
-    const config = defaultBirdConfig()
+    const config = defaultGenome()
     save(config)
     save(config)
     save(config)
@@ -66,7 +66,7 @@ describe('persistence', () => {
   })
 
   it('is a no-op when storage is null', () => {
-    expect(() => saveConfig(defaultBirdConfig(), null)).not.toThrow()
+    expect(() => saveConfig(defaultGenome(), null)).not.toThrow()
     expect(() => clearSaved(null)).not.toThrow()
     expect(loadConfig(null)).toBeNull()
   })

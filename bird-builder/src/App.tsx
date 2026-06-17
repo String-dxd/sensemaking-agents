@@ -1,17 +1,29 @@
 import { OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import {
-  Component,
-  type ReactNode,
-  Suspense,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
+import { Component, type ReactNode, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
-import { type BirdConfig, defaultBirdConfig, setSlotColor, setSlotItem } from './bird/birdConfig'
-import { FEATHER_PRESET_BY_ID } from './bird/palettes'
+import {
+  type BirdGenome,
+  defaultGenome,
+  type FaceSpec,
+  type MorphDelta,
+  type PatternSpec,
+  type Personality,
+  type PlumagePalette,
+  type ProceduralBase,
+  setFace,
+  setGlbSpecies,
+  setMorph,
+  setName,
+  setPart,
+  setPattern,
+  setPersonality,
+  setSlotColor,
+  setSlotItem,
+  setSpecies,
+  setZoneColor,
+  type SpeciesId,
+} from './bird/genome'
 import { randomizeConfig } from './bird/randomize'
 import { SLOTS } from './bird/slots'
 import { createCommandStack } from './editor/commandStack'
@@ -23,10 +35,8 @@ import { Bird } from './scene/Bird'
 import { ToolPanel } from './ui/ToolPanel'
 
 // Initial config: a shared URL (hash) wins, then localStorage, then defaults.
-const INITIAL: BirdConfig =
-  (typeof location !== 'undefined' ? decodeConfigFromHash(location.hash) : null) ??
-  loadConfig() ??
-  defaultBirdConfig()
+const INITIAL: BirdGenome =
+  (typeof location !== 'undefined' ? decodeConfigFromHash(location.hash) : null) ?? loadConfig() ?? defaultGenome()
 
 const autosave = createAutosaver()
 
@@ -59,7 +69,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 
 export function App() {
-  const [config, setConfig] = useState<BirdConfig>(INITIAL)
+  const [config, setConfig] = useState<BirdGenome>(INITIAL)
   const configRef = useRef(config)
   configRef.current = config
   const [selectedSlot, setSelectedSlot] = useState<string>(SLOTS[0].id)
@@ -72,17 +82,18 @@ export function App() {
   const importInputRef = useRef<HTMLInputElement>(null)
 
   // Autosave + keep the URL hash in sync so the page is shareable + refresh-safe.
+  // encodeConfigToHash returns '' if over the cap (encode-side guard) — skip then.
   useEffect(() => {
     autosave(config)
     if (typeof location !== 'undefined') {
       const h = encodeConfigToHash(config)
-      if (location.hash !== h) history.replaceState(null, '', h)
+      if (h && location.hash !== h) history.replaceState(null, '', h)
     }
   }, [config])
 
   // Every discrete edit is one undoable command (before → after on one state obj).
   const commit = useCallback(
-    (next: BirdConfig) => {
+    (next: BirdGenome) => {
       const prev = configRef.current
       if (next === prev) return
       setConfig(next)
@@ -118,31 +129,30 @@ export function App() {
   }, [undo, redo])
 
   // ── Panel handlers ────────────────────────────────────────────────────────
+  const onSetSpecies = useCallback((id: SpeciesId) => commit(setSpecies(configRef.current, id)), [commit])
+  const onUseGlbLane = useCallback(() => commit(setGlbSpecies(configRef.current)), [commit])
+  const onSetPart = useCallback(
+    (part: keyof ProceduralBase['parts'], value: string) => commit(setPart(configRef.current, part, value)),
+    [commit],
+  )
+  const onSetZoneColor = useCallback(
+    (zone: keyof PlumagePalette, hex: string) => commit(setZoneColor(configRef.current, zone, hex)),
+    [commit],
+  )
+  const onSetFace = useCallback((patch: Partial<FaceSpec>) => commit(setFace(configRef.current, patch)), [commit])
+  const onSetMorph = useCallback((patch: MorphDelta) => commit(setMorph(configRef.current, patch)), [commit])
+  const onSetPattern = useCallback((pattern: PatternSpec | null) => commit(setPattern(configRef.current, pattern)), [commit])
+  const onSetName = useCallback((name: string) => commit(setName(configRef.current, name)), [commit])
+  const onSetPersonality = useCallback((p: Personality) => commit(setPersonality(configRef.current, p)), [commit])
   const onSetItem = useCallback((slot: string, itemId: string) => commit(setSlotItem(configRef.current, slot, itemId)), [commit])
   const onSetSlotColor = useCallback(
     (slot: string, channel: 'base' | 'accent', hex: string) => commit(setSlotColor(configRef.current, slot, channel, hex)),
     [commit],
   )
-  const onSetFeatherPreset = useCallback(
-    (presetId: string) => {
-      const preset = FEATHER_PRESET_BY_ID[presetId]
-      if (!preset) return
-      commit({ ...configRef.current, featherPalette: { ...preset.palette } })
-    },
-    [commit],
-  )
-  const onSetFeatherColor = useCallback(
-    (channel: 'body' | 'accent', hex: string) =>
-      commit({
-        ...configRef.current,
-        featherPalette: { ...configRef.current.featherPalette, [channel]: hex },
-      }),
-    [commit],
-  )
   const onRandomize = useCallback(() => commit(randomizeConfig()), [commit])
   const onReset = useCallback(() => {
     clearSaved()
-    setConfig(defaultBirdConfig())
+    setConfig(defaultGenome())
     stack.clear()
     bumpStack()
   }, [stack, bumpStack])
@@ -175,9 +185,7 @@ export function App() {
     document.body.removeChild(a)
   }, [])
   const onCopyLink = useCallback(() => {
-    if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      void navigator.clipboard.writeText(location.href)
-    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard) void navigator.clipboard.writeText(location.href)
   }, [])
 
   return (
@@ -203,10 +211,17 @@ export function App() {
         config={config}
         selectedSlot={selectedSlot}
         onSelectSlot={setSelectedSlot}
+        onSetSpecies={onSetSpecies}
+        onUseGlbLane={onUseGlbLane}
+        onSetPart={onSetPart}
+        onSetZoneColor={onSetZoneColor}
+        onSetFace={onSetFace}
+        onSetMorph={onSetMorph}
+        onSetPattern={onSetPattern}
+        onSetName={onSetName}
+        onSetPersonality={onSetPersonality}
         onSetItem={onSetItem}
         onSetSlotColor={onSetSlotColor}
-        onSetFeatherPreset={onSetFeatherPreset}
-        onSetFeatherColor={onSetFeatherColor}
         canUndo={stack.canUndo()}
         canRedo={stack.canRedo()}
         onUndo={undo}
@@ -219,13 +234,7 @@ export function App() {
         onCopyLink={onCopyLink}
       />
 
-      <input
-        ref={importInputRef}
-        type="file"
-        accept="application/json"
-        style={{ display: 'none' }}
-        onChange={onImportFile}
-      />
+      <input ref={importInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={onImportFile} />
     </ErrorBoundary>
   )
 }

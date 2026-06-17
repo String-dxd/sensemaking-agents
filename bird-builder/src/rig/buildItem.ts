@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { toonMat as sharedToonMat } from './toon'
 
 // V1 PLACEHOLDER garments — crude procedural meshes that prove the
 // swap/attach/recolor SYSTEM. They are intentionally simple and their fit is a
@@ -20,10 +21,10 @@ export interface BuiltItem {
   fit: ItemFit
 }
 
+// Thin adapter onto the shared factory (rig/toon.ts) so item builders keep their
+// terse call shape while the studio has one toon-material path.
 function toonMat(gradient: THREE.Texture, color: string, name: 'base' | 'accent'): THREE.MeshToonMaterial {
-  const m = new THREE.MeshToonMaterial({ color: new THREE.Color(color), gradientMap: gradient })
-  m.name = name
-  return m
+  return sharedToonMat({ gradientMap: gradient, color, name })
 }
 
 export function buildItem(

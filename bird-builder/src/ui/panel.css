@@ -146,3 +146,91 @@
   margin-top: 10px;
   line-height: 1.4;
 }
+
+/* Species cards — silhouette swatch + name. */
+.bb-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+.bb-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 3px;
+  line-height: 1.1;
+  text-align: center;
+}
+.bb-card.is-soon {
+  opacity: 0.4;
+  cursor: default;
+}
+.bb-card__ico {
+  display: flex;
+  gap: 2px;
+}
+.bb-card__ico i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.3);
+}
+
+/* Name field. */
+.bb-name {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #ece9f1;
+  border-radius: 7px;
+  padding: 6px 8px;
+  font: inherit;
+}
+.bb-name::placeholder {
+  color: rgba(236, 233, 241, 0.4);
+}
+
+/* Slider rows (face fine-tune + advanced morphology). */
+.bb-slider {
+  display: grid;
+  grid-template-columns: 60px 1fr 30px;
+  align-items: center;
+  gap: 8px;
+  margin: 5px 0;
+}
+.bb-slider input[type='range'] {
+  width: 100%;
+  accent-color: #ff7b54;
+}
+.bb-num {
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  font-size: 10px;
+}
+
+/* Advanced disclosure. */
+details.bb-adv {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 6px;
+}
+details.bb-adv > summary {
+  cursor: pointer;
+  text-transform: uppercase;
+  font-size: 10px;
+  opacity: 0.6;
+  letter-spacing: 0.08em;
+  list-style: none;
+}
+details.bb-adv > summary::-webkit-details-marker {
+  display: none;
+}
+details.bb-adv > summary::before {
+  content: '▸ ';
+}
+details.bb-adv[open] > summary::before {
+  content: '▾ ';
+}

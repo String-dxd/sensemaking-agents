@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isValidConfig } from '../src/bird/birdConfig'
+import { isValidGenome, SPECIES_IDS } from '../src/bird/genome'
 import { randomizeConfig } from '../src/bird/randomize'
 import { itemsForSlot, NONE_ITEM, SLOTS } from '../src/bird/slots'
 
@@ -20,10 +20,12 @@ describe('randomizeConfig', () => {
     expect(randomizeConfig(mulberry32(42))).toEqual(randomizeConfig(mulberry32(42)))
   })
 
-  it('always produces a valid config within the curated catalog', () => {
+  it('always produces a valid procedural genome within the curated catalog', () => {
     for (let seed = 0; seed < 100; seed++) {
       const c = randomizeConfig(mulberry32(seed))
-      expect(isValidConfig(c)).toBe(true)
+      expect(isValidGenome(c)).toBe(true)
+      expect(c.base.kind).toBe('procedural')
+      if (c.base.kind === 'procedural') expect(SPECIES_IDS).toContain(c.base.species)
       for (const slot of SLOTS) {
         const valid = [NONE_ITEM, ...itemsForSlot(slot.id).map((i) => i.id)]
         expect(valid).toContain(c.slots[slot.id].itemId)
