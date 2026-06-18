@@ -49,14 +49,17 @@ describe('islandStateAtInputSchema', () => {
 })
 
 describe('getIslandStateAtHandler snapshot fallback', () => {
-  it('reconstructs from timeline rows when the snapshot table is missing', async () => {
+  // The handler first probes for the snapshot table with `to_regclass`, which
+  // returns NULL (never errors) for an absent relation. So the first `execute`
+  // call is the probe, and the snapshot select is skipped entirely when the
+  // table is missing — leaving the surrounding transaction healthy for Path 2.
+  const tableAbsent = { rows: [{ oid: null }] }
+  const tablePresent = { rows: [{ oid: 'vips_island_snapshots' }] }
+
+  it('reconstructs from timeline rows when the snapshot table is absent', async () => {
     const execute = vi
       .fn()
-      .mockRejectedValueOnce(
-        Object.assign(new Error('relation "vips_island_snapshots" does not exist'), {
-          code: '42P01',
-        }),
-      )
+      .mockResolvedValueOnce(tableAbsent)
       .mockResolvedValueOnce({
         rows: [
           {
@@ -83,18 +86,12 @@ describe('getIslandStateAtHandler snapshot fallback', () => {
         dimension: 'skills',
       }),
     ])
+    // probe + timeline reconstruction — the snapshot select is never issued.
     expect(execute).toHaveBeenCalledTimes(2)
   })
 
-  it('returns empty when the snapshot table is missing and no claims exist yet', async () => {
-    const execute = vi
-      .fn()
-      .mockRejectedValueOnce(
-        Object.assign(new Error('relation "vips_island_snapshots" does not exist'), {
-          code: '42P01',
-        }),
-      )
-      .mockResolvedValueOnce({ rows: [] })
+  it('returns empty when the snapshot table is absent and no claims exist yet', async () => {
+    const execute = vi.fn().mockResolvedValueOnce(tableAbsent).mockResolvedValueOnce({ rows: [] })
     withStudentMock.mockImplementation(async (_studentId, fn) => fn({ db: { execute } }))
 
     await expect(getIslandStateAtHandler({ year: 2026 })).resolves.toEqual({
@@ -105,7 +102,35 @@ describe('getIslandStateAtHandler snapshot fallback', () => {
     })
   })
 
-  it('still rejects non-schema snapshot query failures', async () => {
+  it('returns the latest snapshot when the table exists', async () => {
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(tablePresent)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            payload_json: JSON.stringify({
+              sprouts: { bloomedTrees: [{ id: 'snap-1', species: 'tree', dimension: 'values' }] },
+            }),
+            captured_at: '2026-06-30T15:59:59.000Z',
+          },
+        ],
+      })
+    withStudentMock.mockImplementation(async (_studentId, fn) => fn({ db: { execute } }))
+
+    const result = await getIslandStateAtHandler({ year: 2026 })
+
+    expect(result).toMatchObject({
+      source: 'snapshot',
+      capturedAt: '2026-06-30T15:59:59.000Z',
+      year: 2026,
+    })
+    expect(result.bloomedTrees).toEqual([expect.objectContaining({ id: 'snap-1' })])
+    // probe confirmed the table, then the snapshot select ran.
+    expect(execute).toHaveBeenCalledTimes(2)
+  })
+
+  it('propagates non-schema DB failures during the snapshot lookup', async () => {
     const execute = vi.fn().mockRejectedValueOnce(new Error('connection closed'))
     withStudentMock.mockImplementation(async (_studentId, fn) => fn({ db: { execute } }))
 

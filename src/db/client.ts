@@ -70,6 +70,18 @@ function buildPool(): Pool {
     connectionTimeoutMillis: 5_000,
   }
   const pool = new Pool(config)
+  // node-postgres emits 'error' on the Pool when an *idle* pooled client errors
+  // out of band — e.g. Neon/PgBouncer drops a connection that is sitting in the
+  // pool between requests. With no listener this becomes an unhandled 'error'
+  // event and Node crashes the whole process (`throw er` in node:events). The
+  // pool transparently discards the dead client and opens a fresh one on the
+  // next checkout, so the safe response is to log and swallow.
+  pool.on('error', (err) => {
+    // eslint-disable-next-line no-console -- ops triage signal
+    console.error('[db/client] idle pooled client errored; it will be recycled', {
+      error: err instanceof Error ? { name: err.name, message: err.message } : err,
+    })
+  })
   // No-op outside Vercel's Fluid Compute runtime, but cheap and idempotent.
   try {
     attachDatabasePool(pool)
