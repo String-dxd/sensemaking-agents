@@ -1,7 +1,0 @@
-# island-editor is its OWN isolated pnpm workspace root, deliberately separate
-# from the parent sensemaking-agents workspace. pnpm stops at the first
-# pnpm-workspace.yaml walking up from the CWD, so installs run here use THIS
-# file — the product app's lockfile, overrides, and deps are never touched.
-# `allowBuilds` approves dependency build scripts for this isolated package.
-allowBuilds:
-  esbuild: true

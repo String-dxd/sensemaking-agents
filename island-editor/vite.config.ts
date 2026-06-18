@@ -1,9 +1,12 @@
-/// <reference types="vitest/config" />
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+// Import defineConfig from 'vitest/config' (not 'vite') so the `test` field is
+// natively typed without a triple-slash reference. Both this package and the
+// product app are on vite 7 (unified repo-wide — see the pnpm monorepo note in
+// CLAUDE.md), so this is about test-field typing, not bridging a vite version gap.
+import { defineConfig } from 'vitest/config'
 
 // Standalone editor app. Plain Vite + React (no TanStack Start / SSR).
-// Isolated from the product app: its own deps, its own port.
+// A workspace member, kept on its own three.js line and its own dev port.
 export default defineConfig({
   plugins: [react()],
   server: { port: 5180 },

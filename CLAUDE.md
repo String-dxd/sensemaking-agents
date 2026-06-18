@@ -7,7 +7,10 @@ Rules here override default behavior. For deeper context, see `docs/` and `docs/
 ## Commands
 
 - `pnpm dev` — dev server at `http://localhost:3000`
+- `pnpm dev:editor` — standalone island editor (r3f/drei) at `http://localhost:5180` (alias for `pnpm --filter island-editor dev`)
 - `pnpm check` — Biome + `tsc --noEmit` (run before declaring a change done)
+- `pnpm check:island-editor` — typecheck + tests for the island editor (a pnpm workspace member; still **not** covered by `pnpm check`)
+- `pnpm check:all` — runs `pnpm check` then `pnpm check:island-editor` (both gates)
 - `pnpm test` — Vitest (one-shot); `pnpm test:watch` for the loop
 - `pnpm build` — production build
 - `pnpm db:migrate` / `pnpm seed` — local DB setup
@@ -27,6 +30,7 @@ Package manager is **pnpm only**. No npm / yarn lockfiles.
 - **Base UI for behavior, hand-rolled shadcn-style visuals.** `@base-ui-components/react` for dialogs, drawers, radio groups, focus traps. Visual primitives in `src/components/ui/*` are local. Do **not** install the `shadcn/ui` package.
 - **Tenancy via `withStudent`.** Every DB read/write goes through the envelope (`src/db/*`, server handlers). Bypassing it is a tenancy bug.
 - **Agents.** Mirror = OpenAI Realtime (browser WebRTC, server-brokered key). Connector / Cartographer / self_critique = Anthropic Managed Agents. Prompts in `src/agents/*.prompt.md`; binding in `src/agents/config.ts`; transport in `src/agents/runner.ts`. The deterministic verifier (`src/agents/verifier.ts`) is the hard gate before any Connector link is persisted.
+- **pnpm monorepo (one lockfile).** Members are the root app (`.`) and `island-editor` (`pnpm-workspace.yaml#packages`). `three` **runtime** is intentionally split per-package — `0.149` (app engine) vs `0.171` (editor r3f) — and pnpm isolates them, so that's fine. But `@types/three` (`0.184`) and `vite` (`7`) are pinned to **one** version repo-wide: two copies of those produce TS type-identity splits (e.g. `BufferGeometry`/`Camera`/vite `Plugin` mismatches) because the editor's transitive deps fall through to the root's hoisted copy. **Never** add `three` to `overrides` — overrides are workspace-global and would collapse the deliberate runtime split. (`@types/three` and `vite` are already single-version; keep them aligned via each `package.json`, not via an override — which is redundant at best and risks the same global collapse.)
 
 ---
 
