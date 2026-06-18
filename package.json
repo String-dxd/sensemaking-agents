@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:editor": "pnpm --filter island-editor dev",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "check": "biome check src test && tsc --noEmit",
-    "check:island-editor": "pnpm --dir island-editor typecheck && pnpm --dir island-editor test",
+    "check:island-editor": "pnpm --filter island-editor typecheck && pnpm --filter island-editor test",
+    "check:all": "pnpm check && pnpm check:island-editor",
     "lint": "biome check src test",
     "format": "biome format --write src test",
     "typecheck": "tsc --noEmit",

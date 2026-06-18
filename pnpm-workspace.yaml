@@ -1,4 +1,11 @@
-# pnpm 11+ canonical config. Two blocks live here:
+# pnpm 11+ canonical config. Three blocks live here:
+#
+#   - `packages`: workspace members. The product app is the root (`.`); the
+#     standalone island editor joins as a member so both share one install and
+#     one lockfile. Per-package dep versions still differ (e.g. `three` is
+#     0.149 in the app, 0.171 in the editor) — pnpm isolates them per package,
+#     so do NOT add a `three` entry to `overrides` below (a workspace override
+#     is global and would collapse both to one version).
 #
 #   - `allowBuilds`: per-package approval for build scripts on native
 #     modules. Without these, `pnpm install` (and every `pnpm <script>` via
@@ -17,6 +24,10 @@
 # Vercel with ERR_PNPM_LOCKFILE_CONFIG_MISMATCH). This file is the
 # well-formed replacement — booleans for build approvals, real version
 # strings for overrides.
+
+packages:
+  - '.'
+  - island-editor
 
 allowBuilds:
   better-sqlite3: true
