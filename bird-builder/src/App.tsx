@@ -74,6 +74,20 @@ export function App() {
   configRef.current = config
   const [selectedSlot, setSelectedSlot] = useState<string>(SLOTS[0].id)
 
+  // QA affordances (headless screenshots): ?noRotate freezes the turntable,
+  // ?cam=front|side|34 fixes the angle. Read once at mount.
+  const qp = typeof location !== 'undefined' ? new URLSearchParams(location.search) : new URLSearchParams()
+  const noRotate = qp.has('noRotate')
+  const CAM: Record<string, [number, number, number]> = {
+    front: [3.4, 0.9, 0.01],
+    side: [0.01, 0.9, 3.4],
+    '34': [2.4, 1.4, 2.8],
+    back: [-2.6, 1.2, 2.6],
+    side2: [0.6, 0.9, 3.3],
+  }
+  const camPos: [number, number, number] = CAM[qp.get('cam') ?? ''] ?? [2.4, 1.4, 2.8]
+  const spin = (Number.parseFloat(qp.get('spin') ?? '0') || 0) * (Math.PI / 180) // rotate the model (reliable headless capture)
+
   const stack = useRef(createCommandStack()).current
   const [, setStackVersion] = useState(0)
   const bumpStack = useCallback(() => setStackVersion((v) => v + 1), [])
@@ -194,15 +208,17 @@ export function App() {
         <Suspense fallback={<Overlay>Loading bird…</Overlay>}>
           <Canvas
             shadows
-            camera={{ position: [2.4, 1.4, 2.8], fov: 45 }}
+            camera={{ position: camPos, fov: 45 }}
             gl={{ toneMapping: THREE.NoToneMapping, preserveDrawingBuffer: true }}
             onCreated={({ gl }) => {
               glRef.current = gl
             }}
           >
             <Backdrop />
-            <Bird config={config} />
-            <OrbitControls makeDefault autoRotate autoRotateSpeed={0.6} target={[0, 0.4, 0]} minDistance={1.5} maxDistance={8} />
+            <group rotation={[0, spin, 0]}>
+              <Bird config={config} />
+            </group>
+            <OrbitControls makeDefault autoRotate={!noRotate} autoRotateSpeed={0.6} target={[0, 0.4, 0]} minDistance={1.5} maxDistance={8} />
           </Canvas>
         </Suspense>
       </div>

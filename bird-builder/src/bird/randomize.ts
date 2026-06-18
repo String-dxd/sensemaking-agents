@@ -85,10 +85,11 @@ function randomMorph(rand: () => number, amount: number): MorphDelta {
     neckH: jitterMul(rand, 0.12, amount),
     crestScale: jitterMul(rand, 0.2, amount),
     body: { x: jitterMul(rand, 0.14, amount), y: jitterMul(rand, 0.1, amount) },
-    headScale: { x: jitterMul(rand, 0.08, amount) },
+    headScale: { x: jitterMul(rand, 0.08, amount), y: jitterMul(rand, 0.06, amount) },
     beak: { length: jitterMul(rand, 0.18, amount) },
-    wing: { length: jitterMul(rand, 0.1, amount) },
+    wing: { length: jitterMul(rand, 0.12, amount) },
     tail: { scaleY: jitterMul(rand, 0.18, amount) },
+    leg: { len: jitterMul(rand, 0.14, amount) },
   }
 }
 
@@ -115,6 +116,8 @@ export function randomizeConfig(rand: () => number = Math.random): BirdGenome {
   }
 
   const eye = pick(rand, bias.eyes.length ? bias.eyes : EYE_ARCHETYPES) as EyeArchetype
+  // Cheek marks are a primary AC charm signal — roll one ~45% of the time.
+  const cheekMark = rand() < 0.45 ? pick(rand, ['dot', 'swirl'] as const) : 'none'
   const morph = randomMorph(rand, bias.morphAmt)
 
   // Plumage patterns roll in P3 (pattern rendering); keep the bias + draws so the
@@ -129,7 +132,7 @@ export function randomizeConfig(rand: () => number = Math.random): BirdGenome {
       }
     : null
 
-  const base: ProceduralBase = { kind: 'procedural', species, parts, morph, palette, face: { eye }, pattern }
+  const base: ProceduralBase = { kind: 'procedural', species, parts, morph, palette, face: { eye, cheekMark }, pattern }
 
   let next: BirdGenome = {
     ...genome,

@@ -51,6 +51,22 @@ describe('resolveCharacter', () => {
     expect(c.crestScale).toBeCloseTo(ch.crestScale * 0.5)
   })
 
+  it('locks a body frame per species, and morph never changes it', () => {
+    const expected: Record<ProceduralBase['species'], string> = {
+      flame: 'round',
+      regent: 'broad',
+      emerald: 'tall',
+      satin: 'round',
+      twilight: 'tall',
+      lilac: 'barrel',
+    }
+    for (const id of SPECIES_IDS) {
+      expect(resolveCharacter(baseFor(id)).bodyFrame).toBe(expected[id])
+      // a dimensional morph scales the body but must not touch the frame enum
+      expect(resolveCharacter(baseFor(id, { body: { x: 1.4 }, bodyY: 1.2 })).bodyFrame).toBe(expected[id])
+    }
+  })
+
   it('the eye archetype overrides eye params (wide → big whites)', () => {
     const c = resolveCharacter({ ...baseFor('emerald'), face: { eye: 'wide' } })
     expect(c.eyeWhite).toBe(0.25) // EYE_ARCHETYPE_PARAMS.wide.eyeWhite

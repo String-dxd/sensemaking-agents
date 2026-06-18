@@ -1,8 +1,9 @@
 import { useGLTF } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useMemo } from 'react'
 import type { BirdGenome, GlbBase, ProceduralBase } from '../bird/genome'
 import { NONE_ITEM, SLOTS } from '../bird/slots'
-import { buildProceduralBird } from '../rig/buildProceduralBird'
+import { buildBird } from '../rig/buildBird'
 import { prepareBase } from '../rig/loadBird'
 import { applyToonMaterials, makeToonGradient, recolorZones } from '../rig/toon'
 import { Clothing } from './Clothing'
@@ -32,8 +33,9 @@ function ProceduralBirdView({ base, slots }: { base: ProceduralBase; slots: Bird
   // keyed on a structural signature. dispose() the prior build to free the
   // 1024×512 face CanvasTexture + geometry (port-bug #4).
   const baseKey = useMemo(() => JSON.stringify(base), [base])
-  const built = useMemo(() => buildProceduralBird(base, gradient), [baseKey, gradient])
+  const built = useMemo(() => buildBird(base, gradient), [baseKey, gradient])
   useEffect(() => () => built.dispose(), [built])
+  useFrame((state) => built.update(state.clock.elapsedTime))
 
   return (
     <group scale={DISPLAY_SCALE}>

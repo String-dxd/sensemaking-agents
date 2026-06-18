@@ -12,6 +12,12 @@
 import { EYE_ARCHETYPE_PARAMS } from './eyeArchetypes'
 import type { BeakType, CrestType, ProceduralBase, SpeciesId, TailType } from './genome'
 
+// Body frame = the AC avian silhouette tier. LOCKED to species (a species implies
+// its build, AC-style) — not a serialized genome axis. The rig (buildBodyProfile)
+// maps each frame to a lathe contour; STANDING_OVERRIDES sets the matching scale +
+// neck + shoulder so picking a species changes the whole silhouette, not just hue.
+export type BodyFrameType = 'round' | 'broad' | 'tall' | 'barrel'
+
 // ── The character config every part builder reads ──────────────────────────────
 // One flat record of the ~40 morphology + face params. STANDING_BASE is the
 // default; each species overrides a sparse subset; an individual's MorphDelta
@@ -56,6 +62,7 @@ export interface TailCfg {
 
 export interface CharacterConfig {
   scale: number
+  bodyFrame: BodyFrameType
   body: Vec3
   bodyY: number
   belly: { y: number; z: number }
@@ -102,6 +109,7 @@ export interface CharacterConfig {
 
 export const STANDING_BASE: CharacterConfig = {
   scale: 0.74,
+  bodyFrame: 'round',
   body: { x: 0.72, y: 0.88, z: 0.58 },
   bodyY: 0.62,
   belly: { y: 0.37, z: 0.35 },
@@ -160,8 +168,13 @@ export type CharacterOverride = Partial<
 }
 
 export const STANDING_OVERRIDES: Record<SpeciesId, CharacterOverride> = {
+  // ROUND — upright egg/teardrop songbird, no visible neck.
   flame: {
-    body: { x: 0.7, y: 0.86, z: 0.56 },
+    bodyFrame: 'round',
+    body: { x: 0.68, y: 0.94, z: 0.54 },
+    bodyY: 0.6,
+    neckH: 0,
+    headY: 1.34,
     headScale: { x: 1.06, y: 1.02, z: 0.98 },
     faceColor: '#ffe6a2',
     beak: { length: 0.44, width: 0.2, height: 0.16, gape: 0.05, open: 0.1 },
@@ -169,15 +182,21 @@ export const STANDING_OVERRIDES: Record<SpeciesId, CharacterOverride> = {
     pupilScaleY: 1.18,
     upperLid: 0.03,
     brow: -0.14,
-    wing: { x: 0.01, y: 0.82, z: 0.31, length: 0.6, rootW: 0.12, tipW: 0.42, rest: -0.12, feathers: 4 },
+    wing: { x: 0.01, y: 0.82, z: 0.3, length: 0.58, rootW: 0.12, tipW: 0.42, rest: -0.12, feathers: 4 },
+    leg: { y: 0.34, z: 0.19, len: 0.34, toe: 0.14 },
     tail: { x: 0.43, y: 0.55, scaleX: 0.42, scaleY: 0.56, scaleZ: 0.62 },
     crestScale: 0.9,
   },
+  // BROAD — wide, squat, imposing chest with a big head sunk low (eagle tier).
   regent: {
     scale: 0.73,
-    body: { x: 0.7, y: 0.82, z: 0.56 },
-    headSize: 0.41,
-    headScale: { x: 1.1, y: 0.98, z: 1.0 },
+    bodyFrame: 'broad',
+    body: { x: 1.0, y: 0.72, z: 0.66 },
+    bodyY: 0.56,
+    neckH: 0,
+    headSize: 0.48,
+    headScale: { x: 1.14, y: 0.96, z: 1.06 },
+    headY: 1.14,
     faceY: 0.66,
     faceColor: '#fff7bf',
     beak: { length: 0.4, width: 0.22, height: 0.15, gape: 0.06, open: 0.12 },
@@ -189,18 +208,24 @@ export const STANDING_OVERRIDES: Record<SpeciesId, CharacterOverride> = {
     upperLid: 0.0,
     brow: -0.2,
     browW: 0.2,
-    wing: { x: 0.0, y: 0.77, z: 0.3, length: 0.48, rootW: 0.12, tipW: 0.34, rest: 0.02, feathers: 3 },
-    leg: { y: 0.33, z: 0.21, len: 0.34, toe: 0.14 },
-    tail: { x: 0.4, y: 0.52, scaleX: 0.32, scaleY: 0.46, scaleZ: 0.5 },
+    wing: { x: 0.0, y: 0.74, z: 0.44, length: 0.52, rootW: 0.15, tipW: 0.42, rest: 0.02, feathers: 3 },
+    leg: { y: 0.3, z: 0.24, len: 0.26, toe: 0.16 },
+    tail: { x: 0.46, y: 0.5, scaleX: 0.34, scaleY: 0.48, scaleZ: 0.56 },
   },
+  // TALL — narrow body on a visible neck segment, small head (ostrich tier).
   emerald: {
     scale: 0.7,
-    body: { x: 0.62, y: 0.88, z: 0.55 },
-    bodyY: 0.6,
+    bodyFrame: 'tall',
+    body: { x: 0.54, y: 1.04, z: 0.5 },
+    bodyY: 0.62,
+    neckTop: 0.085,
+    neckBottom: 0.12,
+    neckH: 0.34,
+    neckY: 1.2,
     headX: 0.08,
-    headY: 1.34,
-    headSize: 0.39,
-    headScale: { x: 1.0, y: 1.05, z: 0.98 },
+    headY: 1.66,
+    headSize: 0.35,
+    headScale: { x: 0.98, y: 1.06, z: 0.96 },
     faceColor: '#dff0a5',
     beak: { length: 0.5, width: 0.15, height: 0.11, gape: 0.034, open: 0.02 },
     eyeWhite: 0.18,
@@ -210,16 +235,21 @@ export const STANDING_OVERRIDES: Record<SpeciesId, CharacterOverride> = {
     pupilScaleY: 1.16,
     upperLid: 0.14,
     brow: -0.02,
-    wing: { x: 0.0, y: 0.78, z: 0.29, length: 0.58, rootW: 0.1, tipW: 0.34, rest: -0.18, feathers: 4 },
-    leg: { y: 0.33, z: 0.18, len: 0.35, toe: 0.13 },
-    tail: { x: 0.4, y: 0.54, scaleX: 0.38, scaleY: 0.52, scaleZ: 0.56 },
+    wing: { x: 0.0, y: 0.86, z: 0.24, length: 0.5, rootW: 0.1, tipW: 0.32, rest: -0.14, feathers: 4 },
+    leg: { y: 0.42, z: 0.16, len: 0.46, toe: 0.12 },
+    tail: { x: 0.36, y: 0.52, scaleX: 0.36, scaleY: 0.5, scaleZ: 0.54 },
     crestScale: 0.72,
   },
+  // ROUND — plump, wide dumpling (a heavier round than flame).
   satin: {
     scale: 0.76,
-    body: { x: 0.76, y: 0.86, z: 0.6 },
-    headSize: 0.4,
-    headScale: { x: 1.05, y: 1.0, z: 1.02 },
+    bodyFrame: 'round',
+    body: { x: 0.82, y: 0.84, z: 0.66 },
+    bodyY: 0.6,
+    neckH: 0,
+    headSize: 0.42,
+    headY: 1.3,
+    headScale: { x: 1.06, y: 0.98, z: 1.03 },
     faceY: 0.6,
     faceZ: 0.72,
     faceColor: '#d9edf7',
@@ -234,16 +264,23 @@ export const STANDING_OVERRIDES: Record<SpeciesId, CharacterOverride> = {
     lowerLid: 0.06,
     brow: 0.0,
     browW: 0.16,
-    wing: { x: 0.02, y: 0.8, z: 0.35, length: 0.52, rootW: 0.15, tipW: 0.4, rest: -0.08, feathers: 3 },
+    wing: { x: 0.02, y: 0.8, z: 0.36, length: 0.5, rootW: 0.15, tipW: 0.42, rest: -0.06, feathers: 3 },
+    leg: { y: 0.34, z: 0.21, len: 0.3, toe: 0.14 },
     tail: { x: 0.42, y: 0.53, scaleX: 0.32, scaleY: 0.48, scaleZ: 0.52 },
   },
+  // TALL — slim, elegant neck (a slenderer tall than emerald).
   twilight: {
     scale: 0.72,
-    body: { x: 0.63, y: 0.82, z: 0.54 },
-    bodyY: 0.58,
-    headY: 1.3,
-    headSize: 0.39,
-    headScale: { x: 0.98, y: 1.04, z: 0.96 },
+    bodyFrame: 'tall',
+    body: { x: 0.5, y: 1.0, z: 0.48 },
+    bodyY: 0.6,
+    neckTop: 0.08,
+    neckBottom: 0.115,
+    neckH: 0.3,
+    neckY: 1.16,
+    headY: 1.6,
+    headSize: 0.34,
+    headScale: { x: 0.96, y: 1.06, z: 0.95 },
     cheekSize: 0.12,
     faceColor: '#e4dcff',
     beak: { length: 0.46, width: 0.16, height: 0.11, gape: 0.034, open: 0.02 },
@@ -256,18 +293,21 @@ export const STANDING_OVERRIDES: Record<SpeciesId, CharacterOverride> = {
     lowerLid: 0.05,
     brow: -0.18,
     lash: true,
-    wing: { x: -0.01, y: 0.75, z: 0.28, length: 0.62, rootW: 0.1, tipW: 0.36, rest: -0.16, feathers: 4 },
-    leg: { y: 0.31, z: 0.18, len: 0.38, toe: 0.13 },
-    tail: { x: 0.4, y: 0.5, scaleX: 0.42, scaleY: 0.5, scaleZ: 0.44 },
+    wing: { x: -0.01, y: 0.84, z: 0.23, length: 0.52, rootW: 0.1, tipW: 0.3, rest: -0.14, feathers: 4 },
+    leg: { y: 0.4, z: 0.16, len: 0.46, toe: 0.12 },
+    tail: { x: 0.36, y: 0.5, scaleX: 0.4, scaleY: 0.5, scaleZ: 0.46 },
     crestScale: 0.7,
   },
+  // BARREL — blocky, wide, deep torso with straight sides (chicken tier).
   lilac: {
     scale: 0.78,
-    body: { x: 0.8, y: 0.88, z: 0.62 },
-    bodyY: 0.62,
-    headY: 1.35,
+    bodyFrame: 'barrel',
+    body: { x: 0.9, y: 0.8, z: 0.7 },
+    bodyY: 0.6,
+    neckH: 0,
+    headY: 1.3,
     headSize: 0.4,
-    headScale: { x: 1.12, y: 0.96, z: 1.02 },
+    headScale: { x: 1.12, y: 0.96, z: 1.04 },
     faceY: 0.64,
     cheekSize: 0.14,
     faceColor: '#f6e9fb',
@@ -281,9 +321,9 @@ export const STANDING_OVERRIDES: Record<SpeciesId, CharacterOverride> = {
     upperLid: 0.28,
     brow: 0.1,
     lash: true,
-    wing: { x: 0.03, y: 0.82, z: 0.36, length: 0.54, rootW: 0.15, tipW: 0.44, rest: -0.03, feathers: 3 },
-    leg: { y: 0.34, z: 0.23, len: 0.31, toe: 0.15 },
-    tail: { x: 0.46, y: 0.54, scaleX: 0.44, scaleY: 0.56, scaleZ: 0.62 },
+    wing: { x: 0.03, y: 0.78, z: 0.4, length: 0.54, rootW: 0.16, tipW: 0.46, rest: -0.02, feathers: 3 },
+    leg: { y: 0.34, z: 0.24, len: 0.3, toe: 0.15 },
+    tail: { x: 0.48, y: 0.52, scaleX: 0.44, scaleY: 0.54, scaleZ: 0.64 },
     crestScale: 0.62,
   },
 }
