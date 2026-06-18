@@ -24,6 +24,7 @@ import {
   setZoneColor,
   type SpeciesId,
 } from './bird/genome'
+import type { BuildMode } from './bird/buildPlan'
 import { randomizeConfig } from './bird/randomize'
 import { SLOTS } from './bird/slots'
 import { createCommandStack } from './editor/commandStack'
@@ -37,6 +38,12 @@ import { ToolPanel } from './ui/ToolPanel'
 // Initial config: a shared URL (hash) wins, then localStorage, then defaults.
 const INITIAL: BirdGenome =
   (typeof location !== 'undefined' ? decodeConfigFromHash(location.hash) : null) ?? loadConfig() ?? defaultGenome()
+
+// Build mode is a VIEW setting (not part of the genome): the same six genome
+// slots render either as generic archetypes or as recognizable species. Seeded
+// from the pre-existing ?set=species entry point so old links still open there.
+const INITIAL_MODE: BuildMode =
+  typeof location !== 'undefined' && new URLSearchParams(location.search).get('set') === 'species' ? 'species' : 'archetype'
 
 const autosave = createAutosaver()
 
@@ -73,6 +80,7 @@ export function App() {
   const configRef = useRef(config)
   configRef.current = config
   const [selectedSlot, setSelectedSlot] = useState<string>(SLOTS[0].id)
+  const [buildMode, setBuildMode] = useState<BuildMode>(INITIAL_MODE)
 
   // QA affordances (headless screenshots): ?noRotate freezes the turntable,
   // ?cam=front|side|34 fixes the angle. Read once at mount.
@@ -104,6 +112,16 @@ export function App() {
       if (h && location.hash !== h) history.replaceState(null, '', h)
     }
   }, [config])
+
+  // Keep ?set= in sync with the build mode so it is shareable, survives a
+  // refresh, and is captured by "Copy link". Preserves the genome hash.
+  useEffect(() => {
+    if (typeof location === 'undefined') return
+    const url = new URL(location.href)
+    if (buildMode === 'species') url.searchParams.set('set', 'species')
+    else url.searchParams.delete('set')
+    history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [buildMode])
 
   // Every discrete edit is one undoable command (before → after on one state obj).
   const commit = useCallback(
@@ -216,7 +234,7 @@ export function App() {
           >
             <Backdrop />
             <group rotation={[0, spin, 0]}>
-              <Bird config={config} />
+              <Bird config={config} mode={buildMode} />
             </group>
             <OrbitControls makeDefault autoRotate={!noRotate} autoRotateSpeed={0.6} target={[0, 0.4, 0]} minDistance={1.5} maxDistance={8} />
           </Canvas>
@@ -229,6 +247,8 @@ export function App() {
         onSelectSlot={setSelectedSlot}
         onSetSpecies={onSetSpecies}
         onUseGlbLane={onUseGlbLane}
+        buildMode={buildMode}
+        onSetBuildMode={setBuildMode}
         onSetPart={onSetPart}
         onSetZoneColor={onSetZoneColor}
         onSetFace={onSetFace}
