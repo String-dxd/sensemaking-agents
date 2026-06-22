@@ -42,6 +42,14 @@ function applyOne(spec: IslandSpec, op: Op): IslandSpec {
       })
       return { ...spec, relief }
     }
+    default: {
+      // Unknown op — untyped JSON (e.g. via the CLI) can carry an op outside the
+      // union. The `never` assignment makes a forgotten case a COMPILE error; at
+      // runtime this throws so the fold records an OpError instead of returning
+      // undefined and poisoning `current`.
+      const _exhaustive: never = op
+      throw new Error(`unknown op: ${(_exhaustive as { op?: string })?.op ?? 'unrecognized'}`)
+    }
   }
 }
 
@@ -55,7 +63,7 @@ export function applyOps(spec: IslandSpec, ops: Op[]): { spec: IslandSpec; error
     } catch (e) {
       errors.push({
         index,
-        op: (op as { op?: string }).op ?? 'unknown',
+        op: (op as { op?: string } | null)?.op ?? 'unknown',
         message: e instanceof Error ? e.message : String(e),
       })
     }

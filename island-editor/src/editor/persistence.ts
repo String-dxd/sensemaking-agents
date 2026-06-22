@@ -7,6 +7,9 @@ export interface StorageLike {
   removeItem(k: string): void
 }
 
+// Storage slot key (NOT the spec format version). Deliberately stays ':v1' so
+// existing autosaves survive the format bump to v2 — loadSpec/validateSpecObject
+// accept both v1 and v2 payloads transparently.
 export const STORAGE_KEY = 'island-editor:spec:v1'
 
 function defaultStorage(): StorageLike | null {

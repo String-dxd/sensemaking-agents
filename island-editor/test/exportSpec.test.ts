@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { seedFromCurrentIsland } from '../src/terrain/islandSpec'
-import { deserializeSpec, serializeSpec } from '../src/editor/exportSpec'
+import { deserializeSpec, serializeSpec, validateSpecObject } from '../src/editor/exportSpec'
 
 describe('exportSpec', () => {
   const spec = seedFromCurrentIsland()
@@ -145,6 +145,35 @@ describe('exportSpec', () => {
       expect(restored.relief.data).toHaveLength(16)
       expect(restored.relief.data[2]).toBe(0.9)
       expect(restored.relief.data).toEqual(legacy.relief.data)
+    })
+  })
+
+  describe('relief validation hardening', () => {
+    it('rejects a dense relief containing non-finite values (NaN / Infinity)', () => {
+      const seed = seedFromCurrentIsland(8, 4)
+      // validateSpecObject sees the in-memory non-finite value directly
+      // (JSON.stringify would coerce NaN/Infinity to null first).
+      const withNaN = {
+        ...seed,
+        relief: { resolution: 4, data: new Array(16).fill(0).map((_, i) => (i === 5 ? Number.NaN : 0)) },
+      }
+      expect(() => validateSpecObject(withNaN)).toThrow(/relief/)
+      const withInf = {
+        ...seed,
+        relief: {
+          resolution: 4,
+          data: new Array(16).fill(0).map((_, i) => (i === 5 ? Number.POSITIVE_INFINITY : 0)),
+        },
+      }
+      expect(() => validateSpecObject(withInf)).toThrow(/relief/)
+    })
+
+    it('rejects a non-integer or < 2 relief resolution', () => {
+      const seed = seedFromCurrentIsland(8, 4)
+      const frac = { ...seed, relief: { resolution: 3.5, data: new Array(16).fill(0) } }
+      expect(() => validateSpecObject(frac)).toThrow(/relief/)
+      const tiny = { ...seed, relief: { resolution: 1, data: [0] } }
+      expect(() => validateSpecObject(tiny)).toThrow(/relief/)
     })
   })
 })

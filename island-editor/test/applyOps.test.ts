@@ -170,4 +170,29 @@ describe('applyOps', () => {
       expect(errors).toHaveLength(2)
     })
   })
+
+  describe('malformed ops (untyped JSON inputs)', () => {
+    it('records an unknown op as one error at its index, keeps the spec valid, and still applies later good ops', () => {
+      const spec = seedFromCurrentIsland(24, 8)
+      const ops = [
+        { op: 'notARealOp', foo: 1 },
+        { op: 'movePoint', index: 0, x: 6, z: 0 },
+      ] as unknown as Op[]
+      const { spec: next, errors } = applyOps(spec, ops)
+      expect(errors).toHaveLength(1)
+      expect(errors[0]?.index).toBe(0)
+      expect(errors[0]?.op).toBe('notARealOp')
+      expect(next.coastline[0]).toEqual({ x: 6, z: 0 }) // later good op still applied
+      expect(() => validateSpecObject(next)).not.toThrow() // spec never became undefined
+    })
+
+    it('never throws on null / non-object op elements and keeps the spec valid', () => {
+      const spec = seedFromCurrentIsland(24, 8)
+      const ops = [null, 42, 'nope'] as unknown as Op[]
+      expect(() => applyOps(spec, ops)).not.toThrow()
+      const { spec: next, errors } = applyOps(spec, ops)
+      expect(errors).toHaveLength(3)
+      expect(() => validateSpecObject(next)).not.toThrow()
+    })
+  })
 })

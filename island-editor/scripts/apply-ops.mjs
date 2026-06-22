@@ -52,11 +52,23 @@ if (errors.length) {
   }
 }
 
-const out = serializeSpec(nextSpec)
-if (outPath) {
-  writeFileSync(outPath, out)
-} else {
-  process.stdout.write(`${out}\n`)
+// A validate-level error (index -1) means the folded spec is structurally
+// invalid — never emit a corrupt artifact in that case.
+if (errors.some((err) => err.index === -1)) {
+  process.stderr.write('Resulting spec failed validation; not writing output.\n')
+  process.exit(1)
+}
+
+try {
+  const out = serializeSpec(nextSpec)
+  if (outPath) {
+    writeFileSync(outPath, out)
+  } else {
+    process.stdout.write(`${out}\n`)
+  }
+} catch (e) {
+  process.stderr.write(`Failed to write output: ${e instanceof Error ? e.message : String(e)}\n`)
+  process.exit(1)
 }
 
 process.exit(errors.length ? 1 : 0)
