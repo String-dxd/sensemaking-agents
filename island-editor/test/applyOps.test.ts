@@ -7,7 +7,7 @@ import { validateSpecObject } from '../src/editor/exportSpec'
 // A tiny valid spec (3-point coastline, small relief) for delete-below-3 cases.
 function triangleSpec(resolution = 4): IslandSpec {
   return {
-    version: 1,
+    version: 2,
     worldSize: 24,
     coastline: [
       { x: 5, z: 0 },
