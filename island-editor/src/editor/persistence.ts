@@ -1,5 +1,5 @@
 import type { IslandSpec } from '../terrain/islandSpec'
-import { validateSpecObject } from './exportSpec'
+import { serializeSpec, validateSpecObject } from './exportSpec'
 
 export interface StorageLike {
   getItem(k: string): string | null
@@ -22,7 +22,7 @@ export function saveSpec(spec: IslandSpec, storage?: StorageLike | null): void {
   } catch {
     return
   }
-  s.setItem(STORAGE_KEY, JSON.stringify(spec))
+  s.setItem(STORAGE_KEY, serializeSpec(spec))
 }
 
 export function loadSpec(storage?: StorageLike | null): IslandSpec | null {
