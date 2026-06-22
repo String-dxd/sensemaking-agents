@@ -1,9 +1,10 @@
-import type { IslandSpec, Vec2, HeightProfile, ReliefGrid } from '../terrain/islandSpec'
+import type { IslandSpec, Vec2, HeightProfile } from '../terrain/islandSpec'
+import { type SerializedRelief, decodeRelief, encodeRelief, isSparseRelief } from './reliefCodec'
 
 // ── Serialize ────────────────────────────────────────────────────────────────
 
 export function serializeSpec(spec: IslandSpec): string {
-  return JSON.stringify(spec, null, 2)
+  return JSON.stringify({ ...spec, version: 2, relief: encodeRelief(spec.relief) }, null, 2)
 }
 
 // ── Validate + Deserialize ───────────────────────────────────────────────────
@@ -30,13 +31,27 @@ function validateHeightProfile(v: unknown): v is HeightProfile {
   )
 }
 
-function validateRelief(v: unknown): v is ReliefGrid {
+function validateRelief(v: unknown): v is SerializedRelief {
   if (typeof v !== 'object' || v === null) return false
   const o = v as Record<string, unknown>
   if (!isFiniteNumber(o.resolution)) return false
+  const cells = (o.resolution as number) * (o.resolution as number)
+  if (isSparseRelief(v)) {
+    if (!Array.isArray(o.entries)) return false
+    return (o.entries as unknown[]).every((e) => {
+      if (typeof e !== 'object' || e === null) return false
+      const cell = e as Record<string, unknown>
+      return (
+        isFiniteNumber(cell.i) &&
+        Number.isInteger(cell.i) &&
+        (cell.i as number) >= 0 &&
+        (cell.i as number) < cells &&
+        isFiniteNumber(cell.h)
+      )
+    })
+  }
   if (!Array.isArray(o.data)) return false
-  const expected = (o.resolution as number) * (o.resolution as number)
-  if (o.data.length !== expected) return false
+  if (o.data.length !== cells) return false
   return (o.data as unknown[]).every((d) => typeof d === 'number')
 }
 
@@ -48,8 +63,8 @@ export function validateSpecObject(parsed: unknown): IslandSpec {
 
   const o = parsed as Record<string, unknown>
 
-  if (o.version !== 1) {
-    throw new Error(`Invalid island spec: version must be 1, got ${String(o.version)}`)
+  if (o.version !== 1 && o.version !== 2) {
+    throw new Error(`Invalid island spec: version must be 1 or 2, got ${String(o.version)}`)
   }
 
   if (!isFiniteNumber(o.worldSize)) {
@@ -80,7 +95,13 @@ export function validateSpecObject(parsed: unknown): IslandSpec {
     )
   }
 
-  return parsed as IslandSpec
+  // Always hand callers a dense, current-version (v2) spec. Legacy v1 files
+  // carry dense relief; decodeRelief clones them through (a safe no-op).
+  return {
+    ...(parsed as object),
+    version: 2,
+    relief: decodeRelief(o.relief as SerializedRelief),
+  } as IslandSpec
 }
 
 export function deserializeSpec(json: string): IslandSpec {
