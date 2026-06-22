@@ -195,13 +195,14 @@ the stack at all — it just writes the final spec.)
 [
   { "op": "movePoint", "index": 3, "x": 4.2, "z": -1.1 },
   { "op": "raiseRegion", "x": 0, "z": 0, "radius": 3, "strength": 0.4 },
-  { "op": "setHeightProfile", "cliffSteepness": 0.6 },
+  { "op": "setHeightProfile", "profile": { "cliffSteepness": 0.6 } },
   { "op": "clearRelief" }
 ]
 ```
 
-Each object has a required `op` discriminator; remaining keys are that op's args (for
-`setHeightProfile` the args ARE the partial profile, minus `op`).
+Each object has a required `op` discriminator; remaining keys are that op's args.
+`setHeightProfile` nests its patch under a `profile` key (`Partial<HeightProfile>`),
+matching the runner's `{ op: 'setHeightProfile'; profile: Partial<HeightProfile> }`.
 
 **Core function shape:**
 

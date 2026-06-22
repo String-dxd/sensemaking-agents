@@ -29,7 +29,7 @@ export interface ReliefGrid {
 }
 
 export interface IslandSpec {
-  version: 1
+  version: 2
   /** Square world bounds: X and Z each span [-worldSize/2, worldSize/2]. */
   worldSize: number
   /** Ordered control points of the closed coastline curve. */
@@ -37,6 +37,12 @@ export interface IslandSpec {
   heightProfile: HeightProfile
   relief: ReliefGrid
 }
+
+/** Current spec version (in-memory + the version `serializeSpec` writes). Bump
+ *  when the format changes; `validateSpecObject` accepts this and all older
+ *  versions and normalizes to it. Single source of truth — reference this
+ *  instead of writing the literal `2` at each call site. */
+export const CURRENT_SPEC_VERSION = 2
 
 // ── Coastline curve ─────────────────────────────────────────────────────────
 
@@ -188,7 +194,7 @@ export function seedFromCurrentIsland(controlPoints = 24, reliefResolution = 192
     coastline.push({ x: r * Math.cos(theta), z: r * Math.sin(theta) })
   }
   return {
-    version: 1,
+    version: CURRENT_SPEC_VERSION,
     worldSize: 24,
     coastline,
     heightProfile: {

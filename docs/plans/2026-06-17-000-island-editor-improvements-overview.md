@@ -92,6 +92,23 @@ All five are independently executable — the ordering is leverage/coherence, no
 - **003 + 004** are synergistic: 004 lets the coastline grow, which makes 003's drag-cost fix more
   valuable. Land 003 before or with 004 if doing both.
 
+## Phase 2 plan set (2026-06-19) — remaining works turned into plans
+
+The `improve` skill was re-run on 2026-06-19 (HEAD `dda45ec1`) against the "Remaining works" below. Each
+became a self-contained, drift-checked plan. Two are isolated to `island-editor/` and were dispatched to
+executor subagents; two modify the shipping engine / reopen removed surface and are **gated on a decision**.
+
+| Plan | Title | Priority | Effort | Risk | Addresses | Status |
+|------|-------|----------|--------|------|-----------|--------|
+| [2026-06-19-001](2026-06-19-001-perf-island-spec-sparse-relief-encoding.md) | Sparse relief encoding (v2, serialization-only) | P3 | M | MED | QUAL-05 | TODO (dispatched) |
+| [2026-06-19-002](2026-06-19-002-feat-island-editor-agent-ops-runner-cli.md) | Agent op-runner (`applyOps`) + CLI | P2 | M | LOW | REMAIN-03 (opt a) | TODO (dispatched) |
+| [2026-06-19-003](2026-06-19-003-feat-island-editor-engine-terrain-binding.md) | Wire IslandSpec into the engine (silhouette-first) | P3 | L | MED–HIGH | REMAIN-01 (+ REMAIN-03 opt c) | DECISION REQUIRED |
+| [2026-06-19-004](2026-06-19-004-feat-island-editor-placement-species-gui.md) | Placement + species-palette GUI | P3 | L | MED | REMAIN-02 | DECISION REQUIRED |
+
+Sequencing: 001 first (gives 002 and 003 the final v2 format to build against) → 002 (CLI runner; reuses
+001's serializer) → 003 (engine consumption; unblocks REMAIN-03 option c) → 004 (independent; needs the
+host-app fork resolved). 001 and 002 are file-disjoint and were run in parallel.
+
 ## Remaining works / direction (NOT built — maintainer's call)
 
 These are real gaps the audit surfaced but did **not** turn into build plans (per the requester's
