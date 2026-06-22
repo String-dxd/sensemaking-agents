@@ -65,7 +65,7 @@ export function App() {
 
   const spec: IslandSpec = useMemo(
     () => ({
-      version: 1,
+      version: 2,
       worldSize,
       coastline,
       heightProfile: profile,
