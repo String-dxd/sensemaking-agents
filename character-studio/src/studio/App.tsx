@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { FacePanel } from './panels/FacePanel'
 import { Stage } from './viewport/Stage'
 
 function checkWebGpuFlag() {
@@ -16,6 +17,7 @@ export function App() {
   return (
     <div style={{ width: '100vw', height: '100vh' }}>
       <Stage showStats={showStats} />
+      <FacePanel />
     </div>
   )
 }
