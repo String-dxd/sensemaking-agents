@@ -67,6 +67,29 @@ procedural timer. This is cheap, art-swappable (a designer can repaint the
 atlas), and expression state is a tiny serializable struct — perfect for
 student customization later.
 
+### 2.1b Face ↔ personality: the 관상 (gwansang) principle
+
+Operator design directive (2026-07-02): faces must *read* personality — the
+Korean physiognomy idea (관상) that AC visibly practices: kind villagers have
+pure, open faces; strong characters have stronger features. This is a
+**systematic grammar, not per-character taste**. The canonical mapping (used
+by plan 004's spec defaults and plan 006's atlas authoring):
+
+| Personality | Eye aperture | Pupil/iris size | Brows | Stroke weight | Mouth default | Behavior (blink / gaze) |
+|---|---|---|---|---|---|---|
+| `gentle` (pure/kind) | large, round, wide-open | big, soft catchlight | thin, short, held high | light | small soft smile | slow blink, soft wandering gaze |
+| `cheerful` | big, slightly upturned | big + sparkle | raised, animated | light-med | open grin | quick blink, darting gaze |
+| `proud` (snooty/smug) | half-lidded | medium, lash accent | high, thin, arched | medium | small pursed/side smile | slow deliberate blink, holds eye contact |
+| `gruff` (strong/cranky) | narrowed | small, intense | thick, low, angled in | heavy | flat/downturned | infrequent blink, steady stare |
+| `calm` | almond, relaxed | medium-large | neutral, low-key | light | neutral-soft | slow blink, settled gaze |
+| `mischievous` | asymmetric-friendly, one lid lower | medium, bright | one raised | medium | smirk/tongue | irregular blink, quick glances |
+
+Rules: personality sets **defaults** at every level the face system exposes —
+atlas variant (`atlasId`), pupil scale, blink cadence, gaze intensity, default
+expression — and the designer can override any of them per character. The
+4×4 cell contract (plan 002) is shared across all personality atlases; only
+the drawn art inside cells and the parameter defaults differ.
+
 ### 2.2 Living motion = keyframed base layer + physics layer + procedural layer
 
 - **Spring appendages**: the best-quality jiggle-bone approach is **Verlet

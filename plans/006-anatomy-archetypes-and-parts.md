@@ -141,6 +141,25 @@ what default params (floppy ears springier than upright).
 **Verify**: `assets.test.ts` extended: every registry entry's GLB exists,
 slot bones/sockets referenced exist in `canonical.ts`, tri budgets hold.
 
+### Step 3b: Personality face-atlas variants (관상 grammar)
+
+Author the face-atlas library that makes personality legible (plan 000 §2.1b
+table is the spec — read it now): for each of `gentle, cheerful, proud,
+gruff` (minimum set; `calm`/`mischievous` may alias until authored), produce
+eye/mouth/brow/pupil atlas PNGs in the **same 4×4 cell contract** as the v1
+atlas (`src/core/face/atlas.ts` cell maps are immutable), varying exactly the
+grammar axes: eye aperture, pupil/iris size, brow weight/angle, stroke
+weight, default mouth character. Extend the plan-002 generator
+(`scripts/generate-face-atlas.ts`) with per-personality parameter sets rather
+than hand-editing pixels — the generator's SDF parameters ARE the grammar,
+which keeps variants consistent and lets designers add personalities by
+adding a parameter block. Register in an `ATLAS_REGISTRY: Record<atlasId,
+urls>` consumed by assembly; remove plan-004's `ATLAS_FALLBACK` aliases for
+the authored ids. Side-by-side visual check: the four variants at neutral
+expression must be tellable apart at a glance AND each must still read
+correctly across all 9 expression presets (a gruff face doing `happy` should
+read as a gruff character being happy — not switch personalities).
+
 ### Step 4: Character assembly (`assemble.ts` + `CharacterRoot.tsx`)
 
 `assembleCharacter(spec, registry, loadedAssets)` → `{ root, skeleton,
@@ -186,6 +205,7 @@ pass.
 
 - [ ] `pnpm typecheck && pnpm test` exit 0 (≥ 5 new test files)
 - [ ] 3 archetype bodies + ≥ 14 parts committed, all within tri budgets (test-enforced)
+- [ ] ≥ 4 personality face-atlas variants registered and visually distinct per the 000 §2.1b grammar (step 3b)
 - [ ] `ASSET-CONTRACT.md` documents the full artist contract
 - [ ] Dev: dog-like and bird-like characters assemblable via panel, alive (face + springs + breath) after every swap
 - [ ] No geometry leaks on reassembly (report `renderer.info.memory` before/after 20 swaps)

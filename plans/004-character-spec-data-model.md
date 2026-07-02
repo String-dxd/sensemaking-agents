@@ -77,6 +77,7 @@ export const SPEC_VERSION = 1;
 CharacterSpec = {
   meta: { id: uuid, name: string(1..64), specVersion: literal(1),
           archetype: enum['biped-round','biped-slim','bird'],
+          personality: enum['gentle','cheerful','proud','gruff','calm','mischievous'] (default 'gentle'),
           createdAt: ISO string, updatedAt: ISO string, author?: string },
   anatomy: {
     parts: partial record of PartSlot → { partId: string,
@@ -112,12 +113,23 @@ export contract), except `studioLook`.
 
 ### Step 2: Defaults + factory (`src/core/spec/defaults.ts`)
 
-`createDefaultCharacter(archetype)` returning a valid spec (parse it through
-the schema in the function — construction must never emit an invalid spec).
-Sensible defaults: neutral expression, `core-v1` clips, per-archetype default
-spring rig (biped-round: earL/R + tail chains with plan-003's tuned params —
-read the actual values from `PlaceholderBody.tsx` and inline them here;
-bird: tail-feather chain only).
+`createDefaultCharacter(archetype, personality = 'gentle')` returning a valid
+spec (parse it through the schema in the function — construction must never
+emit an invalid spec). Sensible defaults: neutral expression, `core-v1` clips,
+per-archetype default spring rig (biped-round: earL/R + tail chains with
+plan-003's tuned params — read the actual values from `PlaceholderBody.tsx`
+and inline them here; bird: tail-feather chain only).
+
+**관상/gwansang defaults (plan 000 §2.1b — read that table now):** add
+`PERSONALITY_FACE_DEFAULTS: Record<Personality, { atlasId, pupilScale,
+blinkMeanIntervalS, gazeIntensity, defaultExpression }>` in `defaults.ts`,
+applied by the factory from `personality` (e.g. `gentle`: atlasId
+`face-gentle`, pupilScale 1.25, blink 4.5 s, gaze 0.5, expression `happy`;
+`gruff`: atlasId `face-gruff`, pupilScale 0.75, blink 7 s, gaze 0.9,
+expression `neutral`). Until plan 006 authors the personality atlas variants,
+every `atlasId` value resolves to the single existing v1 atlas via an
+`ATLAS_FALLBACK` alias map — the *spec* carries the real intent from day one;
+the art catches up. Every value is a default, freely overridable per character.
 
 **Verify**: `pnpm test` (after step 5 tests exist) — for now `pnpm typecheck`.
 
