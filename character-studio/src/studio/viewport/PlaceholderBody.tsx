@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
+import { FaceRig } from './FaceRig'
 
 // Minimal stand-in character: a capsule body + sphere head, toon-shaded with
 // a 3-step gradient map generated in code. Plans 002/003/006 replace this
@@ -25,6 +26,7 @@ export function PlaceholderBody() {
       <mesh castShadow receiveShadow position={[0, 0.65, 0]}>
         <sphereGeometry args={[0.28, 24, 16]} />
         <meshToonMaterial color="#f0b06a" gradientMap={gradientMap} />
+        <FaceRig headRadius={0.28} />
       </mesh>
     </group>
   )
