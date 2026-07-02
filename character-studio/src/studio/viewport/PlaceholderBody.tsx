@@ -6,6 +6,7 @@ import { mulberry32 } from '../../core/motion/noise'
 import { createIdleLayer, type IdleLayer } from '../../core/motion/proceduralIdle'
 import { createFixedStepper, createSpringRig, type SpringRig } from '../../core/motion/springSolver'
 import type { ColliderGroup, SpringChainDef, SpringJointParams } from '../../core/motion/springTypes'
+import { FaceRig } from './FaceRig'
 
 // Minimal stand-in character: a capsule body + sphere head, toon-shaded, now
 // with placeholder spring-bone chains (plan 003 step 2): 2 ear chains
@@ -233,6 +234,7 @@ export function PlaceholderBody() {
                 <sphereGeometry args={[0.28, 24, 16]} />
                 <meshToonMaterial color="#f0b06a" gradientMap={gradientMap} />
               </mesh>
+              <FaceRig headRadius={0.28} />
               {/* Long rabbit-like ears: two stacked capsules rigidly parented per bone. */}
               <bone name="earL.1" position={[0.12, 0.22, 0]} rotation={[0, 0, -EAR_TILT]}>
                 <mesh castShadow position={[0, 0.08, 0]}>
