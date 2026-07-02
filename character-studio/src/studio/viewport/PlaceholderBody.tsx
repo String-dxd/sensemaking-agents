@@ -1,11 +1,24 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { create } from 'zustand'
+import {
+  addOutline,
+  applyMaterialAssign,
+  applyPalette,
+  applyTextureId,
+  createToonMaterial,
+  DEFAULT_TERMINATOR_WARMTH,
+  getOutline,
+  removeOutline,
+  type ToonMaterial,
+} from '../../core/materials'
 import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
 import { mulberry32 } from '../../core/motion/noise'
 import { createIdleLayer, type IdleLayer } from '../../core/motion/proceduralIdle'
 import { createFixedStepper, createSpringRig, type SpringRig } from '../../core/motion/springSolver'
 import type { ColliderGroup, SpringChainDef, SpringJointParams } from '../../core/motion/springTypes'
+import type { MaterialAssign, Region } from '../../core/spec/schema'
+import { useCharacterStore } from '../state/characterStore'
 import { FaceRig } from './FaceRig'
 
 // Minimal stand-in character: a capsule body + sphere head, toon-shaded, now
@@ -162,21 +175,95 @@ interface MotionStudioState {
 
 export const useMotionStudio = create<MotionStudioState>(() => ({ rig: null, idle: null, mover: null }))
 
+// Studio-level (NOT persisted) shading control: terminatorWarmth is a factory
+// uniform, not a spec MaterialAssign field — adding it to the spec would need
+// a SPEC_VERSION bump + migration (plan 004 rule), which plan 005 doesn't
+// authorize. Global across regions for now; plan 010/012 can promote it.
+interface ToonStudioState {
+  terminatorWarmth: number
+  setTerminatorWarmth(value: number): void
+}
+
+export const useToonStudio = create<ToonStudioState>((set) => ({
+  terminatorWarmth: DEFAULT_TERMINATOR_WARMTH,
+  setTerminatorWarmth: (terminatorWarmth) => set({ terminatorWarmth }),
+}))
+
+// Placeholder-body regions (subset of the spec's five — muzzle/claws arrive
+// with plan-006 meshes). Meshes are tagged via userData.region below.
+const BODY_REGIONS = ['body', 'ears', 'tail'] as const satisfies readonly Region[]
+
+// Safety net if a loaded spec omits a region (materials is a partial record).
+// Exported for the MaterialPanel so both surfaces agree on the fallback.
+export const FALLBACK_ASSIGN: MaterialAssign = {
+  rampSoftness: 0.2,
+  rimStrength: 0.3,
+  shadowTint: '#b8a8c8',
+  outline: false,
+}
+
+function meshesForRegion(root: THREE.Object3D, region: Region): THREE.Mesh[] {
+  const meshes: THREE.Mesh[] = []
+  root.traverse((obj) => {
+    if ((obj as THREE.Mesh).isMesh && obj.userData.region === region) meshes.push(obj as THREE.Mesh)
+  })
+  return meshes
+}
+
 const EAR_TILT = 0.22
 const IDLE_SEED = 20260702
 
 export function PlaceholderBody() {
   const rootRef = useRef<THREE.Group>(null)
+  const materialsSpec = useCharacterStore((s) => s.spec.materials)
+  const palette = useCharacterStore((s) => s.spec.palette)
+  const terminatorWarmth = useToonStudio((s) => s.terminatorWarmth)
 
-  const gradientMap = useMemo(() => {
-    const data = new Uint8Array([64, 64, 64, 255, 160, 160, 160, 255, 255, 255, 255, 255])
-    const texture = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat)
-    texture.needsUpdate = true
-    texture.minFilter = THREE.NearestFilter
-    texture.magFilter = THREE.NearestFilter
-    texture.generateMipmaps = false
-    return texture
+  // One toon material per placeholder region, created once from the mount-time
+  // spec; every later spec change flows through the live-update effects below
+  // (uniform writes — no material rebuild, no recompile except mask toggles).
+  const regionMaterials = useMemo(() => {
+    const { spec } = useCharacterStore.getState()
+    const entries = BODY_REGIONS.map((region) => {
+      const assign = spec.materials[region] ?? FALLBACK_ASSIGN
+      return [region, createToonMaterial(assign, spec.palette)] as const
+    })
+    return Object.fromEntries(entries) as Record<(typeof BODY_REGIONS)[number], ToonMaterial>
   }, [])
+
+  useEffect(() => {
+    return () => {
+      for (const material of Object.values(regionMaterials)) material.dispose()
+    }
+  }, [regionMaterials])
+
+  // Live updates: MaterialAssign params + textureId + outline per region.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    for (const region of BODY_REGIONS) {
+      const assign = materialsSpec[region] ?? FALLBACK_ASSIGN
+      const material = regionMaterials[region]
+      applyMaterialAssign(material, assign)
+      applyTextureId(material, assign, palette)
+      for (const mesh of meshesForRegion(root, region)) {
+        if (assign.outline && !getOutline(mesh)) addOutline(mesh)
+        else if (!assign.outline) removeOutline(mesh)
+      }
+    }
+  }, [materialsSpec, palette, regionMaterials])
+
+  // Live updates: palette recolor.
+  useEffect(() => {
+    for (const region of BODY_REGIONS) applyPalette(regionMaterials[region], palette)
+  }, [palette, regionMaterials])
+
+  // Live updates: studio-level terminator warmth (global across regions).
+  useEffect(() => {
+    for (const region of BODY_REGIONS) {
+      regionMaterials[region].userData.toonUniforms.uTerminatorWarmth.value = terminatorWarmth
+    }
+  }, [terminatorWarmth, regionMaterials])
 
   useEffect(() => {
     const root = rootRef.current
@@ -218,45 +305,37 @@ export function PlaceholderBody() {
     }
   }, [])
 
-  const earMaterial = <meshToonMaterial color="#e8a15c" gradientMap={gradientMap} />
-
   return (
     <group ref={rootRef} name="characterRoot">
       <group name="hips" position={[0, 0.55, 0]}>
         <group name="chest">
-          <mesh castShadow receiveShadow>
+          <mesh castShadow receiveShadow material={regionMaterials.body} userData={{ region: 'body' }}>
             <capsuleGeometry args={[0.3, 0.5, 4, 16]} />
-            <meshToonMaterial color="#e8a15c" gradientMap={gradientMap} />
           </mesh>
           <group name="neck" position={[0, 0.65, 0]}>
             <group name="head">
-              <mesh castShadow receiveShadow>
+              <mesh castShadow receiveShadow material={regionMaterials.body} userData={{ region: 'body' }}>
                 <sphereGeometry args={[0.28, 24, 16]} />
-                <meshToonMaterial color="#f0b06a" gradientMap={gradientMap} />
               </mesh>
               <FaceRig headRadius={0.28} />
               {/* Long rabbit-like ears: two stacked capsules rigidly parented per bone. */}
               <bone name="earL.1" position={[0.12, 0.22, 0]} rotation={[0, 0, -EAR_TILT]}>
-                <mesh castShadow position={[0, 0.08, 0]}>
+                <mesh castShadow position={[0, 0.08, 0]} material={regionMaterials.ears} userData={{ region: 'ears' }}>
                   <capsuleGeometry args={[0.045, 0.1, 4, 8]} />
-                  {earMaterial}
                 </mesh>
                 <bone name="earL.2" position={[0, 0.16, 0]}>
-                  <mesh castShadow position={[0, 0.08, 0]}>
+                  <mesh castShadow position={[0, 0.08, 0]} material={regionMaterials.ears} userData={{ region: 'ears' }}>
                     <capsuleGeometry args={[0.04, 0.1, 4, 8]} />
-                    {earMaterial}
                   </mesh>
                 </bone>
               </bone>
               <bone name="earR.1" position={[-0.12, 0.22, 0]} rotation={[0, 0, EAR_TILT]}>
-                <mesh castShadow position={[0, 0.08, 0]}>
+                <mesh castShadow position={[0, 0.08, 0]} material={regionMaterials.ears} userData={{ region: 'ears' }}>
                   <capsuleGeometry args={[0.045, 0.1, 4, 8]} />
-                  {earMaterial}
                 </mesh>
                 <bone name="earR.2" position={[0, 0.16, 0]}>
-                  <mesh castShadow position={[0, 0.08, 0]}>
+                  <mesh castShadow position={[0, 0.08, 0]} material={regionMaterials.ears} userData={{ region: 'ears' }}>
                     <capsuleGeometry args={[0.04, 0.1, 4, 8]} />
-                    {earMaterial}
                   </mesh>
                 </bone>
               </bone>
@@ -265,24 +344,20 @@ export function PlaceholderBody() {
         </group>
         {/* Tail: four cone segments trailing off the body rear (-Z). */}
         <bone name="tail.1" position={[0, -0.15, -0.28]}>
-          <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]} material={regionMaterials.tail} userData={{ region: 'tail' }}>
             <coneGeometry args={[0.055, 0.11, 8]} />
-            {earMaterial}
           </mesh>
           <bone name="tail.2" position={[0, -0.01, -0.11]}>
-            <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]}>
+            <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]} material={regionMaterials.tail} userData={{ region: 'tail' }}>
               <coneGeometry args={[0.045, 0.11, 8]} />
-              {earMaterial}
             </mesh>
             <bone name="tail.3" position={[0, -0.01, -0.11]}>
-              <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]}>
+              <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]} material={regionMaterials.tail} userData={{ region: 'tail' }}>
                 <coneGeometry args={[0.035, 0.11, 8]} />
-                {earMaterial}
               </mesh>
               <bone name="tail.4" position={[0, -0.01, -0.11]}>
-                <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]}>
+                <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]} material={regionMaterials.tail} userData={{ region: 'tail' }}>
                   <coneGeometry args={[0.025, 0.11, 8]} />
-                  {earMaterial}
                 </mesh>
               </bone>
             </bone>

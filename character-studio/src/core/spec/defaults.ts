@@ -162,6 +162,25 @@ function defaultSpringRig(archetype: Archetype): SpringChainDef[] {
   return archetype === 'bird' ? BIRD_SPRING_RIG.map((c) => ({ ...c })) : BIPED_SPRING_RIG.map((c) => ({ ...c }))
 }
 
+// Default per-region toon material params (plan 005 step 6 look gate).
+// shadowTint is a slightly cool violet — the shadow side must read pastel,
+// never gray (plan 000 §2.3). `debug-spots` on the body demonstrates the
+// palette-mask recolor path until plan 006 ships authored textures.
+const DEFAULT_MATERIAL_ASSIGN = {
+  rampSoftness: 0.2,
+  rimStrength: 0.3,
+  shadowTint: '#b8a8c8',
+  outline: false,
+} as const
+
+const DEFAULT_MATERIALS: CharacterSpec['materials'] = {
+  body: { ...DEFAULT_MATERIAL_ASSIGN, textureId: 'debug-spots' },
+  ears: { ...DEFAULT_MATERIAL_ASSIGN },
+  muzzle: { ...DEFAULT_MATERIAL_ASSIGN },
+  tail: { ...DEFAULT_MATERIAL_ASSIGN },
+  claws: { ...DEFAULT_MATERIAL_ASSIGN },
+}
+
 const DEFAULT_PALETTE = {
   primary: '#e8a15c',
   secondary: '#f0b06a',
@@ -210,7 +229,7 @@ export function createDefaultCharacter(archetype: Archetype, personality: Person
       },
     },
     palette: { ...DEFAULT_PALETTE },
-    materials: {},
+    materials: structuredClone(DEFAULT_MATERIALS),
     wardrobe: [],
     motion: {
       clipSetId: 'core-v1',
