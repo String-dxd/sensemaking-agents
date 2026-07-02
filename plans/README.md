@@ -16,13 +16,13 @@ honor its STOP conditions, and update your row below when done.
 | Plan | Title | Phase | Priority | Effort | Depends on | Executor model | Status |
 |------|-------|-------|----------|--------|------------|----------------|--------|
 | 000 | Architecture & technical strategy | — | — | — | — | (reference doc) | N/A |
-| 001 | Workspace scaffold + render baseline | 1 | P1 | M | — | Sonnet 5 | DONE (commit `22dc6df` on `advisor/001-character-studio-scaffold`, awaiting merge) |
-| 002 | Drawn-face system | 1 | P1 | L | 001 | **Fable 5** | TODO |
-| 003 | Spring-bone secondary motion | 1 | P1 | L | 001 | **Fable 5** | IN PROGRESS (stacked on `22dc6df`) |
+| 001 | Workspace scaffold + render baseline | 1 | P1 | M | — | Sonnet 5 | DONE (merged to `feat/character-studio` as `b7b742f`) |
+| 002 | Drawn-face system | 1 | P1 | L | 001 | **Fable 5** | DONE (merged to `feat/character-studio` in `aa83f08`) |
+| 003 | Spring-bone secondary motion | 1 | P1 | L | 001 | **Fable 5** | DONE (merged to `feat/character-studio` in `aa83f08`) |
 | 004 | CharacterSpec data model | 2 | P1 | M | 002, 003 | Sonnet 5 | TODO |
-| 005 | Toon rendering & materials | 2 | P1 | L | 001, 002, 004 | Opus 4.8 | TODO |
-| 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | Opus 4.8 + Blender MCP | TODO |
-| 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | Opus 4.8 + Blender MCP | TODO |
+| 005 | Toon rendering & materials | 2 | P1 | L | 001, 002, 004 | **Fable 5** | TODO |
+| 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | TODO |
+| 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | TODO |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | Sonnet 5 (Opus 4.8 if authoring meshes) | TODO |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | TODO |
@@ -33,12 +33,14 @@ Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
-**Executor model rationale**: Fable 5 where novel algorithms *and* aesthetic
-judgment gate the project (face, springs, sculpt — the three make-or-break
-plans); Opus 4.8 for heavy, well-precedented 3D engineering (shaders,
-skinning, clips, export); Sonnet 5 for well-specified scaffold/schema/UI
-work. Haiku is not recommended anywhere in this suite. Plans 006/007 want
-Blender MCP access for asset authoring (each has a BLOCKED fallback without it).
+**Executor model rationale**: Fable 5 wherever the plan's success gate is
+aesthetic or judgment-based (face, springs, sculpt, look, authored assets,
+animation feel — per operator direction 2026-07-02: quality over cost, never
+silently downgrade); Opus 4.8 for heavy precedented engineering with
+machine-checkable gates (export/runtime); Sonnet 5 for well-specified
+scaffold/schema/UI work. Haiku is not recommended anywhere in this suite.
+Plans 006/007 want Blender MCP access for asset authoring (each has a
+BLOCKED fallback without it).
 
 ## Phases & milestones (gate each phase before the next)
 

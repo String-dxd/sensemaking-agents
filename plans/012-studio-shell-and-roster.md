@@ -33,6 +33,11 @@ the actual product deliverable — a roster of finished companions.
 
 - Panels exist as independently-mounted floating components, each built by
   its feature plan with minimal styling; `App.tsx` mounts them ad hoc.
+- Known issues to absorb (surfaced during Phase-1 integration, 2026-07-02):
+  FacePanel.tsx mixes shorthand `border` with longhand `borderColor` in its
+  active-preset button style (React dev warning on preset switch — fix when
+  wrapping panels in shared chrome); FacePanel and MotionDebugPanel both dock
+  fixed top-right and overlap (the ModeTabs layout in step 1 resolves this).
 - Spec store (plan 004) with `serializeSpec`/`parseSpec`
   (`<name>.character.json` contract, stable key order); command stack (plan
   009) exists for sculpt/lighting; `studioLook.portraitCamera` (plan 010) for
