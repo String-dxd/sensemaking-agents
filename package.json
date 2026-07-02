@@ -6,10 +6,12 @@
   "scripts": {
     "dev": "vite dev",
     "dev:editor": "pnpm --filter island-editor dev",
+    "dev:character-studio": "pnpm -C character-studio dev",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "check": "biome check src test && tsc --noEmit",
     "check:island-editor": "pnpm --filter island-editor typecheck && pnpm --filter island-editor test",
+    "check:character-studio": "pnpm -C character-studio typecheck && pnpm -C character-studio test",
     "check:all": "pnpm check && pnpm check:island-editor",
     "lint": "biome check src test",
     "format": "biome format --write src test",
