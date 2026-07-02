@@ -1,8 +1,8 @@
 // Seeded randomness helpers (plan 003).
 //
-// Working agreement: no `Math.random` anywhere in src/core/** — every caller
-// that needs randomness injects a seeded Rng so simulation stays
-// deterministic and testable.
+// Working agreement: src/core/** never calls the global random generator —
+// every caller that needs randomness injects a seeded Rng so simulation
+// stays deterministic and testable.
 
 export type Rng = () => number
 

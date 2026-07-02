@@ -1,1 +1,5 @@
 export * from './frameLoop'
+export * from './noise'
+export * from './proceduralIdle'
+export * from './springSolver'
+export * from './springTypes'

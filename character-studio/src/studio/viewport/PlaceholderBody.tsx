@@ -1,11 +1,172 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { create } from 'zustand'
+import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
+import { mulberry32 } from '../../core/motion/noise'
+import { createIdleLayer, type IdleLayer } from '../../core/motion/proceduralIdle'
+import { createFixedStepper, createSpringRig, type SpringRig } from '../../core/motion/springSolver'
+import type { ColliderGroup, SpringChainDef, SpringJointParams } from '../../core/motion/springTypes'
 
-// Minimal stand-in character: a capsule body + sphere head, toon-shaded with
-// a 3-step gradient map generated in code. Plans 002/003/006 replace this
-// with the real skeleton/skin — keep this a single, easily-swappable
-// component so nothing else in the viewport needs to change when it goes.
+// Minimal stand-in character: a capsule body + sphere head, toon-shaded, now
+// with placeholder spring-bone chains (plan 003 step 2): 2 ear chains
+// (2 bones each) on the head, 1 tail chain (4 bones) on the body rear —
+// cone/capsule meshes rigidly parented per bone so motion is visible.
+// Plans 002/006 replace this with the real skeleton/skin — the bone names
+// (earL.1, earL.2, earR.1, earR.2, tail.1..tail.4) already match the
+// canonical plan-006 skeleton so the chain defs port over unchanged.
+
+// Spring parameters (plan 003 step 5 motion-feel gate). Tuned live against
+// the dev scene (hop/shake/walk probes measuring the earL tip particle):
+//  - stiffness: how tightly the chain tracks the head/body. The plan's 0.65
+//    starting value tracked the 400 ms hop almost rigidly (tip rise 0.156 m
+//    for a 0.15 m hop, no visible lag). 0.25 gives the wanted shape: tip
+//    lags on the rise (peak +0.148), floats at apex, overshoots −0.015
+//    below rest on landing, settles within ~1 s (residual ≈ 0.01 m — inside
+//    the breath envelope, i.e. no spring jitter). Tail lower still (0.3
+//    across 4 joints compounds per-joint) so walking makes it trail.
+//  - gravityPower: rest droop. Against the per-step stiffness constraint the
+//    equilibrium droop is ≈ g·dt²·(1−k)/k, so this must be far larger than
+//    9.8 to read at all; 30/25 gives ears/tail a soft settled curve without
+//    wilting.
+//  - dragForce: settle time. 0.12/0.1 lets exactly one clear overshoot
+//    bounce through after a hop, dead by ~1 s, no residual vibration.
+//  - hitRadius: 0.02 keeps ear capsules (r 0.045) from visibly sinking into
+//    the skull collider before pushout kicks in.
+export const EAR_PARAMS: SpringJointParams = {
+  stiffness: 0.25,
+  gravityPower: 30,
+  gravityDir: [0, -1, 0],
+  dragForce: 0.12,
+  hitRadius: 0.02,
+}
+
+export const TAIL_PARAMS: SpringJointParams = {
+  stiffness: 0.3,
+  gravityPower: 25,
+  gravityDir: [0, -1, 0],
+  dragForce: 0.1,
+  hitRadius: 0.02,
+}
+
+const CHAINS: SpringChainDef[] = [
+  {
+    name: 'earL',
+    boneNames: ['earL.1', 'earL.2'],
+    joints: [{ ...EAR_PARAMS }, { ...EAR_PARAMS }],
+    colliderGroupRefs: ['head'],
+  },
+  {
+    name: 'earR',
+    boneNames: ['earR.1', 'earR.2'],
+    joints: [{ ...EAR_PARAMS }, { ...EAR_PARAMS }],
+    colliderGroupRefs: ['head'],
+  },
+  {
+    name: 'tail',
+    boneNames: ['tail.1', 'tail.2', 'tail.3', 'tail.4'],
+    joints: [{ ...TAIL_PARAMS }, { ...TAIL_PARAMS }, { ...TAIL_PARAMS }, { ...TAIL_PARAMS }],
+    colliderGroupRefs: [],
+  },
+]
+
+export const CHAIN_NAMES = { ears: ['earL', 'earR'], tail: ['tail'] } as const
+export const CHAIN_JOINT_COUNTS: Record<string, number> = { earL: 2, earR: 2, tail: 4 }
+
+// One sphere collider on the skull so the ears never clip into the head.
+const COLLIDER_GROUPS: ColliderGroup[] = [
+  { name: 'head', colliders: [{ boneName: 'head', offset: [0, 0, 0], radius: 0.26 }] },
+]
+
+// Temporary body movers (plan 003 step 4): stand-ins for the plan-007
+// animation clips, run in the `animation` phase purely to excite the springs.
+export interface BodyMover {
+  update(dt: number): void
+  /** 0.15 m vertical impulse curve over 400 ms. */
+  hop(): void
+  /** Head yaw ±25° decaying oscillation over 600 ms. */
+  shake(): void
+  /** Root follows a 1 m-radius circle at 0.6 m/s; toggling off snaps home (a follow-through demo in itself). */
+  toggleWalk(): boolean
+}
+
+const HOP_DURATION = 0.4
+const HOP_HEIGHT = 0.15
+const SHAKE_DURATION = 0.6
+const SHAKE_AMPLITUDE = (25 * Math.PI) / 180
+const SHAKE_CYCLES = 2.5
+const WALK_RADIUS = 1
+const WALK_SPEED = 0.6
+
+function createBodyMover(root: THREE.Object3D, neck: THREE.Object3D): BodyMover {
+  const basePos = root.position.clone()
+  const baseRotY = root.rotation.y
+  const baseNeckYaw = neck.rotation.y
+  let hopT = Infinity
+  let shakeT = Infinity
+  let walking = false
+  let theta = 0
+
+  return {
+    update(dt: number) {
+      if (hopT <= HOP_DURATION) {
+        const u = hopT / HOP_DURATION
+        root.position.y = basePos.y + HOP_HEIGHT * Math.sin(Math.PI * u)
+        hopT += dt
+        if (hopT > HOP_DURATION) {
+          root.position.y = basePos.y
+          hopT = Infinity
+        }
+      }
+      if (shakeT <= SHAKE_DURATION) {
+        const u = shakeT / SHAKE_DURATION
+        neck.rotation.y = baseNeckYaw + SHAKE_AMPLITUDE * Math.sin(2 * Math.PI * SHAKE_CYCLES * u) * (1 - u)
+        shakeT += dt
+        if (shakeT > SHAKE_DURATION) {
+          neck.rotation.y = baseNeckYaw
+          shakeT = Infinity
+        }
+      }
+      if (walking) {
+        // Circle of radius WALK_RADIUS through the home position, facing travel.
+        theta += (WALK_SPEED / WALK_RADIUS) * dt
+        root.position.x = basePos.x + Math.sin(theta) * WALK_RADIUS
+        root.position.z = basePos.z + (Math.cos(theta) - 1) * WALK_RADIUS
+        root.rotation.y = baseRotY + theta + Math.PI / 2
+      }
+    },
+    hop() {
+      hopT = 0
+    },
+    shake() {
+      shakeT = 0
+    },
+    toggleWalk() {
+      walking = !walking
+      if (!walking) {
+        root.position.copy(basePos)
+        root.rotation.y = baseRotY
+        theta = 0
+      }
+      return walking
+    },
+  }
+}
+
+// Live handles for the MotionDebugPanel (populated once the body mounts).
+interface MotionStudioState {
+  rig: SpringRig | null
+  idle: IdleLayer | null
+  mover: BodyMover | null
+}
+
+export const useMotionStudio = create<MotionStudioState>(() => ({ rig: null, idle: null, mover: null }))
+
+const EAR_TILT = 0.22
+const IDLE_SEED = 20260702
+
 export function PlaceholderBody() {
+  const rootRef = useRef<THREE.Group>(null)
+
   const gradientMap = useMemo(() => {
     const data = new Uint8Array([64, 64, 64, 255, 160, 160, 160, 255, 255, 255, 255, 255])
     const texture = new THREE.DataTexture(data, 3, 1, THREE.RGBAFormat)
@@ -16,16 +177,116 @@ export function PlaceholderBody() {
     return texture
   }, [])
 
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const chest = root.getObjectByName('chest')
+    const neck = root.getObjectByName('neck')
+    const head = root.getObjectByName('head')
+    const hips = root.getObjectByName('hips')
+    if (!chest || !neck || !head || !hips) throw new Error('PlaceholderBody: missing rig target group')
+
+    // Physics: spring rig, stepped at fixed 60 Hz substeps (max 3/frame).
+    const rig = createSpringRig(root, CHAINS, COLLIDER_GROUPS)
+    const stepper = createFixedStepper((h) => rig.step(h))
+    const onPhysics = (dt: number) => {
+      stepper.advance(dt)
+    }
+
+    // Procedural: idle breath/sway/micro-turns (writes next-frame intent —
+    // see proceduralIdle.ts for the ordering contract).
+    const idle = createIdleLayer({ chest, head, hips }, mulberry32(IDLE_SEED))
+    const onProcedural = (dt: number) => idle.update(dt)
+
+    // Animation: temporary body movers (hop/shake/walk) that excite the springs.
+    const mover = createBodyMover(root, neck)
+    const onAnimation = (dt: number) => mover.update(dt)
+
+    registerUpdate('animation', onAnimation)
+    registerUpdate('physics', onPhysics)
+    registerUpdate('procedural', onProcedural)
+    useMotionStudio.setState({ rig, idle, mover })
+
+    return () => {
+      unregisterUpdate('animation', onAnimation)
+      unregisterUpdate('physics', onPhysics)
+      unregisterUpdate('procedural', onProcedural)
+      idle.reset()
+      rig.dispose()
+      useMotionStudio.setState({ rig: null, idle: null, mover: null })
+    }
+  }, [])
+
+  const earMaterial = <meshToonMaterial color="#e8a15c" gradientMap={gradientMap} />
+
   return (
-    <group position={[0, 0.55, 0]} castShadow>
-      <mesh castShadow receiveShadow position={[0, 0, 0]}>
-        <capsuleGeometry args={[0.3, 0.5, 4, 16]} />
-        <meshToonMaterial color="#e8a15c" gradientMap={gradientMap} />
-      </mesh>
-      <mesh castShadow receiveShadow position={[0, 0.65, 0]}>
-        <sphereGeometry args={[0.28, 24, 16]} />
-        <meshToonMaterial color="#f0b06a" gradientMap={gradientMap} />
-      </mesh>
+    <group ref={rootRef} name="characterRoot">
+      <group name="hips" position={[0, 0.55, 0]}>
+        <group name="chest">
+          <mesh castShadow receiveShadow>
+            <capsuleGeometry args={[0.3, 0.5, 4, 16]} />
+            <meshToonMaterial color="#e8a15c" gradientMap={gradientMap} />
+          </mesh>
+          <group name="neck" position={[0, 0.65, 0]}>
+            <group name="head">
+              <mesh castShadow receiveShadow>
+                <sphereGeometry args={[0.28, 24, 16]} />
+                <meshToonMaterial color="#f0b06a" gradientMap={gradientMap} />
+              </mesh>
+              {/* Long rabbit-like ears: two stacked capsules rigidly parented per bone. */}
+              <bone name="earL.1" position={[0.12, 0.22, 0]} rotation={[0, 0, -EAR_TILT]}>
+                <mesh castShadow position={[0, 0.08, 0]}>
+                  <capsuleGeometry args={[0.045, 0.1, 4, 8]} />
+                  {earMaterial}
+                </mesh>
+                <bone name="earL.2" position={[0, 0.16, 0]}>
+                  <mesh castShadow position={[0, 0.08, 0]}>
+                    <capsuleGeometry args={[0.04, 0.1, 4, 8]} />
+                    {earMaterial}
+                  </mesh>
+                </bone>
+              </bone>
+              <bone name="earR.1" position={[-0.12, 0.22, 0]} rotation={[0, 0, EAR_TILT]}>
+                <mesh castShadow position={[0, 0.08, 0]}>
+                  <capsuleGeometry args={[0.045, 0.1, 4, 8]} />
+                  {earMaterial}
+                </mesh>
+                <bone name="earR.2" position={[0, 0.16, 0]}>
+                  <mesh castShadow position={[0, 0.08, 0]}>
+                    <capsuleGeometry args={[0.04, 0.1, 4, 8]} />
+                    {earMaterial}
+                  </mesh>
+                </bone>
+              </bone>
+            </group>
+          </group>
+        </group>
+        {/* Tail: four cone segments trailing off the body rear (-Z). */}
+        <bone name="tail.1" position={[0, -0.15, -0.28]}>
+          <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[0.055, 0.11, 8]} />
+            {earMaterial}
+          </mesh>
+          <bone name="tail.2" position={[0, -0.01, -0.11]}>
+            <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]}>
+              <coneGeometry args={[0.045, 0.11, 8]} />
+              {earMaterial}
+            </mesh>
+            <bone name="tail.3" position={[0, -0.01, -0.11]}>
+              <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]}>
+                <coneGeometry args={[0.035, 0.11, 8]} />
+                {earMaterial}
+              </mesh>
+              <bone name="tail.4" position={[0, -0.01, -0.11]}>
+                <mesh castShadow position={[0, 0, -0.055]} rotation={[-Math.PI / 2, 0, 0]}>
+                  <coneGeometry args={[0.025, 0.11, 8]} />
+                  {earMaterial}
+                </mesh>
+              </bone>
+            </bone>
+          </bone>
+        </bone>
+      </group>
     </group>
   )
 }
