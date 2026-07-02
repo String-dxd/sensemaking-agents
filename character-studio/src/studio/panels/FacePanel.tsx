@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 import { GAZE_MAX } from '../../core/face/facePlane'
 import { EXPRESSION_PRESETS, type ExpressionName } from '../../core/face/faceRig'
+import { useCharacterStore } from '../state/characterStore'
 import { useFaceRigStore } from '../viewport/FaceRig'
 
 // Minimal DOM-side control panel (plain inline styles — the real studio
 // shell arrives in plan 012). Drives the live rig through useFaceRigStore.
+//
+// Plan 004 step 5 wiring: expression + blink interval are now read from/
+// written through the characterStore (the CharacterSpec is the source of
+// truth), instead of living only in local component state. `expression` is
+// widened from the spec's plain `string` back to `ExpressionName` at the
+// point it's fed to the rig/preset lookup — see schema.ts's comment on why
+// `face.expression` is intentionally a plain string.
 
 const GAZE_IDLE_RETURN_MS = 2000
 
@@ -43,9 +51,26 @@ const activeButtonStyle: React.CSSProperties = {
 
 export function FacePanel() {
   const rig = useFaceRigStore((s) => s.rig)
-  const [expression, setExpression] = useState<ExpressionName>('neutral')
-  const [blinkMean, setBlinkMean] = useState(3.5)
+  const specExpression = useCharacterStore((s) => s.spec.face.expression)
+  const blinkMean = useCharacterStore((s) => s.spec.face.blink.meanIntervalS)
+  const patch = useCharacterStore((s) => s.patch)
   const [followCursor, setFollowCursor] = useState(true)
+
+  const expression = (
+    specExpression in EXPRESSION_PRESETS ? specExpression : 'neutral'
+  ) as ExpressionName
+
+  const setExpression = (name: ExpressionName) => {
+    patch((draft) => {
+      draft.face = { ...draft.face, expression: name }
+    })
+  }
+
+  const setBlinkMean = (seconds: number) => {
+    patch((draft) => {
+      draft.face = { ...draft.face, blink: { ...draft.face.blink, meanIntervalS: seconds } }
+    })
+  }
 
   useEffect(() => {
     rig?.setExpression(expression)

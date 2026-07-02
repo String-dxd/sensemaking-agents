@@ -46,6 +46,16 @@ From the repo root, convenience aliases exist:
 `5190` (app is `3000`, `island-editor` is `5180`, `bird-builder` has no fixed
 port pin in its own script).
 
+## CharacterSpec versioning
+
+`src/core/spec/schema.ts` defines the versioned `CharacterSpec` data model
+(`SPEC_VERSION`). **Every schema change — a new/removed/renamed field, a
+tightened or loosened range, a new enum member — must bump `SPEC_VERSION`
+and add a matching entry to `MIGRATIONS` in `src/core/spec/migrate.ts`.**
+Retrofitting migrations after designers have saved rosters is how tools
+corrupt work; the versioning machinery exists from v1 onward even when a
+given version's migration is an identity transform.
+
 ## Phase-1 milestone
 
 A placeholder-bodied character in the viewport with a drawn face that blinks,

@@ -1,0 +1,228 @@
+// Default CharacterSpec factory (plan 004, step 2).
+//
+// `createDefaultCharacter` always parses its own output through
+// `CharacterSpecSchema` before returning — construction must never emit an
+// invalid spec, so a schema change that silently breaks the factory fails
+// loudly here instead of downstream.
+
+import type { SpringChainDef, SpringJointParams } from '../motion/springTypes'
+import {
+  type Archetype,
+  type CharacterSpec,
+  CharacterSpecSchema,
+  type Personality,
+  SPEC_VERSION,
+} from './schema'
+
+// --- personality -> face defaults (관상/gwansang grammar, plan 000 §2.1b) ---
+//
+// Every value here is a default; the designer can override any of it per
+// character. `atlasId` values are the intended personality-specific atlas
+// variants (plan 006 authors the art); until then every one of them resolves
+// through `ATLAS_FALLBACK` to the single existing v1 atlas so the studio
+// renders correctly today while the spec already carries the real intent.
+//
+// `defaultExpression` is chosen from plan 002's existing EXPRESSION_PRESETS
+// keys (neutral/happy/sad/angry/surprised/sleepy/love/dizzy/wink) — the only
+// preset with a grin-shaped mouth is `happy`, so personalities whose 관상
+// table entry calls for a grin/smirk mouth (cheerful, mischievous) resolve to
+// `happy` here; personalities calling for a neutral/smug/downturned mouth
+// (proud, gruff, calm) resolve to `neutral`. Plan 006 can add dedicated
+// presets (e.g. a real smirk) without a spec migration since this field is a
+// plain string.
+export interface PersonalityFaceDefaults {
+  atlasId: string
+  pupilScale: number
+  blinkMeanIntervalS: number
+  gazeIntensity: number
+  defaultExpression: string
+}
+
+export const PERSONALITY_FACE_DEFAULTS: Record<Personality, PersonalityFaceDefaults> = {
+  gentle: {
+    atlasId: 'face-gentle',
+    pupilScale: 1.3,
+    blinkMeanIntervalS: 4.5,
+    gazeIntensity: 0.5,
+    defaultExpression: 'happy',
+  },
+  cheerful: {
+    atlasId: 'face-cheerful',
+    pupilScale: 1.25,
+    blinkMeanIntervalS: 2.5,
+    gazeIntensity: 0.7,
+    defaultExpression: 'happy',
+  },
+  proud: {
+    atlasId: 'face-proud',
+    pupilScale: 1.0,
+    blinkMeanIntervalS: 5.5,
+    gazeIntensity: 0.85,
+    defaultExpression: 'neutral',
+  },
+  gruff: {
+    atlasId: 'face-gruff',
+    pupilScale: 0.75,
+    blinkMeanIntervalS: 7,
+    gazeIntensity: 0.9,
+    defaultExpression: 'neutral',
+  },
+  calm: {
+    atlasId: 'face-calm',
+    pupilScale: 1.1,
+    blinkMeanIntervalS: 5,
+    gazeIntensity: 0.4,
+    defaultExpression: 'neutral',
+  },
+  mischievous: {
+    atlasId: 'face-mischievous',
+    pupilScale: 1.15,
+    blinkMeanIntervalS: 3,
+    gazeIntensity: 0.75,
+    defaultExpression: 'happy',
+  },
+}
+
+/**
+ * Personality-specific atlasIds all alias to the single existing v1 atlas
+ * (`src/assets/face/*.png`, plan 002) until plan 006 authors real per-
+ * personality atlas variants. Look up the *rendered* atlas asset id through
+ * this map; the spec keeps the intended personality atlasId regardless.
+ */
+export const ATLAS_FALLBACK: Record<string, string> = {
+  'face-gentle': 'face-v1',
+  'face-cheerful': 'face-v1',
+  'face-proud': 'face-v1',
+  'face-gruff': 'face-v1',
+  'face-calm': 'face-v1',
+  'face-mischievous': 'face-v1',
+}
+
+const DEFAULT_IRIS_COLOR = '#4a2f1f'
+
+// --- default spring rig per archetype ---------------------------------------
+//
+// Values copied (not imported — `src/core/**` must not depend on
+// `src/studio/**`) from the plan-003 motion-feel-gate tuning in the studio
+// viewport's placeholder-body component (`EAR_PARAMS`/`TAIL_PARAMS`/`CHAINS`,
+// as of commit 69df998). See that component's comment for the tuning
+// rationale (hop/shake/walk probes against the earL tip particle).
+const EAR_PARAMS: SpringJointParams = {
+  stiffness: 0.25,
+  gravityPower: 30,
+  gravityDir: [0, -1, 0],
+  dragForce: 0.12,
+  hitRadius: 0.02,
+}
+
+const TAIL_PARAMS: SpringJointParams = {
+  stiffness: 0.3,
+  gravityPower: 25,
+  gravityDir: [0, -1, 0],
+  dragForce: 0.1,
+  hitRadius: 0.02,
+}
+
+const BIPED_SPRING_RIG: SpringChainDef[] = [
+  {
+    name: 'earL',
+    boneNames: ['earL.1', 'earL.2'],
+    joints: [{ ...EAR_PARAMS }, { ...EAR_PARAMS }],
+    colliderGroupRefs: ['head'],
+  },
+  {
+    name: 'earR',
+    boneNames: ['earR.1', 'earR.2'],
+    joints: [{ ...EAR_PARAMS }, { ...EAR_PARAMS }],
+    colliderGroupRefs: ['head'],
+  },
+  {
+    name: 'tail',
+    boneNames: ['tail.1', 'tail.2', 'tail.3', 'tail.4'],
+    joints: [{ ...TAIL_PARAMS }, { ...TAIL_PARAMS }, { ...TAIL_PARAMS }, { ...TAIL_PARAMS }],
+    colliderGroupRefs: [],
+  },
+]
+
+// Bird archetype: tail-feather chain only (no ears) — reuses the canonical
+// `tail.*` bones with the same tuned TAIL_PARAMS.
+const BIRD_SPRING_RIG: SpringChainDef[] = [
+  {
+    name: 'tailFeathers',
+    boneNames: ['tail.1', 'tail.2', 'tail.3', 'tail.4'],
+    joints: [{ ...TAIL_PARAMS }, { ...TAIL_PARAMS }, { ...TAIL_PARAMS }, { ...TAIL_PARAMS }],
+    colliderGroupRefs: [],
+  },
+]
+
+function defaultSpringRig(archetype: Archetype): SpringChainDef[] {
+  // biped-round and biped-slim share the same default chain set (ears + tail)
+  // today — the sketch only calls out biped-round explicitly; biped-slim gets
+  // the same rig pending plan-006 proportions.
+  return archetype === 'bird' ? BIRD_SPRING_RIG.map((c) => ({ ...c })) : BIPED_SPRING_RIG.map((c) => ({ ...c }))
+}
+
+const DEFAULT_PALETTE = {
+  primary: '#e8a15c',
+  secondary: '#f0b06a',
+  belly: '#fdf1e0',
+  accentA: '#8a5a34',
+  accentB: '#3a2a20',
+  padsNose: '#5a3a2a',
+} as const
+
+/**
+ * Build a fresh, schema-valid CharacterSpec for a given archetype and
+ * personality (default `'gentle'`). Always parses its own output.
+ */
+export function createDefaultCharacter(archetype: Archetype, personality: Personality = 'gentle'): CharacterSpec {
+  const faceDefaults = PERSONALITY_FACE_DEFAULTS[personality]
+  const now = new Date().toISOString()
+
+  const candidate: CharacterSpec = {
+    meta: {
+      id: crypto.randomUUID(),
+      name: 'New Character',
+      specVersion: SPEC_VERSION,
+      archetype,
+      personality,
+      createdAt: now,
+      updatedAt: now,
+    },
+    anatomy: {
+      parts: {},
+      bodyMorphs: {},
+    },
+    face: {
+      atlasId: faceDefaults.atlasId,
+      expression: faceDefaults.defaultExpression,
+      eyes: {
+        pupilScale: faceDefaults.pupilScale,
+        irisColor: DEFAULT_IRIS_COLOR,
+      },
+      blink: {
+        meanIntervalS: faceDefaults.blinkMeanIntervalS,
+        enabled: true,
+      },
+      gaze: {
+        mode: 'idle',
+        intensity: faceDefaults.gazeIntensity,
+      },
+    },
+    palette: { ...DEFAULT_PALETTE },
+    materials: {},
+    wardrobe: [],
+    motion: {
+      clipSetId: 'core-v1',
+      springRig: defaultSpringRig(archetype),
+      procedural: {
+        breathAmpl: 0.5,
+        swayAmpl: 0.5,
+        blinkEnabled: true,
+        gazeEnabled: true,
+      },
+    },
+  }
+
+  return CharacterSpecSchema.parse(candidate)
+}
