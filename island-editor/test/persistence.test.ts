@@ -39,9 +39,9 @@ describe('persistence', () => {
     expect(loadSpec(storage)).toBeNull()
   })
 
-  it('loadSpec returns null when version is wrong', () => {
+  it('loadSpec returns null when version is unsupported', () => {
     const storage = makeStorage()
-    const spec = { ...seedFromCurrentIsland(), version: 2 }
+    const spec = { ...seedFromCurrentIsland(), version: 3 }
     storage.setItem(STORAGE_KEY, JSON.stringify(spec))
     expect(loadSpec(storage)).toBeNull()
   })
@@ -128,5 +128,50 @@ describe('persistence', () => {
 
   it('clearSaved is a no-op when storage is null', () => {
     expect(() => clearSaved(null)).not.toThrow()
+  })
+
+  it('autosave writes a sparse, shorter payload and loads back to identical dense relief', () => {
+    const storage = makeStorage()
+    const seed = seedFromCurrentIsland(8, 16) // 256-cell relief
+    // A realistic mostly-zero island: a handful of sculpted cells.
+    const spec: IslandSpec = {
+      ...seed,
+      relief: {
+        resolution: seed.relief.resolution,
+        data: seed.relief.data.map((_, i) => (i === 5 ? 0.4 : i === 100 ? -0.6 : 0)),
+      },
+    }
+    saveSpec(spec, storage)
+
+    const raw = storage.getItem(STORAGE_KEY)
+    expect(raw).not.toBeNull()
+    expect(raw as string).toContain('"encoding": "sparse"')
+    // Sparse-on-disk must be shorter than the whole dense grid serialized.
+    expect((raw as string).length).toBeLessThan(JSON.stringify(spec).length)
+
+    const loaded = loadSpec(storage)
+    expect(loaded).not.toBeNull()
+    expect(loaded?.relief.data).toEqual(spec.relief.data)
+    expect(loaded?.relief.data[5]).toBe(0.4)
+    expect(loaded?.relief.data[100]).toBe(-0.6)
+  })
+
+  it('loads a legacy v1 dense spec from storage (migration path)', () => {
+    const storage = makeStorage()
+    const seed = seedFromCurrentIsland(8, 4)
+    const legacy = {
+      ...seed,
+      version: 1,
+      relief: { resolution: 4, data: new Array(16).fill(0).map((_, i) => (i === 7 ? 0.5 : 0)) },
+    }
+    storage.setItem(STORAGE_KEY, JSON.stringify(legacy))
+
+    const loaded = loadSpec(storage)
+    expect(loaded).not.toBeNull()
+    expect(loaded?.version).toBe(2) // normalized on read
+    expect(loaded?.relief.resolution).toBe(4)
+    expect(loaded?.relief.data).toHaveLength(16)
+    expect(loaded?.relief.data[7]).toBe(0.5)
+    expect(loaded?.relief.data).toEqual(legacy.relief.data)
   })
 })

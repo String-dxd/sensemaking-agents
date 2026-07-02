@@ -1,6 +1,7 @@
 import { OrbitControls, Stats } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { runFrame } from '../../core/motion/frameLoop'
+import { MotionDebugPanel } from './MotionDebugPanel'
 import { PlaceholderBody } from './PlaceholderBody'
 
 // Drives the plan-000 §2.2 ordered update registry (src/core/motion/frameLoop)
@@ -43,14 +44,17 @@ function Pedestal() {
 
 export function Stage({ showStats = false }: { showStats?: boolean }) {
   return (
-    <Canvas shadows="soft" camera={{ fov: 35, position: [0, 1.2, 3.2] }}>
-      <color attach="background" args={['#1a1a1e']} />
-      <FrameLoopDriver />
-      <Lighting />
-      <Pedestal />
-      <PlaceholderBody />
-      <OrbitControls target={[0, 0.7, 0]} />
-      {showStats ? <Stats /> : null}
-    </Canvas>
+    <>
+      <Canvas shadows="soft" camera={{ fov: 35, position: [0, 1.2, 3.2] }}>
+        <color attach="background" args={['#1a1a1e']} />
+        <FrameLoopDriver />
+        <Lighting />
+        <Pedestal />
+        <PlaceholderBody />
+        <OrbitControls target={[0, 0.7, 0]} />
+        {showStats ? <Stats /> : null}
+      </Canvas>
+      <MotionDebugPanel />
+    </>
   )
 }

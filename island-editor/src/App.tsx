@@ -12,6 +12,7 @@ import { Terrain } from './scene/Terrain'
 import { applyBrush, type BrushParams } from './terrain/brush'
 import { deletePoint, insertPointAfter, movePointTo } from './terrain/coastlineOps'
 import {
+  CURRENT_SPEC_VERSION,
   type HeightProfile,
   type IslandSpec,
   type ReliefGrid,
@@ -65,7 +66,7 @@ export function App() {
 
   const spec: IslandSpec = useMemo(
     () => ({
-      version: 1,
+      version: CURRENT_SPEC_VERSION,
       worldSize,
       coastline,
       heightProfile: profile,

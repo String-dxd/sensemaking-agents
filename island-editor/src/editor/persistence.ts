@@ -1,5 +1,5 @@
 import type { IslandSpec } from '../terrain/islandSpec'
-import { validateSpecObject } from './exportSpec'
+import { serializeSpec, validateSpecObject } from './exportSpec'
 
 export interface StorageLike {
   getItem(k: string): string | null
@@ -7,6 +7,9 @@ export interface StorageLike {
   removeItem(k: string): void
 }
 
+// Storage slot key (NOT the spec format version). Deliberately stays ':v1' so
+// existing autosaves survive the format bump to v2 — loadSpec/validateSpecObject
+// accept both v1 and v2 payloads transparently.
 export const STORAGE_KEY = 'island-editor:spec:v1'
 
 function defaultStorage(): StorageLike | null {
@@ -22,7 +25,7 @@ export function saveSpec(spec: IslandSpec, storage?: StorageLike | null): void {
   } catch {
     return
   }
-  s.setItem(STORAGE_KEY, JSON.stringify(spec))
+  s.setItem(STORAGE_KEY, serializeSpec(spec))
 }
 
 export function loadSpec(storage?: StorageLike | null): IslandSpec | null {
