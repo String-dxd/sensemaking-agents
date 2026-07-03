@@ -107,6 +107,7 @@ export interface FaceRigState {
   eyeR: EyeCellName
   brow: BrowCellName
   mouth: MouthCellName
+  mouthOverride: MouthCellName | null
   gaze: { x: number; y: number }
   pupilsVisible: boolean
 }
@@ -114,6 +115,12 @@ export interface FaceRigState {
 export interface FaceRig {
   group: THREE.Group
   setExpression(name: ExpressionName): void
+  /**
+   * Talk-layer mouth override (plan 007): non-null shows `cell` regardless of
+   * the current expression; null hands the mouth back to the expression.
+   * The talk driver's viseme cells flow through here.
+   */
+  setMouthOverride(cell: MouthCellName | null): void
   setGaze(x: number, y: number): void
   blink(): void
   setBlinkMeanInterval(seconds: number): void
@@ -211,11 +218,16 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
   // --- expression state ---------------------------------------------------
 
   let expression: ExpressionName = 'neutral'
+  let mouthOverride: MouthCellName | null = null
   const shown: { eyeL: EyeCellName; eyeR: EyeCellName; brow: BrowCellName; mouth: MouthCellName } = {
     eyeL: 'open',
     eyeR: 'open',
     brow: 'neutral',
     mouth: 'neutral',
+  }
+
+  function applyMouthCell(): void {
+    setCell(mouthMat, MOUTH_CELLS[mouthOverride ?? shown.mouth])
   }
 
   function applyEyeCells(eyeL: EyeCellName, eyeR: EyeCellName): void {
@@ -241,7 +253,7 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
     shown.mouth = preset.mouth
     setCell(browMatL, BROW_CELLS[preset.brow])
     setCell(browMatR, BROW_CELLS[preset.brow])
-    setCell(mouthMat, MOUTH_CELLS[preset.mouth])
+    applyMouthCell()
     if (blinkPhase < 0) applyExpressionEyes()
   }
 
@@ -320,6 +332,10 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
   return {
     group,
     setExpression,
+    setMouthOverride(cell: MouthCellName | null): void {
+      mouthOverride = cell
+      applyMouthCell()
+    },
     setGaze(x: number, y: number): void {
       gazeTarget.x = x
       gazeTarget.y = y
@@ -336,6 +352,7 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
       return {
         expression,
         ...shown,
+        mouthOverride,
         gaze: { ...gazeCurrent },
         pupilsVisible: pupilL.visible && pupilR.visible,
       }

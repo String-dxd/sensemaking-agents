@@ -156,7 +156,16 @@ export function CharacterRoot() {
     registerUpdate('animation', onAnimation)
     registerUpdate('physics', onPhysics)
     registerUpdate('procedural', onProcedural)
-    useMotionStudio.setState({ rig, idle, mover, chains: assembled.springChains })
+    // hips rest LOCAL position, captured before any animation writes — Play
+    // Mode's clip machine rebases the hips translation tracks onto it.
+    const hipsRest = [hips.position.x, hips.position.y, hips.position.z] as const
+    useMotionStudio.setState({
+      rig,
+      idle,
+      mover,
+      character: { root: assembled.root, boneByName: assembled.boneByName, hipsRest },
+      chains: assembled.springChains,
+    })
 
     return () => {
       unregisterUpdate('animation', onAnimation)
@@ -164,7 +173,7 @@ export function CharacterRoot() {
       unregisterUpdate('procedural', onProcedural)
       idle.reset()
       rig.dispose()
-      useMotionStudio.setState({ rig: null, idle: null, mover: null, chains: [] })
+      useMotionStudio.setState({ rig: null, idle: null, mover: null, character: null, chains: [] })
     }
   }, [assembled])
 

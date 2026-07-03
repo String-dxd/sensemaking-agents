@@ -57,6 +57,20 @@ export const DEFAULT_IDLE_PARAMS: IdleParams = {
   microTurnDuration: 0.9,
 }
 
+/**
+ * Which transforms the idle layer is allowed to write. Play Mode (plan 007)
+ * disables everything except breath: the clip layer owns hips position and
+ * head rotation there, and this layer writes ABSOLUTE base+offset values that
+ * would clobber the animated pose. Breath (chest scale) never conflicts —
+ * clips are forbidden from scaling bones.
+ */
+export interface IdleChannels {
+  breath: boolean
+  headBob: boolean
+  sway: boolean
+  microTurn: boolean
+}
+
 export interface IdleLayer {
   /**
    * Advance by dt seconds and write the idle pose. Pass `tOverride` to pin
@@ -64,6 +78,8 @@ export interface IdleLayer {
    */
   update(dt: number, tOverride?: number): void
   setParams(partial: Partial<IdleParams>): void
+  /** Enable/disable individual write channels (disabled ones restore base once). */
+  setChannels(partial: Partial<IdleChannels>): void
   /** Restore base transforms and restart the clock. */
   reset(): void
 }
@@ -74,6 +90,7 @@ function clamp01(x: number): number {
 
 export function createIdleLayer(targets: IdleTargets, rng: Rng, initial?: Partial<IdleParams>): IdleLayer {
   const params: IdleParams = { ...DEFAULT_IDLE_PARAMS, ...initial }
+  const channels: IdleChannels = { breath: true, headBob: true, sway: true, microTurn: true }
   const noise = createValueNoise1d(rng)
 
   // Base pose captured at creation; the layer writes base + offset so it
@@ -99,15 +116,23 @@ export function createIdleLayer(targets: IdleTargets, rng: Rng, initial?: Partia
 
     // Breath: chest scale + slight head bob, one sine cycle per breathPeriod.
     const phase = Math.sin((t * 2 * Math.PI) / params.breathPeriod)
-    const s = 1 + params.breathAmplitude * phase
-    targets.chest.scale.set(baseChestScale.x * s, baseChestScale.y * s, baseChestScale.z * s)
-    targets.head.position.y = baseHeadY + params.headBobAmplitude * phase
+    if (channels.breath) {
+      const s = 1 + params.breathAmplitude * phase
+      targets.chest.scale.set(baseChestScale.x * s, baseChestScale.y * s, baseChestScale.z * s)
+    }
+    if (channels.headBob) {
+      targets.head.position.y = baseHeadY + params.headBobAmplitude * phase
+    }
 
     // Weight-shift sway: lateral hip offset from seeded value noise, ±amplitude.
-    targets.hips.position.x = baseHipsX + params.swayAmplitude * (noise(t / params.swayPeriod) * 2 - 1)
+    if (channels.sway) {
+      targets.hips.position.x = baseHipsX + params.swayAmplitude * (noise(t / params.swayPeriod) * 2 - 1)
+    }
 
     // Micro head turns: every microTurnMin..MaxInterval seconds, ease to a
-    // new small yaw and hold it until the next turn.
+    // new small yaw and hold it until the next turn. The scheduler keeps
+    // ticking while the channel is off so re-enabling doesn't cause a jump —
+    // only the WRITE is gated.
     if (t >= nextTurnAt) {
       yawFrom = yawOffset
       yawTo = (rng() * 2 - 1) * params.microTurnMaxAngle
@@ -117,11 +142,25 @@ export function createIdleLayer(targets: IdleTargets, rng: Rng, initial?: Partia
     const u = clamp01((t - turnStart) / params.microTurnDuration)
     const eased = u * u * (3 - 2 * u)
     yawOffset = yawFrom + (yawTo - yawFrom) * eased
-    targets.head.rotation.y = baseHeadYaw + yawOffset
+    if (channels.microTurn) {
+      targets.head.rotation.y = baseHeadYaw + yawOffset
+    }
   }
 
   function setParams(partial: Partial<IdleParams>): void {
     Object.assign(params, partial)
+  }
+
+  function setChannels(partial: Partial<IdleChannels>): void {
+    // Restore the base transform once for every channel switching on -> off,
+    // so the last-written offset doesn't linger under the new owner (the
+    // mixer only writes properties its clips key — chest scale / head pos
+    // would otherwise keep the stale idle offset forever).
+    if (partial.breath === false && channels.breath) targets.chest.scale.copy(baseChestScale)
+    if (partial.headBob === false && channels.headBob) targets.head.position.y = baseHeadY
+    if (partial.sway === false && channels.sway) targets.hips.position.x = baseHipsX
+    if (partial.microTurn === false && channels.microTurn) targets.head.rotation.y = baseHeadYaw
+    Object.assign(channels, partial)
   }
 
   function reset(): void {
@@ -137,5 +176,5 @@ export function createIdleLayer(targets: IdleTargets, rng: Rng, initial?: Partia
     nextTurnAt = scheduleNext(0)
   }
 
-  return { update, setParams, reset }
+  return { update, setParams, setChannels, reset }
 }
