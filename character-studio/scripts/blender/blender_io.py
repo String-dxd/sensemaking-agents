@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import math
 
+import bmesh
 import bpy
 import numpy as np
 from mathutils import Vector
@@ -48,6 +49,24 @@ def build_armature(name: str, skel: dict) -> bpy.types.Object:
             eb.use_connect = False
     bpy.ops.object.mode_set(mode="OBJECT")
     return arm_obj
+
+
+def add_extra_bones(arm: bpy.types.Object, bones: list[tuple[str, str, "np.ndarray"]]) -> None:
+    """Append item-internal bones (plan 008 wardrobe spring chains) to an
+    already-built armature: (name, parent, head-in-our-Y-up-space). Same
+    conventions as build_armature (+Y tails, zero roll, identity rest)."""
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="EDIT")
+    edit_bones = arm.data.edit_bones
+    for name, parent, head in bones:
+        eb = edit_bones.new(name)
+        hx, hy, hz = (float(v) for v in head)
+        eb.head = Vector((hx, -hz, hy))
+        eb.tail = eb.head + Vector((0.0, 0.0, 0.03))
+        eb.roll = 0.0
+        eb.parent = edit_bones[parent]
+        eb.use_connect = False
+    bpy.ops.object.mode_set(mode="OBJECT")
 
 
 def _ensure_preview_materials() -> list[bpy.types.Material]:
@@ -141,6 +160,66 @@ def skin_object(obj: bpy.types.Object, arm: bpy.types.Object, shells: list[Shell
     obj.parent = arm
 
 
+def split_object_by_face_regions(
+    obj: bpy.types.Object,
+    region_ids: list[int],
+    region_names: dict[int, str],
+) -> dict[str, bpy.types.Object]:
+    """Split faces with region id != 0 into per-region objects (plan 008
+    body-hide submeshes). `region_ids` is per-polygon in the object's current
+    polygon order; `region_names` maps id -> region name (0 = stay on `obj`).
+
+    Vertex groups, shape keys, UVs, materials and the armature modifier are
+    preserved by Blender's separate operator. Current smooth vertex normals
+    are baked as custom split normals FIRST so the duplicated boundary ring
+    does not create a shading seam. Each new object is named
+    `<obj>_<region>` and tagged with a `bodyRegion` custom property (exports
+    as a glTF extra the dressing pass reads).
+    """
+    mesh = obj.data
+    assert len(region_ids) == len(mesh.polygons), "region_ids must be per-polygon"
+
+    # continuous shading across the split boundary
+    normals = [v.normal.copy() for v in mesh.vertices]
+    mesh.normals_split_custom_set_from_vertices(normals)
+
+    # face attribute survives polygon reindexing during separation
+    attr = mesh.attributes.new(name="bodyRegionId", type="INT", domain="FACE")
+    attr.data.foreach_set("value", region_ids)
+
+    out: dict[str, bpy.types.Object] = {}
+    base_name = obj.name
+    for rid, region in region_names.items():
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+        bm = bmesh.from_edit_mesh(obj.data)
+        layer = bm.faces.layers.int["bodyRegionId"]
+        count = 0
+        for f in bm.faces:
+            sel = f[layer] == rid
+            f.select_set(sel)
+            count += int(sel)
+        bmesh.update_edit_mesh(obj.data)
+        assert count > 0, f"region {region}: no faces matched"
+        before = set(bpy.data.objects)
+        bpy.ops.mesh.separate(type="SELECTED")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        new_obj = next(o for o in bpy.data.objects if o not in before)
+        new_obj.name = f"{base_name}_{region}"
+        new_obj.data.name = new_obj.name
+        new_obj["bodyRegion"] = region
+        out[region] = new_obj
+
+    for o in [obj, *out.values()]:
+        layer_attr = o.data.attributes.get("bodyRegionId")
+        if layer_attr is not None:
+            o.data.attributes.remove(layer_attr)
+    return out
+
+
 def add_shape_keys(obj: bpy.types.Object, keys: dict[str, np.ndarray]) -> None:
     """keys: name -> (nverts, 3) OFFSETS in our Y-up space."""
     obj.shape_key_add(name="Basis")
@@ -152,6 +231,12 @@ def add_shape_keys(obj: bpy.types.Object, keys: dict[str, np.ndarray]) -> None:
         blender_offsets = np.stack([offsets[:, 0], -offsets[:, 2], offsets[:, 1]], axis=1)
         co = base + blender_offsets
         kb.data.foreach_set("co", co.reshape(-1).astype(np.float32))
+        # exported as the glTF mesh's default morph weight — MUST be 0 or
+        # every consumer renders all morphs fully on (plan 008 gate finding:
+        # the belly occluded dressed garments because bellyRound+chubby+slim
+        # shipped at weight 1). assemble.ts also zeroes influences on load,
+        # so already-committed GLBs render correctly without regeneration.
+        kb.value = 0.0
 
 
 def export_glb(path: str, objects: list[bpy.types.Object]) -> None:

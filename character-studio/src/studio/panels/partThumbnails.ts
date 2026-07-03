@@ -30,18 +30,22 @@ function getShared() {
 const THUMB_MATERIAL = new THREE.MeshToonMaterial({ color: '#e8a15c' })
 
 export function getPartThumbnail(partId: string): Promise<string | null> {
-  let pending = cache.get(partId)
+  const def = getPart(partId)
+  return def?.url ? getGlbThumbnail(partId, def.url) : Promise.resolve(null)
+}
+
+/** Cached one-shot GLB thumbnail (shared by part + wardrobe pickers). */
+export function getGlbThumbnail(cacheKey: string, url: string): Promise<string | null> {
+  let pending = cache.get(cacheKey)
   if (!pending) {
-    pending = renderThumbnail(partId).catch(() => null)
-    cache.set(partId, pending)
+    pending = renderThumbnail(url).catch(() => null)
+    cache.set(cacheKey, pending)
   }
   return pending
 }
 
-async function renderThumbnail(partId: string): Promise<string | null> {
-  const def = getPart(partId)
-  if (!def?.url) return null
-  const gltf = await new GLTFLoader().loadAsync(def.url)
+async function renderThumbnail(url: string): Promise<string | null> {
+  const gltf = await new GLTFLoader().loadAsync(url)
   const { renderer, scene, camera } = getShared()
 
   const holder = new THREE.Group()
@@ -60,7 +64,7 @@ async function renderThumbnail(partId: string): Promise<string | null> {
   camera.updateProjectionMatrix()
 
   renderer.render(scene, camera)
-  const url = renderer.domElement.toDataURL()
+  const dataUrl = renderer.domElement.toDataURL()
   scene.remove(holder)
-  return url
+  return dataUrl
 }

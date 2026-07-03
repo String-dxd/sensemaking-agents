@@ -73,7 +73,9 @@ const SANITIZED_TO_CANONICAL = new Map(
   BONE_NAMES.map((name) => [THREE.PropertyBinding.sanitizeNodeName(name), name] as const),
 )
 
-function restoreCanonicalNames(scene: THREE.Object3D): void {
+/** Restore GLTFLoader-sanitized node names to their canonical dotted forms
+ * (shared with the plan-008 dressing pass, which clones item scenes too). */
+export function restoreCanonicalNames(scene: THREE.Object3D): void {
   scene.traverse((object) => {
     const canonical = SANITIZED_TO_CANONICAL.get(object.name)
     if (canonical) object.name = canonical
@@ -92,6 +94,11 @@ function applyMorphs(mesh: THREE.Mesh, morphs: Record<string, number>): void {
   const dict = mesh.morphTargetDictionary
   const influences = mesh.morphTargetInfluences
   if (!dict || !influences) return
+  // Neutral baseline first: loaders initialize influences from the glTF
+  // mesh's default weights, and GLBs authored before the plan-008 exporter
+  // fix ship weights=1 for EVERY morph (all-on bodies — the gate-caught
+  // belly-occludes-garments bug). The spec is the only source of truth.
+  influences.fill(0)
   for (const [name, value] of Object.entries(morphs)) {
     const index = dict[name]
     if (index !== undefined) influences[index] = value

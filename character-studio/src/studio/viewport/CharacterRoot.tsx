@@ -11,10 +11,18 @@
 // shared by every assembly — reassembly allocates only materials, which
 // dispose() releases. `renderer.info.memory` is logged per assembly in dev
 // so leaks are visible (plan 006 done criterion).
+//
+// Wardrobe (plan 008): worn-item GLBs load alongside body/parts, so any
+// structural wardrobe change (item ids / earMode) swaps the gltf list and
+// triggers a clean reassembly; the dressing pass then mutates the fresh
+// assembly in an effect whose cleanup undresses it. The spring rig is built
+// from the DRESSED chain set (item chains ride grafted bones), which is why
+// the motion effect waits for the dressed state — a rig must never outlive
+// the grafted bones it solves.
 
 import { useGLTF, useTexture } from '@react-three/drei'
 import { createPortal, useThree } from '@react-three/fiber'
-import { Fragment, useEffect, useMemo, useRef } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import {
   addOutline,
@@ -34,6 +42,14 @@ import { createFixedStepper, createSpringRig } from '../../core/motion/springSol
 import { assembleCharacter, type LoadedAssets } from '../../core/skeleton/assemble'
 import { BODY_REGISTRY, getPart, PART_REGISTRY } from '../../core/skeleton/partRegistry'
 import type { PartSlot, Region } from '../../core/spec/schema'
+import {
+  applyWardrobe,
+  type DressedCharacter,
+  mergeItemPalette,
+  resolveWornItems,
+  WARDROBE_REGISTRY,
+  type WardrobeAssets,
+} from '../../core/wardrobe'
 import { useCharacterStore } from '../state/characterStore'
 import { FALLBACK_ASSIGN, useMotionStudio, useToonStudio } from '../state/studioStores'
 import { createBodyMover } from './bodyMover'
@@ -56,6 +72,7 @@ export function CharacterRoot() {
   const bodyMorphs = useCharacterStore((s) => s.spec.anatomy.bodyMorphs)
   const materialsSpec = useCharacterStore((s) => s.spec.materials)
   const palette = useCharacterStore((s) => s.spec.palette)
+  const wardrobe = useCharacterStore((s) => s.spec.wardrobe)
   const terminatorWarmth = useToonStudio((s) => s.terminatorWarmth)
   const gl = useThree((s) => s.gl)
 
@@ -74,16 +91,32 @@ export function CharacterRoot() {
     [partIdKey],
   )
 
+  // --- structural key: redress (via reassembly) when worn ids / earModes change
+  const wardrobeKey = wardrobe.map((w) => `${w.slot}:${w.itemId}:${w.earMode ?? ''}`).join('|')
+  const wornResolved = useMemo(
+    () => resolveWornItems(useCharacterStore.getState().spec.wardrobe, WARDROBE_REGISTRY).items,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [wardrobeKey],
+  )
+
   const body = BODY_REGISTRY[archetype]
-  const gltfUrls = useMemo(() => [body.url, ...equipped.map((e) => e.def.url as string)], [body, equipped])
+  const gltfUrls = useMemo(
+    () => [body.url, ...equipped.map((e) => e.def.url as string), ...wornResolved.map((i) => i.def.url)],
+    [body, equipped, wornResolved],
+  )
   const maskEntries = useMemo(() => {
     const entries: Array<{ region: Region; url: string }> = [{ region: 'body', url: body.maskUrl }]
     for (const { def } of equipped) if (def.maskUrl) entries.push({ region: def.region, url: def.maskUrl })
     return entries
   }, [body, equipped])
+  const itemMaskEntries = useMemo(
+    () => wornResolved.flatMap((i) => (i.def.maskUrl ? [{ itemId: i.itemId, url: i.def.maskUrl }] : [])),
+    [wornResolved],
+  )
 
   const gltfs = useGLTF(gltfUrls)
-  const maskTextures = useTexture(maskEntries.map((e) => e.url))
+  // one call: region masks first, item masks after (the list is never empty)
+  const maskTextures = useTexture([...maskEntries.map((e) => e.url), ...itemMaskEntries.map((e) => e.url)])
 
   // --- assembly ---------------------------------------------------------------
   const assembled = useMemo(() => {
@@ -135,15 +168,44 @@ export function CharacterRoot() {
     [],
   )
 
-  // --- motion: springs (physics) + idle (procedural) + movers (animation) ----
+  // --- dressing (plan 008): mutate the fresh assembly, undress on teardown ----
+  const [dressed, setDressed] = useState<DressedCharacter | null>(null)
   useEffect(() => {
+    const spec = useCharacterStore.getState().spec
+    const itemScenes: WardrobeAssets['itemScenes'] = {}
+    wornResolved.forEach((item, j) => {
+      itemScenes[item.itemId] = gltfs[1 + equipped.length + j].scene
+    })
+    const itemTextures: NonNullable<WardrobeAssets['itemTextures']> = {}
+    itemMaskEntries.forEach(({ itemId }, j) => {
+      itemTextures[itemId] = { map: null, maskMap: maskTextures[maskEntries.length + j] }
+    })
+    const result = applyWardrobe(assembled, spec.wardrobe, WARDROBE_REGISTRY, { itemScenes, itemTextures }, {
+      archetype: spec.meta.archetype,
+      palette: spec.palette,
+      bodyMorphs: spec.anatomy.bodyMorphs,
+    })
+    if (result.warnings.length > 0) console.warn('[character-studio] wardrobe:', result.warnings.join('; '))
+    if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__dressed = result
+    setDressed(result)
+    return () => {
+      result.undress()
+      setDressed(null)
+    }
+  }, [assembled, gltfs, maskTextures, maskEntries, itemMaskEntries, equipped, wornResolved])
+
+  // --- motion: springs (physics) + idle (procedural) + movers (animation) ----
+  // Waits for the dressing pass: the rig is built from the DRESSED chain set
+  // and must never solve chains whose grafted bones were undressed away.
+  useEffect(() => {
+    if (!dressed || dressed.assembled !== assembled) return
     const chest = assembled.boneByName.get('chest')
     const head = assembled.boneByName.get('head')
     const hips = assembled.boneByName.get('hips')
     const neck = assembled.boneByName.get('neck')
     if (!chest || !head || !hips || !neck) return
 
-    const rig = createSpringRig(assembled.root, assembled.springChains, assembled.colliderGroups)
+    const rig = createSpringRig(assembled.root, dressed.springChains, assembled.colliderGroups)
     const stepper = createFixedStepper((h) => rig.step(h))
     const onPhysics = (dt: number) => {
       stepper.advance(dt)
@@ -164,7 +226,7 @@ export function CharacterRoot() {
       idle,
       mover,
       character: { root: assembled.root, boneByName: assembled.boneByName, hipsRest },
-      chains: assembled.springChains,
+      chains: dressed.springChains,
     })
 
     return () => {
@@ -175,7 +237,7 @@ export function CharacterRoot() {
       rig.dispose()
       useMotionStudio.setState({ rig: null, idle: null, mover: null, character: null, chains: [] })
     }
-  }, [assembled])
+  }, [assembled, dressed])
 
   // --- live updates: morphs + boneScales (no reassembly) -----------------------
   useEffect(() => {
@@ -184,6 +246,7 @@ export function CharacterRoot() {
         const dict = mesh.morphTargetDictionary
         const influences = mesh.morphTargetInfluences
         if (!dict || !influences) continue
+        influences.fill(0) // reset-then-apply so removed morph keys revert (see assemble.ts)
         for (const [name, value] of Object.entries(morphs)) {
           const index = dict[name]
           if (index !== undefined) influences[index] = value
@@ -196,6 +259,10 @@ export function CharacterRoot() {
       const def = getPart(entry.partId)
       if (def && def.slot === (slot as PartSlot)) applyMorphSet(assembled.regionMeshes[def.region], entry.morphs)
     }
+    // garments carry baked body-follow morphs (ASSET-CONTRACT) — same weights
+    if (dressed?.assembled === assembled) {
+      for (const meshes of Object.values(dressed.itemMeshes)) applyMorphSet(meshes, bodyMorphs)
+    }
     // boneScales: reset then apply so removed scales revert
     for (const bone of assembled.boneByName.values()) bone.scale.set(1, 1, 1)
     for (const entry of Object.values(parts)) {
@@ -203,7 +270,13 @@ export function CharacterRoot() {
         if (scale) assembled.boneByName.get(name as never)?.scale.set(scale.x, scale.y, scale.z)
       }
     }
-  }, [assembled, bodyMorphs, parts])
+    // re-apply the wardrobe earMode `under` flatten the reset above wiped
+    // (the dressing pass flags the bones it flattened)
+    for (const bone of assembled.boneByName.values()) {
+      const flatten = bone.userData.wardrobeFlatten
+      if (typeof flatten === 'number') bone.scale.multiplyScalar(flatten)
+    }
+  }, [assembled, bodyMorphs, parts, dressed])
 
   // --- live updates: material params + textures + outlines ---------------------
   useEffect(() => {
@@ -228,13 +301,26 @@ export function CharacterRoot() {
     for (const material of Object.values(assembled.regionMaterials)) {
       if (material) applyPalette(material, palette)
     }
-  }, [assembled, palette])
+    // item materials: spec palette merged with each worn item's live overrides
+    if (dressed?.assembled === assembled) {
+      for (const item of dressed.items) {
+        const material = dressed.itemMaterials[item.itemId]
+        if (!material) continue
+        const live = wardrobe.find((w) => w.itemId === item.itemId) ?? item.worn
+        applyPalette(material, mergeItemPalette(palette, live.paletteOverrides))
+      }
+    }
+  }, [assembled, palette, dressed, wardrobe])
 
   useEffect(() => {
-    for (const material of Object.values(assembled.regionMaterials)) {
+    const materials = [
+      ...Object.values(assembled.regionMaterials),
+      ...(dressed?.assembled === assembled ? Object.values(dressed.itemMaterials) : []),
+    ]
+    for (const material of materials) {
       if (material) material.userData.toonUniforms.uTerminatorWarmth.value = terminatorWarmth
     }
-  }, [assembled, terminatorWarmth])
+  }, [assembled, dressed, terminatorWarmth])
 
   const placement = useMemo(
     () => ({ mouthRadialOffset: assembled.mouthRadialOffset }),

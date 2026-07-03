@@ -13,7 +13,7 @@
 
 import type { ColliderGroup } from '../motion/springTypes'
 import type { Archetype, BoneName } from '../spec/schema'
-import { type BuildSkeletonOptions, type BuiltSkeleton, buildSkeleton } from './canonical'
+import { type BuildSkeletonOptions, type BuiltSkeleton, buildSkeleton, restWorldPositions } from './canonical'
 
 export interface ArchetypeDef {
   archetype: Archetype
@@ -137,16 +137,43 @@ export function archetypeHead(archetype: Archetype): ArchetypeHead {
   }
 }
 
+/** Torso front-depth as a fraction of the head radius — mirrors the
+ * `torso_rz` proportions in scripts/blender/bodies.py STYLE (the bodies are
+ * built from these numbers, so the colliders track the real silhouette). */
+const TORSO_RZ: Record<Archetype, number> = { 'biped-round': 0.62, 'biped-slim': 0.58, bird: 0.8 }
+
 /**
- * Default collider set for an archetype: one skull sphere (group "head") —
- * ear/tail chains reference it by name (spec `colliderGroupRefs`).
+ * Default collider set for an archetype: one skull sphere (group "head") for
+ * ear/tail chains, plus two torso spheres (group "torso", plan 008) that keep
+ * dangling wardrobe chains — scarf ends, drawstrings, strap tails — from
+ * diving into the body while they trail and settle. Radii sit ~1 hitRadius
+ * inside the garment rest surface so colliders are a backstop, not a spring
+ * rest-pose influence. Chains opt in by name (spec `colliderGroupRefs`).
  */
 export function archetypeColliderGroups(archetype: Archetype): ColliderGroup[] {
   const head = archetypeHead(archetype)
+  const world = restWorldPositions(buildArchetypeSkeleton(archetype))
+  const [, hipsY] = world.hips
+  const [, neckY] = world.neck
+  const [, chestY] = world.chest
+  // the bodies.py torso ellipsoid: bottom/top overshoot the hip/neck joints
+  const torsoH = neckY - hipsY
+  const bottom = hipsY - torsoH * 0.42
+  const top = neckY + torsoH * 0.55
+  const cy = (bottom + top) / 2
+  const ry = (top - bottom) / 2
+  const rz = head.radius * TORSO_RZ[archetype]
   return [
     {
       name: 'head',
       colliders: [{ boneName: 'head', offset: head.center, radius: head.radius * 0.92 }],
+    },
+    {
+      name: 'torso',
+      colliders: [
+        { boneName: 'chest', offset: [0, cy + ry * 0.3 - chestY, 0], radius: rz * 0.85 },
+        { boneName: 'hips', offset: [0, cy - ry * 0.28 - hipsY, 0], radius: rz * 1.05 },
+      ],
     },
   ]
 }

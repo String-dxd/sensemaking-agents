@@ -50,6 +50,28 @@ def tri_count(objects) -> int:
     return total
 
 
+def body_region_ids(shells, skel: dict) -> list[int]:
+    """Per-face hide-region ids (plan 008 body-hide submeshes): 1 = torso
+    (torso shell at/above the spine joint), 2 = hips (torso shell below it),
+    3 = upperLegs (leg shells above the knee). 0 = never hidden."""
+    j = bodies.joints(skel)
+    spine_y = j["spine"][1]
+    knee_y = j["lowerLegL"][1]
+    ids: list[int] = []
+    for shell in shells:
+        if shell.name == "torso":
+            for f in shell.faces:
+                cy = float(np.mean(shell.verts[list(f), 1]))
+                ids.append(1 if cy >= spine_y else 2)
+        elif shell.name in ("legL", "legR"):
+            for f in shell.faces:
+                cy = float(np.mean(shell.verts[list(f), 1]))
+                ids.append(3 if cy >= knee_y else 0)
+        else:
+            ids.extend([0] * len(shell.faces))
+    return ids
+
+
 def build_body(archetype: str, skel: dict, render: bool) -> None:
     blender_io.clean_scene()
     arm = blender_io.build_armature(f"rig", skel)
@@ -59,14 +81,22 @@ def build_body(archetype: str, skel: dict, render: bool) -> None:
     keys = bodies.body_shape_keys(shells, meta, skel["uniformScale"])
     blender_io.add_shape_keys(obj, keys)
 
-    tris = tri_count([obj])
+    # plan 008 cross-plan fix: split hideable regions into tagged submeshes
+    # (same shells, same silhouette; boundary verts duplicate at the seams —
+    # custom normals keep shading continuous).
+    regions = blender_io.split_object_by_face_regions(
+        obj, body_region_ids(shells, skel), {1: "torso", 2: "hips", 3: "upperLegs"}
+    )
+    body_objects = [obj, *regions.values()]
+
+    tris = tri_count(body_objects)
     assert tris <= TRI_BUDGET_BODY, f"{archetype} body {tris} tris > {TRI_BUDGET_BODY}"
 
     mask = rasterize_mask(shells, size=1024, blur=3)
     write_png(os.path.join(TEX_DIR, f"body-{archetype}.mask.png"), mask)
 
     glb = os.path.join(ASSET_DIR, f"body-{archetype}.glb")
-    blender_io.export_glb(glb, [arm, obj])
+    blender_io.export_glb(glb, [arm, *body_objects])
     print(f"[body {archetype}] {tris} tris -> {glb} ({os.path.getsize(glb) // 1024} KB)")
 
     if render:
