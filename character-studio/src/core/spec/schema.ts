@@ -9,8 +9,10 @@
 // exists from v1 even though v1→v1 is an identity transform today.
 //
 // Every object schema below is `.strict()` (unknown keys are parse errors —
-// this is what keeps the export contract honest) EXCEPT `studioLook`, which
-// is an intentional passthrough until plan 010 defines its shape.
+// this is what keeps the export contract honest); `studioLook` was a
+// `z.unknown()` passthrough until plan 010 gave it a real shape
+// (`./lighting.ts` — imported, not redefined, same pattern as the
+// `motion.springRig` import below).
 //
 // Field names for `motion.springRig` mirror `../motion/springTypes.ts`
 // exactly (plan 003) — imported, not redefined, and statically asserted
@@ -18,6 +20,7 @@
 // `plans/000-architecture-and-strategy.md` §5 exactly.
 
 import { z } from 'zod'
+import { StudioLookSchema } from './lighting'
 import type { SpringChainDef, SpringJointParams } from '../motion/springTypes'
 
 export const SPEC_VERSION = 1
@@ -307,8 +310,8 @@ export const CharacterSpecSchema = z
     materials: MaterialsSchema,
     wardrobe: WardrobeSchema,
     motion: MotionSchema,
-    /** Plan 010 fills this in; intentionally unvalidated passthrough until then. */
-    studioLook: z.unknown().optional(),
+    /** Designer's studio/portrait lighting rig (plan 010) — studio-only, never baked into the runtime GLB. */
+    studioLook: StudioLookSchema.optional(),
   })
   .strict()
 
