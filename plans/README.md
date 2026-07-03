@@ -23,7 +23,7 @@ honor its STOP conditions, and update your row below when done.
 | 005 | Toon rendering & materials | 2 | P1 | L | 001, 002, 004 | **Fable 5** | DONE (merged to `feat/character-studio` at `ed2f6df`) |
 | 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `5d9d792`; operator approved visuals + plan-000 §5 shoulder amendment) |
 | 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `0498c14`; operator approved soak/settle/talk videos; 60 fps feel check remains a standing note) |
-| 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | **Fable 5** + headless Blender | REVIEW (10 items / 6 slots authored + dressable from panel; dress/undress round-trip test-enforced; dangling elements spring-animated; gate videos recorded — pending operator review; fixed landed all-morphs-on GLB weight bug) |
+| 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | **Fable 5** + headless Blender | DONE (merged to `feat/character-studio` at `fd93885`; operator approved dressed-motion videos + the slimmer post-morph-fix silhouette) |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | TODO |
 | 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | TODO |
@@ -33,35 +33,40 @@ Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
-**Session handoff (updated 2026-07-03):** Plans 001–007 executed, reviewed,
-and merged to `feat/character-studio` (through `0498c14`; 266/266 tests).
-Next: **plan 008** (wardrobe & accessories — Sonnet 5, or Opus 4.8/Fable 5 if
-authoring meshes; in practice 006/007 authored meshes headlessly, so expect
-mesh authoring here too). Blender note: the MCP live addon has not been
-connected all session; headless local Blender 5.1.2
-(`/Applications/Blender.app/Contents/MacOS/Blender -b --python …`) works and
-all assets regenerate (`pnpm gen:assets`, clips via
-`scripts/blender/clips.py`). Motion stack facts a wardrobe executor needs:
-clip machine + locomotion + foot IK + talk driver live in `src/core/motion/`;
-gestures are additive (`makeClipAdditive` held); hips translation is rebased
-per archetype at machine construction (`hipsRebase`); idle layer has
-channel gating (`IdleChannels`) so Play Mode runs breath-only; wardrobe
-meshes mount on `socket.*` bones and spring-cloth chains follow plan 003
-conventions. Execution pattern: dispatch
-an executor subagent per plan (isolated worktree branching from current
-`feat/character-studio` HEAD, model per this table, inline the full plan text
-in the prompt), review like a tech lead (re-run gates in the worktree,
-scope-check the diff, audit tests, judge look/motion screenshots saved to the
-session scratchpad), merge only with operator approval, keep this table
-current. Operator directions in force: quality over cost (premium executors
-for aesthetic-gated plans), 관상 faces, screenshots to the operator (often on
-mobile) with every visual verdict. Small known debts: panel overlap +
-FacePanel style warning (absorbed into plan 012), `Math.random` core guard
-test doesn't exist yet (rule honored manually), absolute-60fps check pending
-operator's laptop (automation browser caps rAF at 30), body-level boneScales
-live on part entries (muzzle=head, claws=limbs — plan-004 schema gap, revisit
-in 009/012), shell-union bodies want a human sculpt pass at shoulders/hips
-(listed in ASSET-CONTRACT.md).
+**Session handoff (updated 2026-07-03):** Plans 001–008 executed, reviewed,
+and merged to `feat/character-studio` (through `fd93885`; 344/344 tests).
+Phase 3 complete. Next: **phase 4 — 009 (Fable 5) ∥ 010 (Sonnet 5) in
+parallel worktrees, then 012 after both merge** (012 composes landed panels —
+running it concurrently would conflict), then **011 last** (Opus 4.8).
+Blender note: MCP live addon never connected this session; headless Blender
+5.1.2 works; all assets regenerate (`pnpm gen:assets` — bodies/parts/wardrobe
+— and `scripts/blender/clips.py`). Facts new executors need: bodies now have
+hide-region submeshes (torso/hips/upperLegs); wardrobe dressing lives in
+`src/core/wardrobe/` and CharacterRoot reassembles on wardrobe changes;
+**plan-006 anatomy part GLBs still ship shape keys defaulted to weight 1**
+(bodies regenerated clean in 008; parts are runtime-neutralized in
+assemble/dress/CharacterRoot — plan 011's export MUST zero morph defaults or
+regenerate parts); spring chains authored along a surface need plumb bones +
+colliders (hanging chains equilibrate vertically); triage SkinnedMesh
+occlusion bugs as morph-influence data bugs first. Execution pattern:
+dispatch an executor subagent per plan (isolated worktree branching from
+current `feat/character-studio` HEAD, model per this table, inline the full
+plan text in the prompt), review like a tech lead (re-run gates in the
+worktree, scope-check the diff, audit tests, judge look/motion screenshots
+saved to the session scratchpad), merge only with operator approval, keep
+this table current. Executors die at session-limit walls: require per-step
+commits; continuation executors inherit the worktree (SendMessage resume has
+never worked — transcripts expire). Operator directions in force: quality
+over cost (premium executors for aesthetic-gated plans), 관상 faces,
+screenshots/videos to the operator (often on mobile — webm only, no system
+ffmpeg) with every visual verdict. Known debts: panel overlap + FacePanel
+style warning (012), `Math.random` core guard test missing (rule honored
+manually), absolute-60fps check pending operator's laptop, body-level
+boneScales piggyback on part entries (plan-004 schema gap; revisit 009/012),
+shell-union bodies want a human sculpt pass at shoulders/hips
+(ASSET-CONTRACT.md), hood↔backpack overlap when both worn, drawstrings bury
+at extreme bellyRound, mug grazes thigh in profile, scarf tips read stiff at
+rest.
 
 **Executor model rationale**: Fable 5 wherever the plan's success gate is
 aesthetic or judgment-based (face, springs, sculpt, look, authored assets,
