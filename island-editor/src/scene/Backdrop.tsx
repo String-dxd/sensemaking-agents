@@ -6,7 +6,10 @@ export function Backdrop() {
       <color attach="background" args={['#bcd7ff']} />
       <Sky sunPosition={[20, 12, 8]} />
       <ambientLight intensity={0.6} />
-      <directionalLight position={[18, 20, 10]} intensity={1.15} castShadow />
+      {/* Keep this position in sync with IslandGroundMaterial's uSunDirection
+          default ([18, 20, 10] normalized) — the ground's lambert shading and
+          the scene light must agree on where the sun is. */}
+      <directionalLight position={[18, 20, 10]} intensity={1.15} />
       <Grid
         args={[60, 60]}
         position={[0, -0.01, 0]}

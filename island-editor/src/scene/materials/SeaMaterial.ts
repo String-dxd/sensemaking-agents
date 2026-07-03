@@ -5,7 +5,7 @@
 // All shore effects are driven by the grid-derived signed shore-distance field
 // (shoreField.ts) sampled from a single-channel float DataTexture — this
 // replaces the app's analytic silhouette(theta) radial hack and works for any
-// drawn coastline, including carved interior rivers/ponds. The fragment contains
+// drawn shore outline, including carved interior rivers/ponds. The fragment contains
 // ONLY: depth gradient, crisp shore lip, wet tint, and the two foam-texture
 // bands. The vertex ripple is a tiny fresh 2-sine (own structure, own numbers).
 //

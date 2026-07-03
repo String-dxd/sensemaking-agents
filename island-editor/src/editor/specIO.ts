@@ -2,8 +2,8 @@
 // to-current contract: v1/v2 files are validated by the legacy module and migrated
 // (rasterized) to a v3 grid on load. NO three/r3f imports.
 //
-// This is a NEW file (the v2 `exportSpec.ts` still exists until the Step 9
-// cutover); Steps 6–8 consume it.
+// Sole serialization/validation module since the Step 9 cutover (the legacy
+// validator lives in terrain/legacy/specV2.ts, imported only from here and seed).
 
 import { rasterizeV2ToGrid, validateSpecV2Object } from '../terrain/legacy/specV2'
 import {

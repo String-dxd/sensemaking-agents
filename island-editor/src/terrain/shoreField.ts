@@ -1,6 +1,6 @@
 // Grid-derived signed shore-distance field. Drives all water/foam effects in the
 // sea shader and replaces the app's analytic `silhouette(theta)` radial hack — it
-// works for ANY drawn coastline, including carved interior rivers/ponds. Pure,
+// works for ANY drawn shore outline, including carved interior rivers/ponds. Pure,
 // unit-testable, recomputed per grid edit. NO three/r3f imports.
 
 import { blurTiers, sampleTierField, type TerrainGrid } from './terrainGrid'
