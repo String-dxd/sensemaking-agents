@@ -25,7 +25,7 @@ honor its STOP conditions, and update your row below when done.
 | 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `0498c14`; operator approved soak/settle/talk videos; 60 fps feel check remains a standing note) |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | **Fable 5** + headless Blender | DONE (merged to `feat/character-studio` at `fd93885`; operator approved dressed-motion videos + the slimmer post-morph-fix silhouette) |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |
-| 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | TODO |
+| 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | DONE-pending-visual (code gates green in worktree `advisor/010-lighting-studio`, executor screenshots/video attached to session report; awaiting lead re-run + merge) |
 | 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | TODO |
 | 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | TODO |
 

@@ -133,12 +133,12 @@ rejected, intensity 9 rejected), portraitCamera optional round-trip.
 
 ## Done criteria
 
-- [ ] `pnpm typecheck && pnpm test` exit 0
-- [ ] 4 presets + ≥ 3 self-hosted HDRIs (license files present) switchable live
-- [ ] Key-light drag sweeps the toon terminator correctly (step 3 gate)
-- [ ] `studioLook` round-trips through spec save/load including portrait camera
-- [ ] Face planes remain unlit under every preset (visual check)
-- [ ] `plans/README.md` updated
+- [x] `pnpm typecheck && pnpm test` exit 0 (370/370 tests)
+- [x] 4 presets + ≥ 3 self-hosted HDRIs (license files present) switchable live (4 HDRIs shipped)
+- [x] Key-light drag sweeps the toon terminator correctly (step 3 gate) — verified via store-driven position sweep (see executor report); gizmo renders in-scene (confirmed via renderer.info program list) but live mouse-drag-on-gizmo was not visually confirmed in this headless environment
+- [x] `studioLook` round-trips through spec save/load including portrait camera
+- [x] Face planes remain unlit under every preset (visual check + code: face materials are `MeshBasicMaterial`/`ShaderMaterial` with `toneMapped=false`, never touched by scene lights)
+- [x] `plans/README.md` updated
 
 ## STOP conditions
 
