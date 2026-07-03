@@ -33,6 +33,19 @@ Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
+**Live executor handoff (written 2026-07-03, delete when resolved):** plan 005
+is executing on a Fable 5 subagent in worktree
+`.claude/worktrees/agent-abe02841c5d80fcad`, expected to commit on branch
+`advisor/005-toon-rendering` (based on `7e498b6`) and save four look-gate
+screenshots (`phase2-look-*.png`) to the session scratchpad. If this session
+was cleared before its report arrived: check `git log advisor/005-toon-rendering`
+and the worktree; review per the execute-review protocol (re-run
+`pnpm typecheck && pnpm test` in the worktree, scope-check the diff against
+plan 005, audit tests, judge the look screenshots), then merge with operator
+approval and update this row. Review history so far: 001 Sonnet ✅, 002 Fable ✅,
+003 Fable ✅, 004 Sonnet ✅ — all merged; operator direction: quality over cost,
+관상 faces (see memory + plan 000 §2.1b).
+
 **Executor model rationale**: Fable 5 wherever the plan's success gate is
 aesthetic or judgment-based (face, springs, sculpt, look, authored assets,
 animation feel — per operator direction 2026-07-02: quality over cost, never
