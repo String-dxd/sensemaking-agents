@@ -123,7 +123,7 @@ def build_part(part_id: str, skel_ref: dict, render: bool) -> None:
         blender_io.render_turntable(
             os.path.join(PREVIEW_DIR, f"part-{part_id}"),
             center_z=float(center[1]),
-            radius=max(size * 1.6, 0.3),
+            radius=max(size * 2.6, 0.45),
             center_xy=(float(center[0]), float(-center[2])),
         )
 
