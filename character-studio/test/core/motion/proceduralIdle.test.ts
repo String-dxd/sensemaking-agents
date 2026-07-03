@@ -91,4 +91,48 @@ describe('createIdleLayer', () => {
     expect(firstTurnAt).toBeGreaterThanOrEqual(5)
     expect(firstTurnAt).toBeLessThanOrEqual(12 + 1)
   })
+
+  it('setChannels gates writes: breath-only leaves clip-owned transforms alone (plan 007 Play Mode)', () => {
+    const targets = makeTargets()
+    const layer = createIdleLayer(targets, mulberry32(21))
+    for (let i = 0; i < 60 * 8; i++) layer.update(H) // accumulate offsets
+    layer.setChannels({ headBob: false, sway: false, microTurn: false })
+    // Disabling restores the base transforms once...
+    expect(targets.head.position.y).toBe(0.65)
+    expect(targets.head.rotation.y).toBe(0)
+    expect(targets.hips.position.x).toBe(0)
+    // ...and the clip layer's writes are never clobbered afterwards.
+    for (let i = 0; i < 60 * 8; i++) {
+      targets.head.position.y = 0.7 // "animated" values
+      targets.head.rotation.y = 0.3
+      targets.hips.position.x = 0.05
+      layer.update(H)
+      expect(targets.head.position.y).toBe(0.7)
+      expect(targets.head.rotation.y).toBe(0.3)
+      expect(targets.hips.position.x).toBe(0.05)
+    }
+    // Breath keeps running (clips never scale bones — no conflict).
+    let sawBreath = false
+    for (let i = 0; i < 60 * 4; i++) {
+      layer.update(H)
+      if (Math.abs(targets.chest.scale.x - 1) > 1e-4) sawBreath = true
+    }
+    expect(sawBreath).toBe(true)
+  })
+
+  it('re-enabling a channel resumes writes without a scheduler jump', () => {
+    const targets = makeTargets()
+    const layer = createIdleLayer(targets, mulberry32(22))
+    layer.setChannels({ microTurn: false })
+    for (let i = 0; i < 60 * 20; i++) layer.update(H)
+    expect(targets.head.rotation.y).toBe(0)
+    layer.setChannels({ microTurn: true })
+    let moved = false
+    for (let i = 0; i < 60 * 20; i++) {
+      layer.update(H)
+      expect(Math.abs(targets.head.rotation.y)).toBeLessThanOrEqual(0.12 + 1e-9)
+      if (Math.abs(targets.head.rotation.y) > 1e-6) moved = true
+    }
+    expect(moved).toBe(true)
+  })
 })

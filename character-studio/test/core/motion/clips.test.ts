@@ -45,8 +45,8 @@ function channelInfo(anim: Animation) {
     return {
       bone: channel.getTargetNode()?.getName() ?? '',
       path: channel.getTargetPath(),
-      times: Array.from(input),
-      values: Array.from(output),
+      times: Array.from(input as Float32Array),
+      values: Array.from(output as Float32Array),
       components: output.length / input.length,
     }
   })
