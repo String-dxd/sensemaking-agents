@@ -45,4 +45,15 @@ describe('serializeSpec / parseSpec', () => {
   it('uses the <name>.character.json file extension contract', () => {
     expect(CHARACTER_FILE_EXTENSION).toBe('.character.json')
   })
+
+  it('round-trips studioLook (lights, environment, ambientFloor) including an explicit portraitCamera bookmark (plan 010)', () => {
+    const spec = createDefaultCharacter('biped-round', 'gentle')
+    spec.studioLook = {
+      ...spec.studioLook!,
+      portraitCamera: { position: [1.5, 2.1, 2.6], target: [0, 0.9, 0], fov: 28 },
+    }
+    const roundTripped = parseSpec(serializeSpec(spec))
+    expect(roundTripped.studioLook).toEqual(spec.studioLook)
+    expect(roundTripped.studioLook?.portraitCamera).toEqual({ position: [1.5, 2.1, 2.6], target: [0, 0.9, 0], fov: 28 })
+  })
 })

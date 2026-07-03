@@ -61,6 +61,24 @@ export const useToonStudio = create<ToonStudioState>((set) => ({
   setTerminatorWarmth: (terminatorWarmth) => set({ terminatorWarmth }),
 }))
 
+// Studio-level (NOT persisted) lighting-gizmo visibility (plan 010 step 3).
+// Always force-hidden in Play Mode regardless of this flag — Stage.tsx gates
+// on `usePlayStore().mode` too, this only controls the studio-mode toggle.
+export interface LightingStudioState {
+  showGizmos: boolean
+  setShowGizmos(show: boolean): void
+  /** Which light LightingPanel is editing; `null` -> the panel falls back to the first light. */
+  selectedLightId: string | null
+  setSelectedLightId(id: string | null): void
+}
+
+export const useLightingStudio = create<LightingStudioState>((set) => ({
+  showGizmos: true,
+  setShowGizmos: (showGizmos) => set({ showGizmos }),
+  selectedLightId: null,
+  setSelectedLightId: (selectedLightId) => set({ selectedLightId }),
+}))
+
 /** Safety net if a loaded spec omits a region (materials is a partial record). */
 export const FALLBACK_ASSIGN: MaterialAssign = {
   rampSoftness: 0.2,
