@@ -34,6 +34,10 @@ function Lighting() {
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
+        // Wrap lighting keeps grazing surfaces lit where the shadow map
+        // disagrees — without a normal bias that shows as dark acne speckle.
+        shadow-normalBias={0.06}
+        shadow-bias={-0.0002}
       />
     </>
   )
