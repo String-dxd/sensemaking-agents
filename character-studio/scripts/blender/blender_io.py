@@ -51,6 +51,24 @@ def build_armature(name: str, skel: dict) -> bpy.types.Object:
     return arm_obj
 
 
+def add_extra_bones(arm: bpy.types.Object, bones: list[tuple[str, str, "np.ndarray"]]) -> None:
+    """Append item-internal bones (plan 008 wardrobe spring chains) to an
+    already-built armature: (name, parent, head-in-our-Y-up-space). Same
+    conventions as build_armature (+Y tails, zero roll, identity rest)."""
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="EDIT")
+    edit_bones = arm.data.edit_bones
+    for name, parent, head in bones:
+        eb = edit_bones.new(name)
+        hx, hy, hz = (float(v) for v in head)
+        eb.head = Vector((hx, -hz, hy))
+        eb.tail = eb.head + Vector((0.0, 0.0, 0.03))
+        eb.roll = 0.0
+        eb.parent = edit_bones[parent]
+        eb.use_connect = False
+    bpy.ops.object.mode_set(mode="OBJECT")
+
+
 def _ensure_preview_materials() -> list[bpy.types.Material]:
     mats = []
     for idx in sorted(PREVIEW_COLORS):

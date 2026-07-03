@@ -14,7 +14,8 @@
     "gen:skeleton-json": "tsx scripts/export-skeleton-json.ts",
     "gen:face-atlas": "tsx scripts/generate-face-atlas.ts",
     "gen:assets": "pnpm gen:skeleton-json && /Applications/Blender.app/Contents/MacOS/Blender -b --python scripts/blender/gen_assets.py",
-    "gen:clips": "pnpm gen:skeleton-json && /Applications/Blender.app/Contents/MacOS/Blender -b --python scripts/blender/clips.py"
+    "gen:clips": "pnpm gen:skeleton-json && /Applications/Blender.app/Contents/MacOS/Blender -b --python scripts/blender/clips.py",
+    "gen:wardrobe": "pnpm gen:skeleton-json && /Applications/Blender.app/Contents/MacOS/Blender -b --python scripts/blender/wardrobe.py"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.0",
