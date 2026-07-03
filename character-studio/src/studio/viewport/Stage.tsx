@@ -1,16 +1,23 @@
 import { OrbitControls, Stats } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Suspense, useMemo } from 'react'
+import { type ComponentRef, Suspense, useMemo, useRef } from 'react'
 import { runFrame } from '../../core/motion/frameLoop'
+import { studioLookFromPreset } from '../../core/spec/lighting'
 import { AnatomyPanel } from '../panels/AnatomyPanel'
+import { LightingPanel } from '../panels/LightingPanel'
 import { MaterialPanel } from '../panels/MaterialPanel'
 import { WardrobePanel } from '../panels/WardrobePanel'
 import { PlayControls } from '../play/PlayControls'
 import { PlayMode } from '../play/PlayMode'
 import { usePlayStore } from '../play/playStore'
+import { useCharacterStore } from '../state/characterStore'
+import { useLightingStudio } from '../state/studioStores'
 import { CharacterRoot } from './CharacterRoot'
+import { LightGizmos, LightRig } from './LightRig'
 import { MotionDebugPanel } from './MotionDebugPanel'
 import { PostFX } from './PostFX'
+
+export type OrbitControlsHandle = ComponentRef<typeof OrbitControls>
 
 // Drives the plan-000 §2.2 ordered update registry (src/core/motion/frameLoop)
 // from r3f's render loop. Subsystems (procedural motion, spring-bone physics,
@@ -23,27 +30,20 @@ function FrameLoopDriver() {
   return null
 }
 
-// Minimal lit turntable stage: pedestal + camera + orbit controls. No HDRI
-// yet (see src/assets/hdri/README.md — plan 010 owns real lighting), so the
-// lighting rig here is a hemisphere + key directional light fallback.
-// The matte toon look (plan 000 §2.3 step 5) needs a HIGH ambient floor
-// (~0.45) so shadow-mapped/unlit areas stay pastel instead of going dirty —
-// warm sky, slightly violet ground bounce.
+// `LightRig` renders `CharacterSpec.studioLook` (plan 010) — the plan-001
+// hardcoded hemisphere + key-directional rig this replaced lived here.
+// Specs saved before plan 010 (or a defensive fallback) may omit
+// `studioLook`; fall back to the default preset rather than rendering an
+// unlit scene.
 function Lighting() {
+  const studioLook = useCharacterStore((s) => s.spec.studioLook)
+  const showGizmos = useLightingStudio((s) => s.showGizmos)
+  const playing = usePlayStore((s) => s.mode) === 'play'
+  const look = studioLook ?? studioLookFromPreset('three-point-soft')
   return (
     <>
-      <hemisphereLight intensity={0.9} groundColor="#7a6f8a" color="#fff4e6" />
-      <directionalLight
-        position={[2, 4, 3]}
-        intensity={2.2}
-        castShadow
-        shadow-mapSize-width={2048}
-        shadow-mapSize-height={2048}
-        // Wrap lighting keeps grazing surfaces lit where the shadow map
-        // disagrees — without a normal bias that shows as dark acne speckle.
-        shadow-normalBias={0.06}
-        shadow-bias={-0.0002}
-      />
+      <LightRig studioLook={look} />
+      {!playing && showGizmos ? <LightGizmos studioLook={look} /> : null}
     </>
   )
 }
@@ -62,11 +62,16 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
   const fxEnabled = useMemo(() => new URLSearchParams(window.location.search).get('fx') !== '0', [])
   const playing = usePlayStore((s) => s.mode) === 'play'
   const cameraPreset = usePlayStore((s) => s.cameraPreset)
+  // LightingPanel's portrait-camera bookmark (plan 010 step 4) reads/writes
+  // this instance directly (`.object` is the camera, `.target` the look-at
+  // point) — cheaper than a Canvas-side bridge since both are DOM-side
+  // imperative mutations picked up by the next frame of the always-running
+  // render loop (FrameLoopDriver already ticks every frame).
+  const orbitControlsRef = useRef<OrbitControlsHandle>(null)
 
   return (
     <>
       <Canvas shadows="soft" camera={{ fov: 35, position: [0, 1.2, 3.2] }}>
-        <color attach="background" args={['#1a1a1e']} />
         <FrameLoopDriver />
         <Lighting />
         <Pedestal />
@@ -80,7 +85,9 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
         </Suspense>
         {fxEnabled ? <PostFX /> : null}
         {/* follow/face presets drive the camera from PlayMode instead. */}
-        {!playing || cameraPreset === 'orbit' ? <OrbitControls target={[0, 0.7, 0]} /> : null}
+        {!playing || cameraPreset === 'orbit' ? (
+          <OrbitControls ref={orbitControlsRef} target={[0, 0.7, 0]} />
+        ) : null}
         {showStats ? <Stats /> : null}
       </Canvas>
       {/* Play Mode hides the editing panels (plan 007 step 5). */}
@@ -90,6 +97,7 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
           <MaterialPanel />
           <AnatomyPanel />
           <WardrobePanel />
+          <LightingPanel orbitControlsRef={orbitControlsRef} />
         </>
       )}
       <PlayControls />

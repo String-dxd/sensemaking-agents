@@ -5,6 +5,7 @@
 // invalid spec, so a schema change that silently breaks the factory fails
 // loudly here instead of downstream.
 
+import { DEFAULT_STUDIO_LOOK_PRESET, studioLookFromPreset } from './lighting'
 import type { SpringChainDef, SpringJointParams } from '../motion/springTypes'
 import {
   type Archetype,
@@ -258,6 +259,7 @@ export function createDefaultCharacter(archetype: Archetype, personality: Person
         gazeEnabled: true,
       },
     },
+    studioLook: studioLookFromPreset(DEFAULT_STUDIO_LOOK_PRESET),
   }
 
   return CharacterSpecSchema.parse(candidate)

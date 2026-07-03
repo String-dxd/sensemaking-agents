@@ -151,10 +151,24 @@ describe('CharacterSpecSchema — validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('allows studioLook to carry arbitrary passthrough data', () => {
+  it('rejects arbitrary studioLook data now that plan 010 gives it a real schema', () => {
     const spec = validSpec()
     const withStudioLook = { ...spec, studioLook: { anything: 'goes', nested: { a: 1 } } }
     const result = CharacterSpecSchema.safeParse(withStudioLook)
+    expect(result.success).toBe(false)
+  })
+
+  it('accepts a valid studioLook (default preset comes from createDefaultCharacter)', () => {
+    const spec = validSpec()
+    expect(spec.studioLook).toBeDefined()
+    const result = CharacterSpecSchema.safeParse(spec)
+    expect(result.success).toBe(true)
+  })
+
+  it('allows studioLook to be omitted (optional field)', () => {
+    const spec = validSpec()
+    const { studioLook: _studioLook, ...rest } = spec
+    const result = CharacterSpecSchema.safeParse(rest)
     expect(result.success).toBe(true)
   })
 })
