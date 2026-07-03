@@ -38,6 +38,11 @@ export interface PartDef {
   springProfile?: SpringJointParams
   /** Beaks ARE the mouth — hide the drawn mouth plane while equipped. */
   hidesMouth?: boolean
+  /**
+   * Muzzles only: extra radial offset (reference-space m) pushing the drawn
+   * mouth plane out to float on the muzzle front (FacePlacement.mouthRadialOffset).
+   */
+  mouthOffset?: number
 }
 
 const EAR_BONES = ['earL.1', 'earL.2', 'earR.1', 'earR.2'] as const satisfies readonly BoneName[]
@@ -105,6 +110,7 @@ export const PART_REGISTRY = {
     region: 'muzzle',
     attachTo: ['socket.muzzle'],
     morphs: ['length'],
+    mouthOffset: 0.09,
   },
   'boxy-dog': {
     slot: 'muzzle',
@@ -114,6 +120,7 @@ export const PART_REGISTRY = {
     region: 'muzzle',
     attachTo: ['socket.muzzle'],
     morphs: ['length'],
+    mouthOffset: 0.14,
   },
   'beak-small': {
     slot: 'muzzle',

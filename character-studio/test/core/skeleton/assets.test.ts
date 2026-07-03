@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { NodeIO, type Document } from '@gltf-transform/core'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { buildArchetypeSkeleton } from '../../../src/core/skeleton/archetypes'
-import { BODY_REGISTRY, PART_IDS, PART_REGISTRY } from '../../../src/core/skeleton/partRegistry'
+import { BODY_REGISTRY, PART_IDS, PART_REGISTRY, type PartDef } from '../../../src/core/skeleton/partRegistry'
 import { ARCHETYPES, BONE_NAMES, type Archetype } from '../../../src/core/spec/schema'
 
 const io = new NodeIO()
@@ -110,7 +110,7 @@ describe('anatomy part GLBs', () => {
   const authored = PART_IDS.filter((id) => PART_REGISTRY[id].url !== null)
 
   it.each(authored)('%s exists with its mask and fits the budgets', async (id) => {
-    const def = PART_REGISTRY[id]
+    const def: PartDef = PART_REGISTRY[id]
     const path = assetPath(def.url as string)
     expect(existsSync(path), path).toBe(true)
     expect(statSync(path).size).toBeLessThanOrEqual(MAX_GLB_BYTES)
@@ -120,7 +120,7 @@ describe('anatomy part GLBs', () => {
   })
 
   it.each(authored)('%s attachment structure matches its registry entry', async (id) => {
-    const def = PART_REGISTRY[id]
+    const def: PartDef = PART_REGISTRY[id]
     const doc = await io.read(assetPath(def.url as string))
     const root = doc.getRoot()
     if (def.skinnedTo) {
@@ -142,7 +142,7 @@ describe('anatomy part GLBs', () => {
   })
 
   it.each(authored)('%s morph targets match the registry morph list', async (id) => {
-    const def = PART_REGISTRY[id]
+    const def: PartDef = PART_REGISTRY[id]
     const doc = await io.read(assetPath(def.url as string))
     expect(morphNames(doc).sort()).toEqual([...def.morphs].sort())
   })

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BONE_NAMES, PART_SLOTS, REGIONS } from '../../../src/core/spec/schema'
+import type { PartDef } from '../../../src/core/skeleton/partRegistry'
 import {
   BODY_MORPHS,
   BODY_REGISTRY,
@@ -23,7 +24,7 @@ describe('part registry', () => {
 
   it('every entry has a valid slot and region', () => {
     for (const id of PART_IDS) {
-      const def = PART_REGISTRY[id]
+      const def: PartDef = PART_REGISTRY[id]
       expect(PART_SLOTS).toContain(def.slot)
       expect(REGIONS).toContain(def.region)
     }
@@ -31,7 +32,7 @@ describe('part registry', () => {
 
   it('references only canonical bones', () => {
     for (const id of PART_IDS) {
-      const def = PART_REGISTRY[id]
+      const def: PartDef = PART_REGISTRY[id]
       for (const bone of [...(def.skinnedTo ?? []), ...(def.attachTo ?? [])]) {
         expect(BONE_NAMES, `${id} references unknown bone ${bone}`).toContain(bone)
       }
@@ -40,7 +41,7 @@ describe('part registry', () => {
 
   it('parts are skinned XOR rigid XOR empty', () => {
     for (const id of PART_IDS) {
-      const def = PART_REGISTRY[id]
+      const def: PartDef = PART_REGISTRY[id]
       if (def.url === null) {
         expect(def.skinnedTo, id).toBeUndefined()
         expect(def.attachTo, id).toBeUndefined()
@@ -53,7 +54,7 @@ describe('part registry', () => {
 
   it('spring profiles only appear on spring-chain-skinned parts', () => {
     for (const id of PART_IDS) {
-      const def = PART_REGISTRY[id]
+      const def: PartDef = PART_REGISTRY[id]
       if (!def.springProfile) continue
       expect(def.skinnedTo, `${id} has springProfile but is not skinned`).toBeDefined()
       for (const bone of def.skinnedTo ?? []) {
@@ -65,8 +66,8 @@ describe('part registry', () => {
   })
 
   it('floppy ears are springier than upright ears (관상 of motion)', () => {
-    const floppy = PART_REGISTRY['floppy-long'].springProfile
-    const upright = PART_REGISTRY['upright-pointy'].springProfile
+    const floppy = getPart('floppy-long')?.springProfile
+    const upright = getPart('upright-pointy')?.springProfile
     expect(floppy && upright).toBeTruthy()
     if (floppy && upright) {
       expect(floppy.stiffness).toBeLessThan(upright.stiffness)
@@ -75,10 +76,10 @@ describe('part registry', () => {
   })
 
   it('beaks hide the drawn mouth; other muzzles do not', () => {
-    expect(PART_REGISTRY['beak-small'].hidesMouth).toBe(true)
-    expect(PART_REGISTRY['beak-round'].hidesMouth).toBe(true)
-    expect(PART_REGISTRY['short-cat'].hidesMouth).toBeUndefined()
-    expect(PART_REGISTRY['boxy-dog'].hidesMouth).toBeUndefined()
+    expect(getPart('beak-small')?.hidesMouth).toBe(true)
+    expect(getPart('beak-round')?.hidesMouth).toBe(true)
+    expect(getPart('short-cat')?.hidesMouth).toBeUndefined()
+    expect(getPart('boxy-dog')?.hidesMouth).toBeUndefined()
   })
 
   it('getPart resolves known ids and rejects unknown', () => {

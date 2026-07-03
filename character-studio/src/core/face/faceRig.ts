@@ -69,6 +69,11 @@ export interface FacePlacement {
   mouthElevation: number
   mouthWidth: number
   mouthHeight: number
+  /**
+   * Extra radial offset (m) for the mouth plane only — muzzle parts push the
+   * drawn mouth out so it floats on the muzzle front (plan 006 anchor config).
+   */
+  mouthRadialOffset: number
 }
 
 const DEG = Math.PI / 180
@@ -84,6 +89,7 @@ export const DEFAULT_PLACEMENT: FacePlacement = {
   mouthElevation: -18 * DEG,
   mouthWidth: 32 * DEG,
   mouthHeight: 24 * DEG,
+  mouthRadialOffset: 0,
 }
 
 export interface FaceRigConfig {
@@ -200,7 +206,7 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
   const pupilR = addPlane('pupilR', pupilMatR, p.eyeAzimuth, p.eyeElevation, p.eyeWidth, p.eyeHeight, above, true, 2)
   addPlane('browL', browMatL, -p.eyeAzimuth, p.eyeElevation + p.browLift, p.browWidth, p.browHeight, base, false, 1)
   addPlane('browR', browMatR, p.eyeAzimuth, p.eyeElevation + p.browLift, p.browWidth, p.browHeight, base, true, 1)
-  addPlane('mouth', mouthMat, 0, p.mouthElevation, p.mouthWidth, p.mouthHeight, base, false, 1)
+  addPlane('mouth', mouthMat, 0, p.mouthElevation, p.mouthWidth, p.mouthHeight, base + p.mouthRadialOffset, false, 1)
 
   // --- expression state ---------------------------------------------------
 
