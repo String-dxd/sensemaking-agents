@@ -21,7 +21,7 @@ honor its STOP conditions, and update your row below when done.
 | 003 | Spring-bone secondary motion | 1 | P1 | L | 001 | **Fable 5** | DONE (merged to `feat/character-studio` in `aa83f08`) |
 | 004 | CharacterSpec data model | 2 | P1 | M | 002, 003 | Sonnet 5 | DONE (merged to `feat/character-studio` at `f1631cf`, incl. 관상 personality) |
 | 005 | Toon rendering & materials | 2 | P1 | L | 001, 002, 004 | **Fable 5** | DONE (merged to `feat/character-studio` at `ed2f6df`) |
-| 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | DONE-pending-visual (executed on `advisor/006-anatomy-archetypes` via headless local Blender — MCP addon wasn't connected; 194 tests green; dog/bird/rabbit assemble live with 관상 faces; operator look-review pending) |
+| 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `5d9d792`; operator approved visuals + plan-000 §5 shoulder amendment) |
 | 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | TODO |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | Sonnet 5 (Opus 4.8 if authoring meshes) | TODO |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |
@@ -33,21 +33,30 @@ Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
-**Session handoff (updated 2026-07-03):** Plans 001–005 executed, reviewed,
-and merged to `feat/character-studio` (through `ed2f6df`; 100/100 tests).
-Next: **plan 006** (Fable 5 + Blender MCP — archetype bodies, anatomy parts,
-관상 face-atlas variants per plan 000 §2.1b and 006 step 3b). Execution
-pattern: dispatch an executor subagent per plan (isolated worktree branching
-from current `feat/character-studio` HEAD, model per this table, inline the
-full plan text in the prompt), review like a tech lead (re-run gates in the
-worktree, scope-check the diff, audit tests, judge look/motion screenshots
-saved to the session scratchpad), merge only with operator approval, keep
-this table current. Operator directions in force: quality over cost (premium
-executors for aesthetic-gated plans), 관상 faces, screenshots to the operator
-(often on mobile) with every visual verdict. Small known debts: panel overlap
-+ FacePanel style warning (absorbed into plan 012), `Math.random` core guard
+**Session handoff (updated 2026-07-03):** Plans 001–006 executed, reviewed,
+and merged to `feat/character-studio` (through `5d9d792`; 194/194 tests).
+Next: **plan 007** (Fable 5 + Blender MCP — animation clips + Play Mode).
+Blender note: the MCP live addon wasn't connected for 006; headless local
+Blender 5.1.2 (`/Applications/Blender.app/Contents/MacOS/Blender -b
+--python …`) worked fine and all assets regenerate via `pnpm gen:assets`.
+Plan-007 executor MUST read plan 000 §5's two new notes: shoulders are now
+children of chest (2026-07-03 amendment, operator-approved), and animation
+track names must use `.bones[earL.1].quaternion` subscript syntax (GLTFLoader
+strips dots; dotted paths break PropertyBinding). Execution pattern: dispatch
+an executor subagent per plan (isolated worktree branching from current
+`feat/character-studio` HEAD, model per this table, inline the full plan text
+in the prompt), review like a tech lead (re-run gates in the worktree,
+scope-check the diff, audit tests, judge look/motion screenshots saved to the
+session scratchpad), merge only with operator approval, keep this table
+current. Operator directions in force: quality over cost (premium executors
+for aesthetic-gated plans), 관상 faces, screenshots to the operator (often on
+mobile) with every visual verdict. Small known debts: panel overlap +
+FacePanel style warning (absorbed into plan 012), `Math.random` core guard
 test doesn't exist yet (rule honored manually), absolute-60fps check pending
-operator's laptop (automation browser caps rAF at 30).
+operator's laptop (automation browser caps rAF at 30), body-level boneScales
+live on part entries (muzzle=head, claws=limbs — plan-004 schema gap, revisit
+in 009/012), shell-union bodies want a human sculpt pass at shoulders/hips
+(listed in ASSET-CONTRACT.md).
 
 **Executor model rationale**: Fable 5 wherever the plan's success gate is
 aesthetic or judgment-based (face, springs, sculpt, look, authored assets,
