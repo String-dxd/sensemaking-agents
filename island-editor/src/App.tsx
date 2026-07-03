@@ -206,7 +206,7 @@ export function App() {
     <div style={{ position: 'fixed', inset: 0 }}>
       <Canvas camera={{ position: [14, 11, 14], fov: 50 }}>
         <Backdrop />
-        <SeaSurface spec={spec} />
+        <SeaSurface key={`${spec.grid.cols}x${spec.grid.rows}`} spec={spec} />
         <IslandTerrain
           spec={spec}
           brushSize={brushSize}

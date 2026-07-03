@@ -42,9 +42,15 @@ export function createShoreDataTexture(field: ShoreField): THREE.DataTexture {
   return tex
 }
 
-/** Refresh an existing shore DataTexture in place (same resolution). */
+/** Refresh an existing shore DataTexture, reallocating the backing image if the
+ *  field's resolution has changed (e.g. an imported spec with different
+ *  `grid.cols`) — otherwise updates the buffer in place. */
 export function updateShoreDataTexture(tex: THREE.DataTexture, field: ShoreField): void {
-  ;(tex.image.data as Float32Array).set(field.data)
+  if ((tex.image.data as Float32Array).length !== field.data.length) {
+    tex.image = { data: field.data, width: field.res, height: field.res }
+  } else {
+    ;(tex.image.data as Float32Array).set(field.data)
+  }
   tex.needsUpdate = true
 }
 

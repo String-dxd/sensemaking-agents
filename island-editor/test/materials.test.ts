@@ -75,4 +75,30 @@ describe('SeaMaterial', () => {
     for (const v of data) if (v < 0) hasLand = true
     expect(hasLand).toBe(true)
   })
+
+  it('reallocates the DataTexture image when the field resolution changes', () => {
+    const small = { res: 8, data: new Float32Array(8 * 8).fill(1) }
+    const tex = createShoreDataTexture(small)
+    const versionBefore = tex.version
+
+    const larger = { res: 16, data: new Float32Array(16 * 16).fill(-2) }
+    expect(() => updateShoreDataTexture(tex, larger)).not.toThrow()
+    expect(tex.image.width).toBe(16)
+    expect(tex.image.height).toBe(16)
+    expect((tex.image.data as Float32Array).length).toBe(256)
+    expect(tex.version).toBeGreaterThan(versionBefore) // needsUpdate bumped
+  })
+
+  it('updates the DataTexture buffer in place when the field resolution is unchanged', () => {
+    const field = { res: 8, data: new Float32Array(8 * 8).fill(1) }
+    const tex = createShoreDataTexture(field)
+    const versionBefore = tex.version
+
+    const sameSize = { res: 8, data: new Float32Array(8 * 8).fill(-3) }
+    const dataBefore = tex.image.data
+    updateShoreDataTexture(tex, sameSize)
+    expect(tex.image.data).toBe(dataBefore) // same buffer identity: in-place path
+    expect((tex.image.data as Float32Array)[0]).toBe(-3)
+    expect(tex.version).toBeGreaterThan(versionBefore) // needsUpdate bumped
+  })
 })
