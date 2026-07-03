@@ -2,12 +2,13 @@
 // when plan 006's CharacterRoot took over mounting the character. Both body
 // components publish their live motion handles here; DOM panels consume them.
 
+import type { Object3D } from 'three'
 import { create } from 'zustand'
 import { DEFAULT_TERMINATOR_WARMTH } from '../../core/materials'
 import type { IdleLayer } from '../../core/motion/proceduralIdle'
 import type { SpringRig } from '../../core/motion/springSolver'
 import type { SpringChainDef } from '../../core/motion/springTypes'
-import type { MaterialAssign } from '../../core/spec/schema'
+import type { BoneName, MaterialAssign } from '../../core/spec/schema'
 
 /** Temporary body movers (plan 003 step 4, stand-ins for plan-007 clips). */
 export interface BodyMover {
@@ -20,16 +21,32 @@ export interface BodyMover {
   toggleWalk(): boolean
 }
 
-/** Live handles for the MotionDebugPanel (populated once a body mounts). */
+/** The live assembled character, published by CharacterRoot per assembly. */
+export interface CharacterHandle {
+  root: Object3D
+  boneByName: Map<BoneName, Object3D>
+  /** Hips rest LOCAL position captured at assembly (before any animation) —
+   * the clip machine's hipsRebase target (plan 007). */
+  hipsRest: readonly [number, number, number]
+}
+
+/** Live handles for the MotionDebugPanel + Play Mode (populated once a body mounts). */
 export interface MotionStudioState {
   rig: SpringRig | null
   idle: IdleLayer | null
   mover: BodyMover | null
+  character: CharacterHandle | null
   /** The chain defs the live rig was created with (panel group discovery). */
   chains: SpringChainDef[]
 }
 
-export const useMotionStudio = create<MotionStudioState>(() => ({ rig: null, idle: null, mover: null, chains: [] }))
+export const useMotionStudio = create<MotionStudioState>(() => ({
+  rig: null,
+  idle: null,
+  mover: null,
+  character: null,
+  chains: [],
+}))
 
 // Studio-level shading control: terminatorWarmth is a factory uniform, not a
 // spec MaterialAssign field (a spec field needs a SPEC_VERSION bump — plan 004

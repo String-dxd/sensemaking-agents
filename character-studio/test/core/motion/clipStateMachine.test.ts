@@ -185,15 +185,28 @@ describe('createClipMachine', () => {
     expect(spine.quaternion.angleTo(before)).toBeLessThan(2e-3)
   })
 
-  it('rescales hips translation by hipsScale (archetype proportions)', () => {
+  it('rebases hips translation onto the archetype rest offset (proportions)', () => {
     const a = makeRig()
     const b = makeRig()
     const machineA = createClipMachine(a.mixer, makeClipSet())
-    const machineB = createClipMachine(b.mixer, makeClipSet(), { hipsScale: 0.5 })
+    const machineB = createClipMachine(b.mixer, makeClipSet(), {
+      hipsRebase: { from: [0, 0.34, 0], to: [0, 0.272, 0] },
+    })
     machineA.update(H)
     machineB.update(H)
     expect(a.hips.position.y).toBeCloseTo(0.34, 5)
-    expect(b.hips.position.y).toBeCloseTo(0.17, 5)
+    // Baseline lands exactly on the live rest; the (zero) delta stays zero.
+    expect(b.hips.position.y).toBeCloseTo(0.272, 5)
+    // A clip with a translation DELTA scales it by the height ratio.
+    const c = makeRig()
+    const machineC = createClipMachine(c.mixer, makeClipSet(), {
+      hipsRebase: { from: [0, 0.34, 0], to: [0, 0.17, 0] },
+    })
+    machineC.setState('sit')
+    // step to the middle of sitDown, whose synthetic clip keys hips y at 0.15
+    for (let i = 0; i < 30; i++) machineC.update(H)
+    // authored delta -0.19 × ratio 0.5 → -0.095 from the live rest 0.17
+    expect(c.hips.position.y).toBeCloseTo(0.17 - 0.095, 5)
   })
 
   it('setLocomotionTimeScale speeds up walk/run only', () => {

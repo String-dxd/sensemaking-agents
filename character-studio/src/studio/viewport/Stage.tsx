@@ -4,6 +4,9 @@ import { Suspense, useMemo } from 'react'
 import { runFrame } from '../../core/motion/frameLoop'
 import { AnatomyPanel } from '../panels/AnatomyPanel'
 import { MaterialPanel } from '../panels/MaterialPanel'
+import { PlayControls } from '../play/PlayControls'
+import { PlayMode } from '../play/PlayMode'
+import { usePlayStore } from '../play/playStore'
 import { CharacterRoot } from './CharacterRoot'
 import { MotionDebugPanel } from './MotionDebugPanel'
 import { PostFX } from './PostFX'
@@ -56,6 +59,8 @@ function Pedestal() {
 export function Stage({ showStats = false }: { showStats?: boolean }) {
   // `?fx=0` disables the whole post stack (perf A/B — plan 005 step 4).
   const fxEnabled = useMemo(() => new URLSearchParams(window.location.search).get('fx') !== '0', [])
+  const playing = usePlayStore((s) => s.mode) === 'play'
+  const cameraPreset = usePlayStore((s) => s.cameraPreset)
 
   return (
     <>
@@ -69,13 +74,23 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
         <Suspense fallback={null}>
           <CharacterRoot />
         </Suspense>
+        <Suspense fallback={null}>
+          <PlayMode />
+        </Suspense>
         {fxEnabled ? <PostFX /> : null}
-        <OrbitControls target={[0, 0.7, 0]} />
+        {/* follow/face presets drive the camera from PlayMode instead. */}
+        {!playing || cameraPreset === 'orbit' ? <OrbitControls target={[0, 0.7, 0]} /> : null}
         {showStats ? <Stats /> : null}
       </Canvas>
-      <MotionDebugPanel />
-      <MaterialPanel />
-      <AnatomyPanel />
+      {/* Play Mode hides the editing panels (plan 007 step 5). */}
+      {playing ? null : (
+        <>
+          <MotionDebugPanel />
+          <MaterialPanel />
+          <AnatomyPanel />
+        </>
+      )}
+      <PlayControls />
     </>
   )
 }

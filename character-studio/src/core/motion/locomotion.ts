@@ -97,15 +97,14 @@ export function createLocomotion(root: Object3D, options: LocomotionOptions = {}
       speed += Math.abs(delta) <= maxStep ? delta : Math.sign(delta) * maxStep
       updateGait()
 
-      if (speed > 0) {
-        theta += (speed / radius) * dt
-        // Circle through home: centre at home + radius to the character's
-        // rest-heading left (-X for a +Z-facing character at theta 0).
-        root.position.x = home.x + radius * (Math.cos(theta) - 1)
-        root.position.z = home.z + radius * Math.sin(theta)
-        // Heading = tangent of travel (d/dθ of the position above).
-        root.rotation.y = homeYaw - theta
-      }
+      theta += (speed / radius) * dt
+      // Circle through home, centre on the -X side of it. Written every
+      // frame (even at speed 0) so this layer owns the root pose while
+      // active — stale debug movers can't fight it.
+      root.position.x = home.x + radius * (Math.cos(theta) - 1)
+      root.position.z = home.z + radius * Math.sin(theta)
+      // Heading = tangent of travel (d/dθ of the position above).
+      root.rotation.y = homeYaw - theta
     },
     setTargetSpeed(v: number): void {
       targetSpeed = clampSpeed(v)

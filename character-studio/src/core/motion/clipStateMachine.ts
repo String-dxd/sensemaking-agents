@@ -2,11 +2,13 @@
 // three-layer motion stack (plan 000 §2.2: animation drives, physics follows).
 //
 // One canonical clip set (core-v1, authored in scripts/blender/clips.py on
-// the canonical skeleton) plays on every archetype — NO retargeting anywhere.
-// Rotations transfer as-is; the only proportion-dependent data is the hips
-// translation track, which `hipsScale` rescales at construction (archetype
-// hips rest height / reference hips rest height — pure uniform resize of the
-// same skeleton, not a mapping between rigs).
+// the canonical skeleton) plays as-is on every archetype (plan 000 §2.2:
+// one skeleton, clips authored once — never remapped between rigs).
+// Rotations transfer untouched; the only proportion-dependent data is the
+// hips translation track, which `hipsRebase` rewrites at construction:
+// value' = liveRest + (value − referenceRest) · deltaScale — the baseline
+// lands exactly on the archetype's hips rest offset and the authored bounce/
+// sway deltas scale with body height.
 //
 // Layering:
 //   - BASE layer: one looping action per state (idle/walk/run/sitIdle/
@@ -72,14 +74,18 @@ function fadeBetween(a: MachineState, b: MachineState): number {
   return PAIR_FADES[`${a}|${b}`] ?? PAIR_FADES[`${b}|${a}`] ?? DEFAULT_FADE
 }
 
+export interface HipsRebase {
+  /** Reference-skeleton hips rest local position (canonical: [0, 0.34, 0]). */
+  from: readonly [number, number, number]
+  /** Live skeleton's hips rest local position (captured at assembly). */
+  to: readonly [number, number, number]
+  /** Delta multiplier; defaults to to[1] / from[1] (body-height ratio). */
+  deltaScale?: number
+}
+
 export interface ClipMachineOptions {
-  /**
-   * Multiplier for hips translation track values (archetype hips rest height
-   * over reference hips rest height, 0.34). Values are rest+delta, and the
-   * archetype hips rest offset is the reference offset uniformly scaled, so
-   * one ratio rescales both correctly.
-   */
-  hipsScale?: number
+  /** Rewrite hips translation tracks for archetype proportions (see header). */
+  hipsRebase?: HipsRebase
   /** Fallback mode: play gestures on the base layer instead of additively. */
   fullBodyGestures?: boolean
 }
@@ -113,7 +119,7 @@ export function createClipMachine(
   clips: AnimationClip[],
   options: ClipMachineOptions = {},
 ): ClipMachine {
-  const { hipsScale = 1, fullBodyGestures = false } = options
+  const { hipsRebase, fullBodyGestures = false } = options
 
   const byName = new Map<string, AnimationClip>()
   for (const clip of clips) byName.set(clip.name, clip)
@@ -124,10 +130,16 @@ export function createClipMachine(
   // Clone before mutating: loaded clips are shared by the asset cache.
   function prepared(name: string): AnimationClip {
     const clip = byName.get(name)!.clone()
-    if (hipsScale !== 1) {
+    if (hipsRebase) {
+      const { from, to } = hipsRebase
+      const deltaScale = hipsRebase.deltaScale ?? to[1] / from[1]
       for (const track of clip.tracks) {
-        if (track.name.endsWith('.position')) {
-          for (let i = 0; i < track.values.length; i++) track.values[i] *= hipsScale
+        if (!track.name.endsWith('.position')) continue
+        // Translation is only authored on hips (clip-contract, test-enforced).
+        for (let i = 0; i < track.values.length; i += 3) {
+          track.values[i] = to[0] + (track.values[i] - from[0]) * deltaScale
+          track.values[i + 1] = to[1] + (track.values[i + 1] - from[1]) * deltaScale
+          track.values[i + 2] = to[2] + (track.values[i + 2] - from[2]) * deltaScale
         }
       }
     }
