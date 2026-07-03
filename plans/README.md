@@ -22,7 +22,7 @@ honor its STOP conditions, and update your row below when done.
 | 004 | CharacterSpec data model | 2 | P1 | M | 002, 003 | Sonnet 5 | DONE (merged to `feat/character-studio` at `f1631cf`, incl. 관상 personality) |
 | 005 | Toon rendering & materials | 2 | P1 | L | 001, 002, 004 | **Fable 5** | DONE (merged to `feat/character-studio` at `ed2f6df`) |
 | 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `5d9d792`; operator approved visuals + plan-000 §5 shoulder amendment) |
-| 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | DONE-pending-visual (branch `advisor/007-animation-play-mode`; 24 files / 266 tests green; core-v1 clips + machine + locomotion/foot-IK + talk + Play Mode; soak watched 3.5 min at 30 fps, videos in session scratchpad `plan007/`) |
+| 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `0498c14`; operator approved soak/settle/talk videos; 60 fps feel check remains a standing note) |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | Sonnet 5 (Opus 4.8 if authoring meshes) | TODO |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | TODO |
@@ -33,16 +33,21 @@ Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
-**Session handoff (updated 2026-07-03):** Plans 001–006 executed, reviewed,
-and merged to `feat/character-studio` (through `5d9d792`; 194/194 tests).
-Next: **plan 007** (Fable 5 + Blender MCP — animation clips + Play Mode).
-Blender note: the MCP live addon wasn't connected for 006; headless local
-Blender 5.1.2 (`/Applications/Blender.app/Contents/MacOS/Blender -b
---python …`) worked fine and all assets regenerate via `pnpm gen:assets`.
-Plan-007 executor MUST read plan 000 §5's two new notes: shoulders are now
-children of chest (2026-07-03 amendment, operator-approved), and animation
-track names must use `.bones[earL.1].quaternion` subscript syntax (GLTFLoader
-strips dots; dotted paths break PropertyBinding). Execution pattern: dispatch
+**Session handoff (updated 2026-07-03):** Plans 001–007 executed, reviewed,
+and merged to `feat/character-studio` (through `0498c14`; 266/266 tests).
+Next: **plan 008** (wardrobe & accessories — Sonnet 5, or Opus 4.8/Fable 5 if
+authoring meshes; in practice 006/007 authored meshes headlessly, so expect
+mesh authoring here too). Blender note: the MCP live addon has not been
+connected all session; headless local Blender 5.1.2
+(`/Applications/Blender.app/Contents/MacOS/Blender -b --python …`) works and
+all assets regenerate (`pnpm gen:assets`, clips via
+`scripts/blender/clips.py`). Motion stack facts a wardrobe executor needs:
+clip machine + locomotion + foot IK + talk driver live in `src/core/motion/`;
+gestures are additive (`makeClipAdditive` held); hips translation is rebased
+per archetype at machine construction (`hipsRebase`); idle layer has
+channel gating (`IdleChannels`) so Play Mode runs breath-only; wardrobe
+meshes mount on `socket.*` bones and spring-cloth chains follow plan 003
+conventions. Execution pattern: dispatch
 an executor subagent per plan (isolated worktree branching from current
 `feat/character-studio` HEAD, model per this table, inline the full plan text
 in the prompt), review like a tech lead (re-run gates in the worktree,
