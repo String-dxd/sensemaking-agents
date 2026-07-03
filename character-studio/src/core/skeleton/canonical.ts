@@ -74,7 +74,7 @@ const W: Record<BoneName, readonly [number, number, number]> = {
   'socket.handR': [-0.315, 0.405, 0],
 }
 
-/** Parent of each bone — plan 000 §5's tree, verbatim. */
+/** Parent of each bone — plan 000 §5's tree, verbatim (incl. 2026-07-03 amendment: shoulders under chest). */
 export const BONE_PARENTS: Record<BoneName, BoneName | null> = {
   root: null,
   hips: 'root',
@@ -90,12 +90,12 @@ export const BONE_PARENTS: Record<BoneName, BoneName | null> = {
   'socket.hat': 'head',
   'socket.face': 'head',
   'socket.muzzle': 'head',
-  shoulderL: 'hips',
+  shoulderL: 'chest',
   upperArmL: 'shoulderL',
   foreArmL: 'upperArmL',
   handL: 'foreArmL',
   'socket.handL': 'handL',
-  shoulderR: 'hips',
+  shoulderR: 'chest',
   upperArmR: 'shoulderR',
   foreArmR: 'upperArmR',
   handR: 'foreArmR',

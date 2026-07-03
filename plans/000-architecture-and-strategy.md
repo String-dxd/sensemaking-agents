@@ -215,20 +215,34 @@ procedural generation (the prior attempt's trap). Our pipeline:
 root
 └─ hips
    ├─ spine ─ chest ─ neck ─ head
-   │                          ├─ earL.1 ─ earL.2          (spring chain)
-   │                          ├─ earR.1 ─ earR.2          (spring chain)
-   │                          ├─ jaw                       (optional, mostly unused — mouth is atlas)
-   │                          ├─ socket.hat
-   │                          ├─ socket.face               (glasses etc.)
-   │                          └─ socket.muzzle             (muzzle/beak attachment)
-   ├─ shoulderL ─ upperArmL ─ foreArmL ─ handL ─ socket.handL
-   ├─ shoulderR ─ upperArmR ─ foreArmR ─ handR ─ socket.handR
+   │            │             ├─ earL.1 ─ earL.2          (spring chain)
+   │            │             ├─ earR.1 ─ earR.2          (spring chain)
+   │            │             ├─ jaw                       (optional, mostly unused — mouth is atlas)
+   │            │             ├─ socket.hat
+   │            │             ├─ socket.face               (glasses etc.)
+   │            │             └─ socket.muzzle             (muzzle/beak attachment)
+   │            ├─ shoulderL ─ upperArmL ─ foreArmL ─ handL ─ socket.handL
+   │            └─ shoulderR ─ upperArmR ─ foreArmR ─ handR ─ socket.handR
    ├─ upperLegL ─ lowerLegL ─ footL ─ toesL
    ├─ upperLegR ─ lowerLegR ─ footR ─ toesR
    ├─ tail.1 ─ tail.2 ─ tail.3 ─ tail.4                    (spring chain)
    └─ socket.back                                           (backpacks, wings-accessory)
 chest additionally carries: socket.torso (shirts anchor), breath scale target
 ```
+
+**Amendment (2026-07-03, during plan 006 execution, operator-approved):**
+`shoulderL/R` are children of **chest**, not hips — the original tree drew the
+arm chains as siblings of `spine`, which was an ASCII-indentation accident:
+it would have meant chest rotation (torso lean, breathing) never moves the
+arms, which every plan-007 clip would fight. Amended before any clips exist,
+so nothing re-exports. Reference-space rest world positions are unchanged
+(canonical.ts stores world positions and derives locals).
+
+**Loader note for plan 007 (from plan 006 execution):** three's `GLTFLoader`
+strips dots from node names at load (`earL.1` → `earL1`); assembly restores
+canonical names on its clones, but dotted bone names are hostile to
+`PropertyBinding` track-name parsing — animation track names must use the
+subscript form `.bones[earL.1].quaternion`, never the dotted path form.
 
 Rules: bone names are exact and case-sensitive; archetypes may leave chains
 unused (a bird archetype ignores `earL/R`, uses `tail.*` for tail feathers)
