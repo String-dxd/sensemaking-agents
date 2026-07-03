@@ -48,6 +48,7 @@ import {
   type WeldSpaceTopology,
 } from '../../core/sculpt'
 import { studioCommands } from '../state/commandStore'
+import { useLatticeStore } from '../state/latticeStore'
 import {
   commitSculptToSpec,
   finalizeSculptVisuals,
@@ -430,6 +431,9 @@ function SculptToolImpl({ session }: { session: SculptSession }) {
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return
+      // A live lattice session owns the delta on its bound vertices
+      // (absolute preview writes) — brushes wait until apply/cancel.
+      if (useLatticeStore.getState().session) return
       const found = raycastBrush(e)
       if (!found) return
       e.preventDefault()
