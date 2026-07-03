@@ -431,6 +431,139 @@ export function currentGroupX(space: WeldSpaceTopology, group: number, component
   return layer.basePositions[v * 3 + component] + layer.delta[v * 3 + component]
 }
 
+/**
+ * Recompute render normals for EVERY target of a weld space from current
+ * positions — angle-weighted face normals accumulated per WELD GROUP across
+ * all geometries, so shading never splits at UV seams or submesh/primitive
+ * boundaries (the per-geometry variant in deltaLayer.ts cannot see across
+ * geometries). Uses the cached topology: no hashing, no allocation beyond
+ * one accumulator — fast enough to run throttled during a drag. Updates the
+ * `normal` attribute and, where present, the plan-005 `aSmoothedNormal`
+ * outline attribute.
+ */
+export function recomputeWeldedNormals(space: WeldSpaceTopology): void {
+  const accum = new Float32Array(space.groupCount * 3)
+
+  for (let t = 0; t < space.targets.length; t++) {
+    const target = space.targets[t]
+    const offset = space.offsets[t]
+    const position = target.layer.geometry.getAttribute('position')
+    const index = target.layer.geometry.getIndex()
+    const triVerts = index ? index.count : position.count
+    const vertexAt = (i: number) => (index ? index.getX(i) : i)
+
+    for (let i = 0; i < triVerts; i += 3) {
+      const a = vertexAt(i)
+      const b = vertexAt(i + 1)
+      const c = vertexAt(i + 2)
+      const ax = position.getX(a)
+      const ay = position.getY(a)
+      const az = position.getZ(a)
+      const bx = position.getX(b)
+      const by = position.getY(b)
+      const bz = position.getZ(b)
+      const cx = position.getX(c)
+      const cy = position.getY(c)
+      const cz = position.getZ(c)
+      // face normal = (b-a) × (c-a)
+      const abx = bx - ax
+      const aby = by - ay
+      const abz = bz - az
+      const acx = cx - ax
+      const acy = cy - ay
+      const acz = cz - az
+      let nx = aby * acz - abz * acy
+      let ny = abz * acx - abx * acz
+      let nz = abx * acy - aby * acx
+      const len = Math.hypot(nx, ny, nz)
+      if (len === 0) continue
+      nx /= len
+      ny /= len
+      nz /= len
+
+      // corner angles (angle-weighted accumulation, artifact-free at poles)
+      const corner = (
+        ox: number,
+        oy: number,
+        oz: number,
+        px: number,
+        py: number,
+        pz: number,
+        qx: number,
+        qy: number,
+        qz: number,
+      ) => {
+        const ux = px - ox
+        const uy = py - oy
+        const uz = pz - oz
+        const vx = qx - ox
+        const vy = qy - oy
+        const vz = qz - oz
+        const dot = ux * vx + uy * vy + uz * vz
+        const lu = Math.hypot(ux, uy, uz)
+        const lv = Math.hypot(vx, vy, vz)
+        if (lu === 0 || lv === 0) return 0
+        return Math.acos(Math.min(Math.max(dot / (lu * lv), -1), 1))
+      }
+      const wa = corner(ax, ay, az, bx, by, bz, cx, cy, cz)
+      const wb = corner(bx, by, bz, cx, cy, cz, ax, ay, az)
+      const wc = corner(cx, cy, cz, ax, ay, az, bx, by, bz)
+
+      const ga = space.groupOf[offset + a] * 3
+      accum[ga] += nx * wa
+      accum[ga + 1] += ny * wa
+      accum[ga + 2] += nz * wa
+      const gb = space.groupOf[offset + b] * 3
+      accum[gb] += nx * wb
+      accum[gb + 1] += ny * wb
+      accum[gb + 2] += nz * wb
+      const gc = space.groupOf[offset + c] * 3
+      accum[gc] += nx * wc
+      accum[gc + 1] += ny * wc
+      accum[gc + 2] += nz * wc
+    }
+  }
+
+  for (let t = 0; t < space.targets.length; t++) {
+    const target = space.targets[t]
+    const offset = space.offsets[t]
+    const geometry = target.layer.geometry
+    const normal = geometry.getAttribute('normal') as { array: Float32Array; needsUpdate: boolean } | undefined
+    if (!normal) continue
+    const hull = geometry.getAttribute('aSmoothedNormal') as
+      | { array: Float32Array; needsUpdate: boolean }
+      | undefined
+    const out = normal.array
+    const count = target.layer.basePositions.length / 3
+    for (let v = 0; v < count; v++) {
+      const g = space.groupOf[offset + v] * 3
+      let nx = accum[g]
+      let ny = accum[g + 1]
+      let nz = accum[g + 2]
+      const len = Math.hypot(nx, ny, nz)
+      if (len === 0) {
+        nx = 0
+        ny = 1
+        nz = 0
+      } else {
+        nx /= len
+        ny /= len
+        nz /= len
+      }
+      out[v * 3] = nx
+      out[v * 3 + 1] = ny
+      out[v * 3 + 2] = nz
+      if (hull) {
+        hull.array[v * 3] = nx
+        hull.array[v * 3 + 1] = ny
+        hull.array[v * 3 + 2] = nz
+      }
+    }
+    normal.needsUpdate = true
+    if (hull) hull.needsUpdate = true
+  }
+}
+
 /** Current local positions (3·k) for a list of groups. */
 export function currentGroupPositions(space: WeldSpaceTopology, groups: Uint32Array): Float32Array {
   const out = new Float32Array(groups.length * 3)

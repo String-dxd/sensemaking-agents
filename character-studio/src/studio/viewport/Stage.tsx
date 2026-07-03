@@ -1,16 +1,20 @@
 import { OrbitControls, Stats } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Suspense, useMemo } from 'react'
+import { Suspense, useEffect, useMemo } from 'react'
 import { runFrame } from '../../core/motion/frameLoop'
 import { AnatomyPanel } from '../panels/AnatomyPanel'
 import { MaterialPanel } from '../panels/MaterialPanel'
+import { SculptPanel } from '../panels/SculptPanel'
 import { WardrobePanel } from '../panels/WardrobePanel'
 import { PlayControls } from '../play/PlayControls'
 import { PlayMode } from '../play/PlayMode'
 import { usePlayStore } from '../play/playStore'
+import { useSculptStore } from '../state/sculptStore'
 import { CharacterRoot } from './CharacterRoot'
+import { LatticeTool } from './LatticeTool'
 import { MotionDebugPanel } from './MotionDebugPanel'
 import { PostFX } from './PostFX'
+import { SculptTool } from './SculptTool'
 
 // Drives the plan-000 §2.2 ordered update registry (src/core/motion/frameLoop)
 // from r3f's render loop. Subsystems (procedural motion, spring-bone physics,
@@ -63,6 +67,12 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
   const playing = usePlayStore((s) => s.mode) === 'play'
   const cameraPreset = usePlayStore((s) => s.cameraPreset)
 
+  // Play Mode force-exits sculpt mode (its motion drivers need the springs
+  // and idle layer that sculpting pauses).
+  useEffect(() => {
+    if (playing) useSculptStore.getState().setActive(false)
+  }, [playing])
+
   return (
     <>
       <Canvas shadows="soft" camera={{ fov: 35, position: [0, 1.2, 3.2] }}>
@@ -78,9 +88,16 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
         <Suspense fallback={null}>
           <PlayMode />
         </Suspense>
+        {playing ? null : (
+          <>
+            <SculptTool />
+            <LatticeTool />
+          </>
+        )}
         {fxEnabled ? <PostFX /> : null}
-        {/* follow/face presets drive the camera from PlayMode instead. */}
-        {!playing || cameraPreset === 'orbit' ? <OrbitControls target={[0, 0.7, 0]} /> : null}
+        {/* follow/face presets drive the camera from PlayMode instead.
+            makeDefault lets the sculpt/lattice tools rebind its buttons. */}
+        {!playing || cameraPreset === 'orbit' ? <OrbitControls makeDefault target={[0, 0.7, 0]} /> : null}
         {showStats ? <Stats /> : null}
       </Canvas>
       {/* Play Mode hides the editing panels (plan 007 step 5). */}
@@ -90,6 +107,7 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
           <MaterialPanel />
           <AnatomyPanel />
           <WardrobePanel />
+          <SculptPanel />
         </>
       )}
       <PlayControls />
