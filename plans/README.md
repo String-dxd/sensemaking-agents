@@ -24,7 +24,7 @@ honor its STOP conditions, and update your row below when done.
 | 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `5d9d792`; operator approved visuals + plan-000 §5 shoulder amendment) |
 | 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `0498c14`; operator approved soak/settle/talk videos; 60 fps feel check remains a standing note) |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | **Fable 5** + headless Blender | DONE (merged to `feat/character-studio` at `fd93885`; operator approved dressed-motion videos + the slimmer post-morph-fix silhouette) |
-| 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |
+| 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | DONE-pending-visual (command stack + delta layer + geodesic brushes + FFD lattice; step-6 gate run: pot-belly+jowls+asymmetric-ear survives morphs/archetype-round-trip/Play-Mode, undo lossless, geodesic pick 0.08–1.30 ms; 380 tests) |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | TODO |
 | 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | TODO |
 | 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | TODO |
