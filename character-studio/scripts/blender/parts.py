@@ -95,12 +95,13 @@ def ears_upright_pointy(skel: dict):
 def ears_floppy_long(skel: dict):
     j = joints(skel)
     root = j["earL.1"]
-    L = 0.30
-    ear = capsule_along("earL", tuple(root), tuple(root + np.array([0, L, 0])), 0.055, 0.03, useg=12, vseg=14, bulge=0.012)
+    L = 0.34
+    ear = capsule_along("earL", tuple(root), tuple(root + np.array([0, L, 0])), 0.062, 0.034, useg=12, vseg=14, bulge=0.014)
     ear.verts[:, 2] = root[2] + (ear.verts[:, 2] - root[2]) * 0.45  # thin leaf
     t = ear.params[:, 1]
-    path = [root, root + np.array([0.055, 0.09, 0.005]), root + np.array([0.10, 0.05, 0.01]),
-            root + np.array([0.125, -0.05, 0.02]), root + np.array([0.13, -0.15, 0.03])]
+    # swing well clear of the (wide) skull before drooping — hound silhouette
+    path = [root, root + np.array([0.07, 0.085, 0.008]), root + np.array([0.135, 0.03, 0.018]),
+            root + np.array([0.165, -0.085, 0.032]), root + np.array([0.17, -0.20, 0.048])]
     ear.verts = bend_chain(ear.verts, root, L, path)
     _chain_weights(ear, EAR_BONES_L, t, [0.4], 0.2)
     _inner_ear(ear, 0.01, 0.04)

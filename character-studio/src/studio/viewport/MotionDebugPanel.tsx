@@ -2,7 +2,8 @@ import { type CSSProperties, useEffect, useState } from 'react'
 import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
 import { createValueNoise1d, mulberry32 } from '../../core/motion/noise'
 import type { SpringJointParams } from '../../core/motion/springTypes'
-import { CHAIN_JOINT_COUNTS, EAR_PARAMS, TAIL_PARAMS, useMotionStudio } from './PlaceholderBody'
+import { useMotionStudio } from '../state/studioStores'
+import { EAR_PARAMS, TAIL_PARAMS } from './PlaceholderBody'
 
 // Motion debug panel (plan 003 step 4): live spring-parameter sliders, a
 // cheap noise-driven "wind" toggle, and body-motion buttons (hop / shake /
@@ -42,9 +43,11 @@ interface ChainGroupSpec {
   defaults: SpringJointParams
 }
 
-const GROUPS: ChainGroupSpec[] = [
+// Chain names come from the live rig (plan 006: parts/archetypes change the
+// chain set — bird uses 'tailFeathers', a bird with ears gains ear chains).
+const GROUP_TEMPLATES: ChainGroupSpec[] = [
   { id: 'ears', label: 'Ears (earL + earR)', chains: ['earL', 'earR'], defaults: EAR_PARAMS },
-  { id: 'tail', label: 'Tail', chains: ['tail'], defaults: TAIL_PARAMS },
+  { id: 'tail', label: 'Tail', chains: ['tail', 'tailFeathers'], defaults: TAIL_PARAMS },
 ]
 
 type GroupParams = Record<TunableKey, number>
@@ -87,6 +90,12 @@ const activeButtonStyle: CSSProperties = {
 export function MotionDebugPanel() {
   const rig = useMotionStudio((s) => s.rig)
   const mover = useMotionStudio((s) => s.mover)
+  const liveChains = useMotionStudio((s) => s.chains)
+  const jointCounts: Record<string, number> = {}
+  for (const chain of liveChains) jointCounts[chain.name] = chain.boneNames.length
+  const GROUPS = GROUP_TEMPLATES.map((g) => ({ ...g, chains: g.chains.filter((c) => jointCounts[c] !== undefined) })).filter(
+    (g) => g.chains.length > 0,
+  )
   const [params, setParams] = useState<Record<string, GroupParams>>(() => ({
     ears: pickTunable(EAR_PARAMS),
     tail: pickTunable(TAIL_PARAMS),
@@ -115,7 +124,7 @@ export function MotionDebugPanel() {
         const dir: [number, number, number] =
           power > 1e-9 ? [wx / power, wy / power, wz / power] : [0, -1, 0]
         for (const chain of group.chains) {
-          for (let i = 0; i < CHAIN_JOINT_COUNTS[chain]; i++) {
+          for (let i = 0; i < (jointCounts[chain] ?? 0); i++) {
             rig.setParams(chain, i, { gravityPower: power, gravityDir: dir })
           }
         }
@@ -127,7 +136,7 @@ export function MotionDebugPanel() {
       // Restore the slider-owned gravity settings.
       for (const group of GROUPS) {
         for (const chain of group.chains) {
-          for (let i = 0; i < CHAIN_JOINT_COUNTS[chain]; i++) {
+          for (let i = 0; i < (jointCounts[chain] ?? 0); i++) {
             rig.setParams(chain, i, { gravityPower: params[group.id].gravityPower, gravityDir: [0, -1, 0] })
           }
         }
@@ -140,7 +149,7 @@ export function MotionDebugPanel() {
   const applyParam = (group: ChainGroupSpec, key: TunableKey, value: number) => {
     setParams((prev) => ({ ...prev, [group.id]: { ...prev[group.id], [key]: value } }))
     for (const chain of group.chains) {
-      for (let i = 0; i < CHAIN_JOINT_COUNTS[chain]; i++) {
+      for (let i = 0; i < (jointCounts[chain] ?? 0); i++) {
         rig.setParams(chain, i, { [key]: value })
       }
     }

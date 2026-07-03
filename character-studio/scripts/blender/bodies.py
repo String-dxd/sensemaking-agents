@@ -91,6 +91,7 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
     torso = ellipsoid("torso", (0.0, cy, 0.0), (rx, ry, rz), useg=24, vseg=18, profile=torso_profile)
     _torso_weights(torso, j)
     torso.uv_rect = UV_TORSO
+    torso.uv_front_center = True  # UV seam at the BACK (belly mask stays clean)
     _torso_channels(torso, cy, ry, rx, archetype)
     shells.append(torso)
 
@@ -127,7 +128,7 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
 
         hand = ellipsoid("handL", tuple(j["handL"] + np.array([0.014, -0.01, 0.008]) * u), (hand_r, hand_r * 0.9, hand_r * 1.05), useg=12, vseg=9)
         hand.weights["handL"] = np.ones(len(hand.verts))
-        hand.channel(CH_ACCENT, _sock(hand, j["handL"][1], hand_r) )
+        hand.channel(CH_ACCENT, np.full(len(hand.verts), 0.85))
         hand.uv_rect = UV_HAND_L
         shells.append(hand)
         handR = mirror_x(hand, "handR")
@@ -161,10 +162,6 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
 
     meta = dict(head_center=head_center, head_r=head_r, torso=dict(cy=cy, ry=ry, rx=rx, rz=rz))
     return shells, meta
-
-
-def _sock(shell: Shell, joint_y: float, r: float) -> np.ndarray:
-    return np.full(len(shell.verts), 0.85)
 
 
 def _chain_weights(shell: Shell, bones: list[str], t: np.ndarray, splits: list[float], width: float) -> None:

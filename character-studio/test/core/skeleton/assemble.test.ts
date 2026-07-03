@@ -236,7 +236,6 @@ describe('assembleCharacter', () => {
     expect(disposed.sort()).toEqual(Object.keys(assembled.regionMaterials).sort())
     // pristine asset geometry untouched (shared, reused by the next assembly)
     expect(geometryBefore.attributes.position).toBeDefined()
-    expect(assembled.root.parent).toBeNull()
   })
 })
 

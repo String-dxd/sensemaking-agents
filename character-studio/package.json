@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Character Studio — internal tool for authoring animated 3D animal companions (drawn-face toon aesthetic, spring-bone secondary motion). Isolated pnpm root; see plans/000-architecture-and-strategy.md.",
+  "description": "Character Studio \u2014 internal tool for authoring animated 3D animal companions (drawn-face toon aesthetic, spring-bone secondary motion). Isolated pnpm root; see plans/000-architecture-and-strategy.md.",
   "scripts": {
     "dev": "vite --port 5190",
     "build": "vite build",
@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "gen:skeleton-json": "tsx scripts/export-skeleton-json.ts"
+    "gen:skeleton-json": "tsx scripts/export-skeleton-json.ts",
+    "gen:face-atlas": "tsx scripts/generate-face-atlas.ts",
+    "gen:assets": "pnpm gen:skeleton-json && /Applications/Blender.app/Contents/MacOS/Blender -b --python scripts/blender/gen_assets.py"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.0",

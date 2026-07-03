@@ -63,6 +63,23 @@ const CANONICAL_CHAINS: ReadonlyArray<{ name: string; bones: readonly BoneName[]
   { name: 'tail', bones: ['tail.1', 'tail.2', 'tail.3', 'tail.4'], colliders: [] },
 ]
 
+// three's GLTFLoader sanitizes node names for PropertyBinding — it STRIPS
+// DOTS, so the canonical `earL.1` arrives as `earL1` even though the GLB is
+// byte-correct (verified with gltf-transform in assets.test.ts). Assembly
+// restores the canonical names on its own CLONES, so loader caches and
+// call order don't matter. (Plan 007 heads-up: keyframe track names for
+// dotted bones need the `.bones[earL.1]` subscript syntax.)
+const SANITIZED_TO_CANONICAL = new Map(
+  BONE_NAMES.map((name) => [THREE.PropertyBinding.sanitizeNodeName(name), name] as const),
+)
+
+function restoreCanonicalNames(scene: THREE.Object3D): void {
+  scene.traverse((object) => {
+    const canonical = SANITIZED_TO_CANONICAL.get(object.name)
+    if (canonical) object.name = canonical
+  })
+}
+
 function collectSkinnedMeshes(root: THREE.Object3D): THREE.SkinnedMesh[] {
   const out: THREE.SkinnedMesh[] = []
   root.traverse((o) => {
@@ -151,6 +168,7 @@ export function assembleCharacter(
 
   // --- body + skeleton -------------------------------------------------------
   const body = cloneSkinned(assets.bodyScene)
+  restoreCanonicalNames(body)
   root.add(body)
 
   const boneByName = new Map<BoneName, THREE.Object3D>()
@@ -167,10 +185,17 @@ export function assembleCharacter(
   if (bodyMeshes.length === 0) throw new Error('assemble: body scene has no skinned mesh')
   const skeleton = bodyMeshes[0].skeleton
 
+  // Every Skeleton this assembly creates (clone + part rebinds) owns a GPU
+  // bone texture — dispose() must release them or reassembly leaks textures.
+  const ownedSkeletons = new Set<THREE.Skeleton>()
+  for (const mesh of bodyMeshes) ownedSkeletons.add(mesh.skeleton)
+
   const regionMeshes: Partial<Record<Region, THREE.Mesh[]>> = {}
-  const tagMesh = (mesh: THREE.Mesh, region: Region) => {
+  const tagMesh = (mesh: THREE.Mesh, region: Region, castShadow = true) => {
     mesh.userData.region = region
-    mesh.castShadow = true
+    // muzzles hug the face — their hard shadow would dirty the drawn-face
+    // zone (AC keeps faces clean), so they never cast
+    mesh.castShadow = castShadow && region !== 'muzzle'
     mesh.receiveShadow = true
     mesh.frustumCulled = false // skinned/morphed bounds are stale by design
     ;(regionMeshes[region] ??= []).push(mesh)
@@ -197,6 +222,7 @@ export function assembleCharacter(
     const pristine = assets.partScenes[slot as PartSlot]
     if (!pristine) continue // asset not loaded (caller decides whether that is an error)
     const partScene = cloneSkinned(pristine)
+    restoreCanonicalNames(partScene)
 
     if (def.skinnedTo) {
       // Rebind the part's skinned meshes onto the BODY skeleton by bone name.
@@ -215,6 +241,7 @@ export function assembleCharacter(
           inverses.push(new THREE.Matrix4().copy(scale).multiply(mesh.skeleton.boneInverses[i]))
         })
         mesh.bind(new THREE.Skeleton(bones, inverses), new THREE.Matrix4())
+        ownedSkeletons.add(mesh.skeleton)
         applyMorphs(mesh, entry.morphs)
         tagMesh(mesh, def.region)
         root.add(mesh)
@@ -283,10 +310,13 @@ export function assembleCharacter(
     regionMaterials,
     regionMeshes,
     dispose(): void {
+      // Assembly-owned GPU resources: region materials + skeleton bone
+      // textures. Geometries/source textures are shared with the pristine
+      // loaded assets (the asset cache owns them; reassembly allocates
+      // none). Detaching `root` from the scene is the mounting layer's job
+      // (r3f <primitive> owns attachment).
       for (const material of Object.values(regionMaterials)) material?.dispose()
-      // geometries/textures are shared with the pristine loaded assets — not
-      // disposed here (the asset cache owns them; reassembly allocates none).
-      root.removeFromParent()
+      for (const owned of ownedSkeletons) owned.dispose()
     },
   }
 }

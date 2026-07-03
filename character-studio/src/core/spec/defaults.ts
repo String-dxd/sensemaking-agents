@@ -166,7 +166,7 @@ const BIRD_SPRING_RIG: SpringChainDef[] = [
   },
 ]
 
-function defaultSpringRig(archetype: Archetype): SpringChainDef[] {
+export function defaultSpringRig(archetype: Archetype): SpringChainDef[] {
   // biped-round and biped-slim share the same default chain set (ears + tail)
   // today — the sketch only calls out biped-round explicitly; biped-slim gets
   // the same rig pending plan-006 proportions.
@@ -201,6 +201,11 @@ const DEFAULT_PALETTE = {
   accentB: '#3a2a20',
   padsNose: '#5a3a2a',
 } as const
+
+/** Default part loadout for an archetype (AnatomyPanel archetype switch). */
+export function defaultAnatomyParts(archetype: Archetype): CharacterSpec['anatomy']['parts'] {
+  return structuredClone(DEFAULT_PARTS[archetype])
+}
 
 /**
  * Build a fresh, schema-valid CharacterSpec for a given archetype and
