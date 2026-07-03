@@ -25,7 +25,7 @@ honor its STOP conditions, and update your row below when done.
 | 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `0498c14`; operator approved soak/settle/talk videos; 60 fps feel check remains a standing note) |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | **Fable 5** + headless Blender | DONE (merged to `feat/character-studio` at `fd93885`; operator approved dressed-motion videos + the slimmer post-morph-fix silhouette) |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |
-| 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | DONE-pending-visual (code gates green in worktree `advisor/010-lighting-studio`, executor screenshots/video attached to session report; awaiting lead re-run + merge) |
+| 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | DONE (merged to `feat/character-studio` at `384f161`; operator approved presets + terminator sweep; gizmo mouse-drag needs a one-time human check) |
 | 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | TODO |
 | 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | TODO |
 
@@ -33,11 +33,14 @@ Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
-**Session handoff (updated 2026-07-03):** Plans 001–008 executed, reviewed,
-and merged to `feat/character-studio` (through `fd93885`; 344/344 tests).
-Phase 3 complete. Next: **phase 4 — 009 (Fable 5) ∥ 010 (Sonnet 5) in
-parallel worktrees, then 012 after both merge** (012 composes landed panels —
-running it concurrently would conflict), then **011 last** (Opus 4.8).
+**Session handoff (updated 2026-07-03):** Plans 001–008 + 010 executed,
+reviewed, and merged to `feat/character-studio` (through `384f161`; 370/370
+tests). **009 (Fable 5) in flight** in its own worktree (branched at
+`899b9cd`, before 010 merged — expect small merge overlap in `schema.ts` /
+`studioStores.ts` / panel wiring; lead resolves at merge). Then **012**
+(composes landed panels), then **011 last** (Opus 4.8). New human-check debt:
+light-gizmo mouse-drag (store path verified; drag not simulatable in
+automation).
 Blender note: MCP live addon never connected this session; headless Blender
 5.1.2 works; all assets regenerate (`pnpm gen:assets` — bodies/parts/wardrobe
 — and `scripts/blender/clips.py`). Facts new executors need: bodies now have
