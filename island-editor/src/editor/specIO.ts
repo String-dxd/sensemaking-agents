@@ -13,6 +13,8 @@ import {
   GRID_ROWS,
   type IslandSpec,
   MAX_TIER,
+  SURFACE_PATH,
+  type TerrainGrid,
 } from '../terrain/terrainGrid'
 import { decodeGrid, encodeGrid } from './gridCodec'
 
@@ -36,6 +38,42 @@ export function serializeSpec(spec: IslandSpec): string {
 
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === 'number' && isFinite(v)
+}
+
+/** Validate a numeric (in-memory) TerrainGrid; throws with field-level messages. */
+function validateNumericGrid(g: Record<string, unknown>): TerrainGrid {
+  const { cols, rows } = g
+  if (typeof cols !== 'number' || !Number.isInteger(cols) || cols < 1) {
+    throw new Error(`Invalid grid: cols must be a positive integer, got ${String(cols)}`)
+  }
+  if (typeof rows !== 'number' || !Number.isInteger(rows) || rows < 1) {
+    throw new Error(`Invalid grid: rows must be a positive integer, got ${String(rows)}`)
+  }
+  const n = cols * rows
+  const check = (arr: unknown, field: string, maxCode: number): number[] => {
+    if (!Array.isArray(arr) || arr.length !== n) {
+      throw new Error(`Invalid grid: ${field} must be a numeric array of length ${n}`)
+    }
+    for (const v of arr) {
+      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > maxCode) {
+        throw new Error(`Invalid grid: ${field} entries must be integers 0..${maxCode}`)
+      }
+    }
+    return (arr as number[]).slice()
+  }
+  return { cols, rows, tiers: check(g.tiers, 'tiers', MAX_TIER), surface: check(g.surface, 'surface', SURFACE_PATH) }
+}
+
+/** Accept either a serialized grid (digit-string rows) or an in-memory numeric
+ *  grid — `validateSpecObject` runs both on parsed JSON (from deserialize) and on
+ *  in-memory specs (the applyOps final gate). */
+function toGrid(input: unknown): TerrainGrid {
+  if (typeof input !== 'object' || input === null) throw new Error('Invalid grid: must be an object')
+  const o = input as Record<string, unknown>
+  if (Array.isArray(o.tiers) && (o.tiers.length === 0 || typeof o.tiers[0] === 'string')) {
+    return decodeGrid(o) // serialized digit-string rows
+  }
+  return validateNumericGrid(o)
 }
 
 function validateTierHeights(v: unknown): v is number[] {
@@ -85,13 +123,13 @@ export function validateSpecObject(parsed: unknown): IslandSpec {
     )
   }
 
-  // decodeGrid throws its own field-level messages on a bad grid.
+  // toGrid throws its own field-level messages on a bad grid.
   return {
     version: 3,
     worldSize: o.worldSize,
     seaLevel: o.seaLevel,
     tierHeights: (o.tierHeights as number[]).slice(),
-    grid: decodeGrid(o.grid),
+    grid: toGrid(o.grid),
   }
 }
 

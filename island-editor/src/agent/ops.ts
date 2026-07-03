@@ -1,15 +1,12 @@
-import type { HeightProfile } from '../terrain/islandSpec'
+// Agent op vocabulary for the v3 tile grid. Cell coordinates are integers,
+// 0-based, and inclusive. Consumed only by the CLI (scripts/apply-ops.mjs) and
+// applyOps. NO three/r3f imports.
 
 export type Op =
-  | { op: 'movePoint'; index: number; x: number; z: number }
-  | { op: 'insertPointAfter'; index: number }
-  | { op: 'deletePoint'; index: number }
-  | { op: 'setHeightProfile'; profile: Partial<HeightProfile> }
-  | { op: 'raiseRegion'; x: number; z: number; radius: number; strength: number }
-  | { op: 'lowerRegion'; x: number; z: number; radius: number; strength: number }
-  | { op: 'smoothRegion'; x: number; z: number; radius: number; strength: number }
-  | { op: 'flattenRegion'; x: number; z: number; radius: number; strength: number }
-  | { op: 'clearRelief' }
+  | { op: 'fillRect'; c0: number; r0: number; c1: number; r1: number; tier: number }
+  | { op: 'adjustRect'; c0: number; r0: number; c1: number; r1: number; delta: number }
+  | { op: 'paintRect'; c0: number; r0: number; c1: number; r1: number; surface: number }
+  | { op: 'reset' }
 
 export interface OpError {
   index: number // position in the ops array
