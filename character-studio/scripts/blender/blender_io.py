@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import math
 
+import bmesh
 import bpy
 import numpy as np
 from mathutils import Vector
@@ -139,6 +140,66 @@ def skin_object(obj: bpy.types.Object, arm: bpy.types.Object, shells: list[Shell
     mod = obj.modifiers.new("Armature", "ARMATURE")
     mod.object = arm
     obj.parent = arm
+
+
+def split_object_by_face_regions(
+    obj: bpy.types.Object,
+    region_ids: list[int],
+    region_names: dict[int, str],
+) -> dict[str, bpy.types.Object]:
+    """Split faces with region id != 0 into per-region objects (plan 008
+    body-hide submeshes). `region_ids` is per-polygon in the object's current
+    polygon order; `region_names` maps id -> region name (0 = stay on `obj`).
+
+    Vertex groups, shape keys, UVs, materials and the armature modifier are
+    preserved by Blender's separate operator. Current smooth vertex normals
+    are baked as custom split normals FIRST so the duplicated boundary ring
+    does not create a shading seam. Each new object is named
+    `<obj>_<region>` and tagged with a `bodyRegion` custom property (exports
+    as a glTF extra the dressing pass reads).
+    """
+    mesh = obj.data
+    assert len(region_ids) == len(mesh.polygons), "region_ids must be per-polygon"
+
+    # continuous shading across the split boundary
+    normals = [v.normal.copy() for v in mesh.vertices]
+    mesh.normals_split_custom_set_from_vertices(normals)
+
+    # face attribute survives polygon reindexing during separation
+    attr = mesh.attributes.new(name="bodyRegionId", type="INT", domain="FACE")
+    attr.data.foreach_set("value", region_ids)
+
+    out: dict[str, bpy.types.Object] = {}
+    base_name = obj.name
+    for rid, region in region_names.items():
+        bpy.ops.object.select_all(action="DESELECT")
+        obj.select_set(True)
+        bpy.context.view_layer.objects.active = obj
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.context.tool_settings.mesh_select_mode = (False, False, True)
+        bm = bmesh.from_edit_mesh(obj.data)
+        layer = bm.faces.layers.int["bodyRegionId"]
+        count = 0
+        for f in bm.faces:
+            sel = f[layer] == rid
+            f.select_set(sel)
+            count += int(sel)
+        bmesh.update_edit_mesh(obj.data)
+        assert count > 0, f"region {region}: no faces matched"
+        before = set(bpy.data.objects)
+        bpy.ops.mesh.separate(type="SELECTED")
+        bpy.ops.object.mode_set(mode="OBJECT")
+        new_obj = next(o for o in bpy.data.objects if o not in before)
+        new_obj.name = f"{base_name}_{region}"
+        new_obj.data.name = new_obj.name
+        new_obj["bodyRegion"] = region
+        out[region] = new_obj
+
+    for o in [obj, *out.values()]:
+        layer_attr = o.data.attributes.get("bodyRegionId")
+        if layer_attr is not None:
+            o.data.attributes.remove(layer_attr)
+    return out
 
 
 def add_shape_keys(obj: bpy.types.Object, keys: dict[str, np.ndarray]) -> None:
