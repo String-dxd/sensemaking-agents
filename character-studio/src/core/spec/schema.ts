@@ -211,6 +211,7 @@ const MaterialsSchema = z.record(RegionSchema, MaterialAssignSchema)
 // --- wardrobe ---------------------------------------------------------------
 
 export const EAR_MODES = ['through', 'under', 'replace'] as const
+export type EarMode = (typeof EAR_MODES)[number]
 const WornItemSchema = z
   .object({
     slot: WearSlotSchema,

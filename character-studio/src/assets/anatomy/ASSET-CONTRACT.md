@@ -156,6 +156,58 @@ the printed values or the feet will skate.
 - `root`, `jaw`, every `socket.*` bone.
 - Breath (chest scale), eyes/mouth (drawn-face atlas + procedural layers).
 
+## Wardrobe items (`../wardrobe/<item-id>.glb`, plan 008)
+
+Registry: `src/core/wardrobe/itemRegistry.ts` (zod-validated at load; entries
+are plain serializable data — plan 011 exports them). Regenerate everything
+with `pnpm gen:wardrobe`; builders in `scripts/blender/wardrobe.py`.
+
+- ≤ **3,000 triangles** and ≤ **2 MB** per item GLB. Same coordinate/unit
+  conventions as anatomy assets (+Y up, faces +Z, meters).
+- Items are authored in **reference space** but **fitted to the biped-round
+  body**: build the garment over the archetype-space biped-round shells, then
+  un-map each vertex through its skin weights —
+  `v_authored = Σwᵢ·pᵢ_ref + (v_target − Σwᵢ·pᵢ_arch) / u` — so linear blend
+  skinning reproduces `v_target` *exactly* on biped-round after the dressing
+  pass scales inverse binds by the archetype's `uniformScale` (the anatomy-
+  part convention). Other archetypes wear the same GLB via shared-bone
+  skinning; add an `archetypes` restriction to the registry only if an item
+  visibly breaks on one.
+- **Attachment** (mirrors anatomy parts):
+  - *Rigid* (hats → `socket.hat`, eyewear → `socket.face`, packs →
+    `socket.back`, handhelds → `socket.handL/R`): mesh origin at the socket's
+    rest position, +Z forward, `attachBone` custom property on every rigid
+    mesh object.
+  - *Skinned* (tops, scarves): SkinnedMesh bound to the canonical armature;
+    ≤ 4 influences. **Garment shells are inflated 3–5 mm** over the body
+    surface and carry weights computed with the *same* analytic falloffs as
+    the body (`bodies.py`) so garment and body deform in lockstep — that, not
+    hiding, is the primary anti-poke-through tool.
+  - *Mixed*: both in one GLB (backpack = rigid pack + skinned strap tails).
+- **Body-hide regions**: tops/bottoms/outfits declare `hideBodyRegions ⊆
+  {torso, hips, upperLegs}` in the registry; the dressing pass toggles the
+  body submeshes tagged with the matching `bodyRegion` glTF extra (see
+  "Archetype bodies" above). Garments that hide a region must fully cover
+  its silhouette (closed hems).
+- **Item-internal spring bones** (scarf ends, drawstrings, strap tails):
+  extra bones inside the item GLB, parented under a canonical bone, named
+  `[a-zA-Z0-9_]+` only (loader-sanitization-proof), globally unique across
+  the registry. Declared as `springChains` registry data (never keyframed;
+  plan 003 vocabulary). The dressing pass grafts them onto the live skeleton
+  and merges the chains into the character's spring rig.
+- **Ear modes** (headwear, AC hat-ears pattern): the registry lists the modes
+  the item supports (`through` = authored rim arches/holes clear the ear
+  roots; `under` = dressing flattens `earL.1`/`earR.1` to ~15 %; `replace` =
+  item ships its own ears, body's skinned ear meshes hide). Never author a
+  hat that requires deforming the base ears.
+- **Body-follow morphs**: skinned garments covering the torso bake the
+  `bellyRound` / `chubby` / `slim` body shape keys (computed with the body's
+  own formulas) so the silhouette follows the spec's `bodyMorphs`.
+- **Palette masks** (`../wardrobe/textures/item-<id>.mask.png`, 256²): same
+  channel contract as anatomy (R/G/B/A → primary/secondary/belly/accentA);
+  the registry's `paletteSlots` lists which slots the mask actually uses so
+  the panel shows only meaningful override pickers.
+
 ## Known debts for a human art pass
 
 - Shell-union bodies (head/torso/limb blobs tucked into each other) — a
