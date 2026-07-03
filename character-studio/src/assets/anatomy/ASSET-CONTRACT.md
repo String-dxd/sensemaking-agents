@@ -107,6 +107,55 @@ Blender ≥ 4.2 (verified with 5.1). Builders live in `scripts/blender/`
 (`bodies.py`, `parts.py` — add a part by adding a builder + a registry
 entry + regenerating).
 
+## Animation clips (`../clips/clips-core-v1.glb`, plan 007)
+
+One animations-only GLB (no meshes/lights/cameras, ≤ 5 MB) authored on the
+**canonical skeleton at reference proportions** and played as-is on every
+archetype — one skeleton, clips authored once, never remapped between rigs.
+The only proportion-dependent data is the hips translation track, which
+`createClipMachine`'s `hipsRebase` rewrites at load onto the live skeleton's
+hips rest offset (captured at assembly). Regenerate with:
+
+```
+pnpm gen:clips        # gen:skeleton-json + headless Blender scripts/blender/clips.py
+```
+
+`clips.py` also renders per-clip frame strips (`--no-render` to skip,
+`--only clipA,clipB` for partial iteration) and prints the measured
+stance-foot ground speed for walk/run — if you retune those gaits, update
+`WALK_CLIP_SPEED` / `RUN_CLIP_SPEED` in `src/core/motion/locomotion.ts` to
+the printed values or the feet will skate.
+
+### Clip contract (`core-v1`) — names exact, enforced by `test/core/motion/clips.test.ts`
+
+| Clip | Frames @ 30 fps | Loop | Notes |
+|---|---|---|---|
+| `idle` | 150 | yes | weight shifts + micro-moves; breath is procedural — never bake it |
+| `walk` | 27 | yes | in-place, stance-foot speed ≈ 0.890 m/s at 1× (locomotion moves the root) |
+| `run` | 18 | yes | in-place, ≈ 1.766 m/s at 1×, exaggerated lean + bounce |
+| `sitDown` | 24 | no | ends exactly on `sitIdle`'s first frame (shared SIT_POSE) |
+| `sitIdle` | 120 | yes | floor sit, hands on knees |
+| `standUp` | 24 | no | starts on SIT_POSE, ends on rest |
+| `talkIdle` | 90 | yes | conversational body language; the mouth is procedural |
+| `gestureWave` / `gestureNod` / `gestureShrug` / `gestureCheer` | 45 / 30 / 36 / 60 | no | one-shots; start AND end on the rest pose (additive gesture layer depends on it) |
+
+### Authoring rules (the difference between robotic and alive)
+
+- Every key eased (bezier, auto-clamped handles); **no two body parts start
+  or stop on the same frame** — spine leads, head +2, arms +1..3
+  (overlapping action).
+- Loop clips must close exactly: first key repeated one loop later on every
+  fcurve + a CYCLES modifier (tangent continuity across the seam).
+- Root translation only on `hips`; **no scale tracks anywhere**.
+- One-shot gestures return every keyed channel to rest at the last frame.
+
+### Don't-keyframe list (test-enforced)
+
+- Spring-chain bones: `earL.*`, `earR.*`, `tail.*` — the Verlet solver owns
+  them; keys would fight physics (plan 000 §2.2).
+- `root`, `jaw`, every `socket.*` bone.
+- Breath (chest scale), eyes/mouth (drawn-face atlas + procedural layers).
+
 ## Known debts for a human art pass
 
 - Shell-union bodies (head/torso/limb blobs tucked into each other) — a

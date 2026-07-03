@@ -37,6 +37,12 @@ export interface PlayState {
   requestGesture(name: GestureName): void
 }
 
+declare global {
+  interface Window {
+    __playStore?: typeof usePlayStore
+  }
+}
+
 export const usePlayStore = create<PlayState>((set) => ({
   mode: 'studio',
   desiredState: 'idle',
@@ -70,3 +76,6 @@ export const usePlayStore = create<PlayState>((set) => ({
   requestGesture: (name) =>
     set((prev) => ({ gestureRequest: { name, seq: (prev.gestureRequest?.seq ?? 0) + 1 } })),
 }))
+
+// Console access for tuning/debugging (mirrors __motionStudio).
+if (typeof window !== 'undefined') window.__playStore = usePlayStore

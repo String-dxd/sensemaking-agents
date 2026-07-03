@@ -22,7 +22,7 @@ honor its STOP conditions, and update your row below when done.
 | 004 | CharacterSpec data model | 2 | P1 | M | 002, 003 | Sonnet 5 | DONE (merged to `feat/character-studio` at `f1631cf`, incl. 관상 personality) |
 | 005 | Toon rendering & materials | 2 | P1 | L | 001, 002, 004 | **Fable 5** | DONE (merged to `feat/character-studio` at `ed2f6df`) |
 | 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `5d9d792`; operator approved visuals + plan-000 §5 shoulder amendment) |
-| 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | TODO |
+| 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | DONE-pending-visual (branch `advisor/007-animation-play-mode`; 24 files / 266 tests green; core-v1 clips + machine + locomotion/foot-IK + talk + Play Mode; soak watched 3.5 min at 30 fps, videos in session scratchpad `plan007/`) |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | Sonnet 5 (Opus 4.8 if authoring meshes) | TODO |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | TODO |

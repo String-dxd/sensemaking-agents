@@ -43,7 +43,7 @@ const REF_HIPS = (() => {
   return hips.position
 })()
 
-const SOAK_STATES: ReadonlyArray<MachineState> = ['idle', 'walk', 'run', 'sit', 'talk', 'walk', 'idle']
+const SOAK_STATES: ReadonlyArray<MachineState> = ['idle', 'walk', 'run', 'sit', 'talk']
 const SOAK_GESTURES_STANDING: ReadonlyArray<GestureName> = [
   'gestureWave',
   'gestureNod',
@@ -116,7 +116,11 @@ function PlayModeDriver() {
         soakStateTimer -= dt
         if (soakStateTimer <= 0) {
           soakStateTimer = 5 + rng() * 10 // plan 007: every 5–15 s
-          const next = SOAK_STATES[Math.floor(rng() * SOAK_STATES.length)]
+          // Skip past the current state so every tick visibly drifts.
+          let next = SOAK_STATES[Math.floor(rng() * SOAK_STATES.length)]
+          if (next === store.desiredState) {
+            next = SOAK_STATES[(SOAK_STATES.indexOf(next) + 1) % SOAK_STATES.length]
+          }
           store.requestState(next)
           if (next === 'walk') store.setSpeed(0.6 + rng() * 0.7)
           if (next === 'run') store.setSpeed(1.7 + rng() * 0.9)
