@@ -73,7 +73,9 @@ const SANITIZED_TO_CANONICAL = new Map(
   BONE_NAMES.map((name) => [THREE.PropertyBinding.sanitizeNodeName(name), name] as const),
 )
 
-function restoreCanonicalNames(scene: THREE.Object3D): void {
+/** Restore GLTFLoader-sanitized node names to their canonical dotted forms
+ * (shared with the plan-008 dressing pass, which clones item scenes too). */
+export function restoreCanonicalNames(scene: THREE.Object3D): void {
   scene.traverse((object) => {
     const canonical = SANITIZED_TO_CANONICAL.get(object.name)
     if (canonical) object.name = canonical
