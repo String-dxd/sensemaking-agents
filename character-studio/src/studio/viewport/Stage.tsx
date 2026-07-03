@@ -4,6 +4,7 @@ import { Suspense, useMemo } from 'react'
 import { runFrame } from '../../core/motion/frameLoop'
 import { AnatomyPanel } from '../panels/AnatomyPanel'
 import { MaterialPanel } from '../panels/MaterialPanel'
+import { WardrobePanel } from '../panels/WardrobePanel'
 import { PlayControls } from '../play/PlayControls'
 import { PlayMode } from '../play/PlayMode'
 import { usePlayStore } from '../play/playStore'
@@ -88,6 +89,7 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
           <MotionDebugPanel />
           <MaterialPanel />
           <AnatomyPanel />
+          <WardrobePanel />
         </>
       )}
       <PlayControls />

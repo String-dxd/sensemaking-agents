@@ -154,6 +154,7 @@ function applyMorphs(mesh: THREE.Mesh, morphs: Record<string, number>): void {
   const dict = mesh.morphTargetDictionary
   const influences = mesh.morphTargetInfluences
   if (!dict || !influences) return
+  influences.fill(0) // neutral baseline — see assemble.ts applyMorphs
   for (const [name, value] of Object.entries(morphs)) {
     const index = dict[name]
     if (index !== undefined) influences[index] = value

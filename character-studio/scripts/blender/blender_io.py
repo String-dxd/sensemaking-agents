@@ -231,6 +231,12 @@ def add_shape_keys(obj: bpy.types.Object, keys: dict[str, np.ndarray]) -> None:
         blender_offsets = np.stack([offsets[:, 0], -offsets[:, 2], offsets[:, 1]], axis=1)
         co = base + blender_offsets
         kb.data.foreach_set("co", co.reshape(-1).astype(np.float32))
+        # exported as the glTF mesh's default morph weight — MUST be 0 or
+        # every consumer renders all morphs fully on (plan 008 gate finding:
+        # the belly occluded dressed garments because bellyRound+chubby+slim
+        # shipped at weight 1). assemble.ts also zeroes influences on load,
+        # so already-committed GLBs render correctly without regeneration.
+        kb.value = 0.0
 
 
 def export_glb(path: str, objects: list[bpy.types.Object]) -> None:

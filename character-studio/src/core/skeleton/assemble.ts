@@ -94,6 +94,11 @@ function applyMorphs(mesh: THREE.Mesh, morphs: Record<string, number>): void {
   const dict = mesh.morphTargetDictionary
   const influences = mesh.morphTargetInfluences
   if (!dict || !influences) return
+  // Neutral baseline first: loaders initialize influences from the glTF
+  // mesh's default weights, and GLBs authored before the plan-008 exporter
+  // fix ship weights=1 for EVERY morph (all-on bodies — the gate-caught
+  // belly-occludes-garments bug). The spec is the only source of truth.
+  influences.fill(0)
   for (const [name, value] of Object.entries(morphs)) {
     const index = dict[name]
     if (index !== undefined) influences[index] = value

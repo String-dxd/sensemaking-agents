@@ -47,15 +47,22 @@ describe('archetype proportions', () => {
     expect(ratio, `${archetype} head ratio ${ratio.toFixed(2)}`).toBeLessThan(0.52)
   })
 
-  it('collider group exposes one head sphere inside the cranium', () => {
+  it('collider groups expose a head sphere inside the cranium + torso backstops (plan 008)', () => {
     for (const archetype of ARCHETYPES) {
       const groups = archetypeColliderGroups(archetype)
-      expect(groups).toHaveLength(1)
-      expect(groups[0].name).toBe('head')
+      expect(groups.map((g) => g.name)).toEqual(['head', 'torso'])
       const collider = groups[0].colliders[0]
       expect(collider.boneName).toBe('head')
       expect(collider.radius).toBeLessThan(archetypeHead(archetype).radius)
       expect(collider.radius).toBeGreaterThan(archetypeHead(archetype).radius * 0.8)
+      // torso spheres ride animated spine bones and stay inside the garment
+      // rest surface (backstop, not a rest-pose influence)
+      const torso = groups[1]
+      expect(torso.colliders.map((c) => c.boneName)).toEqual(['chest', 'hips'])
+      for (const sphere of torso.colliders) {
+        expect(sphere.radius).toBeGreaterThan(0)
+        expect(sphere.radius).toBeLessThan(archetypeHead(archetype).radius)
+      }
     }
   })
 })

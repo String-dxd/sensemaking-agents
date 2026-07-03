@@ -395,7 +395,10 @@ def build_cap_baseball(fit: Fit):
     hc, hr = fit.head_center, fit.head_radii
     radii = (hr[0] + 0.009, hr[1] + 0.009, hr[2] + 0.009)
     ear_root_y = fit.j["earL.1"][1]
-    rim = ear_arch_rim(base_y=ear_root_y - 0.055, arch_y=ear_root_y + 0.065, half_width_deg=40)
+    # Narrow arches: just enough for upright ears to pass in `through` mode
+    # without reading as bites out of the cap when ears are `under` (the
+    # step-4 gate caught 40°/+0.065 as a huge scallop of bare head).
+    rim = ear_arch_rim(base_y=ear_root_y - 0.055, arch_y=ear_root_y + 0.028, half_width_deg=22)
     dome = arched_dome("cap", hc, radii, rim, useg=32, vseg=8)
     dome.uv_rect = (0.0, 0.3, 0.7, 1.0)
 
@@ -649,15 +652,23 @@ def build_hoodie(fit: Fit):
     for sx, side in ((1.0, "L"), (-1.0, "R")):
         x = sx * 0.034
         z0 = fit.torso_front_z(y0, x, 0.0075 + 0.004)
+        # plumb-line bones (see scarf note): vertical at the cord-END's front
+        # z so spring equilibrium == authored pose and the cords never sink
+        # under the chest bulge; the mesh top still meets the collar.
+        zc = fit.torso_front_z(y0 - 0.078, x, 0.0075 + 0.006)
         top = np.array([x, y0, z0])
-        mid = np.array([x, y0 - 0.038, fit.torso_front_z(y0 - 0.038, x, 0.0075 + 0.005)])
-        end = np.array([x, y0 - 0.078, fit.torso_front_z(y0 - 0.078, x, 0.0075 + 0.006)])
-        item_bones.append((f"hoodieDraw{side}1", "chest", top))
+        mid = np.array([x, y0 - 0.038, zc])
+        end = np.array([x, y0 - 0.078, zc])
+        item_bones.append((f"hoodieDraw{side}1", "chest", np.array([x, y0, zc])))
         item_bones.append((f"hoodieDraw{side}2", f"hoodieDraw{side}1", mid))
         L = 0.078
         cord = capsule_along(f"cord{side}", tuple(top), tuple(top + np.array([0, L, 0])), 0.0058, 0.008, useg=8, vseg=8)
         tc = cord.params[:, 1]
         cord.verts = bend_chain(cord.verts, top, L, [top, mid, end])
+        # bend_chain's frame mirrors X for downward tangents (side = up×ref
+        # with up ≈ −Y) — re-orient the closed shell or its faces render
+        # inside-out and get backface-culled in three (step-4 gate finding)
+        ensure_outward(cord)
         f1 = smoothstep(0.32, 0.68, tc)
         cord.weights[f"hoodieDraw{side}1"] = 1.0 - f1
         cord.weights[f"hoodieDraw{side}2"] = f1
@@ -696,20 +707,28 @@ def build_scarf(fit: Fit):
         x = sx * 0.045
         top_y = neck_y + 0.010  # start inside the collar tube
         ys = [top_y, top_y - length / 3, top_y - 2 * length / 3, top_y - length]
-        drift = [0.0, 0.004, 0.009, 0.014]  # tips lean gently outward
-        path = [
-            np.array([x + sx * drift[i], y, fit.torso_front_z(y, x, 0.017)])
-            for i, y in enumerate(ys)
+        drift = [0.0, 0.004, 0.008, 0.012]  # tips lean gently outward
+        # PLUMB-LINE physics (step-4 gate finding): a hanging spring chain
+        # equilibrates VERTICALLY UNDER ITS ROOT — any authored forward slope
+        # verticalizes away and the ends sink behind the pot belly. So the
+        # BONES live on a vertical line 26 mm proud of the belly's widest
+        # point (visible even from the usual high grazing camera); only the
+        # MESH's top segment slopes back to tuck into the collar tube.
+        z_hang = fit.torso_front_z(ys[-1], x, 0.026)
+        path = [np.array([x, ys[0], fit.torso_front_z(ys[0], x, 0.020)])] + [
+            np.array([x + sx * drift[i], y, z_hang]) for i, y in list(enumerate(ys))[1:]
         ]
-        item_bones.append((f"scarf{side}1", "chest", path[0]))
-        item_bones.append((f"scarf{side}2", f"scarf{side}1", path[1]))
-        item_bones.append((f"scarf{side}3", f"scarf{side}2", path[2]))
+        bone_pts = [np.array([x + sx * drift[i], ys[i], z_hang]) for i in range(3)]
+        item_bones.append((f"scarf{side}1", "chest", bone_pts[0]))
+        item_bones.append((f"scarf{side}2", f"scarf{side}1", bone_pts[1]))
+        item_bones.append((f"scarf{side}3", f"scarf{side}2", bone_pts[2]))
         strap = capsule_along(f"end{side}", tuple(path[0]), tuple(path[0] + np.array([0, length, 0])), 0.034, 0.031, useg=10, vseg=12, bulge=0.004)
         # flat wide scarf cross-section: widen across, flatten against the chest
         strap.verts[:, 0] = path[0][0] + (strap.verts[:, 0] - path[0][0]) * 1.35
         strap.verts[:, 2] = path[0][2] + (strap.verts[:, 2] - path[0][2]) * 0.30
         t = strap.params[:, 1]
         strap.verts = bend_chain(strap.verts, path[0], length, path)
+        ensure_outward(strap)  # downward bend mirrors X — see hoodie note
         f1 = smoothstep(0.22, 0.44, t)
         f2 = smoothstep(0.55, 0.77, t)
         strap.weights[f"scarf{side}1"] = 1.0 - f1
@@ -749,6 +768,7 @@ def build_backpack_mini(fit: Fit):
         strap = capsule_along(f"shoulder{side}", tuple(pp[0]), tuple(pp[0] + np.array([0, float(np.sum(np.linalg.norm(np.diff(pp, axis=0), axis=1))), 0])), 0.016, 0.014, useg=8, vseg=10)
         strap.verts = bend_chain(strap.verts, pp[0], float(np.sum(np.linalg.norm(np.diff(pp, axis=0), axis=1))), list(pp))
         strap.verts[:, 2] = np.minimum(strap.verts[:, 2], fit.torso_front_z(j["chest"][1] + 0.03, x, 0.012))
+        ensure_outward(strap)  # mixed-tangent bend — normalize the winding
         strap.channel(CH_ACCENT, np.ones(len(strap.verts)))
         strap.uv_rect = (0.0 if sx > 0 else 0.2, 0.0, 0.18 if sx > 0 else 0.38, 0.28)
         rigid_shells.append(strap)
@@ -768,6 +788,7 @@ def build_backpack_mini(fit: Fit):
         tail.verts[:, 2] = top[2] + (tail.verts[:, 2] - top[2]) * 0.5
         t = tail.params[:, 1]
         tail.verts = bend_chain(tail.verts, top, L, [top, mid, end])
+        ensure_outward(tail)  # downward bend mirrors X — see hoodie note
         f1 = smoothstep(0.32, 0.68, t)
         tail.weights[f"packStrap{side}1"] = 1.0 - f1
         tail.weights[f"packStrap{side}2"] = f1

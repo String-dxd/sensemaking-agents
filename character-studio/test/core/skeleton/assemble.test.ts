@@ -152,6 +152,21 @@ describe('assembleCharacter', () => {
     expect(assembled.mouthRadialOffset).toBeCloseTo(0.1 * ARCHETYPES_DEF['biped-round'].uniformScale, 6)
   })
 
+  it('zeroes loader-defaulted morph influences before applying the spec (weights=1 GLB bug)', () => {
+    const spec = specWith('biped-round', {})
+    spec.anatomy.bodyMorphs = { bellyRound: 0.4 }
+    const assets = stubAssets('biped-round')
+    // simulate GLTFLoader initializing influences from glTF weights=[1,1,...]
+    const pristineBody = assets.bodyScene.getObjectByName('body') as THREE.SkinnedMesh
+    pristineBody.morphTargetInfluences?.fill(1)
+    const assembled = assembleCharacter(spec, STUB_REGISTRY, assets)
+    const body = assembled.root.getObjectByName('body') as THREE.SkinnedMesh
+    const dict = body.morphTargetDictionary ?? {}
+    expect(body.morphTargetInfluences?.[dict.bellyRound]).toBeCloseTo(0.4)
+    expect(body.morphTargetInfluences?.[dict.chubby]).toBe(0)
+    expect(body.morphTargetInfluences?.[dict.headBig]).toBe(0)
+  })
+
   it('applies body and part morph weights by name', () => {
     const spec = specWith('biped-round', {
       ears: { partId: 'stub-ears', morphs: { length: 0.7, width: 0.2 } },

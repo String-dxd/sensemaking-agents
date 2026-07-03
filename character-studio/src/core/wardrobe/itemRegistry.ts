@@ -117,6 +117,19 @@ export type WardrobeItemDef = z.infer<typeof WardrobeItemDefSchema> & {
 
 export type WardrobeRegistryLike = Record<string, WardrobeItemDef>
 
+/** Panel display names for the wear slots. */
+export const WEAR_SLOT_LABELS: Record<WearSlot, string> = {
+  headwear: 'Hat',
+  eyewear: 'Eyes',
+  top: 'Top',
+  bottom: 'Bottom',
+  outfit: 'Outfit',
+  neck: 'Neck',
+  back: 'Back',
+  handheldL: 'L hand',
+  handheldR: 'R hand',
+}
+
 /** Validate a registry candidate; throws with the offending item id. */
 export function buildWardrobeRegistry<T extends Record<string, unknown>>(candidate: T): { [K in keyof T]: WardrobeItemDef } {
   for (const [itemId, def] of Object.entries(candidate)) {
@@ -148,22 +161,25 @@ const chain = (
   colliderGroupRefs,
 })
 
-// Tuning notes (plan 003 vocabulary): scarf ends are trailing cloth — low
-// stiffness, strong gravity; drawstrings are short cords — stiffer, lighter;
+// Tuning notes (plan 003 vocabulary): garment chains are authored ALONG the
+// body surface, so gravity must stay well below stiffness or the equilibrium
+// sag (≈ g·dt²·(1−k)/k) buries the mesh in the torso — the chains reference
+// the plan-008 "torso" collider group as a backstop while trailing. Scarf
+// ends are trailing cloth (loosest); drawstrings are short cords (stiffest);
 // backpack strap tails sit between the two.
 const SCARF_CHAINS = [
-  chain('scarfEndL', ['scarfL1', 'scarfL2', 'scarfL3'], { stiffness: 0.18, gravityPower: 32, dragForce: 0.14, hitRadius: 0.02 }),
-  chain('scarfEndR', ['scarfR1', 'scarfR2', 'scarfR3'], { stiffness: 0.18, gravityPower: 32, dragForce: 0.14, hitRadius: 0.02 }),
+  chain('scarfEndL', ['scarfL1', 'scarfL2', 'scarfL3'], { stiffness: 0.42, gravityPower: 8, dragForce: 0.14, hitRadius: 0.02 }, ['torso']),
+  chain('scarfEndR', ['scarfR1', 'scarfR2', 'scarfR3'], { stiffness: 0.42, gravityPower: 8, dragForce: 0.14, hitRadius: 0.02 }, ['torso']),
 ]
 
 const HOODIE_CHAINS = [
-  chain('hoodieDrawL', ['hoodieDrawL1', 'hoodieDrawL2'], { stiffness: 0.38, gravityPower: 20, dragForce: 0.12, hitRadius: 0.012 }),
-  chain('hoodieDrawR', ['hoodieDrawR1', 'hoodieDrawR2'], { stiffness: 0.38, gravityPower: 20, dragForce: 0.12, hitRadius: 0.012 }),
+  chain('hoodieDrawL', ['hoodieDrawL1', 'hoodieDrawL2'], { stiffness: 0.5, gravityPower: 6, dragForce: 0.12, hitRadius: 0.012 }, ['torso']),
+  chain('hoodieDrawR', ['hoodieDrawR1', 'hoodieDrawR2'], { stiffness: 0.5, gravityPower: 6, dragForce: 0.12, hitRadius: 0.012 }, ['torso']),
 ]
 
 const BACKPACK_CHAINS = [
-  chain('packStrapL', ['packStrapL1', 'packStrapL2'], { stiffness: 0.3, gravityPower: 24, dragForce: 0.12, hitRadius: 0.015 }),
-  chain('packStrapR', ['packStrapR1', 'packStrapR2'], { stiffness: 0.3, gravityPower: 24, dragForce: 0.12, hitRadius: 0.015 }),
+  chain('packStrapL', ['packStrapL1', 'packStrapL2'], { stiffness: 0.45, gravityPower: 8, dragForce: 0.12, hitRadius: 0.015 }, ['torso']),
+  chain('packStrapR', ['packStrapR1', 'packStrapR2'], { stiffness: 0.45, gravityPower: 8, dragForce: 0.12, hitRadius: 0.015 }, ['torso']),
 ]
 
 // --- the registry ------------------------------------------------------------------
