@@ -230,6 +230,13 @@ export const useLatticeStore = create<LatticeStoreState>((set, get) => ({
   },
 }))
 
+declare global {
+  interface Window {
+    __latticeStore?: typeof useLatticeStore
+  }
+}
+if (typeof window !== 'undefined') window.__latticeStore = useLatticeStore
+
 // Leaving sculpt mode, reassembly, or Play Mode all invalidate the session's
 // frozen bindings — cancel (restores pre-session deltas).
 useSculptStore.subscribe((state, prev) => {
