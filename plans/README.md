@@ -20,7 +20,7 @@ honor its STOP conditions, and update your row below when done.
 | 002 | Drawn-face system | 1 | P1 | L | 001 | **Fable 5** | DONE (merged to `feat/character-studio` in `aa83f08`) |
 | 003 | Spring-bone secondary motion | 1 | P1 | L | 001 | **Fable 5** | DONE (merged to `feat/character-studio` in `aa83f08`) |
 | 004 | CharacterSpec data model | 2 | P1 | M | 002, 003 | Sonnet 5 | DONE (merged to `feat/character-studio` at `f1631cf`, incl. 관상 personality) |
-| 005 | Toon rendering & materials | 2 | P1 | L | 001, 002, 004 | **Fable 5** | IN PROGRESS |
+| 005 | Toon rendering & materials | 2 | P1 | L | 001, 002, 004 | **Fable 5** | DONE (merged to `feat/character-studio` at `ed2f6df`) |
 | 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | TODO |
 | 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | TODO |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | Sonnet 5 (Opus 4.8 if authoring meshes) | TODO |
@@ -33,18 +33,21 @@ Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
-**Live executor handoff (written 2026-07-03, delete when resolved):** plan 005
-is executing on a Fable 5 subagent in worktree
-`.claude/worktrees/agent-abe02841c5d80fcad`, expected to commit on branch
-`advisor/005-toon-rendering` (based on `7e498b6`) and save four look-gate
-screenshots (`phase2-look-*.png`) to the session scratchpad. If this session
-was cleared before its report arrived: check `git log advisor/005-toon-rendering`
-and the worktree; review per the execute-review protocol (re-run
-`pnpm typecheck && pnpm test` in the worktree, scope-check the diff against
-plan 005, audit tests, judge the look screenshots), then merge with operator
-approval and update this row. Review history so far: 001 Sonnet ✅, 002 Fable ✅,
-003 Fable ✅, 004 Sonnet ✅ — all merged; operator direction: quality over cost,
-관상 faces (see memory + plan 000 §2.1b).
+**Session handoff (updated 2026-07-03):** Plans 001–005 executed, reviewed,
+and merged to `feat/character-studio` (through `ed2f6df`; 100/100 tests).
+Next: **plan 006** (Fable 5 + Blender MCP — archetype bodies, anatomy parts,
+관상 face-atlas variants per plan 000 §2.1b and 006 step 3b). Execution
+pattern: dispatch an executor subagent per plan (isolated worktree branching
+from current `feat/character-studio` HEAD, model per this table, inline the
+full plan text in the prompt), review like a tech lead (re-run gates in the
+worktree, scope-check the diff, audit tests, judge look/motion screenshots
+saved to the session scratchpad), merge only with operator approval, keep
+this table current. Operator directions in force: quality over cost (premium
+executors for aesthetic-gated plans), 관상 faces, screenshots to the operator
+(often on mobile) with every visual verdict. Small known debts: panel overlap
++ FacePanel style warning (absorbed into plan 012), `Math.random` core guard
+test doesn't exist yet (rule honored manually), absolute-60fps check pending
+operator's laptop (automation browser caps rAF at 30).
 
 **Executor model rationale**: Fable 5 wherever the plan's success gate is
 aesthetic or judgment-based (face, springs, sculpt, look, authored assets,
