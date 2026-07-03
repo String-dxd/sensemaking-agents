@@ -2,15 +2,10 @@ import { useTexture } from '@react-three/drei'
 import { Suspense, useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { create } from 'zustand'
-import { createFaceRig, type FaceRig as FaceRigHandle } from '../../core/face/faceRig'
+import { resolveAtlasUrls } from '../../core/face/atlasRegistry'
+import { createFaceRig, type FacePlacement, type FaceRig as FaceRigHandle } from '../../core/face/faceRig'
 import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
-
-// Vite resolves these to hashed asset URLs; new URL() keeps tsconfig free of
-// module declarations for *.png.
-const EYE_URL = new URL('../../assets/face/eye-atlas.png', import.meta.url).href
-const PUPIL_URL = new URL('../../assets/face/pupil-atlas.png', import.meta.url).href
-const BROW_URL = new URL('../../assets/face/brow-atlas.png', import.meta.url).href
-const MOUTH_URL = new URL('../../assets/face/mouth-atlas.png', import.meta.url).href
+import { useCharacterStore } from '../state/characterStore'
 
 /**
  * Shared handle to the live rig so DOM-side panels (FacePanel) can drive it.
@@ -18,9 +13,21 @@ const MOUTH_URL = new URL('../../assets/face/mouth-atlas.png', import.meta.url).
  */
 export const useFaceRigStore = create<{ rig: FaceRigHandle | null }>(() => ({ rig: null }))
 
-function FaceRigInner({ headRadius }: { headRadius: number }) {
+export interface FaceRigProps {
+  headRadius: number
+  /** Per-archetype angular placement overrides (plan 006 anchor config). */
+  placement?: Partial<FacePlacement>
+  /** Beak parts ARE the mouth — hide the drawn mouth plane (plan 006). */
+  hideMouth?: boolean
+}
+
+function FaceRigInner({ headRadius, placement, hideMouth = false }: FaceRigProps) {
   const groupRef = useRef<THREE.Group>(null)
-  const [eye, pupil, brow, mouth] = useTexture([EYE_URL, PUPIL_URL, BROW_URL, MOUTH_URL])
+  // Personality-authored atlas set (plan 006 step 3b): the spec's atlasId
+  // picks the registered 관상 variant; unknown ids fall back to face-v1.
+  const atlasId = useCharacterStore((s) => s.spec.face.atlasId)
+  const urls = resolveAtlasUrls(atlasId)
+  const [eye, pupil, brow, mouth] = useTexture([urls.eye, urls.pupil, urls.brow, urls.mouth])
 
   useEffect(() => {
     const parent = groupRef.current
@@ -33,28 +40,36 @@ function FaceRigInner({ headRadius }: { headRadius: number }) {
       headRadius,
       rng: Math.random, // Math.random stays outside src/core/** — injected here
       textures: { eye, pupil, brow, mouth },
+      placement,
     })
     const update = (dt: number) => rig.update(dt)
     registerUpdate('procedural', update)
+    // FacePanel re-syncs expression + blink interval from the spec whenever
+    // the store's rig handle changes, so a rebuilt rig never resets to defaults.
     useFaceRigStore.setState({ rig })
     return () => {
       unregisterUpdate('procedural', update)
       useFaceRigStore.setState({ rig: null })
       rig.dispose()
     }
-  }, [headRadius, eye, pupil, brow, mouth])
+  }, [headRadius, placement, eye, pupil, brow, mouth])
+
+  useEffect(() => {
+    const mouthPlane = groupRef.current?.getObjectByName('mouth')
+    if (mouthPlane) mouthPlane.visible = !hideMouth
+  })
 
   return <group ref={groupRef} />
 }
 
 /**
- * Mounts the drawn-face rig as a child of the head mesh (local origin =
+ * Mounts the drawn-face rig as a child of the head anchor (local origin =
  * head-sphere centre) and ticks it in the frame loop's `procedural` phase.
  */
-export function FaceRig({ headRadius }: { headRadius: number }) {
+export function FaceRig(props: FaceRigProps) {
   return (
     <Suspense fallback={null}>
-      <FaceRigInner headRadius={headRadius} />
+      <FaceRigInner {...props} />
     </Suspense>
   )
 }

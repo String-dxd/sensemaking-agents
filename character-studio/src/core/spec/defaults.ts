@@ -17,10 +17,9 @@ import {
 // --- personality -> face defaults (관상/gwansang grammar, plan 000 §2.1b) ---
 //
 // Every value here is a default; the designer can override any of it per
-// character. `atlasId` values are the intended personality-specific atlas
-// variants (plan 006 authors the art); until then every one of them resolves
-// through `ATLAS_FALLBACK` to the single existing v1 atlas so the studio
-// renders correctly today while the spec already carries the real intent.
+// character. `atlasId` values resolve through the plan-006 atlas registry
+// (`../face/atlasRegistry.ts`): gentle/cheerful/proud/gruff have authored
+// 관상 art; calm/mischievous alias grammar-nearest sets until authored.
 //
 // `defaultExpression` is chosen from plan 002's existing EXPRESSION_PRESETS
 // keys (neutral/happy/sad/angry/surprised/sleepy/love/dizzy/wink) — the only
@@ -83,22 +82,34 @@ export const PERSONALITY_FACE_DEFAULTS: Record<Personality, PersonalityFaceDefau
   },
 }
 
-/**
- * Personality-specific atlasIds all alias to the single existing v1 atlas
- * (`src/assets/face/*.png`, plan 002) until plan 006 authors real per-
- * personality atlas variants. Look up the *rendered* atlas asset id through
- * this map; the spec keeps the intended personality atlasId regardless.
- */
-export const ATLAS_FALLBACK: Record<string, string> = {
-  'face-gentle': 'face-v1',
-  'face-cheerful': 'face-v1',
-  'face-proud': 'face-v1',
-  'face-gruff': 'face-v1',
-  'face-calm': 'face-v1',
-  'face-mischievous': 'face-v1',
-}
-
 const DEFAULT_IRIS_COLOR = '#4a2f1f'
+
+// --- default anatomy parts per archetype (plan 006) --------------------------
+//
+// PartIds live in `../skeleton/partRegistry.ts` (imported nowhere here to
+// keep defaults dependency-light; partRegistry tests assert these ids exist).
+const DEFAULT_PARTS: Record<Archetype, CharacterSpec['anatomy']['parts']> = {
+  'biped-round': {
+    ears: { partId: 'upright-pointy', morphs: {} },
+    muzzle: { partId: 'short-cat', morphs: {} },
+    tail: { partId: 'stub-round', morphs: {} },
+    claws: { partId: 'mitten-none', morphs: {} },
+    crest: { partId: 'none', morphs: {} },
+  },
+  'biped-slim': {
+    ears: { partId: 'bunny-tall', morphs: {} },
+    muzzle: { partId: 'short-cat', morphs: {} },
+    tail: { partId: 'fluff-fox', morphs: {} },
+    claws: { partId: 'mitten-none', morphs: {} },
+    crest: { partId: 'none', morphs: {} },
+  },
+  bird: {
+    muzzle: { partId: 'beak-small', morphs: {} },
+    tail: { partId: 'feather-fan', morphs: {} },
+    claws: { partId: 'mitten-none', morphs: {} },
+    crest: { partId: 'feather-tuft', morphs: {} },
+  },
+}
 
 // --- default spring rig per archetype ---------------------------------------
 //
@@ -155,7 +166,7 @@ const BIRD_SPRING_RIG: SpringChainDef[] = [
   },
 ]
 
-function defaultSpringRig(archetype: Archetype): SpringChainDef[] {
+export function defaultSpringRig(archetype: Archetype): SpringChainDef[] {
   // biped-round and biped-slim share the same default chain set (ears + tail)
   // today — the sketch only calls out biped-round explicitly; biped-slim gets
   // the same rig pending plan-006 proportions.
@@ -164,17 +175,18 @@ function defaultSpringRig(archetype: Archetype): SpringChainDef[] {
 
 // Default per-region toon material params (plan 005 step 6 look gate).
 // shadowTint is a slightly cool violet — the shadow side must read pastel,
-// never gray (plan 000 §2.3). `debug-spots` on the body demonstrates the
-// palette-mask recolor path until plan 006 ships authored textures.
+// never gray (plan 000 §2.3). `authored` = the region mesh's own plan-006
+// palette-mask pack (assembly resolves it per region).
 const DEFAULT_MATERIAL_ASSIGN = {
   rampSoftness: 0.2,
   rimStrength: 0.3,
   shadowTint: '#b8a8c8',
   outline: false,
+  textureId: 'authored',
 } as const
 
 const DEFAULT_MATERIALS: CharacterSpec['materials'] = {
-  body: { ...DEFAULT_MATERIAL_ASSIGN, textureId: 'debug-spots' },
+  body: { ...DEFAULT_MATERIAL_ASSIGN },
   ears: { ...DEFAULT_MATERIAL_ASSIGN },
   muzzle: { ...DEFAULT_MATERIAL_ASSIGN },
   tail: { ...DEFAULT_MATERIAL_ASSIGN },
@@ -189,6 +201,11 @@ const DEFAULT_PALETTE = {
   accentB: '#3a2a20',
   padsNose: '#5a3a2a',
 } as const
+
+/** Default part loadout for an archetype (AnatomyPanel archetype switch). */
+export function defaultAnatomyParts(archetype: Archetype): CharacterSpec['anatomy']['parts'] {
+  return structuredClone(DEFAULT_PARTS[archetype])
+}
 
 /**
  * Build a fresh, schema-valid CharacterSpec for a given archetype and
@@ -209,7 +226,7 @@ export function createDefaultCharacter(archetype: Archetype, personality: Person
       updatedAt: now,
     },
     anatomy: {
-      parts: {},
+      parts: structuredClone(DEFAULT_PARTS[archetype]),
       bodyMorphs: {},
     },
     face: {

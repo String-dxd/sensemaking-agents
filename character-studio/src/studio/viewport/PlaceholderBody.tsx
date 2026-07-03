@@ -1,25 +1,31 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import { create } from 'zustand'
 import {
   addOutline,
   applyMaterialAssign,
   applyPalette,
   applyTextureId,
   createToonMaterial,
-  DEFAULT_TERMINATOR_WARMTH,
   getOutline,
   removeOutline,
   type ToonMaterial,
 } from '../../core/materials'
 import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
 import { mulberry32 } from '../../core/motion/noise'
-import { createIdleLayer, type IdleLayer } from '../../core/motion/proceduralIdle'
-import { createFixedStepper, createSpringRig, type SpringRig } from '../../core/motion/springSolver'
+import { createIdleLayer } from '../../core/motion/proceduralIdle'
+import { createFixedStepper, createSpringRig } from '../../core/motion/springSolver'
 import type { ColliderGroup, SpringChainDef, SpringJointParams } from '../../core/motion/springTypes'
-import type { MaterialAssign, Region } from '../../core/spec/schema'
+import type { Region } from '../../core/spec/schema'
 import { useCharacterStore } from '../state/characterStore'
+// Shared studio stores + movers moved to ../state/studioStores and
+// ./bodyMover when CharacterRoot (plan 006) took over mounting; re-exported
+// here for backwards compatibility while this file stays as a fallback body.
+import { FALLBACK_ASSIGN, useMotionStudio, useToonStudio, type BodyMover } from '../state/studioStores'
+import { createBodyMover } from './bodyMover'
 import { FaceRig } from './FaceRig'
+
+export { FALLBACK_ASSIGN, useMotionStudio, useToonStudio }
+export type { BodyMover }
 
 // Minimal stand-in character: a capsule body + sphere head, toon-shaded, now
 // with placeholder spring-bone chains (plan 003 step 2): 2 ear chains
@@ -91,116 +97,9 @@ const COLLIDER_GROUPS: ColliderGroup[] = [
   { name: 'head', colliders: [{ boneName: 'head', offset: [0, 0, 0], radius: 0.26 }] },
 ]
 
-// Temporary body movers (plan 003 step 4): stand-ins for the plan-007
-// animation clips, run in the `animation` phase purely to excite the springs.
-export interface BodyMover {
-  update(dt: number): void
-  /** 0.15 m vertical impulse curve over 400 ms. */
-  hop(): void
-  /** Head yaw ±25° decaying oscillation over 600 ms. */
-  shake(): void
-  /** Root follows a 1 m-radius circle at 0.6 m/s; toggling off snaps home (a follow-through demo in itself). */
-  toggleWalk(): boolean
-}
-
-const HOP_DURATION = 0.4
-const HOP_HEIGHT = 0.15
-const SHAKE_DURATION = 0.6
-const SHAKE_AMPLITUDE = (25 * Math.PI) / 180
-const SHAKE_CYCLES = 2.5
-const WALK_RADIUS = 1
-const WALK_SPEED = 0.6
-
-function createBodyMover(root: THREE.Object3D, neck: THREE.Object3D): BodyMover {
-  const basePos = root.position.clone()
-  const baseRotY = root.rotation.y
-  const baseNeckYaw = neck.rotation.y
-  let hopT = Infinity
-  let shakeT = Infinity
-  let walking = false
-  let theta = 0
-
-  return {
-    update(dt: number) {
-      if (hopT <= HOP_DURATION) {
-        const u = hopT / HOP_DURATION
-        root.position.y = basePos.y + HOP_HEIGHT * Math.sin(Math.PI * u)
-        hopT += dt
-        if (hopT > HOP_DURATION) {
-          root.position.y = basePos.y
-          hopT = Infinity
-        }
-      }
-      if (shakeT <= SHAKE_DURATION) {
-        const u = shakeT / SHAKE_DURATION
-        neck.rotation.y = baseNeckYaw + SHAKE_AMPLITUDE * Math.sin(2 * Math.PI * SHAKE_CYCLES * u) * (1 - u)
-        shakeT += dt
-        if (shakeT > SHAKE_DURATION) {
-          neck.rotation.y = baseNeckYaw
-          shakeT = Infinity
-        }
-      }
-      if (walking) {
-        // Circle of radius WALK_RADIUS through the home position, facing travel.
-        theta += (WALK_SPEED / WALK_RADIUS) * dt
-        root.position.x = basePos.x + Math.sin(theta) * WALK_RADIUS
-        root.position.z = basePos.z + (Math.cos(theta) - 1) * WALK_RADIUS
-        root.rotation.y = baseRotY + theta + Math.PI / 2
-      }
-    },
-    hop() {
-      hopT = 0
-    },
-    shake() {
-      shakeT = 0
-    },
-    toggleWalk() {
-      walking = !walking
-      if (!walking) {
-        root.position.copy(basePos)
-        root.rotation.y = baseRotY
-        theta = 0
-      }
-      return walking
-    },
-  }
-}
-
-// Live handles for the MotionDebugPanel (populated once the body mounts).
-interface MotionStudioState {
-  rig: SpringRig | null
-  idle: IdleLayer | null
-  mover: BodyMover | null
-}
-
-export const useMotionStudio = create<MotionStudioState>(() => ({ rig: null, idle: null, mover: null }))
-
-// Studio-level (NOT persisted) shading control: terminatorWarmth is a factory
-// uniform, not a spec MaterialAssign field — adding it to the spec would need
-// a SPEC_VERSION bump + migration (plan 004 rule), which plan 005 doesn't
-// authorize. Global across regions for now; plan 010/012 can promote it.
-interface ToonStudioState {
-  terminatorWarmth: number
-  setTerminatorWarmth(value: number): void
-}
-
-export const useToonStudio = create<ToonStudioState>((set) => ({
-  terminatorWarmth: DEFAULT_TERMINATOR_WARMTH,
-  setTerminatorWarmth: (terminatorWarmth) => set({ terminatorWarmth }),
-}))
-
 // Placeholder-body regions (subset of the spec's five — muzzle/claws arrive
 // with plan-006 meshes). Meshes are tagged via userData.region below.
 const BODY_REGIONS = ['body', 'ears', 'tail'] as const satisfies readonly Region[]
-
-// Safety net if a loaded spec omits a region (materials is a partial record).
-// Exported for the MaterialPanel so both surfaces agree on the fallback.
-export const FALLBACK_ASSIGN: MaterialAssign = {
-  rampSoftness: 0.2,
-  rimStrength: 0.3,
-  shadowTint: '#b8a8c8',
-  outline: false,
-}
 
 function meshesForRegion(root: THREE.Object3D, region: Region): THREE.Mesh[] {
   const meshes: THREE.Mesh[] = []
@@ -293,7 +192,7 @@ export function PlaceholderBody() {
     registerUpdate('animation', onAnimation)
     registerUpdate('physics', onPhysics)
     registerUpdate('procedural', onProcedural)
-    useMotionStudio.setState({ rig, idle, mover })
+    useMotionStudio.setState({ rig, idle, mover, chains: CHAINS })
 
     return () => {
       unregisterUpdate('animation', onAnimation)
@@ -301,7 +200,7 @@ export function PlaceholderBody() {
       unregisterUpdate('procedural', onProcedural)
       idle.reset()
       rig.dispose()
-      useMotionStudio.setState({ rig: null, idle: null, mover: null })
+      useMotionStudio.setState({ rig: null, idle: null, mover: null, chains: [] })
     }
   }, [])
 

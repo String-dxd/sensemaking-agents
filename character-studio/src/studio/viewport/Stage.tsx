@@ -1,10 +1,11 @@
 import { OrbitControls, Stats } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useMemo } from 'react'
+import { Suspense, useMemo } from 'react'
 import { runFrame } from '../../core/motion/frameLoop'
+import { AnatomyPanel } from '../panels/AnatomyPanel'
 import { MaterialPanel } from '../panels/MaterialPanel'
+import { CharacterRoot } from './CharacterRoot'
 import { MotionDebugPanel } from './MotionDebugPanel'
-import { PlaceholderBody } from './PlaceholderBody'
 import { PostFX } from './PostFX'
 
 // Drives the plan-000 §2.2 ordered update registry (src/core/motion/frameLoop)
@@ -63,13 +64,18 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
         <FrameLoopDriver />
         <Lighting />
         <Pedestal />
-        <PlaceholderBody />
+        {/* PlaceholderBody (plans 002–005) retired from the stage by plan
+            006 — CharacterRoot mounts the real assembled character. */}
+        <Suspense fallback={null}>
+          <CharacterRoot />
+        </Suspense>
         {fxEnabled ? <PostFX /> : null}
         <OrbitControls target={[0, 0.7, 0]} />
         {showStats ? <Stats /> : null}
       </Canvas>
       <MotionDebugPanel />
       <MaterialPanel />
+      <AnatomyPanel />
     </>
   )
 }

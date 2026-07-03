@@ -21,7 +21,7 @@ honor its STOP conditions, and update your row below when done.
 | 003 | Spring-bone secondary motion | 1 | P1 | L | 001 | **Fable 5** | DONE (merged to `feat/character-studio` in `aa83f08`) |
 | 004 | CharacterSpec data model | 2 | P1 | M | 002, 003 | Sonnet 5 | DONE (merged to `feat/character-studio` at `f1631cf`, incl. 관상 personality) |
 | 005 | Toon rendering & materials | 2 | P1 | L | 001, 002, 004 | **Fable 5** | DONE (merged to `feat/character-studio` at `ed2f6df`) |
-| 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | TODO |
+| 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | DONE-pending-visual (executed on `advisor/006-anatomy-archetypes` via headless local Blender — MCP addon wasn't connected; 194 tests green; dog/bird/rabbit assemble live with 관상 faces; operator look-review pending) |
 | 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | TODO |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | Sonnet 5 (Opus 4.8 if authoring meshes) | TODO |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |

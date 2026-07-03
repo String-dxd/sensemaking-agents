@@ -10,7 +10,7 @@ import {
   type Region,
 } from '../../core/spec/schema'
 import { useCharacterStore } from '../state/characterStore'
-import { FALLBACK_ASSIGN, useToonStudio } from '../viewport/PlaceholderBody'
+import { FALLBACK_ASSIGN, useToonStudio } from '../state/studioStores'
 
 // Material & palette control panel (plan 005, step 5). Every control writes
 // through the characterStore's `patch` — the viewport picks changes up via

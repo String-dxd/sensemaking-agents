@@ -48,8 +48,10 @@ export type TextureResolver = (textureId: string) => ResolvedTextures
 let debugMask: THREE.DataTexture | null = null
 
 /**
- * v1 registry: `debug-spots` (procedural spots + belly mask on the
- * placeholder UVs) and `none`. Plan 006 swaps in authored texture packs.
+ * Base registry: `authored` (the mesh's own plan-006 palette-mask pack —
+ * resolved by the assembly's region-aware resolver; unmasked here so tests
+ * and the placeholder keep working), `debug-spots` (procedural spots + belly
+ * mask on the placeholder UVs) and `none`.
  */
 export const defaultTextureResolver: TextureResolver = (textureId) => {
   if (textureId === 'debug-spots') {
@@ -59,7 +61,7 @@ export const defaultTextureResolver: TextureResolver = (textureId) => {
   return { map: null, maskMap: null }
 }
 
-export const TEXTURE_IDS = ['none', 'debug-spots'] as const
+export const TEXTURE_IDS = ['authored', 'none', 'debug-spots'] as const
 
 // --- uniforms ----------------------------------------------------------------
 
