@@ -97,6 +97,39 @@ describe('companion GLB conformance (fixture dog)', () => {
     }
   })
 
+  it('a GENERIC GLTFLoader (no companion-runtime) shows a textured, skinned, animated character', async () => {
+    // Exactly what a naive product-app user gets: stock GLTFLoader + the
+    // standard meshopt decoder, no runtime library, no SEN_companion. (A
+    // rendered screenshot of this is saved to the plan-011 artifacts dir.)
+    const gltf = await parseGlbHeadless<{ scene: THREE.Object3D; animations: THREE.AnimationClip[] }>(
+      glb,
+      new GLTFLoader() as never,
+      MeshoptDecoder,
+    )
+    expect(gltf.animations.length).toBe(11)
+    let skinned = 0
+    let unlitTextured = 0
+    const bones = new Set<string>()
+    gltf.scene.traverse((o) => {
+      const sm = o as THREE.SkinnedMesh
+      if (sm.isSkinnedMesh) {
+        skinned++
+        for (const b of sm.skeleton.bones) bones.add(b.name)
+      }
+      const mat = (o as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined
+      if (mat?.type === 'MeshBasicMaterial' && mat.map) unlitTextured++ // unlit face planes
+    })
+    expect(skinned).toBeGreaterThan(0)
+    expect(bones.size).toBe(38) // full skeleton bound
+    expect(unlitTextured).toBeGreaterThanOrEqual(6) // eyes/brows/mouth atlas planes
+    // animate with a stock mixer (no runtime lib) — stays finite
+    const mixer = new THREE.AnimationMixer(gltf.scene)
+    mixer.clipAction(gltf.animations.find((a) => a.name === 'walk') as THREE.AnimationClip).play()
+    for (let f = 0; f < 120; f++) mixer.update(FRAME)
+    gltf.scene.updateWorldMatrix(true, true)
+    expect(finite(gltf.scene)).toBe(true)
+  })
+
   it('plays in the companion-runtime: springs settle, blink fires, no NaN', async () => {
     const gltf = await parseGlbHeadless<{ scene: THREE.Object3D; animations: THREE.AnimationClip[]; parser: unknown }>(
       glb,
