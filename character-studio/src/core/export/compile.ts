@@ -28,7 +28,7 @@
 // ASYNC: gltf-transform's NodeIO.writeBinary + the meshopt encoder are async.
 
 import type { Document, Material, Node as GNode, Skin, Texture, TextureInfo } from '@gltf-transform/core'
-import { Document as GltfDocument, NodeIO } from '@gltf-transform/core'
+import { Document as GltfDocument, WebIO } from '@gltf-transform/core'
 import { EXTMeshoptCompression, KHRMaterialsUnlit, KHRTextureTransform } from '@gltf-transform/extensions'
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer'
 import * as THREE from 'three'
@@ -614,8 +614,8 @@ function cellMap(cells: Record<string, AtlasCell>): Record<string, [number, numb
 
 // --- IO -----------------------------------------------------------------------
 
-function baseIO(): NodeIO {
-  return new NodeIO().registerExtensions([SENCompanionExtension, KHRMaterialsUnlit, KHRTextureTransform, EXTMeshoptCompression])
+function baseIO(): WebIO {
+  return new WebIO().registerExtensions([SENCompanionExtension, KHRMaterialsUnlit, KHRTextureTransform, EXTMeshoptCompression])
 }
 
 async function writeGlb(doc: Document, compress: boolean): Promise<Uint8Array> {
