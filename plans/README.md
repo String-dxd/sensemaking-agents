@@ -26,7 +26,7 @@ honor its STOP conditions, and update your row below when done.
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | **Fable 5** + headless Blender | DONE (merged to `feat/character-studio` at `fd93885`; operator approved dressed-motion videos + the slimmer post-morph-fix silhouette) |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | DONE (merged to `feat/character-studio`; lead ran step-6 gate — sculpt survives morphs/archetype-round-trip/Play-Mode, undo lossless, geodesic pick 0.08–1.30 ms; operator approved) |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | DONE (merged to `feat/character-studio` at `384f161`; operator approved presets + terminator sweep; gizmo mouse-drag needs a one-time human check) |
-| 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | TODO |
+| 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | DONE-pending-review (branch `advisor/011-export-runtime`; both packages `typecheck && test` green — studio 420, runtime 25 incl. three-0.149∧0.185 matrix; CLI + in-browser export → 0.51 MB GLB passing the conformance suite; generic GLTFLoader render captured; `docs/companion-handoff.md` written; awaiting lead re-run + operator merge) |
 | 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
