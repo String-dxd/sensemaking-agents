@@ -5,6 +5,7 @@ import { runFrame } from '../../core/motion/frameLoop'
 import { studioLookFromPreset } from '../../core/spec/lighting'
 import { PlayMode } from '../play/PlayMode'
 import { usePlayStore } from '../play/playStore'
+import { ThumbnailCaptureRig } from '../roster/thumbnails'
 import { useCharacterStore } from '../state/characterStore'
 import { useSculptStore } from '../state/sculptStore'
 import { useLightingStudio } from '../state/studioStores'
@@ -113,6 +114,10 @@ export function Stage({ showStats = false, orbitControlsRef }: StageProps) {
         <OrbitControls ref={orbitControlsRef} makeDefault target={[0, 0.7, 0]} />
       ) : null}
       {showStats ? <Stats /> : null}
+      {/* Publishes gl/scene for on-demand roster thumbnail capture (plan
+          012 step 2) — reuses THIS renderer via a temporary render target,
+          never a second WebGL context. */}
+      <ThumbnailCaptureRig />
     </Canvas>
   )
 }
