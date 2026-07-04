@@ -26,25 +26,27 @@ honor its STOP conditions, and update your row below when done.
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | **Fable 5** + headless Blender | DONE (merged to `feat/character-studio` at `fd93885`; operator approved dressed-motion videos + the slimmer post-morph-fix silhouette) |
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | DONE (merged to `feat/character-studio`; lead ran step-6 gate — sculpt survives morphs/archetype-round-trip/Play-Mode, undo lossless, geodesic pick 0.08–1.30 ms; operator approved) |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | DONE (merged to `feat/character-studio` at `384f161`; operator approved presets + terminator sweep; gizmo mouse-drag needs a one-time human check) |
-| 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | TODO |
+| 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | DONE (merged to `feat/character-studio`; operator approved — CLI+panel export → 0.51 MB conformant GLB, generic GLTFLoader self-sufficient, companion-runtime version-agnostic on three 0.149∧0.185; studio 420 tests, runtime 25) |
 | 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | DONE (merged to `feat/character-studio` at `6f01a44`; operator approved shell + roster reload-survival; gates green, 420 tests) |
 
 Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
-**Session handoff (updated 2026-07-04):** Plans 001–010 + 012 executed,
-reviewed, and merged to `feat/character-studio` (through `6f01a44`; 420
-tests). The floating debug panels are now a Shell (TopBar + 7-mode ModeTabs
-builder-flow rail + managed right column) with a local-first IndexedDB roster
-(CRUD, skip-while-pointer-down autosave, crash-recovery slots, thumbnails via
-the live WebGL context) — panel-overlap + FacePanel-warning debts resolved.
-**Only plan 011 remains** (Opus 4.8, export + companion runtime) — **in
-flight** in its own worktree (branched at `4b83893`, BEFORE 012 merged, so
-expect merge overlap in `package.json` / `plans/README.md` when it lands;
-011 was scoped to keep `ExportPanel.tsx` standalone and NOT touch the shell,
-so no Stage/App conflict — lead wires the export action into RosterView after
-merge). After 011 lands the whole suite is done. Model note: **Fable 5 is rate-limited this
+**Session handoff (updated 2026-07-04): ALL 12 PLANS COMPLETE.** Plans 001–012
+executed, reviewed, and merged to `feat/character-studio`. The suite is done:
+authored archetype bodies + anatomy parts on one canonical skeleton, 관상 face
+atlases, toon rendering, spring secondary motion, a full animation clip set +
+Play Mode, wardrobe, freeform sculpt + lattice, a lighting studio, the studio
+shell + IndexedDB roster, and the export pipeline + version-agnostic
+`companion-runtime` (validated on three 0.149∧0.185). Post-merge stitch still
+owed: **wire the ExportPanel's "Export .companion.glb" action into RosterView**
+(011 kept ExportPanel standalone to dodge the concurrent-012 shell conflict;
+012's RosterView left a gated slot). **Next work is the queued Fable-led
+integrated aesthetic polish pass** (a future session — Fable was rate-limited
+here): hero sculpt for demos, tighten the AC/Pokopia silhouette bar on authored
+assets, motion feel, lighting presets. See
+[[project-character-studio-execution-status]] in memory. Model note: **Fable 5 is rate-limited this
 session** — if unavailable, aesthetic-gated continuations can run on Opus 4.8
 (the lead ran 009's step-6 gate directly on Opus). New human-check debt:
 light-gizmo mouse-drag (store path verified; drag not simulatable in
