@@ -19,18 +19,27 @@ import { type EditMode, MODE_TAB_ORDER, ModePanel, ModeTabs, selectStudioTab } f
 import { Toasts } from './Toasts'
 import { TopBar } from './TopBar'
 
-/** Global keyboard shortcuts skip form controls (inputs, selects, buttons,
- * contenteditable) so digit/space keystrokes still reach sliders, text
- * fields, and native button activation. */
-function isFormField(target: EventTarget | null): boolean {
+/** Skip global shortcuts while a TEXT-ENTRY control has focus, so typed
+ * digits and Cmd+Z still reach text fields/selects normally. Deliberately
+ * does NOT include BUTTON: this studio's UI is almost entirely buttons
+ * (mode tabs, wardrobe/anatomy pickers, expression presets...), and a
+ * clicked button keeps focus afterwards — excluding BUTTON here would mean
+ * "press 6 to jump to Lighting" stops working the moment you've clicked
+ * anything, which is most of the time. */
+function isTextEntryField(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   return (
     target.tagName === 'INPUT' ||
     target.tagName === 'TEXTAREA' ||
     target.tagName === 'SELECT' ||
-    target.tagName === 'BUTTON' ||
     target.isContentEditable
   )
+}
+
+/** Space is different: a focused BUTTON natively activates on Space, and
+ * that must keep working (e.g. a focused mode tab, a wardrobe item). */
+function isActivatableControl(target: EventTarget | null): boolean {
+  return isTextEntryField(target) || (target instanceof HTMLElement && target.tagName === 'BUTTON')
 }
 
 function useShellKeyboardShortcuts(setEditMode: (mode: EditMode) => void) {
@@ -38,17 +47,16 @@ function useShellKeyboardShortcuts(setEditMode: (mode: EditMode) => void) {
     const onKeyDown = (e: KeyboardEvent) => {
       // ⌘Z / ⇧⌘Z → undo/redo (unchanged behavior, moved here from App.tsx).
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
-        if (isFormField(e.target)) return
+        if (isTextEntryField(e.target)) return
         e.preventDefault()
         if (e.shiftKey) studioCommands.redo()
         else studioCommands.undo()
         return
       }
 
-      if (isFormField(e.target)) return
-
       // 1..7 → MODE_TAB_ORDER[n - 1].
       if (/^[1-9]$/.test(e.key)) {
+        if (isTextEntryField(e.target)) return
         const index = Number(e.key) - 1
         if (index < MODE_TAB_ORDER.length) {
           e.preventDefault()
@@ -60,6 +68,7 @@ function useShellKeyboardShortcuts(setEditMode: (mode: EditMode) => void) {
       // Space toggles Play without disturbing the remembered edit mode
       // (mirrors PlayControls' own toggle — neither touches `editMode`).
       if (e.code === 'Space') {
+        if (isActivatableControl(e.target)) return
         e.preventDefault()
         const mode = usePlayStore.getState().mode
         usePlayStore.getState().setMode(mode === 'play' ? 'studio' : 'play')

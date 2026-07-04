@@ -364,7 +364,10 @@ input[type='color'] {
   position: fixed;
   bottom: var(--cs-space-4);
   left: var(--cs-space-4);
-  z-index: 100;
+  /* Above the roster overlay (200): errors happen INSIDE it too (e.g. a
+     corrupt-JSON import) and must stay visible, not render behind an
+     opaque full-screen modal. */
+  z-index: 300;
   display: flex;
   flex-direction: column;
   gap: var(--cs-space-2);
@@ -466,12 +469,35 @@ input[type='color'] {
   border-radius: var(--cs-radius-md);
 }
 
+.cs-roster-card.is-open {
+  border-color: var(--cs-accent);
+}
+
+.cs-roster-card__open {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  border: none;
+  background: none;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
 .cs-roster-card__thumb {
   width: 100%;
   aspect-ratio: 1;
   border-radius: var(--cs-radius-sm);
   background: var(--cs-bg-input);
   object-fit: cover;
+}
+
+.cs-roster-card__thumb--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--cs-border);
 }
 
 .cs-roster-card__name {
@@ -517,6 +543,18 @@ input[type='color'] {
 .cs-roster-archetype-card:hover {
   border-color: var(--cs-accent);
   background: var(--cs-bg-input-hover);
+}
+
+.cs-roster__import-label {
+  position: relative;
+  overflow: hidden;
+}
+
+.cs-roster__import-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
 /* ---- crash boundary (Shell.tsx) ------------------------------------------ */

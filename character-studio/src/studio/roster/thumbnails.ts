@@ -9,16 +9,21 @@
 // renderer's previous render target before yielding).
 //
 // Framing: `studioLook.portraitCamera` (the designer's bookmark, plan 010
-// step 4) if set, else a bounding-box fit of the ASSEMBLED CHARACTER ROOT
-// (published by CharacterRoot via `useMotionStudio` — never the whole
-// scene, which would also fit the wide pedestal and light gizmos).
+// step 4) if set, else the SAME static pose Stage.tsx's Canvas boots with
+// ([0, 1.2, 3.2] looking at [0, 0.7, 0]) — every archetype is already
+// composed to read well there (it's the first thing a designer sees), so
+// reusing it beats a bespoke bounding-box fit that needs its own tuning.
+//
+// Light gizmos (plan 010) are hidden for the duration of the capture (see
+// `requestThumbnail`) — they're a studio editing aid, never part of a
+// character's portrait.
 
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect } from 'react'
 import * as THREE from 'three'
 import { create } from 'zustand'
 import type { PortraitCamera } from '../../core/spec/lighting'
-import { useMotionStudio } from '../state/studioStores'
+import { useLightingStudio, useMotionStudio } from '../state/studioStores'
 
 const THUMBNAIL_SIZE = 512
 
@@ -63,21 +68,12 @@ function buildPortraitCamera(portrait: PortraitCamera): THREE.PerspectiveCamera 
   return camera
 }
 
-/** Fallback framing when no portrait bookmark is set yet: fit the
- * assembled character's own bounding box. Falls back further to Stage's
- * default Canvas camera pose if no character is assembled at all. */
-function buildDefaultCamera(root: THREE.Object3D | null): THREE.PerspectiveCamera {
+/** Fallback framing when no portrait bookmark is set yet — Stage's own
+ * default Canvas camera pose (see file header). */
+function buildDefaultCamera(): THREE.PerspectiveCamera {
   const camera = new THREE.PerspectiveCamera(35, 1, 0.05, 50)
-  const box = root ? new THREE.Box3().setFromObject(root) : null
-  if (box && !box.isEmpty()) {
-    const center = box.getCenter(new THREE.Vector3())
-    const size = box.getSize(new THREE.Vector3()).length() || 1.5
-    camera.position.set(center.x, center.y + size * 0.12, center.z + size * 0.95)
-    camera.lookAt(center.x, center.y + size * 0.05, center.z)
-  } else {
-    camera.position.set(0, 1.2, 3.2)
-    camera.lookAt(0, 0.7, 0)
-  }
+  camera.position.set(0, 1.2, 3.2)
+  camera.lookAt(0, 0.7, 0)
   camera.updateProjectionMatrix()
   return camera
 }
@@ -122,10 +118,26 @@ function renderThumbnail(gl: THREE.WebGLRenderer, scene: THREE.Scene, camera: TH
 function requestThumbnail(portrait: PortraitCamera | null): Promise<Blob | null> {
   const { gl, scene } = useThumbnailRig.getState()
   if (!gl || !scene) return Promise.resolve(null)
-  const root = useMotionStudio.getState().character?.root ?? null
-  const camera = portrait ? buildPortraitCamera(portrait) : buildDefaultCamera(root)
+  const camera = portrait ? buildPortraitCamera(portrait) : buildDefaultCamera()
+
+  // Gizmos are a separate R3F-rendered component keyed off this flag, so
+  // hiding them takes a React re-render (not synchronous) — but the actual
+  // draw only happens on a LATER `useFrame` tick (once ThumbnailCaptureRig
+  // picks up `pending` below), which gives React ample time to commit the
+  // removal before `gl.render()` ever runs.
+  const wasShowingGizmos = useLightingStudio.getState().showGizmos
+  if (wasShowingGizmos) useLightingStudio.setState({ showGizmos: false })
+
   return new Promise((resolve) => {
-    useThumbnailRig.setState({ pending: { camera, resolve } })
+    useThumbnailRig.setState({
+      pending: {
+        camera,
+        resolve: (blob) => {
+          if (wasShowingGizmos) useLightingStudio.setState({ showGizmos: true })
+          resolve(blob)
+        },
+      },
+    })
   })
 }
 
