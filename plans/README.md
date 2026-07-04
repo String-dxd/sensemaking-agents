@@ -27,33 +27,24 @@ honor its STOP conditions, and update your row below when done.
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | DONE (merged to `feat/character-studio`; lead ran step-6 gate — sculpt survives morphs/archetype-round-trip/Play-Mode, undo lossless, geodesic pick 0.08–1.30 ms; operator approved) |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | DONE (merged to `feat/character-studio` at `384f161`; operator approved presets + terminator sweep; gizmo mouse-drag needs a one-time human check) |
 | 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | TODO |
-| 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | DONE-pending-review (branch `advisor/012-studio-shell`, 4 commits, not yet merged — code gates green: `pnpm typecheck && pnpm test && pnpm build` all pass, 420 tests; full builder flow + roster CRUD + crash boundary verified live via agent-browser) |
+| 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | DONE (merged to `feat/character-studio` at `6f01a44`; operator approved shell + roster reload-survival; gates green, 420 tests) |
 
 Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
-**Session handoff (updated 2026-07-04):** Plans 001–010 executed, reviewed,
-and merged to `feat/character-studio` (009 merged last, unioning Stage.tsx
-with 010's light rig). Phase 4 authoring plans (009 sculpt + 010 lighting)
-both landed. **Plan 012 (studio shell & roster — Sonnet 5) executed on
-branch `advisor/012-studio-shell`, 4 commits, DONE-pending-review** (not yet
-merged): the ad-hoc panel mounting (App.tsx mounted `<Stage>`+`<FacePanel>`;
-every other panel was fixed-position inside Stage.tsx, colliding in the
-corners) is now a Shell (TopBar + ModeTabs rail mapping the 7-mode builder
-flow + a managed right column) plus a local-first IndexedDB roster
-(rosterStore.ts: CRUD, debounced skip-while-pointer-down autosave, versioned
-crash-recovery slots, thumbnails reusing the live WebGL context via a
-temporary render target). Resolves the **panel-overlap** debt and the
-FacePanel border-style React warning. Three real bugs were found and fixed
-via live agent-browser QA (not unit-testable — needed a real canvas/DOM):
-thumbnail default framing, light gizmos leaking into thumbnails, and toasts
-rendering behind the roster overlay's z-index; a fourth (number-key mode
-shortcuts silently breaking after clicking any button) was also fixed. Full
-details, gate output, and screenshots in the executor's final report.
-**Next: plan 011 last** (Opus 4.8, export + companion runtime) — the
-review/merge of 012 can happen before or after 011 starts, since 011 doesn't
-depend on the shell. Model note: **Fable 5 is rate-limited this
+**Session handoff (updated 2026-07-04):** Plans 001–010 + 012 executed,
+reviewed, and merged to `feat/character-studio` (through `6f01a44`; 420
+tests). The floating debug panels are now a Shell (TopBar + 7-mode ModeTabs
+builder-flow rail + managed right column) with a local-first IndexedDB roster
+(CRUD, skip-while-pointer-down autosave, crash-recovery slots, thumbnails via
+the live WebGL context) — panel-overlap + FacePanel-warning debts resolved.
+**Only plan 011 remains** (Opus 4.8, export + companion runtime) — **in
+flight** in its own worktree (branched at `4b83893`, BEFORE 012 merged, so
+expect merge overlap in `package.json` / `plans/README.md` when it lands;
+011 was scoped to keep `ExportPanel.tsx` standalone and NOT touch the shell,
+so no Stage/App conflict — lead wires the export action into RosterView after
+merge). After 011 lands the whole suite is done. Model note: **Fable 5 is rate-limited this
 session** — if unavailable, aesthetic-gated continuations can run on Opus 4.8
 (the lead ran 009's step-6 gate directly on Opus). New human-check debt:
 light-gizmo mouse-drag (store path verified; drag not simulatable in
