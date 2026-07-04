@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { GAZE_MAX } from '../../core/face/facePlane'
 import { EXPRESSION_PRESETS, type ExpressionName } from '../../core/face/faceRig'
+import { PanelSection } from '../shell/PanelSection'
 import { useCharacterStore } from '../state/characterStore'
 import { useFaceRigStore } from '../viewport/FaceRig'
 
-// Minimal DOM-side control panel (plain inline styles — the real studio
-// shell arrives in plan 012). Drives the live rig through useFaceRigStore.
+// DOM-side control panel, docked in the shell's managed column (plan 012 —
+// was a fixed-position TOP-RIGHT card that overlapped MotionDebugPanel).
+// Drives the live rig through useFaceRigStore.
 //
 // Plan 004 step 5 wiring: expression + blink interval are now read from/
 // written through the characterStore (the CharacterSpec is the source of
@@ -16,27 +18,16 @@ import { useFaceRigStore } from '../viewport/FaceRig'
 
 const GAZE_IDLE_RETURN_MS = 2000
 
-const panelStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: 16,
-  right: 16,
-  width: 220,
-  padding: 16,
-  borderRadius: 12,
-  background: 'rgba(24, 24, 28, 0.88)',
-  color: '#e8e8ec',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: 13,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-  zIndex: 10,
-}
-
 const buttonStyle: React.CSSProperties = {
   padding: '6px 8px',
   borderRadius: 8,
-  border: '1px solid #44444c',
+  // Longhand border properties (not the `border` shorthand): plan-012 fix —
+  // `activeButtonStyle` below overrides only `borderColor`, and mixing a
+  // shorthand with a longhand override across rerenders is a React dev
+  // warning (mirrors the fix already applied in SculptPanel/LatticeSection).
+  borderWidth: 1,
+  borderStyle: 'solid',
+  borderColor: '#44444c',
   background: '#2a2a30',
   color: '#e8e8ec',
   cursor: 'pointer',
@@ -103,9 +94,7 @@ export function FacePanel() {
   }, [rig, followCursor])
 
   return (
-    <div style={panelStyle}>
-      <strong style={{ fontSize: 14 }}>Face</strong>
-
+    <PanelSection title="Face">
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
         {(Object.keys(EXPRESSION_PRESETS) as ExpressionName[]).map((name) => (
           <button
@@ -143,6 +132,6 @@ export function FacePanel() {
       <button type="button" style={buttonStyle} onClick={() => rig?.blink()}>
         Blink now
       </button>
-    </div>
+    </PanelSection>
   )
 }

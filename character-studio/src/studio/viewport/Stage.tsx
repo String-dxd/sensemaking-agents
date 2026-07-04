@@ -1,14 +1,8 @@
 import { OrbitControls, Stats } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { type ComponentRef, Suspense, useEffect, useMemo, useRef } from 'react'
+import { type ComponentRef, Suspense, useEffect, useMemo } from 'react'
 import { runFrame } from '../../core/motion/frameLoop'
 import { studioLookFromPreset } from '../../core/spec/lighting'
-import { AnatomyPanel } from '../panels/AnatomyPanel'
-import { LightingPanel } from '../panels/LightingPanel'
-import { MaterialPanel } from '../panels/MaterialPanel'
-import { SculptPanel } from '../panels/SculptPanel'
-import { WardrobePanel } from '../panels/WardrobePanel'
-import { PlayControls } from '../play/PlayControls'
 import { PlayMode } from '../play/PlayMode'
 import { usePlayStore } from '../play/playStore'
 import { useCharacterStore } from '../state/characterStore'
@@ -17,7 +11,6 @@ import { useLightingStudio } from '../state/studioStores'
 import { CharacterRoot } from './CharacterRoot'
 import { LatticeTool } from './LatticeTool'
 import { LightGizmos, LightRig } from './LightRig'
-import { MotionDebugPanel } from './MotionDebugPanel'
 import { PostFX } from './PostFX'
 import { SculptTool } from './SculptTool'
 
@@ -61,17 +54,30 @@ function Pedestal() {
   )
 }
 
-export function Stage({ showStats = false }: { showStats?: boolean }) {
+export interface StageProps {
+  showStats?: boolean
+  /**
+   * Owned by Shell.tsx (plan 012) — LightingPanel's portrait-camera bookmark
+   * and the roster thumbnail rig both need this same OrbitControls instance,
+   * and LightingPanel now renders in the shell's DOM column, outside this
+   * component's tree, so the ref is created one level up and threaded down
+   * to the in-Canvas `<OrbitControls>` here.
+   */
+  orbitControlsRef: React.RefObject<OrbitControlsHandle | null>
+}
+
+/**
+ * The 3D viewport ONLY — plan 012 pulled every DOM panel out of this
+ * component (they now render in Shell.tsx's managed column via ModeTabs).
+ * The Canvas itself must stay mounted at all times (unmounting loses the
+ * WebGL context + in-memory character) regardless of which studio mode is
+ * active; Shell never conditionally unmounts `<Stage>`.
+ */
+export function Stage({ showStats = false, orbitControlsRef }: StageProps) {
   // `?fx=0` disables the whole post stack (perf A/B — plan 005 step 4).
   const fxEnabled = useMemo(() => new URLSearchParams(window.location.search).get('fx') !== '0', [])
   const playing = usePlayStore((s) => s.mode) === 'play'
   const cameraPreset = usePlayStore((s) => s.cameraPreset)
-  // LightingPanel's portrait-camera bookmark (plan 010 step 4) reads/writes
-  // this instance directly (`.object` is the camera, `.target` the look-at
-  // point) — cheaper than a Canvas-side bridge since both are DOM-side
-  // imperative mutations picked up by the next frame of the always-running
-  // render loop (FrameLoopDriver already ticks every frame).
-  const orbitControlsRef = useRef<OrbitControlsHandle>(null)
 
   // Play Mode force-exits sculpt mode (its motion drivers need the springs
   // and idle layer that sculpting pauses).
@@ -80,46 +86,33 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
   }, [playing])
 
   return (
-    <>
-      <Canvas shadows="soft" camera={{ fov: 35, position: [0, 1.2, 3.2] }}>
-        <FrameLoopDriver />
-        <Lighting />
-        <Pedestal />
-        {/* PlaceholderBody (plans 002–005) retired from the stage by plan
-            006 — CharacterRoot mounts the real assembled character. */}
-        <Suspense fallback={null}>
-          <CharacterRoot />
-        </Suspense>
-        <Suspense fallback={null}>
-          <PlayMode />
-        </Suspense>
-        {playing ? null : (
-          <>
-            <SculptTool />
-            <LatticeTool />
-          </>
-        )}
-        {fxEnabled ? <PostFX /> : null}
-        {/* follow/face presets drive the camera from PlayMode instead.
-            makeDefault lets the sculpt/lattice tools rebind its buttons;
-            the ref backs LightingPanel's portrait-camera bookmark. */}
-        {!playing || cameraPreset === 'orbit' ? (
-          <OrbitControls ref={orbitControlsRef} makeDefault target={[0, 0.7, 0]} />
-        ) : null}
-        {showStats ? <Stats /> : null}
-      </Canvas>
-      {/* Play Mode hides the editing panels (plan 007 step 5). */}
+    <Canvas shadows="soft" camera={{ fov: 35, position: [0, 1.2, 3.2] }}>
+      <FrameLoopDriver />
+      <Lighting />
+      <Pedestal />
+      {/* PlaceholderBody (plans 002–005) retired from the stage by plan
+          006 — CharacterRoot mounts the real assembled character. */}
+      <Suspense fallback={null}>
+        <CharacterRoot />
+      </Suspense>
+      <Suspense fallback={null}>
+        <PlayMode />
+      </Suspense>
       {playing ? null : (
         <>
-          <MotionDebugPanel />
-          <MaterialPanel />
-          <AnatomyPanel />
-          <WardrobePanel />
-          <LightingPanel orbitControlsRef={orbitControlsRef} />
-          <SculptPanel />
+          <SculptTool />
+          <LatticeTool />
         </>
       )}
-      <PlayControls />
-    </>
+      {fxEnabled ? <PostFX /> : null}
+      {/* follow/face presets drive the camera from PlayMode instead.
+          makeDefault lets the sculpt/lattice tools rebind its buttons;
+          the ref backs LightingPanel's portrait-camera bookmark AND the
+          roster thumbnail rig's default framing. */}
+      {!playing || cameraPreset === 'orbit' ? (
+        <OrbitControls ref={orbitControlsRef} makeDefault target={[0, 0.7, 0]} />
+      ) : null}
+      {showStats ? <Stats /> : null}
+    </Canvas>
   )
 }

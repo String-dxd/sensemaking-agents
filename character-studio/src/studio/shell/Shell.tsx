@@ -1,0 +1,105 @@
+// Shell (plan 012 step 1) — the studio's top-level composition: TopBar,
+// left viewport (Stage, ALWAYS mounted — unmounting it would lose the WebGL
+// context and the in-memory character), ModeTabs rail, and a managed right
+// panel column that shows whichever mode's panel(s) are active. Recomposes
+// what used to be App.tsx mounting <Stage> + <FacePanel> ad hoc, with every
+// OTHER panel mounted (fixed-position, overlapping) inside Stage.tsx itself.
+//
+// Keyboard: 1–7 switch modes (MODE_TAB_ORDER), Space toggles Play, ⌘Z/⇧⌘Z
+// route to the studio-wide command stack (moved here from App.tsx — same
+// guard against hijacking focused form controls).
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { RosterView } from '../roster/RosterView'
+import { studioCommands } from '../state/commandStore'
+import { MotionDebugPanel } from '../viewport/MotionDebugPanel'
+import { Stage, type OrbitControlsHandle } from '../viewport/Stage'
+import { usePlayStore } from '../play/playStore'
+import { type EditMode, MODE_TAB_ORDER, ModePanel, ModeTabs, selectStudioTab } from './ModeTabs'
+import { Toasts } from './Toasts'
+import { TopBar } from './TopBar'
+
+/** Global keyboard shortcuts skip form controls (inputs, selects, buttons,
+ * contenteditable) so digit/space keystrokes still reach sliders, text
+ * fields, and native button activation. */
+function isFormField(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  return (
+    target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.tagName === 'SELECT' ||
+    target.tagName === 'BUTTON' ||
+    target.isContentEditable
+  )
+}
+
+function useShellKeyboardShortcuts(setEditMode: (mode: EditMode) => void) {
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      // ⌘Z / ⇧⌘Z → undo/redo (unchanged behavior, moved here from App.tsx).
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+        if (isFormField(e.target)) return
+        e.preventDefault()
+        if (e.shiftKey) studioCommands.redo()
+        else studioCommands.undo()
+        return
+      }
+
+      if (isFormField(e.target)) return
+
+      // 1..7 → MODE_TAB_ORDER[n - 1].
+      if (/^[1-9]$/.test(e.key)) {
+        const index = Number(e.key) - 1
+        if (index < MODE_TAB_ORDER.length) {
+          e.preventDefault()
+          selectStudioTab(MODE_TAB_ORDER[index], setEditMode)
+          return
+        }
+      }
+
+      // Space toggles Play without disturbing the remembered edit mode
+      // (mirrors PlayControls' own toggle — neither touches `editMode`).
+      if (e.code === 'Space') {
+        e.preventDefault()
+        const mode = usePlayStore.getState().mode
+        usePlayStore.getState().setMode(mode === 'play' ? 'studio' : 'play')
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [setEditMode])
+}
+
+export function Shell() {
+  const [editMode, setEditMode] = useState<EditMode>('animal')
+  const [rosterOpen, setRosterOpen] = useState(false)
+  const orbitControlsRef = useRef<OrbitControlsHandle>(null)
+  const playing = usePlayStore((s) => s.mode) === 'play'
+  const showStats = useMemo(() => new URLSearchParams(window.location.search).get('stats') === '1', [])
+
+  useShellKeyboardShortcuts(setEditMode)
+
+  const openRoster = useCallback(() => setRosterOpen(true), [])
+  const closeRoster = useCallback(() => setRosterOpen(false), [])
+
+  return (
+    <div className="cs-shell">
+      <TopBar onOpenRoster={openRoster} />
+      <div className="cs-shell__body">
+        <div className="cs-viewport">
+          <Stage showStats={showStats} orbitControlsRef={orbitControlsRef} />
+          {/* Dev-only spring-tuning tool (plan 003) — always available
+              outside Play, docked bottom-left of the viewport (not tied to
+              a builder-flow mode). Hidden in Play like every other panel. */}
+          {playing ? null : <MotionDebugPanel />}
+        </div>
+        <ModeTabs editMode={editMode} onSelectEdit={setEditMode} />
+        <div className="cs-column cs-scroll">
+          <ModePanel editMode={editMode} orbitControlsRef={orbitControlsRef} />
+        </div>
+      </div>
+      <Toasts />
+      {rosterOpen ? <RosterView onClose={closeRoster} /> : null}
+    </div>
+  )
+}

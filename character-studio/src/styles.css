@@ -1,0 +1,544 @@
+/* Character Studio theme (plan 012, step 1).
+ *
+ * Dark neutral studio chrome — the CHARACTER is the color, not the UI.
+ * Token values intentionally match the hardcoded hex values every panel
+ * already used pre-plan-012 (panel bg rgba(24,24,28,.88), text #e8e8ec,
+ * border #44444c, accent #4a6cd4, warm accent #ff8a3d) so the new shell
+ * chrome (TopBar/ModeTabs/Toasts/RosterView/PanelSection) sits seamlessly
+ * next to each feature panel's still-inline-styled internals — panels keep
+ * their own control styling (plan-012 scope: wrapper/className only, no
+ * panel-internals rewrite), but now render inside a themed, non-overlapping
+ * column instead of floating fixed-position cards.
+ *
+ * Plain CSS + custom properties on purpose: this workspace has no Tailwind
+ * config (root app's Tailwind v4 setup does not extend here) and no CSS
+ * modules tooling wired into its Vite config — see plans/000 §7 / repo
+ * CLAUDE.md ("no UI framework deps"). `zustand` is the only state lib.
+ */
+
+:root {
+  --cs-font: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cs-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --cs-font-size: 13px;
+
+  /* surfaces, darkest to lightest */
+  --cs-bg-app: #1a1a1e;
+  --cs-bg-topbar: rgba(20, 20, 24, 0.92);
+  --cs-bg-column: rgba(20, 20, 24, 0.72);
+  --cs-bg-panel: rgba(24, 24, 28, 0.88);
+  --cs-bg-input: #2a2a30;
+  --cs-bg-input-hover: #34343c;
+
+  --cs-border: #44444c;
+  --cs-border-soft: rgba(255, 255, 255, 0.12);
+
+  --cs-text: #e8e8ec;
+  --cs-text-dim: #9a9aa6;
+  --cs-text-faint: #6d6d78;
+
+  --cs-accent: #4a6cd4;
+  --cs-accent-strong: #6c8bef;
+  --cs-tab-active-bg: #31406e;
+  --cs-warm: #ff8a3d;
+  --cs-warn: #e0b060;
+  --cs-danger: #e0605a;
+  --cs-success: #5ac48a;
+
+  --cs-radius-sm: 6px;
+  --cs-radius-md: 10px;
+  --cs-radius-lg: 12px;
+  --cs-radius-pill: 999px;
+
+  --cs-space-1: 4px;
+  --cs-space-2: 8px;
+  --cs-space-3: 12px;
+  --cs-space-4: 16px;
+
+  --cs-topbar-height: 44px;
+  --cs-column-width: 296px;
+  --cs-modetabs-width: 104px;
+
+  --cs-duration-fast: 120ms;
+  --cs-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--cs-bg-app);
+  color: var(--cs-text);
+  font-family: var(--cs-font);
+  font-size: var(--cs-font-size);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+/* ---- shared layout atoms (shell + panels) --------------------------- */
+
+.cs-row {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-2);
+}
+
+.cs-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-1);
+}
+
+.cs-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cs-border) transparent;
+}
+
+.cs-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.cs-scroll::-webkit-scrollbar-thumb {
+  background: var(--cs-border);
+  border-radius: var(--cs-radius-sm);
+}
+
+/* ---- PanelSection (Shell.tsx) — the shared card+title every mode panel
+   composes into the managed right column --------------------------------- */
+
+.cs-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-3);
+  padding: var(--cs-space-4);
+  color: var(--cs-text);
+  font-family: var(--cs-font);
+  font-size: var(--cs-font-size);
+}
+
+.cs-panel-section + .cs-panel-section {
+  border-top: 1px solid var(--cs-border-soft);
+}
+
+.cs-panel-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cs-space-2);
+}
+
+.cs-panel-section__title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* ---- buttons, selects, inputs (shell-owned chrome only — see file header) */
+
+.cs-btn {
+  padding: 5px 10px;
+  border-radius: var(--cs-radius-sm);
+  border: 1px solid var(--cs-border);
+  background: var(--cs-bg-input);
+  color: var(--cs-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background var(--cs-duration-fast) var(--cs-ease),
+    border-color var(--cs-duration-fast) var(--cs-ease);
+}
+
+.cs-btn:hover:not(:disabled) {
+  background: var(--cs-bg-input-hover);
+}
+
+.cs-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.cs-btn.is-active {
+  background: var(--cs-accent);
+  border-color: var(--cs-accent);
+}
+
+.cs-btn--tab {
+  padding: 3px 8px;
+  font-size: 11px;
+  border-radius: var(--cs-radius-sm);
+}
+
+.cs-btn--tab.is-active {
+  background: var(--cs-tab-active-bg);
+  border-color: var(--cs-accent);
+}
+
+.cs-select {
+  padding: 4px 6px;
+  border-radius: var(--cs-radius-sm);
+  border: 1px solid var(--cs-border);
+  background: var(--cs-bg-input);
+  color: var(--cs-text);
+  font-size: 12px;
+}
+
+.cs-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.cs-label__hint {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+input[type='range'] {
+  accent-color: var(--cs-accent);
+}
+
+input[type='color'] {
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-sm);
+  background: none;
+  padding: 0;
+  width: 28px;
+  height: 22px;
+  cursor: pointer;
+}
+
+/* ---- Shell (Shell.tsx) ------------------------------------------------- */
+
+.cs-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+}
+
+.cs-shell__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.cs-viewport {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ---- TopBar (TopBar.tsx) ------------------------------------------------ */
+
+.cs-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-4);
+  height: var(--cs-topbar-height);
+  flex-shrink: 0;
+  padding: 0 var(--cs-space-4);
+  background: var(--cs-bg-topbar);
+  border-bottom: 1px solid var(--cs-border-soft);
+  font-size: 13px;
+}
+
+.cs-topbar__brand {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.cs-topbar__character {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-2);
+  flex: 1;
+  min-width: 0;
+  color: var(--cs-text-dim);
+}
+
+.cs-topbar__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-topbar__dirty-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cs-warn);
+  flex-shrink: 0;
+}
+
+.cs-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--cs-space-2);
+  flex-shrink: 0;
+}
+
+/* ---- ModeTabs (ModeTabs.tsx) -------------------------------------------- */
+
+.cs-modetabs {
+  display: flex;
+  flex-direction: column;
+  width: var(--cs-modetabs-width);
+  flex-shrink: 0;
+  background: var(--cs-bg-topbar);
+  border-left: 1px solid var(--cs-border-soft);
+  border-right: 1px solid var(--cs-border-soft);
+  padding: var(--cs-space-2) 0;
+  overflow-y: auto;
+}
+
+.cs-modetab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--cs-space-2) var(--cs-space-1);
+  border: none;
+  background: none;
+  color: var(--cs-text-dim);
+  cursor: pointer;
+  font-size: 11px;
+  border-left: 2px solid transparent;
+}
+
+.cs-modetab:hover {
+  color: var(--cs-text);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.cs-modetab.is-active {
+  color: var(--cs-text);
+  background: var(--cs-tab-active-bg);
+  border-left-color: var(--cs-accent-strong);
+}
+
+.cs-modetab__index {
+  font-size: 10px;
+  opacity: 0.55;
+  font-family: var(--cs-font-mono);
+}
+
+.cs-modetab__label {
+  font-weight: 500;
+}
+
+/* ---- panel column (Shell.tsx) ------------------------------------------- */
+
+.cs-column {
+  width: var(--cs-column-width);
+  flex-shrink: 0;
+  background: var(--cs-bg-column);
+  border-left: 1px solid var(--cs-border-soft);
+}
+
+/* ---- Toasts (Toasts.tsx) ------------------------------------------------- */
+
+.cs-toasts {
+  position: fixed;
+  bottom: var(--cs-space-4);
+  left: var(--cs-space-4);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  max-width: 360px;
+}
+
+.cs-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cs-space-3);
+  padding: var(--cs-space-2) var(--cs-space-3);
+  background: var(--cs-bg-panel);
+  border: 1px solid var(--cs-border-soft);
+  border-left: 3px solid var(--cs-accent);
+  border-radius: var(--cs-radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  animation: cs-toast-in var(--cs-duration-fast) var(--cs-ease);
+}
+
+@keyframes cs-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cs-toast__text {
+  flex: 1;
+}
+
+.cs-toast__close {
+  border: none;
+  background: none;
+  color: var(--cs-text-dim);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+
+.cs-toast__close:hover {
+  color: var(--cs-text);
+}
+
+/* ---- RosterView (roster/RosterView.tsx) --------------------------------- */
+
+.cs-roster-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: var(--cs-bg-app);
+}
+
+.cs-roster {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-4);
+  padding: var(--cs-space-4) 24px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.cs-roster__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cs-roster__header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.cs-roster__empty {
+  color: var(--cs-text-dim);
+}
+
+.cs-roster__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--cs-space-4);
+}
+
+.cs-roster-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cs-space-2);
+  padding: var(--cs-space-2);
+  background: var(--cs-bg-panel);
+  border: 1px solid var(--cs-border-soft);
+  border-radius: var(--cs-radius-md);
+}
+
+.cs-roster-card__thumb {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: var(--cs-radius-sm);
+  background: var(--cs-bg-input);
+  object-fit: cover;
+}
+
+.cs-roster-card__name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cs-roster-card__meta {
+  font-size: 11px;
+  color: var(--cs-text-faint);
+}
+
+.cs-roster-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cs-roster-archetypes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--cs-space-3);
+  max-width: 560px;
+}
+
+.cs-roster-archetype-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cs-space-2);
+  padding: 20px var(--cs-space-3);
+  background: var(--cs-bg-panel);
+  border: 1px solid var(--cs-border);
+  border-radius: var(--cs-radius-md);
+  color: var(--cs-text);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.cs-roster-archetype-card:hover {
+  border-color: var(--cs-accent);
+  background: var(--cs-bg-input-hover);
+}
+
+/* ---- crash boundary (Shell.tsx) ------------------------------------------ */
+
+.cs-crash {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: var(--cs-space-3);
+  height: 100%;
+  padding: 32px;
+  color: var(--cs-text);
+  background: var(--cs-bg-app);
+}
+
+.cs-crash h2 {
+  margin: 0;
+  color: var(--cs-danger);
+}
+
+.cs-crash__actions {
+  display: flex;
+  gap: var(--cs-space-2);
+}

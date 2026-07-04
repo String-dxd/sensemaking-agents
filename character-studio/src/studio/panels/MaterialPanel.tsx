@@ -9,37 +9,18 @@ import {
   REGIONS,
   type Region,
 } from '../../core/spec/schema'
+import { PanelSection } from '../shell/PanelSection'
 import { useCharacterStore } from '../state/characterStore'
 import { FALLBACK_ASSIGN, useToonStudio } from '../state/studioStores'
 
 // Material & palette control panel (plan 005, step 5). Every control writes
 // through the characterStore's `patch` — the viewport picks changes up via
-// its store subscription (no apply buttons). Docked TOP-LEFT: FacePanel and
-// MotionDebugPanel already overlap top-right (known plan-012 debt — not
-// refactored here).
+// its store subscription (no apply buttons). Docked in the "Materials"
+// mode-tab column (plan 012 — was a fixed-position TOP-LEFT card).
 //
 // Slider drags are coalesced to at most one `patch` per animation frame so
 // the store's dev-mode zod validation never runs per input event (plan 005
 // maintenance note).
-
-const panelStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: 16,
-  left: 16,
-  width: 240,
-  maxHeight: 'calc(100vh - 32px)',
-  overflowY: 'auto',
-  padding: 16,
-  borderRadius: 12,
-  background: 'rgba(24, 24, 28, 0.88)',
-  color: '#e8e8ec',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: 13,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-  zIndex: 10,
-}
 
 const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 }
 const labelColStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 }
@@ -122,9 +103,7 @@ export function MaterialPanel() {
   }
 
   return (
-    <div style={panelStyle}>
-      <strong style={{ fontSize: 14 }}>Material</strong>
-
+    <PanelSection title="Material">
       <div style={labelColStyle}>
         <span style={{ opacity: 0.7 }}>Palette</span>
         {PALETTE_SLOTS.map((slot) => (
@@ -221,6 +200,6 @@ export function MaterialPanel() {
           ))}
         </select>
       </label>
-    </div>
+    </PanelSection>
   )
 }

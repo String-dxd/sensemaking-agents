@@ -3,8 +3,13 @@
 // safe boneScale set. Everything writes through the characterStore's `patch`
 // (one per animation frame during drags — same coalescing as MaterialPanel).
 //
-// Docked BOTTOM-LEFT (top-left = MaterialPanel, top-right = Face/Motion —
-// the shared panel-layout refactor is plan-012 debt).
+// Plan 012 split this into two mode-tab sections (chrome-only — no handler
+// logic changed, just which JSX lives in which exported component):
+//   - `AnatomyArchetypeSection` — the "Animal" tab (archetype + personality).
+//   - `AnatomyPanel` — the "Anatomy" tab (slot/part picker, morphs, bone
+//     scales), still the panel's original export name.
+// Both render inside the shell's managed column via `PanelSection` — no more
+// fixed-position docking (was BOTTOM-LEFT, colliding with SculptPanel).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
@@ -20,27 +25,9 @@ import {
   PERSONALITIES,
   type Personality,
 } from '../../core/spec/schema'
+import { PanelSection } from '../shell/PanelSection'
 import { useCharacterStore } from '../state/characterStore'
 import { getPartThumbnail } from './partThumbnails'
-
-const panelStyle: React.CSSProperties = {
-  position: 'fixed',
-  bottom: 16,
-  left: 16,
-  width: 264,
-  maxHeight: 'calc(58vh)',
-  overflowY: 'auto',
-  padding: 16,
-  borderRadius: 12,
-  background: 'rgba(24, 24, 28, 0.88)',
-  color: '#e8e8ec',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: 13,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-  zIndex: 10,
-}
 
 const selectStyle: React.CSSProperties = {
   padding: '4px 6px',
@@ -133,14 +120,12 @@ function PartThumb({ partId, active, onPick }: { partId: PartId; active: boolean
   )
 }
 
-export function AnatomyPanel() {
+/** "Animal" mode-tab content: archetype + personality (관상 face defaults).
+ * The builder flow's first step — choose the animal. */
+export function AnatomyArchetypeSection() {
   const archetype = useCharacterStore((s) => s.spec.meta.archetype)
   const personality = useCharacterStore((s) => s.spec.meta.personality)
-  const parts = useCharacterStore((s) => s.spec.anatomy.parts)
-  const bodyMorphs = useCharacterStore((s) => s.spec.anatomy.bodyMorphs)
   const rafPatch = useRafPatch()
-  const slot = useSelectedSlot((s) => s.slot)
-  const setSlot = useSelectedSlot((s) => s.setSlot)
 
   const setArchetype = (next: Archetype) => {
     rafPatch((draft) => {
@@ -165,6 +150,41 @@ export function AnatomyPanel() {
       }
     })
   }
+
+  return (
+    <PanelSection title="Animal">
+      <label style={labelColStyle}>
+        <span style={{ opacity: 0.7 }}>Archetype</span>
+        <select style={selectStyle} value={archetype} onChange={(e) => setArchetype(e.target.value as Archetype)}>
+          {ARCHETYPES.map((a) => (
+            <option key={a} value={a}>
+              {a}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label style={labelColStyle}>
+        <span style={{ opacity: 0.7 }}>Personality (관상 face)</span>
+        <select style={selectStyle} value={personality} onChange={(e) => setPersonality(e.target.value as Personality)}>
+          {PERSONALITIES.map((p) => (
+            <option key={p} value={p}>
+              {p}
+            </option>
+          ))}
+        </select>
+      </label>
+    </PanelSection>
+  )
+}
+
+/** "Anatomy" mode-tab content: per-slot parts, morphs, bone scales. */
+export function AnatomyPanel() {
+  const parts = useCharacterStore((s) => s.spec.anatomy.parts)
+  const bodyMorphs = useCharacterStore((s) => s.spec.anatomy.bodyMorphs)
+  const rafPatch = useRafPatch()
+  const slot = useSelectedSlot((s) => s.slot)
+  const setSlot = useSelectedSlot((s) => s.setSlot)
 
   const pickPart = (pickSlot: PartSlot, partId: PartId) => {
     rafPatch((draft) => {
@@ -210,31 +230,7 @@ export function AnatomyPanel() {
   const selectedDef = selectedEntry ? getPart(selectedEntry.partId) : null
 
   return (
-    <div style={panelStyle}>
-      <strong style={{ fontSize: 14 }}>Anatomy</strong>
-
-      <label style={labelColStyle}>
-        <span style={{ opacity: 0.7 }}>Archetype</span>
-        <select style={selectStyle} value={archetype} onChange={(e) => setArchetype(e.target.value as Archetype)}>
-          {ARCHETYPES.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label style={labelColStyle}>
-        <span style={{ opacity: 0.7 }}>Personality (관상 face)</span>
-        <select style={selectStyle} value={personality} onChange={(e) => setPersonality(e.target.value as Personality)}>
-          {PERSONALITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-      </label>
-
+    <PanelSection title="Anatomy">
       <label style={labelColStyle}>
         <span style={{ opacity: 0.7 }}>Slot</span>
         <select style={selectStyle} value={slot} onChange={(e) => setSlot(e.target.value as PartSlot)}>
@@ -313,6 +309,6 @@ export function AnatomyPanel() {
           )
         })}
       </div>
-    </div>
+    </PanelSection>
   )
 }
