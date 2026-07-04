@@ -132,13 +132,45 @@ const PartEntrySchema = z
   })
   .strict()
 
+// Sculpt delta payload (plan 009, step 2). Fills the field plan 004 reserved
+// as `{ baseMeshId, baseMeshVersion }` — additive on a reserved-OPTIONAL field
+// that no saved spec ever carried, so SPEC_VERSION stays 1 (sanctioned by
+// plan 009's scope; the migration rule above governs every future change).
+//
+// One layer per sculpted mesh primitive, sparse (only vertices with non-zero
+// deltas) and quantized: `values` are INTEGER multiples of `quantum` meters
+// (3 per index, geometry-local rest space). `meshVersion`/`vertexCount`
+// guard against authored-asset changes (ASSET-CONTRACT.md: bumping
+// baseMeshVersion invalidates saved sculpts loudly, never silently).
+const SculptDeltaLayerSchema = z
+  .object({
+    /** Authored asset the mesh came from: `body-<archetype>` or a part id. */
+    assetId: z.string().min(1),
+    /** Mesh (primitive) name inside that asset. */
+    meshName: z.string().min(1),
+    meshVersion: z.number().int().nonnegative(),
+    vertexCount: z.number().int().positive(),
+    indices: z.array(z.number().int().nonnegative()),
+    /** 3 integer quantum-multiples (x,y,z) per entry of `indices`. */
+    values: z.array(z.number().int()),
+  })
+  .strict()
+  .refine((layer) => layer.values.length === layer.indices.length * 3, {
+    message: 'sculptDelta layer: values must hold exactly 3 components per index',
+  })
+
 const SculptDeltaRefSchema = z
   .object({
     baseMeshId: z.string().min(1),
-    /** Payload/versioning contract defined in plan 009. */
     baseMeshVersion: z.number().int().nonnegative(),
+    /** Serialization quantum in meters (SCULPT_QUANTUM at save time). */
+    quantum: z.number().positive(),
+    layers: z.array(SculptDeltaLayerSchema),
   })
   .strict()
+
+export type SculptDeltaLayerPayload = z.infer<typeof SculptDeltaLayerSchema>
+export type SculptDeltaPayload = z.infer<typeof SculptDeltaRefSchema>
 
 const AnatomySchema = z
   .object({

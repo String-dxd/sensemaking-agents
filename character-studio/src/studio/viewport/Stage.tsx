@@ -1,21 +1,25 @@
 import { OrbitControls, Stats } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { type ComponentRef, Suspense, useMemo, useRef } from 'react'
+import { type ComponentRef, Suspense, useEffect, useMemo, useRef } from 'react'
 import { runFrame } from '../../core/motion/frameLoop'
 import { studioLookFromPreset } from '../../core/spec/lighting'
 import { AnatomyPanel } from '../panels/AnatomyPanel'
 import { LightingPanel } from '../panels/LightingPanel'
 import { MaterialPanel } from '../panels/MaterialPanel'
+import { SculptPanel } from '../panels/SculptPanel'
 import { WardrobePanel } from '../panels/WardrobePanel'
 import { PlayControls } from '../play/PlayControls'
 import { PlayMode } from '../play/PlayMode'
 import { usePlayStore } from '../play/playStore'
 import { useCharacterStore } from '../state/characterStore'
+import { useSculptStore } from '../state/sculptStore'
 import { useLightingStudio } from '../state/studioStores'
 import { CharacterRoot } from './CharacterRoot'
+import { LatticeTool } from './LatticeTool'
 import { LightGizmos, LightRig } from './LightRig'
 import { MotionDebugPanel } from './MotionDebugPanel'
 import { PostFX } from './PostFX'
+import { SculptTool } from './SculptTool'
 
 export type OrbitControlsHandle = ComponentRef<typeof OrbitControls>
 
@@ -69,6 +73,12 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
   // render loop (FrameLoopDriver already ticks every frame).
   const orbitControlsRef = useRef<OrbitControlsHandle>(null)
 
+  // Play Mode force-exits sculpt mode (its motion drivers need the springs
+  // and idle layer that sculpting pauses).
+  useEffect(() => {
+    if (playing) useSculptStore.getState().setActive(false)
+  }, [playing])
+
   return (
     <>
       <Canvas shadows="soft" camera={{ fov: 35, position: [0, 1.2, 3.2] }}>
@@ -83,10 +93,18 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
         <Suspense fallback={null}>
           <PlayMode />
         </Suspense>
+        {playing ? null : (
+          <>
+            <SculptTool />
+            <LatticeTool />
+          </>
+        )}
         {fxEnabled ? <PostFX /> : null}
-        {/* follow/face presets drive the camera from PlayMode instead. */}
+        {/* follow/face presets drive the camera from PlayMode instead.
+            makeDefault lets the sculpt/lattice tools rebind its buttons;
+            the ref backs LightingPanel's portrait-camera bookmark. */}
         {!playing || cameraPreset === 'orbit' ? (
-          <OrbitControls ref={orbitControlsRef} target={[0, 0.7, 0]} />
+          <OrbitControls ref={orbitControlsRef} makeDefault target={[0, 0.7, 0]} />
         ) : null}
         {showStats ? <Stats /> : null}
       </Canvas>
@@ -98,6 +116,7 @@ export function Stage({ showStats = false }: { showStats?: boolean }) {
           <AnatomyPanel />
           <WardrobePanel />
           <LightingPanel orbitControlsRef={orbitControlsRef} />
+          <SculptPanel />
         </>
       )}
       <PlayControls />

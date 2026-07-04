@@ -39,8 +39,15 @@ import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
 import { mulberry32 } from '../../core/motion/noise'
 import { createIdleLayer } from '../../core/motion/proceduralIdle'
 import { createFixedStepper, createSpringRig } from '../../core/motion/springSolver'
+import {
+  collectSculptTargets,
+  SculptDeltaMismatchError,
+  type SculptTargetSource,
+  syncTargetsToPayload,
+} from '../../core/sculpt'
+import { ARCHETYPES_DEF } from '../../core/skeleton/archetypes'
 import { assembleCharacter, type LoadedAssets } from '../../core/skeleton/assemble'
-import { BODY_REGISTRY, getPart, PART_REGISTRY } from '../../core/skeleton/partRegistry'
+import { BODY_REGISTRY, getPart, meshVersionOf, PART_REGISTRY } from '../../core/skeleton/partRegistry'
 import type { PartSlot, Region } from '../../core/spec/schema'
 import {
   applyWardrobe,
@@ -51,6 +58,7 @@ import {
   type WardrobeAssets,
 } from '../../core/wardrobe'
 import { useCharacterStore } from '../state/characterStore'
+import { createSculptSession, finalizeSculptVisuals, useSculptStore } from '../state/sculptStore'
 import { FALLBACK_ASSIGN, useMotionStudio, useToonStudio } from '../state/studioStores'
 import { createBodyMover } from './bodyMover'
 import { FaceRig } from './FaceRig'
@@ -194,9 +202,83 @@ export function CharacterRoot() {
     }
   }, [assembled, gltfs, maskTextures, maskEntries, itemMaskEntries, equipped, wornResolved])
 
+  // --- sculpt session (plan 009): targets + weld topologies per assembly ------
+  useEffect(() => {
+    const spec = useCharacterStore.getState().spec
+    const bodyAssetId = `body-${spec.meta.archetype}`
+    const uniformScale = ARCHETYPES_DEF[spec.meta.archetype].uniformScale
+    const sources: SculptTargetSource[] = [
+      {
+        assetId: bodyAssetId,
+        scene: gltfs[0].scene,
+        meshVersion: meshVersionOf(BODY_REGISTRY[spec.meta.archetype]),
+        weldSpace: 'body',
+        localToWorldScale: 1,
+      },
+    ]
+    equipped.forEach(({ slot, def }, i) => {
+      const partId = spec.anatomy.parts[slot]?.partId
+      if (!partId) return
+      sources.push({
+        assetId: partId,
+        scene: gltfs[i + 1].scene,
+        meshVersion: meshVersionOf(def),
+        weldSpace: partId,
+        localToWorldScale: uniformScale,
+      })
+    })
+    const targets = collectSculptTargets(assembled.root, sources)
+    const session = createSculptSession(assembled.root, targets, {
+      baseMeshId: bodyAssetId,
+      baseMeshVersion: meshVersionOf(BODY_REGISTRY[spec.meta.archetype]),
+    })
+    useSculptStore.setState({ session })
+    if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__sculptSession = session
+    return () => {
+      useSculptStore.setState({ session: null })
+    }
+  }, [assembled, gltfs, equipped])
+
+  // --- sculpt delta ⇄ spec sync: apply saved payloads to the live meshes ------
+  // Runs on load (setSpec), on undo/redo commits, and after reassembly. The
+  // identity guard skips payloads this very session just serialized (stroke
+  // ends), so live sculpting never re-applies its own writes.
+  const sculptDelta = useCharacterStore((s) => s.spec.anatomy.sculptDelta)
+  const sculptSession = useSculptStore((s) => s.session)
+  useEffect(() => {
+    if (!sculptSession) return
+    const payload = sculptDelta ?? null
+    if (sculptSession.lastSyncedPayload === payload) return
+    try {
+      const { skippedLayers } = syncTargetsToPayload(sculptSession.targets, payload)
+      sculptSession.lastSyncedPayload = payload
+      finalizeSculptVisuals(sculptSession) // welded normals across submesh seams + outline shells
+      if (skippedLayers.length > 0) {
+        console.warn(
+          '[character-studio] sculptDelta layers kept for unequipped assets:',
+          skippedLayers.map((l) => `${l.assetId}/${l.meshName}`).join(', '),
+        )
+      }
+    } catch (error) {
+      if (error instanceof SculptDeltaMismatchError) {
+        console.error(`[character-studio] ${error.message}`)
+      } else {
+        throw error
+      }
+    }
+  }, [sculptSession, sculptDelta])
+
   // --- motion: springs (physics) + idle (procedural) + movers (animation) ----
   // Waits for the dressing pass: the rig is built from the DRESSED chain set
   // and must never solve chains whose grafted bones were undressed away.
+  // Sculpt mode (plan 009 step 4) pauses springs + idle so the surface holds
+  // still under the brush: toggling `active` re-runs this effect — the
+  // cleanup DISPOSES the rig (which restores spring-bone rest rotations) and
+  // resets the idle layer, so sculpting happens on the clean rest pose; on
+  // exit a fresh rig spawns with particles snapped to that pose (the plan's
+  // "paused, reset on exit"). The face rig registers its own procedural
+  // update and keeps blinking. Play Mode force-exits sculpt (Stage effect).
+  const sculptActive = useSculptStore((s) => s.active)
   useEffect(() => {
     if (!dressed || dressed.assembled !== assembled) return
     const chest = assembled.boneByName.get('chest')
@@ -204,6 +286,20 @@ export function CharacterRoot() {
     const hips = assembled.boneByName.get('hips')
     const neck = assembled.boneByName.get('neck')
     if (!chest || !head || !hips || !neck) return
+
+    if (sculptActive) {
+      const hipsRest = [hips.position.x, hips.position.y, hips.position.z] as const
+      useMotionStudio.setState({
+        rig: null,
+        idle: null,
+        mover: null,
+        character: { root: assembled.root, boneByName: assembled.boneByName, hipsRest },
+        chains: dressed.springChains,
+      })
+      return () => {
+        useMotionStudio.setState({ rig: null, idle: null, mover: null, character: null, chains: [] })
+      }
+    }
 
     const rig = createSpringRig(assembled.root, dressed.springChains, assembled.colliderGroups)
     const stepper = createFixedStepper((h) => rig.step(h))
@@ -237,7 +333,7 @@ export function CharacterRoot() {
       rig.dispose()
       useMotionStudio.setState({ rig: null, idle: null, mover: null, character: null, chains: [] })
     }
-  }, [assembled, dressed])
+  }, [assembled, dressed, sculptActive])
 
   // --- live updates: morphs + boneScales (no reassembly) -----------------------
   useEffect(() => {

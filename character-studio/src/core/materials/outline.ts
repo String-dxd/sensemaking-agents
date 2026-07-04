@@ -151,6 +151,27 @@ export function getOutline(mesh: THREE.Mesh): THREE.Mesh | null {
   return (child as THREE.Mesh) ?? null
 }
 
+/**
+ * Push the mesh's current (e.g. sculpted) positions + normals into its
+ * outline shell (the shell CLONES geometry at addOutline time, so position
+ * edits don't propagate on their own). The mesh's `normal` attribute is the
+ * seam-merged smooth normal after any sculpt recompute, so it doubles as
+ * the shell's extrusion normal. No-op without a shell.
+ */
+export function refreshOutline(mesh: THREE.Mesh): void {
+  const shell = getOutline(mesh)
+  if (!shell) return
+  const srcPosition = mesh.geometry.getAttribute('position') as THREE.BufferAttribute
+  const srcNormal = mesh.geometry.getAttribute('normal') as THREE.BufferAttribute
+  const dstPosition = shell.geometry.getAttribute('position') as THREE.BufferAttribute
+  const dstSmoothed = shell.geometry.getAttribute(SMOOTHED_NORMAL_ATTRIBUTE) as THREE.BufferAttribute
+  ;(dstPosition.array as Float32Array).set(srcPosition.array as Float32Array)
+  dstPosition.needsUpdate = true
+  ;(dstSmoothed.array as Float32Array).set(srcNormal.array as Float32Array)
+  dstSmoothed.needsUpdate = true
+  shell.geometry.computeBoundingSphere()
+}
+
 export function removeOutline(mesh: THREE.Mesh): void {
   const shell = getOutline(mesh)
   if (!shell) return

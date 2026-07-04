@@ -24,7 +24,7 @@ honor its STOP conditions, and update your row below when done.
 | 006 | Skeleton, archetypes & anatomy parts | 2 | P1 | L | 002–005 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `5d9d792`; operator approved visuals + plan-000 §5 shoulder amendment) |
 | 007 | Animation clips & Play Mode | 3 | P1 | L | 003, 006 | **Fable 5** + Blender MCP | DONE (merged to `feat/character-studio` at `0498c14`; operator approved soak/settle/talk videos; 60 fps feel check remains a standing note) |
 | 008 | Wardrobe & accessory system | 3 | P2 | L | 006, 007 | **Fable 5** + headless Blender | DONE (merged to `feat/character-studio` at `fd93885`; operator approved dressed-motion videos + the slimmer post-morph-fix silhouette) |
-| 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | TODO |
+| 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | DONE (merged to `feat/character-studio`; lead ran step-6 gate — sculpt survives morphs/archetype-round-trip/Play-Mode, undo lossless, geodesic pick 0.08–1.30 ms; operator approved) |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | DONE (merged to `feat/character-studio` at `384f161`; operator approved presets + terminator sweep; gizmo mouse-drag needs a one-time human check) |
 | 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | TODO |
 | 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | TODO |
@@ -33,14 +33,25 @@ Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 | REJECTED (one-line rationale).
 
-**Session handoff (updated 2026-07-03):** Plans 001–008 + 010 executed,
-reviewed, and merged to `feat/character-studio` (through `384f161`; 370/370
-tests). **009 (Fable 5) in flight** in its own worktree (branched at
-`899b9cd`, before 010 merged — expect small merge overlap in `schema.ts` /
-`studioStores.ts` / panel wiring; lead resolves at merge). Then **012**
-(composes landed panels), then **011 last** (Opus 4.8). New human-check debt:
+**Session handoff (updated 2026-07-04):** Plans 001–010 executed, reviewed,
+and merged to `feat/character-studio` (009 merged last, unioning Stage.tsx
+with 010's light rig). Phase 4 authoring plans (009 sculpt + 010 lighting)
+both landed. **Next: plan 012 (studio shell & roster — Sonnet 5)**, which
+composes every landed panel (Material/Anatomy/Wardrobe/Sculpt/Lighting/Face/
+Motion) — it also owns the accumulated **panel-overlap** debt (panels
+currently stack in the four corners and collide). Then **011 last** (Opus
+4.8, export + companion runtime). Model note: **Fable 5 is rate-limited this
+session** — if unavailable, aesthetic-gated continuations can run on Opus 4.8
+(the lead ran 009's step-6 gate directly on Opus). New human-check debt:
 light-gizmo mouse-drag (store path verified; drag not simulatable in
-automation).
+automation). Sculpt facts for 011/012: sculpt deltas persist in
+`spec.anatomy.sculptDelta` (sparse, quantized 1e-5 m, version-guarded);
+`applyDelta` writes base+delta into `position` so morphs/skinning compose in
+shader; whole-character lattice bakes into the same delta layer; switching
+archetype re-applies deltas from spec via `syncTargetsToPayload` (dormant
+layers for unequipped parts are preserved). **Plan 011 export must bake
+`basePositions+delta` into exported geometry** (GLB self-sufficient; spec
+keeps the editable delta) AND still zero the plan-006 part morph defaults.
 Blender note: MCP live addon never connected this session; headless Blender
 5.1.2 works; all assets regenerate (`pnpm gen:assets` — bodies/parts/wardrobe
 — and `scripts/blender/clips.py`). Facts new executors need: bodies now have

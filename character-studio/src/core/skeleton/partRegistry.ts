@@ -43,6 +43,19 @@ export interface PartDef {
    * mouth plane out to float on the muzzle front (FacePlacement.mouthRadialOffset).
    */
   mouthOffset?: number
+  /**
+   * ASSET-CONTRACT `baseMeshVersion` (plan 009): bump when a shipped mesh's
+   * topology (vertex count) changes — saved sculpt deltas for the old
+   * version then refuse to load, loudly. Defaults to DEFAULT_MESH_VERSION.
+   */
+  meshVersion?: number
+}
+
+/** Contract version assumed when a def doesn't declare `meshVersion`. */
+export const DEFAULT_MESH_VERSION = 1
+
+export function meshVersionOf(def: { meshVersion?: number }): number {
+  return def.meshVersion ?? DEFAULT_MESH_VERSION
 }
 
 const EAR_BONES = ['earL.1', 'earL.2', 'earR.1', 'earR.2'] as const satisfies readonly BoneName[]
@@ -247,6 +260,8 @@ export interface BodyDef {
   maskUrl: string
   /** Body morph target names (shared contract across archetypes). */
   morphs: readonly string[]
+  /** ASSET-CONTRACT `baseMeshVersion` (see PartDef.meshVersion). */
+  meshVersion?: number
 }
 
 export const BODY_MORPHS = ['bellyRound', 'chubby', 'slim', 'headBig', 'headSmall'] as const
