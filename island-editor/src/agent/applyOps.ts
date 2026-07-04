@@ -1,47 +1,71 @@
-import { applyBrush, type BrushMode } from '../terrain/brush'
-import { deletePoint, insertPointAfter, movePointTo } from '../terrain/coastlineOps'
-import type { IslandSpec } from '../terrain/islandSpec'
-import { validateSpecObject } from '../editor/exportSpec'
+import { validateSpecObject } from '../editor/specIO'
+import { adjustTier, fillRect, setSurface, setTier } from '../terrain/gridOps'
+import { seedIsland } from '../terrain/seed'
+import { type IslandSpec, MAX_TIER, SURFACE_AUTO, SURFACE_PATH, type TerrainGrid } from '../terrain/terrainGrid'
 import type { Op, OpError } from './ops'
 
-const RELIEF_MODES: Record<string, BrushMode> = {
-  raiseRegion: 'raise',
-  lowerRegion: 'lower',
-  smoothRegion: 'smooth',
-  flattenRegion: 'flatten',
+/** A rect op's coordinate fields, validated as integers in bounds with c0≤c1. */
+interface Rect {
+  c0: number
+  r0: number
+  c1: number
+  r1: number
+}
+
+function assertInt(name: string, v: number): void {
+  if (typeof v !== 'number' || !Number.isInteger(v)) throw new Error(`${name} must be an integer, got ${String(v)}`)
+}
+
+function validateRect(grid: TerrainGrid, rect: Rect): void {
+  assertInt('c0', rect.c0)
+  assertInt('r0', rect.r0)
+  assertInt('c1', rect.c1)
+  assertInt('r1', rect.r1)
+  if (rect.c0 > rect.c1) throw new Error(`c0 (${rect.c0}) must not exceed c1 (${rect.c1})`)
+  if (rect.r0 > rect.r1) throw new Error(`r0 (${rect.r0}) must not exceed r1 (${rect.r1})`)
+  if (rect.c0 < 0 || rect.c1 >= grid.cols) throw new Error(`columns out of bounds 0..${grid.cols - 1}`)
+  if (rect.r0 < 0 || rect.r1 >= grid.rows) throw new Error(`rows out of bounds 0..${grid.rows - 1}`)
+}
+
+function cloneGrid(g: TerrainGrid): TerrainGrid {
+  return { cols: g.cols, rows: g.rows, tiers: g.tiers.slice(), surface: g.surface.slice() }
+}
+
+function rectCells(grid: TerrainGrid, rect: Rect): number[] {
+  const cells: number[] = []
+  fillRect(grid, rect.c0, rect.r0, rect.c1, rect.r1, (i) => cells.push(i))
+  return cells
 }
 
 function applyOne(spec: IslandSpec, op: Op): IslandSpec {
   switch (op.op) {
-    case 'movePoint':
-      return { ...spec, coastline: movePointTo(spec.coastline, op.index, { x: op.x, z: op.z }) }
-    case 'insertPointAfter':
-      return { ...spec, coastline: insertPointAfter(spec.coastline, op.index) }
-    case 'deletePoint': {
-      const next = deletePoint(spec.coastline, op.index)
-      if (next.length === spec.coastline.length) throw new Error('cannot delete below 3 points')
-      return { ...spec, coastline: next }
-    }
-    case 'setHeightProfile':
-      return { ...spec, heightProfile: { ...spec.heightProfile, ...op.profile } }
-    case 'clearRelief':
-      return {
-        ...spec,
-        relief: { resolution: spec.relief.resolution, data: new Array(spec.relief.data.length).fill(0) },
+    case 'fillRect': {
+      if (!Number.isInteger(op.tier) || op.tier < 0 || op.tier > MAX_TIER) {
+        throw new Error(`tier must be an integer 0..${MAX_TIER}, got ${String(op.tier)}`)
       }
-    case 'raiseRegion':
-    case 'lowerRegion':
-    case 'smoothRegion':
-    case 'flattenRegion': {
-      const data = spec.relief.data.slice() // clone BEFORE the in-place brush
-      const relief = { resolution: spec.relief.resolution, data }
-      applyBrush(relief, spec.worldSize, op.x, op.z, {
-        radius: op.radius,
-        strength: op.strength,
-        mode: RELIEF_MODES[op.op],
-      })
-      return { ...spec, relief }
+      validateRect(spec.grid, op)
+      const grid = cloneGrid(spec.grid)
+      setTier(grid, rectCells(grid, op), op.tier)
+      return { ...spec, grid }
     }
+    case 'adjustRect': {
+      if (op.delta !== -1 && op.delta !== 1) throw new Error(`delta must be -1 or 1, got ${String(op.delta)}`)
+      validateRect(spec.grid, op)
+      const grid = cloneGrid(spec.grid)
+      adjustTier(grid, rectCells(grid, op), op.delta)
+      return { ...spec, grid }
+    }
+    case 'paintRect': {
+      if (op.surface !== SURFACE_AUTO && op.surface !== SURFACE_PATH) {
+        throw new Error(`surface must be ${SURFACE_AUTO} or ${SURFACE_PATH}, got ${String(op.surface)}`)
+      }
+      validateRect(spec.grid, op)
+      const grid = cloneGrid(spec.grid)
+      setSurface(grid, rectCells(grid, op), op.surface)
+      return { ...spec, grid }
+    }
+    case 'reset':
+      return seedIsland()
     default: {
       // Unknown op — untyped JSON (e.g. via the CLI) can carry an op outside the
       // union. The `never` assignment makes a forgotten case a COMPILE error; at
