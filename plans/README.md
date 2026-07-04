@@ -39,10 +39,12 @@ authored archetype bodies + anatomy parts on one canonical skeleton, 관상 face
 atlases, toon rendering, spring secondary motion, a full animation clip set +
 Play Mode, wardrobe, freeform sculpt + lattice, a lighting studio, the studio
 shell + IndexedDB roster, and the export pipeline + version-agnostic
-`companion-runtime` (validated on three 0.149∧0.185). Post-merge stitch still
-owed: **wire the ExportPanel's "Export .companion.glb" action into RosterView**
-(011 kept ExportPanel standalone to dodge the concurrent-012 shell conflict;
-012's RosterView left a gated slot). **Next work is the queued Fable-led
+`companion-runtime` (validated on three 0.149∧0.185). Post-merge stitch DONE:
+each RosterView card now has an **"Export .glb"** action that parses the saved
+spec and compiles a runtime `.companion.glb` in-browser via a shared
+`companionExport.ts` helper (the same path ExportPanel uses for the live
+character) — verified end-to-end (download fires, 434 studio tests still
+green). **Next work is the queued Fable-led
 integrated aesthetic polish pass** (a future session — Fable was rate-limited
 here): hero sculpt for demos, tighten the AC/Pokopia silhouette bar on authored
 assets, motion feel, lighting presets. See

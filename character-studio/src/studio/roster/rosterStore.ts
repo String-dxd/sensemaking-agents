@@ -444,6 +444,15 @@ export async function exportCharacterById(id: string): Promise<void> {
   downloadCharacterFile(row.name, row.specJson)
 }
 
+/** The parsed+migrated saved spec for `id` — lets callers compile a
+ * `.companion.glb` (plan 011) from any saved character without opening it.
+ * Kept dependency-light (no compiler imports) so the store stays lean. */
+export async function getCharacterSpecById(id: string): Promise<CharacterSpec> {
+  const row = await dbGet<RosterRow>(CHARACTERS_STORE, id)
+  if (!row) throw new Error(`getCharacterSpecById: no roster row for id "${id}"`)
+  return parseSpec(row.specJson)
+}
+
 // Console access for tuning/debugging (mirrors __motionStudio/__playStore/
 // __sculptStore/__latticeStore) — lets the roster be exercised from the
 // browser console before RosterView's UI existed, and afterwards for

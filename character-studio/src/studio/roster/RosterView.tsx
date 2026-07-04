@@ -1,8 +1,9 @@
 // RosterView (plan 012 step 3) — entry screen (and TopBar's "Roster"
 // button): thumbnail grid of saved characters (open/duplicate/delete/
-// rename), "New Character" archetype cards, import/export. No
-// ".companion.glb" export action — that is plan 011 (export & companion
-// runtime), not landed yet.
+// rename), "New Character" archetype cards, import/export. Each card also
+// exports a runtime `.companion.glb` (plan 011): the saved spec is parsed and
+// compiled in-browser via the shared compileAndDownloadCompanion path (the
+// same one ExportPanel uses for the live character).
 //
 // Full-screen overlay rather than a routed page: this workspace has no
 // router (plan 000 §7 — plain Vite SPA). Rename/Delete use the browser's
@@ -14,11 +15,13 @@ import { type ChangeEvent, type MouseEvent, useEffect, useState } from 'react'
 import type { Archetype } from '../../core/spec/schema'
 import { pushToast } from '../shell/Toasts'
 import { useCharacterStore } from '../state/characterStore'
+import { compileAndDownloadCompanion } from './companionExport'
 import {
   deleteCharacter,
   duplicateCharacter,
   exportActiveCharacter,
   exportCharacterById,
+  getCharacterSpecById,
   importCharacterFile,
   newCharacter,
   openCharacter,
@@ -28,6 +31,8 @@ import {
   type RosterListRow,
   useRosterStore,
 } from './rosterStore'
+
+const mb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 
 const ARCHETYPE_CARDS: ReadonlyArray<{ id: Archetype; label: string; blurb: string }> = [
   { id: 'biped-round', label: 'Biped — round', blurb: 'Stout, round-bodied upright animal.' },
@@ -57,6 +62,7 @@ function useObjectUrl(blob: Blob | null): string | null {
 function RosterCard({ id, name, updatedAt, thumbnailBlob, onOpen }: RosterListRow & { onOpen(): void }) {
   const thumbUrl = useObjectUrl(thumbnailBlob)
   const isOpen = useCharacterStore((s) => s.spec.meta.id === id)
+  const [exportingGlb, setExportingGlb] = useState(false)
 
   const stop = (e: MouseEvent) => e.stopPropagation()
 
@@ -100,6 +106,25 @@ function RosterCard({ id, name, updatedAt, thumbnailBlob, onOpen }: RosterListRo
     }
   }
 
+  const handleExportGlb = async (e: MouseEvent) => {
+    stop(e)
+    if (exportingGlb) return
+    setExportingGlb(true)
+    pushToast(`Compiling ${name} → .companion.glb…`, 'info')
+    try {
+      const spec = await getCharacterSpecById(id)
+      const stats = await compileAndDownloadCompanion(spec)
+      pushToast(
+        `Exported ${name}.companion.glb (${mb(stats.totalBytes)})${stats.overBudget ? ' — over 8 MB budget' : ''}`,
+        stats.overBudget ? 'error' : 'info',
+      )
+    } catch (error) {
+      reportError(error, 'Could not export that character to .companion.glb.')
+    } finally {
+      setExportingGlb(false)
+    }
+  }
+
   return (
     <div className={isOpen ? 'cs-roster-card is-open' : 'cs-roster-card'}>
       <button type="button" className="cs-roster-card__open" onClick={onOpen} title="Open">
@@ -123,6 +148,15 @@ function RosterCard({ id, name, updatedAt, thumbnailBlob, onOpen }: RosterListRo
         </button>
         <button type="button" className="cs-btn cs-btn--tab" onClick={handleExport}>
           Export
+        </button>
+        <button
+          type="button"
+          className="cs-btn cs-btn--tab"
+          onClick={handleExportGlb}
+          disabled={exportingGlb}
+          title="Compile a runtime .companion.glb"
+        >
+          {exportingGlb ? 'Compiling…' : 'Export .glb'}
         </button>
         <button type="button" className="cs-btn cs-btn--tab" onClick={handleDelete}>
           Delete
