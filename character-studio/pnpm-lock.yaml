@@ -48,6 +48,9 @@ importers:
       '@gltf-transform/functions':
         specifier: ^4.4.1
         version: 4.4.1
+      '@sensemaking/companion-runtime':
+        specifier: workspace:*
+        version: link:packages/companion-runtime
       '@types/react':
         specifier: ^19.0.0
         version: 19.2.17

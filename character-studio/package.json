@@ -35,6 +35,7 @@
     "@gltf-transform/core": "^4.4.1",
     "@gltf-transform/extensions": "^4.4.1",
     "@gltf-transform/functions": "^4.4.1",
+    "@sensemaking/companion-runtime": "workspace:*",
     "meshoptimizer": "^1.1.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
