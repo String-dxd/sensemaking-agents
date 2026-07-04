@@ -7,8 +7,10 @@ import { EAR_PARAMS, TAIL_PARAMS } from './PlaceholderBody'
 
 // Motion debug panel (plan 003 step 4): live spring-parameter sliders, a
 // cheap noise-driven "wind" toggle, and body-motion buttons (hop / shake /
-// walk-in-circle) that excite the spring chains. Dev-only tooling — the
-// real parameter UI arrives with the studio panels plan.
+// walk-in-circle) that excite the spring chains. Dev-only tooling, not one
+// of plan 012's seven builder-flow modes — Shell.tsx docks it BOTTOM-LEFT of
+// the viewport (unaffected by the managed right column), still hidden in
+// Play Mode by its caller exactly as before.
 
 // Console access for poking the rig/mover while tuning (e.g.
 // `__motionStudio.getState().rig.getParticles('earL')`).
@@ -58,8 +60,8 @@ function pickTunable(p: SpringJointParams): GroupParams {
 
 const panelStyle: CSSProperties = {
   position: 'fixed',
-  top: 12,
-  right: 12,
+  bottom: 12,
+  left: 12,
   width: 260,
   padding: '12px 14px',
   background: 'rgba(20, 20, 26, 0.88)',

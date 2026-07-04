@@ -5,11 +5,8 @@
 // through the characterStore's `patch` (raf-coalesced during slider/color
 // drags — the MaterialPanel/AnatomyPanel/WardrobePanel idiom).
 //
-// Docked TOP-CENTER: every corner is already claimed (top-left = Material,
-// top-right = Face/Motion, bottom-left = Anatomy, bottom-right = Wardrobe —
-// plan 000 note: "existing panels crowd the layout... panel-overlap debt is
-// plan 012's"). Top-center avoids literal overlap at typical viewport
-// widths without trying to solve the shared-layout refactor here.
+// Docked in the "Lighting" mode-tab column (plan 012 — was a fixed-position
+// TOP-CENTER card).
 
 import type { OrbitControls } from '@react-three/drei'
 import { type ComponentRef, useCallback, useRef } from 'react'
@@ -27,30 +24,11 @@ import {
   studioLookFromPreset,
 } from '../../core/spec/lighting'
 import type { CharacterSpec } from '../../core/spec/schema'
+import { PanelSection } from '../shell/PanelSection'
 import { useCharacterStore } from '../state/characterStore'
 import { useLightingStudio } from '../state/studioStores'
 
 type OrbitControlsHandle = ComponentRef<typeof OrbitControls>
-
-const panelStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: 16,
-  left: '50%',
-  transform: 'translateX(-50%)',
-  width: 260,
-  maxHeight: 'calc(48vh)',
-  overflowY: 'auto',
-  padding: 16,
-  borderRadius: 12,
-  background: 'rgba(24, 24, 28, 0.88)',
-  color: '#e8e8ec',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: 13,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-  zIndex: 10,
-}
 
 const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 }
 const labelColStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 }
@@ -218,9 +196,7 @@ export function LightingPanel({ orbitControlsRef }: { orbitControlsRef: React.Re
   }
 
   return (
-    <div style={panelStyle}>
-      <strong style={{ fontSize: 14 }}>Lighting</strong>
-
+    <PanelSection title="Lighting">
       <div style={labelColStyle}>
         <span style={{ opacity: 0.7 }}>Preset</span>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
@@ -421,6 +397,6 @@ export function LightingPanel({ orbitControlsRef }: { orbitControlsRef: React.Re
           </button>
         </div>
       </div>
-    </div>
+    </PanelSection>
   )
 }

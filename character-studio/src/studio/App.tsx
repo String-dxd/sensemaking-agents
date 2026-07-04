@@ -1,8 +1,4 @@
-import { useEffect, useMemo } from 'react'
-import { FacePanel } from './panels/FacePanel'
-import { usePlayStore } from './play/playStore'
-import { studioCommands } from './state/commandStore'
-import { Stage } from './viewport/Stage'
+import { Shell } from './shell/Shell'
 
 function checkWebGpuFlag() {
   const params = new URLSearchParams(window.location.search)
@@ -11,34 +7,13 @@ function checkWebGpuFlag() {
   }
 }
 
-/** App-level undo/redo keyboard wiring (plan 009 step 1): ⌘Z / ⇧⌘Z (or
- * Ctrl on non-mac), skipped while a form control has focus. */
-function useUndoRedoKeys() {
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return
-      const target = e.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
-      e.preventDefault()
-      if (e.shiftKey) studioCommands.redo()
-      else studioCommands.undo()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
-}
-
+/**
+ * App root (plan 012 recompose): the ad-hoc `<Stage> + <FacePanel>` mount
+ * (with every OTHER panel mounted fixed-position inside Stage.tsx itself)
+ * is now `<Shell>` — TopBar, managed ModeTabs column, roster, toasts, crash
+ * boundary. See `src/studio/shell/Shell.tsx`.
+ */
 export function App() {
-  const showStats = useMemo(() => new URLSearchParams(window.location.search).get('stats') === '1', [])
-  const playing = usePlayStore((s) => s.mode) === 'play'
-
   checkWebGpuFlag()
-  useUndoRedoKeys()
-
-  return (
-    <div style={{ width: '100vw', height: '100vh' }}>
-      <Stage showStats={showStats} />
-      {playing ? null : <FacePanel />}
-    </div>
-  )
+  return <Shell />
 }

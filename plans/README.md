@@ -27,7 +27,7 @@ honor its STOP conditions, and update your row below when done.
 | 009 | Freeform sculpt, lattice & undo | 4 | P2 | L | 004, 006 | **Fable 5** | DONE (merged to `feat/character-studio`; lead ran step-6 gate — sculpt survives morphs/archetype-round-trip/Play-Mode, undo lossless, geodesic pick 0.08–1.30 ms; operator approved) |
 | 010 | Lighting studio | 4 | P2 | M | 004, 005 | Sonnet 5 | DONE (merged to `feat/character-studio` at `384f161`; operator approved presets + terminator sweep; gizmo mouse-drag needs a one-time human check) |
 | 011 | Export & companion-runtime | 5 | P1 | L | 004–009 | Opus 4.8 | TODO |
-| 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | TODO |
+| 012 | Studio shell & roster | 4 | P2 | M | 004 (+landed panels) | Sonnet 5 | DONE-pending-review (branch `advisor/012-studio-shell`, 4 commits, not yet merged — code gates green: `pnpm typecheck && pnpm test && pnpm build` all pass, 420 tests; full builder flow + roster CRUD + crash boundary verified live via agent-browser) |
 
 Status values: TODO | IN PROGRESS | DONE | DONE-pending-visual (code gates
 green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
@@ -36,11 +36,24 @@ green, aesthetic/motion gate awaiting human view) | BLOCKED (one-line reason)
 **Session handoff (updated 2026-07-04):** Plans 001–010 executed, reviewed,
 and merged to `feat/character-studio` (009 merged last, unioning Stage.tsx
 with 010's light rig). Phase 4 authoring plans (009 sculpt + 010 lighting)
-both landed. **Next: plan 012 (studio shell & roster — Sonnet 5)**, which
-composes every landed panel (Material/Anatomy/Wardrobe/Sculpt/Lighting/Face/
-Motion) — it also owns the accumulated **panel-overlap** debt (panels
-currently stack in the four corners and collide). Then **011 last** (Opus
-4.8, export + companion runtime). Model note: **Fable 5 is rate-limited this
+both landed. **Plan 012 (studio shell & roster — Sonnet 5) executed on
+branch `advisor/012-studio-shell`, 4 commits, DONE-pending-review** (not yet
+merged): the ad-hoc panel mounting (App.tsx mounted `<Stage>`+`<FacePanel>`;
+every other panel was fixed-position inside Stage.tsx, colliding in the
+corners) is now a Shell (TopBar + ModeTabs rail mapping the 7-mode builder
+flow + a managed right column) plus a local-first IndexedDB roster
+(rosterStore.ts: CRUD, debounced skip-while-pointer-down autosave, versioned
+crash-recovery slots, thumbnails reusing the live WebGL context via a
+temporary render target). Resolves the **panel-overlap** debt and the
+FacePanel border-style React warning. Three real bugs were found and fixed
+via live agent-browser QA (not unit-testable — needed a real canvas/DOM):
+thumbnail default framing, light gizmos leaking into thumbnails, and toasts
+rendering behind the roster overlay's z-index; a fourth (number-key mode
+shortcuts silently breaking after clicking any button) was also fixed. Full
+details, gate output, and screenshots in the executor's final report.
+**Next: plan 011 last** (Opus 4.8, export + companion runtime) — the
+review/merge of 012 can happen before or after 011 starts, since 011 doesn't
+depend on the shell. Model note: **Fable 5 is rate-limited this
 session** — if unavailable, aesthetic-gated continuations can run on Opus 4.8
 (the lead ran 009's step-6 gate directly on Opus). New human-check debt:
 light-gizmo mouse-drag (store path verified; drag not simulatable in
@@ -73,14 +86,30 @@ commits; continuation executors inherit the worktree (SendMessage resume has
 never worked — transcripts expire). Operator directions in force: quality
 over cost (premium executors for aesthetic-gated plans), 관상 faces,
 screenshots/videos to the operator (often on mobile — webm only, no system
-ffmpeg) with every visual verdict. Known debts: panel overlap + FacePanel
-style warning (012), `Math.random` core guard test missing (rule honored
-manually), absolute-60fps check pending operator's laptop, body-level
-boneScales piggyback on part entries (plan-004 schema gap; revisit 009/012),
-shell-union bodies want a human sculpt pass at shoulders/hips
-(ASSET-CONTRACT.md), hood↔backpack overlap when both worn, drawstrings bury
-at extreme bellyRound, mug grazes thigh in profile, scarf tips read stiff at
-rest.
+ffmpeg) with every visual verdict. Known debts: ~~panel overlap + FacePanel
+style warning~~ (resolved by 012), `Math.random` core guard test missing
+(rule honored manually), absolute-60fps check pending operator's laptop,
+body-level boneScales piggyback on part entries (plan-004 schema gap;
+revisit 009/012), shell-union bodies want a human sculpt pass at
+shoulders/hips (ASSET-CONTRACT.md), hood↔backpack overlap when both worn,
+drawstrings bury at extreme bellyRound, mug grazes thigh in profile, scarf
+tips read stiff at rest. **New from 012**: MotionDebugPanel (plan 003, dev
+spring-tuning) stays a fixed-position floating overlay outside the ModeTabs
+column by design — it's not one of the 7 builder-flow modes and its own
+doc comment already marks it provisional; RosterView's rename/delete use
+native `window.prompt()`/`confirm()` rather than a bespoke modal (matches
+the "no UI framework" constraint, but is the crudest possible affordance —
+worth a real modal if the roster grows past a quick internal tool); the
+gizmo-hide-during-thumbnail-capture trick (thumbnails.ts) depends on React
+committing a re-render before the next r3f `useFrame` tick, which held up
+in testing but is timing-shaped, not structurally guaranteed; Toasts'
+z-index (300) is hand-kept above the roster overlay's (200) — bump both
+together if either changes; no in-app UI surfaces the autosave-slot count
+or lets a designer browse older slots (only the crash boundary's "revert to
+last" is wired) — `rosterStore.countAutosaveSlots`/the `autosaveSlots`
+store exist for a future "restore points" affordance. Plan 011 note: 012
+did NOT add a ".companion.glb export" action to RosterView (011 not landed
+at time of writing) — 011 should add it there once it exists.
 
 **Executor model rationale**: Fable 5 wherever the plan's success gate is
 aesthetic or judgment-based (face, springs, sculpt, look, authored assets,

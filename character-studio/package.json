@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Character Studio \u2014 internal tool for authoring animated 3D animal companions (drawn-face toon aesthetic, spring-bone secondary motion). Isolated pnpm root; see plans/000-architecture-and-strategy.md.",
+  "description": "Character Studio — internal tool for authoring animated 3D animal companions (drawn-face toon aesthetic, spring-bone secondary motion). Isolated pnpm root; see plans/000-architecture-and-strategy.md.",
   "scripts": {
     "dev": "vite --port 5190",
     "build": "vite build",
@@ -35,6 +35,7 @@
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "fake-indexeddb": "^6.2.5",
     "tsx": "^4.22.5",
     "typescript": "^5.7.0",
     "vite": "^7.0.0",

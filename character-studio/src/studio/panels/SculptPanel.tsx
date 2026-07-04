@@ -1,32 +1,13 @@
-// Sculpt & lattice control panel (plan 009, steps 4–5). Docked bottom-left
-// (MaterialPanel owns top-left, FacePanel/MotionDebug top-right — the panel
-// overlap cleanup is plan 012's). Brush parameters live in the sculpt store
-// (the viewport tool reads them per event); undo/redo run through the
-// studio-wide command stack.
+// Sculpt & lattice control panel (plan 009, steps 4–5). Docked in the
+// "Sculpt" mode-tab column (plan 012 — was a fixed-position BOTTOM-LEFT
+// card). Brush parameters live in the sculpt store (the viewport tool reads
+// them per event); undo/redo run through the studio-wide command stack.
 
 import { BRUSH_KINDS, type BrushKind } from '../../core/sculpt'
+import { PanelSection } from '../shell/PanelSection'
 import { useStudioCommands } from '../state/commandStore'
 import { SCULPT_RADIUS_MAX, SCULPT_RADIUS_MIN, useSculptStore } from '../state/sculptStore'
 import { LatticeControls } from './LatticeSection'
-
-const panelStyle: React.CSSProperties = {
-  position: 'fixed',
-  bottom: 16,
-  left: 16,
-  width: 250,
-  maxHeight: 'calc(100vh - 32px)',
-  overflowY: 'auto',
-  padding: 16,
-  borderRadius: 12,
-  background: 'rgba(24, 24, 28, 0.88)',
-  color: '#e8e8ec',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: 13,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-  zIndex: 10,
-}
 
 const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 }
 const labelColStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4 }
@@ -74,14 +55,14 @@ export function SculptPanel() {
   const commands = useStudioCommands()
 
   return (
-    <div style={panelStyle}>
-      <div style={{ ...rowStyle, justifyContent: 'space-between' }}>
-        <strong style={{ fontSize: 14 }}>Sculpt</strong>
+    <PanelSection
+      title="Sculpt"
+      actions={
         <button type="button" style={active ? activeButtonStyle : buttonStyle} onClick={() => setActive(!active)}>
           {active ? 'Sculpting' : 'Off'}
         </button>
-      </div>
-
+      }
+    >
       {active ? (
         <>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -161,6 +142,6 @@ export function SculptPanel() {
       ) : (
         <span style={{ opacity: 0.55, fontSize: 11 }}>Freeform shape control: brushes + lattice, mirror-aware, undoable.</span>
       )}
-    </div>
+    </PanelSection>
   )
 }

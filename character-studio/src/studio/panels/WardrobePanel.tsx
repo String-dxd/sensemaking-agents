@@ -9,8 +9,8 @@
 // would evict: one per slot, outfit ⇄ top+bottom) — the dressing pass
 // enforces the same rules anyway and its warnings are surfaced below.
 //
-// Docked BOTTOM-RIGHT (top-left = Material, bottom-left = Anatomy,
-// top-right = Face/Motion — shared panel layout is plan-012 debt).
+// Docked in the "Wardrobe" mode-tab column (plan 012 — was a fixed-position
+// BOTTOM-RIGHT card).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
@@ -24,27 +24,9 @@ import {
   type WardrobeItemId,
   WEAR_SLOT_LABELS,
 } from '../../core/wardrobe'
+import { PanelSection } from '../shell/PanelSection'
 import { useCharacterStore } from '../state/characterStore'
 import { getGlbThumbnail } from './partThumbnails'
-
-const panelStyle: React.CSSProperties = {
-  position: 'fixed',
-  bottom: 16,
-  right: 16,
-  width: 264,
-  maxHeight: 'calc(58vh)',
-  overflowY: 'auto',
-  padding: 16,
-  borderRadius: 12,
-  background: 'rgba(24, 24, 28, 0.88)',
-  color: '#e8e8ec',
-  fontFamily: 'system-ui, sans-serif',
-  fontSize: 13,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 12,
-  zIndex: 10,
-}
 
 const tabStyle = (active: boolean): React.CSSProperties => ({
   padding: '3px 8px',
@@ -180,14 +162,19 @@ export function WardrobePanel() {
     patchWorn(slot, (entry) => ({ ...entry, paletteOverrides: { ...entry.paletteOverrides, [paletteSlot]: color } }))
 
   return (
-    <div style={panelStyle}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <strong style={{ fontSize: 14 }}>Wardrobe</strong>
-        <button type="button" style={smallButton} disabled={wardrobe.length === 0} onClick={() => rafPatch((draft) => void (draft.wardrobe = []))}>
+    <PanelSection
+      title="Wardrobe"
+      actions={
+        <button
+          type="button"
+          style={smallButton}
+          disabled={wardrobe.length === 0}
+          onClick={() => rafPatch((draft) => void (draft.wardrobe = []))}
+        >
           Undress all
         </button>
-      </div>
-
+      }
+    >
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
         {SLOTS_WITH_ITEMS.map((s) => (
           <button key={s} type="button" style={tabStyle(s === slot)} onClick={() => setSlot(s)}>
@@ -257,6 +244,6 @@ export function WardrobePanel() {
           ))}
         </div>
       ) : null}
-    </div>
+    </PanelSection>
   )
 }

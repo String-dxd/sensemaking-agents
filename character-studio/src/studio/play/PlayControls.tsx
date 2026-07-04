@@ -2,10 +2,16 @@
 // plus the play-time control strip (states, gestures, speed, camera presets,
 // soak test). All behavior flows through the shared play store; the in-canvas
 // PlayMode driver consumes it.
+//
+// Plan 012: renders inside the shell's managed column (the "Play" mode-tab
+// swaps the column over to this instead of a normal edit panel) — was a
+// pair of fixed-position overlays (top-center pill + bottom-center strip).
+// Style-only change: same elements/handlers, now laid out in-flow.
 
 import type { CSSProperties } from 'react'
 import type { GestureName, MachineState } from '../../core/motion/clipStateMachine'
 import { MAX_SPEED } from '../../core/motion/locomotion'
+import { PanelSection } from '../shell/PanelSection'
 import { type CameraPreset, usePlayStore } from './playStore'
 
 const STATES: ReadonlyArray<MachineState> = ['idle', 'walk', 'run', 'sit', 'talk']
@@ -24,40 +30,26 @@ const CAMERAS: ReadonlyArray<{ preset: CameraPreset; label: string }> = [
 const font = '11px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace'
 
 const toggleStyle: CSSProperties = {
-  position: 'fixed',
-  top: 12,
-  left: '50%',
-  transform: 'translateX(-50%)',
+  alignSelf: 'flex-start',
   padding: '6px 16px',
   font,
   fontWeight: 700,
   color: '#e6e6ee',
-  background: 'rgba(20, 20, 26, 0.88)',
+  background: 'rgba(255, 255, 255, 0.08)',
   border: '1px solid rgba(255,255,255,0.2)',
   borderRadius: 999,
   cursor: 'pointer',
-  zIndex: 20,
 }
 
 const stripStyle: CSSProperties = {
-  position: 'fixed',
-  bottom: 14,
-  left: '50%',
-  transform: 'translateX(-50%)',
   display: 'flex',
-  alignItems: 'center',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
   gap: 14,
-  padding: '10px 16px',
+  padding: '10px 0 0',
   font,
   color: '#e6e6ee',
-  background: 'rgba(20, 20, 26, 0.88)',
-  border: '1px solid rgba(255,255,255,0.12)',
-  borderRadius: 12,
-  zIndex: 20,
   userSelect: 'none',
-  flexWrap: 'wrap',
-  maxWidth: 'calc(100vw - 32px)',
-  justifyContent: 'center',
 }
 
 const buttonStyle: CSSProperties = {
@@ -78,7 +70,7 @@ const activeButtonStyle: CSSProperties = {
   borderColor: 'rgba(120, 180, 255, 0.7)',
 }
 
-const groupStyle: CSSProperties = { display: 'flex', gap: 5, alignItems: 'center' }
+const groupStyle: CSSProperties = { display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }
 const labelStyle: CSSProperties = { opacity: 0.55, marginRight: 2 }
 
 export function PlayControls() {
@@ -96,7 +88,7 @@ export function PlayControls() {
   const requestGesture = usePlayStore((s) => s.requestGesture)
 
   return (
-    <>
+    <PanelSection title="Play">
       <button type="button" style={toggleStyle} onClick={() => setMode(mode === 'play' ? 'studio' : 'play')}>
         {mode === 'play' ? '✕ exit play' : '▶ play'}
       </button>
@@ -155,6 +147,6 @@ export function PlayControls() {
           </button>
         </div>
       ) : null}
-    </>
+    </PanelSection>
   )
 }
