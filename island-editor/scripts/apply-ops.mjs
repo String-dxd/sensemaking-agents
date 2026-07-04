@@ -1,17 +1,20 @@
-// CLI: apply a batch of agent ops to an island spec (binding option (a)).
+// CLI: apply a batch of agent ops to a v3 island spec (binding option (a)).
 // Reuses the real pure core via tsx — deserializeSpec/serializeSpec from
-// exportSpec.ts and the applyOps runner from src/agent/applyOps.ts. No core
-// logic is inlined here (unlike the throwaway poc-apply-op.mjs).
+// specIO.ts (which migrates v1/v2 files to v3 on read) and the applyOps runner
+// from src/agent/applyOps.ts. No core logic is inlined here (unlike the
+// throwaway poc-apply-op.mjs).
 //
 //   pnpm --filter island-editor apply-ops <spec.json> <ops.json> [out.json]
 //
-// Reads <spec.json> (a serialized IslandSpec) and <ops.json> (an Op[]), folds
-// the ops, writes the resulting spec to <out.json> if given else stdout, prints
-// any op errors to stderr, and exits 1 if any error occurred (else 0).
+// Reads <spec.json> (a serialized IslandSpec; v1/v2 files migrate to v3) and
+// <ops.json> (an Op[] in the v3 grid vocabulary: fillRect / adjustRect /
+// paintRect / reset), folds the ops, writes the resulting spec to <out.json> if
+// given else stdout, prints any op errors to stderr, and exits 1 if any error
+// occurred (else 0).
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import { applyOps } from '../src/agent/applyOps'
-import { deserializeSpec, serializeSpec } from '../src/editor/exportSpec'
+import { deserializeSpec, serializeSpec } from '../src/editor/specIO'
 
 const specPath = process.argv[2]
 const opsPath = process.argv[3]

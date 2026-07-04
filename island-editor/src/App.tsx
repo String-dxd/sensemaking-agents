@@ -3,60 +3,38 @@ import { OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import type { Camera, Vector3 } from 'three'
 import { createCommandStack } from './editor/commandStack'
-import { downloadSpec, importSpecFromFile } from './editor/exportSpec'
 import { clearSaved, createAutosaver, loadSpec } from './editor/persistence'
+import { downloadSpec, importSpecFromFile } from './editor/specIO'
 import { Backdrop } from './scene/Backdrop'
-import { CoastlineHandles } from './scene/CoastlineHandles'
-import { Sea } from './scene/Sea'
-import { Terrain } from './scene/Terrain'
-import { applyBrush, type BrushParams } from './terrain/brush'
-import { deletePoint, insertPointAfter, movePointTo } from './terrain/coastlineOps'
-import {
-  CURRENT_SPEC_VERSION,
-  type HeightProfile,
-  type IslandSpec,
-  type ReliefGrid,
-  seedFromCurrentIsland,
-  type Vec2,
-} from './terrain/islandSpec'
-import { type EditMode, ToolPanel } from './ui/ToolPanel'
+import { IslandTerrain } from './scene/IslandTerrain'
+import { SeaSurface } from './scene/SeaSurface'
+import { adjustTier, brushCells, setSurface, setTier } from './terrain/gridOps'
+import { seedIsland } from './terrain/seed'
+import { type IslandSpec, SURFACE_AUTO, SURFACE_PATH, worldToCell } from './terrain/terrainGrid'
+import { type BrushSize, type Tool, ToolPanel } from './ui/ToolPanel'
 
 const SAVED = loadSpec()
-const INITIAL: IslandSpec = SAVED ?? seedFromCurrentIsland()
+const INITIAL: IslandSpec = SAVED ?? seedIsland()
 
 const autosave = createAutosaver()
-
-// Mesh resolution: full detail at rest, reduced while a coastline handle is
-// being dragged (the field rebuild is the expensive per-move cost). Restored
-// on release. DRAG_SEGMENTS is a quality/perf knob — raise if mid-drag looks
-// too coarse.
-const FULL_SEGMENTS = 80
-const DRAG_SEGMENTS = 32
 
 /** Minimal shape of the three OrbitControls instance drei forwards. */
 type OrbitControlsLike = { object: Camera; target: Vector3; update: () => void }
 
 export function App() {
-  const [mode, setMode] = useState<EditMode>('shape')
-  const [coastline, setCoastline] = useState<Vec2[]>(INITIAL.coastline)
-  const [selectedPoint, setSelectedPoint] = useState<number | null>(null)
-  const [worldSize, setWorldSize] = useState<number>(INITIAL.worldSize)
-  const [profile, setProfile] = useState<HeightProfile>(INITIAL.heightProfile)
-  const [brush, setBrush] = useState<BrushParams>({ radius: 3, strength: 0.3, mode: 'raise' })
+  const [tool, setTool] = useState<Tool>('raise')
+  const [brushSize, setBrushSize] = useState<BrushSize>(1)
   const [orbitEnabled, setOrbitEnabled] = useState(true)
-  const [coastlineDragging, setCoastlineDragging] = useState(false)
 
-  // Relief lives in a ref (mutated in place by the brush, cheaply) with a tick
-  // to trigger spec recompute — keeps brush dabs out of a React updater so
-  // StrictMode's double-invoke can't double-apply a stroke.
-  const reliefRef = useRef<ReliefGrid>(INITIAL.relief)
-  const [reliefTick, setReliefTick] = useState(0)
-  const refreshRelief = useCallback(() => setReliefTick((t) => t + 1), [])
-  const brushRef = useRef(brush)
-  brushRef.current = brush
-  // World size lives in a ref too so the []-dep paint callback isn't stale.
-  const worldSizeRef = useRef(worldSize)
-  worldSizeRef.current = worldSize
+  // The spec lives in a ref (its grid arrays mutated in place by grid ops) with
+  // a tick to trigger recompute — keeps stamp application out of a React
+  // updater so StrictMode's double-invoke can't double-apply a stroke.
+  const specRef = useRef<IslandSpec>(INITIAL)
+  const [gridTick, setGridTick] = useState(0)
+  const toolRef = useRef(tool)
+  toolRef.current = tool
+  const brushSizeRef = useRef(brushSize)
+  brushSizeRef.current = brushSize
 
   // Mutable undo/redo history. A version counter forces the undo/redo buttons
   // to re-evaluate canUndo()/canRedo() after each push/undo/redo.
@@ -64,127 +42,79 @@ export function App() {
   const [, setStackVersion] = useState(0)
   const bumpStack = useCallback(() => setStackVersion((v) => v + 1), [])
 
+  // A fresh spec identity per tick so scene consumers recompute.
   const spec: IslandSpec = useMemo(
-    () => ({
-      version: CURRENT_SPEC_VERSION,
-      worldSize,
-      coastline,
-      heightProfile: profile,
-      relief: { resolution: reliefRef.current.resolution, data: reliefRef.current.data },
-    }),
-    [coastline, profile, worldSize, reliefTick],
+    () => ({ ...specRef.current }),
+    // biome-ignore lint/correctness/useExhaustiveDependencies: gridTick IS the dependency signal
+    [gridTick],
   )
-
-  // Latest spec, kept in a ref so command-stack closures and export read the
-  // current value without re-subscribing.
-  const specRef = useRef(spec)
-  specRef.current = spec
 
   // Autosave on every spec change (debounced internally).
   useEffect(() => {
     autosave(spec)
   }, [spec])
 
-  const movePoint = useCallback((index: number, next: Vec2) => {
-    setCoastline((pts) => movePointTo(pts, index, next))
+  // ── Stroke lifecycle: one undoable command per stroke ───────────────────────
+  // Snapshot both layers on paint-start; each stroke touches a cell at most once
+  // (the visited set prevents runaway raises while dragging inside one cell).
+  const strokeBefore = useRef<{ tiers: number[]; surface: number[] } | null>(null)
+  const visited = useRef<Set<number>>(new Set())
+
+  const applySnapshot = useCallback((tiers: number[], surface: number[]) => {
+    const grid = specRef.current.grid
+    grid.tiers = tiers.slice()
+    grid.surface = surface.slice()
+    setGridTick((t) => t + 1)
   }, [])
 
-  // ── Coastline drag → one undoable command per drag ──────────────────────────
-  const dragBefore = useRef<Vec2[] | null>(null)
-  const onDragChange = useCallback(
-    (dragging: boolean) => {
-      setOrbitEnabled(!dragging)
-      setCoastlineDragging(dragging)
-      if (dragging) {
-        dragBefore.current = specRef.current.coastline
-        return
-      }
-      const before = dragBefore.current
-      dragBefore.current = null
-      if (!before) return
-      const after = specRef.current.coastline
-      if (after === before) return // no movement recorded
-      stack.push({
-        label: 'Move coastline',
-        do: () => setCoastline(after),
-        undo: () => setCoastline(before),
-      })
-      bumpStack()
-    },
-    [stack, bumpStack],
-  )
-
-  // ── Insert / delete control points → one undoable command each ───────────────
-  const insertAfterSelected = useCallback(() => {
-    const at = selectedPoint ?? coastline.length - 1
-    const before = specRef.current.coastline
-    const after = insertPointAfter(before, at)
-    setCoastline(after)
-    setSelectedPoint(at + 1)
-    stack.push({ label: 'Insert point', do: () => setCoastline(after), undo: () => setCoastline(before) })
-    bumpStack()
-  }, [selectedPoint, coastline.length, stack, bumpStack])
-
-  const deleteSelected = useCallback(() => {
-    if (selectedPoint === null) return
-    const before = specRef.current.coastline
-    const after = deletePoint(before, selectedPoint)
-    if (after.length === before.length) return // min-3 guard hit
-    setCoastline(after)
-    setSelectedPoint(null)
-    stack.push({ label: 'Delete point', do: () => setCoastline(after), undo: () => setCoastline(before) })
-    bumpStack()
-  }, [selectedPoint, stack, bumpStack])
-
-  // ── Numeric edit session → one undoable command per focus→blur ───────────────
-  const numericBefore = useRef<Vec2[] | null>(null)
-  const onPointFieldFocus = useCallback(() => {
-    numericBefore.current = specRef.current.coastline
-  }, [])
-  const onPointFieldChange = useCallback((index: number, next: Vec2) => {
-    if (!Number.isFinite(next.x) || !Number.isFinite(next.z)) return
-    setCoastline((pts) => movePointTo(pts, index, next))
-  }, [])
-  const onPointFieldBlur = useCallback(() => {
-    const before = numericBefore.current
-    numericBefore.current = null
-    if (!before) return
-    const after = specRef.current.coastline
-    if (after === before) return
-    stack.push({ label: 'Edit point', do: () => setCoastline(after), undo: () => setCoastline(before) })
-    bumpStack()
-  }, [stack, bumpStack])
-
-  // ── Brush stroke → one undoable command per stroke ──────────────────────────
-  const strokeBefore = useRef<number[] | null>(null)
-  const applyRelief = useCallback(
-    (data: number[]) => {
-      reliefRef.current = { resolution: reliefRef.current.resolution, data }
-      refreshRelief()
-    },
-    [refreshRelief],
-  )
   const onPaintStart = useCallback(() => {
     setOrbitEnabled(false)
-    strokeBefore.current = reliefRef.current.data.slice()
+    const grid = specRef.current.grid
+    strokeBefore.current = { tiers: grid.tiers.slice(), surface: grid.surface.slice() }
+    visited.current.clear()
   }, [])
+
   const paint = useCallback((x: number, z: number) => {
-    applyBrush(reliefRef.current, worldSizeRef.current, x, z, brushRef.current)
-    setReliefTick((t) => t + 1)
+    const s = specRef.current
+    const grid = s.grid
+    const { c, r } = worldToCell(s.worldSize, grid, x, z)
+    const cells = brushCells(grid, c, r, brushSizeRef.current).filter((i) => !visited.current.has(i))
+    if (cells.length === 0) return
+    for (const i of cells) visited.current.add(i)
+    switch (toolRef.current) {
+      case 'raise':
+        adjustTier(grid, cells, +1)
+        break
+      case 'lower':
+        adjustTier(grid, cells, -1)
+        break
+      case 'water':
+        setTier(grid, cells, 0)
+        break
+      case 'path':
+        setSurface(grid, cells, SURFACE_PATH)
+        break
+      case 'erase':
+        setSurface(grid, cells, SURFACE_AUTO)
+        break
+    }
+    setGridTick((t) => t + 1)
   }, [])
+
   const onPaintEnd = useCallback(() => {
     setOrbitEnabled(true)
     const before = strokeBefore.current
     strokeBefore.current = null
-    if (!before) return
-    const after = reliefRef.current.data.slice()
+    if (!before || visited.current.size === 0) return
+    const grid = specRef.current.grid
+    const after = { tiers: grid.tiers.slice(), surface: grid.surface.slice() }
     stack.push({
-      label: 'Brush stroke',
-      do: () => applyRelief(after),
-      undo: () => applyRelief(before),
+      label: 'Stroke',
+      do: () => applySnapshot(after.tiers, after.surface),
+      undo: () => applySnapshot(before.tiers, before.surface),
     })
     bumpStack()
-  }, [stack, bumpStack, applyRelief])
+  }, [stack, bumpStack, applySnapshot])
 
   // ── Undo / redo ─────────────────────────────────────────────────────────────
   const undo = useCallback(() => {
@@ -218,13 +148,8 @@ export function App() {
   // ── Reset / Export / Import ──────────────────────────────────────────────────
   const reset = useCallback(() => {
     clearSaved()
-    const fresh = seedFromCurrentIsland()
-    reliefRef.current = fresh.relief
-    setCoastline(fresh.coastline)
-    setSelectedPoint(null)
-    setWorldSize(fresh.worldSize)
-    setProfile(fresh.heightProfile)
-    setReliefTick((t) => t + 1)
+    specRef.current = seedIsland()
+    setGridTick((t) => t + 1)
     stack.clear()
     bumpStack()
   }, [stack, bumpStack])
@@ -241,13 +166,8 @@ export function App() {
       e.target.value = '' // allow re-importing the same file
       if (!file) return
       try {
-        const imported = await importSpecFromFile(file)
-        reliefRef.current = imported.relief
-        setCoastline(imported.coastline)
-        setSelectedPoint(null)
-        setWorldSize(imported.worldSize)
-        setProfile(imported.heightProfile)
-        setReliefTick((t) => t + 1)
+        specRef.current = await importSpecFromFile(file)
+        setGridTick((t) => t + 1)
         stack.clear() // never let undo resurrect pre-import state
         bumpStack()
       } catch (err) {
@@ -257,7 +177,7 @@ export function App() {
     [stack, bumpStack],
   )
 
-  // ── Top view ──────────────────────────────────────────────────────────────────
+  // ── Camera presets ────────────────────────────────────────────────────────────
   // Capture the three OrbitControls instance drei forwards via a callback ref,
   // narrowed to the minimal shape we touch (no three-stdlib type dependency).
   const controlsRef = useRef<OrbitControlsLike | null>(null)
@@ -272,31 +192,28 @@ export function App() {
     object.position.set(target.x, target.y + dist, target.z + 0.001)
     controls.update()
   }, [])
+  // The elevated ~52° three-quarter view the sandbox games use.
+  const designerView = useCallback(() => {
+    const controls = controlsRef.current
+    if (!controls) return
+    const { object, target } = controls
+    const dist = object.position.distanceTo(target)
+    object.position.set(target.x, target.y + dist * 0.79, target.z + dist * 0.61)
+    controls.update()
+  }, [])
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
-      <Canvas shadows camera={{ position: [14, 11, 14], fov: 50 }}>
+      <Canvas camera={{ position: [14, 11, 14], fov: 50 }}>
         <Backdrop />
-        <Sea level={profile.seaLevel} />
-        <Terrain
+        <SeaSurface key={`${spec.grid.cols}x${spec.grid.rows}`} spec={spec} />
+        <IslandTerrain
           spec={spec}
-          segments={coastlineDragging ? DRAG_SEGMENTS : FULL_SEGMENTS}
-          brushRadius={brush.radius}
-          sculptActive={mode === 'sculpt'}
+          brushSize={brushSize}
           onPaintStart={onPaintStart}
           onPaint={paint}
           onPaintEnd={onPaintEnd}
         />
-        {mode === 'shape' && (
-          <CoastlineHandles
-            points={coastline}
-            seaLevel={profile.seaLevel}
-            selectedIndex={selectedPoint}
-            onSelect={setSelectedPoint}
-            onChange={movePoint}
-            onDragChange={onDragChange}
-          />
-        )}
         <OrbitControls ref={setControls} makeDefault enabled={orbitEnabled} />
       </Canvas>
       <input
@@ -307,12 +224,10 @@ export function App() {
         onChange={onImportFile}
       />
       <ToolPanel
-        mode={mode}
-        onModeChange={setMode}
-        profile={profile}
-        onProfileChange={setProfile}
-        brush={brush}
-        onBrushChange={setBrush}
+        tool={tool}
+        onToolChange={setTool}
+        brushSize={brushSize}
+        onBrushSizeChange={setBrushSize}
         canUndo={stack.canUndo()}
         canRedo={stack.canRedo()}
         onUndo={undo}
@@ -321,15 +236,7 @@ export function App() {
         onExport={exportSpec}
         onImport={openImport}
         onTopView={topView}
-        selectedPos={selectedPoint === null ? null : (coastline[selectedPoint] ?? null)}
-        canDelete={coastline.length > 3}
-        onPointFieldFocus={onPointFieldFocus}
-        onPointFieldChange={(next) => onPointFieldChange(selectedPoint!, next)}
-        onPointFieldBlur={onPointFieldBlur}
-        onInsertAfter={insertAfterSelected}
-        onDeleteSelected={deleteSelected}
-        worldSize={worldSize}
-        onWorldSizeChange={(v) => { if (Number.isFinite(v) && v > 0) setWorldSize(v) }}
+        onDesignerView={designerView}
       />
     </div>
   )
