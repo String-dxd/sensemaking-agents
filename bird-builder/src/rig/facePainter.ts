@@ -8,6 +8,11 @@ import { toonMat } from './toon'
 // small structural FaceParams record (CharacterConfig satisfies it today) so it is
 // decoupled from the abandoned Kira geometry config.
 
+// AC-style eye marking painted behind the eyes as a species signature: a
+// `band` reads like a cardinal's/bandit mask across both eyes; a `patch` is a
+// pair of rings around each eye (toucan eye-skin, masked finch).
+export type FaceMask = 'none' | 'band' | 'patch'
+
 export interface FaceParams {
   faceY: number
   faceZ: number
@@ -31,6 +36,8 @@ export interface FaceParams {
   shine: boolean
   brow: number
   browW: number
+  mask?: FaceMask
+  maskColor?: string | null
 }
 
 export interface PainterPalette {
@@ -76,6 +83,10 @@ export function makeFaceMaterial(
   if (cheekMark !== 'none') {
     drawCheekMark(ctx, cheekMark, cx - cheekX, cheekY, size * c.cheekSize * 0.3, palette.eye)
     drawCheekMark(ctx, cheekMark, cx + cheekX, cheekY, size * c.cheekSize * 0.3, palette.eye)
+  }
+  // Mask paints UNDER the eyes so the whites/pupils sit on top of it.
+  if (c.mask && c.mask !== 'none' && c.maskColor) {
+    drawMask(ctx, c.mask, c.maskColor, cx, eyeY, eyeSep, eyeW, eyeH)
   }
   drawPaintedEye(ctx, c, palette, -1, cx - eyeSep, eyeY, eyeW, eyeH)
   drawPaintedEye(ctx, c, palette, +1, cx + eyeSep, eyeY, eyeW, eyeH)
@@ -178,6 +189,24 @@ function drawStroke(
   ctx.lineTo(w * 0.5, 0)
   ctx.stroke()
   ctx.restore()
+}
+
+function drawMask(
+  ctx: CanvasRenderingContext2D,
+  mask: 'band' | 'patch',
+  color: string,
+  cx: number,
+  eyeY: number,
+  eyeSep: number,
+  eyeW: number,
+  eyeH: number,
+): void {
+  if (mask === 'band') {
+    drawEllipse(ctx, cx, eyeY, eyeSep + eyeW * 0.82, eyeH * 1.02, color)
+  } else {
+    drawEllipse(ctx, cx - eyeSep, eyeY, eyeW * 1.16, eyeH * 1.22, color)
+    drawEllipse(ctx, cx + eyeSep, eyeY, eyeW * 1.16, eyeH * 1.22, color)
+  }
 }
 
 function drawCheekMark(ctx: CanvasRenderingContext2D, kind: 'dot' | 'swirl', x: number, y: number, r: number, color: string): void {

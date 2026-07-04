@@ -129,6 +129,42 @@ describe('DevPalette', () => {
     expect(localStorage.getItem('sm:world-controls-visible')).toBeNull()
   })
 
+  it('opens the standalone studios in a new tab from Cmd-K', async () => {
+    const user = userEvent.setup()
+    const openSpy = vi.fn()
+    const originalOpen = window.open
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      writable: true,
+      value: openSpy,
+    })
+
+    render(<DevPalette />)
+    await user.keyboard('{Meta>}k{/Meta}')
+
+    await user.click(screen.getByRole('option', { name: /open island builder/i }))
+    expect(openSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining(':5180/'),
+      '_blank',
+      'noopener,noreferrer',
+    )
+
+    // The click closed the palette; reopen to reach the bird builder.
+    await user.keyboard('{Meta>}k{/Meta}')
+    await user.click(screen.getByRole('option', { name: /open bird builder/i }))
+    expect(openSpy).toHaveBeenLastCalledWith(
+      expect.stringContaining(':5181/'),
+      '_blank',
+      'noopener,noreferrer',
+    )
+
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      writable: true,
+      value: originalOpen,
+    })
+  })
+
   it('keeps mature island preview available in production builds', async () => {
     vi.stubEnv('DEV', false)
     const user = userEvent.setup()
@@ -140,6 +176,10 @@ describe('DevPalette', () => {
     expect(screen.getByRole('option', { name: /show mature island/i })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /show camera tuner/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /show hatch tuner/i })).not.toBeInTheDocument()
+    // The standalone studios are dev-only (localhost dev servers); they must
+    // not surface in a production build.
+    expect(screen.queryByRole('option', { name: /open island builder/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /open bird builder/i })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('option', { name: /show mature island/i }))
     expect(matureIslandListener).toHaveBeenCalledTimes(1)

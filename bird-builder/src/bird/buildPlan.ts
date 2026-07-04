@@ -172,7 +172,7 @@ const SIGNATURES: Record<SpeciesId, SignaturePlan> = {
     crest: 'pointed',
     beakStyle: 'cone',
     sigColors: { back: '#cc1f2a', belly: '#d83440', accent: '#cc1f2a', beak: '#ff9d2e', legs: '#6b4a2a', eye: '#1a1a1a' },
-    sigFace: { faceColor: '#211a1a', shine: true },
+    sigFace: { faceColor: '#cc1f2a', mask: 'band', maskColor: '#1a1010', shine: true },
   },
   // TOUCAN — black body, white bib, HUGE orange beak.
   regent: {
@@ -182,7 +182,7 @@ const SIGNATURES: Record<SpeciesId, SignaturePlan> = {
     beakStyle: 'cone',
     beakScale: 1.7,
     sigColors: { back: '#1b1b1f', belly: '#f4f1e8', accent: '#ff8a1e', beak: '#ff8a1e', legs: '#2a2a2a', eye: '#1a1a1a' },
-    sigFace: { faceColor: '#1b1b1f', eyeRingColor: '#ffd24a', shine: true },
+    sigFace: { faceColor: '#1b1b1f', eyeRingColor: '#ffd24a', mask: 'patch', maskColor: '#1aa6b8', shine: true },
   },
   // PARROT — green, hooked beak, head tuft, yellow face patch.
   emerald: {
@@ -237,6 +237,31 @@ const SIGNATURES: Record<SpeciesId, SignaturePlan> = {
     sigFace: { faceColor: '#ffaecd', shine: true },
   },
 }
+
+// ── Human-facing labels + swatches for the two build modes (the UI picker
+// reads these). Same six genome slots, two identities: a generic archetype or a
+// recognizable real bird. ──
+export const ARCHETYPE_LABEL: Record<SpeciesId, string> = {
+  flame: 'Bowerbird',
+  emerald: 'Songbird',
+  regent: 'Eagle',
+  satin: 'Duck',
+  twilight: 'Ostrich',
+  lilac: 'Chicken',
+}
+export const SIGNATURE_LABEL: Record<SpeciesId, string> = {
+  flame: 'Cardinal',
+  regent: 'Toucan',
+  emerald: 'Parrot',
+  satin: 'Peacock',
+  twilight: 'Owl',
+  lilac: 'Flamingo',
+}
+// Two-dot swatch (back + accent) pulled from each signature's baked colors, for
+// the species-mode picker cards.
+export const SIGNATURE_SWATCH = Object.fromEntries(
+  (Object.keys(SIGNATURES) as SpeciesId[]).map((id) => [id, { back: SIGNATURES[id].sigColors.back, accent: SIGNATURES[id].sigColors.accent }]),
+) as Record<SpeciesId, { back: string; accent: string }>
 
 const mul = (v: number, f: number | undefined): number => (f === undefined ? v : v * f)
 

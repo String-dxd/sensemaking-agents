@@ -22,6 +22,10 @@ import { cn } from '~/lib/utils'
  * (UI mode at `/`) and the agent-pipeline test bench at
  * `/dev/pipeline`. It also exposes the legacy routes (`/library`, `/me`,
  * `/reflect`) so QA can reach them without typing URLs.
+ *
+ * In dev it also opens the standalone studios — the Island builder (`:5180`)
+ * and Bird builder (`:5181`) — which run as separate Vite dev servers (not
+ * routes in this app), each in a new browser tab.
  */
 type Command = {
   id: string
@@ -58,6 +62,18 @@ export function DevPalette() {
       setOpen(false)
       void navigate({ to: path })
     }
+    // Studios are standalone Vite dev servers on their own ports, not routes in
+    // this app — open them in a new tab. Use the current hostname (not a
+    // hardcoded `localhost`) so it also works when the app is served over the
+    // network via `--host`.
+    const openStudio = (port: number) => () => {
+      setOpen(false)
+      window.open(
+        `${window.location.protocol}//${window.location.hostname}:${port}/`,
+        '_blank',
+        'noopener,noreferrer',
+      )
+    }
     const cameraTuner: Command | null = import.meta.env.DEV
       ? {
           id: 'camera-tuner',
@@ -80,6 +96,22 @@ export function DevPalette() {
           },
         }
       : null
+    const islandBuilder: Command | null = import.meta.env.DEV
+      ? {
+          id: 'island-builder',
+          label: 'Open Island builder',
+          hint: ':5180',
+          run: openStudio(5180),
+        }
+      : null
+    const birdBuilder: Command | null = import.meta.env.DEV
+      ? {
+          id: 'bird-builder',
+          label: 'Open Bird builder',
+          hint: ':5181',
+          run: openStudio(5181),
+        }
+      : null
     const matureIsland: Command = {
       id: 'mature-island',
       label: matureIslandOn ? 'Hide mature island' : 'Show mature island',
@@ -100,6 +132,8 @@ export function DevPalette() {
         hint: '/dev/pipeline',
         run: go('/dev/pipeline'),
       },
+      ...(islandBuilder ? [islandBuilder] : []),
+      ...(birdBuilder ? [birdBuilder] : []),
       {
         id: 'world-controls',
         label: worldControlsVisible ? 'Hide world controls' : 'Show world controls',

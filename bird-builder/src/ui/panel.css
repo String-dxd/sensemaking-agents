@@ -80,6 +80,25 @@
   flex: 1;
 }
 
+/* Build-mode tab (Archetypes ⇄ Species) — a segmented control. */
+.bb-switch {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.bb-switch button {
+  flex: 1;
+  border-color: transparent;
+  background: transparent;
+}
+.bb-switch button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
 .bb-section {
   text-transform: uppercase;
   font-size: 10px;

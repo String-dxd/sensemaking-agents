@@ -18,6 +18,7 @@ import {
   SPECIES_IDS,
   TAIL_TYPES,
 } from '../bird/genome'
+import { ARCHETYPE_LABEL, type BuildMode, SIGNATURE_LABEL, SIGNATURE_SWATCH } from '../bird/buildPlan'
 import { SPECIES_BY_ID } from '../bird/morphology'
 import { PATTERN_SWATCHES, PATTERN_ZONE_LABELS, SWATCHES, ZONE_SWATCHES } from '../bird/palettes'
 import { itemsForSlot, NONE_ITEM, SLOT_BY_ID, SLOTS } from '../bird/slots'
@@ -28,6 +29,8 @@ interface Props {
   onSelectSlot: (slot: string) => void
   onSetSpecies: (id: SpeciesId) => void
   onUseGlbLane: () => void
+  buildMode: BuildMode
+  onSetBuildMode: (mode: BuildMode) => void
   onSetPart: (part: keyof ProceduralBase['parts'], value: string) => void
   onSetZoneColor: (zone: keyof PlumagePalette, hex: string) => void
   onSetFace: (patch: Partial<FaceSpec>) => void
@@ -119,6 +122,11 @@ export function ToolPanel(props: Props) {
   const base = config.base
   const procedural = base.kind === 'procedural' ? base : null
   const activeSpecies = base.kind === 'procedural' ? base.species : null
+  // Build mode is a VIEW toggle (owned by App, mirrored to the URL ?set=): the
+  // same six genome slots render either as generic archetypes (Bowerbird,
+  // Eagle, …) or as recognizable real species (Cardinal, Owl, …). Switching it
+  // never mutates the genome — picking a card still selects the same slot.
+  const speciesMode = props.buildMode === 'species'
 
   return (
     <div className="bb-panel">
@@ -134,18 +142,40 @@ export function ToolPanel(props: Props) {
         </div>
       </div>
 
-      {/* ── Species ─────────────────────────────────────────────── */}
-      <div className="bb-section">Species</div>
+      {/* ── Top tab: Archetypes ⇄ Species (the build mode) ──────── */}
+      <div className="bb-switch" role="tablist" aria-label="Build mode">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={!speciesMode}
+          className={!speciesMode ? 'is-active' : ''}
+          onClick={() => props.onSetBuildMode('archetype')}
+        >
+          Archetypes
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={speciesMode}
+          className={speciesMode ? 'is-active' : ''}
+          onClick={() => props.onSetBuildMode('species')}
+        >
+          Species
+        </button>
+      </div>
+
       <div className="bb-cards">
         {SPECIES_IDS.map((id) => {
-          const s = SPECIES_BY_ID[id]
+          // Same six genome slots; the label + swatch read off the active mode.
+          const swatch = speciesMode ? SIGNATURE_SWATCH[id] : SPECIES_BY_ID[id].palette
+          const label = speciesMode ? SIGNATURE_LABEL[id] : ARCHETYPE_LABEL[id]
           return (
             <button key={id} type="button" className={`bb-card${id === activeSpecies ? ' is-active' : ''}`} onClick={() => props.onSetSpecies(id)}>
               <span className="bb-card__ico">
-                <i style={{ background: s.palette.back }} />
-                <i style={{ background: s.palette.accent }} />
+                <i style={{ background: swatch.back }} />
+                <i style={{ background: swatch.accent }} />
               </span>
-              {s.displayName.replace(' Bower', '')}
+              {label}
             </button>
           )
         })}
@@ -157,6 +187,11 @@ export function ToolPanel(props: Props) {
           Classic
         </button>
       </div>
+      {speciesMode && procedural ? (
+        <div className="bb-hint">
+          Species mode shows recognizable birds with baked colours & features. Switch to Archetypes to customize palette, parts & shape.
+        </div>
+      ) : null}
 
       {procedural ? (
         <ProceduralControls procedural={procedural} props={props} />

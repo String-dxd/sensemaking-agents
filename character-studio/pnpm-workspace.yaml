@@ -1,0 +1,5 @@
+# character-studio is an isolated pnpm root (bird-builder pattern): own
+# lockfile, own three version. Root tooling must never see this package.
+packages:
+  - '.'
+  - 'packages/*'

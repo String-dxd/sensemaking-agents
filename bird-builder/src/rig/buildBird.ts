@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { resolveBuildPlan } from '../bird/buildPlan'
+import { type BuildMode, resolveBuildPlan } from '../bird/buildPlan'
 import type { PatternZone, ProceduralBase } from '../bird/genome'
 import { makeFaceMaterial } from './facePainter'
 import { buildBeak } from './parts/beak'
@@ -27,8 +27,7 @@ export interface ProceduralBird {
   dispose: () => void
 }
 
-export function buildBird(base: ProceduralBase, gradient: THREE.Texture): ProceduralBird {
-  const mode = typeof location !== 'undefined' && new URLSearchParams(location.search).get('set') === 'species' ? 'species' : 'archetype'
+export function buildBird(base: ProceduralBase, gradient: THREE.Texture, mode: BuildMode = 'archetype'): ProceduralBird {
   const plan = resolveBuildPlan(base, mode)
   const root = new THREE.Group()
   root.scale.setScalar(plan.scale)
