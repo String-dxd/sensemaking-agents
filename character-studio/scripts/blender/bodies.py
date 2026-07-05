@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import numpy as np
 
+import math
+
 from meshkit import Shell, capsule_along, ellipsoid, mirror_x, smoothstep
 
 # UV islands (head front gets generous space — front-centered island).
@@ -28,6 +30,95 @@ CH_PRIMARY, CH_SECONDARY, CH_BELLY, CH_ACCENT = 0, 1, 2, 3
 
 def joints(skel: dict) -> dict[str, np.ndarray]:
     return {b["name"]: np.array(b["head"], dtype=np.float64) for b in skel["bones"]}
+
+
+# ---------------------------------------------------------------------------
+# Implicit smooth-union fillets (the "one sculpted surface" read).
+#
+# Shell-union bodies crease where a limb plunges into the torso — the visible
+# signature of primitive stacking that AC/Pokopia sculpts never show. Instead
+# of hiding the junction we reshape the limb ROOT onto the smooth-min union
+# surface of (limb SDF, torso SDF): the limb flares tangentially into the
+# torso like a sculpted fillet. Only limb verts move (outward, along their
+# own radial), so topology/UVs/weights/params all survive; verts deep inside
+# the torso stay tucked (masked by torso distance), keeping the overlap
+# hidden and z-fighting-free.
+# ---------------------------------------------------------------------------
+
+
+def _smin(a: float, b: float, k: float) -> float:
+    """Polynomial smooth min (iq) — blends two SDFs with fillet radius ~k."""
+    h = min(max(0.5 + 0.5 * (b - a) / k, 0.0), 1.0)
+    return b * (1.0 - h) + a * h - k * h * (1.0 - h)
+
+
+def make_torso_sdf(cy: float, ry: float, rx: float, rz: float, profile):
+    """Approximate SDF of the profiled torso ellipsoid (good near the skin)."""
+
+    def sdf(p: np.ndarray) -> float:
+        v01 = min(max((p[1] - (cy - ry)) / (2.0 * ry), 0.0), 1.0)
+        m = float(profile(np.array([v01]), None)[0])
+        qx = p[0] / (rx * m)
+        qy = (p[1] - cy) / ry
+        qz = p[2] / (rz * m)
+        q = math.sqrt(qx * qx + qy * qy + qz * qz)
+        return (q - 1.0) * min(rx * m, ry, rz * m)
+
+    return sdf
+
+
+def fillet_limb_into_torso(
+    shell: Shell,
+    axis_a: np.ndarray,
+    axis_b: np.ndarray,
+    r0: float,
+    r1: float,
+    torso_sdf,
+    k: float,
+) -> None:
+    """Project limb verts outward onto the smin(limb, torso) union surface.
+
+    Mutates shell.verts. `k` is the fillet radius; larger = softer shoulder.
+    """
+    axis = axis_b - axis_a
+    L = float(np.linalg.norm(axis))
+    axis = axis / max(L, 1e-9)
+
+    def limb_sdf(p: np.ndarray) -> float:
+        t = min(max(float(np.dot(p - axis_a, axis)) / L, 0.0), 1.0)
+        q = axis_a + axis * (t * L)
+        return float(np.linalg.norm(p - q)) - (r0 + (r1 - r0) * t)
+
+    def union_sdf(p: np.ndarray) -> float:
+        return _smin(torso_sdf(p), limb_sdf(p), k)
+
+    for i in range(len(shell.verts)):
+        p = shell.verts[i]
+        d_t = torso_sdf(p)
+        # deep-inside verts stay tucked (hidden overlap); fillet zone blends in
+        lam = float(smoothstep(-0.6 * k, 0.3 * k, np.array([d_t]))[0])
+        if lam <= 1e-4:
+            continue
+        t = min(max(float(np.dot(p - axis_a, axis)) / L, 0.0), 1.0)
+        q = axis_a + axis * (t * L)
+        radial = p - q
+        rl = float(np.linalg.norm(radial))
+        if rl < 1e-6:
+            continue  # on-axis pole vert
+        u_dir = radial / rl
+        if union_sdf(p) >= 0.0:
+            continue  # already on/outside the union surface
+        # bisect the outward crossing of the union surface
+        lo, hi = 0.0, 3.0 * k
+        if union_sdf(p + u_dir * hi) < 0.0:
+            continue  # no crossing within reach — leave untouched
+        for _ in range(20):
+            mid = (lo + hi) / 2.0
+            if union_sdf(p + u_dir * mid) < 0.0:
+                lo = mid
+            else:
+                hi = mid
+        shell.verts[i] = p + u_dir * ((lo + hi) / 2.0) * lam
 
 
 # Per-archetype styling knobs (relative to skeleton scale where sensible).
@@ -88,6 +179,7 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
         # pear: widest low, tapering toward the shoulders
         return 1.0 + pear * (1.0 - v01) ** 2 * np.sin(np.pi * np.clip(v01, 0, 1)) * 2.0 - taper * v01**2
 
+    torso_sdf = make_torso_sdf(cy, ry, rx, rz, torso_profile)
     torso = ellipsoid("torso", (0.0, cy, 0.0), (rx, ry, rz), useg=24, vseg=18, profile=torso_profile)
     _torso_weights(torso, j)
     torso.uv_rect = UV_TORSO
@@ -105,6 +197,11 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
         )
         wing.verts[:, 2] *= 0.42  # flatten front-back into a paddle
         wing.verts[:, 2] += j["upperArmL"][2]
+        # sculpted fillet: wing root flows into the torso, no crease
+        fillet_limb_into_torso(
+            wing, j["upperArmL"] - np.array([0.055, -0.005, 0]) * u, j["handL"] + np.array([0.02, -0.02, 0]) * u,
+            arm_r * 1.1 * 0.55, arm_r * 1.7 * 0.55, torso_sdf, k=0.05 * u,
+        )
         t = wing.params[:, 1]
         _chain_weights(wing, ["upperArmL", "foreArmL", "handL"], t, [0.45, 0.8], 0.16)
         wing.channel(CH_ACCENT, smoothstep(0.72, 0.95, t) * 0.9)  # wing tips
@@ -119,6 +216,8 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
         root_pull = 0.52 if archetype == "biped-round" else 0.44
         arm_root = j["upperArmL"] * np.array([root_pull, 1.0, 1.0]) + np.array([0.0, 0.018, 0.0]) * u
         arm = capsule_along("armL", tuple(arm_root), tuple(j["handL"]), arm_r * 1.45, arm_r * 0.78, useg=12, vseg=10, fullness=0.55)
+        # sculpted fillet: the shoulder flares tangentially into the torso
+        fillet_limb_into_torso(arm, arm_root, j["handL"], arm_r * 1.45, arm_r * 0.78, torso_sdf, k=0.055 * u)
         t = arm.params[:, 1]
         _chain_weights(arm, ["upperArmL", "foreArmL"], t, [0.5], 0.18)
         arm.uv_rect = UV_ARM_L
@@ -144,6 +243,10 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
     leg_r = style["leg_r"] * u / 0.9
     # root the leg high inside the torso underside so the hip junction hides
     leg = capsule_along("legL", tuple(j["upperLegL"] + np.array([0, 0.05, 0]) * u), tuple(j["footL"]), leg_r, leg_r * 0.85, useg=12, vseg=10, fullness=0.55)
+    # sculpted fillet: thighs flow out of the torso underside (haunch read)
+    fillet_limb_into_torso(
+        leg, j["upperLegL"] + np.array([0, 0.05, 0]) * u, j["footL"], leg_r, leg_r * 0.85, torso_sdf, k=0.05 * u
+    )
     t = leg.params[:, 1]
     _chain_weights(leg, ["upperLegL", "lowerLegL"], t, [0.5], 0.16)
     leg.uv_rect = UV_LEG_L

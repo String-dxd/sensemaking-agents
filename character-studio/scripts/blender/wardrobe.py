@@ -376,6 +376,13 @@ class Fit:
         r0 = self.arm_r * 1.45 + inflate
         r1 = self.arm_r * (1.45 - (1.45 - 0.78) * cover) + inflate
         s = capsule_along(name, tuple(self.arm_root), tuple(end), r0, r1, useg=useg, vseg=vseg, fullness=0.55)
+        # the body arm flares into the torso via a smooth-union fillet
+        # (bodies.fillet_limb_into_torso) — the sleeve must flare the same way
+        # over the INFLATED torso or the shoulder pokes through the sleeve top
+        torso_sdf = bodies.make_torso_sdf(
+            self.cy, self.ry + inflate * 0.6, self.rx + inflate, self.rz + inflate, self.torso_profile
+        )
+        bodies.fillet_limb_into_torso(s, self.arm_root, j["handL"], r0, self.arm_r * 0.78 + inflate, torso_sdf, k=0.055 * self.u)
         # weight against the FULL arm t so the falloff matches the body arm
         axis = j["handL"] - self.arm_root
         L = float(np.linalg.norm(axis))
