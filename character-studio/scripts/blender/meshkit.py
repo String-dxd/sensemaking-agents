@@ -127,8 +127,14 @@ def capsule_along(
     useg: int = 12,
     vseg: int = 10,
     bulge: float = 0.0,
+    fullness: float = 0.0,
 ) -> Shell:
-    """Tapered capsule from a to b (sphere shell stretched along the segment)."""
+    """Tapered capsule from a to b (sphere shell stretched along the segment).
+
+    fullness 0 keeps the stretched-sphere spindle (thin pointy ends);
+    fullness -> 1 counteracts the sphere's polar falloff so the limb stays
+    plump along its length and closes with rounded caps (the AC limb shape).
+    """
     s = sphere_shell(name, useg, vseg)
     a_ = np.array(a)
     b_ = np.array(b)
@@ -146,6 +152,13 @@ def capsule_along(
     # local sphere coords: y along axis, xz radial
     local = s.verts
     radial = local[:, [0, 2]]
+    if fullness > 0.0:
+        # radial magnitude is sin(polar): 1 mid-shell, 0 at the poles. Raise
+        # it toward 1 (mag^(1-fullness)) so cross-sections stay full and the
+        # ends read as rounded caps instead of spindle points.
+        mag = np.linalg.norm(radial, axis=1, keepdims=True)
+        boost = np.where(mag > 1e-9, mag ** (1.0 - fullness) / np.maximum(mag, 1e-9), 0.0)
+        radial = radial * boost
     along = (local[:, 1] * 0.5 + 0.5) * length  # sphere y in [-1,1] -> [0,len]
     world = (
         a_[None, :]
