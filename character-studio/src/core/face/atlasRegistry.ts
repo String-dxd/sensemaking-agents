@@ -41,18 +41,27 @@ export const ATLAS_REGISTRY: Record<string, AtlasUrlSet> = {
     brow: new URL('../../assets/face/gruff/brow-atlas.png', import.meta.url).href,
     mouth: new URL('../../assets/face/gruff/mouth-atlas.png', import.meta.url).href,
   },
+  'face-calm': {
+    eye: new URL('../../assets/face/calm/eye-atlas.png', import.meta.url).href,
+    pupil: new URL('../../assets/face/calm/pupil-atlas.png', import.meta.url).href,
+    brow: new URL('../../assets/face/calm/brow-atlas.png', import.meta.url).href,
+    mouth: new URL('../../assets/face/calm/mouth-atlas.png', import.meta.url).href,
+  },
+  'face-mischievous': {
+    eye: new URL('../../assets/face/mischievous/eye-atlas.png', import.meta.url).href,
+    pupil: new URL('../../assets/face/mischievous/pupil-atlas.png', import.meta.url).href,
+    brow: new URL('../../assets/face/mischievous/brow-atlas.png', import.meta.url).href,
+    mouth: new URL('../../assets/face/mischievous/mouth-atlas.png', import.meta.url).href,
+  },
 }
 
 /**
  * Interim aliases for personalities whose dedicated art is not yet authored
- * (plan 000 §2.1b allows calm/mischievous to alias until then). Grammar-
- * nearest neighbours: calm ≈ gentle (relaxed, light), mischievous ≈ cheerful
- * (bright, animated).
+ * (plan 000 §2.1b let calm/mischievous alias grammar-nearest sets until the
+ * aesthetic polish pass authored them). Kept as the resolution mechanism for
+ * any future not-yet-authored personality; currently empty.
  */
-export const ATLAS_ALIASES: Record<string, string> = {
-  'face-calm': 'face-gentle',
-  'face-mischievous': 'face-cheerful',
-}
+export const ATLAS_ALIASES: Record<string, string> = {}
 
 /** Resolve a spec atlasId to a registered atlas (unknown ids → face-v1). */
 export function resolveAtlasUrls(atlasId: string): AtlasUrlSet {

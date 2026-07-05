@@ -44,7 +44,10 @@ export const PERSONALITY_FACE_DEFAULTS: Record<Personality, PersonalityFaceDefau
     pupilScale: 1.3,
     blinkMeanIntervalS: 4.5,
     gazeIntensity: 0.5,
-    defaultExpression: 'happy',
+    // neutral, not happy: gentle's 관상 signature is the wide-open pure
+    // eyes + small soft smile (its neutral mouth cell). The happy preset's
+    // closed-arc eyes hid exactly the trait that makes gentle read gentle.
+    defaultExpression: 'neutral',
   },
   cheerful: {
     atlasId: 'face-cheerful',
@@ -79,7 +82,9 @@ export const PERSONALITY_FACE_DEFAULTS: Record<Personality, PersonalityFaceDefau
     pupilScale: 1.15,
     blinkMeanIntervalS: 3,
     gazeIntensity: 0.75,
-    defaultExpression: 'happy',
+    // neutral shows the authored asymmetric smirk + foxy upturned eyes
+    // (dedicated atlas landed in the polish pass; happy hid both).
+    defaultExpression: 'neutral',
   },
 }
 
