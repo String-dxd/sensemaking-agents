@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from meshkit import Shell, bend_chain, capsule_along, ellipsoid, mirror_x, smoothstep
+from meshkit import Shell, bend_chain, capsule_along, ellipsoid, mirror_x, smooth_path, smoothstep
 
 CH_PRIMARY, CH_SECONDARY, CH_BELLY, CH_ACCENT = 0, 1, 2, 3
 
@@ -96,13 +96,13 @@ def ears_floppy_long(skel: dict):
     j = joints(skel)
     root = j["earL.1"]
     L = 0.34
-    ear = capsule_along("earL", tuple(root), tuple(root + np.array([0, L, 0])), 0.062, 0.034, useg=12, vseg=14, bulge=0.014)
+    ear = capsule_along("earL", tuple(root), tuple(root + np.array([0, L, 0])), 0.062, 0.034, useg=12, vseg=18, bulge=0.014)
     ear.verts[:, 2] = root[2] + (ear.verts[:, 2] - root[2]) * 0.45  # thin leaf
     t = ear.params[:, 1]
     # swing well clear of the (wide) skull before drooping — hound silhouette
     path = [root, root + np.array([0.07, 0.085, 0.008]), root + np.array([0.135, 0.03, 0.018]),
             root + np.array([0.165, -0.085, 0.032]), root + np.array([0.17, -0.20, 0.048])]
-    ear.verts = bend_chain(ear.verts, root, L, path)
+    ear.verts = bend_chain(ear.verts, root, L, smooth_path(path, 40))
     _chain_weights(ear, EAR_BONES_L, t, [0.4], 0.2)
     _inner_ear(ear, 0.01, 0.04)
     tip = path[-1]
@@ -133,7 +133,7 @@ def ears_bunny_tall(skel: dict):
     ear.verts[:, 2] = root[2] + (ear.verts[:, 2] - root[2]) * 0.55
     t = ear.params[:, 1]
     path = [root, root + np.array([0.02, 0.12, -0.005]), root + np.array([0.05, 0.22, -0.015]), root + np.array([0.085, 0.29, -0.03])]
-    ear.verts = bend_chain(ear.verts, root - np.array([0, 0.02, 0]), L + 0.02, path)
+    ear.verts = bend_chain(ear.verts, root - np.array([0, 0.02, 0]), L + 0.02, smooth_path(path, 32))
     _chain_weights(ear, EAR_BONES_L, t, [0.45], 0.2)
     _inner_ear(ear, 0.0, 0.035)
     shells, keys = _mirrored_pair(ear, root, path[-1])
@@ -216,11 +216,11 @@ def _tail_chain(skel: dict) -> tuple[np.ndarray, np.ndarray]:
 def tail_curl_shiba(skel: dict):
     root, _ = _tail_chain(skel)
     L = 0.30
-    tail = capsule_along("tail", tuple(root), tuple(root + np.array([0, L, 0])), 0.055, 0.026, useg=12, vseg=16, bulge=0.02)
+    tail = capsule_along("tail", tuple(root), tuple(root + np.array([0, L, 0])), 0.058, 0.030, useg=14, vseg=20, bulge=0.012, fullness=0.5)
     t = tail.params[:, 1]
     path = [root, root + np.array([0, 0.05, -0.09]), root + np.array([0, 0.14, -0.115]),
             root + np.array([0, 0.215, -0.06]), root + np.array([0, 0.23, 0.03])]
-    tail.verts = bend_chain(tail.verts, root, L, path)
+    tail.verts = bend_chain(tail.verts, root, L, smooth_path(path, 44))
     _chain_weights(tail, TAIL_BONES, t, [0.3, 0.55, 0.8], 0.1)
     tail.channel(CH_BELLY, smoothstep(0.72, 0.95, t) * 0.9)
     keys = _length_width_keys([tail], root, path[-1])
@@ -231,10 +231,10 @@ def tail_fluff_fox(skel: dict):
     root, _ = _tail_chain(skel)
     L = 0.36
 
-    tail = capsule_along("tail", tuple(root), tuple(root + np.array([0, L, 0])), 0.045, 0.02, useg=14, vseg=16, bulge=0.048)
+    tail = capsule_along("tail", tuple(root), tuple(root + np.array([0, L, 0])), 0.052, 0.032, useg=16, vseg=18, bulge=0.07, fullness=0.35)
     t = tail.params[:, 1]
     path = [root, root + np.array([0, 0.015, -0.12]), root + np.array([0, 0.06, -0.24]), root + np.array([0, 0.15, -0.335])]
-    tail.verts = bend_chain(tail.verts, root, L, path)
+    tail.verts = bend_chain(tail.verts, root, L, smooth_path(path, 36))
     _chain_weights(tail, TAIL_BONES, t, [0.3, 0.55, 0.8], 0.1)
     tail.channel(CH_BELLY, smoothstep(0.68, 0.92, t))
     keys = _length_width_keys([tail], root, path[-1])
