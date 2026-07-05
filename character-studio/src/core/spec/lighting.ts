@@ -145,12 +145,21 @@ export const STUDIO_LOOK_PRESETS = {
 
   'golden-hour': preset({
     version: 1,
-    environment: { hdriId: 'golden_bay', intensity: 0.9, rotationDeg: 30, background: 'hdri' },
+    // HDRI stays IBL-only: the photoreal golden_bay backdrop (parked cars,
+    // buildings) clashed with the toon character — a deep warm dusk solid
+    // keeps the mood and lets the low key sell the hour (polish pass).
+    environment: {
+      hdriId: 'golden_bay',
+      intensity: 0.9,
+      rotationDeg: 30,
+      background: 'solid',
+      backgroundColor: '#241820',
+    },
     lights: [
       {
         id: 'key',
         type: 'key',
-        color: '#ffb35c',
+        color: '#ffbe6e',
         intensity: 2.6,
         position: [3.2, 1.4, 1.6],
         targetHeight: 0.9,
@@ -167,19 +176,33 @@ export const STUDIO_LOOK_PRESETS = {
         castShadow: false,
         shadowSoftness: 0,
       },
+      {
+        // cool dusk-sky kicker opposite the sun — separates the shadow side
+        // from the warm backdrop instead of letting it go monochrome
+        id: 'rim',
+        type: 'rim',
+        color: '#7a9cff',
+        intensity: 1.1,
+        position: [-2.2, 2.4, -2.6],
+        targetHeight: 1.0,
+        castShadow: false,
+        shadowSoftness: 0,
+      },
     ],
-    ambientFloor: 0.4,
+    ambientFloor: 0.38,
   }),
 
   'cool-studio': preset({
     version: 1,
-    environment: { hdriId: 'brown_photostudio_02', intensity: 0.5, rotationDeg: 0, background: 'solid', backgroundColor: '#1c2230' },
+    // brighter navy bg + stronger key / weaker fill: the original flattened
+    // the character into a muddy silhouette on near-black (polish pass)
+    environment: { hdriId: 'brown_photostudio_02', intensity: 0.5, rotationDeg: 0, background: 'solid', backgroundColor: '#25304a' },
     lights: [
       {
         id: 'key',
         type: 'key',
         color: '#dce8ff',
-        intensity: 2.0,
+        intensity: 2.4,
         position: [1.6, 3.6, 3.2],
         targetHeight: 0.9,
         castShadow: true,
@@ -189,7 +212,7 @@ export const STUDIO_LOOK_PRESETS = {
         id: 'fill',
         type: 'fill',
         color: '#a8c0ff',
-        intensity: 0.9,
+        intensity: 0.65,
         position: [-2.6, 2.2, 1.6],
         targetHeight: 0.85,
         castShadow: false,
@@ -217,34 +240,37 @@ export const STUDIO_LOOK_PRESETS = {
         id: 'key',
         type: 'key',
         color: '#f0e0d0',
-        intensity: 1.1,
+        intensity: 1.5,
         position: [1.2, 2.4, 2.4],
         targetHeight: 0.9,
         castShadow: true,
         shadowSoftness: 0.3,
       },
       {
+        // pulled to the side-back so the blue edge actually catches the
+        // silhouette (dead-behind barely registered through the toon ramp)
         id: 'rim',
         type: 'rim',
         color: '#8fd0ff',
-        intensity: 3.2,
-        position: [-0.6, 2.6, -3.4],
+        intensity: 4.2,
+        position: [-2.2, 2.6, -2.4],
         targetHeight: 1.0,
         castShadow: false,
         shadowSoftness: 0,
       },
       {
+        // subtle magenta kicker — at 1.4 it washed the whole lower body pink
         id: 'accent',
         type: 'accent',
         color: '#ff6ad0',
-        intensity: 1.4,
+        intensity: 0.7,
         position: [2.4, 0.6, -2.2],
         targetHeight: 0.6,
         castShadow: false,
         shadowSoftness: 0,
       },
     ],
-    ambientFloor: 0.2,
+    ambientFloor: 0.15,
   }),
 } satisfies Record<string, StudioLook>
 
