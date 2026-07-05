@@ -53,7 +53,10 @@ export function SeaSurface({ spec }: { spec: IslandSpec }) {
 
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, spec.seaLevel, 0]} material={material}>
-      <planeGeometry args={[spec.worldSize * 4, spec.worldSize * 4]} />
+      {/* Large enough that the shader's horizon fade (out to worldSize*7) fully
+          completes before the plane's edge — so the rim dissolves into the sky
+          rather than showing a hard square. */}
+      <planeGeometry args={[spec.worldSize * 16, spec.worldSize * 16]} />
     </mesh>
   )
 }
