@@ -146,20 +146,25 @@ export function buildWardrobeRegistry<T extends Record<string, unknown>>(candida
 const chain = (
   name: string,
   boneNames: string[],
-  params: { stiffness: number; gravityPower: number; dragForce: number; hitRadius: number },
+  // scalar = uniform down the chain; array = per-joint grading (root→tip),
+  // how trailing cloth is tuned: firm root, loose drapey tip
+  params: { stiffness: number | number[]; gravityPower: number | number[]; dragForce: number | number[]; hitRadius: number },
   colliderGroupRefs: string[] = [],
-): SpringChainDef => ({
-  name,
-  boneNames,
-  joints: boneNames.map(() => ({
-    stiffness: params.stiffness,
-    gravityPower: params.gravityPower,
-    gravityDir: [0, -1, 0] as [number, number, number],
-    dragForce: params.dragForce,
-    hitRadius: params.hitRadius,
-  })),
-  colliderGroupRefs,
-})
+): SpringChainDef => {
+  const at = (v: number | number[], i: number): number => (Array.isArray(v) ? v[Math.min(i, v.length - 1)] : v)
+  return {
+    name,
+    boneNames,
+    joints: boneNames.map((_, i) => ({
+      stiffness: at(params.stiffness, i),
+      gravityPower: at(params.gravityPower, i),
+      gravityDir: [0, -1, 0] as [number, number, number],
+      dragForce: at(params.dragForce, i),
+      hitRadius: params.hitRadius,
+    })),
+    colliderGroupRefs,
+  }
+}
 
 // Tuning notes (plan 003 vocabulary): garment chains are authored ALONG the
 // body surface, so gravity must stay well below stiffness or the equilibrium
@@ -167,9 +172,13 @@ const chain = (
 // the plan-008 "torso" collider group as a backstop while trailing. Scarf
 // ends are trailing cloth (loosest); drawstrings are short cords (stiffest);
 // backpack strap tails sit between the two.
+// Scarf grading (polish pass): the uniform 0.42 read as a stiff board at
+// rest — the TIP joint now runs loose with more gravity so the free end
+// drapes and settles with a soft lag, while the root keeps the strap on the
+// chest (plumb-line authored pose stays the equilibrium; see wardrobe.py).
 const SCARF_CHAINS = [
-  chain('scarfEndL', ['scarfL1', 'scarfL2', 'scarfL3'], { stiffness: 0.42, gravityPower: 8, dragForce: 0.14, hitRadius: 0.02 }, ['torso']),
-  chain('scarfEndR', ['scarfR1', 'scarfR2', 'scarfR3'], { stiffness: 0.42, gravityPower: 8, dragForce: 0.14, hitRadius: 0.02 }, ['torso']),
+  chain('scarfEndL', ['scarfL1', 'scarfL2', 'scarfL3'], { stiffness: [0.5, 0.32, 0.18], gravityPower: [7, 9, 12], dragForce: [0.14, 0.16, 0.2], hitRadius: 0.02 }, ['torso']),
+  chain('scarfEndR', ['scarfR1', 'scarfR2', 'scarfR3'], { stiffness: [0.5, 0.32, 0.18], gravityPower: [7, 9, 12], dragForce: [0.14, 0.16, 0.2], hitRadius: 0.02 }, ['torso']),
 ]
 
 const HOODIE_CHAINS = [
