@@ -273,15 +273,18 @@ export const BODY_REGISTRY: Record<'biped-round' | 'biped-slim' | 'bird', BodyDe
     url: bodyUrl('body-biped-round.glb'),
     maskUrl: maskUrl('body-biped-round.mask.png'),
     morphs: BODY_MORPHS,
+    meshVersion: 2, // plan 003: welded single-manifold body (new vertex layout)
   },
   'biped-slim': {
     url: bodyUrl('body-biped-slim.glb'),
     maskUrl: maskUrl('body-biped-slim.mask.png'),
     morphs: BODY_MORPHS,
+    meshVersion: 2, // plan 003: welded single-manifold body (new vertex layout)
   },
   bird: {
     url: bodyUrl('body-bird.glb'),
     maskUrl: maskUrl('body-bird.mask.png'),
     morphs: BODY_MORPHS,
+    meshVersion: 2, // plan 003: welded single-manifold body (new vertex layout)
   },
 }
