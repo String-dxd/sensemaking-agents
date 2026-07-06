@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   blurTiers,
   cellCenter,
+  cellLine,
   createOceanGrid,
   DEFAULT_TIER_HEIGHTS,
   evaluateHeight,
@@ -96,5 +97,37 @@ describe('terrainGrid — terrace evaluation', () => {
     expect(grid.tiers).toHaveLength(GRID_COLS * GRID_ROWS)
     expect(grid.tiers.every((t) => t === 0)).toBe(true)
     expect(grid.surface.every((s) => s === 0)).toBe(true)
+  })
+
+  it('cellLine returns a single cell when start == end', () => {
+    expect(cellLine(5, 7, 5, 7)).toEqual([{ c: 5, r: 7 }])
+  })
+
+  it('cellLine walks a horizontal run inclusively', () => {
+    expect(cellLine(2, 4, 5, 4)).toEqual([
+      { c: 2, r: 4 },
+      { c: 3, r: 4 },
+      { c: 4, r: 4 },
+      { c: 5, r: 4 },
+    ])
+  })
+
+  it('cellLine is 8-connected and contiguous (no gaps) on a diagonal-ish run', () => {
+    const pts = cellLine(0, 0, 10, 4)
+    // endpoints correct
+    expect(pts[0]).toEqual({ c: 0, r: 0 })
+    expect(pts[pts.length - 1]).toEqual({ c: 10, r: 4 })
+    // every step moves at most one cell in each axis (no skipped cells)
+    for (let i = 1; i < pts.length; i++) {
+      expect(Math.abs(pts[i].c - pts[i - 1].c)).toBeLessThanOrEqual(1)
+      expect(Math.abs(pts[i].r - pts[i - 1].r)).toBeLessThanOrEqual(1)
+      expect(pts[i]).not.toEqual(pts[i - 1]) // strictly advances
+    }
+  })
+
+  it('cellLine handles negative/descending directions', () => {
+    const pts = cellLine(8, 8, 3, 2)
+    expect(pts[0]).toEqual({ c: 8, r: 8 })
+    expect(pts[pts.length - 1]).toEqual({ c: 3, r: 2 })
   })
 })

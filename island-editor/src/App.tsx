@@ -10,7 +10,7 @@ import { IslandTerrain } from './scene/IslandTerrain'
 import { SeaSurface } from './scene/SeaSurface'
 import { adjustTier, brushCells, setSurface, setTier } from './terrain/gridOps'
 import { seedIsland } from './terrain/seed'
-import { type IslandSpec, SURFACE_AUTO, SURFACE_PATH, worldToCell } from './terrain/terrainGrid'
+import { cellLine, type IslandSpec, SURFACE_AUTO, SURFACE_PATH, worldToCell } from './terrain/terrainGrid'
 import { type BrushSize, type Tool, ToolPanel } from './ui/ToolPanel'
 
 const SAVED = loadSpec()
@@ -59,6 +59,9 @@ export function App() {
   // (the visited set prevents runaway raises while dragging inside one cell).
   const strokeBefore = useRef<{ tiers: number[]; surface: number[] } | null>(null)
   const visited = useRef<Set<number>>(new Set())
+  // Last cell painted this stroke, so a fast drag interpolates a continuous
+  // line between pointer samples instead of leaving gaps (null = stroke start).
+  const lastCell = useRef<{ c: number; r: number } | null>(null)
 
   const applySnapshot = useCallback((tiers: number[], surface: number[]) => {
     const grid = specRef.current.grid
@@ -72,13 +75,26 @@ export function App() {
     const grid = specRef.current.grid
     strokeBefore.current = { tiers: grid.tiers.slice(), surface: grid.surface.slice() }
     visited.current.clear()
+    lastCell.current = null
   }, [])
 
   const paint = useCallback((x: number, z: number) => {
     const s = specRef.current
     const grid = s.grid
     const { c, r } = worldToCell(s.worldSize, grid, x, z)
-    const cells = brushCells(grid, c, r, brushSizeRef.current).filter((i) => !visited.current.has(i))
+    // Interpolate from the previous sample so a fast drag paints every cell on
+    // the path, not just where pointer events happened to fire. brushCells
+    // clips out-of-bounds cells; the visited set keeps each cell single-touch.
+    const last = lastCell.current
+    const path = last ? cellLine(last.c, last.r, c, r) : [{ c, r }]
+    lastCell.current = { c, r }
+    const cellSet = new Set<number>()
+    for (const p of path) {
+      for (const i of brushCells(grid, p.c, p.r, brushSizeRef.current)) {
+        if (!visited.current.has(i)) cellSet.add(i)
+      }
+    }
+    const cells = [...cellSet]
     if (cells.length === 0) return
     for (const i of cells) visited.current.add(i)
     switch (toolRef.current) {

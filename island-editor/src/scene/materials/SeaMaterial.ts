@@ -109,8 +109,18 @@ void main() {
   float lip = smoothstep(-0.05, 0.02, d) * (1.0 - smoothstep(0.2, 0.3, d));
   col = mix(col, vec3(0.96, 1.0, 0.94), lip * 0.5);
 
-  // Slight transparency so carved riverbeds read through shallow water.
-  gl_FragColor = vec4(col, 0.94);
+  // Atmospheric horizon fade: this is a flat plane (the studio stage skips the
+  // app's curved-earth), so without a fade its far edge reads as a hard square
+  // against the sky. Lighten the open water toward a pale haze with distance,
+  // then dissolve alpha to 0 at the far rim so the plane melts into the sky
+  // instead of ending on a visible line. Radii are in world units.
+  float rr = length(vWorld.xz);
+  col = mix(col, vec3(0.62, 0.78, 0.86), smoothstep(uWorldSize * 1.0, uWorldSize * 5.0, rr) * 0.6);
+  float rim = 1.0 - smoothstep(uWorldSize * 2.5, uWorldSize * 7.0, rr);
+
+  // Slight base transparency so carved riverbeds read through shallow water;
+  // multiplied by the horizon rim so the edge is fully transparent.
+  gl_FragColor = vec4(col, 0.94 * rim);
 
   #include <colorspace_fragment>
 }
