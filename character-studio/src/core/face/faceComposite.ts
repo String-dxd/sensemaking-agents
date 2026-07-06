@@ -224,7 +224,8 @@ export interface FaceCompositorConfig {
 }
 
 export interface FaceCompositor {
-  /** The composited overlay texture (THREE.CanvasTexture), flipY=true, sRGB. */
+  /** The composited overlay texture (THREE.CanvasTexture), flipY=false
+   * (glTF-convention UVs, like the palette masks), sRGB. */
   texture: THREE.CanvasTexture
   /** Redraw with the given cells + gaze. Cheap: a clear + ≤7 drawImage calls. */
   draw(state: FaceDrawState): void
@@ -267,7 +268,13 @@ export function createFaceCompositor(config: FaceCompositorConfig): FaceComposit
   // node canvas is structurally compatible (width/height + pixel source), so
   // this single cast is the seam the CANVAS TEST STRATEGY calls for.
   const texture = new THREE.CanvasTexture(canvas as unknown as HTMLCanvasElement)
-  texture.flipY = true // canvas row 0 (top) = UV v = 1
+  // The body geometry's UVs follow the glTF convention — exactly like the
+  // palette masks, which are configured flipY=false for the same reason
+  // (configureMask in CharacterRoot.tsx: "Palette masks are data on
+  // glTF-convention UVs: no color space, no flipY"). The canvas is drawn
+  // top-down with y = (1 − v), matching the mask rasterizer's image-space
+  // flip (meshkit.py rasterize_mask), so it uploads unflipped.
+  texture.flipY = false
   texture.colorSpace = THREE.SRGBColorSpace
   // Redrawn on every blink — skip per-draw mipmap regeneration.
   texture.generateMipmaps = false
