@@ -124,22 +124,32 @@ def _source_arrays(shells: list[Shell], meta: dict, u: float):
 
 
 def _junction_mask(our_verts: np.ndarray, meta: dict) -> np.ndarray:
-    """Vertices inside any junction band (code-defined, from Step-1 metadata):
-    limb roots (shoulder/hip), limb tips (wrist/ankle — where the hand/foot
-    shell welds into the limb), and the head-neck band."""
-    mask = np.zeros(len(our_verts), dtype=bool)
+    """Per-vertex smoothing strength in [0,1] for the junction bands
+    (code-defined, from Step-1 metadata): limb roots (shoulder/hip), limb tips
+    (wrist/ankle — where the hand/foot shell welds into the limb), and the
+    head-neck band. SOFT falloff (smoothstep 1 -> 0 toward each band edge) so
+    the Laplacian smoothing leaves no gradient kink at the band boundary —
+    a hard mask concentrates the whole weight gradient on the boundary ring
+    and a 60° arm pose then stretches those edges past 2x rest length."""
+
+    def band(centers: np.ndarray, radius: float) -> np.ndarray:
+        d = np.linalg.norm(our_verts - centers[None, :], axis=1)
+        t = np.clip(1.0 - d / max(radius, 1e-9), 0.0, 1.0)
+        return t * t * (3.0 - 2.0 * t)  # smoothstep(0, radius, radius - d)
+
+    strength = np.zeros(len(our_verts))
     for j in meta["junctions"]:
         a = np.array(j["a"])
         b = np.array(j["b"])
         r0, r1, k = float(j["r0"]), float(j["r1"]), float(j["k"])
-        mask |= np.linalg.norm(our_verts - a[None, :], axis=1) < 2.8 * r0 + 2.0 * k
-        mask |= np.linalg.norm(our_verts - b[None, :], axis=1) < 2.4 * r1 + 2.0 * k
+        strength = np.maximum(strength, band(a, 3.6 * r0 + 2.0 * k))
+        strength = np.maximum(strength, band(b, 2.4 * r1 + 2.0 * k))
     # head <-> torso (neck/chin) band
     hc = np.asarray(meta["head_center"], dtype=np.float64)
     hr = float(meta["head_r"])
     head_bottom = hc - np.array([0.0, hr, 0.0])
-    mask |= np.linalg.norm(our_verts - head_bottom[None, :], axis=1) < hr * 0.8
-    return mask
+    strength = np.maximum(strength, band(head_bottom, hr * 0.8))
+    return strength
 
 
 def nonmanifold_edge_count(obj: bpy.types.Object) -> int:
@@ -154,10 +164,12 @@ def nonmanifold_edge_count(obj: bpy.types.Object) -> int:
     return n
 
 
-def _smooth(values: np.ndarray, edges: np.ndarray, mask: np.ndarray, iters: int) -> np.ndarray:
-    """Laplacian (self+neighbour mean) smoothing, applied only to masked rows."""
+def _smooth(values: np.ndarray, edges: np.ndarray, strength: np.ndarray, iters: int) -> np.ndarray:
+    """Laplacian (self+neighbour mean) smoothing, per-vertex lerped by the
+    soft junction strength (0 = untouched, 1 = full umbrella average)."""
     v = values.astype(np.float64).copy()
     n = v.shape[0]
+    s = strength[:, None]
     for _ in range(iters):
         acc = v.copy()
         cnt = np.ones(n)
@@ -166,7 +178,7 @@ def _smooth(values: np.ndarray, edges: np.ndarray, mask: np.ndarray, iters: int)
         np.add.at(cnt, edges[:, 0], 1.0)
         np.add.at(cnt, edges[:, 1], 1.0)
         mean = acc / cnt[:, None]
-        v[mask] = mean[mask]
+        v = v * (1.0 - s) + mean * s
     return v
 
 
@@ -215,12 +227,12 @@ def weld_body(shells: list[Shell], meta: dict, skel: dict, arm: bpy.types.Object
     morph = {name: arr[nearest] for name, arr in morph_src.items()}
 
     # junction smoothing
-    mask = _junction_mask(our, meta)
+    strength = _junction_mask(our, meta)
     edges = _mesh_edges(welded)
-    W = _smooth(W, edges, mask, iters=8)
+    W = _smooth(W, edges, strength, iters=48)
     for name in morph:
-        morph[name] = _smooth(morph[name], edges, mask, iters=16)
-    co = _smooth(co, edges, mask, iters=4)  # geometric fillet on the boolean seam
+        morph[name] = _smooth(morph[name], edges, strength, iters=40)
+    co = _smooth(co, edges, strength, iters=4)  # geometric fillet on the boolean seam
 
     # write smoothed positions
     welded.data.vertices.foreach_set("co", co.reshape(-1))
@@ -262,7 +274,7 @@ def weld_body(shells: list[Shell], meta: dict, skel: dict, arm: bpy.types.Object
 
     # our-space morph offsets for add_shape_keys
     morph_keys = {name: morph[name] for name in morph}
-    return welded, morph_keys, int(mask.sum())
+    return welded, morph_keys, int((strength > 0.05).sum())
 
 
 def welded_region_ids(welded: bpy.types.Object, shells: list[Shell], skel: dict) -> list[int]:
