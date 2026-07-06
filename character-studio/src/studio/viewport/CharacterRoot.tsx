@@ -1,9 +1,9 @@
 // CharacterRoot (plan 006, step 4) — replaces PlaceholderBody in the Stage.
 //
 // Loads the archetype body + equipped part GLBs (drei useGLTF, cached),
-// runs core assembly (assembleCharacter — pure three), mounts the face rig
-// on the returned anchor, and registers spring rig + idle layer + body
-// movers in the frame loop. Re-assembles reactively when the spec's
+// runs core assembly (assembleCharacter — pure three), attaches the drawn
+// face to the body material (FaceRig → setFaceMap, advisor plan 002), and
+// registers spring rig + idle layer + body movers in the frame loop. Re-assembles reactively when the spec's
 // STRUCTURE changes (archetype / part ids); morphs, boneScales, palette and
 // material params flow through cheap live-update effects instead.
 //
@@ -21,7 +21,7 @@
 // the grafted bones it solves.
 
 import { useGLTF, useTexture } from '@react-three/drei'
-import { createPortal, useThree } from '@react-three/fiber'
+import { useThree } from '@react-three/fiber'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import {
@@ -418,22 +418,15 @@ export function CharacterRoot() {
     }
   }, [assembled, dressed, terminatorWarmth])
 
-  const placement = useMemo(
-    () => ({ mouthRadialOffset: assembled.mouthRadialOffset }),
-    [assembled],
-  )
-
   return (
-    // key forces a clean detach/attach (primitive AND portal container) when
-    // reassembly swaps the root — r3f does not migrate either in place.
+    // key forces a clean detach/attach when reassembly swaps the root —
+    // r3f does not migrate the primitive in place. The face rig renders no
+    // scene objects (advisor plan 002): it draws into the body material's
+    // head UVs, so it follows morphs/sculpt/bone scales for free.
     <Fragment key={assembled.root.uuid}>
       <primitive object={assembled.root} />
-      {createPortal(
-        // head shells are drawn slightly wider than the cranium sphere
-        // (head_wide 1.02–1.06 in the body builder) — pad the face-plane
-        // radius so eyes/brows float just off the widest surface.
-        <FaceRig headRadius={assembled.headRadius * 1.07} placement={placement} hideMouth={assembled.hideMouth} />,
-        assembled.faceAnchor,
+      {assembled.regionMaterials.body && (
+        <FaceRig bodyMaterial={assembled.regionMaterials.body} hideMouth={assembled.hideMouth} />
       )}
     </Fragment>
   )

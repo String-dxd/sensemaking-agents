@@ -216,7 +216,11 @@ export function PlaceholderBody() {
               <mesh castShadow receiveShadow material={regionMaterials.body} userData={{ region: 'body' }}>
                 <sphereGeometry args={[0.28, 24, 16]} />
               </mesh>
-              <FaceRig headRadius={0.28} />
+              {/* Drawn face lives in the body material's UVs (advisor plan
+                  002). NOTE: this retired fallback's sphere head has stock
+                  sphere UVs, not the bodies.py head island — the face only
+                  lands correctly on real archetype bodies (CharacterRoot). */}
+              <FaceRig bodyMaterial={regionMaterials.body} />
               {/* Long rabbit-like ears: two stacked capsules rigidly parented per bone. */}
               <bone name="earL.1" position={[0.12, 0.22, 0]} rotation={[0, 0, -EAR_TILT]}>
                 <mesh castShadow position={[0, 0.08, 0]} material={regionMaterials.ears} userData={{ region: 'ears' }}>
