@@ -7,11 +7,12 @@
 //
 // The Core-8 preset data below encodes the AC:NH benchmark decisions from
 // the operator dogfooding pass — copied verbatim from plan 008, not
-// re-derived. Two rows carry declared placeholders pending later plans:
+// re-derived. One row still carries a declared placeholder pending a later
+// plan:
 //   - tabby-cat's tail uses `fluff-fox` at a slim width (.1) as a stand-in;
 //     plan 011 ships a dedicated `tail-slim-cat` part and updates this row.
-//   - owl/duckling beaks use the shared `beak-small`/`beak-round` parts;
-//     plan 010 ships `beak-hooked`/`bill-duck` and updates these rows.
+// (plan 010 resolved the owl/duckling beaks: owl now uses `beak-hooked`,
+//  duckling `bill-duck`; the three bird species also carry `patternId`.)
 
 import type { AnimalClass } from '../skeleton/partRegistry'
 import { createDefaultCharacter } from '../spec/defaults'
@@ -183,14 +184,13 @@ export const SPECIES_REGISTRY = {
     group: 'songbird',
     archetype: 'bird',
     parts: {
-      // Placeholder: shared beak-small stands in until plan 010 ships
-      // beak-hooked/bill-duck upgrades and this row is updated.
       muzzle: { partId: 'beak-small', morphs: { length: 0.3 } },
       tail: { partId: 'feather-fan', morphs: { length: 0.3 } },
       claws: { partId: 'mitten-none', morphs: {} },
       crest: { partId: 'none', morphs: {} },
     },
     bodyMorphs: { bellyRound: 0.3 },
+    patternId: 'pattern-robin',
     palette: {
       primary: '#8a6f5a',
       secondary: '#6f5847',
@@ -208,14 +208,13 @@ export const SPECIES_REGISTRY = {
     group: 'raptor',
     archetype: 'bird',
     parts: {
-      // Placeholder: shared beak-small stands in until plan 010 ships
-      // beak-hooked/bill-duck upgrades and this row is updated.
-      muzzle: { partId: 'beak-small', morphs: { length: 0.2 } },
+      muzzle: { partId: 'beak-hooked', morphs: { length: 0.3 } },
       tail: { partId: 'feather-fan', morphs: { length: 0.15 } },
       claws: { partId: 'mitten-none', morphs: {} },
       crest: { partId: 'feather-tuft', morphs: {} },
     },
     bodyMorphs: { chubby: 0.4, headBig: 0.35 },
+    patternId: 'pattern-owl',
     palette: {
       primary: '#a08363',
       secondary: '#7d6248',
@@ -233,14 +232,13 @@ export const SPECIES_REGISTRY = {
     group: 'waterfowl',
     archetype: 'bird',
     parts: {
-      // Placeholder: shared beak-round stands in until plan 010 ships
-      // beak-hooked/bill-duck upgrades and this row is updated.
-      muzzle: { partId: 'beak-round', morphs: { length: 0.35 } },
+      muzzle: { partId: 'bill-duck', morphs: { length: 0.4 } },
       tail: { partId: 'feather-fan', morphs: { length: 0.1 } },
       claws: { partId: 'mitten-none', morphs: {} },
       crest: { partId: 'none', morphs: {} },
     },
     bodyMorphs: { bellyRound: 0.45 },
+    patternId: 'pattern-duckling',
     palette: {
       primary: '#f2d349',
       secondary: '#e8c53e',
