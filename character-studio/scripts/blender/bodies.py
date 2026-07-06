@@ -202,14 +202,17 @@ def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[
     arm_r = style["arm_r"] * u / 0.9
     hand_r = style["hand_r"] * u / 0.9
     if style["wing"]:
-        # Body-hugging wing drape (AC benchmark, plan 007): wide root chord at
-        # the shoulder tapering to a soft tip that runs DOWN the torso side to
-        # leg-root level (handL now rests at hip height). Was a short flat paddle
-        # (r0*1.1 -> r1*1.7, flatten 0.42); now root-wide -> tapered tip, with a
-        # relaxed flatten so the wing reads volumetric like Jacques', not a slab.
-        wing_a = j["upperArmL"] - np.array([0.055, -0.005, 0]) * u  # root buried in torso
-        wing_b = j["handL"] + np.array([0.02, -0.02, -0.015]) * u  # tip: slight outward + backward lean
-        w_r0, w_r1 = arm_r * 1.5, arm_r * 0.6
+        # Draped wing with READABLE mass (AC benchmark, plan 007 rev 1): the
+        # bird torso's flank half-width peaks ~0.196 mid-height, so an inboard
+        # drape axis (root x~0.05) gets swallowed by the weld leaving only a
+        # tip nub. The drape line runs OUTBOARD of the flank instead: rounded
+        # shoulder mass proud of the silhouette at the top (root still overlaps
+        # the torso ~0.05 inboard, so the weld joins at the shoulder), the tip
+        # tapered and leaning outward/backward so it parts slightly from the
+        # body near torso bottom, like Jacques'/Lucha's.
+        wing_a = j["upperArmL"] + np.array([0.02, 0.005, 0]) * u  # shoulder mass, proud of the flank
+        wing_b = j["handL"] + np.array([0.04, -0.02, -0.03]) * u  # tip parts outward + backward
+        w_r0, w_r1 = arm_r * 2.0, arm_r * 0.85
         wing = capsule_along(
             "armL", tuple(wing_a), tuple(wing_b),
             w_r0, w_r1, useg=14, vseg=12, bulge=0.014 * u, fullness=0.45,
