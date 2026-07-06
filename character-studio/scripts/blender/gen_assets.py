@@ -87,6 +87,23 @@ def build_body(archetype: str, skel: dict, render: bool) -> None:
         blender_io.render_turntable(
             os.path.join(PREVIEW_DIR, f"body-{archetype}"), center_z=height * 0.52, radius=height * 2.2
         )
+        # plan 003 step 6 (render route): raise upperArmL 60° about our Z
+        # (blender -Y) and re-render — the shoulder junction must deform
+        # continuously (no seam opening, no hollow interior, no swallowed arm).
+        import math
+
+        from mathutils import Matrix
+
+        bpy.context.view_layer.objects.active = arm
+        pb = arm.pose.bones["upperArmL"]
+        pivot = pb.head.copy()
+        rot = Matrix.Translation(pivot) @ Matrix.Rotation(math.radians(-60), 4, "Y") @ Matrix.Translation(-pivot)
+        bpy.context.view_layer.update()
+        pb.matrix = rot @ pb.matrix
+        bpy.context.view_layer.update()
+        blender_io.render_turntable(
+            os.path.join(PREVIEW_DIR, f"body-{archetype}-armpose"), center_z=height * 0.52, radius=height * 2.2
+        )
 
 
 def build_part(part_id: str, skel_ref: dict, render: bool) -> None:
