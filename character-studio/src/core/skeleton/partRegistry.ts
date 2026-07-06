@@ -169,6 +169,28 @@ export const PART_REGISTRY = {
     morphs: ['length'],
     hidesMouth: true,
   },
+  'beak-hooked': {
+    slot: 'muzzle',
+    label: 'Hooked beak',
+    url: partUrl('muzzle-beak-hooked.glb'),
+    maskUrl: maskUrl('part-muzzle-beak-hooked.mask.png'),
+    region: 'muzzle',
+    classes: ['bird'],
+    attachTo: ['socket.muzzle'],
+    morphs: ['length'],
+    hidesMouth: true,
+  },
+  'bill-duck': {
+    slot: 'muzzle',
+    label: 'Duck bill',
+    url: partUrl('muzzle-bill-duck.glb'),
+    maskUrl: maskUrl('part-muzzle-bill-duck.mask.png'),
+    region: 'muzzle',
+    classes: ['bird'],
+    attachTo: ['socket.muzzle'],
+    morphs: ['length'],
+    hidesMouth: true,
+  },
 
   // --- tails (skinned to the tail chain) ----------------------------------
   'curl-shiba': {
