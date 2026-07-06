@@ -2,8 +2,8 @@
 // that make "pick Shiba" produce a recognizable shiba with zero slider work.
 //
 // A SpeciesDef is a class → group → species leaf plus a full anatomy/palette
-// loadout. `createCharacterFromSpecies` (step 4, ./factory.ts) overlays a
-// preset onto `createDefaultCharacter`'s output.
+// loadout. `createCharacterFromSpecies` (below) overlays a preset onto
+// `createDefaultCharacter`'s output.
 //
 // The Core-8 preset data below encodes the AC:NH benchmark decisions from
 // the operator dogfooding pass — copied verbatim from plan 008, not
@@ -14,7 +14,8 @@
 //     plan 010 ships `beak-hooked`/`bill-duck` and updates these rows.
 
 import type { AnimalClass } from '../skeleton/partRegistry'
-import type { Archetype, BoneName, BoneScale, CharacterSpec, Personality } from '../spec/schema'
+import { createDefaultCharacter } from '../spec/defaults'
+import { type Archetype, type BoneName, type BoneScale, type CharacterSpec, CharacterSpecSchema, type Personality } from '../spec/schema'
 
 export type { AnimalClass }
 export { ANIMAL_CLASSES } from '../skeleton/partRegistry'
@@ -262,4 +263,46 @@ export function getSpecies(id: string): SpeciesDef | null {
 
 export function speciesForClass(klass: AnimalClass): SpeciesId[] {
   return SPECIES_IDS.filter((id) => SPECIES_REGISTRY[id].class === klass)
+}
+
+/**
+ * Build a schema-valid CharacterSpec from a species preset (plan 008, step
+ * 4): starts from `createDefaultCharacter`, overlays the preset's anatomy /
+ * body morphs / palette / bone scales, and parses the result — same
+ * fail-loud rule as `createDefaultCharacter` itself.
+ */
+export function createCharacterFromSpecies(id: SpeciesId, name?: string): CharacterSpec {
+  const def = SPECIES_REGISTRY[id] as SpeciesDef
+  const base = createDefaultCharacter(def.archetype, def.personality)
+
+  const parts = structuredClone(def.parts)
+  if (def.boneScales && def.boneScaleSlot) {
+    const entry = parts[def.boneScaleSlot]
+    if (entry) {
+      entry.boneScales = { ...entry.boneScales, ...def.boneScales }
+    }
+  }
+
+  const materials = structuredClone(base.materials)
+  if (def.patternId && materials.body) {
+    materials.body = { ...materials.body, textureId: def.patternId }
+  }
+
+  const candidate: CharacterSpec = {
+    ...base,
+    meta: {
+      ...base.meta,
+      species: id,
+      name: name ?? def.label,
+    },
+    anatomy: {
+      ...base.anatomy,
+      parts,
+      bodyMorphs: { ...def.bodyMorphs },
+    },
+    palette: { ...def.palette },
+    materials,
+  }
+
+  return CharacterSpecSchema.parse(candidate)
 }
