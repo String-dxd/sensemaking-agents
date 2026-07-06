@@ -271,6 +271,20 @@ def tail_fluff_fox(skel: dict):
     return [("tail-fluff-fox", [tail], None, keys)]
 
 
+def tail_slim_cat(skel: dict):
+    root, _ = _tail_chain(skel)
+    L = 0.34
+    tail = capsule_along("tail", tuple(root), tuple(root + np.array([0, L, 0])), 0.026, 0.02, useg=12, vseg=18, bulge=0.0, fullness=0.5)
+    t = tail.params[:, 1]
+    path = [root, root + np.array([0, 0.02, -0.10]), root + np.array([0, 0.10, -0.16]),
+            root + np.array([0, 0.22, -0.14]), root + np.array([0, 0.30, -0.07])]
+    tail.verts = bend_chain(tail.verts, root, L, smooth_path(path, 40))
+    _chain_weights(tail, TAIL_BONES, t, [0.3, 0.55, 0.8], 0.1)
+    tail.channel(CH_ACCENT, smoothstep(0.8, 0.95, t) * 0.9)
+    keys = _length_width_keys([tail], root, path[-1])
+    return [("tail-slim-cat", [tail], None, keys)]
+
+
 def tail_stub_round(skel: dict):
     root, _ = _tail_chain(skel)
     c = root + np.array([0, 0.015, -0.045])
@@ -357,6 +371,7 @@ PART_BUILDERS = {
     "muzzle-bill-duck": muzzle_bill_duck,
     "tail-curl-shiba": tail_curl_shiba,
     "tail-fluff-fox": tail_fluff_fox,
+    "tail-slim-cat": tail_slim_cat,
     "tail-stub-round": tail_stub_round,
     "tail-feather-fan": tail_feather_fan,
     "claws-stub": claws_stub,
