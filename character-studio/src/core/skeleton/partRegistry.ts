@@ -215,6 +215,17 @@ export const PART_REGISTRY = {
     morphs: ['length', 'width'],
     springProfile: spring(0.22, 26, 0.12),
   },
+  'slim-cat': {
+    slot: 'tail',
+    label: 'Slim cat',
+    url: partUrl('tail-slim-cat.glb'),
+    maskUrl: maskUrl('part-tail-slim-cat.mask.png'),
+    region: 'tail',
+    classes: ['mammal'],
+    skinnedTo: TAIL_BONES,
+    morphs: ['length', 'width'],
+    springProfile: spring(0.3, 18, 0.1),
+  },
   'stub-round': {
     slot: 'tail',
     label: 'Round stub',
