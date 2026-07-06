@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { adjustTier, adjustTierToward, brushCells, fillRect, setSurface, setTier } from '../src/terrain/gridOps'
-import { cellIndex, createOceanGrid, MAX_TIER, SURFACE_PATH } from '../src/terrain/terrainGrid'
+import {
+  adjustTier,
+  adjustTierToward,
+  brushCells,
+  fillRect,
+  isLandTier,
+  setSurface,
+  setTier,
+} from '../src/terrain/gridOps'
+import { cellIndex, createOceanGrid, DEFAULT_TIER_HEIGHTS, MAX_TIER, SURFACE_PATH } from '../src/terrain/terrainGrid'
 
 describe('gridOps', () => {
   it('adjustTier raises and clamps at MAX_TIER', () => {
@@ -110,5 +118,29 @@ describe('gridOps', () => {
     let count = 0
     fillRect(grid, 4, 6, 2, 3, () => count++)
     expect(count).toBe(12)
+  })
+
+  it('isLandTier: tier 0 with default heights and seaLevel 0 is water', () => {
+    expect(isLandTier(0, DEFAULT_TIER_HEIGHTS, 0)).toBe(false) // ocean floor, -1.2
+  })
+
+  it('isLandTier: tiers 1..4 with default heights and seaLevel 0 are land', () => {
+    expect(isLandTier(1, DEFAULT_TIER_HEIGHTS, 0)).toBe(true) // 0.12 > 0
+    expect(isLandTier(2, DEFAULT_TIER_HEIGHTS, 0)).toBe(true)
+    expect(isLandTier(3, DEFAULT_TIER_HEIGHTS, 0)).toBe(true)
+    expect(isLandTier(4, DEFAULT_TIER_HEIGHTS, 0)).toBe(true)
+  })
+
+  it('isLandTier respects a custom seaLevel', () => {
+    expect(isLandTier(1, DEFAULT_TIER_HEIGHTS, 0.5)).toBe(false) // 0.12 <= 0.5
+    expect(isLandTier(2, DEFAULT_TIER_HEIGHTS, 0.5)).toBe(true) // 1.0 > 0.5
+  })
+
+  it('isLandTier treats a tier top exactly at sea level as water (strictly above)', () => {
+    expect(isLandTier(0, [0], 0)).toBe(false)
+  })
+
+  it('isLandTier treats an out-of-range tier as water', () => {
+    expect(isLandTier(99, DEFAULT_TIER_HEIGHTS, 0)).toBe(false)
   })
 })

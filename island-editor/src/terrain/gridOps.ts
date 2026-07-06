@@ -58,6 +58,15 @@ export function setSurface(grid: TerrainGrid, cells: number[], surface: number):
   for (const i of cells) grid.surface[i] = s
 }
 
+/** True when tier `t`'s flat top sits strictly above the sea — i.e. the cell is
+ *  land, not ocean floor. Under the default heights [-1.2, 0.12, 1.0, 1.65, 2.3]
+ *  with seaLevel 0, tier 0 is water and tiers 1..4 are land. Robust to a custom
+ *  seaLevel / tierHeights (e.g. an imported spec). An out-of-range tier is water. */
+export function isLandTier(tier: number, tierHeights: number[], seaLevel: number): boolean {
+  const top = tierHeights[tier]
+  return top !== undefined && top > seaLevel
+}
+
 /** Iterate the inclusive rectangle [c0..c1] × [r0..r1], calling `apply` with each
  *  in-bounds cell index. `c0`/`c1` and `r0`/`r1` may be given in either order. */
 export function fillRect(
