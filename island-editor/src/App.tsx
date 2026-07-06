@@ -185,7 +185,12 @@ export function App() {
       )
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== 'Space' || inEditable(e.target)) return
+      if (
+        e.code !== 'Space' ||
+        inEditable(e.target) ||
+        (e.target as HTMLElement | null)?.tagName === 'BUTTON'
+      )
+        return
       e.preventDefault() // stop the page from scrolling on Space
       setCameraMode(true)
     }
@@ -297,7 +302,13 @@ export function App() {
           onPaint={paint}
           onPaintEnd={onPaintEnd}
         />
-        <OrbitControls ref={setControls} makeDefault enabled={orbitEnabled} />
+        <OrbitControls
+          ref={setControls}
+          makeDefault
+          enabled={orbitEnabled || cameraMode}
+          minDistance={4}
+          maxDistance={120}
+        />
       </Canvas>
       <input
         ref={importInputRef}
