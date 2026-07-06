@@ -19,6 +19,26 @@ export const PATTERN_REGISTRY = {
   'pattern-robin': { label: 'Robin', masks: { bird: tex('body-bird.pattern-robin.mask.png') } },
   'pattern-owl': { label: 'Owl', masks: { bird: tex('body-bird.pattern-owl.mask.png') } },
   'pattern-duckling': { label: 'Duckling', masks: { bird: tex('body-bird.pattern-duckling.mask.png') } },
+  'pattern-shiba': {
+    label: 'Shiba points',
+    masks: { 'biped-round': tex('body-biped-round.pattern-shiba.mask.png') },
+  },
+  'pattern-tabby': {
+    label: 'Tabby stripes',
+    masks: { 'biped-slim': tex('body-biped-slim.pattern-tabby.mask.png') },
+  },
+  'pattern-fox': {
+    label: 'Fox socks',
+    masks: { 'biped-slim': tex('body-biped-slim.pattern-fox.mask.png') },
+  },
+  'pattern-bear': {
+    label: 'Bear muzzle',
+    masks: { 'biped-round': tex('body-biped-round.pattern-bear.mask.png') },
+  },
+  'pattern-rabbit': {
+    label: 'Rabbit underside',
+    masks: { 'biped-slim': tex('body-biped-slim.pattern-rabbit.mask.png') },
+  },
 } as const satisfies Record<string, PatternDef>
 
 export type PatternId = keyof typeof PATTERN_REGISTRY
