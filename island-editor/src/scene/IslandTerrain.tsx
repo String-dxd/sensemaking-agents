@@ -8,6 +8,9 @@ import { createIslandGroundMaterial } from './materials/IslandGroundMaterial'
 interface IslandTerrainProps {
   spec: IslandSpec
   brushSize: number
+  /** When true (hold-Space), pointer drags fall through to OrbitControls instead
+   *  of painting, so the camera can be orbited/panned over the island. */
+  cameraMode?: boolean
   onPaintStart?: () => void
   onPaint?: (x: number, z: number) => void
   onPaintEnd?: () => void
@@ -40,7 +43,7 @@ function useGroundTextures() {
   return textures
 }
 
-export function IslandTerrain({ spec, brushSize, onPaintStart, onPaint, onPaintEnd }: IslandTerrainProps) {
+export function IslandTerrain({ spec, brushSize, cameraMode, onPaintStart, onPaint, onPaintEnd }: IslandTerrainProps) {
   const textures = useGroundTextures()
 
   const field = useMemo(() => buildIslandField(spec.worldSize), [spec.worldSize])
@@ -96,12 +99,18 @@ export function IslandTerrain({ spec, brushSize, onPaintStart, onPaint, onPaintE
   }
 
   const handleDown = (e: ThreeEvent<PointerEvent>) => {
+    // Hold-Space: let the drag reach OrbitControls instead of painting.
+    if (cameraMode) return
     e.stopPropagation()
     painting.current = true
     onPaintStart?.()
     onPaint?.(e.point.x, e.point.z)
   }
   const handleMove = (e: ThreeEvent<PointerEvent>) => {
+    if (cameraMode) {
+      if (cursorRef.current) cursorRef.current.visible = false
+      return
+    }
     moveCursor(e.point.x, e.point.z)
     if (!painting.current) return
     onPaint?.(e.point.x, e.point.z)
