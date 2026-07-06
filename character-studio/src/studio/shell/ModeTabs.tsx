@@ -1,10 +1,11 @@
 // ModeTabs (plan 012 step 1) — maps the brief's builder flow (choose animal
 // → shape anatomy → dress → materials → freeform → play) to the shell's
 // seven modes, and owns which panel(s) render in the managed right column
-// for the active one. "Animal" is the archetype/personality section of
-// AnatomyPanel (plus FacePanel — identity + expressiveness belong together
-// in the "choose your animal" step); "Play" swaps the column over to
-// PlayControls entirely and force-exits studio mode's other affordances.
+// for the active one. "Animal" is the species-first SpeciesSection (class
+// chips + species cards + personality — advisor plan 009; plus FacePanel —
+// identity + expressiveness belong together in the "choose your animal"
+// step); "Play" swaps the column over to PlayControls entirely and
+// force-exits studio mode's other affordances.
 //
 // `usePlayStore().mode` ('studio' | 'play') is the single source of truth
 // for whether Play is the active tab — there is no separate "activeTab"
@@ -13,11 +14,12 @@
 // fall back to once Play mode ends.
 
 import type { RefObject } from 'react'
-import { AnatomyArchetypeSection, AnatomyPanel } from '../panels/AnatomyPanel'
+import { AnatomyPanel } from '../panels/AnatomyPanel'
 import { FacePanel } from '../panels/FacePanel'
 import { LightingPanel } from '../panels/LightingPanel'
 import { MaterialPanel } from '../panels/MaterialPanel'
 import { SculptPanel } from '../panels/SculptPanel'
+import { SpeciesSection } from '../panels/SpeciesSection'
 import { WardrobePanel } from '../panels/WardrobePanel'
 import { PlayControls } from '../play/PlayControls'
 import { usePlayStore } from '../play/playStore'
@@ -95,7 +97,7 @@ export function ModePanel({
     case 'animal':
       return (
         <>
-          <AnatomyArchetypeSection />
+          <SpeciesSection />
           <FacePanel />
         </>
       )
