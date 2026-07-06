@@ -19,7 +19,7 @@ import { IslandTerrain } from './scene/IslandTerrain'
 import { PlaceGhost } from './scene/PlaceGhost'
 import { PlacedObjects } from './scene/PlacedObjects'
 import { SeaSurface } from './scene/SeaSurface'
-import { adjustTierToward, brushCells, setSurface, setTier } from './terrain/gridOps'
+import { adjustTierToward, brushCells, isLandTier, setSurface, setTier } from './terrain/gridOps'
 import { addObject, makePlacedObject, removeObject } from './terrain/objectOps'
 import { seedIsland } from './terrain/seed'
 import {
@@ -46,6 +46,13 @@ const autosave = createAutosaver()
 
 /** Minimal shape of the three OrbitControls instance drei forwards. */
 type OrbitControlsLike = { object: Camera; target: Vector3; update: () => void }
+
+/** A cell is placeable when it is in bounds AND its tier is land (above the sea). */
+function isLandCell(spec: IslandSpec, c: number, r: number): boolean {
+  const g = spec.grid
+  if (!inBounds(g, c, r)) return false
+  return isLandTier(g.tiers[cellIndex(g, c, r)], spec.tierHeights, spec.seaLevel)
+}
 
 export function App() {
   const [tool, setTool] = useState<Tool>('raise')
@@ -196,7 +203,7 @@ export function App() {
       if (!kind) return
       const s = specRef.current
       const { c, r } = worldToCell(s.worldSize, s.grid, x, z)
-      if (c < 0 || c >= s.grid.cols || r < 0 || r >= s.grid.rows) return
+      if (!isLandCell(s, c, r)) return
       const o = makePlacedObject(kind, c, r, Math.random) // runtime jitter is fine here
       applyObjects(addObject(s.objects, o))
       stack.push({
@@ -228,7 +235,7 @@ export function App() {
   const onPlaceHover = useCallback((x: number, z: number) => {
     const s = specRef.current
     const { c, r } = worldToCell(s.worldSize, s.grid, x, z)
-    if (c < 0 || c >= s.grid.cols || r < 0 || r >= s.grid.rows) {
+    if (!isLandCell(s, c, r)) {
       setGhostCell((prev) => (prev === null ? prev : null))
       return
     }
