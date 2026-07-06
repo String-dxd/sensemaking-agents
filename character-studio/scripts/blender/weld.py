@@ -229,7 +229,7 @@ def weld_body(shells: list[Shell], meta: dict, skel: dict, arm: bpy.types.Object
     # junction smoothing
     strength = _junction_mask(our, meta)
     edges = _mesh_edges(welded)
-    W = _smooth(W, edges, strength, iters=48)
+    W = _smooth(W, edges, strength, iters=72)
     for name in morph:
         morph[name] = _smooth(morph[name], edges, strength, iters=40)
     co = _smooth(co, edges, strength, iters=4)  # geometric fillet on the boolean seam
