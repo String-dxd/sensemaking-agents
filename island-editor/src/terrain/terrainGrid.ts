@@ -28,7 +28,7 @@ export interface TerrainGrid {
 }
 
 export interface IslandSpec {
-  version: 3
+  version: 4
   /** Square world bounds: X and Z each span [-worldSize/2, worldSize/2]. */
   worldSize: number
   /** World Y of the water surface. */
@@ -36,6 +36,9 @@ export interface IslandSpec {
   /** World Y of each tier's flat top, ascending, length MAX_TIER + 1. */
   tierHeights: number[]
   grid: TerrainGrid
+  /** Decorative objects placed on the terrain (v4). Empty on migrated v1/v2/v3
+   *  specs. Position is keyed by grid CELL (c,r) — see `worldPositionOfObject`. */
+  objects: PlacedObject[]
 }
 
 /** Default tier tops. Tier 2 = 1.0 matches the engine's plateauTopY (see the
@@ -44,7 +47,7 @@ export const DEFAULT_TIER_HEIGHTS = [-1.2, 0.12, 1.0, 1.65, 2.3]
 
 /** Current spec version. `validateSpecObject` accepts this and older versions and
  *  normalizes (migrates) to it. Single source of truth for the literal. */
-export const CURRENT_SPEC_VERSION = 3
+export const CURRENT_SPEC_VERSION = 4
 
 // ── Grid indexing ────────────────────────────────────────────────────────────
 
@@ -223,4 +226,44 @@ export function evaluateHeight(spec: IslandSpec, x: number, z: number, blurred?:
   const b = blurred ?? blurTiers(spec.grid)
   const t = sampleTierField(spec.grid, b, spec.worldSize, x, z)
   return terraceHeight(t, spec.tierHeights)
+}
+
+// ── Object kinds ───────────────────────────────────────────────────────────
+// The decorative object kinds the procedural model factory (src/models/
+// buildObjectModel.ts) can build. Placement (Plan B) + palette (Plan C) build on
+// this. Kept in the pure spec module so the enum the renderer consumes lives
+// alongside the rest of the headless-testable core.
+
+export type ObjectKind = 'fruitTree' | 'pine' | 'palm' | 'bush' | 'rock'
+export const OBJECT_KINDS: ObjectKind[] = ['fruitTree', 'pine', 'palm', 'bush', 'rock']
+
+// ── Placed objects (v4) ──────────────────────────────────────────────────────
+// A decorative object dropped on the terrain. Position is a grid CELL (snapped)
+// so it survives grid edits and serializes tiny; world x/z derive from
+// `cellCenter`, world y from `evaluateHeight` at that point (top of terrain).
+// Placement adds a little yaw + scale jitter for natural variety.
+
+export interface PlacedObject {
+  /** Stable id, assigned once at placement (never recomputed). */
+  id: string
+  kind: ObjectKind
+  /** Grid column (0..cols-1). */
+  c: number
+  /** Grid row (0..rows-1). */
+  r: number
+  /** Radians, placement jitter. */
+  yaw: number
+  /** ~0.85..1.15 placement jitter. */
+  scale: number
+}
+
+/** World transform for a placed object: cell-center X/Z, terrain-top Y. Pass a
+ *  precomputed `blurred` (from `blurTiers`) in hot loops. */
+export function worldPositionOfObject(
+  spec: IslandSpec,
+  o: PlacedObject,
+  blurred?: ArrayLike<number>,
+): { x: number; y: number; z: number } {
+  const { x, z } = cellCenter(spec.worldSize, spec.grid, o.c, o.r)
+  return { x, y: evaluateHeight(spec, x, z, blurred), z }
 }

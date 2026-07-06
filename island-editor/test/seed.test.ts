@@ -6,12 +6,13 @@ describe('seedIsland', () => {
   const spec = seedIsland()
   const { grid } = spec
 
-  it('is a 64×64 v3 spec', () => {
-    expect(spec.version).toBe(3)
+  it('is a 64×64 v4 spec with an empty objects layer', () => {
+    expect(spec.version).toBe(4)
     expect(grid.cols).toBe(GRID_COLS)
     expect(grid.rows).toBe(GRID_ROWS)
     expect(grid.tiers).toHaveLength(GRID_COLS * GRID_ROWS)
     expect(grid.surface).toHaveLength(GRID_COLS * GRID_ROWS)
+    expect(spec.objects).toEqual([])
   })
 
   it('has land at the center (tier ≥ 2)', () => {

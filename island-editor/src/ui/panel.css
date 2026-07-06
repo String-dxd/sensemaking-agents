@@ -62,7 +62,7 @@
   background: rgba(255, 255, 255, 0.12);
 }
 
-.hotbar__btn {
+.tile {
   appearance: none;
   display: inline-flex;
   align-items: center;
@@ -77,40 +77,150 @@
   cursor: pointer;
   transition: transform 120ms ease, background 120ms, box-shadow 120ms, border-color 120ms, color 120ms;
 }
-.hotbar__btn svg {
+.tile svg {
   width: 20px;
   height: 20px;
   display: block;
 }
-.hotbar__btn:hover {
+.tile:hover {
   background: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px) scale(1.05);
 }
-.hotbar__btn:active {
+.tile:active {
   transform: scale(0.96);
 }
-.hotbar__btn.is-active {
+.tile.is-active {
   background: #ff7b54;
   border-color: #ff7b54;
   color: #1a1206;
   box-shadow: 0 0 0 1px #ff7b54, 0 0 12px rgba(255, 123, 84, 0.5);
 }
-.hotbar__btn:disabled {
+.tile:disabled {
   opacity: 0.35;
   cursor: default;
   transform: none;
 }
-.hotbar__btn:disabled:hover {
+.tile:disabled:hover {
   background: rgba(255, 255, 255, 0.05);
   transform: none;
 }
 
+/* Destructive action (Reset): red-tinted hover so a rare, irreversible click
+   reads differently from the rest. */
+.tile.is-danger:hover {
+  background: rgba(255, 90, 90, 0.16);
+  border-color: rgba(255, 90, 90, 0.5);
+  color: #ffb4b4;
+}
+
+/* ── Shared glass-card chrome for the corner docks ─────────────────────────── */
+.camera-dock,
+.file-bar {
+  position: fixed;
+  z-index: 10;
+  display: flex;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: rgba(16, 22, 38, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #e7ecf6;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  user-select: none;
+  opacity: 0.9;
+  transition: opacity 160ms ease;
+}
+.camera-dock:hover,
+.file-bar:hover {
+  opacity: 1;
+}
+
+/* Bottom-right camera dock: preset/rotate/zoom/recenter grid + orbit caption. */
+.camera-dock {
+  right: 20px;
+  bottom: 20px;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.camera-dock__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 40px);
+  gap: 6px;
+}
+.camera-dock__hint {
+  font-size: 11px;
+  opacity: 0.6;
+  text-align: center;
+}
+
+/* Top-right file bar: export / import / reset. */
+.file-bar {
+  top: 16px;
+  right: 16px;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Left-edge model panel ──────────────────────────────────────────────────
+   Fourth fixed zone. Vertically centered on the left edge (the distributed
+   layout reserved this edge), so it stays clear of the bottom-center hotbar,
+   the bottom-right camera dock, and the top-right file bar. */
+.model-panel {
+  position: fixed;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(16, 22, 38, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #e7ecf6;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  user-select: none;
+  opacity: 0.9;
+  transition: opacity 160ms ease;
+}
+.model-panel:hover {
+  opacity: 1;
+}
+.model-panel__header {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.model-panel__tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.model-panel__caption {
+  margin: 0;
+  max-width: 96px;
+  font-size: 10px;
+  line-height: 1.35;
+  text-align: center;
+  opacity: 0.55;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .hotbar__btn {
+  .tile {
     transition: background 120ms, box-shadow 120ms, border-color 120ms, color 120ms;
   }
-  .hotbar__btn:hover,
-  .hotbar__btn:active {
+  .tile:hover,
+  .tile:active {
     transform: none;
   }
 }
