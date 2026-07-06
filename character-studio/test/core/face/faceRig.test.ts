@@ -1,6 +1,7 @@
-import * as THREE from 'three'
+import type * as THREE from 'three'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { BROW_CELLS, EYE_CELLS, EYE_CELLS_WITHOUT_PUPIL, MOUTH_CELLS } from '../../../src/core/face/atlas'
+import type { FaceCompositor, FaceDrawState } from '../../../src/core/face/faceComposite'
 import {
   createFaceRig,
   EXPRESSION_PRESETS,
@@ -17,16 +18,39 @@ function seededRng(seed: number): () => number {
   }
 }
 
-function makeRig(rng: () => number = seededRng(42)): { rig: FaceRig; head: THREE.Object3D } {
-  const head = new THREE.Object3D()
-  const textures = {
-    eye: new THREE.Texture(),
-    pupil: new THREE.Texture(),
-    brow: new THREE.Texture(),
-    mouth: new THREE.Texture(),
+/** Stub compositor: records draw states instead of touching a canvas. */
+function stubCompositor() {
+  const draws: FaceDrawState[] = []
+  const texture = { isStubTexture: true } as unknown as THREE.CanvasTexture
+  let disposed = false
+  const compositor: FaceCompositor = {
+    texture,
+    draw(state: FaceDrawState): void {
+      draws.push({ ...state, gaze: { ...state.gaze } })
+    },
+    dispose(): void {
+      disposed = true
+    },
   }
-  const rig = createFaceRig(head, { headRadius: 0.28, rng, textures })
-  return { rig, head }
+  return {
+    compositor,
+    draws,
+    texture,
+    lastDraw: () => draws[draws.length - 1],
+    isDisposed: () => disposed,
+  }
+}
+
+function makeRig(rng: () => number = seededRng(42), opts: { hideMouth?: boolean } = {}) {
+  const stub = stubCompositor()
+  const applied: Array<THREE.CanvasTexture | null> = []
+  const rig = createFaceRig({
+    compositor: stub.compositor,
+    rng,
+    hideMouth: opts.hideMouth,
+    applyTexture: (texture) => applied.push(texture),
+  })
+  return { rig, stub, applied }
 }
 
 describe('expression presets', () => {
@@ -49,6 +73,17 @@ describe('expression presets', () => {
     expect(state.mouth).toBe('grin')
   })
 
+  it('redraws the compositor with the preset cells on the next update', () => {
+    const { rig, stub } = makeRig()
+    rig.setExpression('happy')
+    rig.update(0.001)
+    const draw = stub.lastDraw()
+    expect(draw.eyeL).toBe('happy')
+    expect(draw.eyeR).toBe('happy')
+    expect(draw.brow).toBe('raised')
+    expect(draw.mouth).toBe('grin')
+  })
+
   it('hides pupils for eye cells without an eye-white', () => {
     const { rig } = makeRig()
     for (const name of Object.keys(EXPRESSION_PRESETS) as ExpressionName[]) {
@@ -58,6 +93,31 @@ describe('expression presets', () => {
         EYE_CELLS_WITHOUT_PUPIL.has(preset.eyeL) || EYE_CELLS_WITHOUT_PUPIL.has(preset.eyeR)
       expect(rig.getState().pupilsVisible, name).toBe(!anyNoWhite)
     }
+  })
+})
+
+describe('mouth', () => {
+  it('mouth override wins over the expression mouth and hands back on null', () => {
+    const { rig, stub } = makeRig()
+    rig.setExpression('happy')
+    rig.setMouthOverride('vAa')
+    rig.update(0.001)
+    expect(stub.lastDraw().mouth).toBe('vAa')
+    expect(rig.getState().mouthOverride).toBe('vAa')
+    expect(rig.getState().mouth).toBe('grin') // expression cell preserved underneath
+    rig.setMouthOverride(null)
+    rig.update(0.001)
+    expect(stub.lastDraw().mouth).toBe('grin')
+    expect(rig.getState().mouthOverride).toBeNull()
+  })
+
+  it('draws no mouth when hideMouth is set (beak parts ARE the mouth)', () => {
+    const { rig, stub } = makeRig(seededRng(42), { hideMouth: true })
+    expect(stub.lastDraw().mouth).toBeNull()
+    rig.setMouthOverride('vOh')
+    rig.update(0.001)
+    expect(stub.lastDraw().mouth).toBeNull()
+    expect(rig.getState().mouth).toBe('neutral') // logical state unaffected
   })
 })
 
@@ -88,6 +148,18 @@ describe('blink state machine', () => {
     expect(seen).toContain('closed')
     expect(seen).toContain('half')
     expect(seen[seen.length - 1]).toBe('open')
+  })
+
+  it('blink cells flow through to the compositor draws', () => {
+    const { rig: drawRig, stub } = makeRig()
+    drawRig.blink()
+    const drawnEyes: string[] = []
+    for (let t = 0; t < 0.2; t += 0.005) {
+      drawRig.update(0.005)
+      const cell = stub.lastDraw().eyeL
+      if (drawnEyes[drawnEyes.length - 1] !== cell) drawnEyes.push(cell)
+    }
+    expect(drawnEyes).toEqual(['half', 'closed', 'half', 'open'])
   })
 
   it('blinks on its own at randomized intervals and restores the expression cell', () => {
@@ -149,14 +221,31 @@ describe('gaze', () => {
     expect(gaze.x).toBeGreaterThan(0)
     expect(gaze.x).toBeLessThan(0.02)
   })
+
+  it('redraws while the eased gaze is moving and settles once it converges', () => {
+    const { rig, stub } = makeRig()
+    // long settle: gaze converged, drawing only continues for blinks
+    for (let i = 0; i < 400; i++) rig.update(1 / 60)
+    const settled = stub.draws.length
+    rig.setGaze(0.05, 0)
+    rig.update(1 / 60)
+    expect(stub.draws.length).toBeGreaterThan(settled)
+    expect(stub.lastDraw().gaze.x).toBeGreaterThan(0)
+  })
 })
 
 describe('lifecycle', () => {
-  it('mounts seven planes on the head and removes them on dispose', () => {
-    const { rig, head } = makeRig()
-    expect(head.children).toContain(rig.group)
-    expect(rig.group.children.length).toBe(7)
+  it('publishes the compositor texture at creation and draws the initial face', () => {
+    const { stub, applied } = makeRig()
+    expect(applied).toEqual([stub.texture])
+    expect(stub.draws.length).toBe(1)
+    expect(stub.lastDraw()).toMatchObject({ eyeL: 'open', brow: 'neutral', mouth: 'neutral' })
+  })
+
+  it('dispose detaches the texture and disposes the compositor', () => {
+    const { rig, stub, applied } = makeRig()
     rig.dispose()
-    expect(head.children).not.toContain(rig.group)
+    expect(applied[applied.length - 1]).toBeNull()
+    expect(stub.isDisposed()).toBe(true)
   })
 })

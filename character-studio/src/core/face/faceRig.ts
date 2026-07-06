@@ -1,33 +1,22 @@
-// Face rig — composition + expression state (plan 002, step 3).
+// Face rig — expression state machine (plan 002; retargeted by advisor plan
+// 002 to draw ON the head mesh).
 //
-// Pure three, no React. Composes eye-white/pupil/brow/mouth planes on a head
-// sphere via spherical coordinates, drives named expression presets, a
-// procedural blink state machine, and eased gaze. No global RNG in here:
-// the RNG is injected (seeded in tests; the React layer supplies the real one).
+// Pure logic, no React, no scene objects: drives named expression presets, a
+// procedural blink state machine, and eased gaze, and renders by redrawing an
+// injected face compositor (./faceComposite.ts) whose CanvasTexture the body
+// toon material samples in the head's own UVs (setFaceMap). No global RNG in
+// here: the RNG is injected (seeded in tests; the React layer supplies the
+// real one).
 
-import * as THREE from 'three'
+import type * as THREE from 'three'
 import {
-  type AtlasCell,
-  BROW_CELLS,
   type BrowCellName,
-  EYE_CELLS,
   EYE_CELLS_WITHOUT_PUPIL,
   type EyeCellName,
-  MOUTH_CELLS,
   type MouthCellName,
-  PUPIL_CELLS,
   type PupilCellName,
 } from './atlas'
-import {
-  FACE_LAYER_RADIAL_OFFSET,
-  FACE_LAYER_RADIAL_STEP,
-  makeAtlasMaterial,
-  makeFacePlaneGeometry,
-  makePupilMaterial,
-  setCell,
-  setGaze as setMaterialGaze,
-  setMaskCell,
-} from './facePlane'
+import type { FaceCompositor, FaceDrawState } from './faceComposite'
 
 export interface ExpressionPreset {
   eyeL: EyeCellName
@@ -50,55 +39,20 @@ export const EXPRESSION_PRESETS = {
 
 export type ExpressionName = keyof typeof EXPRESSION_PRESETS
 
-export interface FaceRigTextures {
-  eye: THREE.Texture
-  pupil: THREE.Texture
-  brow: THREE.Texture
-  mouth: THREE.Texture
-}
-
-/** Angular placement/sizing of the face parts, radians (plan 006 re-anchors real heads through this). */
-export interface FacePlacement {
-  eyeAzimuth: number
-  eyeElevation: number
-  eyeWidth: number
-  eyeHeight: number
-  browLift: number
-  browWidth: number
-  browHeight: number
-  mouthElevation: number
-  mouthWidth: number
-  mouthHeight: number
-  /**
-   * Extra radial offset (m) for the mouth plane only — muzzle parts push the
-   * drawn mouth out so it floats on the muzzle front (plan 006 anchor config).
-   */
-  mouthRadialOffset: number
-}
-
-const DEG = Math.PI / 180
-
-export const DEFAULT_PLACEMENT: FacePlacement = {
-  eyeAzimuth: 20 * DEG,
-  eyeElevation: 5 * DEG,
-  eyeWidth: 26 * DEG,
-  eyeHeight: 30 * DEG,
-  browLift: 18 * DEG,
-  browWidth: 24 * DEG,
-  browHeight: 16 * DEG,
-  mouthElevation: -18 * DEG,
-  mouthWidth: 32 * DEG,
-  mouthHeight: 24 * DEG,
-  mouthRadialOffset: 0,
-}
-
 export interface FaceRigConfig {
-  headRadius: number
+  /** Composites the current cells into the head-UV overlay texture.
+   * Injectable: tests pass a stub; the React layer builds the real one. */
+  compositor: FaceCompositor
   /** Injected RNG in [0,1). Seed it in tests; the React layer passes the global one. */
   rng: () => number
-  textures: FaceRigTextures
-  placement?: Partial<FacePlacement>
+  /** Beak parts ARE the mouth — draw no mouth while equipped. */
+  hideMouth?: boolean
   pupilCell?: PupilCellName
+  /**
+   * Receives the compositor's texture once at creation (wire it to
+   * setFaceMap on the body material) and null again on dispose.
+   */
+  applyTexture(texture: THREE.CanvasTexture | null): void
 }
 
 export interface FaceRigState {
@@ -113,7 +67,6 @@ export interface FaceRigState {
 }
 
 export interface FaceRig {
-  group: THREE.Group
   setExpression(name: ExpressionName): void
   /**
    * Talk-layer mouth override (plan 007): non-null shows `cell` regardless of
@@ -144,76 +97,12 @@ const BLINK_SEQUENCE: ReadonlyArray<{ cell: EyeCellName; duration: number }> = [
 
 const GAZE_TAU_S = 0.08
 
-export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): FaceRig {
-  const { headRadius, rng, textures } = config
-  const placement = { ...DEFAULT_PLACEMENT, ...config.placement }
-  const pupilCell: AtlasCell = PUPIL_CELLS[config.pupilCell ?? 'round']
+/** Eased-gaze movement below this since the last draw skips the redraw. */
+const GAZE_REDRAW_EPSILON = 1e-4
 
-  const group = new THREE.Group()
-  group.name = 'faceRig'
-  head.add(group)
-
-  const geometries: THREE.BufferGeometry[] = []
-  const materials: THREE.Material[] = []
-
-  function addPlane(
-    name: string,
-    material: THREE.Material,
-    azimuth: number,
-    elevation: number,
-    width: number,
-    height: number,
-    radialOffset: number,
-    mirrorU: boolean,
-    renderOrder: number,
-  ): THREE.Mesh {
-    const geometry = makeFacePlaneGeometry(headRadius, width, height, radialOffset, mirrorU)
-    const mesh = new THREE.Mesh(geometry, material)
-    mesh.name = name
-    mesh.rotation.order = 'YXZ'
-    mesh.rotation.y = azimuth
-    mesh.rotation.x = -elevation
-    mesh.renderOrder = renderOrder
-    group.add(mesh)
-    geometries.push(geometry)
-    materials.push(material)
-    return mesh
-  }
-
-  const p = placement
-  // Authored art's OUTER corner points toward -x, so the -azimuth (viewer
-  // left) eye uses plain UVs and the +azimuth eye mirrors U.
-  const eyeWhiteMatL = makeAtlasMaterial({ map: textures.eye, cell: EYE_CELLS.open, layerOffset: 0 })
-  const eyeWhiteMatR = makeAtlasMaterial({ map: textures.eye, cell: EYE_CELLS.open, layerOffset: 0 })
-  const browMatL = makeAtlasMaterial({ map: textures.brow, cell: BROW_CELLS.neutral, layerOffset: 0 })
-  const browMatR = makeAtlasMaterial({ map: textures.brow, cell: BROW_CELLS.neutral, layerOffset: 0 })
-  const mouthMat = makeAtlasMaterial({ map: textures.mouth, cell: MOUTH_CELLS.neutral, layerOffset: 0 })
-  const pupilMatL = makePupilMaterial({
-    pupilMap: textures.pupil,
-    maskMap: textures.eye,
-    pupilCell,
-    maskCell: EYE_CELLS.open,
-    layerOffset: 1,
-  })
-  const pupilMatR = makePupilMaterial({
-    pupilMap: textures.pupil,
-    maskMap: textures.eye,
-    pupilCell,
-    maskCell: EYE_CELLS.open,
-    layerOffset: 1,
-  })
-
-  const base = FACE_LAYER_RADIAL_OFFSET
-  const above = base + FACE_LAYER_RADIAL_STEP
-  addPlane('eyeWhiteL', eyeWhiteMatL, -p.eyeAzimuth, p.eyeElevation, p.eyeWidth, p.eyeHeight, base, false, 1)
-  addPlane('eyeWhiteR', eyeWhiteMatR, p.eyeAzimuth, p.eyeElevation, p.eyeWidth, p.eyeHeight, base, true, 1)
-  // Pupil planes are IDENTICAL patches to their eye-whites so the mask
-  // sampled at the same face-plane UV aligns texel-for-texel.
-  const pupilL = addPlane('pupilL', pupilMatL, -p.eyeAzimuth, p.eyeElevation, p.eyeWidth, p.eyeHeight, above, false, 2)
-  const pupilR = addPlane('pupilR', pupilMatR, p.eyeAzimuth, p.eyeElevation, p.eyeWidth, p.eyeHeight, above, true, 2)
-  addPlane('browL', browMatL, -p.eyeAzimuth, p.eyeElevation + p.browLift, p.browWidth, p.browHeight, base, false, 1)
-  addPlane('browR', browMatR, p.eyeAzimuth, p.eyeElevation + p.browLift, p.browWidth, p.browHeight, base, true, 1)
-  addPlane('mouth', mouthMat, 0, p.mouthElevation, p.mouthWidth, p.mouthHeight, base + p.mouthRadialOffset, false, 1)
+export function createFaceRig(config: FaceRigConfig): FaceRig {
+  const { compositor, rng, hideMouth = false } = config
+  const pupilCell: PupilCellName = config.pupilCell ?? 'round'
 
   // --- expression state ---------------------------------------------------
 
@@ -226,19 +115,13 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
     mouth: 'neutral',
   }
 
-  function applyMouthCell(): void {
-    setCell(mouthMat, MOUTH_CELLS[mouthOverride ?? shown.mouth])
-  }
+  let dirty = true
+  const lastDrawnGaze = { x: Number.NaN, y: Number.NaN }
 
   function applyEyeCells(eyeL: EyeCellName, eyeR: EyeCellName): void {
     shown.eyeL = eyeL
     shown.eyeR = eyeR
-    setCell(eyeWhiteMatL, EYE_CELLS[eyeL])
-    setCell(eyeWhiteMatR, EYE_CELLS[eyeR])
-    setMaskCell(pupilMatL, EYE_CELLS[eyeL])
-    setMaskCell(pupilMatR, EYE_CELLS[eyeR])
-    pupilL.visible = !EYE_CELLS_WITHOUT_PUPIL.has(eyeL)
-    pupilR.visible = !EYE_CELLS_WITHOUT_PUPIL.has(eyeR)
+    dirty = true
   }
 
   function applyExpressionEyes(): void {
@@ -251,9 +134,7 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
     const preset = EXPRESSION_PRESETS[name]
     shown.brow = preset.brow
     shown.mouth = preset.mouth
-    setCell(browMatL, BROW_CELLS[preset.brow])
-    setCell(browMatR, BROW_CELLS[preset.brow])
-    applyMouthCell()
+    dirty = true
     if (blinkPhase < 0) applyExpressionEyes()
   }
 
@@ -314,11 +195,28 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
   const gazeTarget = { x: 0, y: 0 }
   const gazeCurrent = { x: 0, y: 0 }
 
-  function applyGaze(): void {
-    // +x is screen-right; the mirrored (U-flipped) right eye needs its x
-    // sample offset negated so both pupils travel the same screen direction.
-    setMaterialGaze(pupilMatL, gazeCurrent.x, gazeCurrent.y)
-    setMaterialGaze(pupilMatR, -gazeCurrent.x, gazeCurrent.y)
+  // --- drawing ----------------------------------------------------------------
+
+  function drawState(): FaceDrawState {
+    return {
+      eyeL: shown.eyeL,
+      eyeR: shown.eyeR,
+      brow: shown.brow,
+      mouth: hideMouth ? null : (mouthOverride ?? shown.mouth),
+      pupil: pupilCell,
+      // Union: the compositor still skips the individual pupil-less eye
+      // (per-eye EYE_CELLS_WITHOUT_PUPIL check), so a wink keeps the open
+      // eye's pupil — matching the old per-plane visibility behavior.
+      pupilsVisible: !EYE_CELLS_WITHOUT_PUPIL.has(shown.eyeL) || !EYE_CELLS_WITHOUT_PUPIL.has(shown.eyeR),
+      gaze: { x: gazeCurrent.x, y: gazeCurrent.y },
+    }
+  }
+
+  function redraw(): void {
+    compositor.draw(drawState())
+    lastDrawnGaze.x = gazeCurrent.x
+    lastDrawnGaze.y = gazeCurrent.y
+    dirty = false
   }
 
   function update(dt: number): void {
@@ -326,15 +224,21 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
     const k = 1 - Math.exp(-dt / GAZE_TAU_S)
     gazeCurrent.x += (gazeTarget.x - gazeCurrent.x) * k
     gazeCurrent.y += (gazeTarget.y - gazeCurrent.y) * k
-    applyGaze()
+    const gazeMoved =
+      !(Math.abs(gazeCurrent.x - lastDrawnGaze.x) <= GAZE_REDRAW_EPSILON) ||
+      !(Math.abs(gazeCurrent.y - lastDrawnGaze.y) <= GAZE_REDRAW_EPSILON)
+    if (dirty || gazeMoved) redraw()
   }
 
+  // Publish the overlay texture and render the initial (neutral) face.
+  config.applyTexture(compositor.texture)
+  redraw()
+
   return {
-    group,
     setExpression,
     setMouthOverride(cell: MouthCellName | null): void {
       mouthOverride = cell
-      applyMouthCell()
+      dirty = true
     },
     setGaze(x: number, y: number): void {
       gazeTarget.x = x
@@ -354,19 +258,13 @@ export function createFaceRig(head: THREE.Object3D, config: FaceRigConfig): Face
         ...shown,
         mouthOverride,
         gaze: { ...gazeCurrent },
-        pupilsVisible: pupilL.visible && pupilR.visible,
+        // AND semantics (both eyes can show a pupil) — unchanged shape.
+        pupilsVisible: !EYE_CELLS_WITHOUT_PUPIL.has(shown.eyeL) && !EYE_CELLS_WITHOUT_PUPIL.has(shown.eyeR),
       }
     },
     dispose(): void {
-      head.remove(group)
-      for (const geometry of geometries) geometry.dispose()
-      for (const material of materials) {
-        // atlas materials own a cloned texture; the source textures stay
-        // with the caller
-        const map = (material as THREE.MeshBasicMaterial).map
-        if (material.userData.kind === 'face-atlas' && map) map.dispose()
-        material.dispose()
-      }
+      config.applyTexture(null)
+      compositor.dispose()
     },
   }
 }
