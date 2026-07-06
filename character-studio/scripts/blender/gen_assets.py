@@ -25,6 +25,7 @@ import numpy as np
 import blender_io
 import bodies
 import parts as parts_mod
+import patterns
 import weld
 from meshkit import rasterize_mask, write_png
 
@@ -77,6 +78,18 @@ def build_body(archetype: str, skel: dict, render: bool) -> None:
 
     mask = rasterize_mask(shells, size=1024, blur=3)
     write_png(os.path.join(TEX_DIR, f"body-{archetype}.mask.png"), mask)
+
+    # plan 010: bake per-species pattern-mask variants. Rebuild the shells
+    # fresh per pattern (apply mutates channels in place — do NOT reuse the
+    # welded shells' state across patterns).
+    for pid, pdef in patterns.BODY_PATTERNS.items():
+        if archetype not in pdef["archetypes"]:
+            continue
+        pshells, pmeta = bodies.build_body_shells(archetype, skel, fillet=False)
+        pdef["apply"](pshells, skel, pmeta)
+        pmask = rasterize_mask(pshells, size=1024, blur=3)
+        write_png(os.path.join(TEX_DIR, f"body-{archetype}.{pid}.mask.png"), pmask)
+        print(f"[body {archetype}] pattern {pid} mask -> body-{archetype}.{pid}.mask.png")
 
     glb = os.path.join(ASSET_DIR, f"body-{archetype}.glb")
     blender_io.export_glb(glb, [arm, *body_objects])
