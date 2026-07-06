@@ -19,12 +19,15 @@ import { IslandTerrain } from './scene/IslandTerrain'
 import { PlaceGhost } from './scene/PlaceGhost'
 import { PlacedObjects } from './scene/PlacedObjects'
 import { SeaSurface } from './scene/SeaSurface'
-import { adjustTier, brushCells, setSurface, setTier } from './terrain/gridOps'
+import { adjustTierToward, brushCells, setSurface, setTier } from './terrain/gridOps'
 import { addObject, makePlacedObject, removeObject } from './terrain/objectOps'
 import { seedIsland } from './terrain/seed'
 import {
+  cellIndex,
   cellLine,
+  inBounds,
   type IslandSpec,
+  MAX_TIER,
   type ObjectKind,
   type PlacedObject,
   SURFACE_AUTO,
@@ -96,6 +99,10 @@ export function App() {
   // Last cell painted this stroke, so a fast drag interpolates a continuous
   // line between pointer samples instead of leaving gaps (null = stroke start).
   const lastCell = useRef<{ c: number; r: number } | null>(null)
+  // Per-stroke raise/lower target tier, captured from the first painted cell
+  // (null = not yet captured this stroke). Cells move one step toward this
+  // target and are never pushed past it — see adjustTierToward.
+  const strokeTarget = useRef<number | null>(null)
 
   const applySnapshot = useCallback((tiers: number[], surface: number[]) => {
     const grid = specRef.current.grid
@@ -110,6 +117,7 @@ export function App() {
     strokeBefore.current = { tiers: grid.tiers.slice(), surface: grid.surface.slice() }
     visited.current.clear()
     lastCell.current = null
+    strokeTarget.current = null
   }, [])
 
   const paint = useCallback((x: number, z: number) => {
@@ -131,12 +139,20 @@ export function App() {
     const cells = [...cellSet]
     if (cells.length === 0) return
     for (const i of cells) visited.current.add(i)
+    if (strokeTarget.current === null) {
+      // Tier under the cursor at stroke start; fall back to the first brush
+      // cell if the exact cursor cell is out of bounds.
+      const centerIdx = inBounds(grid, c, r) ? cellIndex(grid, c, r) : cells[0]
+      const startTier = grid.tiers[centerIdx]
+      const dir = toolRef.current === 'lower' ? -1 : 1
+      strokeTarget.current = Math.max(0, Math.min(MAX_TIER, startTier + dir))
+    }
     switch (toolRef.current) {
       case 'raise':
-        adjustTier(grid, cells, +1)
+        adjustTierToward(grid, cells, +1, strokeTarget.current)
         break
       case 'lower':
-        adjustTier(grid, cells, -1)
+        adjustTierToward(grid, cells, -1, strokeTarget.current)
         break
       case 'water':
         setTier(grid, cells, 0)

@@ -33,6 +33,19 @@ export function adjustTier(grid: TerrainGrid, cells: number[], delta: number): v
   for (const i of cells) grid.tiers[i] = clampTier(grid.tiers[i] + delta)
 }
 
+/** Move each listed cell's tier one step (delta = +1 or -1) TOWARD `target`, but
+ *  never past it: a raise (delta > 0) only lifts cells currently below `target`; a
+ *  lower (delta < 0) only drops cells currently above `target`. Cells already at or
+ *  beyond `target` are left unchanged. `target` should be pre-clamped by the caller.
+ *  In place; clamped to 0..MAX_TIER. */
+export function adjustTierToward(grid: TerrainGrid, cells: number[], delta: number, target: number): void {
+  for (const i of cells) {
+    const t = grid.tiers[i]
+    if (delta > 0 && t < target) grid.tiers[i] = clampTier(t + 1)
+    else if (delta < 0 && t > target) grid.tiers[i] = clampTier(t - 1)
+  }
+}
+
 /** Set tier (clamped) for each listed cell. */
 export function setTier(grid: TerrainGrid, cells: number[], tier: number): void {
   const t = clampTier(tier)

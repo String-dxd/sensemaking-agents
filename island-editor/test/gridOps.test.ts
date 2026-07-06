@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adjustTier, brushCells, fillRect, setSurface, setTier } from '../src/terrain/gridOps'
+import { adjustTier, adjustTierToward, brushCells, fillRect, setSurface, setTier } from '../src/terrain/gridOps'
 import { cellIndex, createOceanGrid, MAX_TIER, SURFACE_PATH } from '../src/terrain/terrainGrid'
 
 describe('gridOps', () => {
@@ -16,6 +16,47 @@ describe('gridOps', () => {
     setTier(grid, cells, 2)
     for (let n = 0; n < 10; n++) adjustTier(grid, cells, -1)
     expect(grid.tiers[cells[0]]).toBe(0)
+  })
+
+  it('adjustTierToward raise moves a cell one step toward the target, never past it', () => {
+    const grid = createOceanGrid()
+    const below = cellIndex(grid, 10, 10)
+    const atTarget = cellIndex(grid, 11, 10)
+    const above = cellIndex(grid, 12, 10)
+    const atZero = cellIndex(grid, 13, 10)
+    setTier(grid, [below], 2)
+    setTier(grid, [atTarget], 3)
+    setTier(grid, [above], 4)
+    setTier(grid, [atZero], 0)
+    adjustTierToward(grid, [below, atTarget, above, atZero], +1, 3)
+    expect(grid.tiers[below]).toBe(3) // 2 -> 3 (toward target)
+    expect(grid.tiers[atTarget]).toBe(3) // already at target, unchanged
+    expect(grid.tiers[above]).toBe(4) // above target, not lowered
+    expect(grid.tiers[atZero]).toBe(1) // one step toward target, not jumped to 3
+  })
+
+  it('adjustTierToward lower moves a cell one step toward the target, never past it', () => {
+    const grid = createOceanGrid()
+    const above = cellIndex(grid, 10, 10)
+    const atTarget = cellIndex(grid, 11, 10)
+    const below = cellIndex(grid, 12, 10)
+    setTier(grid, [above], 3)
+    setTier(grid, [atTarget], 1)
+    setTier(grid, [below], 0)
+    adjustTierToward(grid, [above, atTarget, below], -1, 1)
+    expect(grid.tiers[above]).toBe(2) // 3 -> 2 (toward target)
+    expect(grid.tiers[atTarget]).toBe(1) // already at target, unchanged
+    expect(grid.tiers[below]).toBe(0) // below target, not raised
+  })
+
+  it('adjustTierToward stays within 0..MAX_TIER when stepping toward the target', () => {
+    const grid = createOceanGrid()
+    const cell = cellIndex(grid, 10, 10)
+    setTier(grid, [cell], MAX_TIER - 1)
+    adjustTierToward(grid, [cell], +1, MAX_TIER)
+    expect(grid.tiers[cell]).toBe(MAX_TIER)
+    adjustTierToward(grid, [cell], +1, MAX_TIER)
+    expect(grid.tiers[cell]).toBe(MAX_TIER) // already at target/MAX_TIER, unchanged
   })
 
   it('brushCells clips at grid edges', () => {
