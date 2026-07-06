@@ -23,6 +23,7 @@ import { revertToLastAutosave } from '../roster/rosterStore'
 import { RosterView } from '../roster/RosterView'
 import { studioCommands } from '../state/commandStore'
 import { useCharacterStore } from '../state/characterStore'
+import { useAdvancedMode } from '../state/studioStores'
 import { MotionDebugPanel } from '../viewport/MotionDebugPanel'
 import { Stage, type OrbitControlsHandle } from '../viewport/Stage'
 import { usePlayStore } from '../play/playStore'
@@ -171,6 +172,7 @@ export function Shell() {
   const [rosterOpen, setRosterOpen] = useState(false)
   const orbitControlsRef = useRef<OrbitControlsHandle>(null)
   const playing = usePlayStore((s) => s.mode) === 'play'
+  const advanced = useAdvancedMode((s) => s.advanced)
   const showStats = useMemo(() => new URLSearchParams(window.location.search).get('stats') === '1', [])
 
   useShellKeyboardShortcuts(setEditMode)
@@ -187,10 +189,11 @@ export function Shell() {
           <ViewportErrorBoundary>
             <Stage showStats={showStats} orbitControlsRef={orbitControlsRef} lightGizmosAllowed={editMode === 'lighting'} />
           </ViewportErrorBoundary>
-          {/* Dev-only spring-tuning tool (plan 003) — always available
-              outside Play, docked bottom-left of the viewport (not tied to
-              a builder-flow mode). Hidden in Play like every other panel. */}
-          {playing ? null : <MotionDebugPanel />}
+          {/* Dev-only spring-tuning tool (plan 003) — an Advanced-mode raw
+              control since plan 009, docked bottom-left of the viewport
+              (not tied to a builder-flow mode). Hidden in Play like every
+              other panel. */}
+          {playing || !advanced ? null : <MotionDebugPanel />}
         </div>
         <ModeTabs editMode={editMode} onSelectEdit={setEditMode} />
         <div className="cs-column cs-scroll">
