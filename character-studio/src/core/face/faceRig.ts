@@ -19,8 +19,10 @@ import {
   type PupilCellName,
 } from './atlas'
 import {
+  DEFAULT_PLACEMENT,
   FACE_LAYER_RADIAL_OFFSET,
   FACE_LAYER_RADIAL_STEP,
+  type FacePlacement,
   makeAtlasMaterial,
   makeFacePlaneGeometry,
   makePupilMaterial,
@@ -55,41 +57,6 @@ export interface FaceRigTextures {
   pupil: THREE.Texture
   brow: THREE.Texture
   mouth: THREE.Texture
-}
-
-/** Angular placement/sizing of the face parts, radians (plan 006 re-anchors real heads through this). */
-export interface FacePlacement {
-  eyeAzimuth: number
-  eyeElevation: number
-  eyeWidth: number
-  eyeHeight: number
-  browLift: number
-  browWidth: number
-  browHeight: number
-  mouthElevation: number
-  mouthWidth: number
-  mouthHeight: number
-  /**
-   * Extra radial offset (m) for the mouth plane only — muzzle parts push the
-   * drawn mouth out so it floats on the muzzle front (plan 006 anchor config).
-   */
-  mouthRadialOffset: number
-}
-
-const DEG = Math.PI / 180
-
-export const DEFAULT_PLACEMENT: FacePlacement = {
-  eyeAzimuth: 20 * DEG,
-  eyeElevation: 5 * DEG,
-  eyeWidth: 26 * DEG,
-  eyeHeight: 30 * DEG,
-  browLift: 18 * DEG,
-  browWidth: 24 * DEG,
-  browHeight: 16 * DEG,
-  mouthElevation: -18 * DEG,
-  mouthWidth: 32 * DEG,
-  mouthHeight: 24 * DEG,
-  mouthRadialOffset: 0,
 }
 
 export interface FaceRigConfig {
