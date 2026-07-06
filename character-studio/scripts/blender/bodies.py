@@ -262,12 +262,17 @@ def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[
 
     # --- legs -------------------------------------------------------------------
     leg_r = style["leg_r"] * u / 0.9
-    # root the leg high inside the torso underside so the hip junction hides
-    leg = capsule_along("legL", tuple(j["upperLegL"] + np.array([0, 0.05, 0]) * u), tuple(j["footL"]), leg_r, leg_r * 0.85, useg=12, vseg=10, fullness=0.55)
+    # root the leg high inside the torso underside so the hip junction hides;
+    # the tip dips BELOW the ankle into the foot ellipsoid's volume so the weld
+    # boolean actually intersects them (the capsule converges to a point at its
+    # endpoint — ending exactly at footL leaves the thin bird leg disjoint from
+    # its foot and the union exports floating feet).
+    leg_end = j["footL"] * np.array([1.0, 0.7, 1.0])
+    leg = capsule_along("legL", tuple(j["upperLegL"] + np.array([0, 0.05, 0]) * u), tuple(leg_end), leg_r, leg_r * 0.85, useg=12, vseg=10, fullness=0.55)
     # sculpted fillet: thighs flow out of the torso underside (haunch read)
     if fillet:
         fillet_limb_into_torso(
-            leg, j["upperLegL"] + np.array([0, 0.05, 0]) * u, j["footL"], leg_r, leg_r * 0.85, torso_sdf, k=0.05 * u
+            leg, j["upperLegL"] + np.array([0, 0.05, 0]) * u, leg_end, leg_r, leg_r * 0.85, torso_sdf, k=0.05 * u
         )
     t = leg.params[:, 1]
     _chain_weights(leg, ["upperLegL", "lowerLegL"], t, [0.5], 0.16)

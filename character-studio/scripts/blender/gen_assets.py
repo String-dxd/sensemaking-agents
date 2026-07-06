@@ -25,6 +25,7 @@ import numpy as np
 import blender_io
 import bodies
 import parts as parts_mod
+import weld
 from meshkit import rasterize_mask, write_png
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -50,46 +51,28 @@ def tri_count(objects) -> int:
     return total
 
 
-def body_region_ids(shells, skel: dict) -> list[int]:
-    """Per-face hide-region ids (plan 008 body-hide submeshes): 1 = torso
-    (torso shell at/above the spine joint), 2 = hips (torso shell below it),
-    3 = upperLegs (leg shells above the knee). 0 = never hidden."""
-    j = bodies.joints(skel)
-    spine_y = j["spine"][1]
-    knee_y = j["lowerLegL"][1]
-    ids: list[int] = []
-    for shell in shells:
-        if shell.name == "torso":
-            for f in shell.faces:
-                cy = float(np.mean(shell.verts[list(f), 1]))
-                ids.append(1 if cy >= spine_y else 2)
-        elif shell.name in ("legL", "legR"):
-            for f in shell.faces:
-                cy = float(np.mean(shell.verts[list(f), 1]))
-                ids.append(3 if cy >= knee_y else 0)
-        else:
-            ids.extend([0] * len(shell.faces))
-    return ids
-
-
 def build_body(archetype: str, skel: dict, render: bool) -> None:
     blender_io.clean_scene()
     arm = blender_io.build_armature(f"rig", skel)
-    shells, meta = bodies.build_body_shells(archetype, skel)
-    obj, offsets = blender_io.build_object("body", shells)
-    blender_io.skin_object(obj, arm, shells, offsets)
-    keys = bodies.body_shape_keys(shells, meta, skel["uniformScale"])
-    blender_io.add_shape_keys(obj, keys)
+    # plan 003: weld the RAW shells (fillet=False — see build_body_shells) into
+    # ONE continuous closed manifold; UVs/weights/channels/morphs transfer from
+    # the shell source and the junction bands get weight+morph+surface smoothing.
+    shells, meta = bodies.build_body_shells(archetype, skel, fillet=False)
+    obj, morph_keys, junction_verts = weld.weld_body(shells, meta, skel, arm)
+    blender_io.add_shape_keys(obj, morph_keys)
 
     # plan 008 cross-plan fix: split hideable regions into tagged submeshes
-    # (same shells, same silhouette; boundary verts duplicate at the seams —
-    # custom normals keep shading continuous).
+    # (same silhouette; boundary verts duplicate at the seams — custom normals
+    # keep shading continuous). Region ids are recomputed on the welded mesh by
+    # nearest-source-shell classification + joint y (shell identity is gone).
     regions = blender_io.split_object_by_face_regions(
-        obj, body_region_ids(shells, skel), {1: "torso", 2: "hips", 3: "upperLegs"}
+        obj, weld.welded_region_ids(obj, shells, skel), {1: "torso", 2: "hips", 3: "upperLegs"}
     )
     body_objects = [obj, *regions.values()]
 
     tris = tri_count(body_objects)
+    verts = sum(len(o.data.vertices) for o in body_objects)
+    print(f"welded {archetype}: verts={verts} tris={tris} (budget {TRI_BUDGET_BODY}) junction-verts={junction_verts}")
     assert tris <= TRI_BUDGET_BODY, f"{archetype} body {tris} tris > {TRI_BUDGET_BODY}"
 
     mask = rasterize_mask(shells, size=1024, blur=3)
