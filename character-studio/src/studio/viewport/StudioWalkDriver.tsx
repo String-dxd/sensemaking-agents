@@ -41,11 +41,19 @@ function StudioWalkDriverInner() {
     const session = createStudioWalk(character.root, character.boneByName.values(), animations, {
       hipsRebase: { from: [REF_HIPS[0], REF_HIPS[1], REF_HIPS[2]], to: character.hipsRest },
     })
+    // Clips own hips position + head rotation while walking — narrow the idle
+    // layer to breath-only, exactly like PlayMode: its sway/microTurn channels
+    // write hips.x / head yaw absolutely in the `procedural` phase (which runs
+    // AFTER our `animation`-phase clip writes) and would clobber the gait
+    // every frame. Read `idle` at effect-run time so a rig rebuild doesn't
+    // churn this effect.
+    useMotionStudio.getState().idle?.setChannels({ headBob: false, sway: false, microTurn: false })
     const onAnimation = (dt: number) => session.update(dt)
     registerUpdate('animation', onAnimation)
     return () => {
       unregisterUpdate('animation', onAnimation)
       session.dispose()
+      useMotionStudio.getState().idle?.setChannels({ headBob: true, sway: true, microTurn: true })
     }
   }, [studioWalk, mode, character, animations])
 
