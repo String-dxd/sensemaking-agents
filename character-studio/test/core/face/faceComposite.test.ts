@@ -8,10 +8,12 @@ import { BROW_CELLS, CELL_UV, EYE_CELLS, MOUTH_CELLS, PUPIL_CELLS } from '../../
 import {
   type CanvasLike,
   createFaceCompositor,
+  DEFAULT_PLACEMENT,
   type FaceDrawState,
+  type FacePlacement,
   facePlacementToUvRect,
 } from '../../../src/core/face/faceComposite'
-import { DEFAULT_PLACEMENT, type FacePlacement, GAZE_MAX } from '../../../src/core/face/facePlane'
+import { GAZE_MAX } from '../../../src/core/face/facePlane'
 
 const ATLAS = 256
 

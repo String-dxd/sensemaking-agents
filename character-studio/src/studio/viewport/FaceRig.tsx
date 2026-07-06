@@ -2,8 +2,12 @@ import { useTexture } from '@react-three/drei'
 import { Suspense, useEffect } from 'react'
 import { create } from 'zustand'
 import { resolveAtlasUrls } from '../../core/face/atlasRegistry'
-import { type CanvasSourceLike, createFaceCompositor } from '../../core/face/faceComposite'
-import { DEFAULT_PLACEMENT, type FacePlacement } from '../../core/face/facePlane'
+import {
+  type CanvasSourceLike,
+  createFaceCompositor,
+  DEFAULT_PLACEMENT,
+  type FacePlacement,
+} from '../../core/face/faceComposite'
 import { createFaceRig, type FaceRig as FaceRigHandle } from '../../core/face/faceRig'
 import { setFaceMap, type ToonMaterial } from '../../core/materials/toonMaterial'
 import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
