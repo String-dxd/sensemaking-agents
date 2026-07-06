@@ -1,5 +1,10 @@
 // Face-plane geometry + unlit atlas materials (plan 002, step 2).
 //
+// As of advisor plan 002 the STUDIO VIEWPORT draws faces on the head mesh
+// (faceComposite.ts); this plane-geometry path remains ONLY for the
+// .companion.glb export compiler (src/core/export/compile.ts). Export
+// migration tracked as advisor plan 005.
+//
 // Pure three, no React. Face parts are slightly curved plane meshes hovering
 // ~1.5 mm off the head sphere (Wind Waker pattern); each displays one atlas
 // cell selected by fractional UV offset. Face materials are ALWAYS unlit —
@@ -8,6 +13,45 @@
 
 import * as THREE from 'three'
 import { type AtlasCell, CELL_UV, cellUvOffset } from './atlas'
+
+/** Angular placement/sizing of the face parts, radians. The viewport converts
+ * these to head-UV rectangles (faceComposite.ts); the export compiler still
+ * builds hover planes from them (see header note). */
+export interface FacePlacement {
+  eyeAzimuth: number
+  eyeElevation: number
+  eyeWidth: number
+  eyeHeight: number
+  browLift: number
+  browWidth: number
+  browHeight: number
+  mouthElevation: number
+  mouthWidth: number
+  mouthHeight: number
+  /**
+   * Extra radial offset (m) for the mouth plane only — EXPORT PATH ONLY:
+   * muzzle parts push the exported mouth plane out so it floats on the
+   * muzzle front. The viewport compositor ignores this field (the drawn
+   * mouth stays on the head surface at the muzzle root).
+   */
+  mouthRadialOffset: number
+}
+
+const DEG = Math.PI / 180
+
+export const DEFAULT_PLACEMENT: FacePlacement = {
+  eyeAzimuth: 20 * DEG,
+  eyeElevation: 5 * DEG,
+  eyeWidth: 26 * DEG,
+  eyeHeight: 30 * DEG,
+  browLift: 18 * DEG,
+  browWidth: 24 * DEG,
+  browHeight: 16 * DEG,
+  mouthElevation: -18 * DEG,
+  mouthWidth: 32 * DEG,
+  mouthHeight: 24 * DEG,
+  mouthRadialOffset: 0,
+}
 
 /** Radial hover distance of the base face layer off the head surface (m). */
 export const FACE_LAYER_RADIAL_OFFSET = 0.0015
