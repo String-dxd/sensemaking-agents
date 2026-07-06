@@ -101,8 +101,143 @@ def _apply_duckling(shells: list[Shell], skel: dict, meta: dict) -> None:
         wing.channel(CH_ACCENT, band)
 
 
+# --- pattern-shiba: cream points (urajiro) ----------------------------------
+def _apply_shiba(shells: list[Shell], skel: dict, meta: dict) -> None:
+    by = _by_name(shells)
+
+    # head: face patch widened over muzzle + cheeks + brow, plus two brow dots
+    head = by["head"]
+    center = meta["head_center"]
+    r = meta["head_r"]
+    d = (head.verts - center[None, :]) / r
+    face = smoothstep(0.15, 0.6, d[:, 2]) * smoothstep(0.6, -0.3, d[:, 1])
+    dots = np.zeros(len(d))
+    for cx in (-0.28, 0.28):
+        c = np.array([cx, 0.45, 0.72])
+        dots = np.maximum(dots, np.exp(-((d - c[None, :]) ** 2).sum(1) / (2 * 0.16**2)))
+    head.channel(CH_BELLY, np.clip(face + 0.9 * dots, 0.0, 1.0))
+
+    # torso: belly ellipse extended UP the chest (higher center, ×1.15 radius)
+    t = meta["torso"]
+    cy, ry, rx = t["cy"], t["ry"], t["rx"]
+    v = by["torso"].verts
+    du = v[:, 0] / (rx * 0.85)
+    dv = (v[:, 1] - (cy + ry * 0.05)) / (ry * 0.62)
+    front = smoothstep(0.0, 0.35, v[:, 2] / max(rx, 1e-9))
+    belly = (1.0 - smoothstep(0.55, 1.0, np.sqrt(du * du + dv * dv) / 1.15)) * front
+    by["torso"].channel(CH_BELLY, belly)
+
+    # arms/legs: cream on the FRONT faces (front-inner AC-shiba read)
+    for name in ("armL", "armR", "legL", "legR"):
+        sh = by[name]
+        zc = sh.verts[:, 2] - sh.verts[:, 2].mean()
+        half = max(float(np.abs(zc).max()), 1e-9)
+        sh.channel(CH_BELLY, 0.85 * smoothstep(0.1, 0.5, zc / half))
+
+
+# --- pattern-tabby: back stripes + belly ------------------------------------
+def _apply_tabby(shells: list[Shell], skel: dict, meta: dict) -> None:
+    by = _by_name(shells)
+
+    # torso: soft horizontal bars on the back only (secondary). The wrap seam
+    # is AT the back centerline; the sine bars run horizontally so they are
+    # continuous across it (see plan 011 gate note).
+    t = meta["torso"]
+    rx = t["rx"]
+    v = by["torso"].verts
+    back_gate = smoothstep(0.1, 0.6, -v[:, 2] / max(rx, 1e-9))
+    stripes = np.clip(back_gate * (0.55 + 0.45 * np.sin(v[:, 1] * 70.0)), 0.0, 1.0)
+    by["torso"].channel(CH_SECONDARY, stripes)
+
+    # head: cap extended down the forehead, broken by an M-notch
+    head = by["head"]
+    center = meta["head_center"]
+    r = meta["head_r"]
+    d = (head.verts - center[None, :]) / r
+    cap = smoothstep(0.2, 0.7, d[:, 1]) * smoothstep(0.35, -0.4, d[:, 2])
+    cap = cap * (0.75 + 0.25 * np.sin(d[:, 0] * 9.0))
+    head.channel(CH_SECONDARY, np.clip(cap * 0.9, 0.0, 1.0))
+
+
+# --- pattern-fox: mask + dark socks -----------------------------------------
+def _apply_fox(shells: list[Shell], skel: dict, meta: dict) -> None:
+    by = _by_name(shells)
+
+    # head: white cheek flares (belly), widened at the cheeks
+    head = by["head"]
+    center = meta["head_center"]
+    r = meta["head_r"]
+    d = (head.verts - center[None, :]) / r
+    cheek = smoothstep(0.05, 0.5, d[:, 2]) * smoothstep(0.5, -0.4, d[:, 1])
+    cheek = cheek * (1.0 + 0.4 * smoothstep(0.1, 0.5, np.abs(d[:, 0])))
+    head.channel(CH_BELLY, np.clip(cheek, 0.0, 1.0))
+
+    # arms/legs: dark socks (accent) over the OUTER half; hands/feet fully dark
+    for name in ("armL", "armR", "legL", "legR"):
+        sh = by[name]
+        sh.channel(CH_ACCENT, smoothstep(0.45, 0.7, sh.params[:, 1]))
+    for name in ("handL", "handR", "footL", "footR"):
+        sh = by[name]
+        sh.channel(CH_ACCENT, np.ones(len(sh.verts)))
+
+
+# --- pattern-bear: muzzle patch + chest crescent ----------------------------
+def _apply_bear(shells: list[Shell], skel: dict, meta: dict) -> None:
+    by = _by_name(shells)
+
+    # head: REPLACE the default face patch with a tight muzzle oval
+    head = by["head"]
+    center = meta["head_center"]
+    r = meta["head_r"]
+    d = (head.verts - center[None, :]) / r
+    muzzle = smoothstep(0.45, 0.8, d[:, 2]) * smoothstep(0.25, -0.35, d[:, 1])
+    head.channel(CH_BELLY, muzzle)
+
+    # torso: small chest crescent (belly ellipse ×0.55, raised center)
+    t = meta["torso"]
+    cy, ry, rx = t["cy"], t["ry"], t["rx"]
+    v = by["torso"].verts
+    du = v[:, 0] / (rx * 0.85)
+    dv = (v[:, 1] - (cy + ry * 0.2)) / (ry * 0.62)
+    front = smoothstep(0.0, 0.35, v[:, 2] / max(rx, 1e-9))
+    belly = (1.0 - smoothstep(0.55, 1.0, np.sqrt(du * du + dv * dv) / 0.55)) * front
+    by["torso"].channel(CH_BELLY, belly)
+
+
+# --- pattern-rabbit: soft underside -----------------------------------------
+def _apply_rabbit(shells: list[Shell], skel: dict, meta: dict) -> None:
+    by = _by_name(shells)
+
+    # torso: wide belly (×1.2), full weight
+    t = meta["torso"]
+    cy, ry, rx = t["cy"], t["ry"], t["rx"]
+    v = by["torso"].verts
+    du = v[:, 0] / (rx * 0.85)
+    dv = (v[:, 1] - (cy - ry * 0.12)) / (ry * 0.62)
+    front = smoothstep(0.0, 0.35, v[:, 2] / max(rx, 1e-9))
+    belly = (1.0 - smoothstep(0.55, 1.0, np.sqrt(du * du + dv * dv) / 1.2)) * front
+    by["torso"].channel(CH_BELLY, belly)
+
+    # head: full muzzle-to-chest blaze (no vertical gate below the eye line)
+    head = by["head"]
+    center = meta["head_center"]
+    r = meta["head_r"]
+    d = (head.verts - center[None, :]) / r
+    head.channel(CH_BELLY, smoothstep(0.2, 0.55, d[:, 2]))
+
+    # feet: pale paws
+    for name in ("footL", "footR"):
+        sh = by[name]
+        sh.channel(CH_BELLY, np.full(len(sh.verts), 0.6))
+
+
 BODY_PATTERNS: dict[str, dict] = {
     "pattern-robin": {"archetypes": ["bird"], "apply": _apply_robin},
     "pattern-owl": {"archetypes": ["bird"], "apply": _apply_owl},
     "pattern-duckling": {"archetypes": ["bird"], "apply": _apply_duckling},
+    "pattern-shiba": {"archetypes": ["biped-round"], "apply": _apply_shiba},
+    "pattern-tabby": {"archetypes": ["biped-slim"], "apply": _apply_tabby},
+    "pattern-fox": {"archetypes": ["biped-slim"], "apply": _apply_fox},
+    "pattern-bear": {"archetypes": ["biped-round"], "apply": _apply_bear},
+    "pattern-rabbit": {"archetypes": ["biped-slim"], "apply": _apply_rabbit},
 }
