@@ -52,3 +52,8 @@ export function patternMaskUrl(id: string | undefined, archetype: Archetype): st
   if (!id) return null
   return getPattern(id)?.masks[archetype] ?? null
 }
+
+/** True when a textureId resolves through the authored-mask path (plain authored or a baked pattern variant). */
+export function resolvesAuthored(textureId: string): boolean {
+  return textureId === 'authored' || getPattern(textureId) !== null
+}
