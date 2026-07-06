@@ -31,6 +31,7 @@ import {
   applyTextureId,
   defaultTextureResolver,
   getOutline,
+  patternMaskUrl,
   removeOutline,
   type ResolvedTextures,
   type TextureResolver,
@@ -113,11 +114,15 @@ export function CharacterRoot() {
     () => [body.url, ...equipped.map((e) => e.def.url as string), ...wornResolved.map((i) => i.def.url)],
     [body, equipped, wornResolved],
   )
+  const bodyTextureId = materialsSpec.body?.textureId
   const maskEntries = useMemo(() => {
-    const entries: Array<{ region: Region; url: string }> = [{ region: 'body', url: body.maskUrl }]
+    // plan 010: a body pattern (species preset) swaps the body mask for its
+    // baked variant; falls back to the plain authored mask otherwise.
+    const bodyMaskUrl = patternMaskUrl(bodyTextureId, archetype) ?? body.maskUrl
+    const entries: Array<{ region: Region; url: string }> = [{ region: 'body', url: bodyMaskUrl }]
     for (const { def } of equipped) if (def.maskUrl) entries.push({ region: def.region, url: def.maskUrl })
     return entries
-  }, [body, equipped])
+  }, [body, equipped, bodyTextureId, archetype])
   const itemMaskEntries = useMemo(
     () => wornResolved.flatMap((i) => (i.def.maskUrl ? [{ itemId: i.itemId, url: i.def.maskUrl }] : [])),
     [wornResolved],
