@@ -71,7 +71,11 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
       hips: [1, 0.86, 1],
       ...legs(0.85),
       ...spineChain(0.95),
-      ...arms([0.9, 0.9, 1]),
+      // wider x-reach than the other archetypes (plan 007): the round body's
+      // fat pear torso would otherwise swallow the near-vertical hanging arm
+      // along its length; pushing the forearm/hand clear of the flank keeps the
+      // arm a free limb (welds only at the buried shoulder, no pose-tear).
+      ...arms([1.2, 0.9, 1]),
     },
     headCenter: [0, 0.19, 0],
     headRadius: 0.22,
