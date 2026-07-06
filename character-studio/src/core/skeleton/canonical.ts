@@ -52,12 +52,12 @@ const W: Record<BoneName, readonly [number, number, number]> = {
   'tail.4': [0, 0.42, -0.4],
   shoulderL: [0.055, 0.52, 0],
   upperArmL: [0.115, 0.505, 0.005],
-  foreArmL: [0.155, 0.42, 0.01],
-  handL: [0.185, 0.34, 0.015], // wrist at hip level (y≈0.34), hugging the flank
+  foreArmL: [0.17, 0.415, 0.01],
+  handL: [0.205, 0.335, 0.015], // wrist at hip level (y≈0.34), just outside the flank
   shoulderR: [-0.055, 0.52, 0],
   upperArmR: [-0.115, 0.505, 0.005],
-  foreArmR: [-0.155, 0.42, 0.01],
-  handR: [-0.185, 0.34, 0.015],
+  foreArmR: [-0.17, 0.415, 0.01],
+  handR: [-0.205, 0.335, 0.015],
   upperLegL: [0.075, 0.33, 0],
   lowerLegL: [0.075, 0.185, 0],
   footL: [0.075, 0.055, -0.01],
@@ -71,8 +71,8 @@ const W: Record<BoneName, readonly [number, number, number]> = {
   'socket.muzzle': [0, 0.75, 0.19],
   'socket.torso': [0, 0.47, 0.12],
   'socket.back': [0, 0.45, -0.14],
-  'socket.handL': [0.205, 0.312, 0.018],
-  'socket.handR': [-0.205, 0.312, 0.018],
+  'socket.handL': [0.225, 0.305, 0.018],
+  'socket.handR': [-0.225, 0.305, 0.018],
 }
 
 /** Parent of each bone — plan 000 §5's tree, verbatim (incl. 2026-07-03 amendment: shoulders under chest). */
