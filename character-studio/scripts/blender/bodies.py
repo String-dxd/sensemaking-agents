@@ -141,7 +141,12 @@ STYLE = {
 }
 
 
-def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
+def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[list[Shell], dict]:
+    """Build the body shells. `fillet=False` skips the SDF smooth-union fillet:
+    the weld pass (plan 003) booleans the RAW shells — filleted limb surfaces
+    lie tangent to the torso, and Blender's EXACT boolean then produces
+    non-manifold slivers (verified on biped-slim). The weld's own junction
+    smoothing restores the smooth shoulder/haunch read instead."""
     j = joints(skel)
     style = STYLE[archetype]
     u = skel["uniformScale"]
@@ -204,10 +209,11 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
         wing.verts[:, 2] *= 0.42  # flatten front-back into a paddle
         wing.verts[:, 2] += j["upperArmL"][2]
         # sculpted fillet: wing root flows into the torso, no crease
-        fillet_limb_into_torso(
-            wing, j["upperArmL"] - np.array([0.055, -0.005, 0]) * u, j["handL"] + np.array([0.02, -0.02, 0]) * u,
-            arm_r * 1.1 * 0.55, arm_r * 1.7 * 0.55, torso_sdf, k=0.05 * u,
-        )
+        if fillet:
+            fillet_limb_into_torso(
+                wing, j["upperArmL"] - np.array([0.055, -0.005, 0]) * u, j["handL"] + np.array([0.02, -0.02, 0]) * u,
+                arm_r * 1.1 * 0.55, arm_r * 1.7 * 0.55, torso_sdf, k=0.05 * u,
+            )
         t = wing.params[:, 1]
         _chain_weights(wing, ["upperArmL", "foreArmL", "handL"], t, [0.45, 0.8], 0.16)
         wing.channel(CH_ACCENT, smoothstep(0.72, 0.95, t) * 0.9)  # wing tips
@@ -227,7 +233,8 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
         arm_root = j["upperArmL"] * np.array([root_pull, 1.0, 1.0]) + np.array([0.0, 0.018, 0.0]) * u
         arm = capsule_along("armL", tuple(arm_root), tuple(j["handL"]), arm_r * 1.45, arm_r * 0.78, useg=12, vseg=10, fullness=0.55)
         # sculpted fillet: the shoulder flares tangentially into the torso
-        fillet_limb_into_torso(arm, arm_root, j["handL"], arm_r * 1.45, arm_r * 0.78, torso_sdf, k=0.055 * u)
+        if fillet:
+            fillet_limb_into_torso(arm, arm_root, j["handL"], arm_r * 1.45, arm_r * 0.78, torso_sdf, k=0.055 * u)
         t = arm.params[:, 1]
         _chain_weights(arm, ["upperArmL", "foreArmL"], t, [0.5], 0.18)
         arm.uv_rect = UV_ARM_L
@@ -258,9 +265,10 @@ def build_body_shells(archetype: str, skel: dict) -> tuple[list[Shell], dict]:
     # root the leg high inside the torso underside so the hip junction hides
     leg = capsule_along("legL", tuple(j["upperLegL"] + np.array([0, 0.05, 0]) * u), tuple(j["footL"]), leg_r, leg_r * 0.85, useg=12, vseg=10, fullness=0.55)
     # sculpted fillet: thighs flow out of the torso underside (haunch read)
-    fillet_limb_into_torso(
-        leg, j["upperLegL"] + np.array([0, 0.05, 0]) * u, j["footL"], leg_r, leg_r * 0.85, torso_sdf, k=0.05 * u
-    )
+    if fillet:
+        fillet_limb_into_torso(
+            leg, j["upperLegL"] + np.array([0, 0.05, 0]) * u, j["footL"], leg_r, leg_r * 0.85, torso_sdf, k=0.05 * u
+        )
     t = leg.params[:, 1]
     _chain_weights(leg, ["upperLegL", "lowerLegL"], t, [0.5], 0.16)
     leg.uv_rect = UV_LEG_L
