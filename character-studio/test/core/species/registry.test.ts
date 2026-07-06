@@ -70,10 +70,12 @@ describe('species registry', () => {
     expect(speciesForClass('bird').sort()).toEqual(['duckling', 'owl', 'robin'].sort())
   })
 
-  it('every species patternId resolves to a registered pattern with a baked mask for its archetype (plan 010)', () => {
+  it('every species patternId resolves to a registered pattern with a baked mask for its archetype (plans 010/011)', () => {
     const withPattern = SPECIES_IDS.filter((id) => (SPECIES_REGISTRY[id] as SpeciesDef).patternId)
-    // the 3 bird species carry patterns
-    expect(withPattern.sort()).toEqual(['duckling', 'owl', 'robin'])
+    // all 8 Core species now carry patterns (3 birds + 5 mammals, plan 011)
+    expect(withPattern.sort()).toEqual(
+      ['bear-cub', 'duckling', 'fox', 'owl', 'rabbit', 'robin', 'shiba', 'tabby-cat'].sort(),
+    )
     for (const id of withPattern) {
       const def = SPECIES_REGISTRY[id] as SpeciesDef
       const patternId = def.patternId as string

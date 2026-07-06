@@ -67,6 +67,7 @@ export const SPECIES_REGISTRY = {
       crest: { partId: 'none', morphs: {} },
     },
     bodyMorphs: { bellyRound: 0.35, chubby: 0.25 },
+    patternId: 'pattern-shiba',
     palette: {
       primary: '#e8a15c',
       secondary: '#d98f4a',
@@ -86,13 +87,12 @@ export const SPECIES_REGISTRY = {
     parts: {
       ears: { partId: 'upright-pointy', morphs: { length: 0.25, width: 0.35 } },
       muzzle: { partId: 'short-cat', morphs: { length: 0.25 } },
-      // Placeholder: fluff-fox at a slim width stands in for a cat tail
-      // until plan 011 ships `tail-slim-cat` and this row is updated.
-      tail: { partId: 'fluff-fox', morphs: { length: 0.35, width: 0.1 } },
+      tail: { partId: 'slim-cat', morphs: { length: 0.4, width: 0.2 } },
       claws: { partId: 'mitten-none', morphs: {} },
       crest: { partId: 'none', morphs: {} },
     },
     bodyMorphs: { slim: 0.3 },
+    patternId: 'pattern-tabby',
     palette: {
       primary: '#e2954f',
       secondary: '#c97a3a',
@@ -117,6 +117,7 @@ export const SPECIES_REGISTRY = {
       crest: { partId: 'none', morphs: {} },
     },
     bodyMorphs: { headBig: 0.2 },
+    patternId: 'pattern-rabbit',
     palette: {
       primary: '#efe6da',
       secondary: '#dccbb8',
@@ -143,6 +144,7 @@ export const SPECIES_REGISTRY = {
     bodyMorphs: { chubby: 0.5, bellyRound: 0.4 },
     boneScales: { head: { x: 1.05, y: 1.05, z: 1.05 } },
     boneScaleSlot: 'muzzle',
+    patternId: 'pattern-bear',
     palette: {
       primary: '#8a5f3f',
       secondary: '#7a5236',
@@ -167,6 +169,7 @@ export const SPECIES_REGISTRY = {
       crest: { partId: 'none', morphs: {} },
     },
     bodyMorphs: { slim: 0.35 },
+    patternId: 'pattern-fox',
     palette: {
       primary: '#e07b39',
       secondary: '#c9662c',
