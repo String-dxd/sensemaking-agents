@@ -17,8 +17,6 @@ export interface BodyMover {
   hop(): void
   /** Head yaw ±25° decaying oscillation over 600 ms. */
   shake(): void
-  /** Root follows a 1 m-radius circle at 0.6 m/s; toggling off snaps home. */
-  toggleWalk(): boolean
 }
 
 /** The live assembled character, published by CharacterRoot per assembly. */
@@ -38,14 +36,20 @@ export interface MotionStudioState {
   character: CharacterHandle | null
   /** The chain defs the live rig was created with (panel group discovery). */
   chains: SpringChainDef[]
+  /** Studio-mode walk-circle debug toggle (advisor plan 001) — drives
+   * `StudioWalkDriver` via the authored clip machine, outside Play mode. */
+  studioWalk: boolean
+  setStudioWalk(on: boolean): void
 }
 
-export const useMotionStudio = create<MotionStudioState>(() => ({
+export const useMotionStudio = create<MotionStudioState>((set) => ({
   rig: null,
   idle: null,
   mover: null,
   character: null,
   chains: [],
+  studioWalk: false,
+  setStudioWalk: (studioWalk) => set({ studioWalk }),
 }))
 
 // Studio-level shading control: terminatorWarmth is a factory uniform, not a
