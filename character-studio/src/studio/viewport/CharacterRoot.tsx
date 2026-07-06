@@ -33,6 +33,7 @@ import {
   getOutline,
   patternMaskUrl,
   removeOutline,
+  resolvesAuthored,
   type ResolvedTextures,
   type TextureResolver,
 } from '../../core/materials'
@@ -392,7 +393,7 @@ export function CharacterRoot() {
       if (!material) continue
       const assign = materialsSpec[region as Region] ?? FALLBACK_ASSIGN
       const resolveTexture: TextureResolver = (textureId) =>
-        textureId === 'authored'
+        resolvesAuthored(textureId)
           ? (texturesByRegion[region as Region] ?? { map: null, maskMap: null })
           : defaultTextureResolver(textureId)
       applyMaterialAssign(material, assign)
