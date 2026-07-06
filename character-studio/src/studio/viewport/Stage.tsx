@@ -14,6 +14,7 @@ import { LatticeTool } from './LatticeTool'
 import { LightGizmos, LightRig } from './LightRig'
 import { PostFX } from './PostFX'
 import { SculptTool } from './SculptTool'
+import { StudioWalkDriver } from './StudioWalkDriver'
 
 export type OrbitControlsHandle = ComponentRef<typeof OrbitControls>
 
@@ -105,6 +106,7 @@ export function Stage({ showStats = false, orbitControlsRef, lightGizmosAllowed 
       <Suspense fallback={null}>
         <PlayMode />
       </Suspense>
+      <StudioWalkDriver />
       {playing ? null : (
         <>
           <SculptTool />
