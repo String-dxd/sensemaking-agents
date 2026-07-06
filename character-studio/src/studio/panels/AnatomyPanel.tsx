@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
 import { BODY_MORPHS, getPart, type PartId, partsForSlot } from '../../core/skeleton/partRegistry'
+import { getSpecies } from '../../core/species/registry'
 import { defaultAnatomyParts, defaultSpringRig, PERSONALITY_FACE_DEFAULTS } from '../../core/spec/defaults'
 import {
   ARCHETYPES,
@@ -182,6 +183,10 @@ export function AnatomyArchetypeSection() {
 export function AnatomyPanel() {
   const parts = useCharacterStore((s) => s.spec.anatomy.parts)
   const bodyMorphs = useCharacterStore((s) => s.spec.anatomy.bodyMorphs)
+  // Class-legal part filtering (plan 009 step 3): a species preset locks the
+  // picker to its class; 'custom'/unknown ids resolve undefined -> unfiltered.
+  const speciesId = useCharacterStore((s) => s.spec.meta.species)
+  const klass = getSpecies(speciesId)?.class
   const rafPatch = useRafPatch()
   const slot = useSelectedSlot((s) => s.slot)
   const setSlot = useSelectedSlot((s) => s.setSlot)
@@ -243,7 +248,7 @@ export function AnatomyPanel() {
       </label>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {partsForSlot(slot).map((partId) => (
+        {partsForSlot(slot, klass).map((partId) => (
           <PartThumb key={partId} partId={partId} active={selectedEntry?.partId === partId} onPick={() => pickPart(slot, partId)} />
         ))}
       </div>
