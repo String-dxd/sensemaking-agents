@@ -74,6 +74,36 @@ export function worldToCell(worldSize: number, grid: TerrainGrid, x: number, z: 
   }
 }
 
+/** Integer cells on the line from (c0,r0) to (c1,r1), inclusive (Bresenham).
+ *  Used to interpolate a paint stroke between two pointer samples so a fast
+ *  drag paints a continuous line instead of skipping cells. Cells may be out of
+ *  bounds — callers clip (brushCells already does). */
+export function cellLine(c0: number, r0: number, c1: number, r1: number): { c: number; r: number }[] {
+  const out: { c: number; r: number }[] = []
+  let c = c0
+  let r = r0
+  const dc = Math.abs(c1 - c0)
+  const dr = Math.abs(r1 - r0)
+  const sc = c0 < c1 ? 1 : -1
+  const sr = r0 < r1 ? 1 : -1
+  let err = dc - dr
+  // Guard against a pathological span (pointer teleport) producing a huge array.
+  for (let guard = 0; guard <= dc + dr; guard++) {
+    out.push({ c, r })
+    if (c === c1 && r === r1) break
+    const e2 = 2 * err
+    if (e2 > -dr) {
+      err -= dr
+      c += sc
+    }
+    if (e2 < dc) {
+      err += dc
+      r += sr
+    }
+  }
+  return out
+}
+
 /** A fresh all-ocean grid (every cell tier 0, surface auto). */
 export function createOceanGrid(cols = GRID_COLS, rows = GRID_ROWS): TerrainGrid {
   const n = cols * rows
