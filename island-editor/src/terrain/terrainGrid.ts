@@ -224,3 +224,12 @@ export function evaluateHeight(spec: IslandSpec, x: number, z: number, blurred?:
   const t = sampleTierField(spec.grid, b, spec.worldSize, x, z)
   return terraceHeight(t, spec.tierHeights)
 }
+
+// ── Object kinds ───────────────────────────────────────────────────────────
+// The decorative object kinds the procedural model factory (src/models/
+// buildObjectModel.ts) can build. Placement (Plan B) + palette (Plan C) build on
+// this. Kept in the pure spec module so the enum the renderer consumes lives
+// alongside the rest of the headless-testable core.
+
+export type ObjectKind = 'fruitTree' | 'pine' | 'palm' | 'bush' | 'rock'
+export const OBJECT_KINDS: ObjectKind[] = ['fruitTree', 'pine', 'palm', 'bush', 'rock']
