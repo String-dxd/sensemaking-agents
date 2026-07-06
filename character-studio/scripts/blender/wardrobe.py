@@ -290,8 +290,10 @@ class Fit:
         self.pear = self.style["pear"]
         self.taper = self.style["shoulder_taper"]
         self.arm_r = self.style["arm_r"] * self.u / 0.9
-        root_pull = 0.62
-        self.arm_root = j["upperArmL"] * np.array([root_pull, 1.0, 1.0]) + np.array([0.0, 0.01, 0.0]) * self.u
+        # MUST mirror bodies.build_body_shells' biped-round arm exactly —
+        # sleeves are fitted over this arm and poke through if they drift.
+        root_pull = 0.52
+        self.arm_root = j["upperArmL"] * np.array([root_pull, 1.0, 1.0]) + np.array([0.0, 0.018, 0.0]) * self.u
 
     def torso_profile(self, v01: np.ndarray, verts: np.ndarray) -> np.ndarray:
         return (
@@ -369,9 +371,18 @@ class Fit:
         hand), weighted with the body's own arm falloff."""
         j = self.j
         end = self.arm_root + (j["handL"] - self.arm_root) * cover
-        r0 = self.arm_r * 1.25 + inflate
-        r1 = self.arm_r * (1.25 - 0.3 * cover) + inflate
-        s = capsule_along(name, tuple(self.arm_root), tuple(end), r0, r1, useg=useg, vseg=vseg)
+        # carrot taper + fullness matching the body arm (bodies.py: 1.45 root
+        # -> 0.78 wrist, fullness 0.55)
+        r0 = self.arm_r * 1.45 + inflate
+        r1 = self.arm_r * (1.45 - (1.45 - 0.78) * cover) + inflate
+        s = capsule_along(name, tuple(self.arm_root), tuple(end), r0, r1, useg=useg, vseg=vseg, fullness=0.55)
+        # the body arm flares into the torso via a smooth-union fillet
+        # (bodies.fillet_limb_into_torso) — the sleeve must flare the same way
+        # over the INFLATED torso or the shoulder pokes through the sleeve top
+        torso_sdf = bodies.make_torso_sdf(
+            self.cy, self.ry + inflate * 0.6, self.rx + inflate, self.rz + inflate, self.torso_profile
+        )
+        bodies.fillet_limb_into_torso(s, self.arm_root, j["handL"], r0, self.arm_r * 0.78 + inflate, torso_sdf, k=0.055 * self.u)
         # weight against the FULL arm t so the falloff matches the body arm
         axis = j["handL"] - self.arm_root
         L = float(np.linalg.norm(axis))
@@ -633,9 +644,10 @@ def build_hoodie(fit: Fit):
     sleeveR.channel(CH_SECONDARY, smoothstep(0.85, 0.97, t) * 0.9)
     sleeveR.uv_rect = (0.57, 0.69, 0.98, 1.0)
 
-    # down hood: soft lump behind the neck
-    hood_c = (0.0, j["neck"][1] + 0.02, -fit.rz * fit.torso_mult_at_y(j["neck"][1]) - 0.028)
-    hood = ellipsoid("hood", hood_c, (0.088, 0.052, 0.047), useg=14, vseg=9)
+    # down hood: soft lump hugging the back of the neck — tucked high and
+    # close so a worn backpack (which sits lower/further back) clears it
+    hood_c = (0.0, j["neck"][1] + 0.034, -fit.rz * fit.torso_mult_at_y(j["neck"][1]) - 0.016)
+    hood = ellipsoid("hood", hood_c, (0.086, 0.048, 0.038), useg=14, vseg=9)
     hood.weights["chest"] = np.ones(len(hood.verts))
     hood.channel(CH_SECONDARY, np.full(len(hood.verts), 0.9))
     hood.uv_rect = (0.0, 0.0, 0.3, 0.33)
@@ -676,7 +688,10 @@ def build_hoodie(fit: Fit):
         cord.uv_rect = (0.32 if sx > 0 else 0.5, 0.0, 0.48 if sx > 0 else 0.66, 0.33)
         string_shells.append(cord)
 
-    keys_strings = {k: np.zeros((sum(len(s.verts) for s in string_shells), 3)) for k in keys}
+    # drawstrings follow the belly with the torso formula (they hang against
+    # the chest front) — zero keys buried them inside the body at high
+    # bellyRound because only the hoodie shell moved outward.
+    keys_strings = fit.torso_body_keys(string_shells)
     keys = {k: np.concatenate([keys[k], keys_strings[k]]) for k in keys}
     return dict(objects=[("hoodie", shells + string_shells, None, keys)], item_bones=item_bones, display_ears=False, frame="torso")
 
@@ -746,8 +761,10 @@ def build_scarf(fit: Fit):
 def build_backpack_mini(fit: Fit):
     j = fit.j
     sb = j["socket.back"]
-    back_z = -fit.rz * fit.torso_mult_at_y(sb[1]) - 0.060
-    pack_c = np.array([0.0, sb[1] + 0.03, back_z])
+    # sits low + a touch further out so the hoodie's neck-hugging hood lump
+    # clears the flap when both are worn
+    back_z = -fit.rz * fit.torso_mult_at_y(sb[1]) - 0.066
+    pack_c = np.array([0.0, sb[1] + 0.012, back_z])
     pack = ellipsoid("pack", tuple(pack_c), (0.092, 0.115, 0.052), useg=16, vseg=12, boxiness=0.45)
     pack.uv_rect = (0.0, 0.3, 0.7, 1.0)
     flap = ellipsoid("flap", tuple(pack_c + np.array([0, 0.062, -0.012])), (0.084, 0.05, 0.05), useg=12, vseg=8, boxiness=0.3)
@@ -810,7 +827,9 @@ def build_backpack_mini(fit: Fit):
 def build_mug(fit: Fit):
     j = fit.j
     s = j["socket.handL"]
-    c = s + np.array([0.020, -0.012, 0.062])
+    # tucked against the mitten, riding slightly high so the profile view
+    # clears the (plumper) thigh — pushing it outward instead reads detached
+    c = s + np.array([0.022, -0.002, 0.066])
     half_h = 0.047
     body = capsule_along("mugBody", (c[0], c[1] - half_h, c[2]), (c[0], c[1] + half_h, c[2]), 0.040, 0.043, useg=14, vseg=10)
     # coffee: darken the top cap

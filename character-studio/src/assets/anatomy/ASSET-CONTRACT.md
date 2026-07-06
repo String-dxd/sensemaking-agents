@@ -210,11 +210,16 @@ with `pnpm gen:wardrobe`; builders in `scripts/blender/wardrobe.py`.
 
 ## Known debts for a human art pass
 
-- Shell-union bodies (head/torso/limb blobs tucked into each other) — a
-  single-skin sculpted body with painted weights will look better at the
-  shoulder/hip transitions. Keep the bone weights smooth across the elbow
-  and knee blend bands (current analytic weights use ~0.16–0.18 smoothstep
-  bands; candy-wrapper artifacts appear if you paint harder splits).
+- ~~Shell-union shoulder/hip creases~~ — addressed in the polish pass:
+  limb roots are projected onto the smooth-min union surface of
+  (limb, torso) SDFs (`bodies.fillet_limb_into_torso`), so arms/legs/wings
+  flare tangentially into the torso like a sculpt. A hand-sculpted
+  single-skin body remains the ceiling, but the junctions no longer crease.
+  Keep the bone weights smooth across the elbow and knee blend bands
+  (current analytic weights use ~0.16–0.18 smoothstep bands; candy-wrapper
+  artifacts appear if you paint harder splits). Garment sleeves apply the
+  SAME fillet over the inflated torso (`wardrobe.Fit.sleeve`) — keep them in
+  lockstep or shoulders poke through sleeve tops.
 - Ear-root blends: skinned ears currently blend `earL.1→earL.2` at ~t=0.4–0.5
   along the ear; root vertices are 100 % `earL.1` so the root never tears,
   but a painted falloff to the head would ground them more.

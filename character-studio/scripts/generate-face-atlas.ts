@@ -324,7 +324,7 @@ interface FaceStyle {
   /** Brow arch (sag) multiplier. */
   browArch: number
   /** Neutral-cell mouth character. */
-  mouth: 'neutral' | 'softSmile' | 'openGrin' | 'pursedSide' | 'flatDown'
+  mouth: 'neutral' | 'softSmile' | 'openGrin' | 'pursedSide' | 'flatDown' | 'smirk'
 }
 
 const V1: FaceStyle = {
@@ -411,6 +411,40 @@ const PERSONALITY_STYLES: FaceStyle[] = [
     browAngle: 26,
     browArch: 0.55,
     mouth: 'flatDown',
+  },
+  {
+    // relaxed/settled: almond eyes (wider than tall, softly lidded),
+    // medium-large pupils, neutral low-key brows, light stroke, neutral-soft
+    // mouth
+    ...V1,
+    dir: 'calm',
+    stroke: 0.9,
+    eye: [1.1, 0.94],
+    lid: 0.14,
+    pupil: 1.08,
+    catchlight: 1.0,
+    brow: 0.8,
+    browLift: 4,
+    browArch: 0.7,
+    mouth: 'neutral',
+  },
+  {
+    // impish: foxy upturned eyes with a light lid, bright sparkly pupils,
+    // high sharply-arched brows, medium stroke, asymmetric smirk (the mouth
+    // plane is NOT mirrored, so the smirk can genuinely pull to one side)
+    ...V1,
+    dir: 'mischievous',
+    stroke: 1.0,
+    eye: [1.04, 0.96],
+    lid: 0.16,
+    upturn: 0.26,
+    pupil: 1.05,
+    catchlight: 1.1,
+    sparkle: true,
+    brow: 1.05,
+    browLift: 18,
+    browArch: 2.2,
+    mouth: 'smirk',
   },
 ]
 
@@ -510,6 +544,8 @@ function buildMouthArt(s: FaceStyle): Map<string, CellPainter> {
     ]),
     pursedSide: [{ sdf: stroke(arc(118, 158, 125, -12), w13), color: INK }],
     flatDown: [{ sdf: stroke(arc(100, 156, 124, 7), w14), color: INK }],
+    // one-sided smile: a soft smile tilted so the +x corner hooks up
+    smirk: [{ sdf: stroke(shearX(arc(100, 162, 126, -14), 0.16), w13), color: INK }],
   }
 
   return new Map<string, CellPainter>([

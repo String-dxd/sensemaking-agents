@@ -33,7 +33,7 @@ function FrameLoopDriver() {
 // Specs saved before plan 010 (or a defensive fallback) may omit
 // `studioLook`; fall back to the default preset rather than rendering an
 // unlit scene.
-function Lighting() {
+function Lighting({ gizmosAllowed }: { gizmosAllowed: boolean }) {
   const studioLook = useCharacterStore((s) => s.spec.studioLook)
   const showGizmos = useLightingStudio((s) => s.showGizmos)
   const playing = usePlayStore((s) => s.mode) === 'play'
@@ -41,7 +41,7 @@ function Lighting() {
   return (
     <>
       <LightRig studioLook={look} />
-      {!playing && showGizmos ? <LightGizmos studioLook={look} /> : null}
+      {!playing && gizmosAllowed && showGizmos ? <LightGizmos studioLook={look} /> : null}
     </>
   )
 }
@@ -65,6 +65,12 @@ export interface StageProps {
    * to the in-Canvas `<OrbitControls>` here.
    */
   orbitControlsRef: React.RefObject<OrbitControlsHandle | null>
+  /**
+   * Light gizmos (position handles + light→target lines) are Lighting-mode
+   * furniture — on every other tab they read as stray debug lines across the
+   * viewport, so Shell only allows them when the Lighting tab is active.
+   */
+  lightGizmosAllowed?: boolean
 }
 
 /**
@@ -74,7 +80,7 @@ export interface StageProps {
  * WebGL context + in-memory character) regardless of which studio mode is
  * active; Shell never conditionally unmounts `<Stage>`.
  */
-export function Stage({ showStats = false, orbitControlsRef }: StageProps) {
+export function Stage({ showStats = false, orbitControlsRef, lightGizmosAllowed = true }: StageProps) {
   // `?fx=0` disables the whole post stack (perf A/B — plan 005 step 4).
   const fxEnabled = useMemo(() => new URLSearchParams(window.location.search).get('fx') !== '0', [])
   const playing = usePlayStore((s) => s.mode) === 'play'
@@ -89,7 +95,7 @@ export function Stage({ showStats = false, orbitControlsRef }: StageProps) {
   return (
     <Canvas shadows="soft" camera={{ fov: 35, position: [0, 1.2, 3.2] }}>
       <FrameLoopDriver />
-      <Lighting />
+      <Lighting gizmosAllowed={lightGizmosAllowed} />
       <Pedestal />
       {/* PlaceholderBody (plans 002–005) retired from the stage by plan
           006 — CharacterRoot mounts the real assembled character. */}

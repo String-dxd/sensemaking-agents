@@ -127,8 +127,14 @@ def capsule_along(
     useg: int = 12,
     vseg: int = 10,
     bulge: float = 0.0,
+    fullness: float = 0.0,
 ) -> Shell:
-    """Tapered capsule from a to b (sphere shell stretched along the segment)."""
+    """Tapered capsule from a to b (sphere shell stretched along the segment).
+
+    fullness 0 keeps the stretched-sphere spindle (thin pointy ends);
+    fullness -> 1 counteracts the sphere's polar falloff so the limb stays
+    plump along its length and closes with rounded caps (the AC limb shape).
+    """
     s = sphere_shell(name, useg, vseg)
     a_ = np.array(a)
     b_ = np.array(b)
@@ -146,6 +152,13 @@ def capsule_along(
     # local sphere coords: y along axis, xz radial
     local = s.verts
     radial = local[:, [0, 2]]
+    if fullness > 0.0:
+        # radial magnitude is sin(polar): 1 mid-shell, 0 at the poles. Raise
+        # it toward 1 (mag^(1-fullness)) so cross-sections stay full and the
+        # ends read as rounded caps instead of spindle points.
+        mag = np.linalg.norm(radial, axis=1, keepdims=True)
+        boost = np.where(mag > 1e-9, mag ** (1.0 - fullness) / np.maximum(mag, 1e-9), 0.0)
+        radial = radial * boost
     along = (local[:, 1] * 0.5 + 0.5) * length  # sphere y in [-1,1] -> [0,len]
     world = (
         a_[None, :]
@@ -198,6 +211,35 @@ def blend_two(shell: Shell, bone_a: str, bone_b: str, coord: np.ndarray, split: 
     shell.weights[bone_b] = wb
 
 
+def smooth_path(points: list[np.ndarray], samples: int = 32) -> list[np.ndarray]:
+    """Resample a coarse polyline through a Catmull-Rom spline.
+
+    bend_chain frames are per-segment constant, so a coarse path creases at
+    every corner; feeding it a dense spline resample instead gives smoothly
+    turning tangents (droopy ears / curled tails without kinks)."""
+    pts = np.asarray(points, dtype=np.float64)
+    if len(pts) < 3:
+        return [pts[i] for i in range(len(pts))]
+    ctrl = np.vstack([pts[0], pts, pts[-1]])
+    out: list[np.ndarray] = []
+    per_seg = max(2, samples // (len(pts) - 1))
+    for i in range(len(pts) - 1):
+        p0, p1, p2, p3 = ctrl[i], ctrl[i + 1], ctrl[i + 2], ctrl[i + 3]
+        for t in np.linspace(0.0, 1.0, per_seg, endpoint=False):
+            t2, t3 = t * t, t * t * t
+            out.append(
+                0.5
+                * (
+                    2.0 * p1
+                    + (-p0 + p2) * t
+                    + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t2
+                    + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3
+                )
+            )
+    out.append(pts[-1])
+    return out
+
+
 def bend_chain(verts: np.ndarray, origin: np.ndarray, length: float, points: list[np.ndarray]) -> np.ndarray:
     """Bend straight-authored verts along a polyline.
 
@@ -212,6 +254,35 @@ def bend_chain(verts: np.ndarray, origin: np.ndarray, length: float, points: lis
     total = float(seg_len.sum())
     cum = np.concatenate([[0.0], np.cumsum(seg_len)]) / max(total, 1e-9)
 
+    # Parallel-transport frames: seed from the first tangent (identity when
+    # it's +Y — side == +X, fwd == +Z; ref flips for near-Z tangents, tails),
+    # then rotate each frame by the minimal rotation between successive
+    # tangents. Rotating around a fixed ref instead twists the cross-section
+    # 180° when the tangent swings past vertical (droopy-ear crease bug).
+    ups = seg / np.maximum(seg_len, 1e-9)[:, None]
+    up0 = ups[0]
+    ref = np.array([0.0, 0.0, 1.0]) if abs(up0[2]) < 0.9 else np.array([0.0, 1.0, 0.0])
+    side = np.cross(up0, ref)
+    side /= max(float(np.linalg.norm(side)), 1e-9)
+    frames = [(side, np.cross(side, up0))]
+    for k in range(1, len(seg)):
+        a, b = ups[k - 1], ups[k]
+        axis = np.cross(a, b)
+        s = float(np.linalg.norm(axis))
+        c = float(np.clip(np.dot(a, b), -1.0, 1.0))
+        side = frames[-1][0]
+        if s > 1e-9:
+            axis = axis / s
+            ang = math.atan2(s, c)
+            side = (
+                side * math.cos(ang)
+                + np.cross(axis, side) * math.sin(ang)
+                + axis * float(np.dot(axis, side)) * (1.0 - math.cos(ang))
+            )
+        side = side - b * float(np.dot(side, b))  # re-orthogonalize
+        side /= max(float(np.linalg.norm(side)), 1e-9)
+        frames.append((side, np.cross(side, b)))
+
     out = verts.copy()
     origin = np.asarray(origin, dtype=np.float64)
     for i in range(len(verts)):
@@ -220,15 +291,8 @@ def bend_chain(verts: np.ndarray, origin: np.ndarray, length: float, points: lis
         k = min(max(k, 0), len(seg) - 1)
         local_t = (ti - cum[k]) / max(cum[k + 1] - cum[k], 1e-9)
         base = pts[k] + seg[k] * local_t
-        up = seg[k] / max(seg_len[k], 1e-9)
-        # radial offset in the authored frame (pure x/z once y maps to t).
-        # Frame: when up == +Y this must be the identity mapping
-        # (side == +X, fwd == +Z); ref flips for near-Z tangents (tails).
         offset = verts[i] - origin
-        ref = np.array([0.0, 0.0, 1.0]) if abs(up[2]) < 0.9 else np.array([0.0, 1.0, 0.0])
-        side = np.cross(up, ref)
-        side /= max(float(np.linalg.norm(side)), 1e-9)
-        fwd = np.cross(side, up)
+        side, fwd = frames[k]
         out[i] = base + side * offset[0] + fwd * offset[2]
     return out
 

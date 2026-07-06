@@ -185,7 +185,7 @@ export function Shell() {
       <div className="cs-shell__body">
         <div className="cs-viewport">
           <ViewportErrorBoundary>
-            <Stage showStats={showStats} orbitControlsRef={orbitControlsRef} />
+            <Stage showStats={showStats} orbitControlsRef={orbitControlsRef} lightGizmosAllowed={editMode === 'lighting'} />
           </ViewportErrorBoundary>
           {/* Dev-only spring-tuning tool (plan 003) — always available
               outside Play, docked bottom-left of the viewport (not tied to
