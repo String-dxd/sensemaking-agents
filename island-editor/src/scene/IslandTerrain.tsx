@@ -11,6 +11,11 @@ interface IslandTerrainProps {
   /** When true (hold-Space), pointer drags fall through to OrbitControls instead
    *  of painting, so the camera can be orbited/panned over the island. */
   cameraMode?: boolean
+  /** When true (a model kind is armed), pointer moves report the hovered point
+   *  for the ghost and a click drops an object — instead of painting terrain. */
+  placeMode?: boolean
+  onPlaceHover?: (x: number, z: number) => void
+  onPlaceClick?: (x: number, z: number) => void
   onPaintStart?: () => void
   onPaint?: (x: number, z: number) => void
   onPaintEnd?: () => void
@@ -43,7 +48,17 @@ function useGroundTextures() {
   return textures
 }
 
-export function IslandTerrain({ spec, brushSize, cameraMode, onPaintStart, onPaint, onPaintEnd }: IslandTerrainProps) {
+export function IslandTerrain({
+  spec,
+  brushSize,
+  cameraMode,
+  placeMode,
+  onPlaceHover,
+  onPlaceClick,
+  onPaintStart,
+  onPaint,
+  onPaintEnd,
+}: IslandTerrainProps) {
   const textures = useGroundTextures()
 
   const field = useMemo(() => buildIslandField(spec.worldSize), [spec.worldSize])
@@ -98,9 +113,16 @@ export function IslandTerrain({ spec, brushSize, cameraMode, onPaintStart, onPai
     cursor.visible = true
   }
 
+  // Precedence in both handlers: camera (hold-Space) wins → then place mode →
+  // then paint. So hold-Space always orbits, even while a model is armed.
   const handleDown = (e: ThreeEvent<PointerEvent>) => {
-    // Hold-Space: let the drag reach OrbitControls instead of painting.
+    // Hold-Space: let the drag reach OrbitControls instead of painting/placing.
     if (cameraMode) return
+    if (placeMode) {
+      e.stopPropagation()
+      onPlaceClick?.(e.point.x, e.point.z)
+      return
+    }
     e.stopPropagation()
     painting.current = true
     onPaintStart?.()
@@ -109,6 +131,12 @@ export function IslandTerrain({ spec, brushSize, cameraMode, onPaintStart, onPai
   const handleMove = (e: ThreeEvent<PointerEvent>) => {
     if (cameraMode) {
       if (cursorRef.current) cursorRef.current.visible = false
+      return
+    }
+    if (placeMode) {
+      // The ghost (App-owned) tracks the hovered cell; hide the paint brush quad.
+      if (cursorRef.current) cursorRef.current.visible = false
+      onPlaceHover?.(e.point.x, e.point.z)
       return
     }
     moveCursor(e.point.x, e.point.z)

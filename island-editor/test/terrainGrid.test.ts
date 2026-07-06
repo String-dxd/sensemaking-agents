@@ -18,7 +18,7 @@ import {
 const WORLD = 24
 
 function specFrom(grid: TerrainGrid): IslandSpec {
-  return { version: 3, worldSize: WORLD, seaLevel: 0, tierHeights: DEFAULT_TIER_HEIGHTS, grid }
+  return { version: 4, worldSize: WORLD, seaLevel: 0, tierHeights: DEFAULT_TIER_HEIGHTS, grid, objects: [] }
 }
 
 function uniformGrid(tier: number): TerrainGrid {

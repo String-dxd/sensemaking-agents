@@ -16,10 +16,22 @@ import {
   ZOOM_OUT_FACTOR,
 } from './scene/cameraOps'
 import { IslandTerrain } from './scene/IslandTerrain'
+import { PlaceGhost } from './scene/PlaceGhost'
+import { PlacedObjects } from './scene/PlacedObjects'
 import { SeaSurface } from './scene/SeaSurface'
 import { adjustTier, brushCells, setSurface, setTier } from './terrain/gridOps'
+import { addObject, makePlacedObject, removeObject } from './terrain/objectOps'
 import { seedIsland } from './terrain/seed'
-import { cellLine, type IslandSpec, SURFACE_AUTO, SURFACE_PATH, worldToCell } from './terrain/terrainGrid'
+import {
+  cellLine,
+  type IslandSpec,
+  type ObjectKind,
+  OBJECT_KINDS,
+  type PlacedObject,
+  SURFACE_AUTO,
+  SURFACE_PATH,
+  worldToCell,
+} from './terrain/terrainGrid'
 import { CameraDock } from './ui/CameraDock'
 import { FileBar } from './ui/FileBar'
 import { type BrushSize, type Tool, ToolPanel } from './ui/ToolPanel'
@@ -38,6 +50,15 @@ export function App() {
   const [orbitEnabled, setOrbitEnabled] = useState(true)
   // Hold-Space: drags orbit the camera instead of painting.
   const [cameraMode, setCameraMode] = useState(false)
+
+  // Object placement: an armed kind (null = not placing). While armed, the
+  // terrain reports the hovered cell for the ghost and a click drops an object.
+  const [placeKind, setPlaceKind] = useState<ObjectKind | null>(null)
+  const placeMode = placeKind !== null
+  const placeKindRef = useRef(placeKind)
+  placeKindRef.current = placeKind
+  // Hovered cell for the ghost preview (null = off-terrain / out of bounds).
+  const [ghostCell, setGhostCell] = useState<{ c: number; r: number } | null>(null)
 
   // The spec lives in a ref (its grid arrays mutated in place by grid ops) with
   // a tick to trigger recompute — keeps stamp application out of a React
@@ -145,6 +166,59 @@ export function App() {
     bumpStack()
   }, [stack, bumpStack, applySnapshot])
 
+  // ── Object placement ────────────────────────────────────────────────────────
+  // Same spec-ref + tick discipline as terraform strokes: never mutate the spec
+  // inside a React updater (StrictMode double-invoke would double-apply).
+  const applyObjects = useCallback((objects: PlacedObject[]) => {
+    specRef.current.objects = objects
+    setGridTick((t) => t + 1)
+  }, [])
+
+  const placeObject = useCallback(
+    (x: number, z: number) => {
+      const kind = placeKindRef.current
+      if (!kind) return
+      const s = specRef.current
+      const { c, r } = worldToCell(s.worldSize, s.grid, x, z)
+      if (c < 0 || c >= s.grid.cols || r < 0 || r >= s.grid.rows) return
+      const o = makePlacedObject(kind, c, r, Math.random) // runtime jitter is fine here
+      applyObjects(addObject(s.objects, o))
+      stack.push({
+        label: 'Place object',
+        do: () => applyObjects(addObject(specRef.current.objects, o)),
+        undo: () => applyObjects(removeObject(specRef.current.objects, o.id)),
+      })
+      bumpStack()
+    },
+    [applyObjects, stack, bumpStack],
+  )
+
+  const removeObj = useCallback(
+    (id: string) => {
+      const s = specRef.current
+      const obj = s.objects.find((o) => o.id === id)
+      if (!obj) return
+      applyObjects(removeObject(s.objects, id))
+      stack.push({
+        label: 'Remove object',
+        do: () => applyObjects(removeObject(specRef.current.objects, id)),
+        undo: () => applyObjects(addObject(specRef.current.objects, obj)),
+      })
+      bumpStack()
+    },
+    [applyObjects, stack, bumpStack],
+  )
+
+  const onPlaceHover = useCallback((x: number, z: number) => {
+    const s = specRef.current
+    const { c, r } = worldToCell(s.worldSize, s.grid, x, z)
+    if (c < 0 || c >= s.grid.cols || r < 0 || r >= s.grid.rows) {
+      setGhostCell((prev) => (prev === null ? prev : null))
+      return
+    }
+    setGhostCell((prev) => (prev && prev.c === c && prev.r === r ? prev : { c, r }))
+  }, [])
+
   // ── Undo / redo ─────────────────────────────────────────────────────────────
   const undo = useCallback(() => {
     if (stack.undo()) bumpStack()
@@ -168,6 +242,15 @@ export function App() {
       } else if (e.ctrlKey && e.key.toLowerCase() === 'y') {
         e.preventDefault()
         redo()
+      } else if (!mod) {
+        // TEMP arming — superseded by the model panel (Plan C).
+        if (e.key >= '1' && e.key <= '5') {
+          const idx = Number(e.key) - 1
+          if (idx < OBJECT_KINDS.length) setPlaceKind(OBJECT_KINDS[idx])
+        } else if (e.key === '0' || e.key === 'Escape') {
+          setPlaceKind(null)
+          setGhostCell(null)
+        }
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -298,10 +381,15 @@ export function App() {
           spec={spec}
           brushSize={brushSize}
           cameraMode={cameraMode}
+          placeMode={placeMode}
+          onPlaceHover={onPlaceHover}
+          onPlaceClick={placeObject}
           onPaintStart={onPaintStart}
           onPaint={paint}
           onPaintEnd={onPaintEnd}
         />
+        <PlacedObjects spec={spec} placeMode={placeMode} onRemove={removeObj} />
+        {placeKind !== null && <PlaceGhost spec={spec} kind={placeKind} cell={ghostCell} />}
         <OrbitControls
           ref={setControls}
           makeDefault

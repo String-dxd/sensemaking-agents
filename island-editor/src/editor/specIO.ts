@@ -1,6 +1,7 @@
-// v3 spec serialization + validation. Keeps the accepts-old-versions-normalizes-
+// v4 spec serialization + validation. Keeps the accepts-old-versions-normalizes-
 // to-current contract: v1/v2 files are validated by the legacy module and migrated
-// (rasterized) to a v3 grid on load. NO three/r3f imports.
+// (rasterized) to a grid on load; v3 files migrate forward with an empty objects
+// layer; v4 files validate their objects array. NO three/r3f imports.
 //
 // Sole serialization/validation module since the Step 9 cutover (the legacy
 // validator lives in terrain/legacy/specV2.ts, imported only from here and seed).
@@ -13,6 +14,9 @@ import {
   GRID_ROWS,
   type IslandSpec,
   MAX_TIER,
+  type ObjectKind,
+  OBJECT_KINDS,
+  type PlacedObject,
   SURFACE_PATH,
   type TerrainGrid,
 } from '../terrain/terrainGrid'
@@ -28,6 +32,8 @@ export function serializeSpec(spec: IslandSpec): string {
       seaLevel: spec.seaLevel,
       tierHeights: spec.tierHeights,
       grid: encodeGrid(spec.grid),
+      // Plain array — placed objects are all primitives, no special encoding.
+      objects: spec.objects,
     },
     null,
     2,
@@ -85,8 +91,43 @@ function validateTierHeights(v: unknown): v is number[] {
   return true
 }
 
-/** Validate an already-parsed value as an IslandSpec, migrating v1/v2 → v3.
- *  Throws with a field-level message on failure. */
+/** Validate a serialized `objects` array (v4). Each entry is field-validated and
+ *  throws with an index+field message on failure — matching the file's grid
+ *  validation style. Cells are range-checked against the (already-parsed) grid. */
+function validateObjects(input: unknown, grid: TerrainGrid): PlacedObject[] {
+  if (!Array.isArray(input)) {
+    throw new Error('Invalid island spec: objects must be an array')
+  }
+  return input.map((raw, i) => {
+    if (typeof raw !== 'object' || raw === null) {
+      throw new Error(`Invalid island spec: objects[${i}] must be an object`)
+    }
+    const o = raw as Record<string, unknown>
+    if (typeof o.id !== 'string' || o.id.length === 0) {
+      throw new Error(`Invalid island spec: objects[${i}].id must be a non-empty string`)
+    }
+    if (typeof o.kind !== 'string' || !OBJECT_KINDS.includes(o.kind as ObjectKind)) {
+      throw new Error(`Invalid island spec: objects[${i}].kind must be one of ${OBJECT_KINDS.join(', ')}`)
+    }
+    if (!Number.isInteger(o.c) || (o.c as number) < 0 || (o.c as number) >= grid.cols) {
+      throw new Error(`Invalid island spec: objects[${i}].c must be an integer in [0, ${grid.cols})`)
+    }
+    if (!Number.isInteger(o.r) || (o.r as number) < 0 || (o.r as number) >= grid.rows) {
+      throw new Error(`Invalid island spec: objects[${i}].r must be an integer in [0, ${grid.rows})`)
+    }
+    if (!isFiniteNumber(o.yaw)) {
+      throw new Error(`Invalid island spec: objects[${i}].yaw must be a finite number`)
+    }
+    if (!isFiniteNumber(o.scale) || (o.scale as number) <= 0) {
+      throw new Error(`Invalid island spec: objects[${i}].scale must be a finite number > 0`)
+    }
+    return { id: o.id, kind: o.kind as ObjectKind, c: o.c as number, r: o.r as number, yaw: o.yaw, scale: o.scale }
+  })
+}
+
+/** Validate an already-parsed value as an IslandSpec, migrating v1/v2/v3 → v4.
+ *  v1/v2 rasterize to the grid AND get `objects: []`; v3 gets `objects: []`; v4
+ *  validates its `objects`. Throws with a field-level message on failure. */
 export function validateSpecObject(parsed: unknown): IslandSpec {
   if (typeof parsed !== 'object' || parsed === null) {
     throw new Error('Invalid island spec: root must be an object')
@@ -94,20 +135,21 @@ export function validateSpecObject(parsed: unknown): IslandSpec {
   const o = parsed as Record<string, unknown>
 
   if (o.version === 1 || o.version === 2) {
-    // Legacy file: validate the v2 shape, then rasterize onto a fresh v3 grid.
+    // Legacy file: validate the v2 shape, then rasterize onto a fresh grid.
     const v2 = validateSpecV2Object(parsed)
     return {
-      version: 3,
+      version: CURRENT_SPEC_VERSION,
       worldSize: v2.worldSize,
       seaLevel: v2.heightProfile.seaLevel,
       tierHeights: DEFAULT_TIER_HEIGHTS.slice(),
       grid: rasterizeV2ToGrid(v2, GRID_COLS, GRID_ROWS),
+      objects: [],
     }
   }
 
-  if (o.version !== CURRENT_SPEC_VERSION) {
+  if (o.version !== 3 && o.version !== CURRENT_SPEC_VERSION) {
     throw new Error(
-      `Invalid island spec: version must be 1, 2, or ${CURRENT_SPEC_VERSION}, got ${String(o.version)}`,
+      `Invalid island spec: version must be 1, 2, 3, or ${CURRENT_SPEC_VERSION}, got ${String(o.version)}`,
     )
   }
 
@@ -124,12 +166,17 @@ export function validateSpecObject(parsed: unknown): IslandSpec {
   }
 
   // toGrid throws its own field-level messages on a bad grid.
+  const grid = toGrid(o.grid)
+  // v3 migrates forward with an empty objects layer; v4 validates its objects.
+  const objects = o.version === CURRENT_SPEC_VERSION ? validateObjects(o.objects, grid) : []
+
   return {
-    version: 3,
+    version: CURRENT_SPEC_VERSION,
     worldSize: o.worldSize,
     seaLevel: o.seaLevel,
     tierHeights: (o.tierHeights as number[]).slice(),
-    grid: toGrid(o.grid),
+    grid,
+    objects,
   }
 }
 

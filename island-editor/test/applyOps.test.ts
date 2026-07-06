@@ -7,7 +7,7 @@ import { cellIndex, createOceanGrid, DEFAULT_TIER_HEIGHTS, type IslandSpec, SURF
 
 // A tiny all-ocean v3 spec for isolated op cases.
 function oceanSpec(): IslandSpec {
-  return { version: 3, worldSize: 24, seaLevel: 0, tierHeights: DEFAULT_TIER_HEIGHTS.slice(), grid: createOceanGrid() }
+  return { version: 4, worldSize: 24, seaLevel: 0, tierHeights: DEFAULT_TIER_HEIGHTS.slice(), grid: createOceanGrid(), objects: [] }
 }
 
 describe('applyOps (v3 grid vocabulary)', () => {

@@ -78,12 +78,12 @@ describe('persistence (v3)', () => {
     expect(loadSpec(storage)).toBeNull()
   })
 
-  it('a legacy v2 autosave under STORAGE_KEY loads as a migrated v3 spec', () => {
+  it('a legacy v2 autosave under STORAGE_KEY loads as a migrated v4 spec', () => {
     const storage = makeStorage()
     storage.setItem(STORAGE_KEY, JSON.stringify(legacyV2()))
     const loaded = loadSpec(storage)
     expect(loaded).not.toBeNull()
-    expect(loaded?.version).toBe(3)
+    expect(loaded?.version).toBe(4)
     expect(loaded?.grid.cols).toBe(GRID_COLS)
     expect(loaded?.grid.rows).toBe(GRID_ROWS)
     expect(loaded?.grid.tiers.some((t) => t >= 2)).toBe(true) // migration made land

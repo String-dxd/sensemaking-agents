@@ -4,13 +4,15 @@
 import { rasterizeV2ToGrid, seedV2 } from './legacy/specV2'
 import { DEFAULT_TIER_HEIGHTS, GRID_COLS, GRID_ROWS, type IslandSpec } from './terrainGrid'
 
-/** The v3 seed spec: the original island silhouette, terraced onto a 64×64 grid. */
+/** The v4 seed spec: the original island silhouette, terraced onto a 64×64 grid,
+ *  with an empty objects layer. */
 export function seedIsland(): IslandSpec {
   return {
-    version: 3,
+    version: 4,
     worldSize: 24,
     seaLevel: 0,
     tierHeights: DEFAULT_TIER_HEIGHTS,
     grid: rasterizeV2ToGrid(seedV2(), GRID_COLS, GRID_ROWS),
+    objects: [],
   }
 }
