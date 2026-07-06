@@ -26,7 +26,6 @@ import {
   cellLine,
   type IslandSpec,
   type ObjectKind,
-  OBJECT_KINDS,
   type PlacedObject,
   SURFACE_AUTO,
   SURFACE_PATH,
@@ -34,6 +33,7 @@ import {
 } from './terrain/terrainGrid'
 import { CameraDock } from './ui/CameraDock'
 import { FileBar } from './ui/FileBar'
+import { ModelPanel } from './ui/ModelPanel'
 import { type BrushSize, type Tool, ToolPanel } from './ui/ToolPanel'
 
 const SAVED = loadSpec()
@@ -219,6 +219,11 @@ export function App() {
     setGhostCell((prev) => (prev && prev.c === c && prev.r === r ? prev : { c, r }))
   }, [])
 
+  // Model-panel arming: pick a kind to arm; click the armed kind to disarm.
+  const onPick = useCallback((k: ObjectKind) => {
+    setPlaceKind((cur) => (cur === k ? null : k))
+  }, [])
+
   // ── Undo / redo ─────────────────────────────────────────────────────────────
   const undo = useCallback(() => {
     if (stack.undo()) bumpStack()
@@ -242,15 +247,10 @@ export function App() {
       } else if (e.ctrlKey && e.key.toLowerCase() === 'y') {
         e.preventDefault()
         redo()
-      } else if (!mod) {
-        // TEMP arming — superseded by the model panel (Plan C).
-        if (e.key >= '1' && e.key <= '5') {
-          const idx = Number(e.key) - 1
-          if (idx < OBJECT_KINDS.length) setPlaceKind(OBJECT_KINDS[idx])
-        } else if (e.key === '0' || e.key === 'Escape') {
-          setPlaceKind(null)
-          setGhostCell(null)
-        }
+      } else if (!mod && e.key === 'Escape') {
+        // Esc disarms placement (the model panel is the arming surface now).
+        setPlaceKind(null)
+        setGhostCell(null)
       }
     }
     window.addEventListener('keydown', onKeyDown)
@@ -425,6 +425,7 @@ export function App() {
         onRecenter={recenter}
       />
       <FileBar onExport={exportSpec} onImport={openImport} onReset={reset} />
+      <ModelPanel placeKind={placeKind} onPick={onPick} />
     </div>
   )
 }

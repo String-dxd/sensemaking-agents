@@ -164,6 +164,57 @@
   gap: 6px;
 }
 
+/* ── Left-edge model panel ──────────────────────────────────────────────────
+   Fourth fixed zone. Vertically centered on the left edge (the distributed
+   layout reserved this edge), so it stays clear of the bottom-center hotbar,
+   the bottom-right camera dock, and the top-right file bar. */
+.model-panel {
+  position: fixed;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(16, 22, 38, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #e7ecf6;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  user-select: none;
+  opacity: 0.9;
+  transition: opacity 160ms ease;
+}
+.model-panel:hover {
+  opacity: 1;
+}
+.model-panel__header {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.model-panel__tiles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.model-panel__caption {
+  margin: 0;
+  max-width: 96px;
+  font-size: 10px;
+  line-height: 1.35;
+  text-align: center;
+  opacity: 0.55;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tile {
     transition: background 120ms, box-shadow 120ms, border-color 120ms, color 120ms;

@@ -1,4 +1,5 @@
 import type { FC, ReactNode } from 'react'
+import type { ObjectKind } from '../terrain/terrainGrid'
 
 export type Tool = 'raise' | 'lower' | 'water' | 'path' | 'erase'
 export type BrushSize = 1 | 2 | 3
@@ -157,6 +158,51 @@ export const TOOL_META: Record<Tool, { label: string; Icon: FC }> = {
   water: { label: 'Water', Icon: WaterIcon },
   path: { label: 'Path', Icon: PathIcon },
   erase: { label: 'Erase', Icon: EraseIcon },
+}
+
+// ── Model panel object silhouettes ─────────────────────────────────────────────
+// Glanceable solid glyphs (not live 3D — see the Plan C maintenance notes). Filled
+// shapes read better as silhouettes, so these use fill="currentColor" like BrushIcon;
+// the palm uses the shared stroke props since its fronds read as lines.
+export const FruitTreeIcon: FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <rect x="10.5" y="13" width="3" height="8" />
+    <circle cx="12" cy="9" r="6" />
+  </svg>
+)
+
+export const PineIcon: FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <rect x="11" y="18" width="2" height="4" />
+    <path d="M12 2l5 7H7zM12 8l6 8H6z" />
+  </svg>
+)
+
+export const PalmIcon: FC = () => (
+  <svg {...svgProps}>
+    <path d="M12 22V9" />
+    <path d="M12 9c-4-3-8-2-9 1M12 9c4-3 8-2 9 1M12 9c-1-4 1-7 0-8M12 9c1-4-1-7 0-8" />
+  </svg>
+)
+
+export const BushIcon: FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 20a4 4 0 0 1 3-6 4 4 0 0 1 5-2 4 4 0 0 1 5 2 4 4 0 0 1 3 6z" />
+  </svg>
+)
+
+export const RockIcon: FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <path d="M4 20l3-8 5-3 6 4 2 7z" />
+  </svg>
+)
+
+export const KIND_META: Record<ObjectKind, { label: string; Icon: FC }> = {
+  fruitTree: { label: 'Fruit tree', Icon: FruitTreeIcon },
+  pine: { label: 'Pine', Icon: PineIcon },
+  palm: { label: 'Palm', Icon: PalmIcon },
+  bush: { label: 'Bush', Icon: BushIcon },
+  rock: { label: 'Rock', Icon: RockIcon },
 }
 
 /** Shared 40×40 icon tile used across the hotbar, camera dock, and file bar. */
