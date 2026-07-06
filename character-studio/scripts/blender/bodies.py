@@ -125,12 +125,12 @@ def fillet_limb_into_torso(
 STYLE = {
     "biped-round": dict(
         torso_rx=0.80, torso_rz=0.62, pear=0.28, shoulder_taper=0.16,
-        arm_r=0.050, hand_r=0.052, leg_r=0.064, foot=(0.064, 0.044, 0.104),
+        arm_r=0.050, hand_r=0.058, leg_r=0.064, foot=(0.064, 0.044, 0.104),
         head_squash=0.97, head_wide=1.05, wing=False,
     ),
     "biped-slim": dict(
         torso_rx=0.66, torso_rz=0.58, pear=0.22, shoulder_taper=0.18,
-        arm_r=0.042, hand_r=0.046, leg_r=0.050, foot=(0.054, 0.038, 0.092),
+        arm_r=0.042, hand_r=0.050, leg_r=0.050, foot=(0.054, 0.038, 0.092),
         head_squash=0.99, head_wide=1.02, wing=False,
     ),
     "bird": dict(
@@ -202,17 +202,25 @@ def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[
     arm_r = style["arm_r"] * u / 0.9
     hand_r = style["hand_r"] * u / 0.9
     if style["wing"]:
+        # Body-hugging wing drape (AC benchmark, plan 007): wide root chord at
+        # the shoulder tapering to a soft tip that runs DOWN the torso side to
+        # leg-root level (handL now rests at hip height). Was a short flat paddle
+        # (r0*1.1 -> r1*1.7, flatten 0.42); now root-wide -> tapered tip, with a
+        # relaxed flatten so the wing reads volumetric like Jacques', not a slab.
+        wing_a = j["upperArmL"] - np.array([0.055, -0.005, 0]) * u  # root buried in torso
+        wing_b = j["handL"] + np.array([0.02, -0.02, -0.015]) * u  # tip: slight outward + backward lean
+        w_r0, w_r1 = arm_r * 1.5, arm_r * 0.6
         wing = capsule_along(
-            "armL", tuple(j["upperArmL"] - np.array([0.055, -0.005, 0]) * u), tuple(j["handL"] + np.array([0.02, -0.02, 0]) * u),
-            arm_r * 1.1, arm_r * 1.7, useg=14, vseg=12, bulge=0.014 * u, fullness=0.45,
+            "armL", tuple(wing_a), tuple(wing_b),
+            w_r0, w_r1, useg=14, vseg=12, bulge=0.014 * u, fullness=0.45,
         )
-        wing.verts[:, 2] *= 0.42  # flatten front-back into a paddle
+        wing.verts[:, 2] *= 0.55  # relaxed flatten — volumetric drape, not a paddle
         wing.verts[:, 2] += j["upperArmL"][2]
         # sculpted fillet: wing root flows into the torso, no crease
         if fillet:
             fillet_limb_into_torso(
-                wing, j["upperArmL"] - np.array([0.055, -0.005, 0]) * u, j["handL"] + np.array([0.02, -0.02, 0]) * u,
-                arm_r * 1.1 * 0.55, arm_r * 1.7 * 0.55, torso_sdf, k=0.05 * u,
+                wing, wing_a, wing_b,
+                w_r0 * 0.55, w_r1 * 0.55, torso_sdf, k=0.05 * u,
             )
         t = wing.params[:, 1]
         _chain_weights(wing, ["upperArmL", "foreArmL", "handL"], t, [0.45, 0.8], 0.16)
@@ -222,19 +230,21 @@ def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[
         shells.append(mirror_x(wing, "armR"))
         for s in shells[-1:]:
             s.uv_rect = UV_ARM_R
-        wa = (j["upperArmL"] - np.array([0.055, -0.005, 0]) * u).tolist()
-        wb = (j["handL"] + np.array([0.02, -0.02, 0]) * u).tolist()
-        junctions.append(dict(shell="armL", a=wa, b=wb, r0=arm_r * 1.1 * 0.55, r1=arm_r * 1.7 * 0.55, k=0.05 * u))
-        junctions.append(dict(shell="armR", a=_mir(wa), b=_mir(wb), r0=arm_r * 1.1 * 0.55, r1=arm_r * 1.7 * 0.55, k=0.05 * u))
+        wa = wing_a.tolist()
+        wb = wing_b.tolist()
+        junctions.append(dict(shell="armL", a=wa, b=wb, r0=w_r0 * 0.55, r1=w_r1 * 0.55, k=0.05 * u))
+        junctions.append(dict(shell="armR", a=_mir(wa), b=_mir(wb), r0=w_r0 * 0.55, r1=w_r1 * 0.55, k=0.05 * u))
     else:
         # root the arm INSIDE the torso (shoulder) so it reads attached;
         # carrot taper (wide shoulder -> narrow wrist), plump AC limb
         root_pull = 0.52 if archetype == "biped-round" else 0.44
         arm_root = j["upperArmL"] * np.array([root_pull, 1.0, 1.0]) + np.array([0.0, 0.018, 0.0]) * u
-        arm = capsule_along("armL", tuple(arm_root), tuple(j["handL"]), arm_r * 1.45, arm_r * 0.78, useg=12, vseg=10, fullness=0.55)
+        # near-constant-width plush limb (AC benchmark, plan 007): soft mitten
+        # end, not a carrot taper. Was 1.45 -> 0.78; now 1.15 -> 0.95.
+        arm = capsule_along("armL", tuple(arm_root), tuple(j["handL"]), arm_r * 1.15, arm_r * 0.95, useg=12, vseg=10, fullness=0.55)
         # sculpted fillet: the shoulder flares tangentially into the torso
         if fillet:
-            fillet_limb_into_torso(arm, arm_root, j["handL"], arm_r * 1.45, arm_r * 0.78, torso_sdf, k=0.055 * u)
+            fillet_limb_into_torso(arm, arm_root, j["handL"], arm_r * 1.15, arm_r * 0.95, torso_sdf, k=0.055 * u)
         t = arm.params[:, 1]
         _chain_weights(arm, ["upperArmL", "foreArmL"], t, [0.5], 0.18)
         arm.uv_rect = UV_ARM_L
@@ -244,13 +254,14 @@ def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[
         shells.append(armR)
         aa = arm_root.tolist()
         ab = j["handL"].tolist()
-        junctions.append(dict(shell="armL", a=aa, b=ab, r0=arm_r * 1.45, r1=arm_r * 0.78, k=0.055 * u))
-        junctions.append(dict(shell="armR", a=_mir(aa), b=_mir(ab), r0=arm_r * 1.45, r1=arm_r * 0.78, k=0.055 * u))
+        junctions.append(dict(shell="armL", a=aa, b=ab, r0=arm_r * 1.15, r1=arm_r * 0.95, k=0.055 * u))
+        junctions.append(dict(shell="armR", a=_mir(aa), b=_mir(ab), r0=arm_r * 1.15, r1=arm_r * 0.95, k=0.055 * u))
 
-        # mitten hand tucked INTO the arm end (overlap, no wrist gap)
+        # mitten hand blended INTO the arm end — deep tuck so the silhouette
+        # reads as one soft mitten, not a ball on a stick (plan 007).
         wrist_in = (arm_root - j["handL"])
         wrist_in /= max(float(np.linalg.norm(wrist_in)), 1e-9)
-        hand_center = j["handL"] + wrist_in * hand_r * 0.5 + np.array([0.0, 0.0, 0.004]) * u
+        hand_center = j["handL"] + wrist_in * hand_r * 0.85 + np.array([0.0, 0.0, 0.004]) * u
         hand = ellipsoid("handL", tuple(hand_center), (hand_r, hand_r * 0.92, hand_r * 1.08), useg=12, vseg=9)
         hand.weights["handL"] = np.ones(len(hand.verts))
         hand.channel(CH_ACCENT, np.full(len(hand.verts), 0.85))
