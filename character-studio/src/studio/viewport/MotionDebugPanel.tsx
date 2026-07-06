@@ -102,7 +102,7 @@ export function MotionDebugPanel() {
     ears: pickTunable(EAR_PARAMS),
     tail: pickTunable(TAIL_PARAMS),
   }))
-  const [walking, setWalking] = useState(false)
+  const walking = useMotionStudio((s) => s.studioWalk)
   const [wind, setWind] = useState(false)
   const [windStrength, setWindStrength] = useState(30)
 
@@ -170,7 +170,7 @@ export function MotionDebugPanel() {
         <button
           type="button"
           style={walking ? activeButtonStyle : buttonStyle}
-          onClick={() => setWalking(mover.toggleWalk())}
+          onClick={() => useMotionStudio.getState().setStudioWalk(!walking)}
         >
           {walking ? 'stop walk' : 'walk circle'}
         </button>

@@ -60,6 +60,7 @@ import {
 import { useCharacterStore } from '../state/characterStore'
 import { createSculptSession, finalizeSculptVisuals, useSculptStore } from '../state/sculptStore'
 import { FALLBACK_ASSIGN, useMotionStudio, useToonStudio } from '../state/studioStores'
+import { usePlayStore } from '../play/playStore'
 import { createBodyMover } from './bodyMover'
 import { FaceRig } from './FaceRig'
 
@@ -309,7 +310,13 @@ export function CharacterRoot() {
     const idle = createIdleLayer({ chest, head, hips }, mulberry32(IDLE_SEED))
     const onProcedural = (dt: number) => idle.update(dt)
     const mover = createBodyMover(assembled.root, neck)
-    const onAnimation = (dt: number) => mover.update(dt)
+    // Play mode owns the root once active (its clip machine + locomotion
+    // drive it); an in-flight hop/shake left running would otherwise write
+    // root.position.y or neck.rotation.y underneath Play's stack.
+    const onAnimation = (dt: number) => {
+      if (usePlayStore.getState().mode === 'play') return
+      mover.update(dt)
+    }
 
     registerUpdate('animation', onAnimation)
     registerUpdate('physics', onPhysics)
