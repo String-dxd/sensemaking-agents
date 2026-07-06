@@ -23,7 +23,7 @@ import { z } from 'zod'
 import { StudioLookSchema } from './lighting'
 import type { SpringChainDef, SpringJointParams } from '../motion/springTypes'
 
-export const SPEC_VERSION = 1
+export const SPEC_VERSION = 2
 
 // --- primitives -------------------------------------------------------------
 
@@ -325,6 +325,10 @@ const MetaSchema = z
     specVersion: z.literal(SPEC_VERSION),
     archetype: ArchetypeSchema,
     personality: PersonalitySchema.default('gentle'),
+    /** Species preset id (src/core/species/registry.ts) or 'custom'.
+     * Plain string, not an enum: adding a species must not require a spec
+     * migration; unknown ids degrade to custom (registry lookup miss). */
+    species: z.string().min(1).default('custom'),
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
     author: z.string().min(1).optional(),

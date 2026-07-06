@@ -13,9 +13,12 @@ import { CharacterSpecSchema, SPEC_VERSION } from './schema'
 export type Migration = (old: unknown) => unknown
 
 export const MIGRATIONS: Record<number, Migration> = {
-  // v1 -> v1: identity. Real migrations land here as schema.ts changes ship
-  // (e.g. `2: (old) => ({ ...old, meta: { ...old.meta, specVersion: 2 } })`).
-  1: (old) => old,
+  // v1 -> v2: meta gains `species` (default 'custom' — no v1 spec ever
+  // recorded a species) and specVersion advances.
+  1: (old) => {
+    const spec = old as { meta: Record<string, unknown> }
+    return { ...spec, meta: { ...spec.meta, species: 'custom', specVersion: 2 } }
+  },
 }
 
 function readSpecVersion(raw: unknown): number {
