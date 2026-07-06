@@ -1,18 +1,5 @@
 import './panel.css'
-import {
-  type BrushSize,
-  BrushIcon,
-  DesignerViewIcon,
-  ExportIcon,
-  IconButton,
-  ImportIcon,
-  RedoIcon,
-  ResetIcon,
-  type Tool,
-  TOOL_META,
-  TopViewIcon,
-  UndoIcon,
-} from './icons'
+import { type BrushSize, BrushIcon, IconButton, RedoIcon, type Tool, TOOL_META, UndoIcon } from './icons'
 
 export type { BrushSize, Tool } from './icons'
 
@@ -36,11 +23,6 @@ interface ToolPanelProps {
   canRedo: boolean
   onUndo: () => void
   onRedo: () => void
-  onReset: () => void
-  onExport: () => void
-  onImport: () => void
-  onTopView: () => void
-  onDesignerView: () => void
 }
 
 export function ToolPanel({
@@ -52,11 +34,6 @@ export function ToolPanel({
   canRedo,
   onUndo,
   onRedo,
-  onReset,
-  onExport,
-  onImport,
-  onTopView,
-  onDesignerView,
 }: ToolPanelProps) {
   return (
     <div className="hotbar">
@@ -96,31 +73,6 @@ export function ToolPanel({
           </IconButton>
           <IconButton title="Redo (⇧⌘Z)" disabled={!canRedo} onClick={onRedo}>
             <RedoIcon />
-          </IconButton>
-        </div>
-
-        <span className="hotbar__divider" />
-
-        <div className="hotbar__group">
-          <IconButton title="Designer view" onClick={onDesignerView}>
-            <DesignerViewIcon />
-          </IconButton>
-          <IconButton title="Top view" onClick={onTopView}>
-            <TopViewIcon />
-          </IconButton>
-        </div>
-
-        <span className="hotbar__divider" />
-
-        <div className="hotbar__group">
-          <IconButton title="Export" onClick={onExport}>
-            <ExportIcon />
-          </IconButton>
-          <IconButton title="Import" onClick={onImport}>
-            <ImportIcon />
-          </IconButton>
-          <IconButton title="Reset" onClick={onReset}>
-            <ResetIcon />
           </IconButton>
         </div>
       </div>

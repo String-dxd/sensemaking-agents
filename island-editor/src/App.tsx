@@ -6,11 +6,22 @@ import { createCommandStack } from './editor/commandStack'
 import { clearSaved, createAutosaver, loadSpec } from './editor/persistence'
 import { downloadSpec, importSpecFromFile } from './editor/specIO'
 import { Backdrop } from './scene/Backdrop'
+import {
+  DEFAULT_CAMERA,
+  dolly,
+  orbitAroundY,
+  ROTATE_STEP,
+  type Vec3,
+  ZOOM_IN_FACTOR,
+  ZOOM_OUT_FACTOR,
+} from './scene/cameraOps'
 import { IslandTerrain } from './scene/IslandTerrain'
 import { SeaSurface } from './scene/SeaSurface'
 import { adjustTier, brushCells, setSurface, setTier } from './terrain/gridOps'
 import { seedIsland } from './terrain/seed'
 import { cellLine, type IslandSpec, SURFACE_AUTO, SURFACE_PATH, worldToCell } from './terrain/terrainGrid'
+import { CameraDock } from './ui/CameraDock'
+import { FileBar } from './ui/FileBar'
 import { type BrushSize, type Tool, ToolPanel } from './ui/ToolPanel'
 
 const SAVED = loadSpec()
@@ -25,6 +36,8 @@ export function App() {
   const [tool, setTool] = useState<Tool>('raise')
   const [brushSize, setBrushSize] = useState<BrushSize>(1)
   const [orbitEnabled, setOrbitEnabled] = useState(true)
+  // Hold-Space: drags orbit the camera instead of painting.
+  const [cameraMode, setCameraMode] = useState(false)
 
   // The spec lives in a ref (its grid arrays mutated in place by grid ops) with
   // a tick to trigger recompute — keeps stamp application out of a React
@@ -161,6 +174,35 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [undo, redo])
 
+  // ── Hold-Space to orbit ───────────────────────────────────────────────────────
+  // While Space is held, drags fall through to OrbitControls (see IslandTerrain's
+  // cameraMode guard). blur clears it so a lost focus can't leave it stuck on.
+  useEffect(() => {
+    const inEditable = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null
+      return (
+        !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+      )
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || inEditable(e.target)) return
+      e.preventDefault() // stop the page from scrolling on Space
+      setCameraMode(true)
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') setCameraMode(false)
+    }
+    const onBlur = () => setCameraMode(false)
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [])
+
   // ── Reset / Export / Import ──────────────────────────────────────────────────
   const reset = useCallback(() => {
     clearSaved()
@@ -218,6 +260,30 @@ export function App() {
     controls.update()
   }, [])
 
+  // ── Camera nudges (dock buttons) ──────────────────────────────────────────────
+  // Apply a pure cameraOps transform to the live OrbitControls position.
+  const nudge = useCallback((next: (p: Vec3, t: Vec3) => Vec3) => {
+    const c = controlsRef.current
+    if (!c) return
+    const p = next(
+      { x: c.object.position.x, y: c.object.position.y, z: c.object.position.z },
+      { x: c.target.x, y: c.target.y, z: c.target.z },
+    )
+    c.object.position.set(p.x, p.y, p.z)
+    c.update()
+  }, [])
+  const zoomIn = useCallback(() => nudge((p, t) => dolly(p, t, ZOOM_IN_FACTOR)), [nudge])
+  const zoomOut = useCallback(() => nudge((p, t) => dolly(p, t, ZOOM_OUT_FACTOR)), [nudge])
+  const rotateLeft = useCallback(() => nudge((p, t) => orbitAroundY(p, t, ROTATE_STEP)), [nudge])
+  const rotateRight = useCallback(() => nudge((p, t) => orbitAroundY(p, t, -ROTATE_STEP)), [nudge])
+  const recenter = useCallback(() => {
+    const c = controlsRef.current
+    if (!c) return
+    c.target.set(0, 0, 0)
+    c.object.position.set(DEFAULT_CAMERA.x, DEFAULT_CAMERA.y, DEFAULT_CAMERA.z)
+    c.update()
+  }, [])
+
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
       <Canvas camera={{ position: [14, 11, 14], fov: 50 }}>
@@ -226,6 +292,7 @@ export function App() {
         <IslandTerrain
           spec={spec}
           brushSize={brushSize}
+          cameraMode={cameraMode}
           onPaintStart={onPaintStart}
           onPaint={paint}
           onPaintEnd={onPaintEnd}
@@ -248,12 +315,17 @@ export function App() {
         canRedo={stack.canRedo()}
         onUndo={undo}
         onRedo={redo}
-        onReset={reset}
-        onExport={exportSpec}
-        onImport={openImport}
-        onTopView={topView}
-        onDesignerView={designerView}
       />
+      <CameraDock
+        onDesignerView={designerView}
+        onTopView={topView}
+        onRotateLeft={rotateLeft}
+        onRotateRight={rotateRight}
+        onZoomOut={zoomOut}
+        onZoomIn={zoomIn}
+        onRecenter={recenter}
+      />
+      <FileBar onExport={exportSpec} onImport={openImport} onReset={reset} />
     </div>
   )
 }
