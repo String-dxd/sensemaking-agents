@@ -203,6 +203,36 @@ def muzzle_beak_round(skel: dict):
     return [("muzzle-beak-round", shells, "socket.muzzle", _muzzle_length_key(shells, a))]
 
 
+def muzzle_beak_hooked(skel: dict):
+    j = joints(skel)
+    a = j["socket.muzzle"]
+    upper = capsule_along("beakU", (a[0], a[1] + 0.03, a[2] - 0.03), (a[0], a[1] - 0.005, a[2] + 0.075), 0.05, 0.014, useg=12, vseg=10, bulge=0.006)
+    # hook: curl the tip DOWN and slightly back (smooth curl, no crease)
+    t = upper.params[:, 1]
+    hook = np.clip(t - 0.65, 0.0, None) ** 2
+    upper.verts[:, 1] -= hook * 0.16
+    upper.verts[:, 2] -= hook * 0.03
+    # lower mandible: small ellipsoid tucked under
+    lower = ellipsoid("beakL", (a[0], a[1] - 0.022, a[2] + 0.008), (0.034, 0.016, 0.03), useg=10, vseg=8)
+    shells = [upper, lower]
+    for s in shells:
+        s.channel(CH_ACCENT, np.ones(len(s.verts)))
+    return [("muzzle-beak-hooked", shells, "socket.muzzle", _muzzle_length_key(shells, a))]
+
+
+def muzzle_bill_duck(skel: dict):
+    j = joints(skel)
+    a = j["socket.muzzle"]
+    bill = capsule_along("bill", (a[0], a[1] + 0.012, a[2] - 0.02), (a[0], a[1] - 0.006, a[2] + 0.095), 0.05, 0.03, useg=14, vseg=10)
+    bill.verts[:, 0] = a[0] + (bill.verts[:, 0] - a[0]) * 1.5  # wide
+    bill.verts[:, 1] = a[1] + (bill.verts[:, 1] - a[1]) * 0.42  # flat
+    t = bill.params[:, 1]
+    bill.verts[:, 1] += smoothstep(0.7, 1.0, t) * 0.008  # subtle tip upturn
+    bill.channel(CH_ACCENT, np.ones(len(bill.verts)))
+    shells = [bill]
+    return [("muzzle-bill-duck", shells, "socket.muzzle", _muzzle_length_key(shells, a))]
+
+
 # ---------------------------------------------------------------------------
 # Tails (skinned to tail.1-.4)
 # ---------------------------------------------------------------------------
@@ -323,6 +353,8 @@ PART_BUILDERS = {
     "muzzle-boxy-dog": muzzle_boxy_dog,
     "muzzle-beak-small": muzzle_beak_small,
     "muzzle-beak-round": muzzle_beak_round,
+    "muzzle-beak-hooked": muzzle_beak_hooked,
+    "muzzle-bill-duck": muzzle_bill_duck,
     "tail-curl-shiba": tail_curl_shiba,
     "tail-fluff-fox": tail_fluff_fox,
     "tail-stub-round": tail_stub_round,
