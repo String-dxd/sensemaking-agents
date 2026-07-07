@@ -17,7 +17,16 @@ import {
   worldToCell,
 } from './terrainGrid'
 
-export const SEGMENTS = 128
+// 4 segments per grid cell (256 / GRID_COLS 64). Kept an EVEN multiple of the
+// grid so cell centers land exactly on lattice vertices (an invariant the
+// geometry test relies on). WHY 4 and not 2: the terrace wall's rounded lip/base
+// (terraceBlend's smoothstep, ~0.35 cell ≈ 0.13 world wide) is finer than a
+// 2-seg/cell step (~0.19 world) — at 128 the rounding fell *between* vertices
+// and corners collapsed to a single hard vertex (the "blocky corner"). At 256
+// the wall spans ~1.4 segments, so the intended lip/base/corner rounding
+// actually tessellates and renders. Cost is 4× vertices (~66k) refreshed per
+// edit; fine for a design tool at interactive rates.
+export const SEGMENTS = 256
 
 /** Static per-resolution lattice: world XZ per vertex + triangle indices.
  *  Depends only on worldSize + segments — build once, reuse across edits. */
