@@ -67,6 +67,76 @@ Wave-2 dependency notes:
   placeholders (owl/duckling beaks, tabby tail, all patternIds) — expected,
   not drift.
 
+## Wave 3 — procedural-first characters + natural stance (added 2026-07-07, at commit `a8f7c8e1`)
+
+Operator directive: characters become **procedural instead of GLB** (bodies,
+anatomy parts, wardrobe, animation clips — all generated in TypeScript), with
+full feature parity (animation, species switching, wardrobe), and a **natural
+animal stance** (Pokopia-style: mammals on four legs, birds as real birds —
+not upright anthros). Textures are generated with **Codex imagegen via
+`/codex:rescue`** in the style of the island editor's sand textures
+(`island-editor/public/textures/sand-soft-ripples.png`). This formally
+supersedes plan-000 §3's "fully procedural generation — rejected" row and the
+authored-clips tradeoff — the supersession record, decisions (D1–D6), shared
+vocabulary, and parity contract live in **plan 012 (read it before executing
+any wave-3 plan)**. Key architecture call (D1): procedural means *generated
+skinned geometry* substituted at the `LoadedAssets`/`CompileAssets` seam —
+the bird-builder rigid-hierarchy shortcut is explicitly NOT the target;
+assembly, springs, clip machine, sculpt, and export stay architecturally
+unchanged. Staging (D6): geometry parity first on the existing upright stance
+(013), then stance + clips (014), textures (015) and wardrobe (016) each
+parallel-lane + parity-gate + delete-old-lane, every deletion step gated on
+operator approval.
+
+| Plan | Title | Model | Priority | Effort | Depends on | Status |
+|------|-------|-------|----------|--------|------------|--------|
+| 012  | Procedural-first architecture + natural stance (wave-3 brief) | (reference doc) | — | — | — | N/A |
+| 013  | Procedural mesh kit: bodies + anatomy parts (biped parity first) | **Fable 5** | P1 | L | 012 | TODO |
+| 014  | Natural stance (quadruped mammals) + procedural clip synthesis | **Fable 5** | P1 | L | 013 | TODO |
+| 015  | Imagegen grain textures + TS pattern-mask rasterizer | Sonnet 5 | P1 | M–L | 013 (∥ 014) | TODO |
+| 016  | Procedural wardrobe (refit to stances; zero-GLB milestone) | Opus 4.8 | P2 | L | 013, 014, 015 | TODO |
+
+_Deepened 2026-07-07 (same session, second pass): three zero-context
+cold-read agents verified every plan against the repo; their findings are
+folded in. Notable corrections: the browser export loader is
+`src/studio/roster/companionExport.ts` (NOT `src/core/export/`);
+CharacterRoot's `gltfs[]` is index-addressed in four effects (013 now
+specifies the full `SceneSources` restructure); the toon `map` slot is a
+live 1×1 white texture, not dormant (015); patterns are per-vertex 3D
+fields, not 2D drawings (015 inlines all 8 field functions +
+`rasterize_mask`'s algorithm); the head face-UV contract is
+`HEAD_UV_ISLAND [0, 0.45, 0.55, 1]` equirect (013 hard requirement); the
+clip contract from `test/core/motion/clips.test.ts` (durations, sit
+continuity, gesture rest-end, no scale tracks) is inlined in 014; the
+`bodies.py`/`clips.py`/`patterns.py` analytic recipes are inlined into
+013/014/015 so no executor ever needs Blender._
+
+Wave-3 dependency notes:
+
+- 013 is the keystone: its deterministic mesh kit and the `ProcBodyData`
+  contract (geometry + per-vertex palette channels + torso/head meta +
+  `UV_ATLAS`) feed 014's re-parameterization, 015's pattern rasterizer, and
+  016's garment fitting. `AssetSource` and the CharacterRoot `SceneSources`
+  restructure are also 013 deliverables that 016 consumes.
+- 015 can run in parallel with 014 (different files; 015 must not touch
+  stance/motion). `materials.<region>.textureId` is a free string in the
+  schema, so grain ids need NO spec change — no version coordination
+  with 014 at all.
+- 016 runs last, needs 015's rasterizer for garment masks, and performs the
+  single **final sweep**: last GLBs + the whole `scripts/blender/`
+  directory + `gen:assets`/`gen:clips`/`gen:wardrobe`/`gen:skeleton-json`
+  entries. Plans 013/014/015 delete ONLY their own GLB/PNG assets and no
+  `.py` files — the Blender scripts cross-import (`clips.py` imports
+  `bodies`; `gen_assets.py` drives `patterns.py`), so partial deletion
+  leaves orphans. `gen:face-atlas` is tsx-based and survives the sweep.
+- When 014 lands: mark wave-1 plan 006 (contact-phase clip flattening)
+  REJECTED — synthesized clips make it moot. Wave-1 plan 005 (on-mesh face
+  export) remains open and is NOT part of wave 3.
+- Sculpt deltas on saved rosters are dropped by the v3 migration (loudly),
+  and doubly invalidated by 013's meshVersion bumps + 014's sculpt-assetId
+  rename; operator should confirm no roster sculpt is precious before
+  013/014 merge.
+
 ## Dependency notes
 
 - 001 before 004: 004's harness mirrors the locomotion+clip stack that 001
