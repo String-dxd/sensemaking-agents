@@ -1,20 +1,21 @@
-// Anatomy panel (plan 006, step 5): archetype selector, per-slot part picker
-// with lazy thumbnails, morph sliders (body + selected part), and a curated
-// safe boneScale set. Everything writes through the characterStore's `patch`
-// (one per animation frame during drags — same coalescing as MaterialPanel).
+// Anatomy panel (plan 006, step 5): per-slot part picker with lazy
+// thumbnails and part-morph sliders (the curated controls), plus a
+// collapsed Advanced disclosure holding the raw controls — body morphs,
+// bone scales, and the archetype override (advisor plan 009 step 4).
+// Everything writes through the characterStore's `patch` (one per animation
+// frame during drags — same coalescing as MaterialPanel).
 //
-// Plan 012 split this into two mode-tab sections (chrome-only — no handler
-// logic changed, just which JSX lives in which exported component):
-//   - `AnatomyArchetypeSection` — the "Animal" tab (archetype + personality).
-//   - `AnatomyPanel` — the "Anatomy" tab (slot/part picker, morphs, bone
-//     scales), still the panel's original export name.
-// Both render inside the shell's managed column via `PanelSection` — no more
-// fixed-position docking (was BOTTOM-LEFT, colliding with SculptPanel).
+// History: plan 012 split out an `AnatomyArchetypeSection` for the "Animal"
+// tab; plan 009 replaced that tab with SpeciesSection.tsx (species-first
+// flow) — personality moved there, the archetype select moved into
+// Advanced here, and the section export was deleted. Renders inside the
+// shell's managed column via `PanelSection` — no fixed-position docking.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { create } from 'zustand'
 import { BODY_MORPHS, getPart, type PartId, partsForSlot } from '../../core/skeleton/partRegistry'
-import { defaultAnatomyParts, defaultSpringRig, PERSONALITY_FACE_DEFAULTS } from '../../core/spec/defaults'
+import { getSpecies } from '../../core/species/registry'
+import { defaultAnatomyParts, defaultSpringRig } from '../../core/spec/defaults'
 import {
   ARCHETYPES,
   type Archetype,
@@ -22,11 +23,10 @@ import {
   type CharacterSpec,
   PART_SLOTS,
   type PartSlot,
-  PERSONALITIES,
-  type Personality,
 } from '../../core/spec/schema'
 import { PanelSection } from '../shell/PanelSection'
 import { useCharacterStore } from '../state/characterStore'
+import { useAdvancedMode } from '../state/studioStores'
 import { getPartThumbnail } from './partThumbnails'
 
 const selectStyle: React.CSSProperties = {
@@ -120,71 +120,34 @@ function PartThumb({ partId, active, onPick }: { partId: PartId; active: boolean
   )
 }
 
-/** "Animal" mode-tab content: archetype + personality (관상 face defaults).
- * The builder flow's first step — choose the animal. */
-export function AnatomyArchetypeSection() {
+/** "Anatomy" mode-tab content: per-slot parts + part morphs (the curated
+ * controls), with body morphs / bone scales / archetype override demoted to
+ * a collapsed Advanced disclosure (plan 009 step 4). The old
+ * AnatomyArchetypeSection's personality select moved to SpeciesSection; its
+ * archetype select lives in Advanced below. */
+export function AnatomyPanel() {
+  const parts = useCharacterStore((s) => s.spec.anatomy.parts)
+  const bodyMorphs = useCharacterStore((s) => s.spec.anatomy.bodyMorphs)
   const archetype = useCharacterStore((s) => s.spec.meta.archetype)
-  const personality = useCharacterStore((s) => s.spec.meta.personality)
+  // Class-legal part filtering (plan 009 step 3): a species preset locks the
+  // picker to its class; 'custom'/unknown ids resolve undefined -> unfiltered.
+  const speciesId = useCharacterStore((s) => s.spec.meta.species)
+  const klass = getSpecies(speciesId)?.class
+  const advanced = useAdvancedMode((s) => s.advanced)
+  const setAdvanced = useAdvancedMode((s) => s.setAdvanced)
   const rafPatch = useRafPatch()
+  const slot = useSelectedSlot((s) => s.slot)
+  const setSlot = useSelectedSlot((s) => s.setSlot)
 
   const setArchetype = (next: Archetype) => {
     rafPatch((draft) => {
-      draft.meta = { ...draft.meta, archetype: next }
+      // An archetype override means the species preset no longer applies.
+      draft.meta = { ...draft.meta, archetype: next, species: 'custom' }
       // coherent swap: default part loadout + spring rig for the new body
       draft.anatomy = { ...draft.anatomy, parts: defaultAnatomyParts(next), bodyMorphs: { ...draft.anatomy.bodyMorphs } }
       draft.motion = { ...draft.motion, springRig: defaultSpringRig(next) }
     })
   }
-
-  const setPersonality = (next: Personality) => {
-    const face = PERSONALITY_FACE_DEFAULTS[next]
-    rafPatch((draft) => {
-      draft.meta = { ...draft.meta, personality: next }
-      draft.face = {
-        ...draft.face,
-        atlasId: face.atlasId,
-        expression: face.defaultExpression,
-        eyes: { ...draft.face.eyes, pupilScale: face.pupilScale },
-        blink: { ...draft.face.blink, meanIntervalS: face.blinkMeanIntervalS },
-        gaze: { ...draft.face.gaze, intensity: face.gazeIntensity },
-      }
-    })
-  }
-
-  return (
-    <PanelSection title="Animal">
-      <label style={labelColStyle}>
-        <span style={{ opacity: 0.7 }}>Archetype</span>
-        <select style={selectStyle} value={archetype} onChange={(e) => setArchetype(e.target.value as Archetype)}>
-          {ARCHETYPES.map((a) => (
-            <option key={a} value={a}>
-              {a}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label style={labelColStyle}>
-        <span style={{ opacity: 0.7 }}>Personality (관상 face)</span>
-        <select style={selectStyle} value={personality} onChange={(e) => setPersonality(e.target.value as Personality)}>
-          {PERSONALITIES.map((p) => (
-            <option key={p} value={p}>
-              {p}
-            </option>
-          ))}
-        </select>
-      </label>
-    </PanelSection>
-  )
-}
-
-/** "Anatomy" mode-tab content: per-slot parts, morphs, bone scales. */
-export function AnatomyPanel() {
-  const parts = useCharacterStore((s) => s.spec.anatomy.parts)
-  const bodyMorphs = useCharacterStore((s) => s.spec.anatomy.bodyMorphs)
-  const rafPatch = useRafPatch()
-  const slot = useSelectedSlot((s) => s.slot)
-  const setSlot = useSelectedSlot((s) => s.setSlot)
 
   const pickPart = (pickSlot: PartSlot, partId: PartId) => {
     rafPatch((draft) => {
@@ -230,7 +193,19 @@ export function AnatomyPanel() {
   const selectedDef = selectedEntry ? getPart(selectedEntry.partId) : null
 
   return (
-    <PanelSection title="Anatomy">
+    <PanelSection
+      title="Anatomy"
+      actions={
+        <button
+          type="button"
+          style={{ ...selectStyle, cursor: 'pointer' }}
+          aria-expanded={advanced}
+          onClick={() => setAdvanced(!advanced)}
+        >
+          {advanced ? 'Advanced ▾' : 'Advanced ▸'}
+        </button>
+      }
+    >
       <label style={labelColStyle}>
         <span style={{ opacity: 0.7 }}>Slot</span>
         <select style={selectStyle} value={slot} onChange={(e) => setSlot(e.target.value as PartSlot)}>
@@ -243,7 +218,7 @@ export function AnatomyPanel() {
       </label>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {partsForSlot(slot).map((partId) => (
+        {partsForSlot(slot, klass).map((partId) => (
           <PartThumb key={partId} partId={partId} active={selectedEntry?.partId === partId} onPick={() => pickPart(slot, partId)} />
         ))}
       </div>
@@ -269,46 +244,63 @@ export function AnatomyPanel() {
         </div>
       ) : null}
 
-      <div style={labelColStyle}>
-        <span style={{ opacity: 0.7 }}>Body morphs</span>
-        {BODY_MORPHS.map((name) => (
-          <label key={name} style={labelColStyle}>
-            <span>
-              {name}: {(bodyMorphs[name] ?? 0).toFixed(2)}
-            </span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={bodyMorphs[name] ?? 0}
-              onChange={(e) => setBodyMorph(name, Number(e.target.value))}
-            />
+      {/* Advanced (plan 009 step 4): raw controls, collapsed by default —
+          the curated flow is species preset + parts + part morphs above. */}
+      {advanced ? (
+        <>
+          <label style={labelColStyle}>
+            <span style={{ opacity: 0.7 }}>Archetype</span>
+            <select style={selectStyle} value={archetype} onChange={(e) => setArchetype(e.target.value as Archetype)}>
+              {ARCHETYPES.map((a) => (
+                <option key={a} value={a}>
+                  {a}
+                </option>
+              ))}
+            </select>
           </label>
-        ))}
-      </div>
 
-      <div style={labelColStyle}>
-        <span style={{ opacity: 0.7 }}>Bone scales</span>
-        {BONE_SCALE_GROUPS.filter((g) => parts[g.slot]).map((group) => {
-          const current = parts[group.slot]?.boneScales?.[group.bones[0]]?.x ?? 1
-          return (
-            <label key={group.label} style={labelColStyle}>
-              <span>
-                {group.label}: {current.toFixed(2)}
-              </span>
-              <input
-                type="range"
-                min={0.5}
-                max={1.8}
-                step={0.01}
-                value={current}
-                onChange={(e) => setGroupScale(group, Number(e.target.value))}
-              />
-            </label>
-          )
-        })}
-      </div>
+          <div style={labelColStyle}>
+            <span style={{ opacity: 0.7 }}>Body morphs</span>
+            {BODY_MORPHS.map((name) => (
+              <label key={name} style={labelColStyle}>
+                <span>
+                  {name}: {(bodyMorphs[name] ?? 0).toFixed(2)}
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={bodyMorphs[name] ?? 0}
+                  onChange={(e) => setBodyMorph(name, Number(e.target.value))}
+                />
+              </label>
+            ))}
+          </div>
+
+          <div style={labelColStyle}>
+            <span style={{ opacity: 0.7 }}>Bone scales</span>
+            {BONE_SCALE_GROUPS.filter((g) => parts[g.slot]).map((group) => {
+              const current = parts[group.slot]?.boneScales?.[group.bones[0]]?.x ?? 1
+              return (
+                <label key={group.label} style={labelColStyle}>
+                  <span>
+                    {group.label}: {current.toFixed(2)}
+                  </span>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={1.8}
+                    step={0.01}
+                    value={current}
+                    onChange={(e) => setGroupScale(group, Number(e.target.value))}
+                  />
+                </label>
+              )
+            })}
+          </div>
+        </>
+      ) : null}
     </PanelSection>
   )
 }

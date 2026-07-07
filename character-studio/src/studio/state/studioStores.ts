@@ -83,6 +83,14 @@ export const useLightingStudio = create<LightingStudioState>((set) => ({
   setSelectedLightId: (selectedLightId) => set({ selectedLightId }),
 }))
 
+// Studio-level (NOT persisted) advanced-mode flag (advisor plan 009): raw
+// controls (body morphs, bone scales, archetype override, motion debug) are
+// demoted behind this toggle; the curated species-first flow is the default.
+export const useAdvancedMode = create<{ advanced: boolean; setAdvanced(v: boolean): void }>((set) => ({
+  advanced: false,
+  setAdvanced: (advanced) => set({ advanced }),
+}))
+
 /** Safety net if a loaded spec omits a region (materials is a partial record). */
 export const FALLBACK_ASSIGN: MaterialAssign = {
   rampSoftness: 0.2,
