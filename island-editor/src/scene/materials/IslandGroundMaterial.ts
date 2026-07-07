@@ -105,7 +105,15 @@ void main() {
   float cliffShade = groundNoise(vec2(vWorld.x + vWorld.z, vWorld.y) * 3.0);
   cliff = mix(cliff * 0.93, cliff * 1.06, cliffShade);
 
-  float wallF = smoothstep(0.25, 0.45, vWallness);
+  // Wall mask. vWallness (from the terrace s) dips in vertical lanes along a
+  // diagonal cliff — each column crosses a slightly different drop, so wallF
+  // falls below 1 there and the flat sand/grass color bleeds UP the wall in
+  // stripes. The geometric slope (how vertical the face is) has no such
+  // per-column dip, so max() it in: a genuinely steep face reads as cliff
+  // regardless of orientation. This only ADDS cliff to steep lanes, never
+  // removes cliff the terrace term already covers.
+  float slope = 1.0 - clamp(normalize(vNormal).y, 0.0, 1.0);
+  float wallF = max(smoothstep(0.25, 0.45, vWallness), smoothstep(0.35, 0.6, slope));
   vec3 albedo = mix(flatColor, cliff, wallF);
 
   // ── Lighting — fresh simple lambert ───────────────────────────────────────
