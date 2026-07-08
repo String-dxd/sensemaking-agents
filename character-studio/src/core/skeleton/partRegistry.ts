@@ -320,7 +320,9 @@ export const PART_REGISTRY = {
     classes: ['bird'],
     skinnedTo: TAIL_BONES,
     morphs: ['length', 'width'],
-    springProfile: spring(0.25, 22, 0.12),
+    // stiff, low-gravity: the authored arcs must HOLD at rest (reviewer round 1
+    // — the plan's looser numbers sagged the sickles down beside the legs)
+    springProfile: spring(0.6, 6, 0.12),
   },
   'tail-train-peacock': {
     slot: 'tail',
@@ -332,7 +334,9 @@ export const PART_REGISTRY = {
     classes: ['bird'],
     skinnedTo: TAIL_BONES,
     morphs: ['length', 'width'],
-    springProfile: spring(0.35, 14, 0.1),
+    // stiff, low-gravity: the upright fan must stay upright at rest (reviewer
+    // round 1 — the plan's looser numbers dropped the train like a broom)
+    springProfile: spring(0.7, 4, 0.1),
   },
 
   // --- claws (rigid on hand/foot bones) -----------------------------------

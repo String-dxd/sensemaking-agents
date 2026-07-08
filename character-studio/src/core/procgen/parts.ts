@@ -374,15 +374,17 @@ function muzzleBillDuck(j: J): PartMesh[] {
 
 function muzzleBeakChicken(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const base: Vec3 = [a[0], a[1] + 0.008, a[2] - 0.015]
-  const tip: Vec3 = [a[0], a[1] - 0.01, a[2] + 0.06]
-  const beak = closedCapsule('beak', base, tip, 0.048, 0.01, 12, 10)
+  const base: Vec3 = [a[0], a[1] + 0.01, a[2] - 0.015]
+  const tip: Vec3 = [a[0], a[1] - 0.012, a[2] + 0.08]
+  const beak = closedCapsule('beak', base, tip, 0.058, 0.01, 12, 10)
   flatY(beak, a[1] + 0.002, 0.82)
   diamondize(beak, base, dirTo(base, tip), 0.6)
   setChannelAll(beak, CH_ACCENT, 1)
-  // red wattle: two soft lobes hanging under the beak base
-  const wattleL = closedEllipsoid('wattleL', [a[0] + 0.012, a[1] - 0.05, a[2] + 0.02], [0.018, 0.03, 0.014], 10, 8)
-  const wattleR = closedEllipsoid('wattleR', [a[0] - 0.012, a[1] - 0.05, a[2] + 0.02], [0.018, 0.03, 0.014], 10, 8)
+  // red wattle: two lobes hanging under the beak base / chin (centers ~0.035
+  // below the base, slightly forward — hanging wattles, not whiskers)
+  const wattleY = base[1] - 0.035
+  const wattleL = closedEllipsoid('wattleL', [a[0] + 0.012, wattleY, a[2] + 0.03], [0.02, 0.036, 0.016], 10, 8)
+  const wattleR = closedEllipsoid('wattleR', [a[0] - 0.012, wattleY, a[2] + 0.03], [0.02, 0.036, 0.016], 10, 8)
   setChannelAll(wattleL, CH_SECONDARY, 1)
   setChannelAll(wattleR, CH_SECONDARY, 1)
   return [
@@ -392,9 +394,9 @@ function muzzleBeakChicken(j: J): PartMesh[] {
 
 function muzzleBeakPenguin(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const base: Vec3 = [a[0], a[1] + 0.006, a[2] - 0.02]
-  const tip: Vec3 = [a[0], a[1] - 0.006, a[2] + 0.085]
-  const beak = closedCapsule('beak', base, tip, 0.045, 0.009, 12, 10)
+  const base: Vec3 = [a[0], a[1] + 0.008, a[2] - 0.02]
+  const tip: Vec3 = [a[0], a[1] - 0.008, a[2] + 0.11]
+  const beak = closedCapsule('beak', base, tip, 0.052, 0.009, 12, 10)
   flatY(beak, a[1], 0.8)
   diamondize(beak, base, dirTo(base, tip), 0.4)
   for (let i = 0; i < vertexCount(beak); i++) {
@@ -486,26 +488,30 @@ function tailSickleRooster(j: J): PartMesh[] {
   fan.forEach((deg, i) => {
     const fx = Math.sin((deg * Math.PI) / 180) * 0.14
     const feather = closedCapsule(`sickle${i}`, root, add(root, [0, L, 0]), 0.02, 0.008, 10, 16, 0.01)
-    // arc up-back-down (apex ~+0.16 above root)
+    // arc rising ABOVE the back then curving down BEHIND the body (apex ~+0.22;
+    // reviewer round 1: authored high so spring rest sag never drops the arcs
+    // beside the legs)
     const path: Vec3[] = [
       root,
-      add(root, [fx * 0.3, 0.1, -0.06]),
-      add(root, [fx * 0.7, 0.16, -0.18]),
-      add(root, [fx, 0.08, -0.3]),
-      add(root, [fx * 1.1, -0.06, -0.34]),
+      add(root, [fx * 0.3, 0.14, -0.04]),
+      add(root, [fx * 0.7, 0.22, -0.16]),
+      add(root, [fx, 0.16, -0.3]),
+      add(root, [fx * 1.1, 0.04, -0.37]),
     ]
     bendChain(feather.pos, root, L, smoothPath(path, 40))
     chainWeightsPiece(feather, TAIL_BONES, [0.3, 0.55, 0.8], 0.1)
     setChannelFn(feather, CH_SECONDARY, (k) => (feather.params[k * 2 + 1] > 0.85 ? 0.9 : 0))
     shells.push(feather)
   })
-  return [{ name: 'tail-sickle-rooster', shells, attach: null, morphKeys: lengthWidthKeys(shells, root, add(root, [0, 0, -0.34])) }]
+  return [{ name: 'tail-sickle-rooster', shells, attach: null, morphKeys: lengthWidthKeys(shells, root, add(root, [0, 0.04, -0.37])) }]
 }
 
 function tailTrainPeacock(j: J): PartMesh[] {
   const root = tailChain(j)
   const shells: SurfacePiece[] = []
-  const tilt = (20 * Math.PI) / 180
+  // near-vertical fan, only ~15° back-tilt (reviewer round 1: rest pose must
+  // read upright behind the torso, tips at/above mid-head height)
+  const tilt = (15 * Math.PI) / 180
   const up: Vec3 = [0, Math.cos(tilt), -Math.sin(tilt)] // upright, tilted back
   const xhat: Vec3 = [1, 0, 0]
   const planeN = vec.norm(vec.cross(xhat, up)) // out-of-plane normal
@@ -591,12 +597,11 @@ function crestCombChicken(j: J): PartMesh[] {
   // Serrated red crown ridge: 4 overlapping thin lobes along the head midline,
   // descending back-to-front.
   const a = V(j['socket.hat'])
-  const zs = [-0.04, 0.0, 0.035, 0.06]
+  const zs = [-0.07, -0.015, 0.04, 0.09]
   const shells = zs.map((dz, i) => {
-    const h = 0.05 - (i / (zs.length - 1)) * 0.015
-    const c: Vec3 = [a[0], a[1] + h * 0.5, a[2] + dz]
-    const lobe = closedEllipsoid(`comb${i}`, c, [0.016, h, 0.032], 10, 8)
-    scaleX(lobe, a[0], 0.5)
+    const h = 0.07 - (i / (zs.length - 1)) * 0.02 // 0.07 back → 0.05 front
+    const c: Vec3 = [a[0], a[1] + h * 0.45, a[2] + dz]
+    const lobe = closedEllipsoid(`comb${i}`, c, [0.02, h, 0.045], 10, 8)
     setChannelAll(lobe, CH_SECONDARY, 1)
     return lobe
   })

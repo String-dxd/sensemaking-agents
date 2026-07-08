@@ -126,6 +126,13 @@ describe('plan 018 bird part family', () => {
     expect(ez).toBeGreaterThanOrEqual(0.12)
   })
 
+  it('beak-chicken and beak-penguin are face-dominant: z-extents ≥ 0.09 / 0.12', () => {
+    const [, , chickenZ] = extent(buildProceduralPart('beak-chicken'))
+    expect(chickenZ).toBeGreaterThanOrEqual(0.09)
+    const [, , penguinZ] = extent(buildProceduralPart('beak-penguin'))
+    expect(penguinZ).toBeGreaterThanOrEqual(0.12)
+  })
+
   it('bill-duck is broad: x-extent ≥ y-extent × 2.2', () => {
     const [ex, ey] = extent(buildProceduralPart('bill-duck'))
     expect(ex).toBeGreaterThanOrEqual(ey * 2.2)
