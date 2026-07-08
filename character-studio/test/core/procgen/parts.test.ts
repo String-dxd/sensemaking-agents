@@ -5,7 +5,7 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 import { buildProceduralPart } from '../../../src/core/procgen/parts'
-import { PART_IDS, PART_REGISTRY, type PartDef, type PartId } from '../../../src/core/skeleton/partRegistry'
+import { getPart, PART_IDS, PART_REGISTRY, type PartDef, type PartId, partsForSlot } from '../../../src/core/skeleton/partRegistry'
 import { BONE_NAMES } from '../../../src/core/spec/schema'
 
 const authored = PART_IDS.filter((id) => PART_REGISTRY[id].url !== null)
@@ -88,6 +88,97 @@ describe.each(authored)('buildProceduralPart(%s)', (id: PartId) => {
     const pa = meshes(a).map((m) => Array.from(m.geometry.getAttribute('position').array as Float32Array))
     const pb = meshes(b).map((m) => Array.from(m.geometry.getAttribute('position').array as Float32Array))
     expect(pa).toEqual(pb)
+  })
+})
+
+// --- plan 018: AC-scale bird part family --------------------------------------
+
+const BIRD_PART_ADDITIONS = ['beak-chicken', 'beak-penguin', 'comb-chicken', 'crest-peacock', 'tail-sickle-rooster', 'tail-train-peacock'] as const
+
+function extent(scene: THREE.Object3D): [number, number, number] {
+  const mn = [Infinity, Infinity, Infinity]
+  const mx = [-Infinity, -Infinity, -Infinity]
+  for (const m of meshes(scene)) {
+    const p = m.geometry.getAttribute('position')
+    for (let i = 0; i < p.count; i++) {
+      for (let a = 0; a < 3; a++) {
+        const v = p.getComponent(i, a)
+        mn[a] = Math.min(mn[a], v)
+        mx[a] = Math.max(mx[a], v)
+      }
+    }
+  }
+  return [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]]
+}
+
+describe('plan 018 bird part family', () => {
+  it('all new bird part ids build without throwing and are deterministic', () => {
+    for (const id of BIRD_PART_ADDITIONS) {
+      expect(() => buildProceduralPart(id)).not.toThrow()
+      const a = meshes(buildProceduralPart(id)).map((m) => Array.from(m.geometry.getAttribute('position').array as Float32Array))
+      const b = meshes(buildProceduralPart(id)).map((m) => Array.from(m.geometry.getAttribute('position').array as Float32Array))
+      expect(a).toEqual(b)
+    }
+  })
+
+  it('beak-small is never-invisible: base-to-tip z-extent ≥ 0.12', () => {
+    const [, , ez] = extent(buildProceduralPart('beak-small'))
+    expect(ez).toBeGreaterThanOrEqual(0.12)
+  })
+
+  it('bill-duck is broad: x-extent ≥ y-extent × 2.2', () => {
+    const [ex, ey] = extent(buildProceduralPart('bill-duck'))
+    expect(ex).toBeGreaterThanOrEqual(ey * 2.2)
+  })
+
+  it('chicken wattle paints CH_SECONDARY (max = 1) on the beak-chicken mesh', () => {
+    let maxSecondary = 0
+    for (const m of meshes(buildProceduralPart('beak-chicken'))) {
+      const c = m.geometry.getAttribute('paletteChannels')
+      for (let i = 0; i < c.count; i++) maxSecondary = Math.max(maxSecondary, c.getY(i))
+    }
+    expect(maxSecondary).toBeCloseTo(1, 5)
+  })
+
+  it('peacock train eyespot has CH_ACCENT>0.8 and CH_BELLY>0.8 in disjoint vertex sets', () => {
+    let accHi = 0
+    let belHi = 0
+    let both = 0
+    for (const m of meshes(buildProceduralPart('tail-train-peacock'))) {
+      const c = m.geometry.getAttribute('paletteChannels')
+      for (let i = 0; i < c.count; i++) {
+        const acc = c.getW(i) // accentA
+        const bel = c.getZ(i) // belly
+        if (acc > 0.8) accHi++
+        if (bel > 0.8) belHi++
+        if (acc > 0.8 && bel > 0.8) both++
+      }
+    }
+    expect(accHi).toBeGreaterThan(0)
+    expect(belHi).toBeGreaterThan(0)
+    expect(both).toBe(0)
+  })
+
+  it('every new id resolves via getPart with a procedural source', () => {
+    for (const id of BIRD_PART_ADDITIONS) {
+      const def = getPart(id)
+      expect(def, id).not.toBeNull()
+      expect(def?.source?.kind, id).toBe('procedural')
+    }
+  })
+
+  it('pickers list the new bird beaks/crests/tails', () => {
+    const beaks = partsForSlot('muzzle', 'bird')
+    expect(beaks).toContain('beak-chicken')
+    expect(beaks).toContain('beak-penguin')
+    expect(beaks.length).toBe(6)
+    const crests = partsForSlot('crest', 'bird')
+    expect(crests).toContain('comb-chicken')
+    expect(crests).toContain('crest-peacock')
+    const tails = partsForSlot('tail', 'bird')
+    expect(tails).toContain('tail-sickle-rooster')
+    expect(tails).toContain('tail-train-peacock')
+    expect(tails.length).toBe(3)
   })
 })
 
