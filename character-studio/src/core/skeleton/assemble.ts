@@ -292,7 +292,14 @@ export function assembleCharacter(
       resolvesAuthored(textureId)
         ? (assets.texturesByRegion?.[region] ?? { map: null, maskMap: null })
         : defaultTextureResolver(textureId)
-    const material = createToonMaterial(assign, spec.palette, { resolveTexture })
+    // Procedural meshes carry exact per-vertex palette channels; the authored
+    // mask PNGs were baked against the retired GLB UV unwraps and misalign on
+    // procedural UVs (dark limb streaks, muzzle blotches) — prefer the vertex
+    // path whenever the geometry has it. Species pattern masks are inert on
+    // this path until plan 015 rasterizes them from TS fields.
+    const meshes = regionMeshes[region] ?? []
+    const vertexChannels = meshes.length > 0 && meshes.every((m) => m.geometry.hasAttribute('paletteChannels'))
+    const material = createToonMaterial(assign, spec.palette, { resolveTexture, vertexChannels })
     regionMaterials[region] = material
     for (const mesh of regionMeshes[region] ?? []) mesh.material = material
   }

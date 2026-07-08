@@ -79,8 +79,12 @@ export interface ToonUniforms {
 export interface ToonMaterialData {
   toonUniforms: ToonUniforms
   /** Boolean feature toggles; every entry participates in the program key.
-   * `faceMap` is optional so pre-plan-002 define literals stay valid. */
-  toonDefines: { paletteMask: boolean; faceMap?: boolean }
+   * `faceMap`/`paletteVertex` are optional so older define literals stay valid.
+   * `paletteVertex` (plan 013 visual parity): palette weights come from the
+   * geometry's `paletteChannels` vec4 attribute instead of a mask texture —
+   * the procedural builders compute exact per-vertex channels, while the
+   * authored mask PNGs were baked against the retired GLB UV unwraps. */
+  toonDefines: { paletteMask: boolean; faceMap?: boolean; paletteVertex?: boolean }
 }
 
 export type ToonMaterial = THREE.MeshToonMaterial & { userData: ToonMaterialData }
@@ -92,6 +96,9 @@ export interface ToonMaterialOptions {
   terminatorWarmth?: number
   /** Maps `assign.textureId` to textures; defaults to the debug registry. */
   resolveTexture?: TextureResolver
+  /** Palette weights from the geometry's `paletteChannels` vec4 attribute
+   * (procedural meshes). Overrides the mask-texture path. */
+  vertexChannels?: boolean
 }
 
 // --- GLSL injection ----------------------------------------------------------
@@ -136,6 +143,11 @@ const MASK_PARS = /* glsl */ `
 #include <map_pars_fragment>
 #ifdef USE_PALETTE_MASK
 	uniform sampler2D uMaskMap;
+#endif
+#ifdef USE_PALETTE_VERTEX
+	varying vec4 vPaletteChannels;
+#endif
+#if defined( USE_PALETTE_MASK ) || defined( USE_PALETTE_VERTEX )
 	uniform vec3 uPaletteColors[ 6 ];
 #endif
 #ifdef USE_FACE_MAP
@@ -145,15 +157,39 @@ const MASK_PARS = /* glsl */ `
 
 // albedo = luminance × Σ maskChannel_i · palette_i, unmasked remainder →
 // primary (index 0). Mirrors paletteWeightsFromMask() in palette.ts exactly.
+// The weights come from the mask texture, or — on procedural meshes — from
+// the per-vertex channels (identical R/G/B/A semantics).
 const MASK_FRAGMENT = /* glsl */ `
 #include <map_fragment>
-#ifdef USE_PALETTE_MASK
+#if defined( USE_PALETTE_MASK ) || defined( USE_PALETTE_VERTEX )
+	#ifdef USE_PALETTE_VERTEX
+	vec4 paletteMask = clamp( vPaletteChannels, 0.0, 1.0 );
+	#else
 	vec4 paletteMask = texture2D( uMaskMap, vMapUv );
+	#endif
 	float paletteRest = max( 0.0, 1.0 - ( paletteMask.r + paletteMask.g + paletteMask.b + paletteMask.a ) );
 	diffuseColor.rgb *= ( paletteMask.r + paletteRest ) * uPaletteColors[ 0 ]
 		+ paletteMask.g * uPaletteColors[ 1 ]
 		+ paletteMask.b * uPaletteColors[ 2 ]
 		+ paletteMask.a * uPaletteColors[ 3 ];
+#endif
+`
+
+// Vertex-side plumbing for USE_PALETTE_VERTEX: declare the attribute/varying
+// and copy it through. Textually injected always, behaviorally inert unless
+// the define is on — the skinning/morph-target chunks stay byte-identical.
+const PALETTE_VERTEX_PARS = /* glsl */ `
+#include <common>
+#ifdef USE_PALETTE_VERTEX
+	attribute vec4 paletteChannels;
+	varying vec4 vPaletteChannels;
+#endif
+`
+
+const PALETTE_VERTEX_MAIN = /* glsl */ `
+#include <begin_vertex>
+#ifdef USE_PALETTE_VERTEX
+	vPaletteChannels = paletteChannels;
 #endif
 `
 
@@ -175,18 +211,23 @@ const FACE_FRAGMENT = /* glsl */ `
 `
 
 /** Exported for tests: the injection applied inside onBeforeCompile. */
-export function injectToonShader(shader: { uniforms: Record<string, unknown>; fragmentShader: string }, uniforms: ToonUniforms): void {
+export function injectToonShader(shader: { uniforms: Record<string, unknown>; fragmentShader: string; vertexShader?: string }, uniforms: ToonUniforms): void {
   Object.assign(shader.uniforms, uniforms)
   shader.fragmentShader = shader.fragmentShader
     .replace('#include <map_pars_fragment>', MASK_PARS)
     .replace('#include <map_fragment>', MASK_FRAGMENT)
     .replace('#include <lights_toon_pars_fragment>', TOON_LIGHTING_PARS)
     .replace('#include <dithering_fragment>', FACE_FRAGMENT)
+  if (shader.vertexShader !== undefined) {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', PALETTE_VERTEX_PARS)
+      .replace('#include <begin_vertex>', PALETTE_VERTEX_MAIN)
+  }
 }
 
 /** Program cache key from the boolean define set (variant explosion control). */
 export function toonProgramCacheKey(defines: ToonMaterialData['toonDefines']): string {
-  return `toon|mask:${defines.paletteMask ? 1 : 0}|face:${defines.faceMap ? 1 : 0}`
+  return `toon|mask:${defines.paletteMask ? 1 : 0}|face:${defines.faceMap ? 1 : 0}|vch:${defines.paletteVertex ? 1 : 0}`
 }
 
 /** Rebuild `material.defines` from the toonDefines flag set — the single
@@ -195,6 +236,7 @@ function syncToonDefines(material: ToonMaterial): void {
   const defines: Record<string, string> = {}
   if (material.userData.toonDefines.paletteMask) defines.USE_PALETTE_MASK = ''
   if (material.userData.toonDefines.faceMap) defines.USE_FACE_MAP = ''
+  if (material.userData.toonDefines.paletteVertex) defines.USE_PALETTE_VERTEX = ''
   material.defines = defines
 }
 
@@ -220,7 +262,7 @@ function getWhiteTexture(): THREE.DataTexture {
  */
 export function createToonMaterial(assign: MaterialAssign, palette: Palette, opts: ToonMaterialOptions = {}): ToonMaterial {
   const resolveTexture = opts.resolveTexture ?? defaultTextureResolver
-  const textures = resolveTexture(assign.textureId ?? 'none')
+  const textures = opts.vertexChannels ? { map: null, maskMap: null } : resolveTexture(assign.textureId ?? 'none')
 
   const uniforms: ToonUniforms = {
     uWrap: { value: opts.wrap ?? DEFAULT_WRAP },
@@ -234,10 +276,13 @@ export function createToonMaterial(assign: MaterialAssign, palette: Palette, opt
   }
 
   const material = new THREE.MeshToonMaterial() as ToonMaterial
-  material.userData = { toonUniforms: uniforms, toonDefines: { paletteMask: textures.maskMap !== null, faceMap: false } }
+  material.userData = {
+    toonUniforms: uniforms,
+    toonDefines: { paletteMask: textures.maskMap !== null, faceMap: false, paletteVertex: opts.vertexChannels ?? false },
+  }
   material.map = textures.map ?? getWhiteTexture()
   syncToonDefines(material)
-  if (material.userData.toonDefines.paletteMask) {
+  if (material.userData.toonDefines.paletteMask || material.userData.toonDefines.paletteVertex) {
     material.color.setRGB(1, 1, 1)
   } else {
     // Unmasked path: flat primary coat (recolored live via applyPalette).
@@ -263,7 +308,7 @@ export function applyPalette(material: ToonMaterial, palette: Palette): void {
   const u = material.userData.toonUniforms
   const colors = resolvePalette(palette)
   for (let i = 0; i < colors.length; i++) u.uPaletteColors.value[i].copy(colors[i])
-  if (!material.userData.toonDefines.paletteMask) {
+  if (!material.userData.toonDefines.paletteMask && !material.userData.toonDefines.paletteVertex) {
     material.color.setRGB(...hexToLinear(palette.primary), THREE.LinearSRGBColorSpace)
   }
 }
@@ -274,6 +319,9 @@ export function applyPalette(material: ToonMaterial, palette: Palette): void {
  * define set, so three's program cache dedupes correctly across materials.
  */
 export function applyTextureId(material: ToonMaterial, assign: MaterialAssign, palette: Palette, resolveTexture: TextureResolver = defaultTextureResolver): void {
+  // Vertex-channel materials own their palette weights — textureId swaps
+  // must not re-enable the (UV-mismatched) mask path on procedural meshes.
+  if (material.userData.toonDefines.paletteVertex) return
   const textures = resolveTexture(assign.textureId ?? 'none')
   const wantMask = textures.maskMap !== null
   material.userData.toonUniforms.uMaskMap.value = textures.maskMap
