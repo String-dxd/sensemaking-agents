@@ -39,15 +39,15 @@ describe('species registry', () => {
     }
   })
 
-  it("partsForSlot filters by class: 'muzzle' bird-only returns beaks, mammal-only returns non-beaks, unfiltered returns all six", () => {
+  it("partsForSlot filters by class: 'muzzle' bird-only returns beaks, mammal-only returns non-beaks, unfiltered returns all eight", () => {
     const birdMuzzles = partsForSlot('muzzle', 'bird')
     const mammalMuzzles = partsForSlot('muzzle', 'mammal')
     const allMuzzles = partsForSlot('muzzle')
 
-    // plan 010 added beak-hooked / bill-duck (bird-only)
-    expect(birdMuzzles.sort()).toEqual(['beak-hooked', 'beak-round', 'beak-small', 'bill-duck'])
+    // plan 010 added beak-hooked / bill-duck; plan 018 added beak-chicken / beak-penguin (all bird-only)
+    expect(birdMuzzles.sort()).toEqual(['beak-chicken', 'beak-hooked', 'beak-penguin', 'beak-round', 'beak-small', 'bill-duck'])
     expect(mammalMuzzles.sort()).toEqual(['boxy-dog', 'short-cat'])
-    expect(allMuzzles).toHaveLength(6)
+    expect(allMuzzles).toHaveLength(8)
     for (const id of birdMuzzles) {
       expect(PART_REGISTRY[id].classes).toContain('bird')
     }
