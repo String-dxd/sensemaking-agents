@@ -334,18 +334,18 @@ export const BODY_REGISTRY: Record<'biped-round' | 'biped-slim' | 'bird', BodyDe
     url: bodyUrl('body-biped-round.glb'),
     maskUrl: maskUrl('body-biped-round.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 3, // plan 007: AC-benchmark limb proportions (re-aimed arm chain, new vertex layout)
+    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
   },
   'biped-slim': {
     url: bodyUrl('body-biped-slim.glb'),
     maskUrl: maskUrl('body-biped-slim.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 3, // plan 007: AC-benchmark limb proportions (re-aimed arm chain, new vertex layout)
+    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
   },
   bird: {
     url: bodyUrl('body-bird.glb'),
     maskUrl: maskUrl('body-bird.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 3, // plan 007: AC-benchmark limb proportions (re-aimed arm chain, new vertex layout)
+    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
   },
 }

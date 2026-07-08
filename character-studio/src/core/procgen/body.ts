@@ -1,0 +1,516 @@
+// Procedural body builder (plan 013 step 2) — ports scripts/blender/bodies.py
+// to a deterministic TS mesh generator. Produces a scene shaped exactly like a
+// loaded body GLB: the canonical 38-bone skeleton + region-split SkinnedMeshes
+// (body / body_torso / body_hips / body_upperLegs, matching the shipped GLB),
+// with POSITION/NORMAL/TEXCOORD_0(UV atlas)/JOINTS_0/WEIGHTS_0, the five
+// BODY_MORPHS as relative morph targets, and per-vertex palette channels.
+//
+// Divergence from the Python lane (deliberate, per plan 013): the Python recipe
+// unions overlapping shells and welds them with a Blender boolean; TS has no
+// robust boolean, so the kit produces the welded result BY CONSTRUCTION — limbs
+// are lofted and bridged ring-to-ring into the torso openings, the head bridges
+// to the torso at the neck, so the merged buffer is a closed 2-manifold with no
+// interior faces. Hands/feet are short capsule lofts (not free ellipsoids) so
+// their attach pole faces the wrist/ankle for a clean bridge. Same silhouette,
+// cleaner topology. The fillet reshapes near-junction rings onto the smooth-min
+// union surface so the shoulders/haunches read as the AC sculpted fillet.
+
+import * as THREE from 'three'
+import { ARCHETYPES_DEF, archetypeBuildOptions, archetypeHead } from '../skeleton/archetypes'
+import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skeleton/canonical'
+import type { Archetype } from '../spec/schema'
+import { BODY_MORPHS } from '../skeleton/partRegistry'
+import { BONE_NAMES, type BoneName } from '../spec/schema'
+import { accentAll, headChannels, torsoChannels } from './kit/channels'
+import { filletLimbIntoTorso, makeTorsoSdf } from './kit/fillet'
+import { capsuleGrid } from './kit/loft'
+import { pearProfile } from './kit/profiles'
+import { type Opening, ellipsoidTransform, gridToPiece, unitSphere } from './kit/sphereGrid'
+import { MeshBuilder, manifoldReport, packSkinning } from './kit/stitch'
+import {
+  type SurfacePiece,
+  type Vec3,
+  smoothstep,
+  v as vec,
+  vertexCount,
+} from './kit/surface'
+import { type IslandName, UV_ATLAS, islandUv } from './kit/uv'
+import { chainWeights, footWeights, rigidWeight, torsoWeights } from './kit/weights'
+
+// --- per-archetype style knobs (bodies.py STYLE, verbatim) --------------------
+
+interface Style {
+  torsoRx: number
+  torsoRz: number
+  pear: number
+  shoulderTaper: number
+  armR: number
+  handR: number
+  legR: number
+  foot: readonly [number, number, number]
+  headSquash: number
+  headWide: number
+  wing: boolean
+}
+
+const STYLE: Record<Archetype, Style> = {
+  'biped-round': { torsoRx: 0.8, torsoRz: 0.62, pear: 0.28, shoulderTaper: 0.16, armR: 0.05, handR: 0.058, legR: 0.064, foot: [0.064, 0.044, 0.104], headSquash: 0.97, headWide: 1.05, wing: false },
+  'biped-slim': { torsoRx: 0.66, torsoRz: 0.58, pear: 0.22, shoulderTaper: 0.18, armR: 0.042, handR: 0.05, legR: 0.05, foot: [0.054, 0.038, 0.092], headSquash: 0.99, headWide: 1.02, wing: false },
+  bird: { torsoRx: 0.88, torsoRz: 0.8, pear: 0.36, shoulderTaper: 0.14, armR: 0.034, handR: 0, legR: 0.028, foot: [0.056, 0.03, 0.102], headSquash: 0.96, headWide: 1.04, wing: true },
+}
+
+// Trunk shells (head + torso) share this azimuth resolution so their neck rings
+// bridge one-to-one. The face is drawn in the head's UVs (a texture), so the
+// head's geometric azimuth resolution is not a fidelity constraint.
+const TRUNK_USEG = 32
+const HEAD_VSEG = 22
+const TORSO_VSEG = 18
+const LIMB_USEG = 12
+const LIMB_VSEG = 10
+const WING_USEG = 14
+const WING_VSEG = 12
+
+// --- public shape -------------------------------------------------------------
+
+export interface ProcBodyData {
+  /** Canonical skeleton + region-split SkinnedMeshes (shaped like a body GLB). */
+  scene: THREE.Object3D
+  /** n×4 palette channels (R/G/B/A = primary/secondary/belly/accentA). Plan 015. */
+  channels: Float32Array
+  /** Pattern-field coordinate system (plan 015 consumes). */
+  meta: {
+    torso: { cy: number; ry: number; rx: number; rz: number }
+    headCenter: [number, number, number]
+    headRadius: number
+    /** vertex range [start, end) per piece in the merged buffer. */
+    shellRanges: Record<string, [start: number, end: number]>
+    /** chain param t per limb vertex (only limb pieces populated). */
+    limbParams: Record<string, Float32Array>
+  }
+  /** Triangle count across all region meshes (budget gate). */
+  triangleCount: number
+  /** Topology audit of the full welded mesh (before region split). */
+  manifold: { boundaryEdges: number; overSharedEdges: number; components: number }
+}
+
+// --- helpers ------------------------------------------------------------------
+
+const V = (p: readonly [number, number, number]): Vec3 => [p[0], p[1], p[2]]
+
+/** Grid ring index whose ellipsoid latitude sits nearest world-Y `targetY`. */
+function ringForY(vseg: number, cy: number, ry: number, targetY: number): number {
+  const cos = Math.min(Math.max((cy - targetY) / ry, -1), 1)
+  return Math.min(Math.max(Math.round((vseg / Math.PI) * Math.acos(cos)), 1), vseg - 1)
+}
+
+/** Grid column nearest a world azimuth (atan2(x, z): +Z=0, +X=π/2). */
+function colForAzimuth(useg: number, x: number, z: number): number {
+  const az = Math.atan2(x, z)
+  const col = Math.round((az / (2 * Math.PI)) * useg)
+  return ((col % useg) + useg) % useg
+}
+
+/** Paint an island's UVs onto a piece from its (azimuth u01, polar v01) params. */
+function paintUv(piece: SurfacePiece, island: IslandName, frontCenter: boolean): void {
+  const rect = UV_ATLAS[island]
+  const n = vertexCount(piece)
+  for (let i = 0; i < n; i++) {
+    const [uu, vv] = islandUv(rect, piece.params[i * 2], piece.params[i * 2 + 1], frontCenter)
+    piece.uv[i * 2] = uu
+    piece.uv[i * 2 + 1] = vv
+  }
+}
+
+/** Copy a limb loft's along-chain param (polar v01) into a per-vertex array. */
+function limbParamArray(piece: SurfacePiece): Float32Array {
+  const n = vertexCount(piece)
+  const out = new Float32Array(n)
+  for (let i = 0; i < n; i++) out[i] = piece.params[i * 2 + 1]
+  return out
+}
+
+// --- builder ------------------------------------------------------------------
+
+export function buildProceduralBody(archetype: Archetype): ProcBodyData {
+  const built: BuiltSkeleton = buildSkeleton(archetypeBuildOptions(archetype))
+  const j = restWorldPositions(built)
+  const u = ARCHETYPES_DEF[archetype].uniformScale
+  const head = archetypeHead(archetype)
+  const headCenter: Vec3 = [j.head[0] + head.center[0], j.head[1] + head.center[1], j.head[2] + head.center[2]]
+  const headR = head.radius
+  const style = STYLE[archetype]
+
+  // torso ellipsoid params (bodies.py) --------------------------------------
+  const torsoH = j.neck[1] - j.hips[1]
+  const torsoBottom = j.hips[1] - torsoH * 0.42
+  const torsoTop = j.neck[1] + torsoH * 0.55
+  const cy = (torsoBottom + torsoTop) / 2
+  const ry = (torsoTop - torsoBottom) / 2
+  const rx = headR * style.torsoRx
+  const rz = headR * style.torsoRz
+  const torsoProfile = pearProfile(style.pear, style.shoulderTaper)
+  const torsoSdf = makeTorsoSdf(cy, ry, rx, rz, torsoProfile)
+
+  const builder = new MeshBuilder()
+
+  // Openings on the torso grid: neck (top pole), one block per limb root.
+  const neckRing = ringForY(TORSO_VSEG, cy, ry, j.neck[1])
+  const armRing = Math.min(ringForY(TORSO_VSEG, cy, ry, j.upperArmL[1]), neckRing - 2)
+  const legRing = Math.max(ringForY(TORSO_VSEG, cy, ry, j.hips[1] - torsoH * 0.12), 2)
+  const armColL = colForAzimuth(TRUNK_USEG, 1, 0.15)
+  const armColR = colForAzimuth(TRUNK_USEG, -1, 0.15)
+  const legColL = colForAzimuth(TRUNK_USEG, 1, 0.05)
+  const legColR = colForAzimuth(TRUNK_USEG, -1, 0.05)
+
+  const wing = style.wing
+  const limbCols = wing ? 4 : 3 // block colCount → perimeter = 2·cols + 2·rings
+  const limbRings = wing ? 3 : 3 // arm/leg perimeter 12 (LIMB_USEG) or wing 14 (WING_USEG)
+
+  const torsoOpenings: Opening[] = [
+    { kind: 'poleTop', ring: neckRing, loop: 'neck' },
+    { kind: 'block', ringLo: armRing - Math.floor(limbRings / 2), ringHi: armRing - Math.floor(limbRings / 2) + limbRings, colStart: armColL - Math.floor(limbCols / 2), colCount: limbCols, loop: 'armL' },
+    { kind: 'block', ringLo: armRing - Math.floor(limbRings / 2), ringHi: armRing - Math.floor(limbRings / 2) + limbRings, colStart: armColR - Math.floor(limbCols / 2), colCount: limbCols, loop: 'armR' },
+    { kind: 'block', ringLo: legRing - 1, ringHi: legRing - 1 + 3, colStart: legColL - 1, colCount: 3, loop: 'legL' },
+    { kind: 'block', ringLo: legRing - 1, ringHi: legRing - 1 + 3, colStart: legColR - 1, colCount: 3, loop: 'legR' },
+  ]
+
+  const torsoGrid = unitSphere(TRUNK_USEG, TORSO_VSEG)
+  ellipsoidTransform(torsoGrid, [0, cy, 0], [rx, ry, rz], torsoProfile)
+  const torso = gridToPiece('torso', torsoGrid, torsoOpenings)
+  torsoWeights(torso, j.hips[1], j.spine[1], j.chest[1])
+  torsoChannels(torso, cy, ry, rx, archetype)
+  paintUv(torso, 'torso', true)
+  builder.add(torso)
+
+  // head ellipsoid — bottom pole opened for the neck bridge ------------------
+  const headGrid = unitSphere(TRUNK_USEG, HEAD_VSEG)
+  ellipsoidTransform(headGrid, headCenter, [headR * style.headWide, headR * style.headSquash, headR])
+  const headPiece = gridToPiece('head', headGrid, [{ kind: 'poleBottom', ring: 2, loop: 'neck' }])
+  rigidWeight(headPiece, 'head')
+  headChannels(headPiece, headCenter, headR, archetype)
+  paintUv(headPiece, 'head', true)
+  builder.add(headPiece)
+  builder.bridge(builder.loopIndex.head.neck, builder.loopIndex.torso.neck)
+
+  const armR = (style.armR * u) / 0.9
+  const handR = (style.handR * u) / 0.9
+  const legR = (style.legR * u) / 0.9
+  const limbParams: Record<string, Float32Array> = {}
+
+  // Attach point on the torso surface for a block loop (loop centroid).
+  const blockCenter = (loop: string): Vec3 => {
+    const idx = builder.loopIndex.torso[loop]
+    const c: [number, number, number] = [0, 0, 0]
+    for (const gi of idx) {
+      c[0] += builder.positionAt(gi)[0]
+      c[1] += builder.positionAt(gi)[1]
+      c[2] += builder.positionAt(gi)[2]
+    }
+    return [c[0] / idx.length, c[1] / idx.length, c[2] / idx.length]
+  }
+
+  const buildArmOrWing = (side: 'L' | 'R'): void => {
+    const name = `arm${side}` as const
+    const root = blockCenter(name)
+    const upperArm = side === 'L' ? V(j.upperArmL) : V(j.upperArmR)
+    const hand = side === 'L' ? V(j.handL) : V(j.handR)
+    if (wing) {
+      // draped wing: shoulder mass proud of the flank, tip parting outward/back
+      const sx = side === 'L' ? 1 : -1
+      const tip: Vec3 = [hand[0] + sx * 0.04 * u, hand[1] - 0.02 * u, hand[2] - 0.03 * u]
+      const grid = capsuleGrid({ a: root, b: tip, radiusA: armR * 2.0, radiusB: armR * 0.85, useg: WING_USEG, vseg: WING_VSEG, bulge: 0.014 * u, fullness: 0.45 })
+      // z-flatten about the shoulder z (relaxed drape, not a paddle)
+      for (let i = 0; i < grid.pos.length / 3; i++) {
+        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.55 + upperArm[2]
+      }
+      filletLimbIntoTorso(grid.pos, root, tip, armR * 2.0 * 0.55, armR * 0.85 * 0.55, torsoSdf, 0.05 * u)
+      const piece = gridToPiece(name, grid, [{ kind: 'poleBottom', ring: 1, loop: 'root' }])
+      chainWeights(piece, [`upperArm${side}`, `foreArm${side}`, `hand${side}`], [0.45, 0.8], 0.16)
+      // accent toward the wing tip
+      for (let i = 0; i < vertexCount(piece); i++) piece.channels[i * 4 + 3] = smoothstep(0.72, 0.95, piece.params[i * 2 + 1]) * 0.9
+      paintUv(piece, side === 'L' ? 'armL' : 'armR', false)
+      limbParams[name] = limbParamArray(piece)
+      builder.add(piece)
+      builder.bridge(builder.loopIndex.torso[name], builder.loopIndex[name].root)
+      return
+    }
+    // plush arm: near-constant width, soft mitten end ------------------------
+    const grid = capsuleGrid({ a: root, b: hand, radiusA: armR * 1.15, radiusB: armR * 0.95, useg: LIMB_USEG, vseg: LIMB_VSEG, fullness: 0.55 })
+    filletLimbIntoTorso(grid.pos, root, hand, armR * 1.15, armR * 0.95, torsoSdf, 0.055 * u)
+    const arm = gridToPiece(name, grid, [
+      { kind: 'poleBottom', ring: 1, loop: 'root' },
+      { kind: 'poleTop', ring: LIMB_VSEG - 1, loop: 'wrist' },
+    ])
+    chainWeights(arm, [`upperArm${side}`, `foreArm${side}`], [0.5], 0.18)
+    paintUv(arm, side === 'L' ? 'armL' : 'armR', false)
+    limbParams[name] = limbParamArray(arm)
+    builder.add(arm)
+    builder.bridge(builder.loopIndex.torso[name], builder.loopIndex[name].root)
+
+    // mitten hand — short fat capsule, a-pole at the wrist for a clean bridge
+    const wristOut = vec.norm(vec.sub(hand, root))
+    const handTip: Vec3 = [hand[0] + wristOut[0] * handR * 1.4, hand[1] + wristOut[1] * handR * 1.4, hand[2] + wristOut[2] * handR * 1.4]
+    const handGrid = capsuleGrid({ a: hand, b: handTip, radiusA: handR * 0.95, radiusB: handR * 0.85, useg: LIMB_USEG, vseg: 9, fullness: 0.7 })
+    const handName = `hand${side}` as const
+    const handPiece = gridToPiece(handName, handGrid, [{ kind: 'poleBottom', ring: 1, loop: 'wrist' }])
+    rigidWeight(handPiece, handName)
+    accentAll(handPiece, 0.85)
+    paintUv(handPiece, side === 'L' ? 'handL' : 'handR', false)
+    builder.add(handPiece)
+    builder.bridge(builder.loopIndex[name].wrist, builder.loopIndex[handName].wrist)
+  }
+
+  const buildLeg = (side: 'L' | 'R'): void => {
+    const name = `leg${side}` as const
+    const root = blockCenter(name)
+    const footJoint = side === 'L' ? V(j.footL) : V(j.footR)
+    const legEnd: Vec3 = [footJoint[0], footJoint[1] * 0.7, footJoint[2]]
+    const grid = capsuleGrid({ a: root, b: legEnd, radiusA: legR, radiusB: legR * 0.85, useg: LIMB_USEG, vseg: LIMB_VSEG, fullness: 0.55 })
+    filletLimbIntoTorso(grid.pos, root, legEnd, legR, legR * 0.85, torsoSdf, 0.05 * u)
+    const leg = gridToPiece(name, grid, [
+      { kind: 'poleBottom', ring: 1, loop: 'root' },
+      { kind: 'poleTop', ring: LIMB_VSEG - 1, loop: 'ankle' },
+    ])
+    chainWeights(leg, [`upperLeg${side}`, `lowerLeg${side}`], [0.5], 0.16)
+    paintUv(leg, side === 'L' ? 'legL' : 'legR', false)
+    limbParams[name] = limbParamArray(leg)
+    builder.add(leg)
+    builder.bridge(builder.loopIndex.torso[name], builder.loopIndex[name].root)
+
+    // foot — short capsule forward+down from the ankle, a-pole at the ankle
+    const [fx, fy, fz] = style.foot
+    const fzS = (fz * u) / 0.9
+    const fyS = (fy * u) / 0.9
+    const ankle: Vec3 = [footJoint[0], footJoint[1] * 0.55, footJoint[2]]
+    const toe: Vec3 = [footJoint[0], footJoint[1] * 0.4, footJoint[2] + fzS * 1.5]
+    const footGrid = capsuleGrid({ a: ankle, b: toe, radiusA: fyS, radiusB: fyS * 0.72, useg: LIMB_USEG, vseg: 9, fullness: 0.65 })
+    // widen across X to the foot's x-radius (fx), keep it flat-ish
+    const fxS = (fx * u) / 0.9
+    for (let i = 0; i < footGrid.pos.length / 3; i++) {
+      footGrid.pos[i * 3] = (footGrid.pos[i * 3] - footJoint[0]) * (fxS / Math.max(fyS, 1e-9)) + footJoint[0]
+    }
+    const footName = `foot${side}` as const
+    const foot = gridToPiece(footName, footGrid, [{ kind: 'poleBottom', ring: 1, loop: 'ankle' }])
+    footWeights(foot, footName, `toes${side}`, ankle[2], fzS)
+    accentAll(foot, 0.85)
+    paintUv(foot, side === 'L' ? 'footL' : 'footR', false)
+    builder.add(foot)
+    builder.bridge(builder.loopIndex[name].ankle, builder.loopIndex[footName].ankle)
+  }
+
+  buildArmOrWing('L')
+  buildArmOrWing('R')
+  buildLeg('L')
+  buildLeg('R')
+
+  const mesh = builder.build()
+  const manifold = manifoldReport(mesh.indices)
+
+  // --- morph targets (bodies.py body_shape_keys, numeric) -------------------
+  const morphs = buildMorphs(mesh, { cy, ry, rx }, headCenter, u)
+
+  // --- region partition (weld.welded_region_ids rule) ----------------------
+  const regionOfTri = classifyRegions(mesh, j.spine[1], j.lowerLegL[1])
+
+  // --- assemble THREE scene -------------------------------------------------
+  const skin = packSkinning(mesh, (b) => (BONE_NAMES as readonly string[]).indexOf(b as BoneName))
+  const scene = assembleScene(archetype, built, mesh, skin, morphs, regionOfTri)
+
+  return {
+    scene,
+    channels: mesh.channels,
+    meta: {
+      torso: { cy, ry, rx, rz },
+      headCenter: [headCenter[0], headCenter[1], headCenter[2]],
+      headRadius: headR,
+      shellRanges: mesh.ranges,
+      limbParams,
+    },
+    triangleCount: mesh.indices.length / 3,
+    manifold: { boundaryEdges: manifold.boundaryEdges, overSharedEdges: manifold.overSharedEdges, components: manifold.components },
+  }
+}
+
+// --- morphs -------------------------------------------------------------------
+
+interface MorphSet {
+  names: readonly string[]
+  deltas: Float32Array[] // one n×3 per name
+}
+
+function buildMorphs(
+  mesh: ReturnType<MeshBuilder['build']>,
+  torso: { cy: number; ry: number; rx: number },
+  headCenter: Vec3,
+  u: number,
+): MorphSet {
+  const n = mesh.vertexCount
+  const deltas = BODY_MORPHS.map(() => new Float32Array(n * 3))
+  const idx = (name: string): number => BODY_MORPHS.indexOf(name as (typeof BODY_MORPHS)[number])
+  const pos = mesh.positions
+  const pieceOf = (i: number): string => {
+    for (const [name, [s, e]] of Object.entries(mesh.ranges)) if (i >= s && i < e) return name
+    return ''
+  }
+  // per-piece centroids (limbs) for the radial chubby/slim morphs
+  const centroids: Record<string, [number, number, number]> = {}
+  const counts: Record<string, number> = {}
+  for (let i = 0; i < n; i++) {
+    const name = pieceOf(i)
+    ;(centroids[name] ??= [0, 0, 0])[0] += pos[i * 3]
+    centroids[name][1] += pos[i * 3 + 1]
+    centroids[name][2] += pos[i * 3 + 2]
+    counts[name] = (counts[name] ?? 0) + 1
+  }
+  for (const name of Object.keys(centroids)) {
+    centroids[name][0] /= counts[name]
+    centroids[name][1] /= counts[name]
+    centroids[name][2] /= counts[name]
+  }
+
+  const set = (m: number, i: number, dx: number, dy: number, dz: number): void => {
+    deltas[m][i * 3] = dx
+    deltas[m][i * 3 + 1] = dy
+    deltas[m][i * 3 + 2] = dz
+  }
+
+  const LIMBS = new Set(['armL', 'armR', 'legL', 'legR', 'handL', 'handR', 'footL', 'footR'])
+  for (let i = 0; i < n; i++) {
+    const name = pieceOf(i)
+    const x = pos[i * 3]
+    const y = pos[i * 3 + 1]
+    const z = pos[i * 3 + 2]
+    if (name === 'torso') {
+      const du = x / (torso.rx * 1.1)
+      const dv = (y - (torso.cy - torso.ry * 0.18)) / (torso.ry * 0.7)
+      const w = (1 - smoothstep(0.4, 1, Math.hypot(du, dv))) * smoothstep(-0.1, 0.5, z / torso.rx)
+      // radial = horizontal unit direction from the y-axis
+      const rl = Math.hypot(x, z) || 1e-9
+      const rux = x / rl
+      const ruz = z / rl
+      set(idx('bellyRound'), i, rux * w * 0.075 * u, 0, ruz * w * 0.075 * u + w * 0.02 * u)
+      set(idx('chubby'), i, rux * 0.05 * u, 0, ruz * 0.05 * u)
+      set(idx('slim'), i, rux * -0.038 * u, 0, ruz * -0.038 * u)
+    } else if (LIMBS.has(name)) {
+      const c = centroids[name]
+      const dx = x - c[0]
+      const dy = y - c[1]
+      const dz = z - c[2]
+      set(idx('chubby'), i, dx * 0.1, dy * 0.1, dz * 0.1)
+      set(idx('slim'), i, dx * -0.08, dy * -0.08, dz * -0.08)
+    } else if (name === 'head') {
+      const dx = x - headCenter[0]
+      const dy = y - headCenter[1]
+      const dz = z - headCenter[2]
+      set(idx('headBig'), i, dx * 0.13, dy * 0.13, dz * 0.13)
+      set(idx('headSmall'), i, dx * -0.11, dy * -0.11, dz * -0.11)
+      set(idx('chubby'), i, dx * 0.02, dy * 0.02, dz * 0.02)
+    }
+  }
+  return { names: BODY_MORPHS, deltas }
+}
+
+// --- region partition ---------------------------------------------------------
+
+type BodyRegion = 'main' | 'torso' | 'hips' | 'upperLegs'
+
+/** Per-triangle hide-region id (weld.welded_region_ids rule, piece-based). */
+function classifyRegions(mesh: ReturnType<MeshBuilder['build']>, spineY: number, kneeY: number): BodyRegion[] {
+  const idx = mesh.indices
+  const pos = mesh.positions
+  const ranges = Object.entries(mesh.ranges)
+  const pieceOf = (i: number): string => {
+    for (const [name, [s, e]] of ranges) if (i >= s && i < e) return name
+    return ''
+  }
+  const out: BodyRegion[] = []
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t]
+    const b = idx[t + 1]
+    const c = idx[t + 2]
+    // dominant piece = majority of the triangle's three verts
+    const votes: Record<string, number> = {}
+    for (const gi of [a, b, c]) {
+      const p = pieceOf(gi)
+      votes[p] = (votes[p] ?? 0) + 1
+    }
+    let piece = ''
+    let best = 0
+    for (const [p, v2] of Object.entries(votes)) if (v2 > best) { best = v2; piece = p }
+    const cyTri = (pos[a * 3 + 1] + pos[b * 3 + 1] + pos[c * 3 + 1]) / 3
+    if (piece === 'torso') out.push(cyTri >= spineY ? 'torso' : 'hips')
+    else if (piece === 'legL' || piece === 'legR') out.push(cyTri >= kneeY ? 'upperLegs' : 'main')
+    else out.push('main')
+  }
+  return out
+}
+
+// --- scene assembly -----------------------------------------------------------
+
+function assembleScene(
+  archetype: Archetype,
+  built: BuiltSkeleton,
+  mesh: ReturnType<MeshBuilder['build']>,
+  skin: { skinIndex: Uint16Array; skinWeight: Float32Array },
+  morphs: MorphSet,
+  regionOfTri: BodyRegion[],
+): THREE.Object3D {
+  // Shared attributes (one copy, referenced by all region geometries).
+  const positionAttr = new THREE.BufferAttribute(mesh.positions, 3)
+  const uvAttr = new THREE.BufferAttribute(mesh.uvs, 2)
+  const skinIndexAttr = new THREE.BufferAttribute(skin.skinIndex, 4)
+  const skinWeightAttr = new THREE.BufferAttribute(skin.skinWeight, 4)
+  // compute shared vertex normals from the full welded mesh
+  const normalSource = new THREE.BufferGeometry()
+  normalSource.setAttribute('position', positionAttr)
+  normalSource.setIndex(new THREE.BufferAttribute(mesh.indices, 1))
+  normalSource.computeVertexNormals()
+  const normalAttr = normalSource.getAttribute('normal') as THREE.BufferAttribute
+  const morphAttrs = morphs.deltas.map((d, i) => {
+    const a = new THREE.BufferAttribute(d, 3)
+    a.name = morphs.names[i]
+    return a
+  })
+
+  // partition indices by region
+  const byRegion: Record<BodyRegion, number[]> = { main: [], torso: [], hips: [], upperLegs: [] }
+  for (let t = 0; t < regionOfTri.length; t++) {
+    const region = regionOfTri[t]
+    byRegion[region].push(mesh.indices[t * 3], mesh.indices[t * 3 + 1], mesh.indices[t * 3 + 2])
+  }
+
+  const makeMesh = (region: BodyRegion, name: string): THREE.SkinnedMesh | null => {
+    const indices = byRegion[region]
+    if (indices.length === 0) return null
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', positionAttr)
+    geo.setAttribute('normal', normalAttr)
+    geo.setAttribute('uv', uvAttr)
+    geo.setAttribute('skinIndex', skinIndexAttr)
+    geo.setAttribute('skinWeight', skinWeightAttr)
+    geo.setIndex(new THREE.BufferAttribute(Uint32Array.from(indices), 1))
+    geo.morphAttributes.position = morphAttrs
+    geo.morphTargetsRelative = true
+    geo.userData.targetNames = [...morphs.names]
+    const skm = new THREE.SkinnedMesh(geo, new THREE.MeshStandardMaterial())
+    skm.name = name
+    skm.bind(built.skeleton, new THREE.Matrix4())
+    skm.frustumCulled = false
+    if (region !== 'main') skm.userData.bodyRegion = region
+    return skm
+  }
+
+  const scene = new THREE.Group()
+  scene.name = `body-${archetype}`
+  scene.add(built.bones[0]) // the root Bone hierarchy (all 38 bones)
+  for (const [region, name] of [
+    ['main', 'body'],
+    ['torso', 'body_torso'],
+    ['hips', 'body_hips'],
+    ['upperLegs', 'body_upperLegs'],
+  ] as const) {
+    const m = makeMesh(region, name)
+    if (m) scene.add(m)
+  }
+  return scene
+}

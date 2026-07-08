@@ -90,6 +90,11 @@ export class MeshBuilder {
     return this.pos.length / 3
   }
 
+  /** World position of a global vertex index (for junction placement). */
+  positionAt(gi: number): Vec3 {
+    return [this.pos[gi * 3], this.pos[gi * 3 + 1], this.pos[gi * 3 + 2]]
+  }
+
   add(piece: SurfacePiece): number {
     const base = this.count
     const n = vertexCount(piece)
