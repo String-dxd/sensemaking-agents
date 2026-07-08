@@ -62,23 +62,24 @@ function spineChain(scale: number): Partial<Record<BoneName, readonly [number, n
 }
 
 export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
-  // Chunky teddy silhouette: shortest legs, biggest cranium.
+  // Chunky teddy silhouette: shortest legs, biggest cranium (chibi pass
+  // 2026-07-08: bigger head, stubbier limbs, arms clear of the fat flank).
   'biped-round': {
     archetype: 'biped-round',
-    height: 0.9,
-    uniformScale: 0.9 / 0.9684,
+    height: 0.88,
+    uniformScale: 0.88 / 0.9366,
     offsetScales: {
-      hips: [1, 0.86, 1],
-      ...legs(0.85),
-      ...spineChain(0.95),
+      hips: [1, 0.78, 1],
+      ...legs(0.6),
+      ...spineChain(0.88),
       // wider x-reach than the other archetypes (plan 007): the round body's
       // fat pear torso would otherwise swallow the near-vertical hanging arm
       // along its length; pushing the forearm/hand clear of the flank keeps the
       // arm a free limb (welds only at the buried shoulder, no pose-tear).
-      ...arms([1.2, 0.9, 1]),
+      ...arms([1.3, 0.7, 1]),
     },
     headCenter: [0, 0.19, 0],
-    headRadius: 0.22,
+    headRadius: 0.235,
   },
   // Chibi mascot silhouette (rabbit/cat/fox): big round head (~45 % of
   // height), egg torso, stubby drop arms and short leg stubs — the toy-render
@@ -99,23 +100,24 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
     headCenter: [0, 0.19, 0],
     headRadius: 0.21,
   },
-  // Round bird: shortest overall, high ankles, wing-arms, fanned tail root.
+  // Round bird: shortest overall, high ankles, wing-arms, fanned tail root
+  // (chibi pass 2026-07-08: bigger head, stubby legs, shorter tucked wings).
   bird: {
     archetype: 'bird',
-    height: 0.8,
-    uniformScale: 0.8 / 0.9068,
+    height: 0.76,
+    uniformScale: 0.76 / 0.889,
     offsetScales: {
-      hips: [1, 0.82, 1],
-      ...legs(0.72),
-      ...spineChain(0.85),
-      ...arms([0.95, 1, 1]),
+      hips: [1, 0.75, 1],
+      ...legs(0.5),
+      ...spineChain(0.8),
+      ...arms([0.95, 0.6, 1]),
       'tail.1': [1, 0.6, 1.1],
       'tail.2': [1, 0.6, 1.1],
       'tail.3': [1, 0.6, 1.1],
       'tail.4': [1, 0.6, 1.1],
     },
     headCenter: [0, 0.18, 0],
-    headRadius: 0.21,
+    headRadius: 0.23,
   },
 }
 

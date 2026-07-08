@@ -55,9 +55,9 @@ interface Style {
 }
 
 const STYLE: Record<Archetype, Style> = {
-  'biped-round': { torsoRx: 0.8, torsoRz: 0.62, pear: 0.28, shoulderTaper: 0.16, armR: 0.05, handR: 0.058, legR: 0.064, foot: [0.064, 0.044, 0.104], headSquash: 0.97, headWide: 1.05, wing: false },
+  'biped-round': { torsoRx: 0.8, torsoRz: 0.64, pear: 0.32, shoulderTaper: 0.18, armR: 0.046, handR: 0.052, legR: 0.064, foot: [0.06, 0.042, 0.096], headSquash: 0.95, headWide: 1.05, wing: false },
   'biped-slim': { torsoRx: 0.8, torsoRz: 0.7, pear: 0.3, shoulderTaper: 0.22, armR: 0.042, handR: 0.048, legR: 0.06, foot: [0.058, 0.042, 0.088], headSquash: 0.95, headWide: 1.06, wing: false },
-  bird: { torsoRx: 0.88, torsoRz: 0.8, pear: 0.36, shoulderTaper: 0.14, armR: 0.034, handR: 0, legR: 0.028, foot: [0.056, 0.03, 0.102], headSquash: 0.96, headWide: 1.04, wing: true },
+  bird: { torsoRx: 0.85, torsoRz: 0.78, pear: 0.36, shoulderTaper: 0.14, armR: 0.042, handR: 0, legR: 0.038, foot: [0.05, 0.032, 0.084], headSquash: 0.96, headWide: 1.04, wing: true },
 }
 
 // Trunk shells (head + torso) share this azimuth resolution so their neck rings
@@ -157,7 +157,10 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
   // Openings on the torso grid: neck (top pole), one block per limb root.
   const neckRing = ringForY(TORSO_VSEG, cy, ry, j.neck[1])
   const armRing = Math.min(ringForY(TORSO_VSEG, cy, ry, j.upperArmL[1]), neckRing - 2)
-  const legRing = Math.max(ringForY(TORSO_VSEG, cy, ry, j.hips[1] - torsoH * 0.12), 2)
+  // leg openings sit low on the torso (near the bottom pole) so the leg
+  // capsule drops vertically under the body instead of slanting in from the
+  // wide flank — the slant read as splayed "bent knees" on the fat chibi torso
+  const legRing = Math.max(ringForY(TORSO_VSEG, cy, ry, j.hips[1] - torsoH * 0.28), 2)
   const armColL = colForAzimuth(TRUNK_USEG, 1, 0.15)
   const armColR = colForAzimuth(TRUNK_USEG, -1, 0.15)
   const legColL = colForAzimuth(TRUNK_USEG, 1, 0.05)
@@ -216,15 +219,17 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
     const upperArm = side === 'L' ? V(j.upperArmL) : V(j.upperArmR)
     const hand = side === 'L' ? V(j.handL) : V(j.handR)
     if (wing) {
-      // draped wing: shoulder mass proud of the flank, tip parting outward/back
+      // tucked wing: a plump teardrop lying against the flank, tip parting
+      // slightly outward/back — not a dangling stick
       const sx = side === 'L' ? 1 : -1
-      const tip: Vec3 = [hand[0] + sx * 0.04 * u, hand[1] - 0.02 * u, hand[2] - 0.03 * u]
-      const grid = capsuleGrid({ a: root, b: tip, radiusA: armR * 2.0, radiusB: armR * 0.85, useg: WING_USEG, vseg: WING_VSEG, bulge: 0.014 * u, fullness: 0.45 })
+      const tip: Vec3 = [hand[0] + sx * 0.03 * u, hand[1] - 0.015 * u, hand[2] - 0.03 * u]
+      const wingSpan = Math.hypot(tip[0] - root[0], tip[1] - root[1], tip[2] - root[2])
+      const grid = capsuleGrid({ a: root, b: tip, radiusA: armR * 1.6, radiusB: armR * 0.8, useg: WING_USEG, vseg: WING_VSEG, bulge: 0.014 * u, fullness: 0.6 })
       // z-flatten about the shoulder z (relaxed drape, not a paddle)
       for (let i = 0; i < grid.pos.length / 3; i++) {
-        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.55 + upperArm[2]
+        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.5 + upperArm[2]
       }
-      filletLimbIntoTorso(grid.pos, root, tip, armR * 2.0 * 0.55, armR * 0.85 * 0.55, torsoSdf, 0.05 * u)
+      filletLimbIntoTorso(grid.pos, root, tip, armR * 1.6 * 0.5, armR * 0.8 * 0.5, torsoSdf, Math.min(0.05 * u, wingSpan * 0.28))
       const piece = gridToPiece(name, grid, [{ kind: 'poleBottom', ring: 1, loop: 'root' }])
       chainWeights(piece, [`upperArm${side}`, `foreArm${side}`, `hand${side}`], [0.45, 0.8], 0.16)
       // accent toward the wing tip
