@@ -245,6 +245,45 @@ describe('plan 017: bird accent painting', () => {
   })
 })
 
+describe('plan 017 r1: AC straight-leg stance', () => {
+  const data = buildProceduralBody('bird')
+  const pos = bodyPositions(data.scene)
+  const centroid = (piece: 'legL' | 'legR', lo: number, hi: number): [number, number, number] => {
+    const [s] = data.meta.shellRanges[piece]
+    const params = data.meta.limbParams[piece]
+    const c: [number, number, number] = [0, 0, 0]
+    let n = 0
+    for (let li = 0; li < params.length; li++) {
+      if (params[li] < lo || params[li] > hi) continue
+      c[0] += pos[(s + li) * 3]
+      c[1] += pos[(s + li) * 3 + 1]
+      c[2] += pos[(s + li) * 3 + 2]
+      n++
+    }
+    return [c[0] / n, c[1] / n, c[2] / n]
+  }
+
+  it('legs drop vertically: root and ankle rings share x/z (no splay)', () => {
+    for (const piece of ['legL', 'legR'] as const) {
+      const root = centroid(piece, 0, 0.05)
+      const end = centroid(piece, 0.95, 1)
+      expect(end[0]).toBeCloseTo(root[0], 5)
+      expect(end[2]).toBeCloseTo(root[2], 5)
+      expect(end[1]).toBeLessThan(root[1]) // and actually drop
+    }
+  })
+
+  it('tarsi are mirror-symmetric and close together (|x| ≈ 0.35–0.45·rx)', () => {
+    const l = centroid('legL', 0.95, 1)
+    const r = centroid('legR', 0.95, 1)
+    expect(l[0]).toBeCloseTo(-r[0], 5)
+    expect(l[2]).toBeCloseTo(r[2], 5)
+    const ratio = Math.abs(l[0]) / data.meta.torso.rx
+    expect(ratio).toBeGreaterThan(0.3)
+    expect(ratio).toBeLessThan(0.45)
+  })
+})
+
 describe('plan 017: species shape seam', () => {
   it('duckling and owl produce different geometry', () => {
     const duck = bodyPositions(buildBodyScene('bird', 'duckling'))
