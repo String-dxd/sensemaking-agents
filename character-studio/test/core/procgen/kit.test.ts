@@ -114,14 +114,16 @@ describe('UV atlas', () => {
     }
   })
 
-  it('front-centered UVs land inside their island rect', () => {
+  it('front-centered UVs land inside their island rect (u), v within the glTF-flipped band', () => {
     const rect = UV_ATLAS.torso
+    const [u0, v0, u1, v1] = rect
     for (let u = 0; u < 1; u += 0.1) {
       const [uu, vv] = islandUv(rect, u, 0.5, true)
-      expect(uu).toBeGreaterThanOrEqual(rect[0] - 1e-9)
-      expect(uu).toBeLessThanOrEqual(rect[2] + 1e-9)
-      expect(vv).toBeGreaterThanOrEqual(rect[1] - 1e-9)
-      expect(vv).toBeLessThanOrEqual(rect[3] + 1e-9)
+      expect(uu).toBeGreaterThanOrEqual(u0 - 1e-9)
+      expect(uu).toBeLessThanOrEqual(u1 + 1e-9)
+      // v is exported glTF-flipped: it lands in the MIRROR band [1−v1, 1−v0].
+      expect(vv).toBeGreaterThanOrEqual(1 - v1 - 1e-9)
+      expect(vv).toBeLessThanOrEqual(1 - v0 + 1e-9)
     }
   })
 
@@ -129,6 +131,24 @@ describe('UV atlas', () => {
     const [u] = headUv(0, 0.7)
     const [u0, , u1] = UV_ATLAS.head
     expect(u).toBeCloseTo((u0 + u1) / 2, 6)
+  })
+
+  it('head UVs match the shipped GLB export orientation (glTF V-flip)', () => {
+    // The face overlay (faceComposite) + palette masks are authored against the
+    // exported GLBs, whose head UVs are Blender→glTF V-flipped. Assert the two
+    // anchors read off body-biped-round.glb:
+    //   TOP pole (polar v01=1)      → uv ≈ (0.275, 0.0)
+    //   FRONT equator (az 0, v01=.5)→ uv ≈ (0.275, 0.275)
+    const [uTop, vTop] = headUv(0, 1)
+    expect(uTop).toBeCloseTo(0.275, 6)
+    expect(vTop).toBeCloseTo(0.0, 6)
+    const [uEq, vEq] = headUv(0, 0.5)
+    expect(uEq).toBeCloseTo(0.275, 6)
+    expect(vEq).toBeCloseTo(0.275, 6)
+    // v must INCREASE toward the neck (v01→0) — i.e. top-of-head is the small-v
+    // edge of the island, the orientation faceComposite's (1−v) draw expects.
+    const [, vNeck] = headUv(0, 0)
+    expect(vNeck).toBeGreaterThan(vEq)
   })
 })
 

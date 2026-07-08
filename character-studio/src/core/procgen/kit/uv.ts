@@ -7,6 +7,16 @@
 // spherical parameterization — u = front-centered azimuth (azimuth 0 → island
 // u-center, wrap seam at the back), v = polar angle bottom-up. `headUv()`
 // reproduces exactly that mapping so drawn faces land correctly.
+//
+// V-FLIP (glTF convention): bodies.py computes v BOTTOM-UP in Blender's UV
+// space, but the shipped GLBs — the contract faceComposite + the palette masks
+// were authored against — store the Blender→glTF EXPORT flip (v_gltf =
+// 1 − v_blender; masks are loaded flipY=false, meshkit.rasterize_mask bakes the
+// same `1−v`). The kit skips Blender, so it must emit the EXPORTED UVs directly:
+// `islandUv` returns `1 − v_blender`. Verified against body-*.glb — e.g. the
+// biped-round head TOP pole is uv.v=0.0 and the front equator is uv.v≈0.275,
+// exactly the flip of the naive [0.45,1.0] Blender range. Without this the head
+// samples the empty half of the face overlay and the drawn face vanishes.
 
 export type IslandName =
   | 'head'
@@ -37,16 +47,16 @@ export const UV_ATLAS: Record<IslandName, UvRect> = {
 }
 
 /**
- * Map a shell's (azimuth u01, polar v01) params into an island rect.
- * `frontCenter` shifts azimuth so the front (azimuth 0) lands at the island's
- * u-center and the seam falls at the back — matching bodies.py
- * `uv_front_center` and faceComposite's `featureRect` (which places azimuth 0
- * at u0 + 0.5·uSpan).
+ * Map a shell's (azimuth u01, polar v01) params into an island rect, in
+ * EXPORTED glTF UV convention (v flipped — see file header). `frontCenter`
+ * shifts azimuth so the front (azimuth 0) lands at the island's u-center and
+ * the seam falls at the back — matching bodies.py `uv_front_center` and
+ * faceComposite's `featureRect` (which places azimuth 0 at u0 + 0.5·uSpan).
  */
 export function islandUv(rect: UvRect, u01: number, v01: number, frontCenter: boolean): [number, number] {
   const [u0, v0, u1, v1] = rect
   const uu = frontCenter ? (u01 + 0.5) % 1.0 : u01
-  return [u0 + uu * (u1 - u0), v0 + v01 * (v1 - v0)]
+  return [u0 + uu * (u1 - u0), 1.0 - (v0 + v01 * (v1 - v0))]
 }
 
 /** Head-island UV for an equirect param — the face-contract entry point. */

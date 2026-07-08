@@ -101,7 +101,13 @@ describe.each([...ARCHETYPES])('buildProceduralBody(%s)', (archetype: Archetype)
     const headEnd = data.meta.shellRanges.head[1]
     let frontIdx = headStart
     let maxZ = -Infinity
+    let topIdx = headStart
+    let maxY = -Infinity
     for (let i = headStart; i < headEnd; i++) {
+      if (Math.abs(pos.getX(i)) < 0.02 && pos.getY(i) > maxY) {
+        maxY = pos.getY(i)
+        topIdx = i
+      }
       // near the head vertical centre so we sample the equator, not a pole
       if (Math.abs(pos.getY(i) - data.meta.headCenter[1]) > data.meta.headRadius * 0.3) continue
       if (pos.getZ(i) > maxZ) {
@@ -110,6 +116,12 @@ describe.each([...ARCHETYPES])('buildProceduralBody(%s)', (archetype: Archetype)
       }
     }
     expect(uv.getX(frontIdx)).toBeCloseTo(uCenter, 2)
+    // glTF V-flip (matches shipped GLBs): top-of-head sits at the small-v edge
+    // of the island and v grows toward the neck — the orientation faceComposite
+    // draws for. A front equator vertex lands mid-island in the flipped band.
+    expect(uv.getY(topIdx)).toBeLessThan(uv.getY(frontIdx))
+    expect(uv.getY(frontIdx)).toBeCloseTo(0.275, 1)
+    expect(uv.getY(topIdx)).toBeLessThan(0.1)
   })
 
   it('bellyRound pushes a front-lower-torso vertex outward by ≈0.075·u', () => {
