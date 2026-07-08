@@ -20,7 +20,7 @@ type Rand = () => number
 // Base tints. The bark/leaf/rock maps multiply the material color, which darkens
 // the result, so these are lightened relative to the pre-texture solids to hold
 // the same on-screen brightness under the scene sun (tune in the browser).
-const TRUNK = 0xc9a878 // light warm tint so the bark map reads bright, not muddy
+const TRUNK = 0xcf9a58 // caramel tint; the bark map is painted light (like leaf/rock) so this reads as AC's honey trunk
 const LEAF = 0x8fd062 // bright AC grass-green canopy (lightened for the leaf map)
 const LEAF_DEEP = 0x63a84f // richer green for the conifer tiers (lightened too)
 const APPLE = 0xe4564a // cheerful red fruit (untextured accent)
@@ -93,15 +93,41 @@ function tinted(base: number, rand: Rand, amount = 0.07): THREE.MeshStandardMate
   return leafMat(c)
 }
 
-/** A rounded foliage blob: a detail-1 icosphere (rounded silhouette, ~80 tris)
- *  smooth-shaded so it reads as a soft puff, not an angular gem. */
+/** A rounded foliage blob: a detail-2 icosphere (smooth bubbly silhouette,
+ *  ~320 tris) smooth-shaded so it reads as a soft puff, not an angular gem. */
 function blob(r: number, mat: THREE.Material): THREE.Mesh {
-  return new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), mat)
+  return new THREE.Mesh(new THREE.IcosahedronGeometry(r, 2), mat)
+}
+
+/** Average normals across co-located (quantized) duplicate vertices so a
+ *  non-indexed icosphere shades as one continuous soft bubble instead of
+ *  crumpled facets. Same quantization key as `lumpy()` so duplicates agree. */
+function smoothNormals(geo: THREE.BufferGeometry): void {
+  const pos = geo.attributes.position as THREE.BufferAttribute
+  const nrm = geo.attributes.normal as THREE.BufferAttribute
+  const keyOf = (i: number) => `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`
+  const acc = new Map<string, [number, number, number]>()
+  for (let i = 0; i < pos.count; i++) {
+    const k = keyOf(i)
+    const a = acc.get(k) ?? [0, 0, 0]
+    a[0] += nrm.getX(i)
+    a[1] += nrm.getY(i)
+    a[2] += nrm.getZ(i)
+    acc.set(k, a)
+  }
+  const v = new THREE.Vector3()
+  for (let i = 0; i < pos.count; i++) {
+    const a = acc.get(keyOf(i)) ?? [0, 1, 0]
+    v.set(a[0], a[1], a[2]).normalize()
+    nrm.setXYZ(i, v.x, v.y, v.z)
+  }
+  nrm.needsUpdate = true
 }
 
 /** Seeded organic lumpiness — our signature over AC's clean spheres. Displaces
  *  each vertex of an icosphere along its normal by a small amount, then
- *  recomputes normals for chunky low-poly facets.
+ *  re-smooths the normals so the surface reads as a soft rounded bubble
+ *  (AC-plump), not crumpled low-poly facets.
  *
  *  NOTE: IcosahedronGeometry is NON-indexed in three (each face owns its 3
  *  vertices, so co-located duplicates exist). We therefore key the displacement
@@ -124,6 +150,7 @@ function lumpy(geo: THREE.BufferGeometry, rand: Rand, amount: number): void {
   }
   pos.needsUpdate = true
   geo.computeVertexNormals()
+  smoothNormals(geo)
 }
 
 /** Nestle a small, lighter foliage lobe on a parent lobe's sun-facing upper side
@@ -146,12 +173,15 @@ function addSunTip(
 /** One rounded, lumpy, leaf-textured canopy block, nudged by a small seeded
  *  jitter and spun. Consumes a FIXED count of rand() (lumpy salt, tint jitter,
  *  3 position jitters, spin) so the caller's rand() order stays deterministic. */
-function leafBlock(rand: Rand, x: number, y: number, z: number, r: number): THREE.Mesh {
-  const g = new THREE.IcosahedronGeometry(r, 1)
-  lumpy(g, rand, 0.12 * r)
-  const m = new THREE.Mesh(g, tinted(LEAF, rand))
+function leafBlock(rand: Rand, x: number, y: number, z: number, r: number, lift = 0): THREE.Mesh {
+  const g = new THREE.IcosahedronGeometry(r, 2)
+  lumpy(g, rand, 0.08 * r)
+  const mat = tinted(LEAF, rand)
+  if (lift !== 0) mat.color.offsetHSL(0, 0, lift) // deterministic per-tier light gradient
+  const m = new THREE.Mesh(g, mat)
   m.position.set(x + (rand() - 0.5) * 0.05, y + (rand() - 0.5) * 0.05, z + (rand() - 0.5) * 0.05)
   m.rotation.y = rand() * Math.PI
+  m.scale.y = 0.85 // squash into a plump mound (AC canopy blocks are wider than tall)
   return m
 }
 
@@ -162,17 +192,17 @@ function fruitTree(rand: Rand): THREE.Object3D[] {
   const parts: THREE.Object3D[] = []
 
   // Root flare: a squashed sphere at the foot so the trunk grows out of a base.
-  const flare = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), bark())
+  const flare = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6), bark())
   flare.scale.y = 0.4
   flare.position.y = 0.06
   parts.push(flare)
 
-  // Two-segment trunk: base cylinder + a narrower, slightly tilted upper.
-  const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.34, 7), bark())
+  // Two-segment chunky trunk: base cylinder + a narrower, slightly tilted upper.
+  const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.22, 0.34, 7), bark())
   lower.position.y = 0.23
   parts.push(lower)
 
-  const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.28, 7), bark())
+  const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.28, 7), bark())
   upper.position.y = 0.53
   upper.rotation.z = (rand() - 0.5) * 0.15
   parts.push(upper)
@@ -184,6 +214,7 @@ function fruitTree(rand: Rand): THREE.Object3D[] {
   const canopy = new THREE.Group()
   canopy.name = 'canopy'
   canopy.position.y = CANOPY_PIVOT_Y
+  canopy.userData.windAmp = 1 // broadleaf crown takes the full wind
   const foliage: THREE.Object3D[] = []
 
   // Stacked tiers of rounded lumpy leaf blocks piled into one full round mass;
@@ -192,50 +223,54 @@ function fruitTree(rand: Rand): THREE.Object3D[] {
   type Lobe = { x: number; y: number; z: number; r: number }
 
   // Base tier: a center block ringed by 5 (widest, seats on the trunk top).
-  foliage.push(leafBlock(rand, 0, 0.2, 0, 0.34))
+  // Slightly deeper green low, lighter high — the AC canopy's vertical gradient.
+  foliage.push(leafBlock(rand, 0, 0.2, 0, 0.4, -0.035))
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2
-    foliage.push(leafBlock(rand, Math.cos(a) * 0.34, 0.2, Math.sin(a) * 0.34, 0.3))
+    foliage.push(leafBlock(rand, Math.cos(a) * 0.36, 0.2, Math.sin(a) * 0.36, 0.34, -0.035))
   }
 
   // Mid tier: ring of 5, rotated half a step so it sits in the base ring's gaps.
   const mid: Lobe[] = []
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2 + Math.PI / 5
-    const x = Math.cos(a) * 0.28
-    const z = Math.sin(a) * 0.28
-    foliage.push(leafBlock(rand, x, 0.48, z, 0.27))
-    mid.push({ x, y: 0.48, z, r: 0.27 })
+    const x = Math.cos(a) * 0.3
+    const z = Math.sin(a) * 0.3
+    foliage.push(leafBlock(rand, x, 0.48, z, 0.3))
+    mid.push({ x, y: 0.48, z, r: 0.3 })
   }
 
   // Upper tier: tighter ring of 4.
   const upperTier: Lobe[] = []
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4
-    const x = Math.cos(a) * 0.18
-    const z = Math.sin(a) * 0.18
-    foliage.push(leafBlock(rand, x, 0.74, z, 0.23))
-    upperTier.push({ x, y: 0.74, z, r: 0.23 })
+    const x = Math.cos(a) * 0.2
+    const z = Math.sin(a) * 0.2
+    foliage.push(leafBlock(rand, x, 0.74, z, 0.26))
+    upperTier.push({ x, y: 0.74, z, r: 0.26 })
   }
 
   // Cap block closes the top.
-  foliage.push(leafBlock(rand, 0, 0.96, 0, 0.21))
+  foliage.push(leafBlock(rand, 0, 0.96, 0, 0.24, 0.025))
 
   // Sun-kissed highlights: the cap + three upper/outer blocks (fixed count).
-  addSunTip(foliage, { x: 0, y: 0.96, z: 0 }, 0.21, LEAF, rand)
+  addSunTip(foliage, { x: 0, y: 0.96, z: 0 }, 0.24, LEAF, rand)
   for (let i = 0; i < 3; i++) addSunTip(foliage, upperTier[i], upperTier[i].r, LEAF, rand)
 
-  // Apples nestled on the outer surface of the mid + upper tiers.
+  // Apples nestled on the outer surface of the mid + upper tiers. The hang angle
+  // is biased outward (away from the canopy axis, ±~60° of seeded jitter) so
+  // apples sit on the visible skin of the crown instead of vanishing into it.
   const hangLobes = [...mid, ...upperTier]
   const appleCount = 3 + Math.floor(rand() * 3) // 3..5
   for (let i = 0; i < appleCount; i++) {
     const base = hangLobes[Math.floor(rand() * hangLobes.length)]
-    const theta = rand() * Math.PI * 2
-    const apple = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), soft(APPLE))
+    const outward = Math.atan2(base.z, base.x)
+    const a = outward + (rand() - 0.5) * 2.1
+    const apple = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), soft(APPLE))
     apple.position.set(
-      base.x + Math.cos(theta) * base.r * 0.85,
-      base.y - base.r * 0.2,
-      base.z + Math.sin(theta) * base.r * 0.85,
+      base.x + Math.cos(a) * base.r * 0.95,
+      base.y - base.r * 0.3,
+      base.z + Math.sin(a) * base.r * 0.95,
     )
     foliage.push(apple)
   }
@@ -256,6 +291,16 @@ function pine(rand: Rand): THREE.Object3D[] {
   trunk.position.y = 0.17
   parts.push(trunk)
 
+  // Foliage tiers live in a 'canopy' group pivoted at the trunk top so the wind
+  // hook can rock the whole cone. Conifers are stiff: windAmp damps the sway.
+  // Tier/nub positions below are canopy-LOCAL (world y − PINE_PIVOT_Y).
+  const PINE_PIVOT_Y = 0.4
+  const canopy = new THREE.Group()
+  canopy.name = 'canopy'
+  canopy.position.y = PINE_PIVOT_Y
+  canopy.userData.windAmp = 0.35
+  parts.push(canopy)
+
   const radii = [0.52, 0.42, 0.32, 0.22]
   const centers = [0.5, 0.78, 1.03, 1.24]
   const tipTint = new THREE.Color(LEAF_DEEP)
@@ -263,23 +308,27 @@ function pine(rand: Rand): THREE.Object3D[] {
   for (let i = 0; i < radii.length; i++) {
     const tier = blob(radii[i], tinted(LEAF_DEEP, rand, 0.05))
     tier.scale.y = 0.6 // flatten + droop each puff into a soft tier
-    tier.position.set((rand() - 0.5) * 0.05, centers[i], (rand() - 0.5) * 0.05)
+    tier.position.set((rand() - 0.5) * 0.05, centers[i] - PINE_PIVOT_Y, (rand() - 0.5) * 0.05)
     tier.rotation.y = rand() * Math.PI + (i % 2) * (Math.PI / 5) // alternate spin
-    parts.push(tier)
+    canopy.add(tier)
 
     // 2–3 lighter tip-bumps perched on this tier's rim.
     const tipCount = 2 + Math.floor(rand() * 2) // 2 or 3
     for (let t = 0; t < tipCount; t++) {
       const ang = rand() * Math.PI * 2
       const nub = blob(0.06, leafMat(tipTint))
-      nub.position.set(Math.cos(ang) * radii[i] * 0.9, centers[i] + 0.02, Math.sin(ang) * radii[i] * 0.9)
-      parts.push(nub)
+      nub.position.set(
+        Math.cos(ang) * radii[i] * 0.9,
+        centers[i] + 0.02 - PINE_PIVOT_Y,
+        Math.sin(ang) * radii[i] * 0.9,
+      )
+      canopy.add(nub)
     }
   }
 
   const tip = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), soft(LEAF_DEEP))
-  tip.position.y = 1.4
-  parts.push(tip)
+  tip.position.y = 1.4 - PINE_PIVOT_Y
+  canopy.add(tip)
 
   return parts
 }
@@ -304,17 +353,25 @@ function palm(rand: Rand): THREE.Object3D[] {
     lean.add(ring)
   }
 
+  // The whole crown (hub + fronds + coconuts) lives in a 'canopy' group pivoted
+  // at the crown so the wind hook can toss it. Positions are canopy-LOCAL.
+  // Nested inside `lean`, so grounding (which shifts top-level children) moves
+  // it together with the trunk.
   const crownY = 1.0
+  const canopy = new THREE.Group()
+  canopy.name = 'canopy'
+  canopy.position.y = crownY
+  canopy.userData.windAmp = 0.7
+  lean.add(canopy)
+
   const hub = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), soft(LEAF))
-  hub.position.y = crownY
-  lean.add(hub)
+  canopy.add(hub)
 
   const frondCount = 7 + Math.floor(rand() * 3) // 7..9
   const deep = new THREE.Color(LEAF)
   deep.offsetHSL(0, 0.03, -0.08) // slightly deeper alternating tone
   for (let i = 0; i < frondCount; i++) {
     const frond = new THREE.Group()
-    frond.position.y = crownY
     frond.rotation.y = (i / frondCount) * Math.PI * 2 + rand() * 0.2
 
     const blade = new THREE.Mesh(new THREE.SphereGeometry(0.16, 7, 5), soft(i % 2 === 0 ? LEAF : deep))
@@ -322,15 +379,15 @@ function palm(rand: Rand): THREE.Object3D[] {
     blade.rotation.x = 0.55 // splay outward, then droop down
     blade.position.set(0, -0.03, 0.34)
     frond.add(blade)
-    lean.add(frond)
+    canopy.add(frond)
   }
 
   if (rand() < 0.6) {
     for (let i = 0; i < 2; i++) {
       const a = rand() * Math.PI * 2
       const coconut = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), soft(COCONUT))
-      coconut.position.set(Math.cos(a) * 0.08, crownY - 0.09, Math.sin(a) * 0.08)
-      lean.add(coconut)
+      coconut.position.set(Math.cos(a) * 0.08, -0.09, Math.sin(a) * 0.08)
+      canopy.add(coconut)
     }
   }
 

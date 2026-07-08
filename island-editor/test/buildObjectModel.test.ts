@@ -92,4 +92,43 @@ describe('buildObjectModel', () => {
     expect(canopy).toBeInstanceOf(THREE.Group)
     expect((canopy as THREE.Group).children.length).toBeGreaterThan(0)
   })
+
+  it("every tree kind carries a 'canopy' group with a per-kind windAmp (fruitTree 1, palm 0.7, pine 0.35)", () => {
+    const expected: Record<string, number> = { fruitTree: 1, palm: 0.7, pine: 0.35 }
+    for (const [kind, amp] of Object.entries(expected)) {
+      const canopy = buildObjectModel(kind as 'fruitTree' | 'palm' | 'pine', 7).getObjectByName('canopy')
+      expect(canopy).toBeInstanceOf(THREE.Group)
+      expect((canopy as THREE.Group).children.length).toBeGreaterThan(0)
+      expect((canopy as THREE.Group).userData.windAmp).toBe(amp)
+    }
+  })
+
+  it('bush and rock have no canopy group (the wind hook must no-op on them)', () => {
+    for (const kind of ['bush', 'rock'] as const) {
+      expect(buildObjectModel(kind, 7).getObjectByName('canopy')).toBeUndefined()
+    }
+  })
+
+  it('trunks live outside the canopy group (wind must never bend a trunk at the root)', () => {
+    for (const kind of ['fruitTree', 'pine', 'palm'] as const) {
+      const model = buildObjectModel(kind, 7)
+      const canopy = model.getObjectByName('canopy') as THREE.Group
+      // At least one cylinder (trunk segment) sits outside the canopy subtree.
+      let trunkOutside = false
+      model.traverse((obj) => {
+        if (!(obj instanceof THREE.Mesh) || !(obj.geometry instanceof THREE.CylinderGeometry)) return
+        let p: THREE.Object3D | null = obj
+        while (p && p !== canopy) p = p.parent
+        if (p !== canopy) trunkOutside = true
+      })
+      expect(trunkOutside).toBe(true)
+      // And no cylinder inside the canopy is a tall trunk-like segment (palm's
+      // canopy legitimately holds no cylinders at all today).
+      canopy.traverse((obj) => {
+        if (obj instanceof THREE.Mesh && obj.geometry instanceof THREE.CylinderGeometry) {
+          expect((obj.geometry as THREE.CylinderGeometry).parameters.height).toBeLessThan(0.2)
+        }
+      })
+    }
+  })
 })

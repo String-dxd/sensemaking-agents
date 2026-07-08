@@ -62,11 +62,13 @@ function PlacedObjectMesh({ spec, object: o, blurred, placeMode, onRemove }: Pla
   const model = useMemo(() => buildObjectModel(o.kind, hashString(o.id)), [o.kind, o.id])
   useEffect(() => () => disposeModel(model), [model])
 
-  // Gentle wind sway of the crown. Only fruitTree carries a 'canopy' sub-group,
-  // so this is auto-scoped to it (other kinds resolve undefined → no-op). Phase
-  // is derived from the object id so neighbouring trees sway out of phase;
-  // frozen under prefers-reduced-motion. Render-layer only — the deterministic
-  // builder never sees time.
+  // Wind sway of the crown. Tree kinds carry a 'canopy' sub-group with a
+  // per-kind stiffness in userData.windAmp (fruitTree 1, palm 0.7, pine 0.35);
+  // bush/rock resolve undefined → no-op. A slow gust envelope swells and eases
+  // the sway, a faster low-amplitude term adds flutter, and a subtle vertical
+  // "breathing" makes the crown feel alive. Phase is derived from the object id
+  // so neighbouring trees sway out of phase; frozen under prefers-reduced-motion.
+  // Render-layer only — the deterministic builder never sees time.
   const canopy = useMemo(() => model.getObjectByName('canopy'), [model])
   const phase = useMemo(() => ((hashString(o.id) % 1000) / 1000) * Math.PI * 2, [o.id])
   const reduce = useMemo(
@@ -76,8 +78,11 @@ function PlacedObjectMesh({ spec, object: o, blurred, placeMode, onRemove }: Pla
   useFrame((state) => {
     if (!canopy || reduce) return
     const t = state.clock.elapsedTime
-    canopy.rotation.z = Math.sin(t * 1.1 + phase) * 0.05
-    canopy.rotation.x = Math.cos(t * 0.9 + phase) * 0.035
+    const amp = (canopy.userData.windAmp as number | undefined) ?? 1
+    const gust = 0.6 + 0.4 * Math.sin(t * 0.23 + phase)
+    canopy.rotation.z = (Math.sin(t * 1.1 + phase) * 0.045 + Math.sin(t * 2.3 + phase * 1.7) * 0.012) * gust * amp
+    canopy.rotation.x = Math.cos(t * 0.9 + phase) * 0.03 * gust * amp
+    canopy.scale.y = 1 + 0.02 * Math.sin(t * 1.7 + phase) * amp
   })
 
   const { x, y, z } = worldPositionOfObject(spec, o, blurred)

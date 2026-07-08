@@ -37,10 +37,11 @@ function GalleryModel({
   const model = useMemo(() => buildObjectModel(kind, seed), [kind, seed])
   useEffect(() => () => disposeGroup(model), [model])
 
-  // Gentle wind sway of the crown. Only fruitTree carries a 'canopy' sub-group,
-  // so this is auto-scoped to it (other kinds resolve undefined → no-op). Phase
-  // is seed-derived so the row of trees sways out of phase; frozen under
-  // prefers-reduced-motion. Render-layer only — the builder stays time-free.
+  // Wind sway of the crown (same model as PlacedObjects: gust envelope + flutter
+  // + breathing, damped per kind by canopy.userData.windAmp; bush/rock have no
+  // canopy → no-op). Phase is seed-derived so the row of trees sways out of
+  // phase; frozen under prefers-reduced-motion. Render-layer only — the builder
+  // stays time-free.
   const canopy = useMemo(() => model.getObjectByName('canopy'), [model])
   const phase = useMemo(() => ((hashString(String(seed)) % 1000) / 1000) * Math.PI * 2, [seed])
   const reduce = useMemo(
@@ -50,8 +51,11 @@ function GalleryModel({
   useFrame((state) => {
     if (!canopy || reduce) return
     const t = state.clock.elapsedTime
-    canopy.rotation.z = Math.sin(t * 1.1 + phase) * 0.05
-    canopy.rotation.x = Math.cos(t * 0.9 + phase) * 0.035
+    const amp = (canopy.userData.windAmp as number | undefined) ?? 1
+    const gust = 0.6 + 0.4 * Math.sin(t * 0.23 + phase)
+    canopy.rotation.z = (Math.sin(t * 1.1 + phase) * 0.045 + Math.sin(t * 2.3 + phase * 1.7) * 0.012) * gust * amp
+    canopy.rotation.x = Math.cos(t * 0.9 + phase) * 0.03 * gust * amp
+    canopy.scale.y = 1 + 0.02 * Math.sin(t * 1.7 + phase) * amp
   })
 
   return <primitive object={model} position={position} />
