@@ -30,7 +30,9 @@ export const SPECIES_GROUPS = [
   'ursid', // mammal
   'songbird',
   'raptor',
-  'waterfowl', // bird
+  'waterfowl',
+  'galliform',
+  'flightless', // bird
 ] as const
 export type SpeciesGroup = (typeof SPECIES_GROUPS)[number]
 
