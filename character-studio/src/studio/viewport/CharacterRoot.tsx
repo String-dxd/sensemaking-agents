@@ -38,6 +38,7 @@ import {
   type TextureResolver,
 } from '../../core/materials'
 import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
+import { buildBodyScene } from '../../core/procgen/buildBody'
 import { mulberry32 } from '../../core/motion/noise'
 import { createIdleLayer } from '../../core/motion/proceduralIdle'
 import { createFixedStepper, createSpringRig } from '../../core/motion/springSolver'
@@ -105,6 +106,7 @@ function WardrobeItemLoader({
 
 export function CharacterRoot() {
   const archetype = useCharacterStore((s) => s.spec.meta.archetype)
+  const speciesId = useCharacterStore((s) => s.spec.meta.species)
   const parts = useCharacterStore((s) => s.spec.anatomy.parts)
   const bodyMorphs = useCharacterStore((s) => s.spec.anatomy.bodyMorphs)
   const materialsSpec = useCharacterStore((s) => s.spec.materials)
@@ -143,9 +145,9 @@ export function CharacterRoot() {
   // plan 016 and load through the inner <WardrobeItemLoader> below.
   const bodyScene = useMemo(() => {
     if (body.source?.kind !== 'procedural') throw new Error(`CharacterRoot: body "${archetype}" has no procedural source`)
-    return body.source.build()
+    return buildBodyScene(archetype, speciesId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [archetype])
+  }, [archetype, speciesId])
   const partScenes = useMemo(() => {
     const scenes: Partial<Record<PartSlot, THREE.Object3D>> = {}
     for (const { slot, def } of equipped) {

@@ -14,6 +14,7 @@
 // (plan 010 resolved the owl/duckling beaks: owl now uses `beak-hooked`,
 //  duckling `bill-duck`; the three bird species also carry `patternId`.)
 
+import type { BirdBodyShape } from '../procgen/body'
 import type { AnimalClass } from '../skeleton/partRegistry'
 import { createDefaultCharacter } from '../spec/defaults'
 import { type Archetype, type BoneName, type BoneScale, type CharacterSpec, CharacterSpecSchema, type Personality } from '../spec/schema'
@@ -49,6 +50,8 @@ export interface SpeciesDef {
   palette: CharacterSpec['palette']
   /** Body pattern-mask id (plans 010/011 supply the assets); undefined = plain authored mask. */
   patternId?: string
+  /** Bird-archetype silhouette overrides (plan 017); ignored for mammals. */
+  birdShape?: Partial<BirdBodyShape>
   personality: Personality
 }
 
@@ -193,6 +196,7 @@ export const SPECIES_REGISTRY = {
       crest: { partId: 'none', morphs: {} },
     },
     bodyMorphs: { bellyRound: 0.3 },
+    birdShape: {},
     patternId: 'pattern-robin',
     palette: {
       primary: '#8a6f5a',
@@ -217,6 +221,7 @@ export const SPECIES_REGISTRY = {
       crest: { partId: 'feather-tuft', morphs: {} },
     },
     bodyMorphs: { chubby: 0.4, headBig: 0.35 },
+    birdShape: { wingLength: 0.9, headSize: 1.08, toeCut: 0.85 },
     patternId: 'pattern-owl',
     palette: {
       primary: '#a08363',
@@ -241,6 +246,7 @@ export const SPECIES_REGISTRY = {
       crest: { partId: 'none', morphs: {} },
     },
     bodyMorphs: { bellyRound: 0.45 },
+    birdShape: { toeCut: 0.12, wingLength: 0.85, belly: 1.1 },
     patternId: 'pattern-duckling',
     palette: {
       primary: '#f2d349',

@@ -385,7 +385,7 @@ export const BODY_REGISTRY: Record<'biped-round' | 'biped-slim' | 'bird', BodyDe
     url: bodyUrl('body-bird.glb'),
     maskUrl: maskUrl('body-bird.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 5, // plan 017: AC bird anatomy (wing paddle, tarsus, toe fan)
     source: { kind: 'procedural', build: () => buildProceduralBody('bird').scene },
   },
 }
