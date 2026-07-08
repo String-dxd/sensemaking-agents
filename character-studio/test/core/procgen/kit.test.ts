@@ -3,10 +3,14 @@
 // test/core/skeleton/assemble.test.ts.
 
 import { describe, expect, it } from 'vitest'
+import { CH_BELLY, torsoChannels } from '../../../src/core/procgen/kit/channels'
+import { filletLimbIntoTorso, makeTorsoSdf } from '../../../src/core/procgen/kit/fillet'
 import { capsuleGrid } from '../../../src/core/procgen/kit/loft'
+import { pearProfile } from '../../../src/core/procgen/kit/profiles'
 import { ellipsoidTransform, gridToPiece, unitSphere } from '../../../src/core/procgen/kit/sphereGrid'
 import { MeshBuilder, manifoldReport, packSkinning } from '../../../src/core/procgen/kit/stitch'
 import { UV_ATLAS, headUv, islandUv } from '../../../src/core/procgen/kit/uv'
+import { chainWeights, torsoWeights } from '../../../src/core/procgen/kit/weights'
 import { makeRng } from '../../../src/core/procgen/rng'
 
 describe('sphere grid', () => {
@@ -161,5 +165,101 @@ describe('skin packing', () => {
     expect(sum).toBeCloseTo(1, 6)
     // lowest-weight influence 'e' is dropped
     expect([...skinIndex.slice(0, 4)]).not.toContain(4)
+  })
+})
+
+describe('analytic weight recipe', () => {
+  const boneIdx = (b: string): number =>
+    ['upperArmL', 'foreArmL', 'handL', 'hips', 'spine', 'chest'].indexOf(b)
+
+  it('chain-limb weights are normalized and never exceed 3 influences', () => {
+    const arm = capsuleGrid({ a: [0.18, 0.5, 0], b: [0.34, 0.2, 0], radiusA: 0.06, radiusB: 0.05 })
+    const piece = gridToPiece('armL', arm, [])
+    chainWeights(piece, ['upperArmL', 'foreArmL'], [0.5], 0.18)
+    const b = new MeshBuilder()
+    b.add(piece)
+    const built = b.build()
+    const { skinIndex, skinWeight } = packSkinning(built, boneIdx)
+    for (let i = 0; i < built.vertexCount; i++) {
+      const w = [0, 1, 2, 3].map((s) => skinWeight[i * 4 + s])
+      expect(w[0] + w[1] + w[2] + w[3]).toBeCloseTo(1, 5)
+      const nonZero = w.filter((x) => x > 1e-6).length
+      expect(nonZero).toBeLessThanOrEqual(4)
+      // the analytic recipe caps at 3 across the whole mesh
+      expect(nonZero).toBeLessThanOrEqual(3)
+    }
+    // both chain bones are actually referenced (index >= 0)
+    expect([...skinIndex]).toContain(0)
+    expect([...skinIndex]).toContain(1)
+  })
+
+  it('torso bands (hips/spine/chest) sum to 1 per vertex', () => {
+    const torso = unitSphere(24, 18)
+    ellipsoidTransform(torso, [0, 0.42, 0], [0.18, 0.24, 0.14])
+    const piece = gridToPiece('torso', torso, [])
+    torsoWeights(piece, 0.34, 0.4, 0.46)
+    const n = piece.pos.length / 3
+    for (let i = 0; i < n; i++) {
+      const s = (piece.weights.get('hips')?.[i] ?? 0) + (piece.weights.get('spine')?.[i] ?? 0) + (piece.weights.get('chest')?.[i] ?? 0)
+      expect(s).toBeCloseTo(1, 6)
+    }
+  })
+})
+
+describe('channels', () => {
+  it('the channel array length is 4×vertexCount and values stay in [0,1]', () => {
+    const torso = unitSphere(24, 18)
+    ellipsoidTransform(torso, [0, 0.42, 0], [0.18, 0.24, 0.14])
+    const piece = gridToPiece('torso', torso, [])
+    const n = piece.pos.length / 3
+    torsoChannels(piece, 0.42, 0.24, 0.18, 'biped-round')
+    expect(piece.channels).toHaveLength(4 * n)
+    for (const c of piece.channels) {
+      expect(c).toBeGreaterThanOrEqual(0)
+      expect(c).toBeLessThanOrEqual(1)
+    }
+    // the belly channel actually lights up on the front (some vertex > 0)
+    let maxBelly = 0
+    for (let i = 0; i < n; i++) maxBelly = Math.max(maxBelly, piece.channels[i * 4 + CH_BELLY])
+    expect(maxBelly).toBeGreaterThan(0.1)
+  })
+})
+
+describe('fillet (smin projection)', () => {
+  it('pushes near-junction limb verts outward yet leaves deep-inside verts tucked, deterministically', () => {
+    const cy = 0.42
+    const ry = 0.24
+    const rx = 0.18
+    const rz = 0.14
+    const torsoSdf = makeTorsoSdf(cy, ry, rx, rz, pearProfile(0.28, 0.16))
+    const build = (): number[] => {
+      const arm = capsuleGrid({ a: [0.08, 0.5, 0], b: [0.34, 0.2, 0], radiusA: 0.06, radiusB: 0.05 })
+      const pos = arm.pos.slice()
+      filletLimbIntoTorso(pos, [0.08, 0.5, 0], [0.34, 0.2, 0], 0.06, 0.05, torsoSdf, 0.055)
+      return pos
+    }
+    const armGrid = capsuleGrid({ a: [0.08, 0.5, 0], b: [0.34, 0.2, 0], radiusA: 0.06, radiusB: 0.05 })
+    const before = armGrid.pos.slice()
+    const after = build()
+    const n = before.length / 3
+    let moved = 0
+    let deepUnchanged = 0
+    let deepSeen = 0
+    for (let i = 0; i < n; i++) {
+      const dx = after[i * 3] - before[i * 3]
+      const dy = after[i * 3 + 1] - before[i * 3 + 1]
+      const dz = after[i * 3 + 2] - before[i * 3 + 2]
+      const d = Math.hypot(dx, dy, dz)
+      if (d > 1e-5) moved++
+      const p: [number, number, number] = [before[i * 3], before[i * 3 + 1], before[i * 3 + 2]]
+      if (torsoSdf(p) < -0.6 * 0.055) {
+        deepSeen++
+        if (d < 1e-9) deepUnchanged++
+      }
+    }
+    expect(moved).toBeGreaterThan(0) // some fillet-band verts flared outward
+    expect(deepUnchanged).toBe(deepSeen) // deep-inside verts are left tucked
+    // determinism: same params → byte-equal positions
+    expect(Float32Array.from(build())).toEqual(Float32Array.from(after))
   })
 })
