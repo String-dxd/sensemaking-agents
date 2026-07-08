@@ -65,21 +65,41 @@ describe('species registry', () => {
     }
   })
 
-  it('speciesForClass partitions the Core-8 into 5 mammals and 3 birds', () => {
+  it('speciesForClass partitions the 13-species roster into 5 mammals and 8 birds (plan 020)', () => {
     expect(speciesForClass('mammal').sort()).toEqual(['bear-cub', 'fox', 'rabbit', 'shiba', 'tabby-cat'].sort())
-    expect(speciesForClass('bird').sort()).toEqual(['duckling', 'owl', 'robin'].sort())
+    expect(speciesForClass('bird').sort()).toEqual(
+      ['bowerbird', 'chicken', 'duckling', 'eagle', 'owl', 'peacock', 'penguin', 'robin'].sort(),
+    )
   })
 
-  it('every species patternId resolves to a registered pattern with a baked mask for its archetype (plans 010/011)', () => {
+  it('every species patternId resolves to a registered pattern with a baked mask for its archetype (plans 010/011/020)', () => {
     const withPattern = SPECIES_IDS.filter((id) => (SPECIES_REGISTRY[id] as SpeciesDef).patternId)
-    // all 8 Core species now carry patterns (3 birds + 5 mammals, plan 011)
+    // plan 020: bowerbird is intentionally pattern-less (uniform gloss, palette-only read)
     expect(withPattern.sort()).toEqual(
-      ['bear-cub', 'duckling', 'fox', 'owl', 'rabbit', 'robin', 'shiba', 'tabby-cat'].sort(),
+      [
+        'bear-cub',
+        'chicken',
+        'duckling',
+        'eagle',
+        'fox',
+        'owl',
+        'peacock',
+        'penguin',
+        'rabbit',
+        'robin',
+        'shiba',
+        'tabby-cat',
+      ].sort(),
     )
+    // plan 019's bird set (eagle/penguin/chicken/peacock) is rasterizer-resolved,
+    // not baked — their registry entries carry no `masks` and patternMaskUrl()
+    // returns null by design; still assert the pattern itself is registered.
+    const rasterOnly = new Set(['pattern-eagle', 'pattern-penguin', 'pattern-chicken', 'pattern-peacock'])
     for (const id of withPattern) {
       const def = SPECIES_REGISTRY[id] as SpeciesDef
       const patternId = def.patternId as string
       expect(getPattern(patternId), `${id} pattern ${patternId} registered`).not.toBeNull()
+      if (rasterOnly.has(patternId)) continue
       const url = patternMaskUrl(patternId, def.archetype)
       expect(url, `${id} pattern ${patternId} has a mask for ${def.archetype}`).not.toBeNull()
       expect(existsSync(fileURLToPath(url as string)), `${url} exists on disk`).toBe(true)
