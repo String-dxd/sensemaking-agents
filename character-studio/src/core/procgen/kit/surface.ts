@@ -184,6 +184,10 @@ export class MeshBuilder {
       while (track.length < n) track.push(0)
       weights.set(bone, Float32Array.from(track))
     }
+    // Enforce one consistent OUTWARD winding across the whole welded mesh
+    // (per-bridge orientRange only gets each strip self-consistent, not agreeing
+    // with the shell it joins). See makeConsistentWinding.
+    makeConsistentWinding(this.pos, this.idx)
     return {
       positions: Float32Array.from(this.pos),
       uvs: Float32Array.from(this.uv),
@@ -194,6 +198,103 @@ export class MeshBuilder {
       vertexCount: n,
     }
   }
+}
+
+/**
+ * Flip triangle windings so the closed manifold is one consistently OUTWARD
+ * orientation. `computeVertexNormals` sums incident face normals; where a bridge
+ * strip is wound opposite the shell it joins, the shared junction-ring vertices
+ * get cancelled normals — a dark, faceted crease at every neck/shoulder/hip
+ * seam (the plan-013 visual-parity "ring at the neck" + "patchy joints"). A BFS
+ * over face adjacency forces each interior edge to be traversed in opposite
+ * directions by its two faces; a signed-volume check flips the whole mesh if it
+ * settled inward. Index-only (positions/UVs/weights/ranges untouched), so the
+ * manifold audit and region split are unaffected. Assumes a clean closed
+ * 2-manifold (every interior edge shared by exactly 2 faces — the kit
+ * guarantees this by construction).
+ */
+export function makeConsistentWinding(pos: number[], idx: number[]): void {
+  const faceCount = idx.length / 3
+  if (faceCount === 0) return
+  const ekey = (a: number, b: number): string => (a < b ? `${a}|${b}` : `${b}|${a}`)
+  // undirected edge -> incident face ids
+  const edgeFaces = new Map<string, number[]>()
+  for (let f = 0; f < faceCount; f++) {
+    const a = idx[f * 3]
+    const b = idx[f * 3 + 1]
+    const c = idx[f * 3 + 2]
+    for (const [i, j] of [
+      [a, b],
+      [b, c],
+      [c, a],
+    ] as const) {
+      const k = ekey(i, j)
+      const arr = edgeFaces.get(k)
+      if (arr) arr.push(f)
+      else edgeFaces.set(k, [f])
+    }
+  }
+  // does face f traverse the directed edge i->j?
+  const hasDirected = (f: number, i: number, j: number): boolean => {
+    const a = idx[f * 3]
+    const b = idx[f * 3 + 1]
+    const c = idx[f * 3 + 2]
+    return (a === i && b === j) || (b === i && c === j) || (c === i && a === j)
+  }
+  const flip = (f: number): void => {
+    const t = idx[f * 3 + 1]
+    idx[f * 3 + 1] = idx[f * 3 + 2]
+    idx[f * 3 + 2] = t
+  }
+  const visited = new Uint8Array(faceCount)
+  const stack: number[] = []
+  for (let seed = 0; seed < faceCount; seed++) {
+    if (visited[seed]) continue
+    visited[seed] = 1
+    stack.push(seed)
+    while (stack.length > 0) {
+      const f = stack.pop() as number
+      const a = idx[f * 3]
+      const b = idx[f * 3 + 1]
+      const c = idx[f * 3 + 2]
+      for (const [i, j] of [
+        [a, b],
+        [b, c],
+        [c, a],
+      ] as const) {
+        const nbrs = edgeFaces.get(ekey(i, j))
+        if (!nbrs) continue
+        for (const g of nbrs) {
+          if (g === f || visited[g]) continue
+          // consistent iff g traverses this shared edge in the OPPOSITE
+          // direction (j->i). Same direction (i->j) → g is flipped relative
+          // to f, so flip it.
+          if (hasDirected(g, i, j)) flip(g)
+          visited[g] = 1
+          stack.push(g)
+        }
+      }
+    }
+  }
+  // Signed volume (divergence theorem, origin-agnostic for a closed surface):
+  // positive ⇒ outward-wound. Flip everything if it settled inward.
+  let vol6 = 0
+  for (let f = 0; f < faceCount; f++) {
+    const a = idx[f * 3]
+    const b = idx[f * 3 + 1]
+    const c = idx[f * 3 + 2]
+    const ax = pos[a * 3]
+    const ay = pos[a * 3 + 1]
+    const az = pos[a * 3 + 2]
+    const bx = pos[b * 3]
+    const by = pos[b * 3 + 1]
+    const bz = pos[b * 3 + 2]
+    const cx = pos[c * 3]
+    const cy = pos[c * 3 + 1]
+    const cz = pos[c * 3 + 2]
+    vol6 += ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)
+  }
+  if (vol6 < 0) for (let f = 0; f < faceCount; f++) flip(f)
 }
 
 /**

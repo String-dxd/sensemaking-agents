@@ -88,6 +88,59 @@ describe('stitching (welded manifold)', () => {
     expect(rep.overSharedEdges).toBe(0)
     expect(rep.components).toBe(1)
   })
+
+  it('build() winds the whole welded mesh consistently OUTWARD (smooth normals across junctions)', () => {
+    // head sphere bridged to a torso sphere + an arm loft bridged into a torso
+    // block — the exact junction rings where the per-bridge heuristic wound the
+    // strip opposite the shell, cancelling computeVertexNormals into a crease.
+    const head = unitSphere(12, 12)
+    ellipsoidTransform(head, [0, 0.7, 0], [0.18, 0.18, 0.18])
+    const headPiece = gridToPiece('head', head, [{ kind: 'poleBottom', ring: 2, loop: 'neck' }])
+    const torso = unitSphere(12, 14)
+    ellipsoidTransform(torso, [0, 0.4, 0], [0.2, 0.35, 0.16])
+    const torsoPiece = gridToPiece('torso', torso, [
+      { kind: 'poleTop', ring: 11, loop: 'neck' },
+      { kind: 'block', ringLo: 6, ringHi: 9, colStart: 2, colCount: 3, loop: 'shoulder' },
+    ])
+    const arm = capsuleGrid({ a: [0.18, 0.45, 0], b: [0.34, 0.2, 0], radiusA: 0.06, radiusB: 0.05, useg: 12, vseg: 10 })
+    const armPiece = gridToPiece('armL', arm, [{ kind: 'poleBottom', ring: 1, loop: 'root' }])
+    const b = new MeshBuilder()
+    b.add(headPiece)
+    b.add(torsoPiece)
+    b.add(armPiece)
+    b.bridge(b.loopIndex.head.neck, b.loopIndex.torso.neck)
+    b.bridge(b.loopIndex.torso.shoulder, b.loopIndex.armL.root)
+    const { positions, indices } = b.build()
+
+    // every interior edge of a consistently-wound manifold is traversed in
+    // OPPOSITE directions by its two faces → no same-direction (crease) edges.
+    const dir = new Map<string, number>()
+    const bump = (a: number, c: number) => dir.set(`${a}>${c}`, (dir.get(`${a}>${c}`) ?? 0) + 1)
+    for (let t = 0; t < indices.length; t += 3) {
+      bump(indices[t], indices[t + 1])
+      bump(indices[t + 1], indices[t + 2])
+      bump(indices[t + 2], indices[t])
+    }
+    let sameDir = 0
+    for (const [k, c] of dir) {
+      const [a, c2] = k.split('>').map(Number)
+      if (a < c2 && (c >= 2 || (dir.get(`${c2}>${a}`) ?? 0) === 0)) sameDir++
+    }
+    expect(sameDir).toBe(0)
+
+    // outward orientation: signed volume of the closed surface is positive.
+    let vol6 = 0
+    for (let t = 0; t < indices.length; t += 3) {
+      const a = indices[t]
+      const p = indices[t + 1]
+      const q = indices[t + 2]
+      vol6 +=
+        positions[a * 3] * (positions[p * 3 + 1] * positions[q * 3 + 2] - positions[p * 3 + 2] * positions[q * 3 + 1]) -
+        positions[a * 3 + 1] * (positions[p * 3] * positions[q * 3 + 2] - positions[p * 3 + 2] * positions[q * 3]) +
+        positions[a * 3 + 2] * (positions[p * 3] * positions[q * 3 + 1] - positions[p * 3 + 1] * positions[q * 3])
+    }
+    expect(vol6).toBeGreaterThan(0)
+  })
 })
 
 describe('determinism', () => {
