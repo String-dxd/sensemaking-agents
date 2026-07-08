@@ -21,7 +21,7 @@ import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skelet
 import type { Archetype } from '../spec/schema'
 import { BODY_MORPHS } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
-import { CH_ACCENT, CH_SECONDARY, headChannels, torsoChannels } from './kit/channels'
+import { CH_ACCENT, CH_SECONDARY, accentAll, headChannels, torsoChannels } from './kit/channels'
 import { filletLimbIntoTorso, makeTorsoSdf } from './kit/fillet'
 import { capsuleGrid } from './kit/loft'
 import { pearProfile } from './kit/profiles'
@@ -387,18 +387,48 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     const [fx, fy, fz] = style.foot
     const fzS = (fz * u) / 0.9
     const fyS = (fy * u) / 0.9
+    const fxS = (fx * u) / 0.9
     const drop = legEndY - footJoint[1] * 0.7 // 0 unless bird tarsusLength ≠ 1
     const ankle: Vec3 = [footJoint[0], footJoint[1] * 0.55 + drop, footJoint[2]]
-    const toe: Vec3 = [footJoint[0], footJoint[1] * 0.4 + drop, footJoint[2] + fzS * 1.5]
+    const toeLen = isBird ? fzS * 1.9 * shape.footLength : fzS * 1.5
+    const toe: Vec3 = [footJoint[0], footJoint[1] * 0.4 + drop, footJoint[2] + toeLen]
     const footGrid = capsuleGrid({ a: ankle, b: toe, radiusA: fyS, radiusB: fyS * 0.72, useg: LIMB_USEG, vseg: 9, fullness: 0.65 })
-    // widen across X to the foot's x-radius (fx), keep it flat-ish
-    const fxS = (fx * u) / 0.9
-    for (let i = 0; i < footGrid.pos.length / 3; i++) {
-      footGrid.pos[i * 3] = (footGrid.pos[i * 3] - footJoint[0]) * (fxS / Math.max(fyS, 1e-9)) + footJoint[0]
+    if (isBird) {
+      // AC toe-fan (plan 017): flat wedge widening toward the front, front
+      // edge split into 3 toe lobes (toeCut 0 = webbed duck triangle), plus
+      // an optional hind-toe bump. Positional passes only.
+      const soleY = ankle[1] - fyS
+      for (let i = 0; i < footGrid.pos.length / 3; i++) {
+        const u01 = footGrid.params[i * 2]
+        const v01 = footGrid.params[i * 2 + 1]
+        // flatten to the sole, fan out forward-weighted
+        footGrid.pos[i * 3 + 1] = (footGrid.pos[i * 3 + 1] - soleY) * 0.45 + soleY
+        const widen = (fxS / Math.max(fyS, 1e-9)) * (0.7 + 0.9 * v01)
+        footGrid.pos[i * 3] = (footGrid.pos[i * 3] - footJoint[0]) * widen + footJoint[0]
+        // toe lobes: sin(az) IS the x-direction factor of the radial basis,
+        // so lobes keyed on it stay x-symmetric top and bottom
+        const sinAz = Math.sin(2 * Math.PI * u01)
+        const cosAz = Math.cos(2 * Math.PI * u01)
+        const frontZone = smoothstep(0.6, 1.0, v01)
+        const scallop = Math.abs(Math.sin((sinAz * 0.5 + 0.5) * 3 * Math.PI))
+        const cut = (1 - scallop) * shape.toeCut
+        footGrid.pos[i * 3 + 2] += frontZone * (0.45 * fzS * (1 - cut) - 0.4 * fzS * cut)
+        if (shape.hindToe) {
+          // rear bump on the down-facing heel zone
+          const heel = smoothstep(0.25, 0.08, v01) * smoothstep(-0.3, -0.85, cosAz)
+          footGrid.pos[i * 3 + 2] -= fzS * 0.35 * heel
+        }
+      }
+    } else {
+      // widen across X to the foot's x-radius (fx), keep it flat-ish
+      for (let i = 0; i < footGrid.pos.length / 3; i++) {
+        footGrid.pos[i * 3] = (footGrid.pos[i * 3] - footJoint[0]) * (fxS / Math.max(fyS, 1e-9)) + footJoint[0]
+      }
     }
     const footName = `foot${side}` as const
     const foot = gridToPiece(footName, footGrid, [{ kind: 'poleBottom', ring: 1, loop: 'ankle' }])
     footWeights(foot, footName, `toes${side}`, ankle[2], fzS)
+    if (isBird) accentAll(foot, 1) // feet share the beak accent color
     paintUv(foot, side === 'L' ? 'footL' : 'footR', false)
     builder.add(foot)
     builder.bridge(builder.loopIndex[name].ankle, builder.loopIndex[footName].ankle)
