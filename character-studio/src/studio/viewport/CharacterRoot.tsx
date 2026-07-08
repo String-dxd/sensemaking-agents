@@ -1,9 +1,9 @@
 // CharacterRoot (plan 006, step 4) — replaces PlaceholderBody in the Stage.
 //
 // Loads the archetype body + equipped part GLBs (drei useGLTF, cached),
-// runs core assembly (assembleCharacter — pure three), mounts the face rig
-// on the returned anchor, and registers spring rig + idle layer + body
-// movers in the frame loop. Re-assembles reactively when the spec's
+// runs core assembly (assembleCharacter — pure three), attaches the drawn
+// face to the body material (FaceRig → setFaceMap, advisor plan 002), and
+// registers spring rig + idle layer + body movers in the frame loop. Re-assembles reactively when the spec's
 // STRUCTURE changes (archetype / part ids); morphs, boneScales, palette and
 // material params flow through cheap live-update effects instead.
 //
@@ -21,7 +21,7 @@
 // the grafted bones it solves.
 
 import { useGLTF, useTexture } from '@react-three/drei'
-import { createPortal, useThree } from '@react-three/fiber'
+import { useThree } from '@react-three/fiber'
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import {
@@ -31,7 +31,9 @@ import {
   applyTextureId,
   defaultTextureResolver,
   getOutline,
+  patternMaskUrl,
   removeOutline,
+  resolvesAuthored,
   type ResolvedTextures,
   type TextureResolver,
 } from '../../core/materials'
@@ -60,6 +62,7 @@ import {
 import { useCharacterStore } from '../state/characterStore'
 import { createSculptSession, finalizeSculptVisuals, useSculptStore } from '../state/sculptStore'
 import { FALLBACK_ASSIGN, useMotionStudio, useToonStudio } from '../state/studioStores'
+import { usePlayStore } from '../play/playStore'
 import { createBodyMover } from './bodyMover'
 import { FaceRig } from './FaceRig'
 
@@ -112,11 +115,15 @@ export function CharacterRoot() {
     () => [body.url, ...equipped.map((e) => e.def.url as string), ...wornResolved.map((i) => i.def.url)],
     [body, equipped, wornResolved],
   )
+  const bodyTextureId = materialsSpec.body?.textureId
   const maskEntries = useMemo(() => {
-    const entries: Array<{ region: Region; url: string }> = [{ region: 'body', url: body.maskUrl }]
+    // plan 010: a body pattern (species preset) swaps the body mask for its
+    // baked variant; falls back to the plain authored mask otherwise.
+    const bodyMaskUrl = patternMaskUrl(bodyTextureId, archetype) ?? body.maskUrl
+    const entries: Array<{ region: Region; url: string }> = [{ region: 'body', url: bodyMaskUrl }]
     for (const { def } of equipped) if (def.maskUrl) entries.push({ region: def.region, url: def.maskUrl })
     return entries
-  }, [body, equipped])
+  }, [body, equipped, bodyTextureId, archetype])
   const itemMaskEntries = useMemo(
     () => wornResolved.flatMap((i) => (i.def.maskUrl ? [{ itemId: i.itemId, url: i.def.maskUrl }] : [])),
     [wornResolved],
@@ -309,7 +316,13 @@ export function CharacterRoot() {
     const idle = createIdleLayer({ chest, head, hips }, mulberry32(IDLE_SEED))
     const onProcedural = (dt: number) => idle.update(dt)
     const mover = createBodyMover(assembled.root, neck)
-    const onAnimation = (dt: number) => mover.update(dt)
+    // Play mode owns the root once active (its clip machine + locomotion
+    // drive it); an in-flight hop/shake left running would otherwise write
+    // root.position.y or neck.rotation.y underneath Play's stack.
+    const onAnimation = (dt: number) => {
+      if (usePlayStore.getState().mode === 'play') return
+      mover.update(dt)
+    }
 
     registerUpdate('animation', onAnimation)
     registerUpdate('physics', onPhysics)
@@ -380,7 +393,7 @@ export function CharacterRoot() {
       if (!material) continue
       const assign = materialsSpec[region as Region] ?? FALLBACK_ASSIGN
       const resolveTexture: TextureResolver = (textureId) =>
-        textureId === 'authored'
+        resolvesAuthored(textureId)
           ? (texturesByRegion[region as Region] ?? { map: null, maskMap: null })
           : defaultTextureResolver(textureId)
       applyMaterialAssign(material, assign)
@@ -418,22 +431,15 @@ export function CharacterRoot() {
     }
   }, [assembled, dressed, terminatorWarmth])
 
-  const placement = useMemo(
-    () => ({ mouthRadialOffset: assembled.mouthRadialOffset }),
-    [assembled],
-  )
-
   return (
-    // key forces a clean detach/attach (primitive AND portal container) when
-    // reassembly swaps the root — r3f does not migrate either in place.
+    // key forces a clean detach/attach when reassembly swaps the root —
+    // r3f does not migrate the primitive in place. The face rig renders no
+    // scene objects (advisor plan 002): it draws into the body material's
+    // head UVs, so it follows morphs/sculpt/bone scales for free.
     <Fragment key={assembled.root.uuid}>
       <primitive object={assembled.root} />
-      {createPortal(
-        // head shells are drawn slightly wider than the cranium sphere
-        // (head_wide 1.02–1.06 in the body builder) — pad the face-plane
-        // radius so eyes/brows float just off the widest surface.
-        <FaceRig headRadius={assembled.headRadius * 1.07} placement={placement} hideMouth={assembled.hideMouth} />,
-        assembled.faceAnchor,
+      {assembled.regionMaterials.body && (
+        <FaceRig bodyMaterial={assembled.regionMaterials.body} hideMouth={assembled.hideMouth} />
       )}
     </Fragment>
   )

@@ -15,6 +15,10 @@
 import type { SpringJointParams } from '../motion/springTypes'
 import type { BoneName, PartSlot, Region } from '../spec/schema'
 
+/** Taxonomy classes a part is anatomically legal for (species wave). */
+export const ANIMAL_CLASSES = ['mammal', 'bird'] as const
+export type AnimalClass = (typeof ANIMAL_CLASSES)[number]
+
 export interface PartDef {
   slot: PartSlot
   /** Panel display name. */
@@ -25,6 +29,8 @@ export interface PartDef {
   maskUrl: string | null
   /** Material region this part's meshes belong to (spec.materials key). */
   region: Region
+  /** Taxonomy classes this part is anatomically legal for. */
+  classes: readonly AnimalClass[]
   /** Canonical bones a SkinnedMesh in this GLB is bound to. */
   skinnedTo?: readonly BoneName[]
   /** Bones/sockets rigid meshes in this GLB attach to. */
@@ -79,6 +85,7 @@ export const PART_REGISTRY = {
     url: partUrl('ears-upright-pointy.glb'),
     maskUrl: maskUrl('part-ears-upright-pointy.mask.png'),
     region: 'ears',
+    classes: ['mammal'],
     skinnedTo: EAR_BONES,
     morphs: ['length', 'width'],
     springProfile: spring(0.5, 12, 0.1),
@@ -89,6 +96,7 @@ export const PART_REGISTRY = {
     url: partUrl('ears-floppy-long.glb'),
     maskUrl: maskUrl('part-ears-floppy-long.mask.png'),
     region: 'ears',
+    classes: ['mammal'],
     skinnedTo: EAR_BONES,
     morphs: ['length', 'width'],
     springProfile: spring(0.12, 40, 0.15),
@@ -99,6 +107,7 @@ export const PART_REGISTRY = {
     url: partUrl('ears-round-bear.glb'),
     maskUrl: maskUrl('part-ears-round-bear.mask.png'),
     region: 'ears',
+    classes: ['mammal'],
     skinnedTo: EAR_BONES,
     morphs: ['length', 'width'],
     springProfile: spring(0.45, 10, 0.1),
@@ -109,6 +118,7 @@ export const PART_REGISTRY = {
     url: partUrl('ears-bunny-tall.glb'),
     maskUrl: maskUrl('part-ears-bunny-tall.mask.png'),
     region: 'ears',
+    classes: ['mammal'],
     skinnedTo: EAR_BONES,
     morphs: ['length', 'width'],
     springProfile: spring(0.18, 32, 0.13),
@@ -121,6 +131,7 @@ export const PART_REGISTRY = {
     url: partUrl('muzzle-short-cat.glb'),
     maskUrl: maskUrl('part-muzzle-short-cat.mask.png'),
     region: 'muzzle',
+    classes: ['mammal'],
     attachTo: ['socket.muzzle'],
     morphs: ['length'],
     mouthOffset: 0.09,
@@ -131,6 +142,7 @@ export const PART_REGISTRY = {
     url: partUrl('muzzle-boxy-dog.glb'),
     maskUrl: maskUrl('part-muzzle-boxy-dog.mask.png'),
     region: 'muzzle',
+    classes: ['mammal'],
     attachTo: ['socket.muzzle'],
     morphs: ['length'],
     mouthOffset: 0.14,
@@ -141,6 +153,7 @@ export const PART_REGISTRY = {
     url: partUrl('muzzle-beak-small.glb'),
     maskUrl: maskUrl('part-muzzle-beak-small.mask.png'),
     region: 'muzzle',
+    classes: ['bird'],
     attachTo: ['socket.muzzle'],
     morphs: ['length'],
     hidesMouth: true,
@@ -151,6 +164,29 @@ export const PART_REGISTRY = {
     url: partUrl('muzzle-beak-round.glb'),
     maskUrl: maskUrl('part-muzzle-beak-round.mask.png'),
     region: 'muzzle',
+    classes: ['bird'],
+    attachTo: ['socket.muzzle'],
+    morphs: ['length'],
+    hidesMouth: true,
+  },
+  'beak-hooked': {
+    slot: 'muzzle',
+    label: 'Hooked beak',
+    url: partUrl('muzzle-beak-hooked.glb'),
+    maskUrl: maskUrl('part-muzzle-beak-hooked.mask.png'),
+    region: 'muzzle',
+    classes: ['bird'],
+    attachTo: ['socket.muzzle'],
+    morphs: ['length'],
+    hidesMouth: true,
+  },
+  'bill-duck': {
+    slot: 'muzzle',
+    label: 'Duck bill',
+    url: partUrl('muzzle-bill-duck.glb'),
+    maskUrl: maskUrl('part-muzzle-bill-duck.mask.png'),
+    region: 'muzzle',
+    classes: ['bird'],
     attachTo: ['socket.muzzle'],
     morphs: ['length'],
     hidesMouth: true,
@@ -163,6 +199,7 @@ export const PART_REGISTRY = {
     url: partUrl('tail-curl-shiba.glb'),
     maskUrl: maskUrl('part-tail-curl-shiba.mask.png'),
     region: 'tail',
+    classes: ['mammal'],
     skinnedTo: TAIL_BONES,
     morphs: ['length', 'width'],
     springProfile: spring(0.45, 14, 0.1),
@@ -173,9 +210,21 @@ export const PART_REGISTRY = {
     url: partUrl('tail-fluff-fox.glb'),
     maskUrl: maskUrl('part-tail-fluff-fox.mask.png'),
     region: 'tail',
+    classes: ['mammal'],
     skinnedTo: TAIL_BONES,
     morphs: ['length', 'width'],
     springProfile: spring(0.22, 26, 0.12),
+  },
+  'slim-cat': {
+    slot: 'tail',
+    label: 'Slim cat',
+    url: partUrl('tail-slim-cat.glb'),
+    maskUrl: maskUrl('part-tail-slim-cat.mask.png'),
+    region: 'tail',
+    classes: ['mammal'],
+    skinnedTo: TAIL_BONES,
+    morphs: ['length', 'width'],
+    springProfile: spring(0.3, 18, 0.1),
   },
   'stub-round': {
     slot: 'tail',
@@ -183,6 +232,7 @@ export const PART_REGISTRY = {
     url: partUrl('tail-stub-round.glb'),
     maskUrl: maskUrl('part-tail-stub-round.mask.png'),
     region: 'tail',
+    classes: ['mammal'],
     skinnedTo: TAIL_BONES,
     morphs: ['length', 'width'],
     springProfile: spring(0.55, 10, 0.1),
@@ -193,6 +243,7 @@ export const PART_REGISTRY = {
     url: partUrl('tail-feather-fan.glb'),
     maskUrl: maskUrl('part-tail-feather-fan.mask.png'),
     region: 'tail',
+    classes: ['bird'],
     skinnedTo: TAIL_BONES,
     morphs: ['length', 'width'],
     springProfile: spring(0.3, 20, 0.12),
@@ -205,6 +256,7 @@ export const PART_REGISTRY = {
     url: null,
     maskUrl: null,
     region: 'claws',
+    classes: ['mammal', 'bird'],
     morphs: [],
   },
   'stub-claws': {
@@ -213,6 +265,7 @@ export const PART_REGISTRY = {
     url: partUrl('claws-stub.glb'),
     maskUrl: maskUrl('part-claws-stub.mask.png'),
     region: 'claws',
+    classes: ['mammal', 'bird'],
     attachTo: ['handL', 'handR', 'footL', 'footR'],
     morphs: [],
   },
@@ -226,6 +279,7 @@ export const PART_REGISTRY = {
     url: null,
     maskUrl: null,
     region: 'ears',
+    classes: ['mammal', 'bird'],
     morphs: [],
   },
   'feather-tuft': {
@@ -234,6 +288,7 @@ export const PART_REGISTRY = {
     url: partUrl('crest-feather-tuft.glb'),
     maskUrl: maskUrl('part-crest-feather-tuft.mask.png'),
     region: 'ears',
+    classes: ['bird'],
     attachTo: ['socket.hat'],
     morphs: [],
   },
@@ -243,9 +298,15 @@ export type PartId = keyof typeof PART_REGISTRY
 
 export const PART_IDS = Object.keys(PART_REGISTRY) as PartId[]
 
-/** Part ids for one slot, registry order (panel picker rows). */
-export function partsForSlot(slot: PartSlot): PartId[] {
-  return PART_IDS.filter((id) => PART_REGISTRY[id].slot === slot)
+/** Part ids for one slot, registry order (panel picker rows). Optionally
+ * filtered to parts anatomically legal for `animalClass`. */
+export function partsForSlot(slot: PartSlot, animalClass?: AnimalClass): PartId[] {
+  return PART_IDS.filter(
+    (id) =>
+      PART_REGISTRY[id].slot === slot &&
+      (animalClass === undefined ||
+        (PART_REGISTRY[id].classes as readonly AnimalClass[]).includes(animalClass)),
+  )
 }
 
 export function getPart(partId: string): PartDef | null {
@@ -273,15 +334,18 @@ export const BODY_REGISTRY: Record<'biped-round' | 'biped-slim' | 'bird', BodyDe
     url: bodyUrl('body-biped-round.glb'),
     maskUrl: maskUrl('body-biped-round.mask.png'),
     morphs: BODY_MORPHS,
+    meshVersion: 3, // plan 007: AC-benchmark limb proportions (re-aimed arm chain, new vertex layout)
   },
   'biped-slim': {
     url: bodyUrl('body-biped-slim.glb'),
     maskUrl: maskUrl('body-biped-slim.mask.png'),
     morphs: BODY_MORPHS,
+    meshVersion: 3, // plan 007: AC-benchmark limb proportions (re-aimed arm chain, new vertex layout)
   },
   bird: {
     url: bodyUrl('body-bird.glb'),
     maskUrl: maskUrl('body-bird.mask.png'),
     morphs: BODY_MORPHS,
+    meshVersion: 3, // plan 007: AC-benchmark limb proportions (re-aimed arm chain, new vertex layout)
   },
 }

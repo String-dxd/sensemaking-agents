@@ -228,6 +228,7 @@ export function createDefaultCharacter(archetype: Archetype, personality: Person
       specVersion: SPEC_VERSION,
       archetype,
       personality,
+      species: 'custom',
       createdAt: now,
       updatedAt: now,
     },

@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import { OrbitControls, Text } from '@react-three/drei'
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { buildObjectModel } from '../models/buildObjectModel'
+import { hashString } from '../models/rand'
 import { OBJECT_KINDS, type ObjectKind } from '../terrain/terrainGrid'
 
 // Dev-only view (gated behind `?gallery` in main.tsx): lays out every ObjectKind
@@ -35,6 +36,24 @@ function GalleryModel({
 }) {
   const model = useMemo(() => buildObjectModel(kind, seed), [kind, seed])
   useEffect(() => () => disposeGroup(model), [model])
+
+  // Gentle wind sway of the crown. Only fruitTree carries a 'canopy' sub-group,
+  // so this is auto-scoped to it (other kinds resolve undefined → no-op). Phase
+  // is seed-derived so the row of trees sways out of phase; frozen under
+  // prefers-reduced-motion. Render-layer only — the builder stays time-free.
+  const canopy = useMemo(() => model.getObjectByName('canopy'), [model])
+  const phase = useMemo(() => ((hashString(String(seed)) % 1000) / 1000) * Math.PI * 2, [seed])
+  const reduce = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+    [],
+  )
+  useFrame((state) => {
+    if (!canopy || reduce) return
+    const t = state.clock.elapsedTime
+    canopy.rotation.z = Math.sin(t * 1.1 + phase) * 0.05
+    canopy.rotation.x = Math.cos(t * 0.9 + phase) * 0.035
+  })
+
   return <primitive object={model} position={position} />
 }
 

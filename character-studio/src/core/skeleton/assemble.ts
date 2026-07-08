@@ -18,6 +18,7 @@ import {
   type ToonMaterial,
   defaultTextureResolver,
 } from '../materials/toonMaterial'
+import { resolvesAuthored } from '../materials/patternRegistry'
 import type { ColliderGroup, SpringChainDef } from '../motion/springTypes'
 import type { BoneScale, CharacterSpec, PartSlot, Region } from '../spec/schema'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
@@ -284,8 +285,11 @@ export function assembleCharacter(
       shadowTint: '#b8a8c8',
       textureId: 'authored',
     }
+    // plan 010: a body pattern id resolves through the authored path — its
+    // baked mask is supplied via texturesByRegion (CharacterRoot swaps the
+    // body mask URL); the shader is unchanged.
     const resolveTexture: TextureResolver = (textureId) =>
-      textureId === 'authored'
+      resolvesAuthored(textureId)
         ? (assets.texturesByRegion?.[region] ?? { map: null, maskMap: null })
         : defaultTextureResolver(textureId)
     const material = createToonMaterial(assign, spec.palette, { resolveTexture })

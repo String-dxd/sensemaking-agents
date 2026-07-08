@@ -105,13 +105,17 @@ describe('buildSkeleton', () => {
     }
   })
 
-  it('rest pose is A-pose-like: arms ~30° below horizontal, feet at ground', () => {
+  it('rest pose: arms hang along the torso (AC benchmark, plan 007), feet at ground', () => {
     const world = restWorldPositions(buildSkeleton())
+    // Arm hangs nearly vertically: measure the deviation of the upperArm->hand
+    // direction from straight-down (plan 007 re-aim; start values give ≈23°).
     const dx = world.handL[0] - world.upperArmL[0]
-    const dy = world.handL[1] - world.upperArmL[1]
-    const angleDeg = (Math.atan2(-dy, dx) * 180) / Math.PI
-    expect(angleDeg).toBeGreaterThan(20)
-    expect(angleDeg).toBeLessThan(40)
+    const dy = world.handL[1] - world.upperArmL[1] // negative: hand below shoulder
+    const fromVerticalDeg = (Math.atan2(dx, -dy) * 180) / Math.PI
+    expect(fromVerticalDeg).toBeGreaterThan(5) // not pinned flush to the side
+    expect(fromVerticalDeg).toBeLessThan(30) // hugs the torso, not splayed A-pose
+    // wrist rests at hip level (mitten tip at the hip ±0.02, plan 007 benchmark)
+    expect(Math.abs(world.handL[1] - world.hips[1])).toBeLessThan(0.02)
     expect(world.toesL[1]).toBeGreaterThan(0)
     expect(world.toesL[1]).toBeLessThan(0.05)
     expect(world.toesL[2]).toBeGreaterThan(world.footL[2]) // toes point forward (+Z)

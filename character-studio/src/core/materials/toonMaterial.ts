@@ -73,12 +73,14 @@ export interface ToonUniforms {
   uShadowTint: { value: THREE.Color }
   uPaletteColors: { value: THREE.Color[] }
   uMaskMap: { value: THREE.Texture | null }
+  uFaceMap: { value: THREE.Texture | null }
 }
 
 export interface ToonMaterialData {
   toonUniforms: ToonUniforms
-  /** Boolean feature toggles; every entry participates in the program key. */
-  toonDefines: { paletteMask: boolean }
+  /** Boolean feature toggles; every entry participates in the program key.
+   * `faceMap` is optional so pre-plan-002 define literals stay valid. */
+  toonDefines: { paletteMask: boolean; faceMap?: boolean }
 }
 
 export type ToonMaterial = THREE.MeshToonMaterial & { userData: ToonMaterialData }
@@ -136,6 +138,9 @@ const MASK_PARS = /* glsl */ `
 	uniform sampler2D uMaskMap;
 	uniform vec3 uPaletteColors[ 6 ];
 #endif
+#ifdef USE_FACE_MAP
+	uniform sampler2D uFaceMap;
+#endif
 `
 
 // albedo = luminance × Σ maskChannel_i · palette_i, unmasked remainder →
@@ -152,6 +157,23 @@ const MASK_FRAGMENT = /* glsl */ `
 #endif
 `
 
+// Drawn-face overlay (advisor plan 002): the head-UV face texture is
+// composited as the LAST write to gl_FragColor.rgb — injected at
+// <dithering_fragment>, which sits after tonemapping/colorspace/fog in the
+// toon template — so the face stays print-crisp/unlit under any tone
+// mapping (facePlane.ts contract: drawn faces never pick up scene shading).
+// The texel is sRGB-decoded to linear by the sampler; linearToOutputTexel
+// (defined in every program prelude, same transfer colorspace_fragment
+// applies) converts it to output space before the mix.
+const FACE_FRAGMENT = /* glsl */ `
+#ifdef USE_FACE_MAP
+	vec4 faceTexel = texture2D( uFaceMap, vMapUv );
+	faceTexel = linearToOutputTexel( faceTexel );
+	gl_FragColor.rgb = mix( gl_FragColor.rgb, faceTexel.rgb, faceTexel.a );
+#endif
+#include <dithering_fragment>
+`
+
 /** Exported for tests: the injection applied inside onBeforeCompile. */
 export function injectToonShader(shader: { uniforms: Record<string, unknown>; fragmentShader: string }, uniforms: ToonUniforms): void {
   Object.assign(shader.uniforms, uniforms)
@@ -159,11 +181,21 @@ export function injectToonShader(shader: { uniforms: Record<string, unknown>; fr
     .replace('#include <map_pars_fragment>', MASK_PARS)
     .replace('#include <map_fragment>', MASK_FRAGMENT)
     .replace('#include <lights_toon_pars_fragment>', TOON_LIGHTING_PARS)
+    .replace('#include <dithering_fragment>', FACE_FRAGMENT)
 }
 
 /** Program cache key from the boolean define set (variant explosion control). */
 export function toonProgramCacheKey(defines: ToonMaterialData['toonDefines']): string {
-  return `toon|mask:${defines.paletteMask ? 1 : 0}`
+  return `toon|mask:${defines.paletteMask ? 1 : 0}|face:${defines.faceMap ? 1 : 0}`
+}
+
+/** Rebuild `material.defines` from the toonDefines flag set — the single
+ * place define objects are written, so flag toggles never clobber each other. */
+function syncToonDefines(material: ToonMaterial): void {
+  const defines: Record<string, string> = {}
+  if (material.userData.toonDefines.paletteMask) defines.USE_PALETTE_MASK = ''
+  if (material.userData.toonDefines.faceMap) defines.USE_FACE_MAP = ''
+  material.defines = defines
 }
 
 // A 1×1 white luminance fallback keeps USE_MAP (and vMapUv) alive so the
@@ -198,13 +230,14 @@ export function createToonMaterial(assign: MaterialAssign, palette: Palette, opt
     uShadowTint: { value: new THREE.Color().setRGB(...hexToLinear(assign.shadowTint), THREE.LinearSRGBColorSpace) },
     uPaletteColors: { value: resolvePalette(palette) },
     uMaskMap: { value: textures.maskMap },
+    uFaceMap: { value: null },
   }
 
   const material = new THREE.MeshToonMaterial() as ToonMaterial
-  material.userData = { toonUniforms: uniforms, toonDefines: { paletteMask: textures.maskMap !== null } }
+  material.userData = { toonUniforms: uniforms, toonDefines: { paletteMask: textures.maskMap !== null, faceMap: false } }
   material.map = textures.map ?? getWhiteTexture()
+  syncToonDefines(material)
   if (material.userData.toonDefines.paletteMask) {
-    material.defines = { USE_PALETTE_MASK: '' }
     material.color.setRGB(1, 1, 1)
   } else {
     // Unmasked path: flat primary coat (recolored live via applyPalette).
@@ -247,9 +280,25 @@ export function applyTextureId(material: ToonMaterial, assign: MaterialAssign, p
   material.map = textures.map ?? getWhiteTexture()
   if (wantMask !== material.userData.toonDefines.paletteMask) {
     material.userData.toonDefines.paletteMask = wantMask
-    material.defines = wantMask ? { USE_PALETTE_MASK: '' } : {}
+    syncToonDefines(material)
     if (wantMask) material.color.setRGB(1, 1, 1)
     else material.color.setRGB(...hexToLinear(palette.primary), THREE.LinearSRGBColorSpace)
+    material.needsUpdate = true
+  }
+}
+
+/**
+ * Attach/detach the drawn-face overlay texture (advisor plan 002 — the
+ * faceComposite CanvasTexture in the head mesh's own UVs). null detaches.
+ * Toggling presence flips the USE_FACE_MAP define (program change); texture
+ * swaps with the define already on are uniform-only.
+ */
+export function setFaceMap(material: ToonMaterial, texture: THREE.Texture | null): void {
+  material.userData.toonUniforms.uFaceMap.value = texture
+  const wantFace = texture !== null
+  if (wantFace !== (material.userData.toonDefines.faceMap ?? false)) {
+    material.userData.toonDefines.faceMap = wantFace
+    syncToonDefines(material)
     material.needsUpdate = true
   }
 }

@@ -1,5 +1,10 @@
 // Face-plane geometry + unlit atlas materials (plan 002, step 2).
 //
+// As of advisor plan 002 the STUDIO VIEWPORT draws faces on the head mesh
+// (faceComposite.ts); this plane-geometry path remains ONLY for the
+// .companion.glb export compiler (src/core/export/compile.ts). Export
+// migration tracked as advisor plan 005.
+//
 // Pure three, no React. Face parts are slightly curved plane meshes hovering
 // ~1.5 mm off the head sphere (Wind Waker pattern); each displays one atlas
 // cell selected by fractional UV offset. Face materials are ALWAYS unlit —

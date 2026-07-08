@@ -14,8 +14,10 @@ import { SPRING_CHAIN_BONES } from '../../../src/core/skeleton/canonical'
 describe('part registry', () => {
   it('covers every slot with the plan-006 minimum variety', () => {
     expect(partsForSlot('ears')).toHaveLength(4)
-    expect(partsForSlot('muzzle')).toHaveLength(4)
-    expect(partsForSlot('tail')).toHaveLength(4)
+    // 2 mammal muzzles + 4 bird beaks (plan 010 added beak-hooked / bill-duck)
+    expect(partsForSlot('muzzle')).toHaveLength(6)
+    // plan 011 added slim-cat (dedicated cat tail)
+    expect(partsForSlot('tail')).toHaveLength(5)
     expect(partsForSlot('claws')).toHaveLength(2)
     expect(partsForSlot('crest')).toHaveLength(2)
     // ≥14 authored (non-empty) parts committed

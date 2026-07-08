@@ -113,6 +113,7 @@ const STUB_PARTS: Record<string, PartDef> = {
     url: 'stub://ears.glb',
     maskUrl: null,
     region: 'ears',
+    classes: ['mammal'],
     skinnedTo: ['earL.1', 'earL.2', 'earR.1', 'earR.2'],
     morphs: [],
   },

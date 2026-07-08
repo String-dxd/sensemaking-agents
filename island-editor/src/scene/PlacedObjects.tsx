@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import type { ThreeEvent } from '@react-three/fiber'
+import { type ThreeEvent, useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { buildObjectModel } from '../models/buildObjectModel'
 import { hashString } from '../models/rand'
@@ -61,6 +61,24 @@ function PlacedObjectMesh({ spec, object: o, blurred, placeMode, onRemove }: Pla
   // reload; stable across spec ticks so terrain edits don't rebuild the model.
   const model = useMemo(() => buildObjectModel(o.kind, hashString(o.id)), [o.kind, o.id])
   useEffect(() => () => disposeModel(model), [model])
+
+  // Gentle wind sway of the crown. Only fruitTree carries a 'canopy' sub-group,
+  // so this is auto-scoped to it (other kinds resolve undefined → no-op). Phase
+  // is derived from the object id so neighbouring trees sway out of phase;
+  // frozen under prefers-reduced-motion. Render-layer only — the deterministic
+  // builder never sees time.
+  const canopy = useMemo(() => model.getObjectByName('canopy'), [model])
+  const phase = useMemo(() => ((hashString(o.id) % 1000) / 1000) * Math.PI * 2, [o.id])
+  const reduce = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+    [],
+  )
+  useFrame((state) => {
+    if (!canopy || reduce) return
+    const t = state.clock.elapsedTime
+    canopy.rotation.z = Math.sin(t * 1.1 + phase) * 0.05
+    canopy.rotation.x = Math.cos(t * 0.9 + phase) * 0.035
+  })
 
   const { x, y, z } = worldPositionOfObject(spec, o, blurred)
   return (

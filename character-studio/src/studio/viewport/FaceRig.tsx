@@ -1,9 +1,15 @@
 import { useTexture } from '@react-three/drei'
-import { Suspense, useEffect, useRef } from 'react'
-import * as THREE from 'three'
+import { Suspense, useEffect } from 'react'
 import { create } from 'zustand'
 import { resolveAtlasUrls } from '../../core/face/atlasRegistry'
-import { createFaceRig, type FacePlacement, type FaceRig as FaceRigHandle } from '../../core/face/faceRig'
+import {
+  type CanvasSourceLike,
+  createFaceCompositor,
+  DEFAULT_PLACEMENT,
+  type FacePlacement,
+} from '../../core/face/faceComposite'
+import { createFaceRig, type FaceRig as FaceRigHandle } from '../../core/face/faceRig'
+import { setFaceMap, type ToonMaterial } from '../../core/materials/toonMaterial'
 import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
 import { useCharacterStore } from '../state/characterStore'
 
@@ -14,15 +20,16 @@ import { useCharacterStore } from '../state/characterStore'
 export const useFaceRigStore = create<{ rig: FaceRigHandle | null }>(() => ({ rig: null }))
 
 export interface FaceRigProps {
-  headRadius: number
+  /** The body region's toon material — the face overlay draws into its head
+   * UVs via setFaceMap (advisor plan 002: no more floating face planes). */
+  bodyMaterial: ToonMaterial
   /** Per-archetype angular placement overrides (plan 006 anchor config). */
   placement?: Partial<FacePlacement>
-  /** Beak parts ARE the mouth — hide the drawn mouth plane (plan 006). */
+  /** Beak parts ARE the mouth — draw no mouth (plan 006). */
   hideMouth?: boolean
 }
 
-function FaceRigInner({ headRadius, placement, hideMouth = false }: FaceRigProps) {
-  const groupRef = useRef<THREE.Group>(null)
+function FaceRigInner({ bodyMaterial, placement, hideMouth = false }: FaceRigProps) {
   // Personality-authored atlas set (plan 006 step 3b): the spec's atlasId
   // picks the registered 관상 variant; unknown ids fall back to face-v1.
   const atlasId = useCharacterStore((s) => s.spec.face.atlasId)
@@ -30,17 +37,18 @@ function FaceRigInner({ headRadius, placement, hideMouth = false }: FaceRigProps
   const [eye, pupil, brow, mouth] = useTexture([urls.eye, urls.pupil, urls.brow, urls.mouth])
 
   useEffect(() => {
-    const parent = groupRef.current
-    if (!parent) return
-    for (const texture of [eye, pupil, brow, mouth]) {
-      texture.colorSpace = THREE.SRGBColorSpace
-      texture.anisotropy = 4
-    }
-    const rig = createFaceRig(parent, {
-      headRadius,
+    // Texture.image is typed `unknown`; loaded atlas PNGs are Image/ImageBitmap
+    // sources, which is exactly what the compositor's drawImage consumes.
+    const image = (t: { image: unknown }) => t.image as CanvasSourceLike
+    const compositor = createFaceCompositor({
+      images: { eye: image(eye), pupil: image(pupil), brow: image(brow), mouth: image(mouth) },
+      placement: { ...DEFAULT_PLACEMENT, ...placement },
+    })
+    const rig = createFaceRig({
+      compositor,
       rng: Math.random, // Math.random stays outside src/core/** — injected here
-      textures: { eye, pupil, brow, mouth },
-      placement,
+      hideMouth,
+      applyTexture: (texture) => setFaceMap(bodyMaterial, texture),
     })
     const update = (dt: number) => rig.update(dt)
     registerUpdate('procedural', update)
@@ -52,19 +60,16 @@ function FaceRigInner({ headRadius, placement, hideMouth = false }: FaceRigProps
       useFaceRigStore.setState({ rig: null })
       rig.dispose()
     }
-  }, [headRadius, placement, eye, pupil, brow, mouth])
+  }, [bodyMaterial, placement, hideMouth, eye, pupil, brow, mouth])
 
-  useEffect(() => {
-    const mouthPlane = groupRef.current?.getObjectByName('mouth')
-    if (mouthPlane) mouthPlane.visible = !hideMouth
-  })
-
-  return <group ref={groupRef} />
+  return null
 }
 
 /**
- * Mounts the drawn-face rig as a child of the head anchor (local origin =
- * head-sphere centre) and ticks it in the frame loop's `procedural` phase.
+ * Owns the drawn-face lifecycle: builds the compositor from the loaded atlas
+ * textures, attaches its overlay texture to the body toon material, and ticks
+ * the rig in the frame loop's `procedural` phase. Renders no scene objects —
+ * the face lives in the head mesh's own material.
  */
 export function FaceRig(props: FaceRigProps) {
   return (
