@@ -84,6 +84,7 @@ export function meshVersionOf(def: { meshVersion?: number }): number {
 
 const EAR_BONES = ['earL.1', 'earL.2', 'earR.1', 'earR.2'] as const satisfies readonly BoneName[]
 const TAIL_BONES = ['tail.1', 'tail.2', 'tail.3', 'tail.4'] as const satisfies readonly BoneName[]
+const WING_BONES = ['upperArmL', 'foreArmL', 'handL', 'upperArmR', 'foreArmR', 'handR'] as const satisfies readonly BoneName[]
 
 const spring = (
   stiffness: number,
@@ -337,6 +338,46 @@ export const PART_REGISTRY = {
     // stiff, low-gravity: the upright fan must stay upright at rest (reviewer
     // round 1 — the plan's looser numbers dropped the train like a broom)
     springProfile: spring(0.7, 4, 0.1),
+  },
+
+  // --- wings (plan 023: skinned to the arm chains). Region note: REGIONS has
+  // no `wings` entry (adding one is a saved-spec materials-record change) —
+  // wings are feather plumage and share the `tail` material region. No
+  // springProfile: the arm chain is clip-driven, never spring-solved
+  // (SPRING_CHAIN_BONES excludes arm bones), so wings hold stiff by
+  // construction. url is a placeholder per the plan-018 convention.
+  'wing-round': {
+    slot: 'wings',
+    label: 'Round wing',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 023)
+    source: { kind: 'procedural', build: () => buildProceduralPart('wing-round') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: WING_BONES,
+    morphs: ['length', 'width'],
+  },
+  'wing-eagle': {
+    slot: 'wings',
+    label: 'Eagle wing',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 023)
+    source: { kind: 'procedural', build: () => buildProceduralPart('wing-eagle') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: WING_BONES,
+    morphs: ['length', 'width'],
+  },
+  'wing-flipper': {
+    slot: 'wings',
+    label: 'Penguin flipper',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 023)
+    source: { kind: 'procedural', build: () => buildProceduralPart('wing-flipper') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: WING_BONES,
+    morphs: ['length', 'width'],
   },
 
   // --- claws (rigid on hand/foot bones) -----------------------------------

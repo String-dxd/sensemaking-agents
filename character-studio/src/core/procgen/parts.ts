@@ -545,6 +545,102 @@ function tailTrainPeacock(j: J): PartMesh[] {
   return [{ name: 'tail-train-peacock', shells, attach: null, morphKeys: lengthWidthKeys(shells, root, add(root, vec.scale(up, 0.3))) }]
 }
 
+// wings (plan 023) ----------------------------------------------------------------
+//
+// AC read: the wing is its own layer riding the flank — narrow at the shoulder,
+// WIDENING toward the tip, ending in overlapping scallop rows of flat feathers
+// (Zion's blue wing with white tips; Phil's brown layered scallops). Skinned to
+// the arm chain; authored in reference space around the reference shoulder.
+
+const ARM_L = ['upperArmL', 'foreArmL', 'handL']
+
+interface WingRow {
+  /** Feathers in this row's fan. */
+  count: number
+  /** Feather length (reference-space m). */
+  len: number
+  /** Fan half-angle (rad) — spans grow downward so the wing widens. */
+  fan: number
+  /** Root/tip capsule radii — r0 < r1 gives the shoulder≈0.5×tip taper. */
+  r0: number
+  r1: number
+}
+
+/** One wing side (L): stacked scallop rows of flat feathers draped down the
+ * flank. Row 0 = top covert row (short, outermost layer); later rows are
+ * longer and sit closer to the body, so the layered ledges read. */
+function wingSideL(j: J, rows: WingRow[], curl = 0): { shells: SurfacePiece[]; root: Vec3; tip: Vec3 } {
+  const shoulder = V(j.upperArmL)
+  const shells: SurfacePiece[] = []
+  let mainTip: Vec3 = shoulder
+  rows.forEach((row, k) => {
+    // layering: shorter top rows ride proud of the longer rows beneath
+    const layerX = (rows.length - 1 - k) * 0.014
+    const rowRoot: Vec3 = [shoulder[0] + 0.012 + layerX, shoulder[1] - k * 0.018, shoulder[2]]
+    for (let f = 0; f < row.count; f++) {
+      const t01 = row.count === 1 ? 0.5 : f / (row.count - 1)
+      const phi = (t01 - 0.5) * 2 * row.fan
+      // drape down the flank with a slight outward part; fan spreads in z
+      const dir = vec.norm([0.16, -Math.cos(phi), Math.sin(phi) * 0.95])
+      const len = row.len * (1 - 0.12 * Math.abs(t01 - 0.5) * 2)
+      const tip = add(rowRoot, vec.scale(dir, len))
+      const feather = closedCapsule(`wing${k}f${f}`, rowRoot, tip, row.r0, row.r1, 8, 7, 0.008)
+      scaleX(feather, rowRoot[0], 0.32) // flat feather plate, thin toward the body
+      if (curl > 0) {
+        // flipper: slight outward curl at the tip
+        for (let i = 0; i < vertexCount(feather); i++) {
+          const v01 = feather.params[i * 2 + 1]
+          feather.pos[i * 3] += v01 * v01 * curl
+        }
+      }
+      chainWeightsPiece(feather, ARM_L, [0.45, 0.8], 0.16)
+      // white feather tips (Zion) — accent band via palette
+      setChannelFn(feather, CH_ACCENT, (i) => smoothstep(0.78, 0.92, feather.params[i * 2 + 1]))
+      // outer/lower row carries the secondary tone for the layered read
+      if (k === rows.length - 1 && rows.length > 1) {
+        setChannelFn(feather, CH_SECONDARY, (i) => (feather.params[i * 2 + 1] > 0.35 ? 0.9 : 0))
+      }
+      shells.push(feather)
+      if (k === rows.length - 1 && Math.abs(t01 - 0.5) < 1e-6) mainTip = tip
+    }
+  })
+  return { shells, root: shoulder, tip: mainTip }
+}
+
+/** L shells + mirrored R shells in one PartMesh, morph keys spanning both. */
+function pairWing(name: string, j: J, rows: WingRow[], curl = 0): PartMesh[] {
+  const { shells, root, tip } = wingSideL(j, rows, curl)
+  const right = shells.map((p, i) => mirrorX(p, `${p.name}R${i}`))
+  const keysL = lengthWidthKeys(shells, root, tip)
+  const keysR = lengthWidthKeys(right, [-root[0], root[1], root[2]], [-tip[0], tip[1], tip[2]])
+  const morphKeys: Record<string, Float32Array> = {}
+  for (const k of Object.keys(keysL)) morphKeys[k] = concatF32(keysL[k], keysR[k])
+  return [{ name, shells: [...shells, ...right], attach: null, morphKeys }]
+}
+
+function wingRound(j: J): PartMesh[] {
+  // default songbird/chicken/owl: 2 rows, tip ≈ hip height (shoulder y≈0.505,
+  // hips y≈0.34 in reference space)
+  return pairWing('wing-round', j, [
+    { count: 3, len: 0.12, fan: 0.34, r0: 0.024, r1: 0.042 },
+    { count: 4, len: 0.175, fan: 0.5, r0: 0.02, r1: 0.038 },
+  ])
+}
+
+function wingEagle(j: J): PartMesh[] {
+  // eagle/peacock: 3 rows, longer (tip below hip), stronger shoulder→tip taper
+  return pairWing('wing-eagle', j, [
+    { count: 3, len: 0.11, fan: 0.3, r0: 0.02, r1: 0.042 },
+    { count: 4, len: 0.18, fan: 0.44, r0: 0.017, r1: 0.04 },
+    { count: 5, len: 0.25, fan: 0.58, r0: 0.015, r1: 0.038 },
+  ])
+}
+
+function wingFlipper(j: J): PartMesh[] {
+  // penguin: one smooth slim flat paddle, no scallop rows, slight outward curl
+  return pairWing('wing-flipper', j, [{ count: 1, len: 0.17, fan: 0, r0: 0.032, r1: 0.04 }], 0.03)
+}
+
 // claws + crest -----------------------------------------------------------------
 
 function clawsStub(j: J): PartMesh[] {
@@ -653,6 +749,9 @@ const BUILDERS: Partial<Record<PartId, (j: J) => PartMesh[]>> = {
   'tail-sickle-rooster': tailSickleRooster,
   'tail-train-peacock': tailTrainPeacock,
   'stub-claws': clawsStub,
+  'wing-round': wingRound,
+  'wing-eagle': wingEagle,
+  'wing-flipper': wingFlipper,
   'feather-tuft': crestFeatherTuft,
   'comb-chicken': crestCombChicken,
   'crest-peacock': crestPeacock,

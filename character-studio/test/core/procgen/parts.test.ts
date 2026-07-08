@@ -189,6 +189,76 @@ describe('plan 018 bird part family', () => {
   })
 })
 
+// --- plan 023: wings as separate feather-fan parts ------------------------------
+
+const WING_IDS = ['wing-round', 'wing-eagle', 'wing-flipper'] as const
+const ARM_BONES = new Set(['upperArmL', 'foreArmL', 'handL', 'upperArmR', 'foreArmR', 'handR'])
+
+describe('plan 023 wing part family', () => {
+  it('every wing id is a bird-only wings-slot part skinned to the arm chains', () => {
+    for (const id of WING_IDS) {
+      const def = getPart(id)
+      expect(def?.slot, id).toBe('wings')
+      expect(def?.classes, id).toEqual(['bird'])
+      expect(def?.source?.kind, id).toBe('procedural')
+      expect([...(def?.skinnedTo ?? [])].sort()).toEqual([...ARM_BONES].sort())
+    }
+  })
+
+  it('both sides are present (vertices on +x and −x)', () => {
+    for (const id of WING_IDS) {
+      let minX = Infinity
+      let maxX = -Infinity
+      for (const m of meshes(buildProceduralPart(id))) {
+        const p = m.geometry.getAttribute('position')
+        for (let i = 0; i < p.count; i++) {
+          minX = Math.min(minX, p.getX(i))
+          maxX = Math.max(maxX, p.getX(i))
+        }
+      }
+      expect(minX, `${id} left of centre`).toBeLessThan(-0.05)
+      expect(maxX, `${id} right of centre`).toBeGreaterThan(0.05)
+    }
+  })
+
+  it('weights land only on arm-chain bones', () => {
+    for (const id of WING_IDS) {
+      for (const m of meshes(buildProceduralPart(id))) {
+        const sm = m as THREE.SkinnedMesh
+        if (!sm.isSkinnedMesh) continue
+        const si = sm.geometry.getAttribute('skinIndex')
+        const sw = sm.geometry.getAttribute('skinWeight')
+        for (let i = 0; i < si.count; i++) {
+          for (let k = 0; k < 4; k++) {
+            const w = sw.getComponent(i, k)
+            if (w <= 1e-6) continue
+            const bone = sm.skeleton.bones[si.getComponent(i, k)]?.name ?? BONE_NAMES[si.getComponent(i, k)]
+            expect(ARM_BONES.has(bone), `${id} vertex ${i} weighted to ${bone}`).toBe(true)
+          }
+        }
+      }
+    }
+  })
+
+  it('wing-eagle drops lower than wing-round; wing-flipper is the slimmest single paddle', () => {
+    const low = (id: string): number => {
+      let minY = Infinity
+      for (const m of meshes(buildProceduralPart(id))) {
+        const p = m.geometry.getAttribute('position')
+        for (let i = 0; i < p.count; i++) minY = Math.min(minY, p.getY(i))
+      }
+      return minY
+    }
+    expect(low('wing-eagle')).toBeLessThan(low('wing-round'))
+    expect(triCount(buildProceduralPart('wing-flipper'))).toBeLessThan(triCount(buildProceduralPart('wing-round')))
+  })
+
+  it('pickers list the three wing variants for birds', () => {
+    expect(partsForSlot('wings', 'bird')).toEqual(['wing-round', 'wing-eagle', 'wing-flipper'])
+    expect(partsForSlot('wings', 'mammal')).toEqual([])
+  })
+})
+
 describe('claws multi-attach', () => {
   it('builds one mesh per hand/foot bone with matching attachBone', () => {
     const scene = buildProceduralPart('stub-claws')
