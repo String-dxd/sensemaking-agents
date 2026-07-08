@@ -52,6 +52,12 @@ export interface SurfacePiece {
   weights: Map<string, number[]>
   /** Per-vertex palette channels R/G/B/A, length 4·n. */
   channels: number[]
+  /**
+   * UV wrap-seam duplicates, [dup, source] pairs (splitWrapSeam). Duplicates
+   * are render-only copies: the manifold audit and normal averaging treat each
+   * pair as one vertex.
+   */
+  welds?: Array<[number, number]>
 }
 
 export function vertexCount(p: SurfacePiece): number {
@@ -74,6 +80,17 @@ export interface BuiltMesh {
   /** piece name → [startVertex, endVertex) range in the merged buffer. */
   ranges: Record<string, [number, number]>
   vertexCount: number
+  /**
+   * Global UV-seam weld pairs [dup, source] (see SurfacePiece.welds). Use for
+   * normal averaging across the seam split.
+   */
+  weldPairs: Array<[number, number]>
+  /**
+   * `indices` with every seam duplicate remapped back to its source — the
+   * pre-split topology. The manifold audit runs on THIS buffer so the closed-
+   * manifold gate stays meaningful while the render indices carry the UV split.
+   */
+  weldedIndices: Uint32Array
 }
 
 export class MeshBuilder {
@@ -83,6 +100,7 @@ export class MeshBuilder {
   private ch: number[] = []
   private wt = new Map<string, number[]>()
   private ranges: Record<string, [number, number]> = {}
+  private weldPairs: Array<[number, number]> = []
   /** global vertex index of each piece's local loops. */
   readonly loopIndex: Record<string, Record<string, number[]>> = {}
 
@@ -115,6 +133,7 @@ export class MeshBuilder {
       for (let i = 0; i < n; i++) track.push(src ? (src[i] ?? 0) : 0)
     }
     this.ranges[piece.name] = [base, base + n]
+    for (const [dup, src] of piece.welds ?? []) this.weldPairs.push([dup + base, src + base])
     this.loopIndex[piece.name] = {}
     for (const [key, loop] of Object.entries(piece.loops)) {
       this.loopIndex[piece.name][key] = loop.map((li) => li + base)
@@ -188,6 +207,14 @@ export class MeshBuilder {
     // (per-bridge orientRange only gets each strip self-consistent, not agreeing
     // with the shell it joins). See makeConsistentWinding.
     makeConsistentWinding(this.pos, this.idx)
+    // Pre-split topology: remap seam duplicates back to their sources (chains
+    // resolved, though splitWrapSeam never chains in practice).
+    const weldSrc = new Map(this.weldPairs.map(([dup, src]) => [dup, src]))
+    const weldRoot = (i: number): number => {
+      let r = i
+      while (weldSrc.has(r)) r = weldSrc.get(r) as number
+      return r
+    }
     return {
       positions: Float32Array.from(this.pos),
       uvs: Float32Array.from(this.uv),
@@ -196,6 +223,8 @@ export class MeshBuilder {
       weights,
       ranges: this.ranges,
       vertexCount: n,
+      weldPairs: [...this.weldPairs],
+      weldedIndices: Uint32Array.from(this.idx, weldRoot),
     }
   }
 }

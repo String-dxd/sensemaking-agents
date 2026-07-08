@@ -21,7 +21,7 @@ import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skelet
 import type { Archetype } from '../spec/schema'
 import { BODY_MORPHS } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
-import { headChannels, torsoChannels } from './kit/channels'
+import { CH_ACCENT, CH_SECONDARY, accentAll, headChannels, torsoChannels } from './kit/channels'
 import { filletLimbIntoTorso, makeTorsoSdf } from './kit/fillet'
 import { capsuleGrid } from './kit/loft'
 import { pearProfile } from './kit/profiles'
@@ -30,11 +30,12 @@ import { MeshBuilder, manifoldReport, packSkinning } from './kit/stitch'
 import {
   type SurfacePiece,
   type Vec3,
+  setChannel,
   smoothstep,
   v as vec,
   vertexCount,
 } from './kit/surface'
-import { type IslandName, UV_ATLAS, islandUv } from './kit/uv'
+import { type IslandName, UV_ATLAS, islandUv, splitWrapSeam } from './kit/uv'
 import { chainWeights, footWeights, rigidWeight, torsoWeights } from './kit/weights'
 
 // --- per-archetype style knobs (started as bodies.py STYLE; biped-slim
@@ -70,6 +71,41 @@ const LIMB_USEG = 12
 const LIMB_VSEG = 10
 const WING_USEG = 14
 const WING_VSEG = 12
+
+// --- bird shape seam (plan 017) ------------------------------------------------
+// Per-species silhouette knobs for the bird archetype only; plans 018–020 key
+// species presets off this. Mammal archetypes ignore it entirely.
+
+export interface BirdBodyShape {
+  /** Wing paddle length as a fraction of the flank drop (1 = default robin). */
+  wingLength: number // default 1, range ~0.7 (penguin flipper) – 1.35 (eagle)
+  wingWidth: number // default 1
+  /** Feather-finger scallop depth at the wing tip; 0 = smooth flipper. */
+  wingScallop: number // default 1, 0 for penguin
+  /** Bare-leg (tarsus) thinness + length below the body hem. */
+  tarsusRadius: number // default 0.014 (reference-space m)
+  tarsusLength: number // default 1 (multiplier on the exposed drop)
+  footLength: number // default 1
+  /** Toe-cut depth on the foot fan; 0 = fully webbed (duck), 1 = deep cut. */
+  toeCut: number // default 0.7
+  hindToe: boolean // default true
+  /** Torso egg-ness override (multiplies STYLE.bird pear). */
+  belly: number // default 1
+  headSize: number // default 1 (multiplies head radii)
+}
+
+export const DEFAULT_BIRD_SHAPE: BirdBodyShape = {
+  wingLength: 1,
+  wingWidth: 1,
+  wingScallop: 1,
+  tarsusRadius: 0.014,
+  tarsusLength: 1,
+  footLength: 1,
+  toeCut: 0.7,
+  hindToe: true,
+  belly: 1,
+  headSize: 1,
+}
 
 // --- public shape -------------------------------------------------------------
 
@@ -111,8 +147,15 @@ function colForAzimuth(useg: number, x: number, z: number): number {
   return ((col % useg) + useg) % useg
 }
 
-/** Paint an island's UVs onto a piece from its (azimuth u01, polar v01) params. */
+/**
+ * Paint an island's UVs onto a piece from its (azimuth u01, polar v01) params.
+ * Splits the azimuth wrap seam first (plan 017 r2): the seam column and pole
+ * fans get render-only duplicate vertices so no triangle spans the island in
+ * UV — the back-centerline texture stripe. Must run AFTER weights/channels
+ * (duplicates copy them) and is therefore each piece's last step before add.
+ */
 function paintUv(piece: SurfacePiece, island: IslandName, frontCenter: boolean): void {
+  splitWrapSeam(piece, frontCenter)
   const rect = UV_ATLAS[island]
   const n = vertexCount(piece)
   for (let i = 0; i < n; i++) {
@@ -132,7 +175,9 @@ function limbParamArray(piece: SurfacePiece): Float32Array {
 
 // --- builder ------------------------------------------------------------------
 
-export function buildProceduralBody(archetype: Archetype): ProcBodyData {
+export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<BirdBodyShape>): ProcBodyData {
+  // Mammal archetypes must ignore the bird shape seam (byte-identical output).
+  const shape: BirdBodyShape = { ...DEFAULT_BIRD_SHAPE, ...(archetype === 'bird' ? birdShape : undefined) }
   const built: BuiltSkeleton = buildSkeleton(archetypeBuildOptions(archetype))
   const j = restWorldPositions(built)
   const u = ARCHETYPES_DEF[archetype].uniformScale
@@ -149,7 +194,8 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
   const ry = (torsoTop - torsoBottom) / 2
   const rx = headR * style.torsoRx
   const rz = headR * style.torsoRz
-  const torsoProfile = pearProfile(style.pear, style.shoulderTaper)
+  const isBird = style.wing
+  const torsoProfile = pearProfile(style.pear * (isBird ? shape.belly : 1), style.shoulderTaper)
   const torsoSdf = makeTorsoSdf(cy, ry, rx, rz, torsoProfile)
 
   const builder = new MeshBuilder()
@@ -159,14 +205,21 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
   const armRing = Math.min(ringForY(TORSO_VSEG, cy, ry, j.upperArmL[1]), neckRing - 2)
   // leg openings sit low on the torso (near the bottom pole) so the leg
   // capsule drops vertically under the body instead of slanting in from the
-  // wide flank — the slant read as splayed "bent knees" on the fat chibi torso
-  const legRing = Math.max(ringForY(TORSO_VSEG, cy, ry, j.hips[1] - torsoH * 0.28), 2)
+  // wide flank — the slant read as splayed "bent knees" on the fat chibi torso.
+  // Bird (plan 017 r1): openings move to the UNDERSIDE proper — the tarsus is a
+  // straight vertical stick under the egg, centered near x ≈ ±0.35·rx (the AC
+  // wind-up-toy stance), so the ring drops to 2 and the azimuths pull inward.
+  const legRing = isBird ? 2 : Math.max(ringForY(TORSO_VSEG, cy, ry, j.hips[1] - torsoH * 0.28), 2)
   const armColL = colForAzimuth(TRUNK_USEG, 1, 0.15)
   const armColR = colForAzimuth(TRUNK_USEG, -1, 0.15)
-  const legColL = colForAzimuth(TRUNK_USEG, 1, 0.05)
-  const legColR = colForAzimuth(TRUNK_USEG, -1, 0.05)
+  // (bird cols are fixed mirrored indices, not colForAzimuth: the 3-col block's
+  // vertex range [col-1, col+2] is off-center, so a naive mirror lands the two
+  // openings half a column apart in azimuth — L cols 3..6 must pair with R
+  // cols 26..29 for a symmetric stance)
+  const legColL = isBird ? 4 : colForAzimuth(TRUNK_USEG, 1, 0.05)
+  const legColR = isBird ? TRUNK_USEG - 5 : colForAzimuth(TRUNK_USEG, -1, 0.05)
 
-  const wing = style.wing
+  const wing = isBird
   const limbCols = wing ? 4 : 3 // block colCount → perimeter = 2·cols + 2·rings
   const limbRings = wing ? 3 : 3 // arm/leg perimeter 12 (LIMB_USEG) or wing 14 (WING_USEG)
 
@@ -188,7 +241,8 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
 
   // head ellipsoid — bottom pole opened for the neck bridge ------------------
   const headGrid = unitSphere(TRUNK_USEG, HEAD_VSEG)
-  ellipsoidTransform(headGrid, headCenter, [headR * style.headWide, headR * style.headSquash, headR])
+  const headScale = isBird ? shape.headSize : 1
+  ellipsoidTransform(headGrid, headCenter, [headR * style.headWide * headScale, headR * style.headSquash * headScale, headR * headScale])
   const headPiece = gridToPiece('head', headGrid, [{ kind: 'poleBottom', ring: 2, loop: 'neck' }])
   rigidWeight(headPiece, 'head')
   headChannels(headPiece, headCenter, headR, archetype)
@@ -219,21 +273,65 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
     const upperArm = side === 'L' ? V(j.upperArmL) : V(j.upperArmR)
     const hand = side === 'L' ? V(j.handL) : V(j.handR)
     if (wing) {
-      // tucked wing: a plump teardrop lying against the flank, tip parting
-      // slightly outward/back — not a dangling stick
+      // AC feather paddle (plan 017): drapes down the flank to ~hip height,
+      // stays wide at the tip, trailing edge split into 3 feather fingers by
+      // an along-axis scallop — positions only, topology untouched.
       const sx = side === 'L' ? 1 : -1
-      const tip: Vec3 = [hand[0] + sx * 0.03 * u, hand[1] - 0.015 * u, hand[2] - 0.03 * u]
-      const wingSpan = Math.hypot(tip[0] - root[0], tip[1] - root[1], tip[2] - root[2])
-      const grid = capsuleGrid({ a: root, b: tip, radiusA: armR * 1.6, radiusB: armR * 0.8, useg: WING_USEG, vseg: WING_VSEG, bulge: 0.014 * u, fullness: 0.6 })
-      // z-flatten about the shoulder z (relaxed drape, not a paddle)
+      const radiusA = armR * 1.5 * shape.wingWidth
+      // flipper (scallop 0) comes out slightly narrower at the tip
+      const radiusB = armR * 1.31 * shape.wingWidth * (0.88 + 0.12 * shape.wingScallop)
+      // tip at ~hip height, riding just proud of the pear torso's widening
+      // flank (a straight drop would plunge into the egg; a hand-joint aim
+      // juts out like a stick arm — the read this plan kills)
+      const tipY = j.hips[1]
+      const pv = Math.min(Math.max((tipY - (cy - ry)) / (2 * ry), 0), 1)
+      const pm = torsoProfile(pv)
+      const yTerm = 1 - ((tipY - cy) / ry) ** 2
+      const zTerm = (root[2] / (rz * pm)) ** 2
+      const surfX = rx * pm * Math.sqrt(Math.max(yTerm - zTerm, 0))
+      const hug = vec.norm(vec.sub([sx * (surfX + radiusB * 0.55), tipY, root[2] - 0.02 * u], root))
+      // flare the root→tip axis ~13° outward (plan 017 r1): a body-hugging
+      // paddle disappears inside the torso silhouette in front view; the flare
+      // makes the outer edge clear the egg by ~0.1·rx so both wings read
+      const flare = 0.23
+      const dir = vec.norm([
+        hug[0] * Math.cos(flare) - sx * hug[1] * Math.sin(flare),
+        sx * hug[0] * Math.sin(flare) + hug[1] * Math.cos(flare),
+        hug[2],
+      ])
+      // un-scaled span reaches hip height; wingLength stretches/shrinks it
+      const wingSpan = ((j.hips[1] - root[1]) / Math.min(dir[1], -0.35)) * shape.wingLength
+      const tip: Vec3 = vec.add(root, vec.scale(dir, wingSpan))
+      const grid = capsuleGrid({ a: root, b: tip, radiusA, radiusB, useg: WING_USEG, vseg: WING_VSEG, bulge: 0.014 * u, fullness: 0.6 })
+      // z-flatten about the shoulder z — a feather plane, not a sausage
       for (let i = 0; i < grid.pos.length / 3; i++) {
-        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.5 + upperArm[2]
+        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.42 + upperArm[2]
       }
-      filletLimbIntoTorso(grid.pos, root, tip, armR * 1.6 * 0.5, armR * 0.8 * 0.5, torsoSdf, Math.min(0.05 * u, wingSpan * 0.28))
+      // scalloped trailing edge: feather fingers reach further, notches cut back
+      const lobes = 3
+      for (let i = 0; i < grid.pos.length / 3; i++) {
+        const u01 = grid.params[i * 2]
+        const v01 = grid.params[i * 2 + 1]
+        const tipZone = smoothstep(0.62, 1.0, v01)
+        const phase = ((u01 + 0.25) % 1) * lobes * Math.PI
+        const scallop = Math.abs(Math.sin(phase)) // 1 at finger center, 0 at notch
+        const cut = (1 - scallop) * shape.wingScallop
+        // finger/notch depth deepened 1.6× (plan 017 r1) so the three feather
+        // fingers read at default viewport zoom
+        const d = tipZone * (0.0224 * u * (1 - cut) - 0.0144 * u * cut)
+        grid.pos[i * 3] += dir[0] * d
+        grid.pos[i * 3 + 1] += dir[1] * d
+        grid.pos[i * 3 + 2] += dir[2] * d
+      }
+      filletLimbIntoTorso(grid.pos, root, tip, radiusA * 0.5, radiusB * 0.5, torsoSdf, Math.min(0.05 * u, wingSpan * 0.28))
       const piece = gridToPiece(name, grid, [{ kind: 'poleBottom', ring: 1, loop: 'root' }])
       chainWeights(piece, [`upperArm${side}`, `foreArm${side}`, `hand${side}`], [0.45, 0.8], 0.16)
-      // accent toward the wing tip
-      for (let i = 0; i < vertexCount(piece); i++) piece.channels[i * 4 + 3] = smoothstep(0.72, 0.95, piece.params[i * 2 + 1]) * 0.9
+      // two-tone wing tip (Jay/Blathers): accent tip band + secondary pre-tip band
+      setChannel(piece, CH_ACCENT, (i) => smoothstep(0.8, 0.9, piece.params[i * 2 + 1]))
+      setChannel(piece, CH_SECONDARY, (i) => {
+        const v01 = piece.params[i * 2 + 1]
+        return smoothstep(0.55, 0.7, v01) * (1 - smoothstep(0.8, 0.9, v01)) * 0.9
+      })
       paintUv(piece, side === 'L' ? 'armL' : 'armR', false)
       limbParams[name] = limbParamArray(piece)
       builder.add(piece)
@@ -274,15 +372,40 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
     const name = `leg${side}` as const
     const root = blockCenter(name)
     const footJoint = side === 'L' ? V(j.footL) : V(j.footR)
-    const legEnd: Vec3 = [footJoint[0], footJoint[1] * 0.7, footJoint[2]]
+    // bird: tarsusLength stretches the exposed drop below the body hem
+    const legEndY = footJoint[1] * (isBird ? 0.7 - 0.25 * (shape.tarsusLength - 1) : 0.7)
+    // bird (plan 017 r1): the exposed column is VERTICAL — legEnd shares the
+    // block-opening centroid's x/z so the tarsus drops plumb from the
+    // underside (no slant toward the skeleton's foot-joint x). Bones are
+    // untouched; only the skinned geometry deviates from the foot-joint x.
+    const legEnd: Vec3 = isBird ? [root[0], legEndY, root[2]] : [footJoint[0], legEndY, footJoint[2]]
     const legSpan = Math.hypot(legEnd[0] - root[0], legEnd[1] - root[1], legEnd[2] - root[2])
     const grid = capsuleGrid({ a: root, b: legEnd, radiusA: legR, radiusB: legR * 0.85, useg: LIMB_USEG, vseg: LIMB_VSEG, fullness: 0.55 })
+    if (isBird) {
+      // bare tarsus (plan 017): root ring keeps legR to mate with the torso
+      // opening; the shaft pinches to a thin stick by mid-length. Radial
+      // scale only — params/topology untouched.
+      const tarsusR = (shape.tarsusRadius * u) / 0.9
+      const axis = vec.norm(vec.sub(legEnd, root))
+      for (let i = 0; i < grid.pos.length / 3; i++) {
+        const pinch = 1 + (tarsusR / legR - 1) * smoothstep(0.3, 0.55, grid.params[i * 2 + 1])
+        const rel: Vec3 = [grid.pos[i * 3] - root[0], grid.pos[i * 3 + 1] - root[1], grid.pos[i * 3 + 2] - root[2]]
+        const along = vec.dot(rel, axis)
+        const radial = vec.sub(rel, vec.scale(axis, along))
+        grid.pos[i * 3] = root[0] + axis[0] * along + radial[0] * pinch
+        grid.pos[i * 3 + 1] = root[1] + axis[1] * along + radial[1] * pinch
+        grid.pos[i * 3 + 2] = root[2] + axis[2] * along + radial[2] * pinch
+      }
+    }
     filletLimbIntoTorso(grid.pos, root, legEnd, legR, legR * 0.85, torsoSdf, Math.min(0.05 * u, legSpan * 0.28))
     const leg = gridToPiece(name, grid, [
       { kind: 'poleBottom', ring: 1, loop: 'root' },
       { kind: 'poleTop', ring: LIMB_VSEG - 1, loop: 'ankle' },
     ])
     chainWeights(leg, [`upperLeg${side}`, `lowerLeg${side}`], [0.5], 0.16)
+    // AC birds: the bare tarsus takes the beak/feet accent color; the
+    // feathered thigh stub stays body-colored
+    if (isBird) setChannel(leg, CH_ACCENT, (i) => smoothstep(0.38, 0.55, leg.params[i * 2 + 1]))
     paintUv(leg, side === 'L' ? 'legL' : 'legR', false)
     limbParams[name] = limbParamArray(leg)
     builder.add(leg)
@@ -292,17 +415,52 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
     const [fx, fy, fz] = style.foot
     const fzS = (fz * u) / 0.9
     const fyS = (fy * u) / 0.9
-    const ankle: Vec3 = [footJoint[0], footJoint[1] * 0.55, footJoint[2]]
-    const toe: Vec3 = [footJoint[0], footJoint[1] * 0.4, footJoint[2] + fzS * 1.5]
-    const footGrid = capsuleGrid({ a: ankle, b: toe, radiusA: fyS, radiusB: fyS * 0.72, useg: LIMB_USEG, vseg: 9, fullness: 0.65 })
-    // widen across X to the foot's x-radius (fx), keep it flat-ish
     const fxS = (fx * u) / 0.9
-    for (let i = 0; i < footGrid.pos.length / 3; i++) {
-      footGrid.pos[i * 3] = (footGrid.pos[i * 3] - footJoint[0]) * (fxS / Math.max(fyS, 1e-9)) + footJoint[0]
+    const drop = legEndY - footJoint[1] * 0.7 // 0 unless bird tarsusLength ≠ 1
+    // bird: ankle + foot anchor directly below the leg root (same x/z); toes
+    // displace forward (+z) only — feet point straight ahead, wind-up-toy style
+    const anchorX = isBird ? root[0] : footJoint[0]
+    const anchorZ = isBird ? root[2] : footJoint[2]
+    const ankle: Vec3 = [anchorX, footJoint[1] * 0.55 + drop, anchorZ]
+    const toeLen = isBird ? fzS * 1.9 * shape.footLength : fzS * 1.5
+    const toe: Vec3 = [anchorX, footJoint[1] * 0.4 + drop, anchorZ + toeLen]
+    const footGrid = capsuleGrid({ a: ankle, b: toe, radiusA: fyS, radiusB: fyS * 0.72, useg: LIMB_USEG, vseg: 9, fullness: 0.65 })
+    if (isBird) {
+      // AC toe-fan (plan 017): flat wedge widening toward the front, front
+      // edge split into 3 toe lobes (toeCut 0 = webbed duck triangle), plus
+      // an optional hind-toe bump. Positional passes only.
+      const soleY = ankle[1] - fyS
+      for (let i = 0; i < footGrid.pos.length / 3; i++) {
+        const u01 = footGrid.params[i * 2]
+        const v01 = footGrid.params[i * 2 + 1]
+        // flatten to the sole, fan out forward-weighted
+        footGrid.pos[i * 3 + 1] = (footGrid.pos[i * 3 + 1] - soleY) * 0.45 + soleY
+        const widen = (fxS / Math.max(fyS, 1e-9)) * (0.7 + 0.9 * v01)
+        footGrid.pos[i * 3] = (footGrid.pos[i * 3] - anchorX) * widen + anchorX
+        // toe lobes: sin(az) IS the x-direction factor of the radial basis,
+        // so lobes keyed on it stay x-symmetric top and bottom
+        const sinAz = Math.sin(2 * Math.PI * u01)
+        const cosAz = Math.cos(2 * Math.PI * u01)
+        const frontZone = smoothstep(0.6, 1.0, v01)
+        const scallop = Math.abs(Math.sin((sinAz * 0.5 + 0.5) * 3 * Math.PI))
+        const cut = (1 - scallop) * shape.toeCut
+        footGrid.pos[i * 3 + 2] += frontZone * (0.45 * fzS * (1 - cut) - 0.4 * fzS * cut)
+        if (shape.hindToe) {
+          // rear bump on the down-facing heel zone
+          const heel = smoothstep(0.25, 0.08, v01) * smoothstep(-0.3, -0.85, cosAz)
+          footGrid.pos[i * 3 + 2] -= fzS * 0.35 * heel
+        }
+      }
+    } else {
+      // widen across X to the foot's x-radius (fx), keep it flat-ish
+      for (let i = 0; i < footGrid.pos.length / 3; i++) {
+        footGrid.pos[i * 3] = (footGrid.pos[i * 3] - footJoint[0]) * (fxS / Math.max(fyS, 1e-9)) + footJoint[0]
+      }
     }
     const footName = `foot${side}` as const
     const foot = gridToPiece(footName, footGrid, [{ kind: 'poleBottom', ring: 1, loop: 'ankle' }])
     footWeights(foot, footName, `toes${side}`, ankle[2], fzS)
+    if (isBird) accentAll(foot, 1) // feet share the beak accent color
     paintUv(foot, side === 'L' ? 'footL' : 'footR', false)
     builder.add(foot)
     builder.bridge(builder.loopIndex[name].ankle, builder.loopIndex[footName].ankle)
@@ -314,7 +472,11 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
   buildLeg('R')
 
   const mesh = builder.build()
-  const manifold = manifoldReport(mesh.indices)
+  // Audit the PRE-SPLIT topology: the UV wrap-seam split (splitWrapSeam)
+  // deliberately cuts the index buffer along seam columns, so the render
+  // indices carry boundary edges there by design. weldedIndices remaps the
+  // duplicates back to their sources — the gate stays 0/0/1, meaningfully.
+  const manifold = manifoldReport(mesh.weldedIndices)
 
   // --- morph targets (bodies.py body_shape_keys, numeric) -------------------
   const morphs = buildMorphs(mesh, { cy, ry, rx }, headCenter, u)
@@ -477,6 +639,48 @@ function assembleScene(
   normalSource.setIndex(new THREE.BufferAttribute(mesh.indices, 1))
   normalSource.computeVertexNormals()
   const normalAttr = normalSource.getAttribute('normal') as THREE.BufferAttribute
+  // Weld-average normals across the UV wrap-seam duplicates: computeVertexNormals
+  // sees the seam as a cut and gives each side a one-sided normal — a lighting
+  // crease down the seam column. Summing each weld group's normals restores the
+  // exact welded-topology normal (same incident-face sum) on every copy.
+  {
+    const nrm = normalAttr.array as Float32Array
+    const weldSrc = new Map(mesh.weldPairs.map(([dup, src]) => [dup, src]))
+    const root = (i: number): number => {
+      let r = i
+      while (weldSrc.has(r)) r = weldSrc.get(r) as number
+      return r
+    }
+    const groups = new Map<number, number[]>()
+    for (const [dup] of mesh.weldPairs) {
+      const r = root(dup)
+      let g = groups.get(r)
+      if (!g) {
+        g = [r]
+        groups.set(r, g)
+      }
+      g.push(dup)
+    }
+    for (const g of groups.values()) {
+      let x = 0
+      let y = 0
+      let z = 0
+      for (const i of g) {
+        x += nrm[i * 3]
+        y += nrm[i * 3 + 1]
+        z += nrm[i * 3 + 2]
+      }
+      const l = Math.hypot(x, y, z) || 1e-9
+      x /= l
+      y /= l
+      z /= l
+      for (const i of g) {
+        nrm[i * 3] = x
+        nrm[i * 3 + 1] = y
+        nrm[i * 3 + 2] = z
+      }
+    }
+  }
   const morphAttrs = morphs.deltas.map((d, i) => {
     const a = new THREE.BufferAttribute(d, 3)
     a.name = morphs.names[i]

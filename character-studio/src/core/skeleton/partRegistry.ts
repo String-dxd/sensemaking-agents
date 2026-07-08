@@ -371,21 +371,21 @@ export const BODY_REGISTRY: Record<'biped-round' | 'biped-slim' | 'bird', BodyDe
     url: bodyUrl('body-biped-round.glb'),
     maskUrl: maskUrl('body-biped-round.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 6, // plan 017 r2: wrap-seam vertex split (new vertex layout — older sculpt deltas refuse loudly)
     source: { kind: 'procedural', build: () => buildProceduralBody('biped-round').scene },
   },
   'biped-slim': {
     url: bodyUrl('body-biped-slim.glb'),
     maskUrl: maskUrl('body-biped-slim.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 6, // plan 017 r2: wrap-seam vertex split (new vertex layout — older sculpt deltas refuse loudly)
     source: { kind: 'procedural', build: () => buildProceduralBody('biped-slim').scene },
   },
   bird: {
     url: bodyUrl('body-bird.glb'),
     maskUrl: maskUrl('body-bird.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 6, // plan 017 r2: wrap-seam vertex split atop AC bird anatomy (older sculpt deltas refuse loudly)
     source: { kind: 'procedural', build: () => buildProceduralBody('bird').scene },
   },
 }

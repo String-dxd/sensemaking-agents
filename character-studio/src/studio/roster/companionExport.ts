@@ -12,6 +12,7 @@ import { WebIO } from '@gltf-transform/core'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { resolveAtlasUrls } from '../../core/face/atlasRegistry'
 import { type CompileAssets, type CompileStats, compileCharacter } from '../../core/export'
+import { buildBodyScene } from '../../core/procgen/buildBody'
 import { BODY_REGISTRY, getPart } from '../../core/skeleton/partRegistry'
 import type { CharacterSpec, PartSlot, Region } from '../../core/spec/schema'
 import { resolveWornItems, WARDROBE_REGISTRY } from '../../core/wardrobe'
@@ -29,9 +30,10 @@ export async function loadBrowserAssets(spec: CharacterSpec): Promise<CompileAss
   const loader = new GLTFLoader()
   const body = BODY_REGISTRY[spec.meta.archetype]
   // Body + anatomy parts are procedural (plan 013): build the scenes; only
-  // wardrobe items still load from GLB (plan 016).
+  // wardrobe items still load from GLB (plan 016). The body build rides the
+  // species shape seam (plan 017).
   if (body.source?.kind !== 'procedural') throw new Error(`export: body "${spec.meta.archetype}" has no procedural source`)
-  const bodyScene = body.source.build()
+  const bodyScene = buildBodyScene(spec.meta.archetype, spec.meta.species)
 
   const partScenes: CompileAssets['partScenes'] = {}
   const maskPngsByRegion: Partial<Record<Region, Uint8Array>> = {}

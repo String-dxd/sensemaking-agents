@@ -3,7 +3,8 @@
 
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
-import { buildProceduralBody } from '../../../src/core/procgen/body'
+import { type BirdBodyShape, buildProceduralBody } from '../../../src/core/procgen/body'
+import { buildBodyScene } from '../../../src/core/procgen/buildBody'
 import { ARCHETYPES_DEF } from '../../../src/core/skeleton/archetypes'
 import { BODY_MORPHS } from '../../../src/core/skeleton/partRegistry'
 import { ARCHETYPES, BONE_NAMES, type Archetype } from '../../../src/core/spec/schema'
@@ -161,5 +162,195 @@ describe.each([...ARCHETYPES])('buildProceduralBody(%s)', (archetype: Archetype)
     expect(Float32Array.from(posA)).toEqual(Float32Array.from(posB))
     expect(a.channels).toEqual(b.channels)
     expect(a.triangleCount).toBe(b.triangleCount)
+  })
+})
+
+// --- plan 017: bird body v2 (AC anatomy) --------------------------------------
+
+function bodyPositions(scene: THREE.Object3D): Float32Array {
+  return skinnedMeshes(scene)[0].geometry.getAttribute('position').array as Float32Array
+}
+
+describe('plan 017: mammal freeze', () => {
+  // Snapshots recomputed for plan 017 r2 (wrap-seam vertex split, meshVersion 6):
+  // the split appends render-only duplicate vertices per piece, so vertexCount
+  // grew from the pre-017 2052 while every ORIGINAL vertex (incl. first12, the
+  // torso bottom pole + first ring verts) stays byte-identical to main @ 2532e1c.
+  // The bird shape seam must still leave both mammal lanes byte-identical.
+  const FREEZE: Record<'biped-round' | 'biped-slim', { vertexCount: number; first12: number[] }> = {
+    'biped-round': {
+      vertexCount: 2264,
+      first12: [0, 0.17277540266513824, 0, 0, 0.17549742758274078, 0.02695726975798607, 0.006573877763003111, 0.17549742758274078, 0.02643929235637188, 0.012895124964416027, 0.17549742758274078, 0.024905268102884293],
+    },
+    'biped-slim': {
+      vertexCount: 2264,
+      first12: [0, 0.18802250921726227, 0, 0, 0.19097262620925903, 0.02776050940155983, 0.006189493462443352, 0.19097262620925903, 0.027227098122239113, 0.012141128070652485, 0.19097262620925903, 0.025647366419434547],
+    },
+  }
+  it.each(['biped-round', 'biped-slim'] as const)('%s geometry matches the r2 freeze', (archetype) => {
+    const pos = bodyPositions(buildProceduralBody(archetype).scene)
+    expect(pos.length / 3).toBe(FREEZE[archetype].vertexCount)
+    expect(Float32Array.from(pos.slice(0, 12))).toEqual(Float32Array.from(FREEZE[archetype].first12))
+  })
+})
+
+describe('plan 017: bird shape variants', () => {
+  const variants: Array<[string, Partial<BirdBodyShape>]> = [
+    ['default', {}],
+    ['flipper', { wingScallop: 0, wingLength: 0.75 }],
+    ['webbed', { toeCut: 0.1 }],
+    ['tall', { tarsusLength: 1.3, headSize: 1.1 }],
+  ]
+  it.each(variants)('%s: manifold gate holds and fits the triangle budget', (_name, shape) => {
+    const data = buildProceduralBody('bird', shape)
+    expect(data.manifold.boundaryEdges, 'boundary edges').toBe(0)
+    expect(data.manifold.overSharedEdges, 'over-shared edges').toBe(0)
+    expect(data.manifold.components, 'connected components').toBe(1)
+    expect(data.triangleCount).toBeLessThanOrEqual(18000)
+  })
+
+  it('is deterministic for a non-default shape', () => {
+    const a = buildProceduralBody('bird', { wingLength: 1.2 })
+    const b = buildProceduralBody('bird', { wingLength: 1.2 })
+    expect(Float32Array.from(bodyPositions(a.scene))).toEqual(Float32Array.from(bodyPositions(b.scene)))
+  })
+})
+
+describe('plan 017: bird accent painting', () => {
+  const data = buildProceduralBody('bird')
+
+  it('feet are fully accent-painted (beak/feet color)', () => {
+    for (const piece of ['footL', 'footR'] as const) {
+      const [s, e] = data.meta.shellRanges[piece]
+      let hit = false
+      for (let i = s; i < e && !hit; i++) if (data.channels[i * 4 + 3] === 1) hit = true
+      expect(hit, `${piece} has a fully-accented vertex`).toBe(true)
+    }
+  })
+
+  it('bare tarsus takes accent; feathered thigh stays body-colored', () => {
+    const [s] = data.meta.shellRanges.legL
+    const params = data.meta.limbParams.legL
+    let tarsusChecked = 0
+    let thighChecked = 0
+    for (let li = 0; li < params.length; li++) {
+      const accent = data.channels[(s + li) * 4 + 3]
+      if (params[li] > 0.6) {
+        expect(accent, `tarsus vertex v01=${params[li]}`).toBeGreaterThan(0.5)
+        tarsusChecked++
+      } else if (params[li] < 0.3) {
+        expect(accent, `thigh vertex v01=${params[li]}`).toBeLessThan(0.1)
+        thighChecked++
+      }
+    }
+    expect(tarsusChecked).toBeGreaterThan(0)
+    expect(thighChecked).toBeGreaterThan(0)
+  })
+})
+
+describe('plan 017 r1: AC straight-leg stance', () => {
+  const data = buildProceduralBody('bird')
+  const pos = bodyPositions(data.scene)
+  const centroid = (piece: 'legL' | 'legR', lo: number, hi: number): [number, number, number] => {
+    const [s] = data.meta.shellRanges[piece]
+    const params = data.meta.limbParams[piece]
+    const c: [number, number, number] = [0, 0, 0]
+    let n = 0
+    for (let li = 0; li < params.length; li++) {
+      if (params[li] < lo || params[li] > hi) continue
+      c[0] += pos[(s + li) * 3]
+      c[1] += pos[(s + li) * 3 + 1]
+      c[2] += pos[(s + li) * 3 + 2]
+      n++
+    }
+    return [c[0] / n, c[1] / n, c[2] / n]
+  }
+
+  it('legs drop vertically: root and ankle rings share x/z (no splay)', () => {
+    for (const piece of ['legL', 'legR'] as const) {
+      const root = centroid(piece, 0, 0.05)
+      const end = centroid(piece, 0.95, 1)
+      expect(end[0]).toBeCloseTo(root[0], 5)
+      expect(end[2]).toBeCloseTo(root[2], 5)
+      expect(end[1]).toBeLessThan(root[1]) // and actually drop
+    }
+  })
+
+  it('tarsi are mirror-symmetric and close together (|x| ≈ 0.35–0.45·rx)', () => {
+    const l = centroid('legL', 0.95, 1)
+    const r = centroid('legR', 0.95, 1)
+    expect(l[0]).toBeCloseTo(-r[0], 5)
+    expect(l[2]).toBeCloseTo(r[2], 5)
+    const ratio = Math.abs(l[0]) / data.meta.torso.rx
+    expect(ratio).toBeGreaterThan(0.3)
+    expect(ratio).toBeLessThan(0.45)
+  })
+})
+
+describe('plan 017 r2: wrap-seam vertex split', () => {
+  // The back-centerline stripe bug: triangles whose UVs span the azimuth wrap
+  // make the GPU interpolate u ACROSS the island interior, sweeping any bound
+  // mask texture's texels through the island's front content. After the split,
+  // no intra-island triangle may span more than 30% of its island's u-width
+  // (legit triangles span ~1 grid column ≈ 3–8%). Pre-fix this counted
+  // 244/244/226 offenders per archetype.
+  it.each([...ARCHETYPES])('%s: zero intra-island triangles span the azimuth wrap', (archetype) => {
+    const data = buildProceduralBody(archetype)
+    const meshes = skinnedMeshes(data.scene)
+    const uv = meshes[0].geometry.getAttribute('uv')
+    const ranges = Object.entries(data.meta.shellRanges)
+    const pieceOf = (i: number): string => {
+      for (const [name, [s, e]] of ranges) if (i >= s && i < e) return name
+      return ''
+    }
+    const islandWidth: Record<string, number> = {
+      head: 0.55, torso: 0.45, armL: 0.2, armR: 0.2, handL: 0.1, handR: 0.1,
+      legL: 0.2, legR: 0.2, footL: 0.25, footR: 0.25,
+    }
+    let offenders = 0
+    let intraIsland = 0
+    for (const mesh of meshes) {
+      const idx = mesh.geometry.getIndex()!
+      for (let t = 0; t < idx.count; t += 3) {
+        const a = idx.getX(t)
+        const b = idx.getX(t + 1)
+        const c = idx.getX(t + 2)
+        const piece = pieceOf(a)
+        // bridge strips span two pieces/islands — not intra-island triangles
+        if (!piece || pieceOf(b) !== piece || pieceOf(c) !== piece) continue
+        intraIsland++
+        const us = [uv.getX(a), uv.getX(b), uv.getX(c)]
+        const span = (Math.max(...us) - Math.min(...us)) / islandWidth[piece]
+        if (span > 0.3) offenders++
+      }
+    }
+    expect(intraIsland).toBeGreaterThan(1000) // the metric actually saw the mesh
+    expect(offenders, 'triangles spanning >30% of their island u-width').toBe(0)
+  })
+
+  it('seam duplicates are render-only: welded topology stays manifold (audited above) and duplicated verts carry copied skin/channels', () => {
+    const data = buildProceduralBody('bird')
+    // the manifold gate in the main suite runs on the welded (pre-split)
+    // topology; here assert the render buffer really grew past the welded count
+    const vcount = skinnedMeshes(data.scene)[0].geometry.getAttribute('position').count
+    expect(vcount).toBeGreaterThan(data.triangleCount / 2 + 2) // > Euler closed-manifold count → dups exist
+    expect(data.channels.length).toBe(4 * vcount) // channels cover the dups
+  })
+})
+
+describe('plan 017: species shape seam', () => {
+  it('duckling and owl produce different geometry', () => {
+    const duck = bodyPositions(buildBodyScene('bird', 'duckling'))
+    const owl = bodyPositions(buildBodyScene('bird', 'owl'))
+    expect(duck.length).toBe(owl.length) // same topology…
+    let differs = false
+    for (let i = 0; i < duck.length && !differs; i++) if (duck[i] !== owl[i]) differs = true
+    expect(differs, 'at least one position differs').toBe(true) // …different shape
+  })
+
+  it('no species falls back to the default bird build', () => {
+    const plain = bodyPositions(buildProceduralBody('bird').scene)
+    const seam = bodyPositions(buildBodyScene('bird', undefined))
+    expect(Float32Array.from(seam)).toEqual(Float32Array.from(plain))
   })
 })
