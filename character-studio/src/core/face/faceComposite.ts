@@ -68,6 +68,21 @@ export const DEFAULT_PLACEMENT: FacePlacement = {
   mouthRadialOffset: 0,
 }
 
+/**
+ * Bird-class placement override (plan 022) — merged over DEFAULT_PLACEMENT for
+ * bird archetypes. AC bird eyes are bigger, sit slightly wider apart flanking
+ * the beak root, and a touch higher; brows lift proportionally. Only the eye +
+ * brow fields differ; the mouth is untouched (beaks hide it).
+ */
+export const BIRD_PLACEMENT: Partial<FacePlacement> = {
+  eyeAzimuth: 24 * DEG,
+  eyeElevation: 7 * DEG,
+  eyeWidth: 34 * DEG,
+  eyeHeight: 40 * DEG,
+  browLift: 20 * DEG,
+  browWidth: 30 * DEG,
+}
+
 // --- head-UV mapping ---------------------------------------------------------
 
 /**
