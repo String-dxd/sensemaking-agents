@@ -21,7 +21,7 @@ import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skelet
 import type { Archetype } from '../spec/schema'
 import { BODY_MORPHS } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
-import { accentAll, headChannels, torsoChannels } from './kit/channels'
+import { headChannels, torsoChannels } from './kit/channels'
 import { filletLimbIntoTorso, makeTorsoSdf } from './kit/fillet'
 import { capsuleGrid } from './kit/loft'
 import { pearProfile } from './kit/profiles'
@@ -37,7 +37,8 @@ import {
 import { type IslandName, UV_ATLAS, islandUv } from './kit/uv'
 import { chainWeights, footWeights, rigidWeight, torsoWeights } from './kit/weights'
 
-// --- per-archetype style knobs (bodies.py STYLE, verbatim) --------------------
+// --- per-archetype style knobs (started as bodies.py STYLE; biped-slim
+// remodeled 2026-07-08 toward the chibi toy-render benchmark) ------------------
 
 interface Style {
   torsoRx: number
@@ -55,7 +56,7 @@ interface Style {
 
 const STYLE: Record<Archetype, Style> = {
   'biped-round': { torsoRx: 0.8, torsoRz: 0.62, pear: 0.28, shoulderTaper: 0.16, armR: 0.05, handR: 0.058, legR: 0.064, foot: [0.064, 0.044, 0.104], headSquash: 0.97, headWide: 1.05, wing: false },
-  'biped-slim': { torsoRx: 0.66, torsoRz: 0.58, pear: 0.22, shoulderTaper: 0.18, armR: 0.042, handR: 0.05, legR: 0.05, foot: [0.054, 0.038, 0.092], headSquash: 0.99, headWide: 1.02, wing: false },
+  'biped-slim': { torsoRx: 0.8, torsoRz: 0.7, pear: 0.3, shoulderTaper: 0.22, armR: 0.042, handR: 0.048, legR: 0.06, foot: [0.058, 0.042, 0.088], headSquash: 0.95, headWide: 1.06, wing: false },
   bird: { torsoRx: 0.88, torsoRz: 0.8, pear: 0.36, shoulderTaper: 0.14, armR: 0.034, handR: 0, legR: 0.028, foot: [0.056, 0.03, 0.102], headSquash: 0.96, headWide: 1.04, wing: true },
 }
 
@@ -235,8 +236,12 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
       return
     }
     // plush arm: near-constant width, soft mitten end ------------------------
+    // fillet reach stays well under the root→hand span — an oversized reach
+    // on a short chibi arm re-projects most of the capsule onto the torso
+    // surface and crumples it into a faceted slab
+    const armSpan = Math.hypot(hand[0] - root[0], hand[1] - root[1], hand[2] - root[2])
     const grid = capsuleGrid({ a: root, b: hand, radiusA: armR * 1.15, radiusB: armR * 0.95, useg: LIMB_USEG, vseg: LIMB_VSEG, fullness: 0.55 })
-    filletLimbIntoTorso(grid.pos, root, hand, armR * 1.15, armR * 0.95, torsoSdf, 0.055 * u)
+    filletLimbIntoTorso(grid.pos, root, hand, armR * 1.15, armR * 0.95, torsoSdf, Math.min(0.055 * u, armSpan * 0.28))
     const arm = gridToPiece(name, grid, [
       { kind: 'poleBottom', ring: 1, loop: 'root' },
       { kind: 'poleTop', ring: LIMB_VSEG - 1, loop: 'wrist' },
@@ -254,7 +259,7 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
     const handName = `hand${side}` as const
     const handPiece = gridToPiece(handName, handGrid, [{ kind: 'poleBottom', ring: 1, loop: 'wrist' }])
     rigidWeight(handPiece, handName)
-    accentAll(handPiece, 0.85)
+    // mitten paws stay body-colored (chibi benchmark: no dark gloves)
     paintUv(handPiece, side === 'L' ? 'handL' : 'handR', false)
     builder.add(handPiece)
     builder.bridge(builder.loopIndex[name].wrist, builder.loopIndex[handName].wrist)
@@ -265,8 +270,9 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
     const root = blockCenter(name)
     const footJoint = side === 'L' ? V(j.footL) : V(j.footR)
     const legEnd: Vec3 = [footJoint[0], footJoint[1] * 0.7, footJoint[2]]
+    const legSpan = Math.hypot(legEnd[0] - root[0], legEnd[1] - root[1], legEnd[2] - root[2])
     const grid = capsuleGrid({ a: root, b: legEnd, radiusA: legR, radiusB: legR * 0.85, useg: LIMB_USEG, vseg: LIMB_VSEG, fullness: 0.55 })
-    filletLimbIntoTorso(grid.pos, root, legEnd, legR, legR * 0.85, torsoSdf, 0.05 * u)
+    filletLimbIntoTorso(grid.pos, root, legEnd, legR, legR * 0.85, torsoSdf, Math.min(0.05 * u, legSpan * 0.28))
     const leg = gridToPiece(name, grid, [
       { kind: 'poleBottom', ring: 1, loop: 'root' },
       { kind: 'poleTop', ring: LIMB_VSEG - 1, loop: 'ankle' },
@@ -292,7 +298,6 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
     const footName = `foot${side}` as const
     const foot = gridToPiece(footName, footGrid, [{ kind: 'poleBottom', ring: 1, loop: 'ankle' }])
     footWeights(foot, footName, `toes${side}`, ankle[2], fzS)
-    accentAll(foot, 0.85)
     paintUv(foot, side === 'L' ? 'footL' : 'footR', false)
     builder.add(foot)
     builder.bridge(builder.loopIndex[name].ankle, builder.loopIndex[footName].ankle)
@@ -458,6 +463,7 @@ function assembleScene(
   // Shared attributes (one copy, referenced by all region geometries).
   const positionAttr = new THREE.BufferAttribute(mesh.positions, 3)
   const uvAttr = new THREE.BufferAttribute(mesh.uvs, 2)
+  const channelsAttr = new THREE.BufferAttribute(mesh.channels, 4)
   const skinIndexAttr = new THREE.BufferAttribute(skin.skinIndex, 4)
   const skinWeightAttr = new THREE.BufferAttribute(skin.skinWeight, 4)
   // compute shared vertex normals from the full welded mesh
@@ -488,6 +494,7 @@ function assembleScene(
     geo.setAttribute('uv', uvAttr)
     geo.setAttribute('skinIndex', skinIndexAttr)
     geo.setAttribute('skinWeight', skinWeightAttr)
+    geo.setAttribute('paletteChannels', channelsAttr)
     geo.setIndex(new THREE.BufferAttribute(Uint32Array.from(indices), 1))
     geo.morphAttributes.position = morphAttrs
     geo.morphTargetsRelative = true

@@ -174,8 +174,11 @@ const scaleX = (p: SurfacePiece, aboutX: number, factor: number): void => {
   const n = vertexCount(p)
   for (let i = 0; i < n; i++) p.pos[i * 3] = (p.pos[i * 3] - aboutX) * factor + aboutX
 }
+// Inner-ear dish reads as accentA (soft pink on the rabbit, darker fur tones
+// elsewhere) — belly tone was indistinguishable from the coat on pale species.
+// Call BEFORE any bendChain so the mask follows the authored (unbent) surface.
 const innerEar = (p: SurfacePiece, planeZ: number, depth: number): void => {
-  setChannelFn(p, CH_BELLY, (i) => smoothstep(planeZ + depth * 0.15, planeZ + depth * 0.7, p.pos[i * 3 + 2]) * 0.95)
+  setChannelFn(p, CH_ACCENT, (i) => smoothstep(planeZ + depth * 0.45, planeZ + depth * 0.85, p.pos[i * 3 + 2]) * 0.95)
 }
 
 function earsUprightPointy(j: J): PartMesh[] {
@@ -197,9 +200,9 @@ function earsFloppyLong(j: J): PartMesh[] {
   const ear = closedCapsule('earL', root, add(root, [0, L, 0]), 0.062, 0.034, 12, 18, 0.014)
   flatZ(ear, root[2], 0.45)
   chainWeightsPiece(ear, EAR_L, [0.4], 0.2)
+  innerEar(ear, 0.01, 0.04)
   const path: Vec3[] = [root, add(root, [0.07, 0.085, 0.008]), add(root, [0.135, 0.03, 0.018]), add(root, [0.165, -0.085, 0.032]), add(root, [0.17, -0.2, 0.048])]
   bendChain(ear.pos, root, L, smoothPath(path, 40))
-  innerEar(ear, 0.01, 0.04)
   return [pairEar('ears-floppy-long', ear, root, path[path.length - 1])]
 }
 
@@ -224,15 +227,17 @@ function earsRoundBear(j: J): PartMesh[] {
 }
 
 function earsBunnyTall(j: J): PartMesh[] {
+  // Chibi paddle ears: long, wide, round-tipped, near-vertical with a gentle
+  // backward curve — not the old narrow outward-flaring spikes.
   const root = V(j['earL.1'])
-  const L = 0.3
-  const base = vec.sub(root, [0, 0.02, 0])
-  const ear = closedCapsule('earL', base, add(root, [0.02, L, -0.01]), 0.038, 0.024, 12, 14, 0.014)
-  flatZ(ear, root[2], 0.55)
+  const L = 0.42
+  const base = vec.sub(root, [0, 0.03, 0])
+  const ear = closedCapsule('earL', base, add(root, [0.01, L, -0.01]), 0.052, 0.038, 14, 16, 0.022)
+  flatZ(ear, root[2], 0.5)
   chainWeightsPiece(ear, EAR_L, [0.45], 0.2)
-  const path: Vec3[] = [root, add(root, [0.02, 0.12, -0.005]), add(root, [0.05, 0.22, -0.015]), add(root, [0.085, 0.29, -0.03])]
-  bendChain(ear.pos, base, L + 0.02, smoothPath(path, 32))
-  innerEar(ear, 0, 0.035)
+  innerEar(ear, 0, 0.04)
+  const path: Vec3[] = [root, add(root, [0.008, 0.15, -0.006]), add(root, [0.022, 0.29, -0.024]), add(root, [0.04, 0.41, -0.055])]
+  bendChain(ear.pos, base, L + 0.03, smoothPath(path, 32))
   return [pairEar('ears-bunny-tall', ear, root, path[path.length - 1])]
 }
 
@@ -486,6 +491,7 @@ function geometryFrom(
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.BufferAttribute(merged.positions, 3))
   geo.setAttribute('uv', new THREE.BufferAttribute(merged.uvs, 2))
+  geo.setAttribute('paletteChannels', new THREE.BufferAttribute(merged.channels, 4))
   geo.setIndex(new THREE.BufferAttribute(merged.indices, 1))
   geo.computeVertexNormals()
   if (morphNames.length > 0) {

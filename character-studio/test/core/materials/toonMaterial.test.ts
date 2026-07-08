@@ -87,6 +87,9 @@ describe('variant cache key', () => {
     // Key covers every boolean define (stale-variant control): flipping each
     // entry of the define set must change the key.
     expect(toonProgramCacheKey({ paletteMask: true })).not.toBe(toonProgramCacheKey({ paletteMask: false }))
+    expect(toonProgramCacheKey({ paletteMask: false, paletteVertex: true })).not.toBe(
+      toonProgramCacheKey({ paletteMask: false, paletteVertex: false }),
+    )
   })
 
   it('tracks runtime mask toggles (applyTextureId)', () => {
@@ -113,13 +116,23 @@ describe('shader injection', () => {
     expect(shader.uniforms).toHaveProperty('uMaskMap')
   })
 
-  it('leaves the vertex shader untouched — skinning and morph targets survive', () => {
+  it('keeps the vertex chain intact — skinning and morph targets survive', () => {
     const shader = freshShader()
-    const original = shader.vertexShader
     injectToonShader(shader, createToonMaterial(BASE_ASSIGN, PALETTE).userData.toonUniforms)
-    expect(shader.vertexShader).toBe(original)
+    // The only vertex-side addition is the define-guarded paletteChannels
+    // plumbing; the skinning/morph chunks stay byte-identical.
     expect(shader.vertexShader).toContain('#include <skinning_vertex>')
     expect(shader.vertexShader).toContain('#include <morphtarget_vertex>')
+    expect(shader.vertexShader).toContain('#include <begin_vertex>')
+    expect(shader.vertexShader).toContain('#include <common>')
+    expect(shader.vertexShader).toContain('USE_PALETTE_VERTEX')
+  })
+
+  it('adds the vertex-channel palette branch to the fragment shader', () => {
+    const shader = freshShader()
+    injectToonShader(shader, createToonMaterial(BASE_ASSIGN, PALETTE).userData.toonUniforms)
+    expect(shader.fragmentShader).toContain('USE_PALETTE_VERTEX')
+    expect(shader.fragmentShader).toContain('vPaletteChannels')
   })
 })
 

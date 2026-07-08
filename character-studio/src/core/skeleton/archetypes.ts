@@ -80,19 +80,24 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
     headCenter: [0, 0.19, 0],
     headRadius: 0.22,
   },
-  // Taller, leggier silhouette (deer/rabbit-adjacent).
+  // Chibi mascot silhouette (rabbit/cat/fox): big round head (~45 % of
+  // height), egg torso, stubby drop arms and short leg stubs — the toy-render
+  // benchmark, no longer "taller and leggier".
   'biped-slim': {
     archetype: 'biped-slim',
-    height: 1.05,
-    uniformScale: 1.05 / 1.0229,
+    height: 0.92,
+    uniformScale: 0.92 / 0.924,
     offsetScales: {
-      hips: [1, 1.1, 1],
-      ...legs(1.15),
-      ...spineChain(1.05),
-      ...arms([1.1, 1.1, 1]),
+      hips: [1, 0.8, 1],
+      ...legs(0.6),
+      ...spineChain(0.9),
+      // x-reach clears the egg torso's flank (same reasoning as biped-round):
+      // a hugging arm would be swallowed by the fillet and crumple into the
+      // torso surface; angling it outward keeps it a free plush limb.
+      ...arms([1.25, 0.7, 1]),
     },
-    headCenter: [0, 0.17, 0],
-    headRadius: 0.185,
+    headCenter: [0, 0.19, 0],
+    headRadius: 0.21,
   },
   // Round bird: shortest overall, high ankles, wing-arms, fanned tail root.
   bird: {
@@ -144,7 +149,7 @@ export function archetypeHead(archetype: Archetype): ArchetypeHead {
 /** Torso front-depth as a fraction of the head radius — mirrors the
  * `torso_rz` proportions in scripts/blender/bodies.py STYLE (the bodies are
  * built from these numbers, so the colliders track the real silhouette). */
-const TORSO_RZ: Record<Archetype, number> = { 'biped-round': 0.62, 'biped-slim': 0.58, bird: 0.8 }
+const TORSO_RZ: Record<Archetype, number> = { 'biped-round': 0.62, 'biped-slim': 0.7, bird: 0.8 }
 
 /**
  * Default collider set for an archetype: one skull sphere (group "head") for
