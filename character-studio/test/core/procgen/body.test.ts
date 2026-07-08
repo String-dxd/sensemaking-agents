@@ -206,6 +206,8 @@ describe('plan 017: bird shape variants', () => {
     ['flipper', { wingScallop: 0, wingLength: 0.75 }],
     ['webbed', { toeCut: 0.1 }],
     ['tall', { tarsusLength: 1.3, headSize: 1.1 }],
+    ['long-neck', { neckLength: 0.7 }],
+    ['big-chest', { chestBulge: 0.6 }],
   ]
   it.each(variants)('%s: manifold gate holds and fits the triangle budget', (_name, shape) => {
     const data = buildProceduralBody('bird', shape)

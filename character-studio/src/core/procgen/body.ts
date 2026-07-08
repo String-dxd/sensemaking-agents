@@ -91,6 +91,12 @@ export interface BirdBodyShape {
   /** Torso egg-ness override (multiplies STYLE.bird pear). */
   belly: number // default 1
   headSize: number // default 1 (multiplies head radii)
+  /** Extra exposed neck as a fraction of head radius (plan 023): raises the
+   * head and lofts the head's lower rings into a smooth neck column.
+   * Peacock/crane ≈ 0.5–0.7. */
+  neckLength: number // default 0
+  /** Forward+width bulge of the upper-front torso (plan 023). Eagle ≈ 0.6. */
+  chestBulge: number // default 0
 }
 
 export const DEFAULT_BIRD_SHAPE: BirdBodyShape = {
@@ -104,6 +110,8 @@ export const DEFAULT_BIRD_SHAPE: BirdBodyShape = {
   hindToe: true,
   belly: 1,
   headSize: 1,
+  neckLength: 0,
+  chestBulge: 0,
 }
 
 // --- public shape -------------------------------------------------------------
@@ -194,7 +202,14 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   const rx = headR * style.torsoRx
   const rz = headR * style.torsoRz
   const isBird = style.wing
-  const torsoProfile = pearProfile(style.pear * (isBird ? shape.belly : 1), style.shoulderTaper)
+  // chest bulge (plan 023): widen the upper-chest band via the radial profile
+  // (the SDF/fillet see the same curve) + a forward-only push below.
+  const chest = isBird ? shape.chestBulge : 0
+  // band peaks just above the equator and is ZERO by the neck ring (v01 =
+  // neckRing/TORSO_VSEG ≈ 0.667) so the head bridge ring keeps its radius
+  const chestBump = (v01: number): number => smoothstep(0.32, 0.5, v01) * (1 - smoothstep(0.58, 0.66, v01))
+  const pearBase = pearProfile(style.pear * (isBird ? shape.belly : 1), style.shoulderTaper)
+  const torsoProfile = chest > 0 ? (v01: number) => pearBase(v01) * (1 + 0.22 * chest * chestBump(v01)) : pearBase
   const torsoSdf = makeTorsoSdf(cy, ry, rx, rz, torsoProfile)
 
   const builder = new MeshBuilder()
@@ -234,6 +249,16 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
 
   const torsoGrid = unitSphere(TRUNK_USEG, TORSO_VSEG)
   ellipsoidTransform(torsoGrid, [0, cy, 0], [rx, ry, rz], torsoProfile)
+  if (chest > 0) {
+    // forward push on the upper-FRONT band only (the eagle barrel chest) —
+    // displacement-only, topology untouched. Fades out well below the neck
+    // ring so the head bridge is unaffected.
+    for (let i = 0; i < torsoGrid.pos.length / 3; i++) {
+      const v01 = torsoGrid.params[i * 2 + 1]
+      const front = smoothstep(0, 0.7, torsoGrid.pos[i * 3 + 2] / rz)
+      torsoGrid.pos[i * 3 + 2] += chest * rz * 0.3 * chestBump(v01) * front
+    }
+  }
   const torso = gridToPiece('torso', torsoGrid, torsoOpenings)
   torsoWeights(torso, j.hips[1], j.spine[1], j.chest[1])
   torsoChannels(torso, cy, ry, rx, archetype)
@@ -244,9 +269,25 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   const headGrid = unitSphere(TRUNK_USEG, HEAD_VSEG)
   const headScale = isBird ? shape.headSize : 1
   ellipsoidTransform(headGrid, headCenter, [headR * style.headWide * headScale, headR * style.headSquash * headScale, headR * headScale])
+  // species neck (plan 023): raise the head mass and loft the head's lower
+  // rings into a smooth pinched neck column. The bottom (bridge) ring stays
+  // put so the torso bridge is untouched; displacement-only, topology intact
+  // — the head→neck→body line reads as an S-curve, not snowman-stacked.
+  const neckLift = isBird ? shape.neckLength * headR * headScale : 0
+  if (neckLift > 0) {
+    for (let i = 0; i < headGrid.pos.length / 3; i++) {
+      const v01 = headGrid.params[i * 2 + 1] // 0 bottom pole → 1 top; bridge ring at 2/HEAD_VSEG ≈ 0.09
+      headGrid.pos[i * 3 + 1] += neckLift * smoothstep(0.1, 0.42, v01)
+      const band = smoothstep(0.08, 0.2, v01) * (1 - smoothstep(0.3, 0.5, v01))
+      const pinch = 1 - 0.3 * Math.min(shape.neckLength, 1) * band
+      headGrid.pos[i * 3] = (headGrid.pos[i * 3] - headCenter[0]) * pinch + headCenter[0]
+      headGrid.pos[i * 3 + 2] = (headGrid.pos[i * 3 + 2] - headCenter[2]) * pinch + headCenter[2]
+    }
+  }
+  const headCenterEff: Vec3 = [headCenter[0], headCenter[1] + neckLift, headCenter[2]]
   const headPiece = gridToPiece('head', headGrid, [{ kind: 'poleBottom', ring: 2, loop: 'neck' }])
   rigidWeight(headPiece, 'head')
-  headChannels(headPiece, headCenter, headR, archetype)
+  headChannels(headPiece, headCenterEff, headR, archetype)
   paintUv(headPiece, 'head', true)
   builder.add(headPiece)
   builder.bridge(builder.loopIndex.head.neck, builder.loopIndex.torso.neck)
@@ -416,7 +457,7 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   const manifold = manifoldReport(mesh.weldedIndices)
 
   // --- morph targets (bodies.py body_shape_keys, numeric) -------------------
-  const morphs = buildMorphs(mesh, { cy, ry, rx }, headCenter, u)
+  const morphs = buildMorphs(mesh, { cy, ry, rx }, headCenterEff, u)
 
   // --- region partition (weld.welded_region_ids rule) ----------------------
   const regionOfTri = classifyRegions(mesh, j.spine[1], j.lowerLegL[1])
@@ -430,7 +471,7 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     channels: mesh.channels,
     meta: {
       torso: { cy, ry, rx, rz },
-      headCenter: [headCenter[0], headCenter[1], headCenter[2]],
+      headCenter: [headCenterEff[0], headCenterEff[1], headCenterEff[2]],
       headRadius: headR,
       shellRanges: mesh.ranges,
       limbParams,
