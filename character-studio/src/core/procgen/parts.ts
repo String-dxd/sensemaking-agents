@@ -501,11 +501,13 @@ function geometryFrom(
   return geo
 }
 
-/** Build the procedural scene for a part id (skinned or rigid). */
-export function buildProceduralPart(partId: PartId): THREE.Object3D {
-  const def = PART_REGISTRY[partId]
-  const builder = BUILDERS[partId]
-  if (!builder) throw new Error(`buildProceduralPart: no builder for "${partId}"`)
+/** Build the procedural scene for a part id (skinned or rigid). `partId` is a
+ * plain string (not `PartId`) so partRegistry's `source.build` closures don't
+ * make PART_REGISTRY's type circularly reference itself. */
+export function buildProceduralPart(partId: string): THREE.Object3D {
+  const def = PART_REGISTRY[partId as PartId]
+  const builder = BUILDERS[partId as PartId]
+  if (!def || !builder) throw new Error(`buildProceduralPart: no builder for "${partId}"`)
   const built = referenceSkeleton()
   const j = restWorldPositions(built)
   const meshes = builder(j)

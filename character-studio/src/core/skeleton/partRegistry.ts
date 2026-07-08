@@ -12,12 +12,25 @@
 //   - empty    (`url: null`): a legitimate "none" choice (mitten hands have
 //     no claw mesh; most characters have no crest).
 
+import type * as THREE from 'three'
 import type { SpringJointParams } from '../motion/springTypes'
+import { buildProceduralBody } from '../procgen/body'
+import { buildProceduralPart } from '../procgen/parts'
 import type { BoneName, PartSlot, Region } from '../spec/schema'
 
 /** Taxonomy classes a part is anatomically legal for (species wave). */
 export const ANIMAL_CLASSES = ['mammal', 'bird'] as const
 export type AnimalClass = (typeof ANIMAL_CLASSES)[number]
+
+/**
+ * Where an asset's THREE scene comes from (plan 012 D2 / plan 013 step 4).
+ * The GLB lane survives until each wave's deletion step; bodies + anatomy parts
+ * are procedural after plan 013. The two runtime loaders route per-def:
+ * `CharacterRoot.tsx` (studio) and `companionExport.ts` (export).
+ */
+export type AssetSource =
+  | { kind: 'glb'; url: string }
+  | { kind: 'procedural'; build: () => THREE.Object3D }
 
 export interface PartDef {
   slot: PartSlot
@@ -55,6 +68,11 @@ export interface PartDef {
    * version then refuse to load, loudly. Defaults to DEFAULT_MESH_VERSION.
    */
   meshVersion?: number
+  /**
+   * Asset scene source (plan 013 step 4). Procedural for every non-empty part;
+   * absent for empty parts (`url: null`). The runtime loaders route per-def.
+   */
+  source?: AssetSource
 }
 
 /** Contract version assumed when a def doesn't declare `meshVersion`. */
@@ -83,6 +101,7 @@ export const PART_REGISTRY = {
     slot: 'ears',
     label: 'Upright pointy',
     url: partUrl('ears-upright-pointy.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('upright-pointy') },
     maskUrl: maskUrl('part-ears-upright-pointy.mask.png'),
     region: 'ears',
     classes: ['mammal'],
@@ -94,6 +113,7 @@ export const PART_REGISTRY = {
     slot: 'ears',
     label: 'Floppy long',
     url: partUrl('ears-floppy-long.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('floppy-long') },
     maskUrl: maskUrl('part-ears-floppy-long.mask.png'),
     region: 'ears',
     classes: ['mammal'],
@@ -105,6 +125,7 @@ export const PART_REGISTRY = {
     slot: 'ears',
     label: 'Round bear',
     url: partUrl('ears-round-bear.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('round-bear') },
     maskUrl: maskUrl('part-ears-round-bear.mask.png'),
     region: 'ears',
     classes: ['mammal'],
@@ -116,6 +137,7 @@ export const PART_REGISTRY = {
     slot: 'ears',
     label: 'Bunny tall',
     url: partUrl('ears-bunny-tall.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('bunny-tall') },
     maskUrl: maskUrl('part-ears-bunny-tall.mask.png'),
     region: 'ears',
     classes: ['mammal'],
@@ -129,6 +151,7 @@ export const PART_REGISTRY = {
     slot: 'muzzle',
     label: 'Short cat',
     url: partUrl('muzzle-short-cat.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('short-cat') },
     maskUrl: maskUrl('part-muzzle-short-cat.mask.png'),
     region: 'muzzle',
     classes: ['mammal'],
@@ -140,6 +163,7 @@ export const PART_REGISTRY = {
     slot: 'muzzle',
     label: 'Boxy dog',
     url: partUrl('muzzle-boxy-dog.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('boxy-dog') },
     maskUrl: maskUrl('part-muzzle-boxy-dog.mask.png'),
     region: 'muzzle',
     classes: ['mammal'],
@@ -151,6 +175,7 @@ export const PART_REGISTRY = {
     slot: 'muzzle',
     label: 'Small beak',
     url: partUrl('muzzle-beak-small.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('beak-small') },
     maskUrl: maskUrl('part-muzzle-beak-small.mask.png'),
     region: 'muzzle',
     classes: ['bird'],
@@ -162,6 +187,7 @@ export const PART_REGISTRY = {
     slot: 'muzzle',
     label: 'Round beak',
     url: partUrl('muzzle-beak-round.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('beak-round') },
     maskUrl: maskUrl('part-muzzle-beak-round.mask.png'),
     region: 'muzzle',
     classes: ['bird'],
@@ -173,6 +199,7 @@ export const PART_REGISTRY = {
     slot: 'muzzle',
     label: 'Hooked beak',
     url: partUrl('muzzle-beak-hooked.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('beak-hooked') },
     maskUrl: maskUrl('part-muzzle-beak-hooked.mask.png'),
     region: 'muzzle',
     classes: ['bird'],
@@ -184,6 +211,7 @@ export const PART_REGISTRY = {
     slot: 'muzzle',
     label: 'Duck bill',
     url: partUrl('muzzle-bill-duck.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('bill-duck') },
     maskUrl: maskUrl('part-muzzle-bill-duck.mask.png'),
     region: 'muzzle',
     classes: ['bird'],
@@ -197,6 +225,7 @@ export const PART_REGISTRY = {
     slot: 'tail',
     label: 'Shiba curl',
     url: partUrl('tail-curl-shiba.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('curl-shiba') },
     maskUrl: maskUrl('part-tail-curl-shiba.mask.png'),
     region: 'tail',
     classes: ['mammal'],
@@ -208,6 +237,7 @@ export const PART_REGISTRY = {
     slot: 'tail',
     label: 'Fox fluff',
     url: partUrl('tail-fluff-fox.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('fluff-fox') },
     maskUrl: maskUrl('part-tail-fluff-fox.mask.png'),
     region: 'tail',
     classes: ['mammal'],
@@ -219,6 +249,7 @@ export const PART_REGISTRY = {
     slot: 'tail',
     label: 'Slim cat',
     url: partUrl('tail-slim-cat.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('slim-cat') },
     maskUrl: maskUrl('part-tail-slim-cat.mask.png'),
     region: 'tail',
     classes: ['mammal'],
@@ -230,6 +261,7 @@ export const PART_REGISTRY = {
     slot: 'tail',
     label: 'Round stub',
     url: partUrl('tail-stub-round.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('stub-round') },
     maskUrl: maskUrl('part-tail-stub-round.mask.png'),
     region: 'tail',
     classes: ['mammal'],
@@ -241,6 +273,7 @@ export const PART_REGISTRY = {
     slot: 'tail',
     label: 'Feather fan',
     url: partUrl('tail-feather-fan.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('feather-fan') },
     maskUrl: maskUrl('part-tail-feather-fan.mask.png'),
     region: 'tail',
     classes: ['bird'],
@@ -263,6 +296,7 @@ export const PART_REGISTRY = {
     slot: 'claws',
     label: 'Stub claws',
     url: partUrl('claws-stub.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('stub-claws') },
     maskUrl: maskUrl('part-claws-stub.mask.png'),
     region: 'claws',
     classes: ['mammal', 'bird'],
@@ -286,6 +320,7 @@ export const PART_REGISTRY = {
     slot: 'crest',
     label: 'Feather tuft',
     url: partUrl('crest-feather-tuft.glb'),
+    source: { kind: 'procedural', build: () => buildProceduralPart('feather-tuft') },
     maskUrl: maskUrl('part-crest-feather-tuft.mask.png'),
     region: 'ears',
     classes: ['bird'],
@@ -323,6 +358,8 @@ export interface BodyDef {
   morphs: readonly string[]
   /** ASSET-CONTRACT `baseMeshVersion` (see PartDef.meshVersion). */
   meshVersion?: number
+  /** Asset scene source (plan 013 step 4) — procedural for every archetype. */
+  source?: AssetSource
 }
 
 export const BODY_MORPHS = ['bellyRound', 'chubby', 'slim', 'headBig', 'headSmall'] as const
@@ -335,17 +372,20 @@ export const BODY_REGISTRY: Record<'biped-round' | 'biped-slim' | 'bird', BodyDe
     maskUrl: maskUrl('body-biped-round.mask.png'),
     morphs: BODY_MORPHS,
     meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    source: { kind: 'procedural', build: () => buildProceduralBody('biped-round').scene },
   },
   'biped-slim': {
     url: bodyUrl('body-biped-slim.glb'),
     maskUrl: maskUrl('body-biped-slim.mask.png'),
     morphs: BODY_MORPHS,
     meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    source: { kind: 'procedural', build: () => buildProceduralBody('biped-slim').scene },
   },
   bird: {
     url: bodyUrl('body-bird.glb'),
     maskUrl: maskUrl('body-bird.mask.png'),
     morphs: BODY_MORPHS,
     meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    source: { kind: 'procedural', build: () => buildProceduralBody('bird').scene },
   },
 }

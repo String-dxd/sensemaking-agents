@@ -28,7 +28,10 @@ async function fetchBytes(url: string): Promise<Uint8Array> {
 export async function loadBrowserAssets(spec: CharacterSpec): Promise<CompileAssets> {
   const loader = new GLTFLoader()
   const body = BODY_REGISTRY[spec.meta.archetype]
-  const bodyScene = (await loader.loadAsync(body.url)).scene
+  // Body + anatomy parts are procedural (plan 013): build the scenes; only
+  // wardrobe items still load from GLB (plan 016).
+  if (body.source?.kind !== 'procedural') throw new Error(`export: body "${spec.meta.archetype}" has no procedural source`)
+  const bodyScene = body.source.build()
 
   const partScenes: CompileAssets['partScenes'] = {}
   const maskPngsByRegion: Partial<Record<Region, Uint8Array>> = {}
@@ -41,7 +44,8 @@ export async function loadBrowserAssets(spec: CharacterSpec): Promise<CompileAss
     if (!entry) continue
     const def = getPart(entry.partId)
     if (!def || def.url === null) continue
-    partScenes[slot as PartSlot] = (await loader.loadAsync(def.url)).scene
+    if (def.source?.kind !== 'procedural') throw new Error(`export: part "${entry.partId}" has no procedural source`)
+    partScenes[slot as PartSlot] = def.source.build()
     if (def.maskUrl && !maskPngsByRegion[def.region]) {
       await fetchBytes(def.maskUrl)
         .then((b) => {

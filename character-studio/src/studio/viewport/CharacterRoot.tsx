@@ -48,7 +48,7 @@ import {
   syncTargetsToPayload,
 } from '../../core/sculpt'
 import { ARCHETYPES_DEF } from '../../core/skeleton/archetypes'
-import { assembleCharacter, type LoadedAssets } from '../../core/skeleton/assemble'
+import { assembleCharacter } from '../../core/skeleton/assemble'
 import { BODY_REGISTRY, getPart, meshVersionOf, PART_REGISTRY } from '../../core/skeleton/partRegistry'
 import type { PartSlot, Region } from '../../core/spec/schema'
 import {
@@ -75,6 +75,32 @@ function configureMask(texture: THREE.Texture): void {
     texture.colorSpace = THREE.NoColorSpace
     texture.needsUpdate = true
   }
+}
+
+/**
+ * Wardrobe items are still GLB (until plan 016) — `useGLTF` can't take an empty
+ * array, so it lives in this inner component mounted only when items are worn.
+ * It reports the loaded scenes up into CharacterRoot state (the plan-013 seam:
+ * body/parts are procedural + synchronous; only item scenes arrive async).
+ */
+function WardrobeItemLoader({
+  urls,
+  itemIds,
+  onScenes,
+}: {
+  urls: string[]
+  itemIds: string[]
+  onScenes: (scenes: Record<string, THREE.Object3D>) => void
+}) {
+  const loaded = useGLTF(urls)
+  useEffect(() => {
+    const scenes: Record<string, THREE.Object3D> = {}
+    loaded.forEach((gltf, i) => {
+      scenes[itemIds[i]] = gltf.scene
+    })
+    onScenes(scenes)
+  }, [loaded, itemIds, onScenes])
+  return null
 }
 
 export function CharacterRoot() {
@@ -111,10 +137,27 @@ export function CharacterRoot() {
   )
 
   const body = BODY_REGISTRY[archetype]
-  const gltfUrls = useMemo(
-    () => [body.url, ...equipped.map((e) => e.def.url as string), ...wornResolved.map((i) => i.def.url)],
-    [body, equipped, wornResolved],
-  )
+
+  // Body + anatomy parts are procedural (plan 013): memoized `def.source.build()`
+  // per structural key (archetype / part-id). Wardrobe items stay GLB until
+  // plan 016 and load through the inner <WardrobeItemLoader> below.
+  const bodyScene = useMemo(() => {
+    if (body.source?.kind !== 'procedural') throw new Error(`CharacterRoot: body "${archetype}" has no procedural source`)
+    return body.source.build()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [archetype])
+  const partScenes = useMemo(() => {
+    const scenes: Partial<Record<PartSlot, THREE.Object3D>> = {}
+    for (const { slot, def } of equipped) {
+      if (def.source?.kind === 'procedural') scenes[slot] = def.source.build()
+    }
+    return scenes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partIdKey])
+  const itemUrls = useMemo(() => wornResolved.map((i) => i.def.url), [wornResolved])
+  const itemIds = useMemo(() => wornResolved.map((i) => i.itemId), [wornResolved])
+  const [itemScenes, setItemScenes] = useState<Record<string, THREE.Object3D>>({})
+
   const bodyTextureId = materialsSpec.body?.textureId
   const maskEntries = useMemo(() => {
     // plan 010: a body pattern (species preset) swaps the body mask for its
@@ -129,7 +172,6 @@ export function CharacterRoot() {
     [wornResolved],
   )
 
-  const gltfs = useGLTF(gltfUrls)
   // one call: region masks first, item masks after (the list is never empty)
   const maskTextures = useTexture([...maskEntries.map((e) => e.url), ...itemMaskEntries.map((e) => e.url)])
 
@@ -140,17 +182,13 @@ export function CharacterRoot() {
     maskEntries.forEach(({ region }, i) => {
       texturesByRegion[region] ??= { map: null, maskMap: maskTextures[i] }
     })
-    const partScenes: LoadedAssets['partScenes'] = {}
-    equipped.forEach(({ slot }, i) => {
-      partScenes[slot] = gltfs[i + 1].scene
-    })
     const spec = useCharacterStore.getState().spec
     return assembleCharacter(spec, PART_REGISTRY, {
-      bodyScene: gltfs[0].scene,
+      bodyScene,
       partScenes,
       texturesByRegion,
     })
-  }, [gltfs, maskTextures, maskEntries, equipped])
+  }, [bodyScene, partScenes, maskTextures, maskEntries])
 
   const texturesByRegion = useMemo(() => {
     const map: Partial<Record<Region, ResolvedTextures>> = {}
@@ -185,12 +223,12 @@ export function CharacterRoot() {
 
   // --- dressing (plan 008): mutate the fresh assembly, undress on teardown ----
   const [dressed, setDressed] = useState<DressedCharacter | null>(null)
+  // Wait for the wardrobe loader to report every worn item's scene (true when
+  // nothing is worn — `every` over an empty list). Body/parts are synchronous.
+  const itemsReady = wornResolved.every((i) => itemScenes[i.itemId])
   useEffect(() => {
+    if (!itemsReady) return
     const spec = useCharacterStore.getState().spec
-    const itemScenes: WardrobeAssets['itemScenes'] = {}
-    wornResolved.forEach((item, j) => {
-      itemScenes[item.itemId] = gltfs[1 + equipped.length + j].scene
-    })
     const itemTextures: NonNullable<WardrobeAssets['itemTextures']> = {}
     itemMaskEntries.forEach(({ itemId }, j) => {
       itemTextures[itemId] = { map: null, maskMap: maskTextures[maskEntries.length + j] }
@@ -207,7 +245,7 @@ export function CharacterRoot() {
       result.undress()
       setDressed(null)
     }
-  }, [assembled, gltfs, maskTextures, maskEntries, itemMaskEntries, equipped, wornResolved])
+  }, [assembled, itemScenes, itemsReady, maskTextures, maskEntries, itemMaskEntries, wornResolved])
 
   // --- sculpt session (plan 009): targets + weld topologies per assembly ------
   useEffect(() => {
@@ -217,18 +255,20 @@ export function CharacterRoot() {
     const sources: SculptTargetSource[] = [
       {
         assetId: bodyAssetId,
-        scene: gltfs[0].scene,
+        scene: bodyScene,
         meshVersion: meshVersionOf(BODY_REGISTRY[spec.meta.archetype]),
         weldSpace: 'body',
         localToWorldScale: 1,
       },
     ]
-    equipped.forEach(({ slot, def }, i) => {
+    equipped.forEach(({ slot, def }) => {
       const partId = spec.anatomy.parts[slot]?.partId
       if (!partId) return
+      const scene = partScenes[slot]
+      if (!scene) return
       sources.push({
         assetId: partId,
-        scene: gltfs[i + 1].scene,
+        scene,
         meshVersion: meshVersionOf(def),
         weldSpace: partId,
         localToWorldScale: uniformScale,
@@ -244,7 +284,7 @@ export function CharacterRoot() {
     return () => {
       useSculptStore.setState({ session: null })
     }
-  }, [assembled, gltfs, equipped])
+  }, [assembled, bodyScene, partScenes, equipped])
 
   // --- sculpt delta ⇄ spec sync: apply saved payloads to the live meshes ------
   // Runs on load (setSpec), on undo/redo commits, and after reassembly. The
@@ -436,11 +476,14 @@ export function CharacterRoot() {
     // r3f does not migrate the primitive in place. The face rig renders no
     // scene objects (advisor plan 002): it draws into the body material's
     // head UVs, so it follows morphs/sculpt/bone scales for free.
-    <Fragment key={assembled.root.uuid}>
-      <primitive object={assembled.root} />
-      {assembled.regionMaterials.body && (
-        <FaceRig bodyMaterial={assembled.regionMaterials.body} hideMouth={assembled.hideMouth} />
-      )}
+    <Fragment>
+      {itemUrls.length > 0 && <WardrobeItemLoader urls={itemUrls} itemIds={itemIds} onScenes={setItemScenes} />}
+      <Fragment key={assembled.root.uuid}>
+        <primitive object={assembled.root} />
+        {assembled.regionMaterials.body && (
+          <FaceRig bodyMaterial={assembled.regionMaterials.body} hideMouth={assembled.hideMouth} />
+        )}
+      </Fragment>
     </Fragment>
   )
 }
