@@ -56,12 +56,14 @@ describe('species registry', () => {
     }
   })
 
-  it('migrates both saved v1 fixtures to v2 with meta.species defaulted to custom', () => {
+  it('migrates both saved v1 fixtures to the current version with meta.species defaulted to custom', () => {
     for (const name of ['hero-shiba.character.json', 'default-dog.character.json']) {
       const raw = JSON.parse(readFileSync(fixturePath(name), 'utf8'))
       const migrated = migrateSpec(raw)
-      expect(migrated.meta.specVersion).toBe(2)
+      expect(migrated.meta.specVersion).toBe(3)
       expect(migrated.meta.species).toBe('custom')
+      // mammal fixtures never gain a wings entry (plan 023 v2→v3 is bird-only)
+      expect(migrated.anatomy.parts.wings).toBeUndefined()
     }
   })
 

@@ -19,6 +19,24 @@ export const MIGRATIONS: Record<number, Migration> = {
     const spec = old as { meta: Record<string, unknown> }
     return { ...spec, meta: { ...spec.meta, species: 'custom', specVersion: 2 } }
   },
+  // v2 -> v3: PART_SLOTS gains 'wings' (plan 023 — wings become separate
+  // skinned parts). Bird specs gain the default wing part if absent; non-bird
+  // specs pass through (an absent key is legal in the partial parts record).
+  2: (old) => {
+    const spec = old as {
+      meta: Record<string, unknown>
+      anatomy: { parts: Record<string, unknown> } & Record<string, unknown>
+    }
+    const needsWings = spec.meta.archetype === 'bird' && !('wings' in spec.anatomy.parts)
+    const parts = needsWings
+      ? { ...spec.anatomy.parts, wings: { partId: 'wing-round', morphs: {} } }
+      : spec.anatomy.parts
+    return {
+      ...spec,
+      meta: { ...spec.meta, specVersion: 3 },
+      anatomy: { ...spec.anatomy, parts },
+    }
+  },
 }
 
 function readSpecVersion(raw: unknown): number {

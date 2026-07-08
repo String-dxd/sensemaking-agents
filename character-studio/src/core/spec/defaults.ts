@@ -114,6 +114,7 @@ const DEFAULT_PARTS: Record<Archetype, CharacterSpec['anatomy']['parts']> = {
     tail: { partId: 'feather-fan', morphs: {} },
     claws: { partId: 'mitten-none', morphs: {} },
     crest: { partId: 'feather-tuft', morphs: {} },
+    wings: { partId: 'wing-round', morphs: {} },
   },
 }
 
