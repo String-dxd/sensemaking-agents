@@ -19,6 +19,12 @@ export const PATTERN_REGISTRY = {
   'pattern-robin': { label: 'Robin', masks: { bird: tex('body-bird.pattern-robin.mask.png') } },
   'pattern-owl': { label: 'Owl', masks: { bird: tex('body-bird.pattern-owl.mask.png') } },
   'pattern-duckling': { label: 'Duckling', masks: { bird: tex('body-bird.pattern-duckling.mask.png') } },
+  // Plan 019 bird set — rasterizer-resolved (no baked PNG); `masks` empty so
+  // patternMaskUrl() returns null and getBodyMask() rasterizes the fields.
+  'pattern-penguin': { label: 'Penguin', masks: {} },
+  'pattern-eagle': { label: 'Eagle', masks: {} },
+  'pattern-chicken': { label: 'Chicken', masks: {} },
+  'pattern-peacock': { label: 'Peacock', masks: {} },
   'pattern-shiba': {
     label: 'Shiba points',
     masks: { 'biped-round': tex('body-biped-round.pattern-shiba.mask.png') },
