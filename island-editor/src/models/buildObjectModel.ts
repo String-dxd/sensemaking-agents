@@ -143,9 +143,21 @@ function addSunTip(
   parts.push(tip)
 }
 
+/** One rounded, lumpy, leaf-textured canopy block, nudged by a small seeded
+ *  jitter and spun. Consumes a FIXED count of rand() (lumpy salt, tint jitter,
+ *  3 position jitters, spin) so the caller's rand() order stays deterministic. */
+function leafBlock(rand: Rand, x: number, y: number, z: number, r: number): THREE.Mesh {
+  const g = new THREE.IcosahedronGeometry(r, 1)
+  lumpy(g, rand, 0.12 * r)
+  const m = new THREE.Mesh(g, tinted(LEAF, rand))
+  m.position.set(x + (rand() - 0.5) * 0.05, y + (rand() - 0.5) * 0.05, z + (rand() - 0.5) * 0.05)
+  m.rotation.y = rand() * Math.PI
+  return m
+}
+
 // An AC apple tree: a two-segment chunky trunk with a squashed root flare, under
-// one big fluffy cloud canopy — a central puff plus a few smaller bumps, each
-// wearing a sun-tip highlight — with a scatter of bright apples in the leaves.
+// a full, dense round canopy built as a tiered stack of rounded lumpy leaf
+// blocks (interlocking rings), sun-tipped on top and scattered with apples.
 function fruitTree(rand: Rand): THREE.Object3D[] {
   const parts: THREE.Object3D[] = []
 
@@ -165,37 +177,71 @@ function fruitTree(rand: Rand): THREE.Object3D[] {
   upper.rotation.z = (rand() - 0.5) * 0.15
   parts.push(upper)
 
-  const coreY = 0.95
-  // Central puff, then bumps clustered around/above it for a cloud silhouette.
-  const core = blob(0.5, tinted(LEAF, rand))
-  core.position.y = coreY
-  core.rotation.y = rand() * Math.PI
-  parts.push(core)
-  addSunTip(parts, { x: 0, y: coreY, z: 0 }, 0.5, LEAF, rand)
+  // Foliage lives in a named 'canopy' sub-group pivoted at the trunk top, so the
+  // render layer can sway the whole crown (wind) without moving the trunk. All
+  // foliage positions below are canopy-LOCAL (world y − CANOPY_PIVOT_Y).
+  const CANOPY_PIVOT_Y = 0.72
+  const canopy = new THREE.Group()
+  canopy.name = 'canopy'
+  canopy.position.y = CANOPY_PIVOT_Y
+  const foliage: THREE.Object3D[] = []
 
-  const bumpCount = 3 + Math.floor(rand() * 2) // 3 or 4
-  for (let i = 0; i < bumpCount; i++) {
-    const a = (i / bumpCount) * Math.PI * 2 + rand() * 0.5
-    const r = 0.28 + rand() * 0.08
-    const bump = blob(r, tinted(LEAF, rand))
-    const bx = Math.cos(a) * 0.32
-    const by = coreY + 0.12 + rand() * 0.18
-    const bz = Math.sin(a) * 0.32
-    bump.position.set(bx, by, bz)
-    bump.rotation.y = rand() * Math.PI
-    parts.push(bump)
-    addSunTip(parts, { x: bx, y: by, z: bz }, r, LEAF, rand)
+  // Stacked tiers of rounded lumpy leaf blocks piled into one full round mass;
+  // rings are offset half a step so the blocks interlock and read solid, not
+  // sparse. mid + upper lobes are remembered so apples can hang off them.
+  type Lobe = { x: number; y: number; z: number; r: number }
+
+  // Base tier: a center block ringed by 5 (widest, seats on the trunk top).
+  foliage.push(leafBlock(rand, 0, 0.2, 0, 0.34))
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2
+    foliage.push(leafBlock(rand, Math.cos(a) * 0.34, 0.2, Math.sin(a) * 0.34, 0.3))
   }
 
+  // Mid tier: ring of 5, rotated half a step so it sits in the base ring's gaps.
+  const mid: Lobe[] = []
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + Math.PI / 5
+    const x = Math.cos(a) * 0.28
+    const z = Math.sin(a) * 0.28
+    foliage.push(leafBlock(rand, x, 0.48, z, 0.27))
+    mid.push({ x, y: 0.48, z, r: 0.27 })
+  }
+
+  // Upper tier: tighter ring of 4.
+  const upperTier: Lobe[] = []
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4
+    const x = Math.cos(a) * 0.18
+    const z = Math.sin(a) * 0.18
+    foliage.push(leafBlock(rand, x, 0.74, z, 0.23))
+    upperTier.push({ x, y: 0.74, z, r: 0.23 })
+  }
+
+  // Cap block closes the top.
+  foliage.push(leafBlock(rand, 0, 0.96, 0, 0.21))
+
+  // Sun-kissed highlights: the cap + three upper/outer blocks (fixed count).
+  addSunTip(foliage, { x: 0, y: 0.96, z: 0 }, 0.21, LEAF, rand)
+  for (let i = 0; i < 3; i++) addSunTip(foliage, upperTier[i], upperTier[i].r, LEAF, rand)
+
+  // Apples nestled on the outer surface of the mid + upper tiers.
+  const hangLobes = [...mid, ...upperTier]
   const appleCount = 3 + Math.floor(rand() * 3) // 3..5
   for (let i = 0; i < appleCount; i++) {
+    const base = hangLobes[Math.floor(rand() * hangLobes.length)]
     const theta = rand() * Math.PI * 2
-    const y = rand() * 2 - 1
-    const rxy = Math.sqrt(Math.max(0, 1 - y * y))
     const apple = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), soft(APPLE))
-    apple.position.set(rxy * Math.cos(theta) * 0.46, coreY + y * 0.42, rxy * Math.sin(theta) * 0.46)
-    parts.push(apple)
+    apple.position.set(
+      base.x + Math.cos(theta) * base.r * 0.85,
+      base.y - base.r * 0.2,
+      base.z + Math.sin(theta) * base.r * 0.85,
+    )
+    foliage.push(apple)
   }
+
+  for (const f of foliage) canopy.add(f)
+  parts.push(canopy)
 
   return parts
 }

@@ -86,4 +86,10 @@ describe('buildObjectModel', () => {
       expect(a).toEqual(b)
     }
   })
+
+  it("fruitTree exposes a named 'canopy' group (the render-layer wind hook finds it)", () => {
+    const canopy = buildObjectModel('fruitTree', 7).getObjectByName('canopy')
+    expect(canopy).toBeInstanceOf(THREE.Group)
+    expect((canopy as THREE.Group).children.length).toBeGreaterThan(0)
+  })
 })
