@@ -102,8 +102,8 @@ executor subagents; two modify the shipping engine / reopen removed surface and 
 |------|-------|----------|--------|------|-----------|--------|
 | [2026-06-19-001](2026-06-19-001-perf-island-spec-sparse-relief-encoding.md) | Sparse relief encoding (v2, serialization-only) | P3 | M | MED | QUAL-05 | DONE — merged via #75 (relief later retired to legacy/ by the #76 rewrite) |
 | [2026-06-19-002](2026-06-19-002-feat-island-editor-agent-ops-runner-cli.md) | Agent op-runner (`applyOps`) + CLI | P2 | M | LOW | REMAIN-03 (opt a) | DONE — merged via #75 |
-| [2026-06-19-003](2026-06-19-003-feat-island-editor-engine-terrain-binding.md) | Wire IslandSpec into the engine (silhouette-first) | P3 | L | MED–HIGH | REMAIN-01 (+ REMAIN-03 opt c) | DECISION REQUIRED |
-| [2026-06-19-004](2026-06-19-004-feat-island-editor-placement-species-gui.md) | Placement + species-palette GUI | P3 | L | MED | REMAIN-02 | DECISION REQUIRED |
+| [2026-06-19-003](2026-06-19-003-feat-island-editor-engine-terrain-binding.md) | Wire IslandSpec into the engine (silhouette-first) | P3 | L | MED–HIGH | REMAIN-01 (+ REMAIN-03 opt c) | REJECTED 2026-07-08 — superseded by the #76 tile-grid rewrite (coastline model now legacy/); goal valid but needs a fresh plan + ambient rebuild first |
+| [2026-06-19-004](2026-06-19-004-feat-island-editor-placement-species-gui.md) | Placement + species-palette GUI | P3 | L | MED | REMAIN-02 | DEFERRED 2026-07-08 — real gap, low value; #79 didn't resolve it (different object model); if revived, Option B |
 
 Sequencing: 001 first (gives 002 and 003 the final v2 format to build against) → 002 (CLI runner; reuses
 001's serializer) → 003 (engine consumption; unblocks REMAIN-03 option c) → 004 (independent; needs the
