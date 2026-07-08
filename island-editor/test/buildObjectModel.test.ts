@@ -53,4 +53,37 @@ describe('buildObjectModel', () => {
       expect(Math.abs(box.max.z)).toBeLessThan(1.2)
     }
   })
+
+  it('builds every material without throwing; each map is null (node) or a Texture', () => {
+    // In vitest/node there is no DOM, so the texture guard resolves to a null
+    // map (three warns + leaves map = null); in the browser it is a Texture.
+    // Either way the guard must not throw and every material must be well-formed.
+    for (const kind of OBJECT_KINDS) {
+      const group = buildObjectModel(kind, 7)
+      group.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return
+        const mats = Array.isArray(o.material) ? o.material : [o.material]
+        for (const m of mats) {
+          expect(m).toBeInstanceOf(THREE.MeshStandardMaterial)
+          const map = (m as THREE.MeshStandardMaterial).map
+          expect(map === null || map instanceof THREE.Texture).toBe(true)
+        }
+      })
+    }
+  })
+
+  it('is fully deterministic: every descendant position is identical across two builds (seed 7)', () => {
+    // Stronger than the first-child check: serializes the whole transform tree,
+    // so any non-seeded entropy (e.g. Math.random sneaking into `lumpy`) fails.
+    const positions = (root: THREE.Object3D): number[][] => {
+      const out: number[][] = []
+      root.traverse((o) => out.push([o.position.x, o.position.y, o.position.z]))
+      return out
+    }
+    for (const kind of OBJECT_KINDS) {
+      const a = positions(buildObjectModel(kind, 7))
+      const b = positions(buildObjectModel(kind, 7))
+      expect(a).toEqual(b)
+    }
+  })
 })
