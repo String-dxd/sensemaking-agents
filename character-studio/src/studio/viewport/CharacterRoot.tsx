@@ -30,8 +30,8 @@ import {
   applyPalette,
   applyTextureId,
   defaultTextureResolver,
+  getBodyMask,
   getOutline,
-  patternMaskUrl,
   removeOutline,
   resolvesAuthored,
   type ResolvedTextures,
@@ -161,44 +161,39 @@ export function CharacterRoot() {
   const [itemScenes, setItemScenes] = useState<Record<string, THREE.Object3D>>({})
 
   const bodyTextureId = materialsSpec.body?.textureId
-  const maskEntries = useMemo(() => {
-    // plan 010: a body pattern (species preset) swaps the body mask for its
-    // baked variant; falls back to the plain authored mask otherwise.
-    const bodyMaskUrl = patternMaskUrl(bodyTextureId, archetype) ?? body.maskUrl
-    const entries: Array<{ region: Region; url: string }> = [{ region: 'body', url: bodyMaskUrl }]
-    for (const { def } of equipped) if (def.maskUrl) entries.push({ region: def.region, url: def.maskUrl })
-    return entries
-  }, [body, equipped, bodyTextureId, archetype])
+  // Plan 019: the body mask is a UV-aligned DataTexture rasterized from the
+  // body's per-vertex channels (plain 'authored') or a species pattern field —
+  // NOT a baked PNG. Parts keep the per-vertex channel path (their baked PNGs
+  // were unwrapped for the retired GLBs), so no part masks are sourced here.
+  const bodyMask = useMemo(
+    () => getBodyMask(bodyTextureId ?? 'authored', archetype).dataTexture,
+    [bodyTextureId, archetype],
+  )
   const itemMaskEntries = useMemo(
     () => wornResolved.flatMap((i) => (i.def.maskUrl ? [{ itemId: i.itemId, url: i.def.maskUrl }] : [])),
     [wornResolved],
   )
 
-  // one call: region masks first, item masks after (the list is never empty)
-  const maskTextures = useTexture([...maskEntries.map((e) => e.url), ...itemMaskEntries.map((e) => e.url)])
+  // Wardrobe items still carry baked PNG masks (until plan 016); useTexture
+  // needs a non-empty list, so fall back to the body PNG (result dropped) when
+  // nothing is worn.
+  const itemMaskUrls = useMemo(() => itemMaskEntries.map((e) => e.url), [itemMaskEntries])
+  const maskTextures = useTexture(itemMaskUrls.length > 0 ? itemMaskUrls : [body.maskUrl])
+
+  const texturesByRegion = useMemo<Partial<Record<Region, ResolvedTextures>>>(
+    () => ({ body: { map: null, maskMap: bodyMask } }),
+    [bodyMask],
+  )
 
   // --- assembly ---------------------------------------------------------------
   const assembled = useMemo(() => {
-    for (const texture of maskTextures) configureMask(texture)
-    const texturesByRegion: Partial<Record<Region, ResolvedTextures>> = {}
-    maskEntries.forEach(({ region }, i) => {
-      texturesByRegion[region] ??= { map: null, maskMap: maskTextures[i] }
-    })
     const spec = useCharacterStore.getState().spec
     return assembleCharacter(spec, PART_REGISTRY, {
       bodyScene,
       partScenes,
       texturesByRegion,
     })
-  }, [bodyScene, partScenes, maskTextures, maskEntries])
-
-  const texturesByRegion = useMemo(() => {
-    const map: Partial<Record<Region, ResolvedTextures>> = {}
-    maskEntries.forEach(({ region }, i) => {
-      map[region] ??= { map: null, maskMap: maskTextures[i] }
-    })
-    return map
-  }, [maskEntries, maskTextures])
+  }, [bodyScene, partScenes, texturesByRegion])
 
   // dispose REPLACED assemblies (not the live one — StrictMode re-runs
   // effect cleanups without re-attaching the primitive), and report renderer
@@ -233,7 +228,9 @@ export function CharacterRoot() {
     const spec = useCharacterStore.getState().spec
     const itemTextures: NonNullable<WardrobeAssets['itemTextures']> = {}
     itemMaskEntries.forEach(({ itemId }, j) => {
-      itemTextures[itemId] = { map: null, maskMap: maskTextures[maskEntries.length + j] }
+      const texture = maskTextures[j]
+      if (texture) configureMask(texture)
+      itemTextures[itemId] = { map: null, maskMap: texture }
     })
     const result = applyWardrobe(assembled, spec.wardrobe, WARDROBE_REGISTRY, { itemScenes, itemTextures }, {
       archetype: spec.meta.archetype,
@@ -247,7 +244,7 @@ export function CharacterRoot() {
       result.undress()
       setDressed(null)
     }
-  }, [assembled, itemScenes, itemsReady, maskTextures, maskEntries, itemMaskEntries, wornResolved])
+  }, [assembled, itemScenes, itemsReady, maskTextures, itemMaskEntries, wornResolved])
 
   // --- sculpt session (plan 009): targets + weld topologies per assembly ------
   useEffect(() => {

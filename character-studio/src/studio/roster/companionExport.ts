@@ -12,6 +12,7 @@ import { WebIO } from '@gltf-transform/core'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { resolveAtlasUrls } from '../../core/face/atlasRegistry'
 import { type CompileAssets, type CompileStats, compileCharacter } from '../../core/export'
+import { getBodyMask } from '../../core/materials'
 import { buildBodyScene } from '../../core/procgen/buildBody'
 import { BODY_REGISTRY, getPart } from '../../core/skeleton/partRegistry'
 import type { CharacterSpec, PartSlot, Region } from '../../core/spec/schema'
@@ -37,11 +38,10 @@ export async function loadBrowserAssets(spec: CharacterSpec): Promise<CompileAss
 
   const partScenes: CompileAssets['partScenes'] = {}
   const maskPngsByRegion: Partial<Record<Region, Uint8Array>> = {}
-  await fetchBytes(body.maskUrl)
-    .then((b) => {
-      maskPngsByRegion.body = b
-    })
-    .catch(() => {})
+  // Plan 019: the body mask is rasterized from the body's channels (plain
+  // 'authored') or a species pattern field — UV-aligned, replacing the baked
+  // body PNG. Part masks stay on their baked PNGs (plan 015 step 5 removes them).
+  maskPngsByRegion.body = getBodyMask(spec.materials.body?.textureId ?? 'authored', spec.meta.archetype).pngBytes()
   for (const [slot, entry] of Object.entries(spec.anatomy.parts)) {
     if (!entry) continue
     const def = getPart(entry.partId)

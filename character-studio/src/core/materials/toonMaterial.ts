@@ -319,17 +319,22 @@ export function applyPalette(material: ToonMaterial, palette: Palette): void {
  * define set, so three's program cache dedupes correctly across materials.
  */
 export function applyTextureId(material: ToonMaterial, assign: MaterialAssign, palette: Palette, resolveTexture: TextureResolver = defaultTextureResolver): void {
-  // Vertex-channel materials own their palette weights — textureId swaps
-  // must not re-enable the (UV-mismatched) mask path on procedural meshes.
-  if (material.userData.toonDefines.paletteVertex) return
   const textures = resolveTexture(assign.textureId ?? 'none')
   const wantMask = textures.maskMap !== null
+  const defines = material.userData.toonDefines
+  // Vertex-channel materials own their palette weights — a bare textureId swap
+  // must not re-enable the (UV-mismatched) baked-PNG path. BUT plan 019 supplies
+  // a UV-aligned RASTERIZED mask for the body: when a mask is present, prefer it
+  // and flip paletteVertex→paletteMask; with no mask, keep the vertex path.
+  if (defines.paletteVertex && !wantMask) return
   material.userData.toonUniforms.uMaskMap.value = textures.maskMap
   material.map = textures.map ?? getWhiteTexture()
-  if (wantMask !== material.userData.toonDefines.paletteMask) {
-    material.userData.toonDefines.paletteMask = wantMask
+  const nextVertex = (defines.paletteVertex ?? false) && !wantMask
+  if (wantMask !== defines.paletteMask || nextVertex !== (defines.paletteVertex ?? false)) {
+    defines.paletteMask = wantMask
+    defines.paletteVertex = nextVertex
     syncToonDefines(material)
-    if (wantMask) material.color.setRGB(1, 1, 1)
+    if (wantMask || nextVertex) material.color.setRGB(1, 1, 1)
     else material.color.setRGB(...hexToLinear(palette.primary), THREE.LinearSRGBColorSpace)
     material.needsUpdate = true
   }
