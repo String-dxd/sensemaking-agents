@@ -1,7 +1,7 @@
 import { useTexture } from '@react-three/drei'
 import { Suspense, useEffect } from 'react'
 import { create } from 'zustand'
-import { resolveAtlasUrls } from '../../core/face/atlasRegistry'
+import { resolveAtlasUrls, resolveFaceAtlasId } from '../../core/face/atlasRegistry'
 import {
   type CanvasSourceLike,
   createFaceCompositor,
@@ -30,10 +30,14 @@ export interface FaceRigProps {
 }
 
 function FaceRigInner({ bodyMaterial, placement, hideMouth = false }: FaceRigProps) {
-  // Personality-authored atlas set (plan 006 step 3b): the spec's atlasId
-  // picks the registered 관상 variant; unknown ids fall back to face-v1.
-  const atlasId = useCharacterStore((s) => s.spec.face.atlasId)
-  const urls = resolveAtlasUrls(atlasId)
+  // Class-aware atlas set (plan 006 step 3b + plan 022): personality picks the
+  // 관상 variant; bird archetypes swap to the AC bird-eye set (big glossy
+  // ovals) derived from archetype + personality. Mammals keep the spec's
+  // stored atlasId. Unknown ids fall back to face-v1 in resolveAtlasUrls.
+  const archetype = useCharacterStore((s) => s.spec.meta.archetype)
+  const personality = useCharacterStore((s) => s.spec.meta.personality)
+  const storedAtlasId = useCharacterStore((s) => s.spec.face.atlasId)
+  const urls = resolveAtlasUrls(resolveFaceAtlasId(archetype, personality, storedAtlasId))
   const [eye, pupil, brow, mouth] = useTexture([urls.eye, urls.pupil, urls.brow, urls.mouth])
 
   useEffect(() => {

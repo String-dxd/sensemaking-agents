@@ -10,7 +10,7 @@
 
 import { WebIO } from '@gltf-transform/core'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { resolveAtlasUrls } from '../../core/face/atlasRegistry'
+import { resolveAtlasUrls, resolveFaceAtlasId } from '../../core/face/atlasRegistry'
 import { type CompileAssets, type CompileStats, compileCharacter } from '../../core/export'
 import { getBodyMask } from '../../core/materials'
 import { buildBodyScene } from '../../core/procgen/buildBody'
@@ -65,7 +65,7 @@ export async function loadBrowserAssets(spec: CharacterSpec): Promise<CompileAss
 
   const clipsDocument = await new WebIO().readBinary(await fetchBytes(CLIPS_URL))
 
-  const atlas = resolveAtlasUrls(spec.face.atlasId)
+  const atlas = resolveAtlasUrls(resolveFaceAtlasId(spec.meta.archetype, spec.meta.personality, spec.face.atlasId))
   const atlasPngs = {
     eye: await fetchBytes(atlas.eye),
     pupil: await fetchBytes(atlas.pupil),

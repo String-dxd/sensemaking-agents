@@ -325,6 +325,15 @@ interface FaceStyle {
   browArch: number
   /** Neutral-cell mouth character. */
   mouth: 'neutral' | 'softSmile' | 'openGrin' | 'pursedSide' | 'flatDown' | 'smirk'
+  /**
+   * Bird-class transform applied (plan 022). When set, the eye art thickens
+   * its outline and the pupil art switches to the AC-bird painter (big dark
+   * pupil, single upper-left catchlight). Composable over any personality —
+   * the eye/pupil enlargement is baked into `eye`/pupil handling, lids + lash
+   * + brows keep their personality character. Mouths are untouched (beaks
+   * hide the mouth).
+   */
+  bird?: boolean
 }
 
 const V1: FaceStyle = {
@@ -449,6 +458,31 @@ const PERSONALITY_STYLES: FaceStyle[] = [
 ]
 
 // ---------------------------------------------------------------------------
+// Bird-class transform (plan 022). AC bird villagers wear the SAME 관상
+// grammar as mammals but with a bigger, glossier eye: a large vertical oval
+// white flanking the beak, a bold outline, and a big near-black pupil with a
+// single catchlight. This is a COMPOSABLE transform over any personality's
+// FaceStyle — it enlarges the eye toward a vertical oval (w:h ≈ 0.82), flags
+// the eye/pupil art into their bird paths, and thins the brow a touch. Lids
+// (proud half-lid), lash, upturn and mouth character all pass through.
+// ---------------------------------------------------------------------------
+
+// Eye-white multipliers stacked on top of the personality's own `eye` scale.
+// Base openEye is 52×66 (rx×ry); ×[1.23, 1.18] → ≈64×78 for the neutral bird
+// (full height ≈156px ≈0.61 of the 256 cell; w:h ≈0.82 vertical oval).
+const BIRD_EYE_MUL: readonly [number, number] = [1.23, 1.18]
+
+function birdify(s: FaceStyle): FaceStyle {
+  const [sx, sy] = s.eye
+  return {
+    ...s,
+    dir: s.dir ? `bird-${s.dir}` : 'bird',
+    eye: [sx * BIRD_EYE_MUL[0], sy * BIRD_EYE_MUL[1]],
+    bird: true,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Cell art, style-driven. All authored at 256px, center ~(128,128), y-up.
 // Eye art is authored for the eye whose OUTER corner points toward -x
 // (the viewer-left eye); the rig mirrors U for the other eye.
@@ -458,8 +492,11 @@ const OUT_W = 14 // base outline stroke width
 const LINE_W = 16 // base drawn-line stroke width (closed lids, happy arcs)
 
 function buildEyeArt(s: FaceStyle): Map<string, CellPainter> {
-  const outW = OUT_W * s.stroke
-  const lineW = LINE_W * s.stroke
+  // Bird eyes carry a bolder outline (~1.5×) than the mammal-tuned art — the
+  // thick AC bird eye ring — without touching brow/mouth stroke weight.
+  const eyeStroke = s.bird ? 1.5 : 1
+  const outW = OUT_W * s.stroke * eyeStroke
+  const lineW = LINE_W * s.stroke * eyeStroke
   const [sx, sy] = s.eye
 
   /** Aperture treatment shared by every eye-white cell. */
@@ -580,7 +617,9 @@ function buildMouthArt(s: FaceStyle): Map<string, CellPainter> {
 }
 
 function buildBrowArt(s: FaceStyle): Map<string, CellPainter> {
-  const w = 19 * s.brow
+  // Birds keep drawn brows (AC birds have them) but slightly thinner so they
+  // don't fight the now-bigger eye.
+  const w = 19 * s.brow * (s.bird ? 0.85 : 1)
   const lift = s.browLift
   const angle = s.browAngle // inner (+x) end drop
   // brows: outer end toward -x (mirrored for the other side)
@@ -603,6 +642,33 @@ function buildBrowArt(s: FaceStyle): Map<string, CellPainter> {
 }
 
 function buildPupilArt(s: FaceStyle): Map<string, CellPainter> {
+  if (s.bird) {
+    // AC bird pupil: big near-black pupil filling ~60% of the eye-white (big
+    // cell ~70%), a thin colored iris ring showing at top/bottom of the tall
+    // white, and ONE crisp catchlight upper-left (~12% of pupil width). The
+    // personality's pupil scale modulates size gently (all birds stay
+    // AC-big). Radii keep ≥24px clear of the 256px cell edge for gaze.
+    const k = Math.max(0.85, Math.min(1.2, 1 + (s.pupil - 1) * 0.5))
+    const birdPupil = (irisR: number, pupilR: number, extraSparkle = false): CellPainter => {
+      const iR = irisR * k
+      const pR = pupilR * k
+      const catchR = Math.max(4, pR * 0.12)
+      const painters: CellPainter = [
+        { sdf: circle(128, 128, iR), color: IRIS },
+        { sdf: circle(128, 124, pR), color: PUPIL },
+        { sdf: circle(128 - pR * 0.42, 124 + pR * 0.46, catchR), color: WHITE },
+      ]
+      if (extraSparkle) painters.push({ sdf: circle(128 + pR * 0.4, 128 + pR * 0.5, Math.max(3, catchR * 0.6)), color: WHITE })
+      return painters
+    }
+    return new Map<string, CellPainter>([
+      ['round', birdPupil(60, 48, s.sparkle)],
+      ['big', birdPupil(72, 58, s.sparkle)],
+      ['small', birdPupil(44, 34)],
+      ['sparkle', birdPupil(60, 48, true)],
+    ])
+  }
+
   function pupil(irisR: number, pupilR: number, lightR: number, extraSparkle = false): CellPainter {
     const iR = irisR * s.pupil
     const pR = pupilR * s.pupil
@@ -671,5 +737,11 @@ function writeAtlasSet(style: FaceStyle): void {
   }
 }
 
+// Mammal sets (face-v1 + per-personality).
 writeAtlasSet(V1)
 for (const style of PERSONALITY_STYLES) writeAtlasSet(style)
+
+// Bird sets (plan 022): neutral face-bird-v1 + per-personality, one birdify
+// transform each. Emitted in the same run so mammal + bird stay in sync.
+writeAtlasSet(birdify(V1))
+for (const style of PERSONALITY_STYLES) writeAtlasSet(birdify(style))

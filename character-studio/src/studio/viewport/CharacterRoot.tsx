@@ -65,6 +65,7 @@ import { createSculptSession, finalizeSculptVisuals, useSculptStore } from '../s
 import { FALLBACK_ASSIGN, useMotionStudio, useToonStudio } from '../state/studioStores'
 import { usePlayStore } from '../play/playStore'
 import { createBodyMover } from './bodyMover'
+import { BIRD_PLACEMENT } from '../../core/face/faceComposite'
 import { FaceRig } from './FaceRig'
 
 const IDLE_SEED = 20260702
@@ -480,7 +481,11 @@ export function CharacterRoot() {
       <Fragment key={assembled.root.uuid}>
         <primitive object={assembled.root} />
         {assembled.regionMaterials.body && (
-          <FaceRig bodyMaterial={assembled.regionMaterials.body} hideMouth={assembled.hideMouth} />
+          <FaceRig
+            bodyMaterial={assembled.regionMaterials.body}
+            hideMouth={assembled.hideMouth}
+            placement={archetype === 'bird' ? BIRD_PLACEMENT : undefined}
+          />
         )}
       </Fragment>
     </Fragment>
