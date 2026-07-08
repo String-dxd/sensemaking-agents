@@ -105,10 +105,17 @@ export interface RasterResult {
   pngBytes(): Uint8Array
 }
 
-/** The UV atlas as an ordered [name, rect] list — island index = array index. */
-const ISLANDS: ReadonlyArray<readonly [string, UvRect]> = Object.entries(UV_ATLAS)
+/**
+ * The UV atlas as an ordered [name, rect] list — island index = array index.
+ * `UV_ATLAS` rects are in Blender (bottom-up) v-space, but the geometry's UVs
+ * are the glTF EXPORT flip (`islandUv` returns `1 − v_blender`, see kit/uv.ts),
+ * so the rects are flipped here once: gltf v-range = [1−v1, 1−v0].
+ */
+const ISLANDS: ReadonlyArray<readonly [string, UvRect]> = Object.entries(UV_ATLAS).map(
+  ([name, [u0, v0, u1, v1]]) => [name, [u0, 1 - v1, u1, 1 - v0] as const] as const,
+)
 
-/** Island index containing UV (u,v), or -1 in a gutter. */
+/** Island index containing a glTF-space UV (u,v), or -1 in a gutter. */
 function islandAt(u: number, v: number): number {
   for (let k = 0; k < ISLANDS.length; k++) {
     const [, [u0, v0, u1, v1]] = ISLANDS[k]
@@ -124,9 +131,11 @@ const EPS = 0.001
  * image, then island-aware 4px edge dilation, then an island-aware 2px blur.
  * Deterministic: pure float math in a fixed iteration order.
  *
- * Pixel mapping matches faceComposite.ts exactly (`px = u·size`,
- * `py = (1−v)·size`, row 0 = top), so a DataTexture / CanvasTexture / loaded
- * PNG built from this buffer all align to the body UVs under `flipY=false`.
+ * Pixel mapping: `px = u·size`, `py = v·size` (row 0 = top). The input UVs are
+ * the geometry's — ALREADY glTF-flipped (v points down, head TOP pole at v=0;
+ * kit/uv.ts) — and `flipY=false` uploads row 0 at texture v=0, so glTF v maps
+ * to rows DIRECTLY, no extra flip. (faceComposite's `y = (1−v)·size` applies
+ * the same flip once, to Blender-space rect coords — equivalent convention.)
  */
 export function rasterizeChannels(input: RasterInput, size: number, createCanvas: CanvasFactory = domCreateCanvas): RasterResult {
   const { uv, indices, channels } = input
@@ -141,14 +150,14 @@ export function rasterizeChannels(input: RasterInput, size: number, createCanvas
   // centre falls in, so the blur never crosses a rect boundary.
   const island = new Int16Array(px)
   for (let y = 0; y < size; y++) {
-    const v = 1 - (y + 0.5) / size
+    const v = (y + 0.5) / size
     for (let x = 0; x < size; x++) {
       const u = (x + 0.5) / size
       island[y * size + x] = islandAt(u, v)
     }
   }
 
-  const toPx = (i: number): [number, number] => [uv[i * 2] * size, (1 - uv[i * 2 + 1]) * size]
+  const toPx = (i: number): [number, number] => [uv[i * 2] * size, uv[i * 2 + 1] * size]
 
   // --- triangle fill (later triangles overwrite earlier) --------------------
   // Skip triangles that don't live inside ONE UV island: bridge triangles
@@ -454,9 +463,12 @@ export const PATTERN_FIELDS: Record<string, PatternField> = {
     const { cy, ry, rx } = ctx.torso
     const rxS = Math.max(rx, 1e-9)
     // Breast bib: saturated front ellipse, crisper edge than the 013 default.
+    // Center lowered + radii enlarged (revision 1): on the chibi body the
+    // head-chin overlap hides the upper chest, so `cy + 0.15·ry` sat mostly
+    // out of view — the bib must land on the visible chest between the wings.
     eachTorso(ctx, (i, x, y, z) => {
-      const du = x / (1.05 * rx)
-      const dv = (y - (cy + 0.15 * ry)) / (0.62 * ry)
+      const du = x / (1.0 * rx)
+      const dv = (y - (cy - 0.05 * ry)) / (0.75 * ry)
       const front = smoothstep(0.0, 0.3, z / rxS)
       setCh(ctx, i, CH_BELLY, (1 - smoothstep(0.85, 1.05, Math.hypot(du, dv))) * front * 1.0)
     })
@@ -483,13 +495,16 @@ export const PATTERN_FIELDS: Record<string, PatternField> = {
       maxCh(ctx, i, CH_SECONDARY, smoothstep(0.35, 0.6, dy) * front * 0.9)
     })
     // Chest argyle: BELLY diamonds, SECONDARY in the negative cells.
+    // Revision 1: coarser lattice (~3.5–4 diamonds across the chest — 5 was
+    // too fine at this body size) and negative-cell weight 0.35 → 0.55 so
+    // the beige-on-cream lattice reads at normal viewport zoom.
     eachTorso(ctx, (i, x, y, z) => {
       const front = smoothstep(0.0, 0.35, z / rxS)
-      const u = (x / rx) * 2.5
-      const v = ((y - cy) / ry) * 2.5
+      const u = (x / rx) * 1.9
+      const v = ((y - cy) / ry) * 1.9
       const diamond = argyle(u, v)
       setCh(ctx, i, CH_BELLY, front * diamond * 0.9)
-      maxCh(ctx, i, CH_SECONDARY, front * (1 - diamond) * 0.35)
+      maxCh(ctx, i, CH_SECONDARY, front * (1 - diamond) * 0.55)
     })
     return ctx.out
   },
@@ -700,7 +715,7 @@ export function resolvePatternChannels(textureId: string, body: ProcBodyData): F
 
 // --- body-mask resolution (memoized) -----------------------------------------
 
-const MASK_VERSION = 1 // bump to invalidate all cached masks on a raster change
+const MASK_VERSION = 2 // bump to invalidate all cached masks on a raster change
 const bodyDataCache = new Map<Archetype, ProcBodyData>()
 const maskCache = new Map<string, RasterResult>()
 

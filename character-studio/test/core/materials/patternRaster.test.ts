@@ -21,10 +21,12 @@ const napiFactory = (w: number, h: number) => createCanvas(w, h) as unknown as C
 
 const CH = { primary: 0, secondary: 1, belly: 2, accent: 3 } as const
 
-/** Nearest-pixel sample of a rasterized byte buffer at UV (u,v). */
+/** Nearest-pixel sample of a rasterized byte buffer at a glTF-space UV (u,v).
+ * Row = v·size: glTF v points down, and flipY=false uploads row 0 at v=0
+ * (verified against the live viewport — head TOP pole uv.v=0 samples row 0). */
 function sample(bytes: Uint8Array | Uint8ClampedArray, size: number, u: number, v: number): [number, number, number, number] {
   const x = Math.min(size - 1, Math.max(0, Math.round(u * size)))
-  const y = Math.min(size - 1, Math.max(0, Math.round((1 - v) * size)))
+  const y = Math.min(size - 1, Math.max(0, Math.round(v * size)))
   const p = (y * size + x) * 4
   return [bytes[p], bytes[p + 1], bytes[p + 2], bytes[p + 3]]
 }
@@ -99,10 +101,13 @@ describe('rasterizeChannels', () => {
   it('island-aware blur does not bleed one UV island into a neighbour (seam fix)', () => {
     // Two touching islands tiled with small quads (realistic triangle size):
     // head rect painted SECONDARY, torso rect BELLY. They share the u=0.55 edge.
+    // UV_ATLAS rects are Blender-space; geometry UVs are glTF-flipped, so tile
+    // in the flipped rect (like islandUv does).
     const uvs: number[] = []
     const chans: number[] = []
     const idx: number[] = []
-    const tileRect = (rect: readonly [number, number, number, number], ch: number, n = 8) => {
+    const tileRect = (blenderRect: readonly [number, number, number, number], ch: number, n = 8) => {
+      const rect = [blenderRect[0], 1 - blenderRect[3], blenderRect[2], 1 - blenderRect[1]] as const
       const [u0, v0, u1, v1] = rect
       for (let r = 0; r < n; r++) {
         for (let c = 0; c < n; c++) {
@@ -129,11 +134,12 @@ describe('rasterizeChannels', () => {
     const bytes = rasterizeChannels({ uv, indices, channels }, s).toDataTexture().image.data as Uint8Array
 
     // Torso interior just past the shared u=0.55 boundary: belly, NO head bleed.
-    const [, tSec, tBelly] = sample(bytes, s, 0.57, 0.7)
+    // (glTF-space head/torso islands span v∈[0,0.55]; probe mid-island.)
+    const [, tSec, tBelly] = sample(bytes, s, 0.57, 0.3)
     expect(tBelly).toBeGreaterThan(200)
     expect(tSec).toBeLessThan(30)
     // Head interior just before the boundary: secondary, NO torso bleed.
-    const [, hSec, hBelly] = sample(bytes, s, 0.53, 0.7)
+    const [, hSec, hBelly] = sample(bytes, s, 0.53, 0.3)
     expect(hSec).toBeGreaterThan(200)
     expect(hBelly).toBeLessThan(30)
   })
