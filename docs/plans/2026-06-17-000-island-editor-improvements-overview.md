@@ -1,7 +1,7 @@
 ---
 title: Island editor improvements — overview & plan index
 type: overview
-status: proposed
+status: reconciled 2026-07-08 — every plan below has shipped to main (001–005 via 023eb2d3; phase-2 001/002 via #75); 003/004 remain DECISION-gated
 date: 2026-06-17
 written_against_commit: b6dc287d
 ---
@@ -100,8 +100,8 @@ executor subagents; two modify the shipping engine / reopen removed surface and 
 
 | Plan | Title | Priority | Effort | Risk | Addresses | Status |
 |------|-------|----------|--------|------|-----------|--------|
-| [2026-06-19-001](2026-06-19-001-perf-island-spec-sparse-relief-encoding.md) | Sparse relief encoding (v2, serialization-only) | P3 | M | MED | QUAL-05 | TODO (dispatched) |
-| [2026-06-19-002](2026-06-19-002-feat-island-editor-agent-ops-runner-cli.md) | Agent op-runner (`applyOps`) + CLI | P2 | M | LOW | REMAIN-03 (opt a) | TODO (dispatched) |
+| [2026-06-19-001](2026-06-19-001-perf-island-spec-sparse-relief-encoding.md) | Sparse relief encoding (v2, serialization-only) | P3 | M | MED | QUAL-05 | DONE — merged via #75 (relief later retired to legacy/ by the #76 rewrite) |
+| [2026-06-19-002](2026-06-19-002-feat-island-editor-agent-ops-runner-cli.md) | Agent op-runner (`applyOps`) + CLI | P2 | M | LOW | REMAIN-03 (opt a) | DONE — merged via #75 |
 | [2026-06-19-003](2026-06-19-003-feat-island-editor-engine-terrain-binding.md) | Wire IslandSpec into the engine (silhouette-first) | P3 | L | MED–HIGH | REMAIN-01 (+ REMAIN-03 opt c) | DECISION REQUIRED |
 | [2026-06-19-004](2026-06-19-004-feat-island-editor-placement-species-gui.md) | Placement + species-palette GUI | P3 | L | MED | REMAIN-02 | DECISION REQUIRED |
 

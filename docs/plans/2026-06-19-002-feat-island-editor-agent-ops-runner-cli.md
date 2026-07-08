@@ -1,7 +1,7 @@
 ---
 title: Island editor — agent op-runner (applyOps) + CLI
 type: feat
-status: proposed
+status: done — merged via #75 (src/agent/applyOps.ts + scripts/apply-ops.mjs)
 date: 2026-06-19
 written_against_commit: dda45ec1
 initiative: 2026-06-17-000-island-editor-improvements-overview.md

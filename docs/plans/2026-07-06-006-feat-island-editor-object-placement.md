@@ -1,7 +1,7 @@
 ---
 title: Island editor — object placement (v4 spec objects layer + click-to-place / remove + ghost preview)
 type: feat
-status: done
+status: done — merged to main via #79
 date: 2026-07-06
 written_against_commit: b375cdbb
 base_branch: feat/island-editor-object-models (Plan A) — which is on top of the distributed layout / main

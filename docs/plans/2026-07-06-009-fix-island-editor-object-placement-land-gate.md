@@ -1,7 +1,7 @@
 ---
 title: Island editor — gate object placement to land (don't drop objects into the sea)
 type: fix
-status: done
+status: done — merged to main via #81
 date: 2026-07-06
 written_against_commit: b287b765
 base_branch: main

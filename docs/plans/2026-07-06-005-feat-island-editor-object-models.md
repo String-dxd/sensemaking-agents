@@ -1,7 +1,7 @@
 ---
 title: Island editor — procedural object models (trees, bush, rock) + gallery
 type: feat
-status: done
+status: done — merged to main via #79
 date: 2026-07-06
 written_against_commit: b375cdbb
 base_branch: feat/island-editor-distributed-layout (or main once that has merged)

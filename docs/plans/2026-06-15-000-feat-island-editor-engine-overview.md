@@ -1,7 +1,7 @@
 ---
 title: Island Editor Engine — initiative overview & plan index
 type: feat
-status: proposed
+status: done — shipped in #74 (data-driven island + standalone designer); terrain surfaces largely superseded by the #76 tile-grid rewrite
 date: 2026-06-15
 revised: 2026-06-15 (post design-review / grill)
 written_against_commit: 22856862

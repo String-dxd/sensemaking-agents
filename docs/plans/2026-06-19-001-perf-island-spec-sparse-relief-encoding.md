@@ -1,7 +1,7 @@
 ---
 title: Island spec — sparse relief encoding at the serialization boundary (v2 format)
 type: perf
-status: proposed
+status: done — merged via #75; relief encoding later retired to legacy/ by the #76 tile-grid rewrite
 date: 2026-06-19
 written_against_commit: dda45ec1
 initiative: 2026-06-17-000-island-editor-improvements-overview.md

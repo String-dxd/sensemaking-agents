@@ -19,6 +19,23 @@
 - **Depends on**: none
 - **Category**: direction (visual quality)
 - **Planned at**: commit `e8be34c6`, 2026-07-07
+- **Status**: DONE — executed via `improve execute` on worktree branch
+  `worktree-agent-af4c6f016f8fe9b6b` (based on `main` @ `847f64ff`; in-scope code
+  byte-identical to plan base `e8be34c6`). Two commits: `3b448663` (3 texture
+  PNGs) + `45ad84a3` (`textures.ts` + `buildObjectModel.ts` + 2 new tests).
+  **Advisor-reviewed & APPROVED**: typecheck exit 0; 128 tests green (incl. 2 new,
+  now 7 in `buildObjectModel.test.ts`); scope clean (only the 6 in-scope files);
+  no `Math.random`/`Date`; determinism + watertight `lumpy()` verified. One
+  documented plan-premise correction confirmed sound (see note below). Browser
+  visual render/tint check is **OPERATOR-PENDING** (headless executor). **Not
+  merged, not pushed — pending operator look sign-off + merge.**
+- **Executor deviation (approved)**: the plan stated `IcosahedronGeometry(r,1)`
+  is indexed so shared vertices displace together — it is **NOT** (verified in
+  three@0.171: `index === null`, 240 positions). `lumpy()` was reimplemented to
+  key displacement off the quantized vertex position (one seeded salt from the
+  passed `rand`), keeping the mesh watertight and deterministic. `flat()` was
+  removed (no remaining caller; `noUnusedLocals` would fail). Base tints lightened
+  per the plan's explicit allowance; exact values are operator-pending visual tuning.
 
 ## Why this matters
 

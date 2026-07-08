@@ -1,7 +1,7 @@
 ---
 title: Island Editor — species palette (data model, live recolor, editing UI, export)
 type: feat
-status: proposed
+status: done — merged via #74; superseded in part by the #76 tile-grid rewrite
 date: 2026-06-15
 written_against_commit: 22856862
 part_of: 2026-06-15-000-feat-island-editor-engine-overview.md

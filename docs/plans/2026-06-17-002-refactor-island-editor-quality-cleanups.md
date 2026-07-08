@@ -1,7 +1,7 @@
 ---
 title: Island editor quality cleanups — unify spec validators + wire a check gate
 type: refactor
-status: proposed
+status: done — merged via 023eb2d3 (validator unification + check gate)
 date: 2026-06-17
 written_against_commit: b6dc287d
 initiative: 2026-06-17-000-island-editor-improvements-overview.md

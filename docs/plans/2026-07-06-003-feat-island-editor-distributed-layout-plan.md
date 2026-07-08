@@ -1,7 +1,7 @@
 ---
 title: Island editor — distributed control layout (bottom hotbar · bottom-right camera dock · top-right file bar) + camera adjustment
 type: feat
-status: proposed
+status: done — merged to main via #79 (distributed layout + camera dock + file bar)
 date: 2026-07-06
 written_against_commit: a29a3cf2
 base_branch: main
