@@ -219,6 +219,33 @@ export const PART_REGISTRY = {
     morphs: ['length'],
     hidesMouth: true,
   },
+  // New beaks (plan 018): procedural source is authoritative; the url is a
+  // placeholder so the CharacterRoot/companionExport `url !== null` filter keeps
+  // the part, and maskUrl is null (per-vertex channels carry the color).
+  'beak-chicken': {
+    slot: 'muzzle',
+    label: 'Chicken beak',
+    url: partUrl('muzzle-beak-small.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('beak-chicken') },
+    maskUrl: null,
+    region: 'muzzle',
+    classes: ['bird'],
+    attachTo: ['socket.muzzle'],
+    morphs: ['length'],
+    hidesMouth: true,
+  },
+  'beak-penguin': {
+    slot: 'muzzle',
+    label: 'Penguin beak',
+    url: partUrl('muzzle-beak-small.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('beak-penguin') },
+    maskUrl: null,
+    region: 'muzzle',
+    classes: ['bird'],
+    attachTo: ['socket.muzzle'],
+    morphs: ['length'],
+    hidesMouth: true,
+  },
 
   // --- tails (skinned to the tail chain) ----------------------------------
   'curl-shiba': {
@@ -281,6 +308,32 @@ export const PART_REGISTRY = {
     morphs: ['length', 'width'],
     springProfile: spring(0.3, 20, 0.12),
   },
+  // New bird tails (plan 018): procedural source is authoritative; url is a
+  // placeholder (see the beak note above); maskUrl null (per-vertex channels).
+  'tail-sickle-rooster': {
+    slot: 'tail',
+    label: 'Rooster sickle',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('tail-sickle-rooster') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: TAIL_BONES,
+    morphs: ['length', 'width'],
+    springProfile: spring(0.25, 22, 0.12),
+  },
+  'tail-train-peacock': {
+    slot: 'tail',
+    label: 'Peacock train',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('tail-train-peacock') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: TAIL_BONES,
+    morphs: ['length', 'width'],
+    springProfile: spring(0.35, 14, 0.1),
+  },
 
   // --- claws (rigid on hand/foot bones) -----------------------------------
   'mitten-none': {
@@ -322,6 +375,30 @@ export const PART_REGISTRY = {
     url: partUrl('crest-feather-tuft.glb'),
     source: { kind: 'procedural', build: () => buildProceduralPart('feather-tuft') },
     maskUrl: maskUrl('part-crest-feather-tuft.mask.png'),
+    region: 'ears',
+    classes: ['bird'],
+    attachTo: ['socket.hat'],
+    morphs: [],
+  },
+  // New crests (plan 018): procedural source is authoritative; url is a
+  // placeholder (see the beak note above); maskUrl null (per-vertex channels).
+  'comb-chicken': {
+    slot: 'crest',
+    label: 'Chicken comb',
+    url: partUrl('crest-feather-tuft.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('comb-chicken') },
+    maskUrl: null,
+    region: 'ears',
+    classes: ['bird'],
+    attachTo: ['socket.hat'],
+    morphs: [],
+  },
+  'crest-peacock': {
+    slot: 'crest',
+    label: 'Peacock crest',
+    url: partUrl('crest-feather-tuft.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('crest-peacock') },
+    maskUrl: null,
     region: 'ears',
     classes: ['bird'],
     attachTo: ['socket.hat'],
