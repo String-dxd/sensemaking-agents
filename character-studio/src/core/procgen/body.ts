@@ -71,6 +71,41 @@ const LIMB_VSEG = 10
 const WING_USEG = 14
 const WING_VSEG = 12
 
+// --- bird shape seam (plan 017) ------------------------------------------------
+// Per-species silhouette knobs for the bird archetype only; plans 018–020 key
+// species presets off this. Mammal archetypes ignore it entirely.
+
+export interface BirdBodyShape {
+  /** Wing paddle length as a fraction of the flank drop (1 = default robin). */
+  wingLength: number // default 1, range ~0.7 (penguin flipper) – 1.35 (eagle)
+  wingWidth: number // default 1
+  /** Feather-finger scallop depth at the wing tip; 0 = smooth flipper. */
+  wingScallop: number // default 1, 0 for penguin
+  /** Bare-leg (tarsus) thinness + length below the body hem. */
+  tarsusRadius: number // default 0.014 (reference-space m)
+  tarsusLength: number // default 1 (multiplier on the exposed drop)
+  footLength: number // default 1
+  /** Toe-cut depth on the foot fan; 0 = fully webbed (duck), 1 = deep cut. */
+  toeCut: number // default 0.7
+  hindToe: boolean // default true
+  /** Torso egg-ness override (multiplies STYLE.bird pear). */
+  belly: number // default 1
+  headSize: number // default 1 (multiplies head radii)
+}
+
+export const DEFAULT_BIRD_SHAPE: BirdBodyShape = {
+  wingLength: 1,
+  wingWidth: 1,
+  wingScallop: 1,
+  tarsusRadius: 0.014,
+  tarsusLength: 1,
+  footLength: 1,
+  toeCut: 0.7,
+  hindToe: true,
+  belly: 1,
+  headSize: 1,
+}
+
 // --- public shape -------------------------------------------------------------
 
 export interface ProcBodyData {
@@ -132,7 +167,9 @@ function limbParamArray(piece: SurfacePiece): Float32Array {
 
 // --- builder ------------------------------------------------------------------
 
-export function buildProceduralBody(archetype: Archetype): ProcBodyData {
+export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<BirdBodyShape>): ProcBodyData {
+  // Mammal archetypes must ignore the bird shape seam (byte-identical output).
+  const shape: BirdBodyShape = { ...DEFAULT_BIRD_SHAPE, ...(archetype === 'bird' ? birdShape : undefined) }
   const built: BuiltSkeleton = buildSkeleton(archetypeBuildOptions(archetype))
   const j = restWorldPositions(built)
   const u = ARCHETYPES_DEF[archetype].uniformScale
@@ -149,7 +186,8 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
   const ry = (torsoTop - torsoBottom) / 2
   const rx = headR * style.torsoRx
   const rz = headR * style.torsoRz
-  const torsoProfile = pearProfile(style.pear, style.shoulderTaper)
+  const isBird = style.wing
+  const torsoProfile = pearProfile(style.pear * (isBird ? shape.belly : 1), style.shoulderTaper)
   const torsoSdf = makeTorsoSdf(cy, ry, rx, rz, torsoProfile)
 
   const builder = new MeshBuilder()
@@ -166,7 +204,7 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
   const legColL = colForAzimuth(TRUNK_USEG, 1, 0.05)
   const legColR = colForAzimuth(TRUNK_USEG, -1, 0.05)
 
-  const wing = style.wing
+  const wing = isBird
   const limbCols = wing ? 4 : 3 // block colCount → perimeter = 2·cols + 2·rings
   const limbRings = wing ? 3 : 3 // arm/leg perimeter 12 (LIMB_USEG) or wing 14 (WING_USEG)
 
@@ -188,7 +226,8 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
 
   // head ellipsoid — bottom pole opened for the neck bridge ------------------
   const headGrid = unitSphere(TRUNK_USEG, HEAD_VSEG)
-  ellipsoidTransform(headGrid, headCenter, [headR * style.headWide, headR * style.headSquash, headR])
+  const headScale = isBird ? shape.headSize : 1
+  ellipsoidTransform(headGrid, headCenter, [headR * style.headWide * headScale, headR * style.headSquash * headScale, headR * headScale])
   const headPiece = gridToPiece('head', headGrid, [{ kind: 'poleBottom', ring: 2, loop: 'neck' }])
   rigidWeight(headPiece, 'head')
   headChannels(headPiece, headCenter, headR, archetype)
