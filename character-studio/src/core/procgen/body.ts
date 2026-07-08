@@ -348,15 +348,36 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     const name = `leg${side}` as const
     const root = blockCenter(name)
     const footJoint = side === 'L' ? V(j.footL) : V(j.footR)
-    const legEnd: Vec3 = [footJoint[0], footJoint[1] * 0.7, footJoint[2]]
+    // bird: tarsusLength stretches the exposed drop below the body hem
+    const legEndY = footJoint[1] * (isBird ? 0.7 - 0.25 * (shape.tarsusLength - 1) : 0.7)
+    const legEnd: Vec3 = [footJoint[0], legEndY, footJoint[2]]
     const legSpan = Math.hypot(legEnd[0] - root[0], legEnd[1] - root[1], legEnd[2] - root[2])
     const grid = capsuleGrid({ a: root, b: legEnd, radiusA: legR, radiusB: legR * 0.85, useg: LIMB_USEG, vseg: LIMB_VSEG, fullness: 0.55 })
+    if (isBird) {
+      // bare tarsus (plan 017): root ring keeps legR to mate with the torso
+      // opening; the shaft pinches to a thin stick by mid-length. Radial
+      // scale only — params/topology untouched.
+      const tarsusR = (shape.tarsusRadius * u) / 0.9
+      const axis = vec.norm(vec.sub(legEnd, root))
+      for (let i = 0; i < grid.pos.length / 3; i++) {
+        const pinch = 1 + (tarsusR / legR - 1) * smoothstep(0.3, 0.55, grid.params[i * 2 + 1])
+        const rel: Vec3 = [grid.pos[i * 3] - root[0], grid.pos[i * 3 + 1] - root[1], grid.pos[i * 3 + 2] - root[2]]
+        const along = vec.dot(rel, axis)
+        const radial = vec.sub(rel, vec.scale(axis, along))
+        grid.pos[i * 3] = root[0] + axis[0] * along + radial[0] * pinch
+        grid.pos[i * 3 + 1] = root[1] + axis[1] * along + radial[1] * pinch
+        grid.pos[i * 3 + 2] = root[2] + axis[2] * along + radial[2] * pinch
+      }
+    }
     filletLimbIntoTorso(grid.pos, root, legEnd, legR, legR * 0.85, torsoSdf, Math.min(0.05 * u, legSpan * 0.28))
     const leg = gridToPiece(name, grid, [
       { kind: 'poleBottom', ring: 1, loop: 'root' },
       { kind: 'poleTop', ring: LIMB_VSEG - 1, loop: 'ankle' },
     ])
     chainWeights(leg, [`upperLeg${side}`, `lowerLeg${side}`], [0.5], 0.16)
+    // AC birds: the bare tarsus takes the beak/feet accent color; the
+    // feathered thigh stub stays body-colored
+    if (isBird) setChannel(leg, CH_ACCENT, (i) => smoothstep(0.38, 0.55, leg.params[i * 2 + 1]))
     paintUv(leg, side === 'L' ? 'legL' : 'legR', false)
     limbParams[name] = limbParamArray(leg)
     builder.add(leg)
@@ -366,8 +387,9 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     const [fx, fy, fz] = style.foot
     const fzS = (fz * u) / 0.9
     const fyS = (fy * u) / 0.9
-    const ankle: Vec3 = [footJoint[0], footJoint[1] * 0.55, footJoint[2]]
-    const toe: Vec3 = [footJoint[0], footJoint[1] * 0.4, footJoint[2] + fzS * 1.5]
+    const drop = legEndY - footJoint[1] * 0.7 // 0 unless bird tarsusLength ≠ 1
+    const ankle: Vec3 = [footJoint[0], footJoint[1] * 0.55 + drop, footJoint[2]]
+    const toe: Vec3 = [footJoint[0], footJoint[1] * 0.4 + drop, footJoint[2] + fzS * 1.5]
     const footGrid = capsuleGrid({ a: ankle, b: toe, radiusA: fyS, radiusB: fyS * 0.72, useg: LIMB_USEG, vseg: 9, fullness: 0.65 })
     // widen across X to the foot's x-radius (fx), keep it flat-ish
     const fxS = (fx * u) / 0.9
