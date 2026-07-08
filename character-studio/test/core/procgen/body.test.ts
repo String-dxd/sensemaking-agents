@@ -3,7 +3,8 @@
 
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
-import { buildProceduralBody } from '../../../src/core/procgen/body'
+import { type BirdBodyShape, buildProceduralBody } from '../../../src/core/procgen/body'
+import { buildBodyScene } from '../../../src/core/procgen/buildBody'
 import { ARCHETYPES_DEF } from '../../../src/core/skeleton/archetypes'
 import { BODY_MORPHS } from '../../../src/core/skeleton/partRegistry'
 import { ARCHETYPES, BONE_NAMES, type Archetype } from '../../../src/core/spec/schema'
@@ -161,5 +162,102 @@ describe.each([...ARCHETYPES])('buildProceduralBody(%s)', (archetype: Archetype)
     expect(Float32Array.from(posA)).toEqual(Float32Array.from(posB))
     expect(a.channels).toEqual(b.channels)
     expect(a.triangleCount).toBe(b.triangleCount)
+  })
+})
+
+// --- plan 017: bird body v2 (AC anatomy) --------------------------------------
+
+function bodyPositions(scene: THREE.Object3D): Float32Array {
+  return skinnedMeshes(scene)[0].geometry.getAttribute('position').array as Float32Array
+}
+
+describe('plan 017: mammal freeze', () => {
+  // Snapshots computed on main @ 2532e1c (pre-017) — the bird shape seam must
+  // leave both mammal lanes byte-identical.
+  const FREEZE: Record<'biped-round' | 'biped-slim', { vertexCount: number; first12: number[] }> = {
+    'biped-round': {
+      vertexCount: 2052,
+      first12: [0, 0.17277540266513824, 0, 0, 0.17549742758274078, 0.02695726975798607, 0.006573877763003111, 0.17549742758274078, 0.02643929235637188, 0.012895124964416027, 0.17549742758274078, 0.024905268102884293],
+    },
+    'biped-slim': {
+      vertexCount: 2052,
+      first12: [0, 0.18802250921726227, 0, 0, 0.19097262620925903, 0.02776050940155983, 0.006189493462443352, 0.19097262620925903, 0.027227098122239113, 0.012141128070652485, 0.19097262620925903, 0.025647366419434547],
+    },
+  }
+  it.each(['biped-round', 'biped-slim'] as const)('%s geometry is byte-identical to main', (archetype) => {
+    const pos = bodyPositions(buildProceduralBody(archetype).scene)
+    expect(pos.length / 3).toBe(FREEZE[archetype].vertexCount)
+    expect(Float32Array.from(pos.slice(0, 12))).toEqual(Float32Array.from(FREEZE[archetype].first12))
+  })
+})
+
+describe('plan 017: bird shape variants', () => {
+  const variants: Array<[string, Partial<BirdBodyShape>]> = [
+    ['default', {}],
+    ['flipper', { wingScallop: 0, wingLength: 0.75 }],
+    ['webbed', { toeCut: 0.1 }],
+    ['tall', { tarsusLength: 1.3, headSize: 1.1 }],
+  ]
+  it.each(variants)('%s: manifold gate holds and fits the triangle budget', (_name, shape) => {
+    const data = buildProceduralBody('bird', shape)
+    expect(data.manifold.boundaryEdges, 'boundary edges').toBe(0)
+    expect(data.manifold.overSharedEdges, 'over-shared edges').toBe(0)
+    expect(data.manifold.components, 'connected components').toBe(1)
+    expect(data.triangleCount).toBeLessThanOrEqual(18000)
+  })
+
+  it('is deterministic for a non-default shape', () => {
+    const a = buildProceduralBody('bird', { wingLength: 1.2 })
+    const b = buildProceduralBody('bird', { wingLength: 1.2 })
+    expect(Float32Array.from(bodyPositions(a.scene))).toEqual(Float32Array.from(bodyPositions(b.scene)))
+  })
+})
+
+describe('plan 017: bird accent painting', () => {
+  const data = buildProceduralBody('bird')
+
+  it('feet are fully accent-painted (beak/feet color)', () => {
+    for (const piece of ['footL', 'footR'] as const) {
+      const [s, e] = data.meta.shellRanges[piece]
+      let hit = false
+      for (let i = s; i < e && !hit; i++) if (data.channels[i * 4 + 3] === 1) hit = true
+      expect(hit, `${piece} has a fully-accented vertex`).toBe(true)
+    }
+  })
+
+  it('bare tarsus takes accent; feathered thigh stays body-colored', () => {
+    const [s] = data.meta.shellRanges.legL
+    const params = data.meta.limbParams.legL
+    let tarsusChecked = 0
+    let thighChecked = 0
+    for (let li = 0; li < params.length; li++) {
+      const accent = data.channels[(s + li) * 4 + 3]
+      if (params[li] > 0.6) {
+        expect(accent, `tarsus vertex v01=${params[li]}`).toBeGreaterThan(0.5)
+        tarsusChecked++
+      } else if (params[li] < 0.3) {
+        expect(accent, `thigh vertex v01=${params[li]}`).toBeLessThan(0.1)
+        thighChecked++
+      }
+    }
+    expect(tarsusChecked).toBeGreaterThan(0)
+    expect(thighChecked).toBeGreaterThan(0)
+  })
+})
+
+describe('plan 017: species shape seam', () => {
+  it('duckling and owl produce different geometry', () => {
+    const duck = bodyPositions(buildBodyScene('bird', 'duckling'))
+    const owl = bodyPositions(buildBodyScene('bird', 'owl'))
+    expect(duck.length).toBe(owl.length) // same topology…
+    let differs = false
+    for (let i = 0; i < duck.length && !differs; i++) if (duck[i] !== owl[i]) differs = true
+    expect(differs, 'at least one position differs').toBe(true) // …different shape
+  })
+
+  it('no species falls back to the default bird build', () => {
+    const plain = bodyPositions(buildProceduralBody('bird').scene)
+    const seam = bodyPositions(buildBodyScene('bird', undefined))
+    expect(Float32Array.from(seam)).toEqual(Float32Array.from(plain))
   })
 })
