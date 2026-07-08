@@ -21,7 +21,7 @@ import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skelet
 import type { Archetype } from '../spec/schema'
 import { BODY_MORPHS } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
-import { headChannels, torsoChannels } from './kit/channels'
+import { CH_ACCENT, CH_SECONDARY, headChannels, torsoChannels } from './kit/channels'
 import { filletLimbIntoTorso, makeTorsoSdf } from './kit/fillet'
 import { capsuleGrid } from './kit/loft'
 import { pearProfile } from './kit/profiles'
@@ -30,6 +30,7 @@ import { MeshBuilder, manifoldReport, packSkinning } from './kit/stitch'
 import {
   type SurfacePiece,
   type Vec3,
+  setChannel,
   smoothstep,
   v as vec,
   vertexCount,
@@ -258,21 +259,55 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     const upperArm = side === 'L' ? V(j.upperArmL) : V(j.upperArmR)
     const hand = side === 'L' ? V(j.handL) : V(j.handR)
     if (wing) {
-      // tucked wing: a plump teardrop lying against the flank, tip parting
-      // slightly outward/back — not a dangling stick
+      // AC feather paddle (plan 017): drapes down the flank to ~hip height,
+      // stays wide at the tip, trailing edge split into 3 feather fingers by
+      // an along-axis scallop — positions only, topology untouched.
       const sx = side === 'L' ? 1 : -1
-      const tip: Vec3 = [hand[0] + sx * 0.03 * u, hand[1] - 0.015 * u, hand[2] - 0.03 * u]
-      const wingSpan = Math.hypot(tip[0] - root[0], tip[1] - root[1], tip[2] - root[2])
-      const grid = capsuleGrid({ a: root, b: tip, radiusA: armR * 1.6, radiusB: armR * 0.8, useg: WING_USEG, vseg: WING_VSEG, bulge: 0.014 * u, fullness: 0.6 })
-      // z-flatten about the shoulder z (relaxed drape, not a paddle)
+      const radiusA = armR * 1.5 * shape.wingWidth
+      // flipper (scallop 0) comes out slightly narrower at the tip
+      const radiusB = armR * 1.05 * shape.wingWidth * (0.88 + 0.12 * shape.wingScallop)
+      // tip at ~hip height, riding just proud of the pear torso's widening
+      // flank (a straight drop would plunge into the egg; a hand-joint aim
+      // juts out like a stick arm — the read this plan kills)
+      const tipY = j.hips[1]
+      const pv = Math.min(Math.max((tipY - (cy - ry)) / (2 * ry), 0), 1)
+      const pm = torsoProfile(pv)
+      const yTerm = 1 - ((tipY - cy) / ry) ** 2
+      const zTerm = (root[2] / (rz * pm)) ** 2
+      const surfX = rx * pm * Math.sqrt(Math.max(yTerm - zTerm, 0))
+      const dir = vec.norm(vec.sub([sx * (surfX + radiusB * 0.55), tipY, root[2] - 0.02 * u], root))
+      // un-scaled span reaches hip height; wingLength stretches/shrinks it
+      const wingSpan = ((j.hips[1] - root[1]) / Math.min(dir[1], -0.35)) * shape.wingLength
+      const tip: Vec3 = vec.add(root, vec.scale(dir, wingSpan))
+      const grid = capsuleGrid({ a: root, b: tip, radiusA, radiusB, useg: WING_USEG, vseg: WING_VSEG, bulge: 0.014 * u, fullness: 0.6 })
+      // z-flatten about the shoulder z — a feather plane, not a sausage
       for (let i = 0; i < grid.pos.length / 3; i++) {
-        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.5 + upperArm[2]
+        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.42 + upperArm[2]
       }
-      filletLimbIntoTorso(grid.pos, root, tip, armR * 1.6 * 0.5, armR * 0.8 * 0.5, torsoSdf, Math.min(0.05 * u, wingSpan * 0.28))
+      // scalloped trailing edge: feather fingers reach further, notches cut back
+      const lobes = 3
+      for (let i = 0; i < grid.pos.length / 3; i++) {
+        const u01 = grid.params[i * 2]
+        const v01 = grid.params[i * 2 + 1]
+        const tipZone = smoothstep(0.62, 1.0, v01)
+        const phase = ((u01 + 0.25) % 1) * lobes * Math.PI
+        const scallop = Math.abs(Math.sin(phase)) // 1 at finger center, 0 at notch
+        const cut = (1 - scallop) * shape.wingScallop
+        // finger/notch depth ≈ 40% of the tip half-width (radiusB)
+        const d = tipZone * (0.014 * u * (1 - cut) - 0.009 * u * cut)
+        grid.pos[i * 3] += dir[0] * d
+        grid.pos[i * 3 + 1] += dir[1] * d
+        grid.pos[i * 3 + 2] += dir[2] * d
+      }
+      filletLimbIntoTorso(grid.pos, root, tip, radiusA * 0.5, radiusB * 0.5, torsoSdf, Math.min(0.05 * u, wingSpan * 0.28))
       const piece = gridToPiece(name, grid, [{ kind: 'poleBottom', ring: 1, loop: 'root' }])
       chainWeights(piece, [`upperArm${side}`, `foreArm${side}`, `hand${side}`], [0.45, 0.8], 0.16)
-      // accent toward the wing tip
-      for (let i = 0; i < vertexCount(piece); i++) piece.channels[i * 4 + 3] = smoothstep(0.72, 0.95, piece.params[i * 2 + 1]) * 0.9
+      // two-tone wing tip (Jay/Blathers): accent tip band + secondary pre-tip band
+      setChannel(piece, CH_ACCENT, (i) => smoothstep(0.8, 0.9, piece.params[i * 2 + 1]))
+      setChannel(piece, CH_SECONDARY, (i) => {
+        const v01 = piece.params[i * 2 + 1]
+        return smoothstep(0.55, 0.7, v01) * (1 - smoothstep(0.8, 0.9, v01)) * 0.9
+      })
       paintUv(piece, side === 'L' ? 'armL' : 'armR', false)
       limbParams[name] = limbParamArray(piece)
       builder.add(piece)
