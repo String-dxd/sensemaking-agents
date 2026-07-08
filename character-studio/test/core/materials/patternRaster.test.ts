@@ -86,15 +86,20 @@ describe('rasterizeChannels', () => {
     ctx.drawImage(img as unknown as Parameters<typeof ctx.drawImage>[0], 0, 0)
     const decoded = ctx.getImageData(0, 0, size, size).data
 
-    // Sample a handful of pixels; PNG is lossless so RGB must match exactly.
-    for (const [u, v] of [
-      [0.3, 0.7],
-      [0.7, 0.6],
-      [0.5, 0.5],
-    ] as const) {
-      const a = sample(texBytes, size, u, v)
-      const b = sample(decoded, size, u, v)
-      expect([b[0], b[1], b[2]]).toEqual([a[0], a[1], a[2]])
+    // Sample a handful of FULLY-OPAQUE pixels; PNG is lossless there so RGB
+    // must match exactly. (Canvas decode premultiplies, so alpha<255 texels —
+    // the rasterizer's blur margin — are legitimately lossy. Plan 023 removed
+    // the bird's welded arms, which moved the old fixed sample points into
+    // that margin; scanning for opaque texels makes the probe robust.)
+    const opaque: number[] = []
+    for (let p = 0; p < texBytes.length && opaque.length < 64; p += 4) {
+      if (texBytes[p + 3] === 255) opaque.push(p / 4)
+    }
+    expect(opaque.length).toBeGreaterThanOrEqual(3)
+    for (const px of [opaque[0], opaque[Math.floor(opaque.length / 2)], opaque[opaque.length - 1]]) {
+      const a = [texBytes[px * 4], texBytes[px * 4 + 1], texBytes[px * 4 + 2]]
+      const b = [decoded[px * 4], decoded[px * 4 + 1], decoded[px * 4 + 2]]
+      expect(b).toEqual(a)
     }
   })
 

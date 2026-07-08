@@ -21,7 +21,7 @@ import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skelet
 import type { Archetype } from '../spec/schema'
 import { BODY_MORPHS } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
-import { CH_ACCENT, CH_SECONDARY, accentAll, headChannels, torsoChannels } from './kit/channels'
+import { CH_ACCENT, accentAll, headChannels, torsoChannels } from './kit/channels'
 import { filletLimbIntoTorso, makeTorsoSdf } from './kit/fillet'
 import { capsuleGrid } from './kit/loft'
 import { pearProfile } from './kit/profiles'
@@ -69,19 +69,18 @@ const HEAD_VSEG = 22
 const TORSO_VSEG = 18
 const LIMB_USEG = 12
 const LIMB_VSEG = 10
-const WING_USEG = 14
-const WING_VSEG = 12
 
 // --- bird shape seam (plan 017) ------------------------------------------------
 // Per-species silhouette knobs for the bird archetype only; plans 018–020 key
 // species presets off this. Mammal archetypes ignore it entirely.
 
 export interface BirdBodyShape {
-  /** Wing paddle length as a fraction of the flank drop (1 = default robin). */
-  wingLength: number // default 1, range ~0.7 (penguin flipper) – 1.35 (eagle)
-  wingWidth: number // default 1
-  /** Feather-finger scallop depth at the wing tip; 0 = smooth flipper. */
-  wingScallop: number // default 1, 0 for penguin
+  /** DEPRECATED (plan 023): wings are separate parts now (`wing-*` in the
+   * wings slot); these three fields are inert pass-throughs kept so 020's
+   * presets still parse. Remove in a later SPEC-adjacent sweep. */
+  wingLength: number
+  wingWidth: number
+  wingScallop: number
   /** Bare-leg (tarsus) thinness + length below the body hem. */
   tarsusRadius: number // default 0.014 (reference-space m)
   tarsusLength: number // default 1 (multiplier on the exposed drop)
@@ -219,14 +218,16 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   const legColL = isBird ? 4 : colForAzimuth(TRUNK_USEG, 1, 0.05)
   const legColR = isBird ? TRUNK_USEG - 5 : colForAzimuth(TRUNK_USEG, -1, 0.05)
 
-  const wing = isBird
-  const limbCols = wing ? 4 : 3 // block colCount → perimeter = 2·cols + 2·rings
-  const limbRings = wing ? 3 : 3 // arm/leg perimeter 12 (LIMB_USEG) or wing 14 (WING_USEG)
-
+  // plan 023: bird arms are separate wing PARTS (wings slot) — the bird torso
+  // has NO welded arm openings; it closes smoothly over the shoulder.
   const torsoOpenings: Opening[] = [
     { kind: 'poleTop', ring: neckRing, loop: 'neck' },
-    { kind: 'block', ringLo: armRing - Math.floor(limbRings / 2), ringHi: armRing - Math.floor(limbRings / 2) + limbRings, colStart: armColL - Math.floor(limbCols / 2), colCount: limbCols, loop: 'armL' },
-    { kind: 'block', ringLo: armRing - Math.floor(limbRings / 2), ringHi: armRing - Math.floor(limbRings / 2) + limbRings, colStart: armColR - Math.floor(limbCols / 2), colCount: limbCols, loop: 'armR' },
+    ...(isBird
+      ? []
+      : ([
+          { kind: 'block', ringLo: armRing - 1, ringHi: armRing + 2, colStart: armColL - 1, colCount: 3, loop: 'armL' },
+          { kind: 'block', ringLo: armRing - 1, ringHi: armRing + 2, colStart: armColR - 1, colCount: 3, loop: 'armR' },
+        ] as Opening[])),
     { kind: 'block', ringLo: legRing - 1, ringHi: legRing - 1 + 3, colStart: legColL - 1, colCount: 3, loop: 'legL' },
     { kind: 'block', ringLo: legRing - 1, ringHi: legRing - 1 + 3, colStart: legColR - 1, colCount: 3, loop: 'legR' },
   ]
@@ -267,77 +268,11 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     return [c[0] / idx.length, c[1] / idx.length, c[2] / idx.length]
   }
 
-  const buildArmOrWing = (side: 'L' | 'R'): void => {
+  // mammal-only (plan 023: bird wings are separate parts — no welded limb)
+  const buildArm = (side: 'L' | 'R'): void => {
     const name = `arm${side}` as const
     const root = blockCenter(name)
-    const upperArm = side === 'L' ? V(j.upperArmL) : V(j.upperArmR)
     const hand = side === 'L' ? V(j.handL) : V(j.handR)
-    if (wing) {
-      // AC feather paddle (plan 017): drapes down the flank to ~hip height,
-      // stays wide at the tip, trailing edge split into 3 feather fingers by
-      // an along-axis scallop — positions only, topology untouched.
-      const sx = side === 'L' ? 1 : -1
-      const radiusA = armR * 1.5 * shape.wingWidth
-      // flipper (scallop 0) comes out slightly narrower at the tip
-      const radiusB = armR * 1.31 * shape.wingWidth * (0.88 + 0.12 * shape.wingScallop)
-      // tip at ~hip height, riding just proud of the pear torso's widening
-      // flank (a straight drop would plunge into the egg; a hand-joint aim
-      // juts out like a stick arm — the read this plan kills)
-      const tipY = j.hips[1]
-      const pv = Math.min(Math.max((tipY - (cy - ry)) / (2 * ry), 0), 1)
-      const pm = torsoProfile(pv)
-      const yTerm = 1 - ((tipY - cy) / ry) ** 2
-      const zTerm = (root[2] / (rz * pm)) ** 2
-      const surfX = rx * pm * Math.sqrt(Math.max(yTerm - zTerm, 0))
-      const hug = vec.norm(vec.sub([sx * (surfX + radiusB * 0.55), tipY, root[2] - 0.02 * u], root))
-      // flare the root→tip axis ~13° outward (plan 017 r1): a body-hugging
-      // paddle disappears inside the torso silhouette in front view; the flare
-      // makes the outer edge clear the egg by ~0.1·rx so both wings read
-      const flare = 0.23
-      const dir = vec.norm([
-        hug[0] * Math.cos(flare) - sx * hug[1] * Math.sin(flare),
-        sx * hug[0] * Math.sin(flare) + hug[1] * Math.cos(flare),
-        hug[2],
-      ])
-      // un-scaled span reaches hip height; wingLength stretches/shrinks it
-      const wingSpan = ((j.hips[1] - root[1]) / Math.min(dir[1], -0.35)) * shape.wingLength
-      const tip: Vec3 = vec.add(root, vec.scale(dir, wingSpan))
-      const grid = capsuleGrid({ a: root, b: tip, radiusA, radiusB, useg: WING_USEG, vseg: WING_VSEG, bulge: 0.014 * u, fullness: 0.6 })
-      // z-flatten about the shoulder z — a feather plane, not a sausage
-      for (let i = 0; i < grid.pos.length / 3; i++) {
-        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.42 + upperArm[2]
-      }
-      // scalloped trailing edge: feather fingers reach further, notches cut back
-      const lobes = 3
-      for (let i = 0; i < grid.pos.length / 3; i++) {
-        const u01 = grid.params[i * 2]
-        const v01 = grid.params[i * 2 + 1]
-        const tipZone = smoothstep(0.62, 1.0, v01)
-        const phase = ((u01 + 0.25) % 1) * lobes * Math.PI
-        const scallop = Math.abs(Math.sin(phase)) // 1 at finger center, 0 at notch
-        const cut = (1 - scallop) * shape.wingScallop
-        // finger/notch depth deepened 1.6× (plan 017 r1) so the three feather
-        // fingers read at default viewport zoom
-        const d = tipZone * (0.0224 * u * (1 - cut) - 0.0144 * u * cut)
-        grid.pos[i * 3] += dir[0] * d
-        grid.pos[i * 3 + 1] += dir[1] * d
-        grid.pos[i * 3 + 2] += dir[2] * d
-      }
-      filletLimbIntoTorso(grid.pos, root, tip, radiusA * 0.5, radiusB * 0.5, torsoSdf, Math.min(0.05 * u, wingSpan * 0.28))
-      const piece = gridToPiece(name, grid, [{ kind: 'poleBottom', ring: 1, loop: 'root' }])
-      chainWeights(piece, [`upperArm${side}`, `foreArm${side}`, `hand${side}`], [0.45, 0.8], 0.16)
-      // two-tone wing tip (Jay/Blathers): accent tip band + secondary pre-tip band
-      setChannel(piece, CH_ACCENT, (i) => smoothstep(0.8, 0.9, piece.params[i * 2 + 1]))
-      setChannel(piece, CH_SECONDARY, (i) => {
-        const v01 = piece.params[i * 2 + 1]
-        return smoothstep(0.55, 0.7, v01) * (1 - smoothstep(0.8, 0.9, v01)) * 0.9
-      })
-      paintUv(piece, side === 'L' ? 'armL' : 'armR', false)
-      limbParams[name] = limbParamArray(piece)
-      builder.add(piece)
-      builder.bridge(builder.loopIndex.torso[name], builder.loopIndex[name].root)
-      return
-    }
     // plush arm: near-constant width, soft mitten end ------------------------
     // fillet reach stays well under the root→hand span — an oversized reach
     // on a short chibi arm re-projects most of the capsule onto the torso
@@ -466,8 +401,10 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     builder.bridge(builder.loopIndex[name].ankle, builder.loopIndex[footName].ankle)
   }
 
-  buildArmOrWing('L')
-  buildArmOrWing('R')
+  if (!isBird) {
+    buildArm('L')
+    buildArm('R')
+  }
   buildLeg('L')
   buildLeg('R')
 

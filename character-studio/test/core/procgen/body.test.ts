@@ -85,9 +85,15 @@ describe.each([...ARCHETYPES])('buildProceduralBody(%s)', (archetype: Archetype)
     expect(data.meta.headRadius).toBeGreaterThan(0)
     expect(Object.keys(data.meta.shellRanges)).toContain('torso')
     expect(Object.keys(data.meta.shellRanges)).toContain('head')
-    // limb params present for all four limbs
-    for (const limb of ['armL', 'armR', 'legL', 'legR']) {
+    // limb params present for every welded limb (plan 023: bird arms are
+    // separate wing PARTS — the bird body has no welded arm pieces)
+    const limbs = archetype === 'bird' ? ['legL', 'legR'] : ['armL', 'armR', 'legL', 'legR']
+    for (const limb of limbs) {
       expect(data.meta.limbParams[limb]?.length ?? 0).toBeGreaterThan(0)
+    }
+    if (archetype === 'bird') {
+      expect(data.meta.limbParams.armL).toBeUndefined()
+      expect(data.meta.limbParams.armR).toBeUndefined()
     }
   })
 
