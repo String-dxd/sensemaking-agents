@@ -35,7 +35,7 @@ import {
   v as vec,
   vertexCount,
 } from './kit/surface'
-import { type IslandName, UV_ATLAS, islandUv } from './kit/uv'
+import { type IslandName, UV_ATLAS, islandUv, splitWrapSeam } from './kit/uv'
 import { chainWeights, footWeights, rigidWeight, torsoWeights } from './kit/weights'
 
 // --- per-archetype style knobs (started as bodies.py STYLE; biped-slim
@@ -147,8 +147,15 @@ function colForAzimuth(useg: number, x: number, z: number): number {
   return ((col % useg) + useg) % useg
 }
 
-/** Paint an island's UVs onto a piece from its (azimuth u01, polar v01) params. */
+/**
+ * Paint an island's UVs onto a piece from its (azimuth u01, polar v01) params.
+ * Splits the azimuth wrap seam first (plan 017 r2): the seam column and pole
+ * fans get render-only duplicate vertices so no triangle spans the island in
+ * UV — the back-centerline texture stripe. Must run AFTER weights/channels
+ * (duplicates copy them) and is therefore each piece's last step before add.
+ */
 function paintUv(piece: SurfacePiece, island: IslandName, frontCenter: boolean): void {
+  splitWrapSeam(piece, frontCenter)
   const rect = UV_ATLAS[island]
   const n = vertexCount(piece)
   for (let i = 0; i < n; i++) {
@@ -465,7 +472,11 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   buildLeg('R')
 
   const mesh = builder.build()
-  const manifold = manifoldReport(mesh.indices)
+  // Audit the PRE-SPLIT topology: the UV wrap-seam split (splitWrapSeam)
+  // deliberately cuts the index buffer along seam columns, so the render
+  // indices carry boundary edges there by design. weldedIndices remaps the
+  // duplicates back to their sources — the gate stays 0/0/1, meaningfully.
+  const manifold = manifoldReport(mesh.weldedIndices)
 
   // --- morph targets (bodies.py body_shape_keys, numeric) -------------------
   const morphs = buildMorphs(mesh, { cy, ry, rx }, headCenter, u)
@@ -628,6 +639,48 @@ function assembleScene(
   normalSource.setIndex(new THREE.BufferAttribute(mesh.indices, 1))
   normalSource.computeVertexNormals()
   const normalAttr = normalSource.getAttribute('normal') as THREE.BufferAttribute
+  // Weld-average normals across the UV wrap-seam duplicates: computeVertexNormals
+  // sees the seam as a cut and gives each side a one-sided normal — a lighting
+  // crease down the seam column. Summing each weld group's normals restores the
+  // exact welded-topology normal (same incident-face sum) on every copy.
+  {
+    const nrm = normalAttr.array as Float32Array
+    const weldSrc = new Map(mesh.weldPairs.map(([dup, src]) => [dup, src]))
+    const root = (i: number): number => {
+      let r = i
+      while (weldSrc.has(r)) r = weldSrc.get(r) as number
+      return r
+    }
+    const groups = new Map<number, number[]>()
+    for (const [dup] of mesh.weldPairs) {
+      const r = root(dup)
+      let g = groups.get(r)
+      if (!g) {
+        g = [r]
+        groups.set(r, g)
+      }
+      g.push(dup)
+    }
+    for (const g of groups.values()) {
+      let x = 0
+      let y = 0
+      let z = 0
+      for (const i of g) {
+        x += nrm[i * 3]
+        y += nrm[i * 3 + 1]
+        z += nrm[i * 3 + 2]
+      }
+      const l = Math.hypot(x, y, z) || 1e-9
+      x /= l
+      y /= l
+      z /= l
+      for (const i of g) {
+        nrm[i * 3] = x
+        nrm[i * 3 + 1] = y
+        nrm[i * 3 + 2] = z
+      }
+    }
+  }
   const morphAttrs = morphs.deltas.map((d, i) => {
     const a = new THREE.BufferAttribute(d, 3)
     a.name = morphs.names[i]

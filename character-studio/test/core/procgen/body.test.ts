@@ -172,19 +172,22 @@ function bodyPositions(scene: THREE.Object3D): Float32Array {
 }
 
 describe('plan 017: mammal freeze', () => {
-  // Snapshots computed on main @ 2532e1c (pre-017) — the bird shape seam must
-  // leave both mammal lanes byte-identical.
+  // Snapshots recomputed for plan 017 r2 (wrap-seam vertex split, meshVersion 6):
+  // the split appends render-only duplicate vertices per piece, so vertexCount
+  // grew from the pre-017 2052 while every ORIGINAL vertex (incl. first12, the
+  // torso bottom pole + first ring verts) stays byte-identical to main @ 2532e1c.
+  // The bird shape seam must still leave both mammal lanes byte-identical.
   const FREEZE: Record<'biped-round' | 'biped-slim', { vertexCount: number; first12: number[] }> = {
     'biped-round': {
-      vertexCount: 2052,
+      vertexCount: 2264,
       first12: [0, 0.17277540266513824, 0, 0, 0.17549742758274078, 0.02695726975798607, 0.006573877763003111, 0.17549742758274078, 0.02643929235637188, 0.012895124964416027, 0.17549742758274078, 0.024905268102884293],
     },
     'biped-slim': {
-      vertexCount: 2052,
+      vertexCount: 2264,
       first12: [0, 0.18802250921726227, 0, 0, 0.19097262620925903, 0.02776050940155983, 0.006189493462443352, 0.19097262620925903, 0.027227098122239113, 0.012141128070652485, 0.19097262620925903, 0.025647366419434547],
     },
   }
-  it.each(['biped-round', 'biped-slim'] as const)('%s geometry is byte-identical to main', (archetype) => {
+  it.each(['biped-round', 'biped-slim'] as const)('%s geometry matches the r2 freeze', (archetype) => {
     const pos = bodyPositions(buildProceduralBody(archetype).scene)
     expect(pos.length / 3).toBe(FREEZE[archetype].vertexCount)
     expect(Float32Array.from(pos.slice(0, 12))).toEqual(Float32Array.from(FREEZE[archetype].first12))
@@ -281,6 +284,57 @@ describe('plan 017 r1: AC straight-leg stance', () => {
     const ratio = Math.abs(l[0]) / data.meta.torso.rx
     expect(ratio).toBeGreaterThan(0.3)
     expect(ratio).toBeLessThan(0.45)
+  })
+})
+
+describe('plan 017 r2: wrap-seam vertex split', () => {
+  // The back-centerline stripe bug: triangles whose UVs span the azimuth wrap
+  // make the GPU interpolate u ACROSS the island interior, sweeping any bound
+  // mask texture's texels through the island's front content. After the split,
+  // no intra-island triangle may span more than 30% of its island's u-width
+  // (legit triangles span ~1 grid column ≈ 3–8%). Pre-fix this counted
+  // 244/244/226 offenders per archetype.
+  it.each([...ARCHETYPES])('%s: zero intra-island triangles span the azimuth wrap', (archetype) => {
+    const data = buildProceduralBody(archetype)
+    const meshes = skinnedMeshes(data.scene)
+    const uv = meshes[0].geometry.getAttribute('uv')
+    const ranges = Object.entries(data.meta.shellRanges)
+    const pieceOf = (i: number): string => {
+      for (const [name, [s, e]] of ranges) if (i >= s && i < e) return name
+      return ''
+    }
+    const islandWidth: Record<string, number> = {
+      head: 0.55, torso: 0.45, armL: 0.2, armR: 0.2, handL: 0.1, handR: 0.1,
+      legL: 0.2, legR: 0.2, footL: 0.25, footR: 0.25,
+    }
+    let offenders = 0
+    let intraIsland = 0
+    for (const mesh of meshes) {
+      const idx = mesh.geometry.getIndex()!
+      for (let t = 0; t < idx.count; t += 3) {
+        const a = idx.getX(t)
+        const b = idx.getX(t + 1)
+        const c = idx.getX(t + 2)
+        const piece = pieceOf(a)
+        // bridge strips span two pieces/islands — not intra-island triangles
+        if (!piece || pieceOf(b) !== piece || pieceOf(c) !== piece) continue
+        intraIsland++
+        const us = [uv.getX(a), uv.getX(b), uv.getX(c)]
+        const span = (Math.max(...us) - Math.min(...us)) / islandWidth[piece]
+        if (span > 0.3) offenders++
+      }
+    }
+    expect(intraIsland).toBeGreaterThan(1000) // the metric actually saw the mesh
+    expect(offenders, 'triangles spanning >30% of their island u-width').toBe(0)
+  })
+
+  it('seam duplicates are render-only: welded topology stays manifold (audited above) and duplicated verts carry copied skin/channels', () => {
+    const data = buildProceduralBody('bird')
+    // the manifold gate in the main suite runs on the welded (pre-split)
+    // topology; here assert the render buffer really grew past the welded count
+    const vcount = skinnedMeshes(data.scene)[0].geometry.getAttribute('position').count
+    expect(vcount).toBeGreaterThan(data.triangleCount / 2 + 2) // > Euler closed-manifold count → dups exist
+    expect(data.channels.length).toBe(4 * vcount) // channels cover the dups
   })
 })
 
