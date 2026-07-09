@@ -170,6 +170,14 @@ function PlayModeDriver() {
     }
 
     const onPhysics = (dt: number) => {
+      // Foot IK is a GROUND-CONTACT layer — while seated (or mid sit
+      // transition) the folded legs violate its stance assumptions and the
+      // stance-detector ↔ correction feedback thrashes the short bird legs
+      // into a visible spin. Sit owns the leg pose; drop the anchors instead.
+      if (machine.getState() === 'sit' || machine.isTransitioning()) {
+        footIK.reset()
+        return
+      }
       // Keep the knee pole aligned with the (turning) character's forward.
       root.getWorldQuaternion(scratch.q)
       poleDir.set(0, 0, 1).applyQuaternion(scratch.q)

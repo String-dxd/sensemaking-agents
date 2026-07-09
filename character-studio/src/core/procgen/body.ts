@@ -21,6 +21,7 @@ import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skelet
 import type { Archetype } from '../spec/schema'
 import { BODY_MORPHS } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
+import { BIRD_TRUNK } from './birdTrunk'
 import { CH_ACCENT, accentAll, headChannels, torsoChannels } from './kit/channels'
 import { filletLimbIntoTorso, makeTorsoSdf } from './kit/fillet'
 import { capsuleGrid } from './kit/loft'
@@ -58,10 +59,11 @@ interface Style {
 const STYLE: Record<Archetype, Style> = {
   'biped-round': { torsoRx: 0.8, torsoRz: 0.64, pear: 0.32, shoulderTaper: 0.18, armR: 0.046, handR: 0.052, legR: 0.064, foot: [0.06, 0.042, 0.096], headSquash: 0.95, headWide: 1.05, wing: false },
   'biped-slim': { torsoRx: 0.8, torsoRz: 0.7, pear: 0.3, shoulderTaper: 0.22, armR: 0.042, handR: 0.048, legR: 0.06, foot: [0.058, 0.042, 0.088], headSquash: 0.95, headWide: 1.06, wing: false },
-  // bird egg (anatomy round 3): strong shoulder taper so the torso reads as an
-  // AC egg — widest below the middle, narrowing to a small top the neck can
-  // rise out of — instead of a cut-off tree trunk. Feet shrunk to AC scale.
-  bird: { torsoRx: 0.85, torsoRz: 0.78, pear: 0.34, shoulderTaper: 0.34, armR: 0.042, handR: 0, legR: 0.038, foot: [0.05, 0.034, 0.07], headSquash: 0.96, headWide: 1.04, wing: true },
+  // bird egg (anatomy round 4): dims come from BIRD_TRUNK (shared with the
+  // wing/feet builders) — a STANDING egg, taller than wide, widest below the
+  // middle. Foot here is only the small ankle nub; the visible three-toed
+  // foot is a proper part mesh (bird-toes in parts.ts).
+  bird: { torsoRx: BIRD_TRUNK.rxFactor, torsoRz: BIRD_TRUNK.rzFactor, pear: BIRD_TRUNK.pear, shoulderTaper: BIRD_TRUNK.taper, armR: 0.042, handR: 0, legR: 0.038, foot: [0.032, 0.026, 0.036], headSquash: 0.96, headWide: 1.04, wing: true },
 }
 
 // Trunk shells (head + torso) share this azimuth resolution so their neck rings
@@ -69,6 +71,8 @@ const STYLE: Record<Archetype, Style> = {
 // head's geometric azimuth resolution is not a fidelity constraint.
 const TRUNK_USEG = 32
 const HEAD_VSEG = 22
+// mammal torso ring count is hash-frozen; the bird egg uses BIRD_TRUNK.vseg
+// (denser — the egg curvature carries the whole silhouette)
 const TORSO_VSEG = 18
 const LIMB_USEG = 12
 const LIMB_VSEG = 10
@@ -233,25 +237,29 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   const torsoSdf = makeTorsoSdf(cy, ry, rx, rz, torsoProfile)
 
   const builder = new MeshBuilder()
+  const torsoVseg = isBird ? BIRD_TRUNK.vseg : TORSO_VSEG
 
   // Openings on the torso grid: neck (top pole), one block per limb root.
-  const neckRing = ringForY(TORSO_VSEG, cy, ry, j.neck[1])
-  const armRing = Math.min(ringForY(TORSO_VSEG, cy, ry, j.upperArmL[1]), neckRing - 2)
+  const neckRing = ringForY(torsoVseg, cy, ry, j.neck[1])
+  const armRing = Math.min(ringForY(torsoVseg, cy, ry, j.upperArmL[1]), neckRing - 2)
   // leg openings sit low on the torso (near the bottom pole) so the leg
   // capsule drops vertically under the body instead of slanting in from the
   // wide flank — the slant read as splayed "bent knees" on the fat chibi torso.
   // Bird (plan 017 r1): openings move to the UNDERSIDE proper — the tarsus is a
   // straight vertical stick under the egg, centered near x ≈ ±0.35·rx (the AC
   // wind-up-toy stance), so the ring drops to 2 and the azimuths pull inward.
-  const legRing = isBird ? 2 : Math.max(ringForY(TORSO_VSEG, cy, ry, j.hips[1] - torsoH * 0.28), 2)
+  // bird (round 4): opening ring/cols sit near the FOOT BONE's azimuth so
+  // the tarsus drops plumb onto the bone axis (the rigid bird-toes part
+  // shares that axis) — ring 4 of the denser egg grid, ~68° azimuth.
+  const legRing = isBird ? 4 : Math.max(ringForY(TORSO_VSEG, cy, ry, j.hips[1] - torsoH * 0.28), 2)
   const armColL = colForAzimuth(TRUNK_USEG, 1, 0.15)
   const armColR = colForAzimuth(TRUNK_USEG, -1, 0.15)
   // (bird cols are fixed mirrored indices, not colForAzimuth: the 3-col block's
   // vertex range [col-1, col+2] is off-center, so a naive mirror lands the two
   // openings half a column apart in azimuth — L cols 3..6 must pair with R
   // cols 26..29 for a symmetric stance)
-  const legColL = isBird ? 4 : colForAzimuth(TRUNK_USEG, 1, 0.05)
-  const legColR = isBird ? TRUNK_USEG - 5 : colForAzimuth(TRUNK_USEG, -1, 0.05)
+  const legColL = isBird ? 7 : colForAzimuth(TRUNK_USEG, 1, 0.05)
+  const legColR = isBird ? TRUNK_USEG - 8 : colForAzimuth(TRUNK_USEG, -1, 0.05)
 
   // plan 023: bird arms are separate wing PARTS (wings slot) — the bird torso
   // has NO welded arm openings; it closes smoothly over the shoulder.
@@ -267,7 +275,7 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     { kind: 'block', ringLo: legRing - 1, ringHi: legRing - 1 + 3, colStart: legColR - 1, colCount: 3, loop: 'legR' },
   ]
 
-  const torsoGrid = unitSphere(TRUNK_USEG, TORSO_VSEG)
+  const torsoGrid = unitSphere(TRUNK_USEG, torsoVseg)
   ellipsoidTransform(torsoGrid, [0, cy, 0], [rx, ry, rz], torsoProfile)
   if (chest > 0) {
     // forward push on the upper-FRONT band only (the eagle barrel chest) —
@@ -358,11 +366,12 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     const footJoint = side === 'L' ? V(j.footL) : V(j.footR)
     // bird: tarsusLength stretches the exposed drop below the body hem
     const legEndY = footJoint[1] * (isBird ? 0.7 - 0.25 * (shape.tarsusLength - 1) : 0.7)
-    // bird (plan 017 r1): the exposed column is VERTICAL — legEnd shares the
-    // block-opening centroid's x/z so the tarsus drops plumb from the
-    // underside (no slant toward the skeleton's foot-joint x). Bones are
-    // untouched; only the skinned geometry deviates from the foot-joint x.
-    const legEnd: Vec3 = isBird ? [root[0], legEndY, root[2]] : [footJoint[0], legEndY, footJoint[2]]
+    // bird (anatomy round 4): the tarsus drops plumb from the FOOT BONE's
+    // x/z — the visible three-toed foot is a rigid part parented to that
+    // bone (bird-toes), so the leg column and the foot part must share an
+    // axis. The capsule slants slightly from the underside opening to the
+    // bone axis; the fillet absorbs it.
+    const legEnd: Vec3 = isBird ? [footJoint[0], legEndY, footJoint[2]] : [footJoint[0], legEndY, footJoint[2]]
     const legSpan = Math.hypot(legEnd[0] - root[0], legEnd[1] - root[1], legEnd[2] - root[2])
     const grid = capsuleGrid({ a: root, b: legEnd, radiusA: legR, radiusB: legR * 0.85, useg: LIMB_USEG, vseg: LIMB_VSEG, fullness: 0.55 })
     if (isBird) {
@@ -401,62 +410,24 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     const fyS = (fy * u) / 0.9
     const fxS = (fx * u) / 0.9
     const drop = legEndY - footJoint[1] * 0.7 // 0 unless bird tarsusLength ≠ 1
-    // bird: ankle + foot anchor directly below the leg root (same x/z); toes
-    // displace forward (+z) only — feet point straight ahead, wind-up-toy style
-    const anchorX = isBird ? root[0] : footJoint[0]
-    const anchorZ = isBird ? root[2] : footJoint[2]
+    const anchorX = footJoint[0]
+    const anchorZ = footJoint[2]
     // plant the bird sole ON the ground plane (plan 023): the flattened sole
     // sits at ankle.y − fyS; drop the whole foot so that lands at y ≈ 0.002.
     // The leg→foot bridge strip covers the gap and reads as the ankle taper
     // (tarsusLength keeps steering the exposed leg via legEnd).
     const soleDrop = isBird ? footJoint[1] * 0.55 + drop - fyS - 0.002 : 0
     const ankle: Vec3 = [anchorX, footJoint[1] * 0.55 + drop - soleDrop, anchorZ]
-    const toeLen = isBird ? fzS * 1.45 * shape.footLength : fzS * 1.5
+    // bird (anatomy round 4): the welded "foot" is only a small rounded
+    // ankle nub that closes the tarsus tube — the visible three-toed foot is
+    // a PROPER part mesh (bird-toes / bird-toes-webbed in parts.ts) parented
+    // to the foot bone. No displacement sculpting here anymore.
+    const toeLen = isBird ? fzS * shape.footLength : fzS * 1.5
     const toe: Vec3 = [anchorX, footJoint[1] * 0.4 + drop - soleDrop, anchorZ + toeLen]
     const footGrid = capsuleGrid({ a: ankle, b: toe, radiusA: fyS, radiusB: fyS * 0.72, useg: LIMB_USEG, vseg: 9, fullness: 0.65 })
-    if (isBird) {
-      // AC toe-fan (plan 017, toe rework plan 023): flat wedge widening toward
-      // the front, front edge split into 3 SPREAD toes by deep notches
-      // (toeCut 0 = webbed duck triangle), domed top so the toes read from a
-      // 30° camera, plus an optional hind-toe bump. Positional passes only.
-      const soleY = ankle[1] - fyS
-      for (let i = 0; i < footGrid.pos.length / 3; i++) {
-        const u01 = footGrid.params[i * 2]
-        const v01 = footGrid.params[i * 2 + 1]
-        // domed top: tall at the ankle, thinning toward the toe tips so the
-        // toe tops stay visible from above; sole stays flat at soleY
-        const flatten = 0.8 - 0.3 * v01
-        footGrid.pos[i * 3 + 1] = (footGrid.pos[i * 3 + 1] - soleY) * flatten + soleY
-        const widen = (fxS / Math.max(fyS, 1e-9)) * (0.7 + 1.15 * v01)
-        footGrid.pos[i * 3] = (footGrid.pos[i * 3] - anchorX) * widen + anchorX
-        // toe lobes: sin(az) IS the x-direction factor of the radial basis,
-        // so lobes keyed on it stay x-symmetric top and bottom
-        const sinAz = Math.sin(2 * Math.PI * u01)
-        const cosAz = Math.cos(2 * Math.PI * u01)
-        const frontZone = smoothstep(0.55, 1.0, v01)
-        const scallop = Math.abs(Math.sin((sinAz * 0.5 + 0.5) * 3 * Math.PI))
-        const cut = (1 - scallop) * shape.toeCut
-        // deep notches (the gaps must read at toy scale — AC toes are fully
-        // separated fingers, not a scalloped rim) + longer toes
-        footGrid.pos[i * 3 + 2] += frontZone * (0.6 * fzS * (1 - cut) - 0.9 * fzS * cut)
-        // spread: outer toes angle outward ~30°; scales with toeCut so the
-        // duckling's webbed triangle stays webbed
-        footGrid.pos[i * 3] += frontZone * sinAz * fzS * 0.9 * shape.toeCut
-        // groove the top along the notch lines so the three toes read as
-        // distinct nubs from the default (slightly high) camera, not only in
-        // the front-edge silhouette
-        footGrid.pos[i * 3 + 1] = soleY + (footGrid.pos[i * 3 + 1] - soleY) * (1 - 0.85 * frontZone * cut)
-        if (shape.hindToe) {
-          // rear bump on the down-facing heel zone
-          const heel = smoothstep(0.25, 0.08, v01) * smoothstep(-0.3, -0.85, cosAz)
-          footGrid.pos[i * 3 + 2] -= fzS * 0.35 * heel
-        }
-      }
-    } else {
-      // widen across X to the foot's x-radius (fx), keep it flat-ish
-      for (let i = 0; i < footGrid.pos.length / 3; i++) {
-        footGrid.pos[i * 3] = (footGrid.pos[i * 3] - footJoint[0]) * (fxS / Math.max(fyS, 1e-9)) + footJoint[0]
-      }
+    // widen across X to the foot's x-radius (fx), keep it flat-ish
+    for (let i = 0; i < footGrid.pos.length / 3; i++) {
+      footGrid.pos[i * 3] = (footGrid.pos[i * 3] - footJoint[0]) * (fxS / Math.max(fyS, 1e-9)) + footJoint[0]
     }
     const footName = `foot${side}` as const
     const foot = gridToPiece(footName, footGrid, [{ kind: 'poleBottom', ring: 1, loop: 'ankle' }])

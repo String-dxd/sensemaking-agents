@@ -18,7 +18,8 @@ describe('part registry', () => {
     expect(partsForSlot('muzzle')).toHaveLength(8)
     // plan 011 added slim-cat; plan 018 added tail-sickle-rooster / tail-train-peacock
     expect(partsForSlot('tail')).toHaveLength(7)
-    expect(partsForSlot('claws')).toHaveLength(2)
+    // anatomy round 4 added bird-toes / bird-toes-webbed
+    expect(partsForSlot('claws')).toHaveLength(4)
     // plan 018 added comb-chicken / crest-peacock (none + feather-tuft were the prior 2)
     expect(partsForSlot('crest')).toHaveLength(4)
     // ≥14 authored (non-empty) parts committed

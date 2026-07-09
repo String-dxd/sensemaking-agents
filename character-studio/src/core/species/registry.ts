@@ -200,7 +200,7 @@ export const SPECIES_REGISTRY = {
     parts: {
       muzzle: { partId: 'beak-small', morphs: { length: 0.45 } },
       tail: { partId: 'feather-fan', morphs: { length: 0.4 } },
-      claws: { partId: 'mitten-none', morphs: {} },
+      claws: { partId: 'bird-toes', morphs: {} },
       crest: { partId: 'none', morphs: {} },
       wings: { partId: 'wing-round', morphs: {} },
     },
@@ -264,7 +264,7 @@ export const SPECIES_REGISTRY = {
     parts: {
       muzzle: { partId: 'beak-hooked', morphs: { length: 0.15 } },
       tail: { partId: 'feather-fan', morphs: { length: 0.15 } },
-      claws: { partId: 'mitten-none', morphs: {} },
+      claws: { partId: 'bird-toes', morphs: {} },
       crest: { partId: 'feather-tuft', morphs: {} },
       wings: { partId: 'wing-round', morphs: {} },
     },
@@ -328,7 +328,7 @@ export const SPECIES_REGISTRY = {
     parts: {
       muzzle: { partId: 'bill-duck', morphs: { length: 0.4 } },
       tail: { partId: 'feather-fan', morphs: { length: 0.12 } },
-      claws: { partId: 'mitten-none', morphs: {} },
+      claws: { partId: 'bird-toes-webbed', morphs: {} },
       crest: { partId: 'none', morphs: {} },
       wings: { partId: 'wing-round', morphs: {} },
     },
@@ -392,7 +392,7 @@ export const SPECIES_REGISTRY = {
     parts: {
       muzzle: { partId: 'beak-hooked', morphs: { length: 0.55 } },
       tail: { partId: 'feather-fan', morphs: { length: 0.35 } },
-      claws: { partId: 'mitten-none', morphs: {} },
+      claws: { partId: 'bird-toes', morphs: {} },
       crest: { partId: 'none', morphs: {} },
       wings: { partId: 'wing-eagle', morphs: { length: 0.5 } },
     },
@@ -456,7 +456,7 @@ export const SPECIES_REGISTRY = {
     parts: {
       muzzle: { partId: 'beak-penguin', morphs: { length: 0.4 } },
       tail: { partId: 'feather-fan', morphs: { length: 0.08 } },
-      claws: { partId: 'mitten-none', morphs: {} },
+      claws: { partId: 'bird-toes-webbed', morphs: {} },
       crest: { partId: 'none', morphs: {} },
       wings: { partId: 'wing-flipper', morphs: {} },
     },
@@ -520,7 +520,7 @@ export const SPECIES_REGISTRY = {
     parts: {
       muzzle: { partId: 'beak-chicken', morphs: { length: 0.35 } },
       tail: { partId: 'tail-sickle-rooster', morphs: { length: 0.3 } },
-      claws: { partId: 'mitten-none', morphs: {} },
+      claws: { partId: 'bird-toes', morphs: {} },
       crest: { partId: 'comb-chicken', morphs: {} },
       wings: { partId: 'wing-round', morphs: {} },
     },
@@ -584,7 +584,7 @@ export const SPECIES_REGISTRY = {
     parts: {
       muzzle: { partId: 'beak-small', morphs: { length: 0.3 } },
       tail: { partId: 'tail-train-peacock', morphs: { length: 0.5 } },
-      claws: { partId: 'mitten-none', morphs: {} },
+      claws: { partId: 'bird-toes', morphs: {} },
       crest: { partId: 'crest-peacock', morphs: {} },
       wings: { partId: 'wing-eagle', morphs: {} },
     },
@@ -648,7 +648,7 @@ export const SPECIES_REGISTRY = {
     parts: {
       muzzle: { partId: 'beak-small', morphs: { length: 0.35 } },
       tail: { partId: 'feather-fan', morphs: { length: 0.3 } },
-      claws: { partId: 'mitten-none', morphs: {} },
+      claws: { partId: 'bird-toes', morphs: {} },
       crest: { partId: 'none', morphs: {} },
       wings: { partId: 'wing-round', morphs: {} },
     },

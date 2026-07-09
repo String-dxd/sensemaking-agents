@@ -278,8 +278,11 @@ describe('plan 017 r1: AC straight-leg stance', () => {
     for (const piece of ['legL', 'legR'] as const) {
       const root = centroid(piece, 0, 0.05)
       const end = centroid(piece, 0.95, 1)
-      expect(end[0]).toBeCloseTo(root[0], 5)
-      expect(end[2]).toBeCloseTo(root[2], 5)
+      // anatomy round 4: the shaft ends plumb over the FOOT BONE so the
+      // rigid bird-toes part shares its axis; the root ring sits at the
+      // underside opening, so a small fixed offset (≤0.02) is expected.
+      expect(Math.abs(end[0] - root[0])).toBeLessThan(0.02)
+      expect(Math.abs(end[2] - root[2])).toBeLessThan(0.03)
       expect(end[1]).toBeLessThan(root[1]) // and actually drop
     }
   })
@@ -291,7 +294,9 @@ describe('plan 017 r1: AC straight-leg stance', () => {
     expect(l[2]).toBeCloseTo(r[2], 5)
     const ratio = Math.abs(l[0]) / data.meta.torso.rx
     expect(ratio).toBeGreaterThan(0.3)
-    expect(ratio).toBeLessThan(0.45)
+    // round 4: the standing egg's rx shrank (BIRD_TRUNK), so the same tarsus
+    // spacing is a slightly larger fraction of it
+    expect(ratio).toBeLessThan(0.55)
   })
 })
 

@@ -15,6 +15,7 @@
 
 import * as THREE from 'three'
 import { ARCHETYPES_DEF, archetypeBuildOptions } from '../skeleton/archetypes'
+import { birdFlankX, birdTrunkDims } from './birdTrunk'
 import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skeleton/canonical'
 import { PART_REGISTRY, type PartId } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
@@ -638,20 +639,8 @@ function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; ro
   const jb = restWorldPositions(buildSkeleton(archetypeBuildOptions('bird')))
   const tX = jb.upperArmL[0] - u * j.upperArmL[0]
   const tY = jb.upperArmL[1] - u * j.upperArmL[1]
-  const torsoH = jb.neck[1] - jb.hips[1]
-  const torsoBottom = jb.hips[1] - torsoH * 0.42
-  const torsoTop = jb.neck[1] + torsoH * 0.55
-  const cyW = (torsoBottom + torsoTop) / 2
-  const ryW = (torsoTop - torsoBottom) / 2
-  const rxW = bird.headRadius * u * 0.85
-  const eggProfile = (v01: number): number =>
-    1 + 0.34 * (1 - v01) ** 2 * Math.sin(Math.PI * v01) * 2 - 0.34 * v01 * v01
-  /** World flank |x| of the bird egg at world height yW. */
-  const flankX = (yW: number): number => {
-    const c = Math.min(Math.max((cyW - yW) / ryW, -1), 1)
-    const pol = Math.acos(c)
-    return rxW * Math.sin(pol) * eggProfile(pol / Math.PI)
-  }
+  const dims = birdTrunkDims(jb, bird.headRadius * u)
+  const flankX = (yW: number): number => birdFlankX(dims, yW)
 
   const drape = (t01: number, len: number, r0: number, r1: number, name: string, layerX: number): SurfacePiece => {
     // front (t01=0) → down the leading edge; rear (t01=1) → swept to the tail
@@ -718,19 +707,20 @@ function pairWing(name: string, j: J, spec: WingSpec, curl = 0): PartMesh[] {
 }
 
 function wingRound(j: J): PartMesh[] {
-  // default songbird/chicken/owl: tip ≈ hip height (shoulder y≈0.505,
-  // hips y≈0.34 in reference space)
-  return pairWing('wing-round', j, { count: 4, len: 0.24, sweep: 0.55, tipR: 0.045, coverts: 3 })
+  // default songbird/chicken/owl. AC folded wings hang DOWN the flank like
+  // little arms — barely any back-sweep (anatomy round 4); the feather fan
+  // reads in the tip scallops, not in a back-wrap.
+  return pairWing('wing-round', j, { count: 4, len: 0.26, sweep: 0.22, tipR: 0.042, coverts: 3 })
 }
 
 function wingEagle(j: J): PartMesh[] {
-  // eagle/peacock: longer (tip below hip), stronger diagonal sweep
-  return pairWing('wing-eagle', j, { count: 5, len: 0.32, sweep: 0.7, tipR: 0.046, coverts: 4 })
+  // eagle/peacock: longer (tip below hip), slightly more diagonal
+  return pairWing('wing-eagle', j, { count: 5, len: 0.33, sweep: 0.3, tipR: 0.044, coverts: 4 })
 }
 
 function wingFlipper(j: J): PartMesh[] {
   // penguin: one smooth slim flat paddle, no scallops, slight outward curl
-  return pairWing('wing-flipper', j, { count: 1, len: 0.22, sweep: 0.1, tipR: 0.05, coverts: 0 }, 0.035)
+  return pairWing('wing-flipper', j, { count: 1, len: 0.24, sweep: 0.06, tipR: 0.05, coverts: 0 }, 0.035)
 }
 
 // claws + crest -----------------------------------------------------------------
@@ -757,6 +747,59 @@ function clawsStub(j: J): PartMesh[] {
     }
     return { name: `claws-stub@${bone}`, shells, attach: bone, morphKeys: {} }
   })
+}
+
+// bird feet (anatomy round 4) — the visible foot is a PROPER mesh: three
+// separated toe capsules plus a heel, one rigid part per foot bone, replacing
+// round 3's displacement-sculpted paddle. Ground alignment: the builder maps
+// the authored sole so it lands exactly on y=0 after the rigid bone mapping
+// (world = birdBoneWorld + (v − refBone)·uniformScale).
+
+function birdToesSide(j: J, bone: 'footL' | 'footR', webbed: boolean): PartMesh {
+  const u = ARCHETYPES_DEF.bird.uniformScale
+  const jb = restWorldPositions(buildSkeleton(archetypeBuildOptions('bird')))
+  const ref = V(j[bone])
+  const mirror = bone === 'footR' ? -1 : 1
+  const soleY = ref[1] - jb[bone][1] / u // authored y that lands on world 0
+  const toeR = 0.026
+  const flat = 0.62 // vertical squash — low flat toes, round in plan view
+  const lift = toeR * flat // centreline height so the squashed sole touches 0
+  const heelZ = -0.015
+  const shells: SurfacePiece[] = []
+  const toe = (name: string, angDeg: number, len: number, r: number): void => {
+    const a = (angDeg * Math.PI) / 180
+    const dir: Vec3 = [Math.sin(a) * mirror, 0, Math.cos(a)]
+    const base: Vec3 = [ref[0], soleY + lift, ref[2] + heelZ]
+    const tip = add(base, vec.scale(dir, len))
+    const t = closedCapsule(name, base, tip, r, r * 0.78, 10, 8, 0, 0.55)
+    flatY(t, soleY + lift, flat)
+    setChannelAll(t, CH_ACCENT, 1)
+    shells.push(t)
+  }
+  if (webbed) {
+    // shorter toes joined by a thin web plate (duck/penguin)
+    toe('toeMid', 0, 0.085, toeR * 0.9)
+    toe('toeIn', -24, 0.072, toeR * 0.85)
+    toe('toeOut', 24, 0.072, toeR * 0.85)
+    const web = closedEllipsoid('web', [ref[0], soleY + lift * 0.7, ref[2] + heelZ + 0.045], [0.052, lift * 0.55, 0.05], 12, 8)
+    setChannelAll(web, CH_ACCENT, 1)
+    shells.push(web)
+  } else {
+    // three clearly SEPARATED toes — middle longest — plus a short hind toe
+    toe('toeMid', 0, 0.105, toeR)
+    toe('toeIn', -27, 0.085, toeR * 0.88)
+    toe('toeOut', 27, 0.085, toeR * 0.88)
+    toe('toeHind', 180, 0.05, toeR * 0.8)
+  }
+  return { name: `${webbed ? 'bird-toes-webbed' : 'bird-toes'}@${bone}`, shells, attach: bone, morphKeys: {} }
+}
+
+function birdToes(j: J): PartMesh[] {
+  return [birdToesSide(j, 'footL', false), birdToesSide(j, 'footR', false)]
+}
+
+function birdToesWebbed(j: J): PartMesh[] {
+  return [birdToesSide(j, 'footL', true), birdToesSide(j, 'footR', true)]
 }
 
 function crestFeatherTuft(j: J): PartMesh[] {
@@ -841,6 +884,8 @@ const BUILDERS: Partial<Record<PartId, (j: J) => PartMesh[]>> = {
   'tail-sickle-rooster': tailSickleRooster,
   'tail-train-peacock': tailTrainPeacock,
   'stub-claws': clawsStub,
+  'bird-toes': birdToes,
+  'bird-toes-webbed': birdToesWebbed,
   'wing-round': wingRound,
   'wing-eagle': wingEagle,
   'wing-flipper': wingFlipper,
