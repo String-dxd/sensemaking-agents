@@ -610,9 +610,13 @@ interface WingSpec {
 }
 
 function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; root: Vec3; tip: Vec3 } {
-  const sh = V(j.upperArmL)
-  const el = V(j.foreArmL)
-  const wr = V(j.handL)
+  // round 9: the folded wing sweeps DOWN-BACK along the flank toward the tail
+  // root (the AC fold), not down-forward like the canonical arm chain. The
+  // mesh path gets a progressive rearward bias; the bones stay where they
+  // are, so walk/wave/sit clips are untouched.
+  const sh = add(V(j.upperArmL), [0, 0, -0.012])
+  const el = add(V(j.foreArmL), [0, 0, -0.045])
+  const wr = add(V(j.handL), [0, 0, -0.11])
   const dirWr = dirTo(el, wr)
   const tipPt = add(wr, vec.scale(dirWr, spec.ext))
   const L = vec.len(vec.sub(el, sh)) + vec.len(vec.sub(wr, el)) + spec.ext
