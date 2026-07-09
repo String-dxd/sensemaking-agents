@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
 import type { Camera, Vector3 } from 'three'
@@ -411,8 +411,11 @@ export function App() {
           onPaint={paint}
           onPaintEnd={onPaintEnd}
         />
-        <PlacedObjects spec={spec} placeMode={placeMode} onRemove={removeObj} />
-        {placeKind !== null && <PlaceGhost spec={spec} kind={placeKind} cell={ghostCell} />}
+        {/* GLB-backed models suspend while their assets stream in. */}
+        <Suspense fallback={null}>
+          <PlacedObjects spec={spec} placeMode={placeMode} onRemove={removeObj} />
+          {placeKind !== null && <PlaceGhost spec={spec} kind={placeKind} cell={ghostCell} />}
+        </Suspense>
         <OrbitControls
           ref={setControls}
           makeDefault

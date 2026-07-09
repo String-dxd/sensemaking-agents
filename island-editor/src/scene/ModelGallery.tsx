@@ -1,10 +1,9 @@
-import { useEffect, useMemo } from 'react'
+import { Suspense, useEffect } from 'react'
 import { OrbitControls, Text } from '@react-three/drei'
-import { Canvas, useFrame } from '@react-three/fiber'
-import * as THREE from 'three'
-import { buildObjectModel } from '../models/buildObjectModel'
-import { hashString } from '../models/rand'
+import { Canvas } from '@react-three/fiber'
+import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { OBJECT_KINDS, type ObjectKind } from '../terrain/terrainGrid'
+import { useCanopyWind } from './useCanopyWind'
 
 // Dev-only view (gated behind `?gallery` in main.tsx): lays out every ObjectKind
 // across a row, with a few seeds per kind down the depth axis so the seeded
@@ -15,16 +14,6 @@ const SEEDS = [1, 2, 3]
 const SPACING_X = 1.6
 const SPACING_Z = 1.6
 
-function disposeGroup(group: THREE.Group): void {
-  group.traverse((o) => {
-    const mesh = o as THREE.Mesh
-    if (!mesh.isMesh) return
-    mesh.geometry.dispose()
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-    for (const m of materials) m.dispose()
-  })
-}
-
 function GalleryModel({
   kind,
   seed,
@@ -34,29 +23,12 @@ function GalleryModel({
   seed: number
   position: [number, number, number]
 }) {
-  const model = useMemo(() => buildObjectModel(kind, seed), [kind, seed])
-  useEffect(() => () => disposeGroup(model), [model])
+  const model = useObjectModel(kind, seed)
+  useEffect(() => () => disposeObjectModel(model), [model])
 
-  // Wind sway of the crown (same model as PlacedObjects: gust envelope + flutter
-  // + breathing, damped per kind by canopy.userData.windAmp; bush/rock have no
-  // canopy → no-op). Phase is seed-derived so the row of trees sways out of
-  // phase; frozen under prefers-reduced-motion. Render-layer only — the builder
-  // stays time-free.
-  const canopy = useMemo(() => model.getObjectByName('canopy'), [model])
-  const phase = useMemo(() => ((hashString(String(seed)) % 1000) / 1000) * Math.PI * 2, [seed])
-  const reduce = useMemo(
-    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
-    [],
-  )
-  useFrame((state) => {
-    if (!canopy || reduce) return
-    const t = state.clock.elapsedTime
-    const amp = (canopy.userData.windAmp as number | undefined) ?? 1
-    const gust = 0.6 + 0.4 * Math.sin(t * 0.23 + phase)
-    canopy.rotation.z = (Math.sin(t * 1.1 + phase) * 0.045 + Math.sin(t * 2.3 + phase * 1.7) * 0.012) * gust * amp
-    canopy.rotation.x = Math.cos(t * 0.9 + phase) * 0.03 * gust * amp
-    canopy.scale.y = 1 + 0.02 * Math.sin(t * 1.7 + phase) * amp
-  })
+  // Spring-damper wind on the crown (same hook as PlacedObjects): the gallery
+  // position feeds the traveling gust front, so gusts visibly sweep the rows.
+  useCanopyWind(model, `${kind}-${seed}`, position[0], position[2])
 
   return <primitive object={model} position={position} />
 }
@@ -77,16 +49,18 @@ export function ModelGallery() {
           <meshStandardMaterial color="#7fae5a" />
         </mesh>
 
-        {OBJECT_KINDS.map((kind, i) =>
-          SEEDS.map((seed, j) => (
-            <GalleryModel
-              key={`${kind}-${seed}`}
-              kind={kind}
-              seed={seed}
-              position={[i * SPACING_X - offsetX, 0, j * SPACING_Z - offsetZ]}
-            />
-          )),
-        )}
+        <Suspense fallback={null}>
+          {OBJECT_KINDS.map((kind, i) =>
+            SEEDS.map((seed, j) => (
+              <GalleryModel
+                key={`${kind}-${seed}`}
+                kind={kind}
+                seed={seed}
+                position={[i * SPACING_X - offsetX, 0, j * SPACING_Z - offsetZ]}
+              />
+            )),
+          )}
+        </Suspense>
 
         {OBJECT_KINDS.map((kind, i) => (
           <Text

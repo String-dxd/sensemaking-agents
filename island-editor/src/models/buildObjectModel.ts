@@ -3,64 +3,44 @@ import type { ObjectKind } from '../terrain/terrainGrid'
 import { hashString, mulberry32 } from './rand'
 import { modelTexture } from './textures'
 
-// Stylized object models built from three.js primitives (the bird-builder
-// approach: our own authorship, no asset/licensing pipeline). Art direction:
-// Animal Crossing / Pokémon-cozy — each crown reads as ONE cohesive matte mass
-// with a smooth baked vertical color gradient (deep green low → sunny
-// yellow-green high) and rounded scallop bumps, not a pile of distinct
-// textured spheres. Foliage is untextured flat color (vertex-color gradient);
-// only bark and stone carry soft hand-painted maps. Lit for the scene sun
-// (Backdrop.tsx: ambient 0.6 + a directional 1.15 at [18,20,10]).
+// Stylized PROCEDURAL models built from three.js primitives — now only the
+// small ground clutter (bush, rock). The tree kinds moved to the GLB lane:
+// authored by scripts/build-tree-glbs.mjs into public/models/*.glb and loaded
+// through useObjectModel (which routes non-GLB kinds back here). Art direction
+// still AC-cozy: matte masses with baked vertex-color gradients. Lit for the
+// scene sun (Backdrop.tsx: ambient 0.6 + a directional 1.15 at [18,20,10]).
 // Deterministic given a seed so previews are stable and placement re-derives
 // the same variety on reload. No Math.random / Date — the seeded PRNG is the
 // only entropy source.
 
+/** The kinds this builder still owns (everything else ships as a GLB asset). */
+export type ProceduralKind = Extract<ObjectKind, 'bush' | 'rock'>
+
 type Rand = () => number
 
-// Base tints. Bark/rock maps multiply the material color (so those are
-// lightened); foliage gradients are baked per-vertex and render as-is.
-const TRUNK = 0xcf9a58 // caramel tint; the bark map is painted light so this reads as AC's honey trunk
-const LEAF = 0x8fd062 // flat mid green — palm hub/fronds, rock moss
-const CANOPY_LOW = 0x3d8038 // broadleaf crown gradient: shaded underside…
-const CANOPY_HIGH = 0xb4e060 // …to sunny yellow-green top
-const CEDAR_LOW = 0x2c6650 // cedar skirt gradient: dark teal base…
-const CEDAR_HIGH = 0x6bac76 // …to lighter blue-green tips
-const APPLE = 0xd84340 // deep cheerful red fruit (reads well on flat green)
-const ROCK = 0xb8b2a6 // warm light stone (lightened for the rock map)
-const COCONUT = 0x7a5230
-// Signature AC bush bloom: soft pink, cream, buttery yellow.
-const FLOWERS = [0xf7a8c8, 0xfff2e6, 0xffd766]
+// Base tints.
+const LEAF = 0x8fd062 // bush fallback tint until the bush-leaves map loads
+const ROCK = 0xf7f4ee // near-white tint — the painted stone map carries the color
 
 /** Guarded texture lookup: `null` in a DOM-less env (vitest/node) so the builder
  *  runs headless without touching TextureLoader; a shared, cached THREE.Texture
  *  in the browser. Never dispose or mutate the returned texture — it is shared
- *  across every model (mutating tex.repeat etc. would corrupt other instances). */
+ *  across every model instance. */
 function tex(name: Parameters<typeof modelTexture>[0]): THREE.Texture | null {
   return typeof document === 'undefined' ? null : modelTexture(name)
 }
 
-/** Bark material — warm tint over the vertical-streak bark map, gently faceted
- *  so trunks keep a low-poly edge that sits with the flat-shaded terrain. */
-function bark(): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: TRUNK,
-    map: tex('bark-soft-streaks') ?? undefined,
-    flatShading: true,
-    roughness: 0.88,
-    metalness: 0,
-  })
-}
-
-/** Stone material — ROCK tint over the speckled stone map, with a small seeded
- *  lightness jitter so clustered stones read as distinct volumes. */
+/** Stone material — the soft painted stone map (pale warm white with subtle
+ *  mottling) under a near-white tint, with a small seeded lightness jitter so
+ *  placed stones read as distinct volumes. */
 function stone(rand: Rand): THREE.MeshStandardMaterial {
   const c = new THREE.Color(ROCK)
-  c.offsetHSL(0, 0, (rand() - 0.5) * 0.05)
+  c.offsetHSL(0, 0, (rand() - 0.5) * 0.06)
   return new THREE.MeshStandardMaterial({
     color: c,
-    map: tex('rock-soft-speckle') ?? undefined,
+    map: tex('rock-painted') ?? undefined,
     flatShading: false,
-    roughness: 0.9,
+    roughness: 0.95,
     metalness: 0,
   })
 }
@@ -69,18 +49,6 @@ function stone(rand: Rand): THREE.MeshStandardMaterial {
  *  flowers, coconuts, palm fronds) that read better without a map. */
 function soft(color: THREE.ColorRepresentation): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, flatShading: false, roughness: 0.95, metalness: 0 })
-}
-
-/** Foliage material — fully matte, colored ONLY by the baked per-vertex
- *  gradient (see bakeGradient). No map, no highlight: the flat toon look. */
-function gradientMat(): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    vertexColors: true,
-    flatShading: false,
-    roughness: 1,
-    metalness: 0,
-  })
 }
 
 /** Bake a bottom→top color gradient into a mesh's vertex colors, keyed on the
@@ -163,343 +131,119 @@ function lumpy(geo: THREE.BufferGeometry, rand: Rand, amount: number): void {
   smoothNormals(geo)
 }
 
-// An AC apple tree: a two-segment chunky trunk with a squashed root flare under
-// ONE cohesive crown — a big squashed core sphere with rounded scallop mounds
-// embedded in its surface and larger lobes around the bottom rim, all sharing a
-// single baked bottom-dark → top-light gradient, dotted with apples.
-function fruitTree(rand: Rand): THREE.Object3D[] {
-  const parts: THREE.Object3D[] = []
-
-  // Root flare: a squashed sphere at the foot so the trunk grows out of a base.
-  const flare = new THREE.Mesh(new THREE.SphereGeometry(0.26, 8, 6), bark())
-  flare.scale.y = 0.4
-  flare.position.y = 0.06
-  parts.push(flare)
-
-  // Two-segment chunky trunk: base cylinder + a narrower, slightly tilted upper.
-  const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.22, 0.34, 7), bark())
-  lower.position.y = 0.23
-  parts.push(lower)
-
-  const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 0.28, 7), bark())
-  upper.position.y = 0.53
-  upper.rotation.z = (rand() - 0.5) * 0.15
-  parts.push(upper)
-
-  // Foliage lives in a named 'canopy' sub-group pivoted at the trunk top, so the
-  // render layer can sway the whole crown (wind) without moving the trunk. All
-  // foliage positions below are canopy-LOCAL (world y − CANOPY_PIVOT_Y).
-  const CANOPY_PIVOT_Y = 0.72
-  const canopy = new THREE.Group()
-  canopy.name = 'canopy'
-  canopy.position.y = CANOPY_PIVOT_Y
-  canopy.userData.windAmp = 1 // broadleaf crown takes the full wind
-
-  const low = new THREE.Color(CANOPY_LOW)
-  const high = new THREE.Color(CANOPY_HIGH)
-  const CROWN_C = 0.5 // crown center, canopy-local
-  const CORE_R = 0.52
-  const GRAD_Y0 = -0.06 // crown-space gradient span (bottom rim lobes…)
-  const GRAD_Y1 = 1.02 // …to the top of the highest scallop
-
-  // The core: one big, slightly squashed sphere — the crown IS this mass.
-  const core = new THREE.Mesh(new THREE.IcosahedronGeometry(CORE_R, 3), gradientMat())
-  core.scale.y = 0.92
-  core.position.y = CROWN_C
-  bakeGradient(core, low, high, GRAD_Y0, GRAD_Y1)
-  canopy.add(core)
-
-  // Scallop mounds half-embedded in the core surface: evenly fanned azimuths
-  // with seeded jitter, biased to the upper hemisphere so the top reads as
-  // billowy stacked puffs while the sides stay rounded.
-  for (let i = 0; i < 10; i++) {
-    const az = (i / 10) * Math.PI * 2 + rand() * 0.55
-    const el = -0.12 + rand() * 0.85 // radians above the equator (mostly upper)
-    const r = 0.17 + rand() * 0.09
-    const dist = CORE_R - r * 0.35 // half-embedded: ~0.65r of the mound protrudes
-    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 2), gradientMat())
-    m.position.set(
-      Math.cos(el) * Math.cos(az) * dist,
-      CROWN_C + Math.sin(el) * dist * 0.92,
-      Math.cos(el) * Math.sin(az) * dist,
-    )
-    m.scale.y = 0.9
-    bakeGradient(m, low, high, GRAD_Y0, GRAD_Y1)
-    canopy.add(m)
-  }
-
-  // A fixed billowy cap mound so the top always reads as stacked puffs even
-  // when the seeded scallops land low.
-  const cap = new THREE.Mesh(new THREE.IcosahedronGeometry(0.21, 2), gradientMat())
-  cap.position.set(0, CROWN_C + (CORE_R - 0.21 * 0.35) * 0.92, 0)
-  cap.scale.y = 0.9
-  bakeGradient(cap, low, high, GRAD_Y0, GRAD_Y1)
-  canopy.add(cap)
-
-  // Bottom rim lobes so the underside silhouette reads lobed, not spherical.
-  for (let i = 0; i < 4; i++) {
-    const az = (i / 4) * Math.PI * 2 + rand() * 0.5
-    const r = 0.23 + rand() * 0.05
-    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 2), gradientMat())
-    m.position.set(Math.cos(az) * 0.34, CROWN_C - 0.3, Math.sin(az) * 0.34)
-    m.scale.y = 0.85
-    bakeGradient(m, low, high, GRAD_Y0, GRAD_Y1)
-    canopy.add(m)
-  }
-
-  // Apples perched on the visible skin of the crown (outward low-mid band).
-  const appleCount = 3 + Math.floor(rand() * 3) // 3..5
-  for (let i = 0; i < appleCount; i++) {
-    const az = (i / appleCount) * Math.PI * 2 + rand() * 1.2
-    const el = -0.1 + rand() * 0.5
-    const apple = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), soft(APPLE))
-    apple.position.set(
-      Math.cos(el) * Math.cos(az) * CORE_R * 1.02,
-      CROWN_C + Math.sin(el) * CORE_R * 0.94,
-      Math.cos(el) * Math.sin(az) * CORE_R * 1.02,
-    )
-    canopy.add(apple)
-  }
-
-  parts.push(canopy)
-  return parts
-}
-
-// An AC cedar: a short trunk under 4 conical skirts — each a flattened center
-// puff fringed with a ring of small drooping lobes (the scalloped rim) — in a
-// dark-teal bottom → lighter top gradient, with a soft pointed spire on top.
-function pine(rand: Rand): THREE.Object3D[] {
-  const parts: THREE.Object3D[] = []
-
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, 0.34, 7), bark())
-  trunk.position.y = 0.17
-  parts.push(trunk)
-
-  // Foliage skirts live in a 'canopy' group pivoted at the trunk top so the wind
-  // hook can rock the whole cone. Conifers are stiff: windAmp damps the sway.
-  // Positions below are canopy-LOCAL (world y − PINE_PIVOT_Y).
-  const PINE_PIVOT_Y = 0.4
-  const canopy = new THREE.Group()
-  canopy.name = 'canopy'
-  canopy.position.y = PINE_PIVOT_Y
-  canopy.userData.windAmp = 0.35
-  parts.push(canopy)
-
-  const low = new THREE.Color(CEDAR_LOW)
-  const high = new THREE.Color(CEDAR_HIGH)
-  const GRAD_Y0 = -0.16
-  const GRAD_Y1 = 1.12
-
-  const radii = [0.5, 0.4, 0.31, 0.22]
-  const centers = [0.1, 0.38, 0.63, 0.84] // canopy-local tier heights
-  const rims = [8, 8, 7, 6]
-  for (let i = 0; i < radii.length; i++) {
-    const R = radii[i]
-    // Center puff: a flattened sphere carrying the tier's mass.
-    const tier = new THREE.Mesh(new THREE.IcosahedronGeometry(R, 2), gradientMat())
-    tier.scale.y = 0.45
-    tier.position.set((rand() - 0.5) * 0.04, centers[i], (rand() - 0.5) * 0.04)
-    bakeGradient(tier, low, high, GRAD_Y0, GRAD_Y1)
-    canopy.add(tier)
-
-    // Fringed rim: small flattened lobes seated slightly below the tier center
-    // so the skirt droops like the reference cedar.
-    for (let t = 0; t < rims[i]; t++) {
-      const ang = (t / rims[i]) * Math.PI * 2 + rand() * 0.4 + i * 0.35
-      const lr = R * 0.34
-      const lobe = new THREE.Mesh(new THREE.IcosahedronGeometry(lr, 2), gradientMat())
-      lobe.scale.y = 0.5
-      lobe.position.set(Math.cos(ang) * R * 0.82, centers[i] - R * 0.12, Math.sin(ang) * R * 0.82)
-      bakeGradient(lobe, low, high, GRAD_Y0, GRAD_Y1)
-      canopy.add(lobe)
-    }
-  }
-
-  // Soft pointed spire (a stretched icosphere — NOT a cone/cylinder, the trunk
-  // contract test treats tall cylinders inside the canopy as bent trunks).
-  const spire = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 2), gradientMat())
-  spire.scale.set(0.55, 2.1, 0.55)
-  spire.position.y = 1.0
-  bakeGradient(spire, low, high, GRAD_Y0, GRAD_Y1)
-  canopy.add(spire)
-
-  return parts
-}
-
-// A palm: a tall trunk leaning slightly (the whole thing lives in a `lean` group
-// rotated about its base) with a few faint trunk rings, a crown of arched
-// drooping two-tone fronds (two overlapping blades per frond along a downward
-// arc), a rounded crown hub to hide their origins, and a couple of coconuts.
-// Returns the single lean group so the base pivot stays at y=0.
-function palm(rand: Rand): THREE.Object3D[] {
-  const lean = new THREE.Group()
-  lean.rotation.z = (0.05 + rand() * 0.07) * (rand() < 0.5 ? 1 : -1) // ±0.05..0.12 rad
-
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 1.0, 7), bark())
-  trunk.position.y = 0.5
-  lean.add(trunk)
-
-  // 2–3 faint ring bumps banding the trunk.
-  const ringCount = 2 + Math.floor(rand() * 2) // 2 or 3
-  for (let i = 0; i < ringCount; i++) {
-    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.04, 8), bark())
-    ring.position.y = 0.25 + i * 0.28
-    lean.add(ring)
-  }
-
-  // The whole crown (hub + fronds + coconuts) lives in a 'canopy' group pivoted
-  // at the crown so the wind hook can toss it. Positions are canopy-LOCAL.
-  // Nested inside `lean`, so grounding (which shifts top-level children) moves
-  // it together with the trunk.
-  const crownY = 1.0
-  const canopy = new THREE.Group()
-  canopy.name = 'canopy'
-  canopy.position.y = crownY
-  canopy.userData.windAmp = 0.7
-  lean.add(canopy)
-
-  const hub = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), soft(LEAF))
-  canopy.add(hub)
-
-  const frondCount = 7 + Math.floor(rand() * 3) // 7..9
-  const deep = new THREE.Color(LEAF)
-  deep.offsetHSL(0, 0.03, -0.08) // slightly deeper alternating tone
-  for (let i = 0; i < frondCount; i++) {
-    const frond = new THREE.Group()
-    frond.rotation.y = (i / frondCount) * Math.PI * 2 + rand() * 0.2
-    const tone = soft(i % 2 === 0 ? LEAF : deep)
-
-    // Two overlapping blades along a downward arc: the inner splays up-and-out,
-    // the outer tapers and droops — the AC arched frond.
-    const inner = new THREE.Mesh(new THREE.SphereGeometry(0.16, 7, 5), tone)
-    inner.scale.set(0.5, 0.26, 1.5)
-    inner.rotation.x = 0.32
-    inner.position.set(0, 0.05, 0.28)
-    frond.add(inner)
-
-    const outer = new THREE.Mesh(new THREE.SphereGeometry(0.16, 7, 5), tone)
-    outer.scale.set(0.36, 0.18, 1.2)
-    outer.rotation.x = 1.3
-    outer.position.set(0, -0.1, 0.55)
-    frond.add(outer)
-
-    canopy.add(frond)
-  }
-
-  if (rand() < 0.6) {
-    for (let i = 0; i < 2; i++) {
-      const a = rand() * Math.PI * 2
-      const coconut = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), soft(COCONUT))
-      coconut.position.set(Math.cos(a) * 0.08, -0.09, Math.sin(a) * 0.08)
-      canopy.add(coconut)
-    }
-  }
-
-  return [lean]
-}
-
-// A flowering shrub: a rounded fluffy mound of 3–4 overlapping lumpy lobes near
-// the ground sharing one bottom-dark → top-light gradient, dotted with a few
-// little AC bloom flowers (a colored petal ball with a cream center). No trunk.
+// A leafy shrub: one small squat mound (no flowers) ringed by a few grass
+// tufts. Shape parameters are all seeded, so no two bushes share a silhouette;
+// deliberately small next to the ~1.7-unit trees.
 function bush(rand: Rand): THREE.Object3D[] {
   const parts: THREE.Object3D[] = []
 
-  const low = new THREE.Color(CANOPY_LOW)
-  const high = new THREE.Color(CANOPY_HIGH)
-
-  const lobeCount = 3 + Math.floor(rand() * 2) // 3 or 4
-  const lobes: { x: number; y: number; z: number; r: number }[] = []
-  const meshes: THREE.Mesh[] = []
-  let topY = 0.4
-  for (let i = 0; i < lobeCount; i++) {
-    const r = 0.24 + rand() * 0.1 // 0.24..0.34
-    const x = (rand() - 0.5) * 0.28
-    const z = (rand() - 0.5) * 0.28
-    const y = r - 0.04 + rand() * 0.1
-    const geo = new THREE.IcosahedronGeometry(r, 2)
-    lumpy(geo, rand, 0.1 * r)
-    const lobe = new THREE.Mesh(geo, gradientMat())
-    lobe.position.set(x, y, z)
-    lobe.rotation.y = rand() * Math.PI
-    parts.push(lobe)
-    meshes.push(lobe)
-    lobes.push({ x, y, z, r })
-    topY = Math.max(topY, y + r)
+  // The dome: the bush-leaves map (full-color, the sand-pipeline approach) is
+  // the surface color once loaded; until then the material keeps a LEAF-green
+  // fallback tint. Vertex colors carry hue-neutral shading (dark base → lit
+  // top) that multiplies the map.
+  const R = 0.19 + rand() * 0.09 // 0.19..0.28
+  const geo = new THREE.IcosahedronGeometry(R, 2)
+  lumpy(geo, rand, 0.13 * R)
+  const mat = new THREE.MeshStandardMaterial({ color: LEAF, vertexColors: true, roughness: 1, metalness: 0 })
+  mat.name = 'bush-foliage'
+  if (typeof document !== 'undefined') {
+    modelTexture('bush-leaves', (t) => {
+      mat.map = t
+      mat.color.set(0xffffff)
+      mat.needsUpdate = true
+    })
   }
-  // One shared gradient across the whole mound (bake after topY is known).
-  for (const m of meshes) bakeGradient(m, low, high, 0, topY)
+  const squash = 0.62 + rand() * 0.22 // squat pancake → rounder mound
+  const DOME_Y = R * 0.52
+  const dome = new THREE.Mesh(geo, mat)
+  dome.scale.set(1 + (rand() - 0.5) * 0.24, squash, 1 + (rand() - 0.5) * 0.24)
+  dome.position.y = DOME_Y
+  dome.rotation.y = rand() * Math.PI
+  bakeGradient(dome, new THREE.Color(0.7, 0.7, 0.7), new THREE.Color(1, 1, 1), 0, DOME_Y + R * squash)
+  parts.push(dome)
 
-  const flowerColor = FLOWERS[Math.floor(rand() * FLOWERS.length)]
-  const flowerCount = 2 + Math.floor(rand() * 5) // 2..6
-  for (let i = 0; i < flowerCount; i++) {
-    const base = lobes[Math.floor(rand() * lobes.length)]
-    const theta = rand() * Math.PI * 2
-    // Perch near the top-outer surface of a chosen lobe.
-    const px = base.x + Math.cos(theta) * base.r * 0.7
-    const py = base.y + base.r * 0.6
-    const pz = base.z + Math.sin(theta) * base.r * 0.7
-    const flower = new THREE.Mesh(new THREE.SphereGeometry(0.045, 7, 5), soft(flowerColor))
-    flower.position.set(px, py, pz)
-    parts.push(flower)
-    const center = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 5), soft(0xfff6df))
-    center.position.set(px, py + 0.035, pz)
-    parts.push(center)
+  // Grass tufts skirting the base: little pointed blades leaning outward, in a
+  // slightly lighter green than the dome so they read against it.
+  const tuftCount = 5 + Math.floor(rand() * 4) // 5..8
+  for (let i = 0; i < tuftCount; i++) {
+    const az = (i / tuftCount) * Math.PI * 2 + rand() * 0.9
+    const dist = R * (1.0 + rand() * 0.35)
+    const h = 0.05 + rand() * 0.05
+    const c = new THREE.Color(0x8cc75f)
+    c.offsetHSL(0, 0, (rand() - 0.5) * 0.08)
+    const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.02 + rand() * 0.012, h, 5), soft(c))
+    tuft.position.set(Math.cos(az) * dist, h * 0.45, Math.sin(az) * dist)
+    // Lean away from the bush so the skirt splays naturally.
+    tuft.rotation.set(Math.sin(az) * (0.2 + rand() * 0.25), 0, -Math.cos(az) * (0.2 + rand() * 0.25))
+    parts.push(tuft)
   }
 
   return parts
 }
 
-// A boulder: 1–2 lumpy rounded stones (icospheres displaced along their
-// normals, gentle non-uniform scale), often wearing a flat moss cap, with a
-// pebble or two beside them. Final grounding (below) drops it onto the terrain.
+// An AC boulder (reference: pale flat-topped stones with soft-rounded corners):
+// ONE stone per placement, built as a "cube-sphere" — a segmented box whose
+// vertices are pulled partway toward the circumscribed sphere, so it keeps a
+// boxy trapezoidal profile (flat top, bulging middle) with softly rounded
+// corners, then radially jittered and gently tapered toward the top. Flat
+// facets via face normals on the non-indexed geometry. Size is seeded (small
+// clutter, not landmarks); placement adds its own scale/yaw jitter on top.
 function rock(rand: Rand): THREE.Object3D[] {
-  const parts: THREE.Object3D[] = []
+  const r = 0.07 + rand() * 0.08 // 0.07..0.15 — small clutter next to ~1.7-unit trees
 
-  const count = rand() < 0.4 ? 2 : 1
-  let biggest = { r: 0, x: 0, y: 0 }
-  for (let i = 0; i < count; i++) {
-    const r = 0.3 + rand() * 0.12 // 0.3..0.42
-    const geo = new THREE.IcosahedronGeometry(r, 1)
-    lumpy(geo, rand, 0.12 * r)
-    const st = new THREE.Mesh(geo, stone(rand))
-    const sx = (rand() - 0.5) * 0.25
-    const sy = r * 0.5
-    const sz = (rand() - 0.5) * 0.25
-    st.scale.set(1 + rand() * 0.18, 0.68 + rand() * 0.2, 1 + rand() * 0.18)
-    st.rotation.set((rand() - 0.5) * 0.4, rand() * Math.PI, (rand() - 0.5) * 0.4)
-    st.position.set(sx, sy, sz)
-    parts.push(st)
-    if (r > biggest.r) biggest = { r, x: sx, y: sy }
+  // Every shape parameter is seeded so no two stones share a silhouette:
+  // roundness (boxy slab → rounded pebble), top taper, jitter strength, and
+  // proportions all vary per placement.
+  const roundness = 0.5 + rand() * 0.25 // how far corners pull toward the sphere
+  const taperAmt = 0.05 + rand() * 0.25 // top pinch: near-prism → clearly tapered
+  const jitterAmt = 0.08 + rand() * 0.08 // gentle: quads stay near-planar → BIG facets
+
+  // BoxGeometry is indexed — go non-indexed so computeVertexNormals bakes flat
+  // per-face facets. All displacement is keyed on position (radial direction /
+  // shared hash), so duplicated corner vertices move together: watertight.
+  const geo = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2).toNonIndexed()
+  const salt = Math.floor(rand() * 0xffffffff)
+  const pos = geo.attributes.position as THREE.BufferAttribute
+  const v = new THREE.Vector3()
+  const sph = new THREE.Vector3()
+  for (let i = 0; i < pos.count; i++) {
+    v.set(pos.getX(i), pos.getY(i), pos.getZ(i))
+    sph.copy(v).normalize().multiplyScalar(0.72)
+    v.lerp(sph, roundness)
+    const h = hashString(`${salt}:${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`)
+    v.multiplyScalar(1 + (h / 0xffffffff - 0.5) * jitterAmt)
+    const taper = 1 - taperAmt * (v.y / 0.62 + 1) * 0.5 // narrower toward the top
+    pos.setXYZ(i, v.x * taper * r * 2, v.y * r * 2, v.z * taper * r * 2)
   }
+  pos.needsUpdate = true
 
-  // Moss cap: a very flattened, darker matte lobe on the biggest stone (~half
-  // the time). The rand() is always consumed so call order stays fixed.
-  if (rand() < 0.5) {
-    const c = new THREE.Color(LEAF)
-    c.offsetHSL(0, 0, -0.05)
-    const moss = new THREE.Mesh(new THREE.IcosahedronGeometry(biggest.r * 0.55, 1), soft(c))
-    moss.scale.y = 0.25
-    moss.position.set(biggest.x, biggest.y + biggest.r * 0.4, 0)
-    parts.push(moss)
+  // Soft-edged facets: blend flat face normals halfway toward the smoothed
+  // ones, so the big polygons stay readable but their shared edges shade as
+  // gentle bevels instead of hard creases.
+  geo.computeVertexNormals() // non-indexed → flat face normals
+  const flat = Array.from((geo.attributes.normal as THREE.BufferAttribute).array)
+  smoothNormals(geo)
+  const nrm = geo.attributes.normal as THREE.BufferAttribute
+  for (let i = 0; i < nrm.count; i++) {
+    v.set(
+      flat[i * 3] * 0.45 + nrm.getX(i) * 0.55,
+      flat[i * 3 + 1] * 0.45 + nrm.getY(i) * 0.55,
+      flat[i * 3 + 2] * 0.45 + nrm.getZ(i) * 0.55,
+    ).normalize()
+    nrm.setXYZ(i, v.x, v.y, v.z)
   }
+  nrm.needsUpdate = true
 
-  // 1–2 pebbles (chunky detail-0 icosahedra) beside the boulder.
-  const pebbleCount = 1 + Math.floor(rand() * 2) // 1 or 2
-  for (let i = 0; i < pebbleCount; i++) {
-    const pr = 0.05 + rand() * 0.03 // 0.05..0.08
-    const a = rand() * Math.PI * 2
-    const peb = new THREE.Mesh(new THREE.IcosahedronGeometry(pr, 0), stone(rand))
-    peb.position.set(Math.cos(a) * (biggest.r + 0.15), pr * 0.5, Math.sin(a) * (biggest.r + 0.15))
-    parts.push(peb)
-  }
-
-  return parts
+  const stone_ = new THREE.Mesh(geo, stone(rand))
+  // Proportions run from squat-wide slabs to upright boulders, with an
+  // elongation axis and a small settle tilt so stones sit like they fell.
+  stone_.scale.set(0.9 + rand() * 0.5, 0.65 + rand() * 0.5, 0.9 + rand() * 0.35)
+  stone_.rotation.set((rand() - 0.5) * 0.16, rand() * Math.PI, (rand() - 0.5) * 0.16)
+  stone_.position.y = r * 0.8
+  return [stone_]
 }
 
-const BUILDERS: Record<ObjectKind, (rand: Rand) => THREE.Object3D[]> = {
-  fruitTree,
-  pine,
-  palm,
+const BUILDERS: Record<ProceduralKind, (rand: Rand) => THREE.Object3D[]> = {
   bush,
   rock,
 }
@@ -508,7 +252,7 @@ const BUILDERS: Record<ObjectKind, (rand: Rand) => THREE.Object3D[]> = {
  *  footprint (callers scale/position uniformly). Deterministic given `seed`. The
  *  contract Plans B (placement) + C (palette) consume — do not change the
  *  signature without updating them. */
-export function buildObjectModel(kind: ObjectKind, seed = 1): THREE.Group {
+export function buildObjectModel(kind: ProceduralKind, seed = 1): THREE.Group {
   const rand = mulberry32(seed)
   const group = new THREE.Group()
   group.name = kind
