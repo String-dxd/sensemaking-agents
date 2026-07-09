@@ -739,9 +739,13 @@ function birdLegSide(j: J, side: 'L' | 'R', webbed: boolean): SurfacePiece[] {
   const footBone = `foot${side}` as const
   const shells: SurfacePiece[] = []
 
-  // --- tarsus: a UNIFORM thin stick, top hidden inside the egg -------------
+  // --- tarsus: a UNIFORM thin stick, top hidden inside the egg. The bottom
+  // reaches the GROUND-aligned toe hub, not the foot BONE — the bird foot
+  // bone rests well above the sole (legs are half-scaled), and ending the
+  // stick there left a floating gap between leg and foot (round 6 defect).
+  const soleRef = ankleRef[1] - jb[footBone][1] / u // authored y that lands on world 0
   const top: Vec3 = [hip[0], hip[1] + 0.1, hip[2]]
-  const bottom: Vec3 = [ankleRef[0], ankleRef[1] - 0.012, ankleRef[2]]
+  const bottom: Vec3 = [ankleRef[0], soleRef + 0.012, ankleRef[2]]
   const stick = closedCapsule(`tarsus${side}`, top, bottom, 0.02, 0.019, 10, 12, 0, 0.4)
   chainWeightsPiece(stick, [`upperLeg${side}`, `lowerLeg${side}`, footBone], [0.45, 0.82], 0.08)
   setChannelAll(stick, CH_ACCENT, 1)
@@ -749,7 +753,7 @@ function birdLegSide(j: J, side: 'L' | 'R', webbed: boolean): SurfacePiece[] {
 
   // --- toes: fully weighted to the foot bone, soles landing on world y=0
   // after the skinned remap (world = birdBone + u·(v − refBone)).
-  const soleY = ankleRef[1] - jb[footBone][1] / u
+  const soleY = soleRef
   const toeR = 0.024
   const flat = 0.6
   const lift = toeR * flat

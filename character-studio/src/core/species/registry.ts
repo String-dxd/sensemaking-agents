@@ -397,7 +397,7 @@ export const SPECIES_REGISTRY = {
       wings: { partId: 'wing-eagle', morphs: { length: 0.5 } },
     },
     bodyMorphs: { slim: 0.15 },
-    birdShape: { wingLength: 1.3, wingWidth: 1.1, tarsusLength: 1.15, toeCut: 0.9, headSize: 0.98, chestBulge: 0.6 },
+    birdShape: { wingLength: 1.3, wingWidth: 1.1, tarsusLength: 1.15, toeCut: 0.9, headSize: 0.98 },
     patternId: 'pattern-eagle',
     palette: {
       primary: '#6b4a34',

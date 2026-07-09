@@ -329,12 +329,22 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     const yH = headCenter[1] - headR * style.headSquash * headScale * Math.cos(polH)
     const rH = headR * headScale * Math.sin(polH)
     const neckGrid = capsuleGrid({ a: [0, yT, 0], b: [0, yH, 0], radiusA: rT, radiusB: rH, useg: TRUNK_USEG, vseg: 7 })
+    // Rebuild the tube EXACTLY (round 6): the capsule's spherical end caps
+    // made the column bulge — on the peacock's long neck it read as a stray
+    // ball wedged between head and body. Rings are re-laid linearly from the
+    // egg opening to the head opening with a smooth radius blend; longer
+    // necks slim harder through the middle (the elegant AC crane/peacock
+    // line), and the top ring ellipse-matches the (headWide) head opening.
+    const slim = 0.08 + 0.2 * Math.min(shape.neckLength, 1)
     for (let i = 0; i < neckGrid.pos.length / 3; i++) {
+      const u01 = neckGrid.params[i * 2]
       const v01 = neckGrid.params[i * 2 + 1]
-      // gentle waist so the column reads as a neck, not a straight frustum
-      const waist = 1 - 0.1 * Math.sin(Math.PI * v01)
-      neckGrid.pos[i * 3] *= waist * (1 + (style.headWide - 1) * v01) // ellipse-match the head ring
-      neckGrid.pos[i * 3 + 2] *= waist
+      const t = Math.min(Math.max((v01 * 7 - 1) / 5, 0), 1) // ring1 → yT, ring6 → yH
+      const ease = t * t * (3 - 2 * t)
+      const r = (rT + (rH - rT) * ease) * (1 - slim * Math.sin(Math.PI * t))
+      neckGrid.pos[i * 3] = Math.sin(2 * Math.PI * u01) * r * (1 + (style.headWide - 1) * t)
+      neckGrid.pos[i * 3 + 1] = yT + (yH - yT) * t
+      neckGrid.pos[i * 3 + 2] = Math.cos(2 * Math.PI * u01) * r
     }
     const neckPiece = gridToPiece('neck', neckGrid, [
       { kind: 'poleBottom', ring: 1, loop: 'lo' },
