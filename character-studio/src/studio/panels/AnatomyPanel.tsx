@@ -68,13 +68,13 @@ const chipButton = (active: boolean): React.CSSProperties => ({
 })
 
 /** Slots legal in the DEFAULT view, per class (plan 021 operator directive):
- * birds show Beak/Tail/Crest/Claws (no ears — no bird ear parts exist);
+ * birds show Beak/Wings/Tail/Crest/Claws (no ears — no bird ear parts exist);
  * mammals show Ears/Muzzle/Tail/Claws (crest is bird-only in practice, even
  * though its "none" entry is class-legal for both). Unknown/'custom' class
  * falls back to every non-brows slot (today's unfiltered behavior). */
 const CLASS_SLOTS: Record<AnimalClass, PartSlot[]> = {
   mammal: ['ears', 'muzzle', 'tail', 'claws'],
-  bird: ['muzzle', 'tail', 'crest', 'claws'],
+  bird: ['muzzle', 'wings', 'tail', 'crest', 'claws'],
 }
 const ALL_SLOTS: PartSlot[] = PART_SLOTS.filter((s) => s !== 'brows')
 
