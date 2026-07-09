@@ -659,10 +659,10 @@ function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; ro
   // bottom pole is re-centred at the tip so the fan ends in a FLAT scalloped
   // edge instead of converging to a point. Higher segment counts keep the
   // surface smooth (the old capsule read as coarse/faceted).
-  const USEG = 24
-  const VSEG = 20
+  const USEG = 32 // more columns → the scallop lobes read round, not faceted
+  const VSEG = 18
   const sMax = (VSEG - 1) / VSEG // v01 of the last ring before the tip pole
-  const sCarve = 0.68 // where the scallop fringe begins
+  const sCarve = 0.6 // where the scallop fringe begins (eased in gradually)
   const grid = unitSphere(USEG, VSEG)
   const plate = gridToPiece('wingPlate', grid)
   const scallopY = (az: number, s: number): number => {
@@ -728,13 +728,14 @@ function pairWing(name: string, j: J, spec: WingSpec, curl = 0): PartMesh[] {
 }
 
 function wingRound(j: J): PartMesh[] {
-  // default songbird/chicken: a fan — narrow shoulder opening wide at the tip
-  return pairWing('wing-round', j, { rootR: 0.018, tipR: 0.09, flat: 0.55, ext: 0.04, fingers: 3, fingerLen: 0.03 })
+  // default songbird/chicken: a fan — narrow shoulder opening wide at the tip,
+  // with a shallow, finely-scalloped feather hem
+  return pairWing('wing-round', j, { rootR: 0.018, tipR: 0.092, flat: 0.55, ext: 0.04, fingers: 4, fingerLen: 0.014 })
 }
 
 function wingEagle(j: J): PartMesh[] {
   // eagle/owl/peacock: bigger, wider fan, THICKER, one more feather lobe
-  return pairWing('wing-eagle', j, { rootR: 0.022, tipR: 0.115, flat: 0.62, ext: 0.09, fingers: 4, fingerLen: 0.036 })
+  return pairWing('wing-eagle', j, { rootR: 0.022, tipR: 0.12, flat: 0.62, ext: 0.09, fingers: 5, fingerLen: 0.018 })
 }
 
 function wingFlipper(j: J): PartMesh[] {
