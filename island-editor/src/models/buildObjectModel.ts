@@ -45,38 +45,6 @@ function stone(rand: Rand): THREE.MeshStandardMaterial {
   })
 }
 
-/** Smooth (non-faceted) untextured lit material — clean accents (apples,
- *  flowers, coconuts, palm fronds) that read better without a map. */
-function soft(color: THREE.ColorRepresentation): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color, flatShading: false, roughness: 0.95, metalness: 0 })
-}
-
-/** Bake a bottom→top color gradient into a mesh's vertex colors, keyed on the
- *  vertex's CROWN-space height (mesh.position.y + local y × scale.y), so a
- *  crown assembled from several meshes shades as ONE continuous mass from
- *  `y0` (bottom color) to `y1` (top color). A small skyward term lightens
- *  up-facing vertices — soft painted sky light, not a specular highlight.
- *  Deterministic; consumes no rand(). Safe only for meshes whose rotation
- *  preserves Y (rotation.y); don't call it on tilted meshes. */
-function bakeGradient(mesh: THREE.Mesh, bottom: THREE.Color, top: THREE.Color, y0: number, y1: number): void {
-  const geo = mesh.geometry
-  const pos = geo.attributes.position as THREE.BufferAttribute
-  const nrm = geo.attributes.normal as THREE.BufferAttribute
-  const colors = new Float32Array(pos.count * 3)
-  const c = new THREE.Color()
-  for (let i = 0; i < pos.count; i++) {
-    const y = mesh.position.y + pos.getY(i) * mesh.scale.y
-    const lin = Math.min(1, Math.max(0, (y - y0) / (y1 - y0)))
-    const t = lin ** 1.5 // bias dark low: the underside stays shaded well past midway
-    c.copy(bottom).lerp(top, t)
-    const sky = 0.05 * Math.max(0, nrm.getY(i))
-    colors[i * 3] = c.r + sky
-    colors[i * 3 + 1] = c.g + sky
-    colors[i * 3 + 2] = c.b + sky
-  }
-  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-}
-
 /** Average normals across co-located (quantized) duplicate vertices so a
  *  non-indexed icosphere shades as one continuous soft bubble instead of
  *  crumpled facets. Same quantization key as `lumpy()` so duplicates agree. */
@@ -131,19 +99,45 @@ function lumpy(geo: THREE.BufferGeometry, rand: Rand, amount: number): void {
   smoothNormals(geo)
 }
 
-// A leafy shrub: one small squat mound (no flowers) ringed by a few grass
-// tufts. Shape parameters are all seeded, so no two bushes share a silhouette;
-// deliberately small next to the ~1.7-unit trees.
+/** Bake the bush's layered soft lighting into a lobe's vertex colors:
+ *  hue-neutral, multiplying the leaf map. Three layers — a global bottom-dark
+ *  → top-lit gradient across the whole mound, a per-lobe crevice term that
+ *  shades each clump's underside (so the clumps read as separate leafy
+ *  masses), and a generous skyward lighten that lays soft top light over the
+ *  texture. Assumes the mesh's rotation preserves Y. */
+function bakeBushShade(mesh: THREE.Mesh, y0: number, y1: number, creviceDepth: number): void {
+  const geo = mesh.geometry
+  const pos = geo.attributes.position as THREE.BufferAttribute
+  const nrm = geo.attributes.normal as THREE.BufferAttribute
+  geo.computeBoundingBox()
+  const bb = geo.boundingBox as THREE.Box3
+  const colors = new Float32Array(pos.count * 3)
+  for (let i = 0; i < pos.count; i++) {
+    const yWorld = mesh.position.y + pos.getY(i) * mesh.scale.y
+    const lin = Math.min(1, Math.max(0, (yWorld - y0) / (y1 - y0)))
+    const base = 0.66 + 0.34 * lin ** 1.4
+    const lobeT = (pos.getY(i) - bb.min.y) / Math.max(1e-6, bb.max.y - bb.min.y)
+    const crevice = 1 - creviceDepth * (1 - lobeT) ** 1.4
+    const sky = 0.12 * Math.max(0, nrm.getY(i)) // the soft light layered on top
+    const v = Math.min(1.08, base * crevice + sky)
+    colors[i * 3] = v
+    colors[i * 3 + 1] = v
+    colors[i * 3 + 2] = v
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+}
+
+// A leafy shrub (no flowers): a GRANULAR mound of overlapping leaf clumps —
+// one central mass, a ring of side clumps, and 1–2 top clumps — all sharing
+// the bush-leaves map with layered baked lighting (gradient × per-clump
+// crevice + soft sky light). Shape counts/sizes are seeded so no two bushes
+// match; deliberately small next to the ~1.7-unit trees.
 function bush(rand: Rand): THREE.Object3D[] {
   const parts: THREE.Object3D[] = []
 
-  // The dome: the bush-leaves map (full-color, the sand-pipeline approach) is
-  // the surface color once loaded; until then the material keeps a LEAF-green
-  // fallback tint. Vertex colors carry hue-neutral shading (dark base → lit
-  // top) that multiplies the map.
-  const R = 0.19 + rand() * 0.09 // 0.19..0.28
-  const geo = new THREE.IcosahedronGeometry(R, 2)
-  lumpy(geo, rand, 0.13 * R)
+  // ONE shared material: the bush-leaves map (full-color, the sand-pipeline
+  // approach) is the surface color once loaded; until then a LEAF-green
+  // fallback tint. Vertex colors carry the hue-neutral layered lighting.
   const mat = new THREE.MeshStandardMaterial({ color: LEAF, vertexColors: true, roughness: 1, metalness: 0 })
   mat.name = 'bush-foliage'
   if (typeof document !== 'undefined') {
@@ -153,30 +147,42 @@ function bush(rand: Rand): THREE.Object3D[] {
       mat.needsUpdate = true
     })
   }
-  const squash = 0.62 + rand() * 0.22 // squat pancake → rounder mound
-  const DOME_Y = R * 0.52
-  const dome = new THREE.Mesh(geo, mat)
-  dome.scale.set(1 + (rand() - 0.5) * 0.24, squash, 1 + (rand() - 0.5) * 0.24)
-  dome.position.y = DOME_Y
-  dome.rotation.y = rand() * Math.PI
-  bakeGradient(dome, new THREE.Color(0.7, 0.7, 0.7), new THREE.Color(1, 1, 1), 0, DOME_Y + R * squash)
-  parts.push(dome)
 
-  // Grass tufts skirting the base: little pointed blades leaning outward, in a
-  // slightly lighter green than the dome so they read against it.
-  const tuftCount = 5 + Math.floor(rand() * 4) // 5..8
-  for (let i = 0; i < tuftCount; i++) {
-    const az = (i / tuftCount) * Math.PI * 2 + rand() * 0.9
-    const dist = R * (1.0 + rand() * 0.35)
-    const h = 0.05 + rand() * 0.05
-    const c = new THREE.Color(0x8cc75f)
-    c.offsetHSL(0, 0, (rand() - 0.5) * 0.08)
-    const tuft = new THREE.Mesh(new THREE.ConeGeometry(0.02 + rand() * 0.012, h, 5), soft(c))
-    tuft.position.set(Math.cos(az) * dist, h * 0.45, Math.sin(az) * dist)
-    // Lean away from the bush so the skirt splays naturally.
-    tuft.rotation.set(Math.sin(az) * (0.2 + rand() * 0.25), 0, -Math.cos(az) * (0.2 + rand() * 0.25))
-    parts.push(tuft)
+  const R = 0.17 + rand() * 0.07 // overall footprint radius, 0.17..0.24
+  const lobes: THREE.Mesh[] = []
+  let topY = 0
+  const addLobe = (r: number, x: number, y: number, z: number) => {
+    const geo = new THREE.IcosahedronGeometry(r, 2)
+    lumpy(geo, rand, 0.14 * r)
+    const lobe = new THREE.Mesh(geo, mat)
+    lobe.scale.y = 0.82 + rand() * 0.12
+    lobe.position.set(x, y, z)
+    lobe.rotation.y = rand() * Math.PI
+    parts.push(lobe)
+    lobes.push(lobe)
+    topY = Math.max(topY, y + r * lobe.scale.y)
   }
+
+  // Central mass carrying the mound…
+  addLobe(R * 0.95, 0, R * 0.62, 0)
+  // …a seeded ring of side clumps…
+  const sideCount = 3 + Math.floor(rand() * 3) // 3..5
+  const ringYaw = rand() * Math.PI * 2
+  for (let i = 0; i < sideCount; i++) {
+    const az = ringYaw + (i / sideCount) * Math.PI * 2 + (rand() - 0.5) * 0.5
+    const r = R * (0.5 + rand() * 0.2)
+    addLobe(r, Math.cos(az) * R * 0.72, r * 0.7 + rand() * 0.04, Math.sin(az) * R * 0.72)
+  }
+  // …and 1–2 clumps sitting on top.
+  const topCount = 1 + Math.floor(rand() * 2)
+  for (let i = 0; i < topCount; i++) {
+    const az = rand() * Math.PI * 2
+    const r = R * (0.45 + rand() * 0.15)
+    addLobe(r, Math.cos(az) * R * 0.3, R * 1.05 + rand() * 0.05, Math.sin(az) * R * 0.3)
+  }
+
+  // Bake after topY is known so the gradient spans the whole mound.
+  for (const lobe of lobes) bakeBushShade(lobe, 0, topY, 0.28)
 
   return parts
 }
