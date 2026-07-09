@@ -597,25 +597,27 @@ function tailTrainPeacock(j: J): PartMesh[] {
 const ARM_L = ['upperArmL', 'foreArmL', 'handL']
 
 interface WingSpec {
-  /** Plate radius at the shoulder (narrow) / at the tip (wide teardrop). */
+  /** Fan HALF-WIDTH (front→back) at the shoulder (narrow) / at the tip (wide). */
   rootR: number
   tipR: number
-  /** Plate thickness = x-flatten factor (eagle/owl thicker). */
+  /** Plate thickness factor (eagle/owl thicker). */
   flat: number
-  /** Extension beyond the wrist toward the tip (reference m). */
+  /** Extension of the wing length beyond the arm chain (reference m). */
   ext: number
-  /** Feather fingers fanning from the wrist (0 = smooth flipper). */
+  /** Feather lobes scalloped into the fan's bottom edge (0 = smooth flipper). */
   fingers: number
+  /** Scallop notch depth (reference m). */
   fingerLen: number
 }
 
 function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; root: Vec3; tip: Vec3 } {
-  // round 9 rev 2 (operator): the folded wing hangs STRAIGHT DOWN from the
-  // shoulder — no forward drift, no tail sweep. Narrow where it meets the
-  // shoulder, wider AND thicker toward the bottom (teardrop), ending in
-  // stepped feather tips that extend past the plate's bottom edge so they
-  // read in silhouette from BOTH faces (the old wrist-fan cards sat between
-  // plate and body and got clipped).
+  // round 9 rev 4 (operator): the folded wing hangs STRAIGHT DOWN and fans
+  // out like a folded bird wing — a clean flat paddle whose front→back width
+  // grows all the way to the bottom (a FAN, no teardrop re-narrowing), whose
+  // bottom edge is scalloped into ROUNDED feather lobes (raised-cosine, so
+  // both the lobes and the notches between them are soft, matching AC's
+  // clean read). Built as its own paddle grid — NOT a capsule, which
+  // converged to a pole and produced the pointy, coarse tip.
   const sh = V(j.upperArmL)
   const dSE = vec.len(vec.sub(V(j.foreArmL), sh))
   const dEW = vec.len(vec.sub(V(j.handL), V(j.foreArmL)))
@@ -652,59 +654,63 @@ function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; ro
   }
 
   const shells: SurfacePiece[] = []
-  // ONE mesh (operator, round 9 rev 3): a vertical teardrop — narrow at the
-  // shoulder, widening toward the bottom (closedCapsule radii), THICKER
-  // toward the bottom too (the x-flatten factor grows with v01), whose tip
-  // edge is carved into feather scallops below.
-  const plate = closedCapsule('wingPlate', sh, tipPt, spec.rootR, spec.tipR, 18, 26, 0.012)
+  // Fan paddle — its own grid (sphere topology, remapped). params carry
+  // az-u01 (around the thin cross-section) and s-v01 (shoulder→tip); the
+  // bottom pole is re-centred at the tip so the fan ends in a FLAT scalloped
+  // edge instead of converging to a point. Higher segment counts keep the
+  // surface smooth (the old capsule read as coarse/faceted).
+  const USEG = 24
+  const VSEG = 20
+  const sMax = (VSEG - 1) / VSEG // v01 of the last ring before the tip pole
+  const sCarve = 0.68 // where the scallop fringe begins
+  const grid = unitSphere(USEG, VSEG)
+  const plate = gridToPiece('wingPlate', grid)
+  const scallopY = (az: number, s: number): number => {
+    let y = -L * Math.min(1, s / sMax) // straight down; last ring & pole both at −L
+    if (spec.fingers > 0 && s > sCarve) {
+      // rounded feather scallops along the bottom edge: a raised cosine across
+      // the front→back width lifts the NOTCHES up while the lobes hang full,
+      // so both lobes and notches are soft (no spikes).
+      const zz = Math.cos(az) // −1 (back) … +1 (front)
+      const phase = ((zz + 1) / 2) * spec.fingers
+      const frac = phase - Math.floor(phase)
+      const bump = 0.5 - 0.5 * Math.cos(2 * Math.PI * frac) // 0 at notch, 1 at lobe centre
+      y += spec.fingerLen * (1 - bump) * smoothstep(sCarve, 1, s)
+    }
+    return y
+  }
   for (let i = 0; i < vertexCount(plate); i++) {
-    const v01 = plate.params[i * 2 + 1]
-    const f = spec.flat * (0.65 + 0.55 * v01)
-    plate.pos[i * 3] = sh[0] + (plate.pos[i * 3] - sh[0]) * f
-  }
-  // tip feathers, carved from the SAME shell: each vertical column of the
-  // bottom cap compresses (or stretches) into a scalloped envelope —
-  // |sin(kπu)| across the plate's front→back width — so the tip splits into
-  // k rounded feather lobes with sharp notches between them (the AC read:
-  // Blathers' fanned wing tip, Zion's scalloped rows). The rear-most feather
-  // runs longest.
-  if (spec.fingers > 0) {
-    // capsuleGrid ends EXACTLY at tipPt with a blunt elliptical boundary, so
-    // there is no cap volume to nibble — instead each vertical column of the
-    // bottom carve zone is remapped from its actual extent onto the scallop
-    // envelope: notch columns compress up to the carve baseline, lobe-center
-    // columns stretch down past the old tip.
-    const k = spec.fingers
-    const carveH = 0.13 * L // carve baseline height above the tip
-    const yEdge = tipPt[1] + carveH
-    for (let i = 0; i < vertexCount(plate); i++) {
-      const py = plate.pos[i * 3 + 1]
-      if (py >= yEdge) continue
-      const t = Math.max(-1, Math.min(1, (plate.pos[i * 3 + 2] - sh[2]) / (spec.tipR * 0.95)))
-      const u = (t + 1) / 2
-      // rounded lobes, crisp notches (plain |sin| necks the lobes too thin)
-      const bump = Math.abs(Math.sin(Math.PI * k * u)) ** 0.65
-      const depth = (carveH + spec.fingerLen * (0.7 + 0.6 * (1 - u))) * bump
-      // the column's real bottom boundary (capsule end is a squashed ellipse)
-      const yBottom = tipPt[1] + 0.5 * L * (1 - Math.sqrt(Math.max(0, 1 - t * t)))
-      const colDepth = Math.max(carveH * 0.15, yEdge - yBottom)
-      plate.pos[i * 3 + 1] = yEdge - (yEdge - py) * (depth / colDepth)
+    const az = plate.params[i * 2] * 2 * Math.PI
+    const s = plate.params[i * 2 + 1]
+    const sr = Math.min(1, s / sMax) // 0 at shoulder → 1 at the widest (last) ring
+    const halfW = spec.rootR + (spec.tipR - spec.rootR) * sr // fan width (z), straight sides
+    const halfT = spec.flat * (spec.rootR * 0.9 + spec.tipR * 0.5 * sr) // thickness (x), plate-thin
+    let x: number
+    let y: number
+    let z: number
+    if (i === grid.bottomPole) {
+      // shoulder cap centre
+      x = 0
+      z = 0
+      y = 0
+    } else if (i === grid.topPole) {
+      // tip cap centre — sits at the mean scallop depth so the flat fanned
+      // bottom stays flush (no central spike below the lobes)
+      x = 0
+      z = 0
+      y = -L + (spec.fingers > 0 ? spec.fingerLen * 0.5 : 0)
+    } else {
+      x = Math.sin(az) * halfT
+      z = Math.cos(az) * halfW
+      y = scallopY(az, s)
     }
-  } else {
-    // flipper: squash the bottom cap into a soft smooth paddle end
-    for (let i = 0; i < vertexCount(plate); i++) {
-      const py = plate.pos[i * 3 + 1]
-      if (py < tipPt[1]) plate.pos[i * 3 + 1] = tipPt[1] + (py - tipPt[1]) * 0.55
-    }
-  }
-  if (curl > 0) {
-    for (let i = 0; i < vertexCount(plate); i++) {
-      const v01 = plate.params[i * 2 + 1]
-      plate.pos[i * 3] += v01 * v01 * curl
-    }
+    if (curl > 0) x += s * s * curl // penguin flipper bows outward toward the tip
+    plate.pos[i * 3] = sh[0] + x
+    plate.pos[i * 3 + 1] = sh[1] + y
+    plate.pos[i * 3 + 2] = sh[2] + z
   }
   chainWeightsPiece(plate, ARM_L, [dSE / L, (dSE + dEW) / L], 0.12)
-  setChannelFn(plate, CH_ACCENT, (i) => smoothstep(0.82, 0.94, plate.params[i * 2 + 1]))
+  setChannelFn(plate, CH_ACCENT, (i) => smoothstep(0.82, 0.96, plate.params[i * 2 + 1]))
   hug(plate, 0.012)
   shells.push(plate)
   return { shells, root: sh, tip: tipPt }
@@ -722,19 +728,18 @@ function pairWing(name: string, j: J, spec: WingSpec, curl = 0): PartMesh[] {
 }
 
 function wingRound(j: J): PartMesh[] {
-  // default songbird/chicken: teardrop — narrow shoulder, wide round bottom
-  return pairWing('wing-round', j, { rootR: 0.02, tipR: 0.068, flat: 0.42, ext: 0.05, fingers: 3, fingerLen: 0.032 })
+  // default songbird/chicken: a fan — narrow shoulder opening wide at the tip
+  return pairWing('wing-round', j, { rootR: 0.018, tipR: 0.09, flat: 0.55, ext: 0.04, fingers: 3, fingerLen: 0.03 })
 }
 
 function wingEagle(j: J): PartMesh[] {
-  // eagle/owl/peacock: bigger and THICKER (the raptor bulk the operator asked
-  // for) with a longer stepped-tip fan
-  return pairWing('wing-eagle', j, { rootR: 0.026, tipR: 0.088, flat: 0.55, ext: 0.1, fingers: 4, fingerLen: 0.042 })
+  // eagle/owl/peacock: bigger, wider fan, THICKER, one more feather lobe
+  return pairWing('wing-eagle', j, { rootR: 0.022, tipR: 0.115, flat: 0.62, ext: 0.09, fingers: 4, fingerLen: 0.036 })
 }
 
 function wingFlipper(j: J): PartMesh[] {
-  // penguin: one smooth flat paddle, no fingers, slight outward curl
-  return pairWing('wing-flipper', j, { rootR: 0.028, tipR: 0.06, flat: 0.45, ext: 0.06, fingers: 0, fingerLen: 0 }, 0.035)
+  // penguin: one smooth fanned paddle, no scallops, slight outward curl
+  return pairWing('wing-flipper', j, { rootR: 0.026, tipR: 0.075, flat: 0.5, ext: 0.05, fingers: 0, fingerLen: 0 }, 0.03)
 }
 
 // claws + bird legs ------------------------------------------------------------
