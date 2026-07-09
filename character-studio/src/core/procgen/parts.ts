@@ -618,11 +618,18 @@ function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; ro
   // both the lobes and the notches between them are soft, matching AC's
   // clean read). Built as its own paddle grid — NOT a capsule, which
   // converged to a pole and produced the pointy, coarse tip.
-  const sh = V(j.upperArmL)
-  const dSE = vec.len(vec.sub(V(j.foreArmL), sh))
+  // round 9 rev 6 (operator): raise the whole wing so its top tucks up into
+  // the shoulder/neck junction (ROOT_LIFT), and splay it OUTWARD as it drops
+  // — a straight diagonal blade (top near the body, tip swung away), matching
+  // the front-view arrows. The bones stay put, so the wave action is unchanged.
+  const ROOT_LIFT = 0.045
+  const SPLAY = 0.05
+  const sh0 = V(j.upperArmL)
+  const sh: Vec3 = [sh0[0], sh0[1] + ROOT_LIFT, sh0[2]] // raised mesh root
+  const dSE = vec.len(vec.sub(V(j.foreArmL), sh0))
   const dEW = vec.len(vec.sub(V(j.handL), V(j.foreArmL)))
   const L = dSE + dEW + spec.ext
-  const tipPt: Vec3 = [sh[0], sh[1] - L, sh[2]]
+  const tipPt: Vec3 = [sh[0] + SPLAY, sh[1] - L, sh[2]]
 
   // flank-hug clamp (outward only): the plate may never sink into the egg
   const bird = ARCHETYPES_DEF.bird
@@ -704,6 +711,7 @@ function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; ro
       z = Math.cos(az) * halfW
       y = scallopY(az, s)
     }
+    x += SPLAY * sr // outward diagonal lean, straight from root to tip
     if (curl > 0) x += s * s * curl // penguin flipper bows outward toward the tip
     plate.pos[i * 3] = sh[0] + x
     plate.pos[i * 3 + 1] = sh[1] + y
