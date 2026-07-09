@@ -114,7 +114,9 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
       hips: [1, 0.75, 1],
       ...legs(0.5),
       ...spineChain(1.05),
-      ...arms([0.95, 0.6, 1]),
+      // round 5: the arm chain IS the wing skeleton now — near-vertical
+      // (x pulled in) and longer, so the skinned wing hangs like a small arm
+      ...arms([0.8, 0.95, 1]),
       'tail.1': [1, 0.6, 1.1],
       'tail.2': [1, 0.6, 1.1],
       'tail.3': [1, 0.6, 1.1],

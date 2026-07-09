@@ -75,7 +75,14 @@ describe('rasterizeChannels', () => {
 
   it('round-trips through PNG bytes (decode → same channels)', async () => {
     const { uv, indices } = bodyBuffers(bird)
-    const result = rasterizeChannels({ uv, indices, channels: bird.channels }, size, napiFactory)
+    // Fully-opaque probe pixels require accentA=1 texels. Round 5 moved the
+    // accent-painted legs/feet OFF the body (they are parts now), so paint
+    // the head range accent for this test — the PNG round-trip contract is
+    // about the encoder, not about which body region carries accent.
+    const channels = bird.channels.slice()
+    const [hs, he] = bird.meta.shellRanges.head
+    for (let i = hs; i < he; i++) channels[i * 4 + 3] = 1
+    const result = rasterizeChannels({ uv, indices, channels }, size, napiFactory)
     const texBytes = result.toDataTexture().image.data as Uint8Array
     const png = result.pngBytes()
     expect(png.length).toBeGreaterThan(0)
@@ -181,24 +188,13 @@ describe('PATTERN_FIELDS (AC-exact bird set)', () => {
     expect(channelAt(out, extremeIdx('head', 2, -1), CH.secondary)).toBeGreaterThan(0.7)
   })
 
-  it('eagle: white head, dark body, striped tarsi', () => {
+  it('eagle: white head, dark body (legs are parts since round 5 — no tarsi on the body)', () => {
     const out = PATTERN_FIELDS['pattern-eagle'](bird)
     expect(channelAt(out, headVertex(), CH.belly)).toBeGreaterThan(0.9)
     expect(channelAt(out, backTorsoVertex(), CH.secondary)).toBeGreaterThan(0.7)
-    // legL bare-tarsus accent band varies along t (some banded, some not)
-    const [ls, le] = bird.meta.shellRanges.legL
-    const lp = bird.meta.limbParams.legL
-    let maxA = 0
-    let minA = 1
-    for (let i = ls; i < le; i++) {
-      if (lp[i - ls] > 0.6) {
-        const a = channelAt(out, i, CH.accent)
-        maxA = Math.max(maxA, a)
-        minA = Math.min(minA, a)
-      }
-    }
-    expect(maxA).toBeGreaterThan(0.6) // banded rings present
-    expect(maxA - minA).toBeGreaterThan(0.2) // stripes (variation), not a flat fill
+    // round 5: the whole visible leg is a skinned part (bird-toes) — the
+    // body carries no leg pieces, so the old tarsus-stripe probe is gone
+    expect(bird.meta.shellRanges.legL).toBeUndefined()
   })
 
   it('owl: facial disc belly on the front head + argyle variation across the chest', () => {

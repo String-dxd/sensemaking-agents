@@ -13,11 +13,10 @@ import type { BoneName } from '../spec/schema'
 
 export const BIRD_TRUNK = {
   /** Torso ellipsoid horizontal radii as fractions of the head radius. */
-  rxFactor: 0.72,
-  rzFactor: 0.72,
-  /** pearProfile params: low-belly bulge + strong top taper. */
-  pear: 0.28,
-  taper: 0.34,
+  rxFactor: 0.74,
+  rzFactor: 0.74,
+  /** Parametric egg bias — see birdEggProfile. */
+  eggBias: 0.22 as number,
   /** Torso vertical span rules (fractions of hips→neck height). */
   bottomDrop: 0.42,
   topRise: 0.55,
@@ -26,10 +25,15 @@ export const BIRD_TRUNK = {
   vseg: 26,
 } as const
 
-/** The bird egg's radial profile (pearProfile with BIRD_TRUNK params). */
-export function birdEggProfile(v01: number): number {
+/** The bird egg's radial profile — a true PARAMETRIC egg (round 5): the
+ * classic one-term egg equation r(θ) = 1 + e·cos(θ), C∞-smooth from the fat
+ * rounded bottom to the narrow rounded top with no inflection, unlike the
+ * old pear+taper pair whose seam showed exactly where the head met the body.
+ * Combined with the sphere's sin(θ) this peaks below the middle (a standing
+ * egg) and closes smoothly at both poles. */
+export function birdEggProfile(v01: number, bias = BIRD_TRUNK.eggBias): number {
   const c = Math.min(Math.max(v01, 0), 1)
-  return 1 + BIRD_TRUNK.pear * (1 - c) ** 2 * Math.sin(Math.PI * c) * 2 - BIRD_TRUNK.taper * c * c
+  return 1 + bias * Math.cos(Math.PI * c)
 }
 
 export interface BirdTrunkDims {

@@ -37,11 +37,13 @@ describe.each([...ARCHETYPES])('buildProceduralBody(%s)', (archetype: Archetype)
     expect(bones.size).toBe(BONE_NAMES.length)
   })
 
-  it('is the documented region-split mesh set (body + 3 hide regions)', () => {
+  it('is the documented region-split mesh set (body + hide regions)', () => {
     const names = skinnedMeshes(data.scene)
       .map((m) => m.name)
       .sort()
-    expect(names).toEqual(['body', 'body_hips', 'body_torso', 'body_upperLegs'])
+    // round 5: bird legs are skinned parts — the bird body has no upperLegs region
+    const expected = archetype === 'bird' ? ['body', 'body_hips', 'body_torso'] : ['body', 'body_hips', 'body_torso', 'body_upperLegs']
+    expect(names).toEqual(expected)
   })
 
   it('tags hide-region submeshes with userData.bodyRegion', () => {
@@ -49,7 +51,9 @@ describe.each([...ARCHETYPES])('buildProceduralBody(%s)', (archetype: Archetype)
     expect(byName.get('body')?.userData.bodyRegion).toBeUndefined()
     expect(byName.get('body_torso')?.userData.bodyRegion).toBe('torso')
     expect(byName.get('body_hips')?.userData.bodyRegion).toBe('hips')
-    expect(byName.get('body_upperLegs')?.userData.bodyRegion).toBe('upperLegs')
+    if (archetype !== 'bird') {
+      expect(byName.get('body_upperLegs')?.userData.bodyRegion).toBe('upperLegs')
+    }
   })
 
   it('has the five body morphs with a normalized ≤4-influence skin', () => {
@@ -85,15 +89,17 @@ describe.each([...ARCHETYPES])('buildProceduralBody(%s)', (archetype: Archetype)
     expect(data.meta.headRadius).toBeGreaterThan(0)
     expect(Object.keys(data.meta.shellRanges)).toContain('torso')
     expect(Object.keys(data.meta.shellRanges)).toContain('head')
-    // limb params present for every welded limb (plan 023: bird arms are
-    // separate wing PARTS — the bird body has no welded arm pieces)
-    const limbs = archetype === 'bird' ? ['legL', 'legR'] : ['armL', 'armR', 'legL', 'legR']
+    // limb params present for every welded limb. Round 5: the bird body has
+    // NO welded limbs at all (wings + legs are parts); it carries a neck
+    // loft piece instead.
+    const limbs = archetype === 'bird' ? [] : ['armL', 'armR', 'legL', 'legR']
     for (const limb of limbs) {
       expect(data.meta.limbParams[limb]?.length ?? 0).toBeGreaterThan(0)
     }
     if (archetype === 'bird') {
       expect(data.meta.limbParams.armL).toBeUndefined()
-      expect(data.meta.limbParams.armR).toBeUndefined()
+      expect(data.meta.limbParams.legL).toBeUndefined()
+      expect(Object.keys(data.meta.shellRanges)).toContain('neck')
     }
   })
 
@@ -224,81 +230,9 @@ describe('plan 017: bird shape variants', () => {
   })
 })
 
-describe('plan 017: bird accent painting', () => {
-  const data = buildProceduralBody('bird')
-
-  it('feet are fully accent-painted (beak/feet color)', () => {
-    for (const piece of ['footL', 'footR'] as const) {
-      const [s, e] = data.meta.shellRanges[piece]
-      let hit = false
-      for (let i = s; i < e && !hit; i++) if (data.channels[i * 4 + 3] === 1) hit = true
-      expect(hit, `${piece} has a fully-accented vertex`).toBe(true)
-    }
-  })
-
-  it('bare tarsus takes accent; feathered thigh stays body-colored', () => {
-    const [s] = data.meta.shellRanges.legL
-    const params = data.meta.limbParams.legL
-    let tarsusChecked = 0
-    let thighChecked = 0
-    for (let li = 0; li < params.length; li++) {
-      const accent = data.channels[(s + li) * 4 + 3]
-      if (params[li] > 0.6) {
-        expect(accent, `tarsus vertex v01=${params[li]}`).toBeGreaterThan(0.5)
-        tarsusChecked++
-      } else if (params[li] < 0.3) {
-        expect(accent, `thigh vertex v01=${params[li]}`).toBeLessThan(0.1)
-        thighChecked++
-      }
-    }
-    expect(tarsusChecked).toBeGreaterThan(0)
-    expect(thighChecked).toBeGreaterThan(0)
-  })
-})
-
-describe('plan 017 r1: AC straight-leg stance', () => {
-  const data = buildProceduralBody('bird')
-  const pos = bodyPositions(data.scene)
-  const centroid = (piece: 'legL' | 'legR', lo: number, hi: number): [number, number, number] => {
-    const [s] = data.meta.shellRanges[piece]
-    const params = data.meta.limbParams[piece]
-    const c: [number, number, number] = [0, 0, 0]
-    let n = 0
-    for (let li = 0; li < params.length; li++) {
-      if (params[li] < lo || params[li] > hi) continue
-      c[0] += pos[(s + li) * 3]
-      c[1] += pos[(s + li) * 3 + 1]
-      c[2] += pos[(s + li) * 3 + 2]
-      n++
-    }
-    return [c[0] / n, c[1] / n, c[2] / n]
-  }
-
-  it('legs drop vertically: root and ankle rings share x/z (no splay)', () => {
-    for (const piece of ['legL', 'legR'] as const) {
-      const root = centroid(piece, 0, 0.05)
-      const end = centroid(piece, 0.95, 1)
-      // anatomy round 4: the shaft ends plumb over the FOOT BONE so the
-      // rigid bird-toes part shares its axis; the root ring sits at the
-      // underside opening, so a small fixed offset (≤0.02) is expected.
-      expect(Math.abs(end[0] - root[0])).toBeLessThan(0.02)
-      expect(Math.abs(end[2] - root[2])).toBeLessThan(0.03)
-      expect(end[1]).toBeLessThan(root[1]) // and actually drop
-    }
-  })
-
-  it('tarsi are mirror-symmetric and close together (|x| ≈ 0.35–0.45·rx)', () => {
-    const l = centroid('legL', 0.95, 1)
-    const r = centroid('legR', 0.95, 1)
-    expect(l[0]).toBeCloseTo(-r[0], 5)
-    expect(l[2]).toBeCloseTo(r[2], 5)
-    const ratio = Math.abs(l[0]) / data.meta.torso.rx
-    expect(ratio).toBeGreaterThan(0.3)
-    // round 4: the standing egg's rx shrank (BIRD_TRUNK), so the same tarsus
-    // spacing is a slightly larger fraction of it
-    expect(ratio).toBeLessThan(0.55)
-  })
-})
+// (round 5: the accent-painted tarsus/feet and the straight-leg stance moved
+// to the skinned bird-toes PART — covered in test/core/procgen/parts.test.ts.
+// The bird body welds no legs at all.)
 
 describe('plan 017 r2: wrap-seam vertex split', () => {
   // The back-centerline stripe bug: triangles whose UVs span the azimuth wrap

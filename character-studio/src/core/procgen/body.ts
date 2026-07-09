@@ -21,7 +21,7 @@ import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skelet
 import type { Archetype } from '../spec/schema'
 import { BODY_MORPHS } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
-import { BIRD_TRUNK } from './birdTrunk'
+import { BIRD_TRUNK, birdEggProfile } from './birdTrunk'
 import { CH_ACCENT, accentAll, headChannels, torsoChannels } from './kit/channels'
 import { filletLimbIntoTorso, makeTorsoSdf } from './kit/fillet'
 import { capsuleGrid } from './kit/loft'
@@ -63,7 +63,7 @@ const STYLE: Record<Archetype, Style> = {
   // wing/feet builders) — a STANDING egg, taller than wide, widest below the
   // middle. Foot here is only the small ankle nub; the visible three-toed
   // foot is a proper part mesh (bird-toes in parts.ts).
-  bird: { torsoRx: BIRD_TRUNK.rxFactor, torsoRz: BIRD_TRUNK.rzFactor, pear: BIRD_TRUNK.pear, shoulderTaper: BIRD_TRUNK.taper, armR: 0.042, handR: 0, legR: 0.038, foot: [0.032, 0.026, 0.036], headSquash: 0.96, headWide: 1.04, wing: true },
+  bird: { torsoRx: BIRD_TRUNK.rxFactor, torsoRz: BIRD_TRUNK.rzFactor, pear: 0, shoulderTaper: 0, armR: 0.042, handR: 0, legR: 0.038, foot: [0.032, 0.026, 0.036], headSquash: 0.96, headWide: 1.04, wing: true },
 }
 
 // Trunk shells (head + torso) share this azimuth resolution so their neck rings
@@ -232,7 +232,11 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   // band peaks just above the equator and is ZERO by the neck ring (v01 =
   // neckRing/TORSO_VSEG ≈ 0.667) so the head bridge ring keeps its radius
   const chestBump = (v01: number): number => smoothstep(0.32, 0.5, v01) * (1 - smoothstep(0.58, 0.66, v01))
-  const pearBase = pearProfile(style.pear * (isBird ? shape.belly : 1), style.shoulderTaper)
+  // bird (round 5): a true PARAMETRIC egg curve (birdEggProfile) — C∞ smooth
+  // to the narrow rounded top, no pear/taper inflection at the head junction.
+  const pearBase: (v01: number) => number = isBird
+    ? (v01) => birdEggProfile(v01, BIRD_TRUNK.eggBias * shape.belly)
+    : pearProfile(style.pear, style.shoulderTaper)
   const torsoProfile = chest > 0 ? (v01: number) => pearBase(v01) * (1 + 0.22 * chest * chestBump(v01)) : pearBase
   const torsoSdf = makeTorsoSdf(cy, ry, rx, rz, torsoProfile)
 
@@ -240,7 +244,11 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   const torsoVseg = isBird ? BIRD_TRUNK.vseg : TORSO_VSEG
 
   // Openings on the torso grid: neck (top pole), one block per limb root.
-  const neckRing = ringForY(torsoVseg, cy, ry, j.neck[1])
+  // bird (round 5): the neck opening sits HIGH on the egg (v01 ≈ 0.85) so the
+  // egg closes almost completely and a narrow neck column can rise out of its
+  // top — the old opening at the neck-bone height made the whole egg top a
+  // wide cone that never read as a neck.
+  const neckRing = isBird ? Math.round(0.85 * torsoVseg) : ringForY(torsoVseg, cy, ry, j.neck[1])
   const armRing = Math.min(ringForY(torsoVseg, cy, ry, j.upperArmL[1]), neckRing - 2)
   // leg openings sit low on the torso (near the bottom pole) so the leg
   // capsule drops vertically under the body instead of slanting in from the
@@ -263,6 +271,9 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
 
   // plan 023: bird arms are separate wing PARTS (wings slot) — the bird torso
   // has NO welded arm openings; it closes smoothly over the shoulder.
+  // round 5: bird limbs are ALL separate parts now (wings slot + skinned
+  // bird-leg parts in the claws slot) — the bird egg has a single opening,
+  // the neck. Mammals keep the welded arm/leg pattern.
   const torsoOpenings: Opening[] = [
     { kind: 'poleTop', ring: neckRing, loop: 'neck' },
     ...(isBird
@@ -270,9 +281,9 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
       : ([
           { kind: 'block', ringLo: armRing - 1, ringHi: armRing + 2, colStart: armColL - 1, colCount: 3, loop: 'armL' },
           { kind: 'block', ringLo: armRing - 1, ringHi: armRing + 2, colStart: armColR - 1, colCount: 3, loop: 'armR' },
+          { kind: 'block', ringLo: legRing - 1, ringHi: legRing - 1 + 3, colStart: legColL - 1, colCount: 3, loop: 'legL' },
+          { kind: 'block', ringLo: legRing - 1, ringHi: legRing - 1 + 3, colStart: legColR - 1, colCount: 3, loop: 'legR' },
         ] as Opening[])),
-    { kind: 'block', ringLo: legRing - 1, ringHi: legRing - 1 + 3, colStart: legColL - 1, colCount: 3, loop: 'legL' },
-    { kind: 'block', ringLo: legRing - 1, ringHi: legRing - 1 + 3, colStart: legColR - 1, colCount: 3, loop: 'legR' },
   ]
 
   const torsoGrid = unitSphere(TRUNK_USEG, torsoVseg)
@@ -306,7 +317,51 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   headChannels(headPiece, headCenterEff, headR, archetype)
   paintUv(headPiece, 'head', true)
   builder.add(headPiece)
-  builder.bridge(builder.loopIndex.head.neck, builder.loopIndex.torso.neck)
+  if (isBird) {
+    // round 5: a REAL neck column — a lofted tube with intermediate rings and
+    // a slight waist, bridged into the egg's small top opening below and the
+    // head's bottom opening above. Body and neck are separate parts that
+    // connect smoothly (the AC read), instead of one straight bridge strip.
+    const polT = (Math.PI * neckRing) / torsoVseg
+    const yT = cy - ry * Math.cos(polT)
+    const rT = rx * Math.sin(polT) * torsoProfile(neckRing / torsoVseg)
+    const polH = (Math.PI * 2) / HEAD_VSEG
+    const yH = headCenter[1] - headR * style.headSquash * headScale * Math.cos(polH)
+    const rH = headR * headScale * Math.sin(polH)
+    const neckGrid = capsuleGrid({ a: [0, yT, 0], b: [0, yH, 0], radiusA: rT, radiusB: rH, useg: TRUNK_USEG, vseg: 7 })
+    for (let i = 0; i < neckGrid.pos.length / 3; i++) {
+      const v01 = neckGrid.params[i * 2 + 1]
+      // gentle waist so the column reads as a neck, not a straight frustum
+      const waist = 1 - 0.1 * Math.sin(Math.PI * v01)
+      neckGrid.pos[i * 3] *= waist * (1 + (style.headWide - 1) * v01) // ellipse-match the head ring
+      neckGrid.pos[i * 3 + 2] *= waist
+    }
+    const neckPiece = gridToPiece('neck', neckGrid, [
+      { kind: 'poleBottom', ring: 1, loop: 'lo' },
+      { kind: 'poleTop', ring: 6, loop: 'hi' },
+    ])
+    // lower neck follows the chest, upper follows the head (head turns carry
+    // the neck top with them)
+    const nH: number[] = []
+    const nC: number[] = []
+    for (let i = 0; i < vertexCount(neckPiece); i++) {
+      const w = smoothstep(0.15, 0.8, neckPiece.params[i * 2 + 1])
+      nH.push(w)
+      nC.push(1 - w)
+    }
+    neckPiece.weights.set('head', nH)
+    neckPiece.weights.set('chest', nC)
+    // UVs: top sliver of the torso island (patterns fade out up there)
+    for (let i = 0; i < vertexCount(neckPiece); i++) {
+      neckPiece.params[i * 2 + 1] = 0.94 + 0.06 * neckPiece.params[i * 2 + 1]
+    }
+    paintUv(neckPiece, 'torso', true)
+    builder.add(neckPiece)
+    builder.bridge(builder.loopIndex.torso.neck, builder.loopIndex.neck.lo)
+    builder.bridge(builder.loopIndex.neck.hi, builder.loopIndex.head.neck)
+  } else {
+    builder.bridge(builder.loopIndex.head.neck, builder.loopIndex.torso.neck)
+  }
 
   const armR = (style.armR * u) / 0.9
   const handR = (style.handR * u) / 0.9
@@ -441,9 +496,9 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   if (!isBird) {
     buildArm('L')
     buildArm('R')
+    buildLeg('L')
+    buildLeg('R')
   }
-  buildLeg('L')
-  buildLeg('R')
 
   const mesh = builder.build()
   // Audit the PRE-SPLIT topology: the UV wrap-seam split (splitWrapSeam)

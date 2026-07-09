@@ -273,3 +273,81 @@ describe('claws multi-attach', () => {
     expect(attachBones).toEqual(['footL', 'footR', 'handL', 'handR'])
   })
 })
+
+describe('round 5 bird legs (bird-toes parts)', () => {
+  const LEG_IDS = ['bird-toes', 'bird-toes-webbed'] as const
+  const LEG_BONES = new Set(['upperLegL', 'lowerLegL', 'footL', 'upperLegR', 'lowerLegR', 'footR'])
+
+  it('is a bird-only skinned claws-slot part on the leg chains', () => {
+    for (const id of LEG_IDS) {
+      const def = getPart(id as PartId)
+      expect(def?.slot, id).toBe('claws')
+      expect(def?.classes, id).toEqual(['bird'])
+      expect([...(def?.skinnedTo ?? [])].sort()).toEqual([...LEG_BONES].sort())
+    }
+  })
+
+  it('weights land only on leg-chain bones; both sides present', () => {
+    for (const id of LEG_IDS) {
+      let minX = Infinity
+      let maxX = -Infinity
+      for (const m of meshes(buildProceduralPart(id))) {
+        const sm = m as THREE.SkinnedMesh
+        if (!sm.isSkinnedMesh) continue
+        const si = sm.geometry.getAttribute('skinIndex')
+        const sw = sm.geometry.getAttribute('skinWeight')
+        const p = sm.geometry.getAttribute('position')
+        for (let i = 0; i < si.count; i++) {
+          minX = Math.min(minX, p.getX(i))
+          maxX = Math.max(maxX, p.getX(i))
+          for (let k = 0; k < 4; k++) {
+            const w = sw.getComponent(i, k)
+            if (w <= 1e-6) continue
+            const bone = sm.skeleton.bones[si.getComponent(i, k)]?.name ?? BONE_NAMES[si.getComponent(i, k)]
+            expect(LEG_BONES.has(bone), `${id} vertex ${i} weighted to ${bone}`).toBe(true)
+          }
+        }
+      }
+      expect(minX, `${id} left leg present`).toBeLessThan(-0.04)
+      expect(maxX, `${id} right leg present`).toBeGreaterThan(0.04)
+    }
+  })
+
+  it('bird-toes has three separated forward toes per side (AC read)', () => {
+    // sample toe-tip x positions on the LEFT side ahead of the ankle: the
+    // spread must produce ≥3 distinct x clusters (inner / mid / outer toe)
+    const scene = buildProceduralPart('bird-toes')
+    const xs: number[] = []
+    for (const m of meshes(scene)) {
+      const p = m.geometry.getAttribute('position')
+      for (let i = 0; i < p.count; i++) {
+        if (p.getX(i) > 0.02 && p.getZ(i) > 0.045) xs.push(p.getX(i))
+      }
+    }
+    const min = Math.min(...xs)
+    const max = Math.max(...xs)
+    expect(max - min).toBeGreaterThan(0.05) // toes spread apart, not one paddle
+  })
+
+  it('tarsus is a uniform thin stick — no mammal thigh bulge', () => {
+    const scene = buildProceduralPart('bird-toes')
+    // measure radial spread around the left leg axis at two heights
+    const radiusAt = (yLo: number, yHi: number): number => {
+      let r = 0
+      for (const m of meshes(scene)) {
+        const p = m.geometry.getAttribute('position')
+        for (let i = 0; i < p.count; i++) {
+          const y = p.getY(i)
+          if (y < yLo || y > yHi || p.getX(i) < 0) continue
+          if (y < 0.05) continue // skip toe region
+          r = Math.max(r, Math.abs(p.getX(i) - 0.075))
+        }
+      }
+      return r
+    }
+    const upper = radiusAt(0.24, 0.3)
+    const lower = radiusAt(0.08, 0.14)
+    expect(upper).toBeLessThan(0.03) // thin at the top — no thigh
+    expect(Math.abs(upper - lower)).toBeLessThan(0.008) // uniform stick
+  })
+})

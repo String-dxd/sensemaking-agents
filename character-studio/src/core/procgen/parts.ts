@@ -589,110 +589,85 @@ function tailTrainPeacock(j: J): PartMesh[] {
 // (Zion's blue wing with white tips; Phil's brown layered scallops). Skinned to
 // the arm chain; authored in reference space around the reference shoulder.
 
-// Wings ride the SHOULDER bone alone (anatomy round 3): chain-splitting the
-// weights onto the bird's compressed fore-arm/hand bones remapped the authored
-// drape onto the stubby arm and crumpled the wing into a shoulder tuft. AC
-// folded wings are effectively rigid plates — single-bone weights keep the
-// authored silhouette exactly and still follow the shoulder's idle/walk sway.
-const ARM_L = ['upperArmL']
+// wings (round 5) — authored ALONG THE ARM CHAIN and skinned to it, so the
+// wing hangs off the shoulder and swings like a little arm (the AC read: the
+// folded wing IS the villager's arm). One tapered plate follows shoulder →
+// elbow → wrist → tip via bendChain; finger scallops fan from the wrist.
+// Per-species proportion knobs (eagle/owl: bigger, thicker) live in WingSpec.
+const ARM_L = ['upperArmL', 'foreArmL', 'handL']
 
 interface WingSpec {
-  /** Primaries in the main fan. */
-  count: number
-  /** Longest (rearmost) primary length, reference-space m. */
-  len: number
-  /** Back-sweep of the rearmost primary (z component at t01=1). */
-  sweep: number
-  /** Tip radius of the longest primary (teardrop wide end). */
+  /** Plate radius at the shoulder (narrow) / at the tip (wide teardrop). */
+  rootR: number
   tipR: number
-  /** Covert layer on top (0 = none, else covert feather count). */
-  coverts: number
+  /** Plate thickness = x-flatten factor (eagle/owl thicker). */
+  flat: number
+  /** Extension beyond the wrist toward the tip (reference m). */
+  ext: number
+  /** Feather fingers fanning from the wrist (0 = smooth flipper). */
+  fingers: number
+  fingerLen: number
 }
 
-/** One wing side (L), the AC folded-wing read: every feather ROOTS AT THE
- * SHOULDER (the wing's narrow top), and the fan drapes DIAGONALLY down the
- * flank — the front primary drops nearly straight down along the leading
- * edge, the rear ones sweep progressively back toward the tail. Roots are
- * teardrop-narrow (converging at the shoulder) and tips wide, so the
- * silhouette is narrow at the shoulder and widens downward, ending in the
- * overlapping round scallops of the tip caps. Feathers are flattened in x
- * (the egg's flank tangent plane is ~yz), with the root nudged INTO the
- * flank so the wing reads as a layer ON the body, not a paddle beside it. */
 function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; root: Vec3; tip: Vec3 } {
-  // +0.105 y compensates the bird arm-chain compression (the archetype's
-  // scaled offsets land the reference shoulder ~0.09 world lower), so the
-  // folded wing's top edge sits at the AC shoulder line, not mid-egg.
-  // root sits INSIDE the flank (x pulled in, modest y raise) so the narrow
-  // capsule caps are buried in the egg — no nubs poking out at the shoulder
-  const shoulder: Vec3 = [j.upperArmL[0] - 0.01, j.upperArmL[1] + 0.07, j.upperArmL[2] - 0.02]
-  const shells: SurfacePiece[] = []
-  let mainTip: Vec3 = shoulder
+  const sh = V(j.upperArmL)
+  const el = V(j.foreArmL)
+  const wr = V(j.handL)
+  const dirWr = dirTo(el, wr)
+  const tipPt = add(wr, vec.scale(dirWr, spec.ext))
+  const L = vec.len(vec.sub(el, sh)) + vec.len(vec.sub(wr, el)) + spec.ext
+  const path = smoothPath([sh, el, wr, tipPt], 40)
 
-  // The wing must HUG the egg — not guess at it. Rebuild the bird trunk's
-  // exact world silhouette (mirrors buildProceduralBody's bird constants:
-  // STYLE rx/pear/taper and the torso span rules) plus the exact
-  // authored→world transform of upperArmL-bound vertices (rigid single-bone
-  // bind scaled by uniformScale), then project every feather vertex to ride
-  // a fixed clearance proud of that silhouette.
+  // flank-hug clamp (outward only): the plate may never sink into the egg
   const bird = ARCHETYPES_DEF.bird
   const u = bird.uniformScale
   const jb = restWorldPositions(buildSkeleton(archetypeBuildOptions('bird')))
   const tX = jb.upperArmL[0] - u * j.upperArmL[0]
   const tY = jb.upperArmL[1] - u * j.upperArmL[1]
   const dims = birdTrunkDims(jb, bird.headRadius * u)
-  const flankX = (yW: number): number => birdFlankX(dims, yW)
+  const hug = (piece: SurfacePiece, clearance: number): void => {
+    for (let i = 0; i < vertexCount(piece); i++) {
+      const v01 = piece.params[i * 2 + 1]
+      const yW = piece.pos[i * 3 + 1] * u + tY
+      const minX = (birdFlankX(dims, yW) + clearance - tX) / u
+      const blend = smoothstep(0.06, 0.3, v01)
+      if (piece.pos[i * 3] < minX) piece.pos[i * 3] += (minX - piece.pos[i * 3]) * blend
+    }
+  }
 
-  const drape = (t01: number, len: number, r0: number, r1: number, name: string, layerX: number): SurfacePiece => {
-    // front (t01=0) → down the leading edge; rear (t01=1) → swept to the tail
-    const dir = vec.norm([0, -1, -spec.sweep * t01])
-    const tip = add(shoulder, vec.scale(dir, len))
-    const feather = closedCapsule(name, shoulder, tip, r0, r1, 8, 8, 0.008)
-    scaleX(feather, shoulder[0], 0.3) // flat plate in the flank tangent plane
-    for (let i = 0; i < vertexCount(feather); i++) {
-      const v01 = feather.params[i * 2 + 1]
-      // plate-local thickness = offset from the feather's flat spine
-      const thick = feather.pos[i * 3] - shoulder[0]
-      // authored x that puts this vertex `clearance` proud of the egg flank
-      const yW = feather.pos[i * 3 + 1] * u + tY
-      const hugged = (flankX(yW) + 0.014 + layerX - tX) / u + thick
-      // root cap stays buried at the shoulder; the visible run hugs the egg
-      const blend = smoothstep(0.04, 0.3, v01)
-      feather.pos[i * 3] = feather.pos[i * 3] * (1 - blend) + hugged * blend
+  const shells: SurfacePiece[] = []
+  // main plate: authored straight up from the shoulder, bent onto the chain
+  const plate = closedCapsule('wingPlate', sh, add(sh, [0, L, 0]), spec.rootR, spec.tipR, 10, 14, 0.012)
+  scaleX(plate, sh[0], spec.flat)
+  bendChain(plate.pos, sh, L, path)
+  if (curl > 0) {
+    for (let i = 0; i < vertexCount(plate); i++) {
+      const v01 = plate.params[i * 2 + 1]
+      plate.pos[i * 3] += v01 * v01 * curl
     }
-    return feather
   }
-  for (let f = 0; f < spec.count; f++) {
-    const t01 = spec.count === 1 ? 1 : f / (spec.count - 1)
-    // rearmost primary is the longest — the diagonal tip of the folded wing
-    const len = spec.len * (0.62 + 0.38 * t01)
-    const feather = drape(t01, len, 0.014, spec.tipR * (0.78 + 0.22 * t01), `wingP${f}`, 0)
-    if (curl > 0) {
-      // flipper: slight outward curl at the tip
-      for (let i = 0; i < vertexCount(feather); i++) {
-        const v01 = feather.params[i * 2 + 1]
-        feather.pos[i * 3] += v01 * v01 * curl
-      }
-    }
-    chainWeightsPiece(feather, ARM_L, [], 0.16)
-    // white feather tips (Zion) — accent band via palette
-    setChannelFn(feather, CH_ACCENT, (i) => smoothstep(0.8, 0.93, feather.params[i * 2 + 1]))
-    // rear primaries carry the secondary tone for the layered read
-    if (spec.count > 1 && t01 > 0.55) {
-      setChannelFn(feather, CH_SECONDARY, (i) => (feather.params[i * 2 + 1] > 0.4 ? 0.85 : 0))
-    }
-    shells.push(feather)
-    if (f === spec.count - 1) mainTip = add(shoulder, vec.scale(vec.norm([0.24, -1, -spec.sweep]), len))
+  const dSE = vec.len(vec.sub(el, sh))
+  const dEW = vec.len(vec.sub(wr, el))
+  chainWeightsPiece(plate, ARM_L, [dSE / L, (dSE + dEW) / L], 0.12)
+  setChannelFn(plate, CH_ACCENT, (i) => smoothstep(0.82, 0.94, plate.params[i * 2 + 1]))
+  hug(plate, 0.012)
+  shells.push(plate)
+
+  // feather fingers: short overlapping scallops fanning down-back from the
+  // wrist — the AC folded-wing tip read
+  for (let f = 0; f < spec.fingers; f++) {
+    const t01 = spec.fingers === 1 ? 0.5 : f / (spec.fingers - 1)
+    const dir = vec.norm([0, -1, -0.12 - 0.38 * t01])
+    const base: Vec3 = [wr[0], wr[1] + 0.02, wr[2] + 0.01 - 0.02 * t01]
+    const finger = closedCapsule(`wingF${f}`, base, add(base, vec.scale(dir, spec.fingerLen)), spec.tipR * 0.42, spec.tipR * 0.5, 8, 7, 0.006)
+    scaleX(finger, base[0], spec.flat * 0.9)
+    const n = vertexCount(finger)
+    finger.weights.set('handL', new Array(n).fill(1))
+    setChannelFn(finger, CH_SECONDARY, (i) => (finger.params[i * 2 + 1] > 0.45 ? 0.85 : 0))
+    hug(finger, 0.016)
+    shells.push(finger)
   }
-  // covert layer: a shorter fan riding just proud of the primaries, covering
-  // the upper wing — gives the AC two-ledge scallop silhouette
-  for (let f = 0; f < spec.coverts; f++) {
-    const t01 = spec.coverts === 1 ? 0.5 : f / (spec.coverts - 1)
-    const len = spec.len * 0.5 * (0.72 + 0.28 * t01)
-    const covert = drape(t01 * 0.9, len, 0.013, spec.tipR * 0.8, `wingC${f}`, 0.012)
-    chainWeightsPiece(covert, ARM_L, [], 0.16)
-    shells.push(covert)
-  }
-  return { shells, root: shoulder, tip: mainTip }
+  return { shells, root: sh, tip: tipPt }
 }
 
 /** L shells + mirrored R shells in one PartMesh, morph keys spanning both. */
@@ -707,23 +682,22 @@ function pairWing(name: string, j: J, spec: WingSpec, curl = 0): PartMesh[] {
 }
 
 function wingRound(j: J): PartMesh[] {
-  // default songbird/chicken/owl. AC folded wings hang DOWN the flank like
-  // little arms — barely any back-sweep (anatomy round 4); the feather fan
-  // reads in the tip scallops, not in a back-wrap.
-  return pairWing('wing-round', j, { count: 4, len: 0.26, sweep: 0.22, tipR: 0.042, coverts: 3 })
+  // default songbird/chicken: a slim little arm-wing
+  return pairWing('wing-round', j, { rootR: 0.022, tipR: 0.05, flat: 0.35, ext: 0.05, fingers: 3, fingerLen: 0.085 })
 }
 
 function wingEagle(j: J): PartMesh[] {
-  // eagle/peacock: longer (tip below hip), slightly more diagonal
-  return pairWing('wing-eagle', j, { count: 5, len: 0.33, sweep: 0.3, tipR: 0.044, coverts: 4 })
+  // eagle/owl/peacock: bigger and THICKER (the raptor bulk the operator asked
+  // for) with a longer feather-finger fan
+  return pairWing('wing-eagle', j, { rootR: 0.03, tipR: 0.066, flat: 0.5, ext: 0.1, fingers: 4, fingerLen: 0.115 })
 }
 
 function wingFlipper(j: J): PartMesh[] {
-  // penguin: one smooth slim flat paddle, no scallops, slight outward curl
-  return pairWing('wing-flipper', j, { count: 1, len: 0.24, sweep: 0.06, tipR: 0.05, coverts: 0 }, 0.035)
+  // penguin: one smooth flat paddle, no fingers, slight outward curl
+  return pairWing('wing-flipper', j, { rootR: 0.03, tipR: 0.048, flat: 0.45, ext: 0.06, fingers: 0, fingerLen: 0 }, 0.035)
 }
 
-// claws + crest -----------------------------------------------------------------
+// claws + bird legs ------------------------------------------------------------
 
 function clawsStub(j: J): PartMesh[] {
   const handDir = dirTo(V(j.foreArmL), V(j.handL))
@@ -749,57 +723,73 @@ function clawsStub(j: J): PartMesh[] {
   })
 }
 
-// bird feet (anatomy round 4) — the visible foot is a PROPER mesh: three
-// separated toe capsules plus a heel, one rigid part per foot bone, replacing
-// round 3's displacement-sculpted paddle. Ground alignment: the builder maps
-// the authored sole so it lands exactly on y=0 after the rigid bone mapping
-// (world = birdBoneWorld + (v − refBone)·uniformScale).
+// bird legs (round 5) — the WHOLE visible leg is one proper mesh per side:
+// a thin straight tarsus stick (AC bird legs carry no muscle or fat — they
+// are uniform sticks) plus three separated toes and a hind toe, authored
+// along the reference LEG BONE CHAIN and skinned to it (upperLeg/lowerLeg/
+// foot), so it compresses onto the bird skeleton exactly, swings with walk
+// clips and folds when sitting. This replaces round 4's rigid toe pads AND
+// the old welded mammal-derived leg (deleted from the bird body build).
 
-function birdToesSide(j: J, bone: 'footL' | 'footR', webbed: boolean): PartMesh {
+function birdLegSide(j: J, side: 'L' | 'R', webbed: boolean): SurfacePiece[] {
   const u = ARCHETYPES_DEF.bird.uniformScale
   const jb = restWorldPositions(buildSkeleton(archetypeBuildOptions('bird')))
-  const ref = V(j[bone])
-  const mirror = bone === 'footR' ? -1 : 1
-  const soleY = ref[1] - jb[bone][1] / u // authored y that lands on world 0
-  const toeR = 0.026
-  const flat = 0.62 // vertical squash — low flat toes, round in plan view
-  const lift = toeR * flat // centreline height so the squashed sole touches 0
-  const heelZ = -0.015
+  const hip = V(j[`upperLeg${side}` as BoneName])
+  const ankleRef = V(j[`foot${side}` as BoneName])
+  const footBone = `foot${side}` as const
   const shells: SurfacePiece[] = []
+
+  // --- tarsus: a UNIFORM thin stick, top hidden inside the egg -------------
+  const top: Vec3 = [hip[0], hip[1] + 0.1, hip[2]]
+  const bottom: Vec3 = [ankleRef[0], ankleRef[1] - 0.012, ankleRef[2]]
+  const stick = closedCapsule(`tarsus${side}`, top, bottom, 0.02, 0.019, 10, 12, 0, 0.4)
+  chainWeightsPiece(stick, [`upperLeg${side}`, `lowerLeg${side}`, footBone], [0.45, 0.82], 0.08)
+  setChannelAll(stick, CH_ACCENT, 1)
+  shells.push(stick)
+
+  // --- toes: fully weighted to the foot bone, soles landing on world y=0
+  // after the skinned remap (world = birdBone + u·(v − refBone)).
+  const soleY = ankleRef[1] - jb[footBone][1] / u
+  const toeR = 0.024
+  const flat = 0.6
+  const lift = toeR * flat
+  const heelZ = -0.012
   const toe = (name: string, angDeg: number, len: number, r: number): void => {
     const a = (angDeg * Math.PI) / 180
-    const dir: Vec3 = [Math.sin(a) * mirror, 0, Math.cos(a)]
-    const base: Vec3 = [ref[0], soleY + lift, ref[2] + heelZ]
+    const dir: Vec3 = [Math.sin(a), 0, Math.cos(a)]
+    const base: Vec3 = [ankleRef[0], soleY + lift, ankleRef[2] + heelZ]
     const tip = add(base, vec.scale(dir, len))
-    const t = closedCapsule(name, base, tip, r, r * 0.78, 10, 8, 0, 0.55)
+    const t = closedCapsule(name, base, tip, r, r * 0.75, 10, 8, 0, 0.55)
     flatY(t, soleY + lift, flat)
+    const n = vertexCount(t)
+    t.weights.set(footBone, new Array(n).fill(1))
     setChannelAll(t, CH_ACCENT, 1)
     shells.push(t)
   }
   if (webbed) {
-    // shorter toes joined by a thin web plate (duck/penguin)
-    toe('toeMid', 0, 0.085, toeR * 0.9)
-    toe('toeIn', -24, 0.072, toeR * 0.85)
-    toe('toeOut', 24, 0.072, toeR * 0.85)
-    const web = closedEllipsoid('web', [ref[0], soleY + lift * 0.7, ref[2] + heelZ + 0.045], [0.052, lift * 0.55, 0.05], 12, 8)
+    toe(`toeMid${side}`, 0, 0.082, toeR * 0.88)
+    toe(`toeIn${side}`, -24, 0.07, toeR * 0.82)
+    toe(`toeOut${side}`, 24, 0.07, toeR * 0.82)
+    const web = closedEllipsoid(`web${side}`, [ankleRef[0], soleY + lift * 0.7, ankleRef[2] + heelZ + 0.042], [0.05, lift * 0.55, 0.048], 12, 8)
+    const n = vertexCount(web)
+    web.weights.set(footBone, new Array(n).fill(1))
     setChannelAll(web, CH_ACCENT, 1)
     shells.push(web)
   } else {
-    // three clearly SEPARATED toes — middle longest — plus a short hind toe
-    toe('toeMid', 0, 0.105, toeR)
-    toe('toeIn', -27, 0.085, toeR * 0.88)
-    toe('toeOut', 27, 0.085, toeR * 0.88)
-    toe('toeHind', 180, 0.05, toeR * 0.8)
+    toe(`toeMid${side}`, 0, 0.1, toeR)
+    toe(`toeIn${side}`, -32, 0.09, toeR * 0.86)
+    toe(`toeOut${side}`, 32, 0.09, toeR * 0.86)
+    toe(`toeHind${side}`, 180, 0.046, toeR * 0.78)
   }
-  return { name: `${webbed ? 'bird-toes-webbed' : 'bird-toes'}@${bone}`, shells, attach: bone, morphKeys: {} }
+  return shells
 }
 
 function birdToes(j: J): PartMesh[] {
-  return [birdToesSide(j, 'footL', false), birdToesSide(j, 'footR', false)]
+  return [{ name: 'bird-toes', shells: [...birdLegSide(j, 'L', false), ...birdLegSide(j, 'R', false)], attach: null, morphKeys: {} }]
 }
 
 function birdToesWebbed(j: J): PartMesh[] {
-  return [birdToesSide(j, 'footL', true), birdToesSide(j, 'footR', true)]
+  return [{ name: 'bird-toes-webbed', shells: [...birdLegSide(j, 'L', true), ...birdLegSide(j, 'R', true)], attach: null, morphKeys: {} }]
 }
 
 function crestFeatherTuft(j: J): PartMesh[] {

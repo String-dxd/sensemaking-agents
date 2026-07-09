@@ -401,28 +401,29 @@ export const PART_REGISTRY = {
     attachTo: ['handL', 'handR', 'footL', 'footR'],
     morphs: [],
   },
-  // bird feet (anatomy round 4): the visible three-toed foot is a proper
-  // part mesh on the foot bones — the welded body keeps only an ankle nub.
+  // bird legs (round 5): the whole visible leg — uniform tarsus stick + three
+  // separated toes — is one skinned part on the LEG BONE CHAIN. The bird body
+  // welds no legs at all.
   'bird-toes': {
     slot: 'claws',
-    label: 'Bird toes',
+    label: 'Bird legs',
     url: partUrl('claws-stub.glb'), // placeholder; procedural source is authoritative
     source: { kind: 'procedural', build: () => buildProceduralPart('bird-toes') },
     maskUrl: null,
     region: 'claws',
     classes: ['bird'],
-    attachTo: ['footL', 'footR'],
+    skinnedTo: ['upperLegL', 'lowerLegL', 'footL', 'upperLegR', 'lowerLegR', 'footR'],
     morphs: [],
   },
   'bird-toes-webbed': {
     slot: 'claws',
-    label: 'Webbed toes',
+    label: 'Webbed legs',
     url: partUrl('claws-stub.glb'), // placeholder; procedural source is authoritative
     source: { kind: 'procedural', build: () => buildProceduralPart('bird-toes-webbed') },
     maskUrl: null,
     region: 'claws',
     classes: ['bird'],
-    attachTo: ['footL', 'footR'],
+    skinnedTo: ['upperLegL', 'lowerLegL', 'footL', 'upperLegR', 'lowerLegR', 'footR'],
     morphs: [],
   },
 

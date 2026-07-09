@@ -266,7 +266,7 @@ export const SPECIES_REGISTRY = {
       tail: { partId: 'feather-fan', morphs: { length: 0.15 } },
       claws: { partId: 'bird-toes', morphs: {} },
       crest: { partId: 'feather-tuft', morphs: {} },
-      wings: { partId: 'wing-round', morphs: {} },
+      wings: { partId: 'wing-eagle', morphs: {} },
     },
     bodyMorphs: { chubby: 0.4, headBig: 0.35 },
     birdShape: { wingLength: 0.9, headSize: 1.08, toeCut: 0.85 },
