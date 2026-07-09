@@ -14,6 +14,7 @@
 // NOT welded to the body, so no manifold constraint here.
 
 import * as THREE from 'three'
+import { ARCHETYPES_DEF, archetypeBuildOptions } from '../skeleton/archetypes'
 import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skeleton/canonical'
 import { PART_REGISTRY, type PartId } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
@@ -321,7 +322,24 @@ function muzzleBeakSmall(j: J): PartMesh[] {
   flatY(beak, a[1] + 0.004, 0.8)
   diamondize(beak, base, dirTo(base, tip), 0.55)
   setChannelAll(beak, CH_ACCENT, 1)
-  return [{ name: 'muzzle-beak-small', shells: [beak], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak], a) }]
+  return [
+    { name: 'muzzle-beak-small', shells: [beak], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak], a) },
+    beakJaw(a, 0.085, 0.05),
+  ]
+}
+
+/** Lower mandible as its OWN PartMesh/mesh so assembly can hinge it — the
+ * beak opens and closes while talking (anatomy round 3). A flat under-wedge
+ * tucked beneath the upper beak; closed it disappears into the upper's
+ * silhouette, open it drops and reads as the AC talking flap. */
+function beakJaw(a: Vec3, len: number, halfW: number, drop = 0.016): PartMesh {
+  const base: Vec3 = [a[0], a[1] - drop, a[2] - 0.02]
+  const tip: Vec3 = [a[0], a[1] - drop - 0.012, a[2] + len]
+  const jaw = closedCapsule('beakJaw', base, tip, halfW, 0.012, 12, 8)
+  flatY(jaw, base[1] + 0.004, 0.5)
+  diamondize(jaw, base, dirTo(base, tip), 0.45)
+  setChannelAll(jaw, CH_ACCENT, 1)
+  return { name: 'muzzle-beak.jaw', shells: [jaw], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([jaw], a) }
 }
 
 function muzzleBeakRound(j: J): PartMesh[] {
@@ -336,7 +354,10 @@ function muzzleBeakRound(j: J): PartMesh[] {
   diamondize(lower, lowC, [0, 0, 1], 0.4)
   setChannelAll(upper, CH_ACCENT, 1)
   setChannelAll(lower, CH_ACCENT, 1)
-  return [{ name: 'muzzle-beak-round', shells: [upper, lower], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([upper, lower], a) }]
+  return [
+    { name: 'muzzle-beak-round', shells: [upper], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([upper], a) },
+    { name: 'muzzle-beak-round.jaw', shells: [lower], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([lower], a) },
+  ]
 }
 
 function muzzleBeakHooked(j: J): PartMesh[] {
@@ -359,7 +380,10 @@ function muzzleBeakHooked(j: J): PartMesh[] {
   setChannelAll(lower, CH_ACCENT, 1)
   // dark tip zone (plan 019/020 palette makes it Apollo-dark)
   setChannelFn(upper, CH_SECONDARY, (i) => (upper.params[i * 2 + 1] > 0.8 ? 0.9 : 0))
-  return [{ name: 'muzzle-beak-hooked', shells: [upper, lower], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([upper, lower], a) }]
+  return [
+    { name: 'muzzle-beak-hooked', shells: [upper], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([upper], a) },
+    { name: 'muzzle-beak-hooked.jaw', shells: [lower], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([lower], a) },
+  ]
 }
 
 function muzzleBillDuck(j: J): PartMesh[] {
@@ -369,7 +393,15 @@ function muzzleBillDuck(j: J): PartMesh[] {
   flatY(bill, a[1], 0.36)
   for (let i = 0; i < vertexCount(bill); i++) bill.pos[i * 3 + 1] += smoothstep(0.7, 1, bill.params[i * 2 + 1]) * 0.012
   setChannelAll(bill, CH_ACCENT, 1)
-  return [{ name: 'muzzle-bill-duck', shells: [bill], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([bill], a) }]
+  // lower bill: same wide flat plate, slightly smaller, tucked under
+  const lowBill = closedCapsule('billJaw', [a[0], a[1] - 0.012, a[2] - 0.015], [a[0], a[1] - 0.022, a[2] + 0.105], 0.05, 0.032, 14, 10)
+  scaleX(lowBill, a[0], 1.7)
+  flatY(lowBill, a[1] - 0.016, 0.3)
+  setChannelAll(lowBill, CH_ACCENT, 1)
+  return [
+    { name: 'muzzle-bill-duck', shells: [bill], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([bill], a) },
+    { name: 'muzzle-bill-duck.jaw', shells: [lowBill], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([lowBill], a) },
+  ]
 }
 
 function muzzleBeakChicken(j: J): PartMesh[] {
@@ -389,6 +421,7 @@ function muzzleBeakChicken(j: J): PartMesh[] {
   setChannelAll(wattleR, CH_SECONDARY, 1)
   return [
     { name: 'muzzle-beak-chicken', shells: [beak, wattleL, wattleR], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak, wattleL, wattleR], a) },
+    beakJaw(a, 0.07, 0.045, 0.014),
   ]
 }
 
@@ -404,7 +437,10 @@ function muzzleBeakPenguin(j: J): PartMesh[] {
     beak.pos[i * 3 + 1] -= t * t * 0.02
   }
   setChannelAll(beak, CH_ACCENT, 1)
-  return [{ name: 'muzzle-beak-penguin', shells: [beak], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak], a) }]
+  return [
+    { name: 'muzzle-beak-penguin', shells: [beak], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak], a) },
+    beakJaw(a, 0.105, 0.038, 0.012),
+  ]
 }
 
 // tails -------------------------------------------------------------------------
@@ -552,71 +588,127 @@ function tailTrainPeacock(j: J): PartMesh[] {
 // (Zion's blue wing with white tips; Phil's brown layered scallops). Skinned to
 // the arm chain; authored in reference space around the reference shoulder.
 
-const ARM_L = ['upperArmL', 'foreArmL', 'handL']
+// Wings ride the SHOULDER bone alone (anatomy round 3): chain-splitting the
+// weights onto the bird's compressed fore-arm/hand bones remapped the authored
+// drape onto the stubby arm and crumpled the wing into a shoulder tuft. AC
+// folded wings are effectively rigid plates — single-bone weights keep the
+// authored silhouette exactly and still follow the shoulder's idle/walk sway.
+const ARM_L = ['upperArmL']
 
-interface WingRow {
-  /** Feathers in this row's fan. */
+interface WingSpec {
+  /** Primaries in the main fan. */
   count: number
-  /** Feather length (reference-space m). */
+  /** Longest (rearmost) primary length, reference-space m. */
   len: number
-  /** Fan half-angle (rad) — spans grow downward so the wing widens. */
-  fan: number
-  /** Root/tip capsule radii — r0 < r1 gives the shoulder≈0.5×tip taper. */
-  r0: number
-  r1: number
+  /** Back-sweep of the rearmost primary (z component at t01=1). */
+  sweep: number
+  /** Tip radius of the longest primary (teardrop wide end). */
+  tipR: number
+  /** Covert layer on top (0 = none, else covert feather count). */
+  coverts: number
 }
 
-/** One wing side (L): stacked scallop rows of flat feathers draped down the
- * flank. Row 0 = top covert row (short, outermost layer); later rows are
- * longer and sit closer to the body, so the layered ledges read. */
-function wingSideL(j: J, rows: WingRow[], curl = 0): { shells: SurfacePiece[]; root: Vec3; tip: Vec3 } {
-  const shoulder = V(j.upperArmL)
+/** One wing side (L), the AC folded-wing read: every feather ROOTS AT THE
+ * SHOULDER (the wing's narrow top), and the fan drapes DIAGONALLY down the
+ * flank — the front primary drops nearly straight down along the leading
+ * edge, the rear ones sweep progressively back toward the tail. Roots are
+ * teardrop-narrow (converging at the shoulder) and tips wide, so the
+ * silhouette is narrow at the shoulder and widens downward, ending in the
+ * overlapping round scallops of the tip caps. Feathers are flattened in x
+ * (the egg's flank tangent plane is ~yz), with the root nudged INTO the
+ * flank so the wing reads as a layer ON the body, not a paddle beside it. */
+function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; root: Vec3; tip: Vec3 } {
+  // +0.105 y compensates the bird arm-chain compression (the archetype's
+  // scaled offsets land the reference shoulder ~0.09 world lower), so the
+  // folded wing's top edge sits at the AC shoulder line, not mid-egg.
+  // root sits INSIDE the flank (x pulled in, modest y raise) so the narrow
+  // capsule caps are buried in the egg — no nubs poking out at the shoulder
+  const shoulder: Vec3 = [j.upperArmL[0] - 0.01, j.upperArmL[1] + 0.07, j.upperArmL[2] - 0.02]
   const shells: SurfacePiece[] = []
   let mainTip: Vec3 = shoulder
-  rows.forEach((row, k) => {
-    // layering: shorter top rows ride proud of the longer rows beneath.
-    // The base +0.12 puts the plate just OUTSIDE the bird egg's flank
-    // (torso rx·pear ≈ 0.19 world at the equator; parts are reference-space).
-    // +0.105 y compensates the bird arm-chain compression (the archetype's
-    // scaled offsets land the reference shoulder ~0.09 world lower), so the
-    // folded wing's top edge sits at the AC neck line, not mid-egg.
-    const layerX = (rows.length - 1 - k) * 0.014
-    const rowRoot: Vec3 = [shoulder[0] + 0.12 + layerX, shoulder[1] + 0.105 - k * 0.022, shoulder[2]]
-    for (let f = 0; f < row.count; f++) {
-      const t01 = row.count === 1 ? 0.5 : f / (row.count - 1)
-      const phi = (t01 - 0.5) * 2 * row.fan
-      // drape down the flank with an outward part that clears the widening
-      // egg below the shoulder; fan spreads in z with a slight back-tuck so
-      // the primaries converge toward the tail (folded-wing read, not splayed)
-      const dir = vec.norm([0.18, -Math.cos(phi), Math.sin(phi) * 0.95 - 0.12])
-      const len = row.len * (1 - 0.12 * Math.abs(t01 - 0.5) * 2)
-      const tip = add(rowRoot, vec.scale(dir, len))
-      const feather = closedCapsule(`wing${k}f${f}`, rowRoot, tip, row.r0, row.r1, 8, 7, 0.008)
-      scaleX(feather, rowRoot[0], 0.32) // flat feather plate, thin toward the body
-      if (curl > 0) {
-        // flipper: slight outward curl at the tip
-        for (let i = 0; i < vertexCount(feather); i++) {
-          const v01 = feather.params[i * 2 + 1]
-          feather.pos[i * 3] += v01 * v01 * curl
-        }
-      }
-      chainWeightsPiece(feather, ARM_L, [0.45, 0.8], 0.16)
-      // white feather tips (Zion) — accent band via palette
-      setChannelFn(feather, CH_ACCENT, (i) => smoothstep(0.78, 0.92, feather.params[i * 2 + 1]))
-      // outer/lower row carries the secondary tone for the layered read
-      if (k === rows.length - 1 && rows.length > 1) {
-        setChannelFn(feather, CH_SECONDARY, (i) => (feather.params[i * 2 + 1] > 0.35 ? 0.9 : 0))
-      }
-      shells.push(feather)
-      if (k === rows.length - 1 && Math.abs(t01 - 0.5) < 1e-6) mainTip = tip
+
+  // The wing must HUG the egg — not guess at it. Rebuild the bird trunk's
+  // exact world silhouette (mirrors buildProceduralBody's bird constants:
+  // STYLE rx/pear/taper and the torso span rules) plus the exact
+  // authored→world transform of upperArmL-bound vertices (rigid single-bone
+  // bind scaled by uniformScale), then project every feather vertex to ride
+  // a fixed clearance proud of that silhouette.
+  const bird = ARCHETYPES_DEF.bird
+  const u = bird.uniformScale
+  const jb = restWorldPositions(buildSkeleton(archetypeBuildOptions('bird')))
+  const tX = jb.upperArmL[0] - u * j.upperArmL[0]
+  const tY = jb.upperArmL[1] - u * j.upperArmL[1]
+  const torsoH = jb.neck[1] - jb.hips[1]
+  const torsoBottom = jb.hips[1] - torsoH * 0.42
+  const torsoTop = jb.neck[1] + torsoH * 0.55
+  const cyW = (torsoBottom + torsoTop) / 2
+  const ryW = (torsoTop - torsoBottom) / 2
+  const rxW = bird.headRadius * u * 0.85
+  const eggProfile = (v01: number): number =>
+    1 + 0.34 * (1 - v01) ** 2 * Math.sin(Math.PI * v01) * 2 - 0.34 * v01 * v01
+  /** World flank |x| of the bird egg at world height yW. */
+  const flankX = (yW: number): number => {
+    const c = Math.min(Math.max((cyW - yW) / ryW, -1), 1)
+    const pol = Math.acos(c)
+    return rxW * Math.sin(pol) * eggProfile(pol / Math.PI)
+  }
+
+  const drape = (t01: number, len: number, r0: number, r1: number, name: string, layerX: number): SurfacePiece => {
+    // front (t01=0) → down the leading edge; rear (t01=1) → swept to the tail
+    const dir = vec.norm([0, -1, -spec.sweep * t01])
+    const tip = add(shoulder, vec.scale(dir, len))
+    const feather = closedCapsule(name, shoulder, tip, r0, r1, 8, 8, 0.008)
+    scaleX(feather, shoulder[0], 0.3) // flat plate in the flank tangent plane
+    for (let i = 0; i < vertexCount(feather); i++) {
+      const v01 = feather.params[i * 2 + 1]
+      // plate-local thickness = offset from the feather's flat spine
+      const thick = feather.pos[i * 3] - shoulder[0]
+      // authored x that puts this vertex `clearance` proud of the egg flank
+      const yW = feather.pos[i * 3 + 1] * u + tY
+      const hugged = (flankX(yW) + 0.014 + layerX - tX) / u + thick
+      // root cap stays buried at the shoulder; the visible run hugs the egg
+      const blend = smoothstep(0.04, 0.3, v01)
+      feather.pos[i * 3] = feather.pos[i * 3] * (1 - blend) + hugged * blend
     }
-  })
+    return feather
+  }
+  for (let f = 0; f < spec.count; f++) {
+    const t01 = spec.count === 1 ? 1 : f / (spec.count - 1)
+    // rearmost primary is the longest — the diagonal tip of the folded wing
+    const len = spec.len * (0.62 + 0.38 * t01)
+    const feather = drape(t01, len, 0.014, spec.tipR * (0.78 + 0.22 * t01), `wingP${f}`, 0)
+    if (curl > 0) {
+      // flipper: slight outward curl at the tip
+      for (let i = 0; i < vertexCount(feather); i++) {
+        const v01 = feather.params[i * 2 + 1]
+        feather.pos[i * 3] += v01 * v01 * curl
+      }
+    }
+    chainWeightsPiece(feather, ARM_L, [], 0.16)
+    // white feather tips (Zion) — accent band via palette
+    setChannelFn(feather, CH_ACCENT, (i) => smoothstep(0.8, 0.93, feather.params[i * 2 + 1]))
+    // rear primaries carry the secondary tone for the layered read
+    if (spec.count > 1 && t01 > 0.55) {
+      setChannelFn(feather, CH_SECONDARY, (i) => (feather.params[i * 2 + 1] > 0.4 ? 0.85 : 0))
+    }
+    shells.push(feather)
+    if (f === spec.count - 1) mainTip = add(shoulder, vec.scale(vec.norm([0.24, -1, -spec.sweep]), len))
+  }
+  // covert layer: a shorter fan riding just proud of the primaries, covering
+  // the upper wing — gives the AC two-ledge scallop silhouette
+  for (let f = 0; f < spec.coverts; f++) {
+    const t01 = spec.coverts === 1 ? 0.5 : f / (spec.coverts - 1)
+    const len = spec.len * 0.5 * (0.72 + 0.28 * t01)
+    const covert = drape(t01 * 0.9, len, 0.013, spec.tipR * 0.8, `wingC${f}`, 0.012)
+    chainWeightsPiece(covert, ARM_L, [], 0.16)
+    shells.push(covert)
+  }
   return { shells, root: shoulder, tip: mainTip }
 }
 
 /** L shells + mirrored R shells in one PartMesh, morph keys spanning both. */
-function pairWing(name: string, j: J, rows: WingRow[], curl = 0): PartMesh[] {
-  const { shells, root, tip } = wingSideL(j, rows, curl)
+function pairWing(name: string, j: J, spec: WingSpec, curl = 0): PartMesh[] {
+  const { shells, root, tip } = wingSideL(j, spec, curl)
   const right = shells.map((p, i) => mirrorX(p, `${p.name}R${i}`))
   const keysL = lengthWidthKeys(shells, root, tip)
   const keysR = lengthWidthKeys(right, [-root[0], root[1], root[2]], [-tip[0], tip[1], tip[2]])
@@ -626,26 +718,19 @@ function pairWing(name: string, j: J, rows: WingRow[], curl = 0): PartMesh[] {
 }
 
 function wingRound(j: J): PartMesh[] {
-  // default songbird/chicken/owl: 2 rows, tip ≈ hip height (shoulder y≈0.505,
+  // default songbird/chicken/owl: tip ≈ hip height (shoulder y≈0.505,
   // hips y≈0.34 in reference space)
-  return pairWing('wing-round', j, [
-    { count: 3, len: 0.15, fan: 0.36, r0: 0.026, r1: 0.048 },
-    { count: 4, len: 0.22, fan: 0.52, r0: 0.022, r1: 0.044 },
-  ])
+  return pairWing('wing-round', j, { count: 4, len: 0.24, sweep: 0.55, tipR: 0.045, coverts: 3 })
 }
 
 function wingEagle(j: J): PartMesh[] {
-  // eagle/peacock: 3 rows, longer (tip below hip), stronger shoulder→tip taper
-  return pairWing('wing-eagle', j, [
-    { count: 3, len: 0.14, fan: 0.32, r0: 0.022, r1: 0.048 },
-    { count: 4, len: 0.22, fan: 0.46, r0: 0.018, r1: 0.046 },
-    { count: 5, len: 0.3, fan: 0.6, r0: 0.016, r1: 0.044 },
-  ])
+  // eagle/peacock: longer (tip below hip), stronger diagonal sweep
+  return pairWing('wing-eagle', j, { count: 5, len: 0.32, sweep: 0.7, tipR: 0.046, coverts: 4 })
 }
 
 function wingFlipper(j: J): PartMesh[] {
-  // penguin: one smooth slim flat paddle, no scallop rows, slight outward curl
-  return pairWing('wing-flipper', j, [{ count: 1, len: 0.2, fan: 0, r0: 0.036, r1: 0.044 }], 0.035)
+  // penguin: one smooth slim flat paddle, no scallops, slight outward curl
+  return pairWing('wing-flipper', j, { count: 1, len: 0.22, sweep: 0.1, tipR: 0.05, coverts: 0 }, 0.035)
 }
 
 // claws + crest -----------------------------------------------------------------
@@ -859,6 +944,9 @@ export function buildProceduralPart(partId: string): THREE.Object3D {
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial())
     mesh.name = pm.name
     mesh.userData.attachBone = bone
+    // lower mandibles hinge at the muzzle socket — assembly collects these
+    // so the talk layer can open/close the beak (anatomy round 3)
+    if (pm.name.endsWith('.jaw')) mesh.userData.beakJaw = true
     mesh.frustumCulled = false
     scene.add(mesh)
   }

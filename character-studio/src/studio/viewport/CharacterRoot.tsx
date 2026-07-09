@@ -484,6 +484,7 @@ export function CharacterRoot() {
           <FaceRig
             bodyMaterial={assembled.regionMaterials.body}
             hideMouth={assembled.hideMouth}
+            beakJaw={assembled.beakJaw}
             placement={archetype === 'bird' ? BIRD_PLACEMENT : undefined}
           />
         )}

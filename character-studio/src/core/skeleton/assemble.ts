@@ -54,6 +54,9 @@ export interface AssembledCharacter {
   regionMaterials: Partial<Record<Region, ToonMaterial>>
   /** Meshes per region (outline toggling). */
   regionMeshes: Partial<Record<Region, THREE.Mesh[]>>
+  /** Lower-mandible meshes (userData.beakJaw), hinged at their attach bone —
+   * the talk layer rotates these to open/close the beak. Empty for mammals. */
+  beakJaw: THREE.Mesh[]
   /** Dispose everything assembly created (materials; geometry is shared). */
   dispose(): void
 }
@@ -215,6 +218,7 @@ export function assembleCharacter(
 
   // --- parts ------------------------------------------------------------------
   const equipped: Array<{ def: PartDef }> = []
+  const beakJaw: THREE.Mesh[] = []
   let hideMouth = false
   let mouthRadialOffset = 0
 
@@ -270,6 +274,7 @@ export function assembleCharacter(
         applyMorphs(mesh, entry.morphs)
         tagMesh(mesh, def.region)
         bone.add(mesh)
+        if (mesh.userData.beakJaw) beakJaw.push(mesh)
       }
     }
 
@@ -327,6 +332,7 @@ export function assembleCharacter(
     headRadius: head.radius,
     hideMouth,
     mouthRadialOffset,
+    beakJaw,
     springChains,
     colliderGroups,
     regionMaterials,

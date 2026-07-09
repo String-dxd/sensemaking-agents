@@ -58,7 +58,10 @@ interface Style {
 const STYLE: Record<Archetype, Style> = {
   'biped-round': { torsoRx: 0.8, torsoRz: 0.64, pear: 0.32, shoulderTaper: 0.18, armR: 0.046, handR: 0.052, legR: 0.064, foot: [0.06, 0.042, 0.096], headSquash: 0.95, headWide: 1.05, wing: false },
   'biped-slim': { torsoRx: 0.8, torsoRz: 0.7, pear: 0.3, shoulderTaper: 0.22, armR: 0.042, handR: 0.048, legR: 0.06, foot: [0.058, 0.042, 0.088], headSquash: 0.95, headWide: 1.06, wing: false },
-  bird: { torsoRx: 0.85, torsoRz: 0.78, pear: 0.36, shoulderTaper: 0.14, armR: 0.042, handR: 0, legR: 0.038, foot: [0.064, 0.046, 0.1], headSquash: 0.96, headWide: 1.04, wing: true },
+  // bird egg (anatomy round 3): strong shoulder taper so the torso reads as an
+  // AC egg — widest below the middle, narrowing to a small top the neck can
+  // rise out of — instead of a cut-off tree trunk. Feet shrunk to AC scale.
+  bird: { torsoRx: 0.85, torsoRz: 0.78, pear: 0.34, shoulderTaper: 0.34, armR: 0.042, handR: 0, legR: 0.038, foot: [0.05, 0.034, 0.07], headSquash: 0.96, headWide: 1.04, wing: true },
 }
 
 // Trunk shells (head + torso) share this azimuth resolution so their neck rings
@@ -109,8 +112,11 @@ export const DEFAULT_BIRD_SHAPE: BirdBodyShape = {
   toeCut: 0.7,
   hindToe: true,
   belly: 1,
+  // Every AC bird has a REAL neck between head and egg (mostly hidden by
+  // clothes, but load-bearing for the silhouette) — the default is a short
+  // one; long-neck species (peacock/crane) raise it.
+  neckLength: 0.22,
   headSize: 1,
-  neckLength: 0,
   chestBulge: 0,
 }
 
@@ -185,10 +191,24 @@ function limbParamArray(piece: SurfacePiece): Float32Array {
 export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<BirdBodyShape>): ProcBodyData {
   // Mammal archetypes must ignore the bird shape seam (byte-identical output).
   const shape: BirdBodyShape = { ...DEFAULT_BIRD_SHAPE, ...(archetype === 'bird' ? birdShape : undefined) }
-  const built: BuiltSkeleton = buildSkeleton(archetypeBuildOptions(archetype))
-  const j = restWorldPositions(built)
   const u = ARCHETYPES_DEF[archetype].uniformScale
   const head = archetypeHead(archetype)
+  // species neck (anatomy round 3): the neck is a BONE-level lift, not a
+  // vertex hack — raising the head bone lifts the head sphere, the face, and
+  // every head-socket part (beak, crest) together, and the head→torso bridge
+  // strip stretches into the neck column. (The plan-023 vertex approach
+  // stretched the lower face into a gourd and left the beak behind at the
+  // old head height.) Head local rest offset in reference space is 0.06
+  // (canonical W.head − W.neck); offsetScales are reference-space multipliers.
+  const neckLift = archetype === 'bird' ? shape.neckLength * head.radius * shape.headSize : 0
+  const options = archetypeBuildOptions(archetype)
+  if (neckLift > 0) {
+    const scales = options.offsetScales ?? {}
+    const hs = scales.head ?? ([1, 1, 1] as const)
+    options.offsetScales = { ...scales, head: [hs[0], hs[1] + neckLift / u / 0.06, hs[2]] }
+  }
+  const built: BuiltSkeleton = buildSkeleton(options)
+  const j = restWorldPositions(built)
   const headCenter: Vec3 = [j.head[0] + head.center[0], j.head[1] + head.center[1], j.head[2] + head.center[2]]
   const headR = head.radius
   const style = STYLE[archetype]
@@ -269,22 +289,10 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
   const headGrid = unitSphere(TRUNK_USEG, HEAD_VSEG)
   const headScale = isBird ? shape.headSize : 1
   ellipsoidTransform(headGrid, headCenter, [headR * style.headWide * headScale, headR * style.headSquash * headScale, headR * headScale])
-  // species neck (plan 023): raise the head mass and loft the head's lower
-  // rings into a smooth pinched neck column. The bottom (bridge) ring stays
-  // put so the torso bridge is untouched; displacement-only, topology intact
-  // — the head→neck→body line reads as an S-curve, not snowman-stacked.
-  const neckLift = isBird ? shape.neckLength * headR * headScale : 0
-  if (neckLift > 0) {
-    for (let i = 0; i < headGrid.pos.length / 3; i++) {
-      const v01 = headGrid.params[i * 2 + 1] // 0 bottom pole → 1 top; bridge ring at 2/HEAD_VSEG ≈ 0.09
-      headGrid.pos[i * 3 + 1] += neckLift * smoothstep(0.1, 0.42, v01)
-      const band = smoothstep(0.08, 0.2, v01) * (1 - smoothstep(0.3, 0.5, v01))
-      const pinch = 1 - 0.3 * Math.min(shape.neckLength, 1) * band
-      headGrid.pos[i * 3] = (headGrid.pos[i * 3] - headCenter[0]) * pinch + headCenter[0]
-      headGrid.pos[i * 3 + 2] = (headGrid.pos[i * 3 + 2] - headCenter[2]) * pinch + headCenter[2]
-    }
-  }
-  const headCenterEff: Vec3 = [headCenter[0], headCenter[1] + neckLift, headCenter[2]]
+  // (head already rides the lifted head bone — see the neckLift bone-offset
+  // block above; the head stays a pure sphere and the ring-2 → torso-neck
+  // bridge strip below it IS the neck column.)
+  const headCenterEff: Vec3 = [headCenter[0], headCenter[1], headCenter[2]]
   const headPiece = gridToPiece('head', headGrid, [{ kind: 'poleBottom', ring: 2, loop: 'neck' }])
   rigidWeight(headPiece, 'head')
   headChannels(headPiece, headCenterEff, headR, archetype)
@@ -428,11 +436,12 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
         const frontZone = smoothstep(0.55, 1.0, v01)
         const scallop = Math.abs(Math.sin((sinAz * 0.5 + 0.5) * 3 * Math.PI))
         const cut = (1 - scallop) * shape.toeCut
-        // deep notches (≥55% of the toe reach at toeCut 0.7+) + longer toes
-        footGrid.pos[i * 3 + 2] += frontZone * (0.55 * fzS * (1 - cut) - 0.62 * fzS * cut)
-        // spread: outer toes angle outward ~25°; scales with toeCut so the
+        // deep notches (the gaps must read at toy scale — AC toes are fully
+        // separated fingers, not a scalloped rim) + longer toes
+        footGrid.pos[i * 3 + 2] += frontZone * (0.6 * fzS * (1 - cut) - 0.9 * fzS * cut)
+        // spread: outer toes angle outward ~30°; scales with toeCut so the
         // duckling's webbed triangle stays webbed
-        footGrid.pos[i * 3] += frontZone * sinAz * fzS * 0.7 * shape.toeCut
+        footGrid.pos[i * 3] += frontZone * sinAz * fzS * 0.9 * shape.toeCut
         // groove the top along the notch lines so the three toes read as
         // distinct nubs from the default (slightly high) camera, not only in
         // the front-edge silhouette
