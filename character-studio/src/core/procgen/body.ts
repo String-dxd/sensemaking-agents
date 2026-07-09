@@ -58,7 +58,7 @@ interface Style {
 const STYLE: Record<Archetype, Style> = {
   'biped-round': { torsoRx: 0.8, torsoRz: 0.64, pear: 0.32, shoulderTaper: 0.18, armR: 0.046, handR: 0.052, legR: 0.064, foot: [0.06, 0.042, 0.096], headSquash: 0.95, headWide: 1.05, wing: false },
   'biped-slim': { torsoRx: 0.8, torsoRz: 0.7, pear: 0.3, shoulderTaper: 0.22, armR: 0.042, handR: 0.048, legR: 0.06, foot: [0.058, 0.042, 0.088], headSquash: 0.95, headWide: 1.06, wing: false },
-  bird: { torsoRx: 0.85, torsoRz: 0.78, pear: 0.36, shoulderTaper: 0.14, armR: 0.042, handR: 0, legR: 0.038, foot: [0.05, 0.032, 0.084], headSquash: 0.96, headWide: 1.04, wing: true },
+  bird: { torsoRx: 0.85, torsoRz: 0.78, pear: 0.36, shoulderTaper: 0.14, armR: 0.042, handR: 0, legR: 0.038, foot: [0.064, 0.046, 0.1], headSquash: 0.96, headWide: 1.04, wing: true },
 }
 
 // Trunk shells (head + torso) share this azimuth resolution so their neck rings
@@ -403,7 +403,7 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     // (tarsusLength keeps steering the exposed leg via legEnd).
     const soleDrop = isBird ? footJoint[1] * 0.55 + drop - fyS - 0.002 : 0
     const ankle: Vec3 = [anchorX, footJoint[1] * 0.55 + drop - soleDrop, anchorZ]
-    const toeLen = isBird ? fzS * 1.9 * shape.footLength : fzS * 1.5
+    const toeLen = isBird ? fzS * 1.45 * shape.footLength : fzS * 1.5
     const toe: Vec3 = [anchorX, footJoint[1] * 0.4 + drop - soleDrop, anchorZ + toeLen]
     const footGrid = capsuleGrid({ a: ankle, b: toe, radiusA: fyS, radiusB: fyS * 0.72, useg: LIMB_USEG, vseg: 9, fullness: 0.65 })
     if (isBird) {
@@ -417,9 +417,9 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
         const v01 = footGrid.params[i * 2 + 1]
         // domed top: tall at the ankle, thinning toward the toe tips so the
         // toe tops stay visible from above; sole stays flat at soleY
-        const flatten = 0.55 - 0.28 * v01
+        const flatten = 0.8 - 0.3 * v01
         footGrid.pos[i * 3 + 1] = (footGrid.pos[i * 3 + 1] - soleY) * flatten + soleY
-        const widen = (fxS / Math.max(fyS, 1e-9)) * (0.7 + 0.9 * v01)
+        const widen = (fxS / Math.max(fyS, 1e-9)) * (0.7 + 1.15 * v01)
         footGrid.pos[i * 3] = (footGrid.pos[i * 3] - anchorX) * widen + anchorX
         // toe lobes: sin(az) IS the x-direction factor of the radial basis,
         // so lobes keyed on it stay x-symmetric top and bottom
@@ -429,10 +429,14 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
         const scallop = Math.abs(Math.sin((sinAz * 0.5 + 0.5) * 3 * Math.PI))
         const cut = (1 - scallop) * shape.toeCut
         // deep notches (≥55% of the toe reach at toeCut 0.7+) + longer toes
-        footGrid.pos[i * 3 + 2] += frontZone * (0.55 * fzS * (1 - cut) - 0.55 * fzS * cut)
+        footGrid.pos[i * 3 + 2] += frontZone * (0.55 * fzS * (1 - cut) - 0.62 * fzS * cut)
         // spread: outer toes angle outward ~25°; scales with toeCut so the
         // duckling's webbed triangle stays webbed
-        footGrid.pos[i * 3] += frontZone * sinAz * fzS * 0.55 * shape.toeCut
+        footGrid.pos[i * 3] += frontZone * sinAz * fzS * 0.7 * shape.toeCut
+        // groove the top along the notch lines so the three toes read as
+        // distinct nubs from the default (slightly high) camera, not only in
+        // the front-edge silhouette
+        footGrid.pos[i * 3 + 1] = soleY + (footGrid.pos[i * 3 + 1] - soleY) * (1 - 0.85 * frontZone * cut)
         if (shape.hindToe) {
           // rear bump on the down-facing heel zone
           const heel = smoothstep(0.25, 0.08, v01) * smoothstep(-0.3, -0.85, cosAz)

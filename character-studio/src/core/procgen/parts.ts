@@ -574,14 +574,21 @@ function wingSideL(j: J, rows: WingRow[], curl = 0): { shells: SurfacePiece[]; r
   const shells: SurfacePiece[] = []
   let mainTip: Vec3 = shoulder
   rows.forEach((row, k) => {
-    // layering: shorter top rows ride proud of the longer rows beneath
+    // layering: shorter top rows ride proud of the longer rows beneath.
+    // The base +0.12 puts the plate just OUTSIDE the bird egg's flank
+    // (torso rx·pear ≈ 0.19 world at the equator; parts are reference-space).
+    // +0.105 y compensates the bird arm-chain compression (the archetype's
+    // scaled offsets land the reference shoulder ~0.09 world lower), so the
+    // folded wing's top edge sits at the AC neck line, not mid-egg.
     const layerX = (rows.length - 1 - k) * 0.014
-    const rowRoot: Vec3 = [shoulder[0] + 0.012 + layerX, shoulder[1] - k * 0.018, shoulder[2]]
+    const rowRoot: Vec3 = [shoulder[0] + 0.12 + layerX, shoulder[1] + 0.105 - k * 0.022, shoulder[2]]
     for (let f = 0; f < row.count; f++) {
       const t01 = row.count === 1 ? 0.5 : f / (row.count - 1)
       const phi = (t01 - 0.5) * 2 * row.fan
-      // drape down the flank with a slight outward part; fan spreads in z
-      const dir = vec.norm([0.16, -Math.cos(phi), Math.sin(phi) * 0.95])
+      // drape down the flank with an outward part that clears the widening
+      // egg below the shoulder; fan spreads in z with a slight back-tuck so
+      // the primaries converge toward the tail (folded-wing read, not splayed)
+      const dir = vec.norm([0.18, -Math.cos(phi), Math.sin(phi) * 0.95 - 0.12])
       const len = row.len * (1 - 0.12 * Math.abs(t01 - 0.5) * 2)
       const tip = add(rowRoot, vec.scale(dir, len))
       const feather = closedCapsule(`wing${k}f${f}`, rowRoot, tip, row.r0, row.r1, 8, 7, 0.008)
@@ -622,23 +629,23 @@ function wingRound(j: J): PartMesh[] {
   // default songbird/chicken/owl: 2 rows, tip ≈ hip height (shoulder y≈0.505,
   // hips y≈0.34 in reference space)
   return pairWing('wing-round', j, [
-    { count: 3, len: 0.12, fan: 0.34, r0: 0.024, r1: 0.042 },
-    { count: 4, len: 0.175, fan: 0.5, r0: 0.02, r1: 0.038 },
+    { count: 3, len: 0.15, fan: 0.36, r0: 0.026, r1: 0.048 },
+    { count: 4, len: 0.22, fan: 0.52, r0: 0.022, r1: 0.044 },
   ])
 }
 
 function wingEagle(j: J): PartMesh[] {
   // eagle/peacock: 3 rows, longer (tip below hip), stronger shoulder→tip taper
   return pairWing('wing-eagle', j, [
-    { count: 3, len: 0.11, fan: 0.3, r0: 0.02, r1: 0.042 },
-    { count: 4, len: 0.18, fan: 0.44, r0: 0.017, r1: 0.04 },
-    { count: 5, len: 0.25, fan: 0.58, r0: 0.015, r1: 0.038 },
+    { count: 3, len: 0.14, fan: 0.32, r0: 0.022, r1: 0.048 },
+    { count: 4, len: 0.22, fan: 0.46, r0: 0.018, r1: 0.046 },
+    { count: 5, len: 0.3, fan: 0.6, r0: 0.016, r1: 0.044 },
   ])
 }
 
 function wingFlipper(j: J): PartMesh[] {
   // penguin: one smooth slim flat paddle, no scallop rows, slight outward curl
-  return pairWing('wing-flipper', j, [{ count: 1, len: 0.17, fan: 0, r0: 0.032, r1: 0.04 }], 0.03)
+  return pairWing('wing-flipper', j, [{ count: 1, len: 0.2, fan: 0, r0: 0.036, r1: 0.044 }], 0.035)
 }
 
 // claws + crest -----------------------------------------------------------------
