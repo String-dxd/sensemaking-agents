@@ -56,7 +56,7 @@ export function CameraDock({
           <RecenterIcon />
         </IconButton>
       </div>
-      <div className="camera-dock__hint">Hold ⌘ to pan</div>
+      <div className="camera-dock__hint">Hold ⌘ to orbit</div>
     </div>
   )
 }
