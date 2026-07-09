@@ -397,30 +397,42 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     // displace forward (+z) only — feet point straight ahead, wind-up-toy style
     const anchorX = isBird ? root[0] : footJoint[0]
     const anchorZ = isBird ? root[2] : footJoint[2]
-    const ankle: Vec3 = [anchorX, footJoint[1] * 0.55 + drop, anchorZ]
+    // plant the bird sole ON the ground plane (plan 023): the flattened sole
+    // sits at ankle.y − fyS; drop the whole foot so that lands at y ≈ 0.002.
+    // The leg→foot bridge strip covers the gap and reads as the ankle taper
+    // (tarsusLength keeps steering the exposed leg via legEnd).
+    const soleDrop = isBird ? footJoint[1] * 0.55 + drop - fyS - 0.002 : 0
+    const ankle: Vec3 = [anchorX, footJoint[1] * 0.55 + drop - soleDrop, anchorZ]
     const toeLen = isBird ? fzS * 1.9 * shape.footLength : fzS * 1.5
-    const toe: Vec3 = [anchorX, footJoint[1] * 0.4 + drop, anchorZ + toeLen]
+    const toe: Vec3 = [anchorX, footJoint[1] * 0.4 + drop - soleDrop, anchorZ + toeLen]
     const footGrid = capsuleGrid({ a: ankle, b: toe, radiusA: fyS, radiusB: fyS * 0.72, useg: LIMB_USEG, vseg: 9, fullness: 0.65 })
     if (isBird) {
-      // AC toe-fan (plan 017): flat wedge widening toward the front, front
-      // edge split into 3 toe lobes (toeCut 0 = webbed duck triangle), plus
-      // an optional hind-toe bump. Positional passes only.
+      // AC toe-fan (plan 017, toe rework plan 023): flat wedge widening toward
+      // the front, front edge split into 3 SPREAD toes by deep notches
+      // (toeCut 0 = webbed duck triangle), domed top so the toes read from a
+      // 30° camera, plus an optional hind-toe bump. Positional passes only.
       const soleY = ankle[1] - fyS
       for (let i = 0; i < footGrid.pos.length / 3; i++) {
         const u01 = footGrid.params[i * 2]
         const v01 = footGrid.params[i * 2 + 1]
-        // flatten to the sole, fan out forward-weighted
-        footGrid.pos[i * 3 + 1] = (footGrid.pos[i * 3 + 1] - soleY) * 0.45 + soleY
+        // domed top: tall at the ankle, thinning toward the toe tips so the
+        // toe tops stay visible from above; sole stays flat at soleY
+        const flatten = 0.55 - 0.28 * v01
+        footGrid.pos[i * 3 + 1] = (footGrid.pos[i * 3 + 1] - soleY) * flatten + soleY
         const widen = (fxS / Math.max(fyS, 1e-9)) * (0.7 + 0.9 * v01)
         footGrid.pos[i * 3] = (footGrid.pos[i * 3] - anchorX) * widen + anchorX
         // toe lobes: sin(az) IS the x-direction factor of the radial basis,
         // so lobes keyed on it stay x-symmetric top and bottom
         const sinAz = Math.sin(2 * Math.PI * u01)
         const cosAz = Math.cos(2 * Math.PI * u01)
-        const frontZone = smoothstep(0.6, 1.0, v01)
+        const frontZone = smoothstep(0.55, 1.0, v01)
         const scallop = Math.abs(Math.sin((sinAz * 0.5 + 0.5) * 3 * Math.PI))
         const cut = (1 - scallop) * shape.toeCut
-        footGrid.pos[i * 3 + 2] += frontZone * (0.45 * fzS * (1 - cut) - 0.4 * fzS * cut)
+        // deep notches (≥55% of the toe reach at toeCut 0.7+) + longer toes
+        footGrid.pos[i * 3 + 2] += frontZone * (0.55 * fzS * (1 - cut) - 0.55 * fzS * cut)
+        // spread: outer toes angle outward ~25°; scales with toeCut so the
+        // duckling's webbed triangle stays webbed
+        footGrid.pos[i * 3] += frontZone * sinAz * fzS * 0.55 * shape.toeCut
         if (shape.hindToe) {
           // rear bump on the down-facing heel zone
           const heel = smoothstep(0.25, 0.08, v01) * smoothstep(-0.3, -0.85, cosAz)
