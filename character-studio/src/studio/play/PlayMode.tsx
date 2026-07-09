@@ -28,7 +28,9 @@ import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
 import { createLocomotion } from '../../core/motion/locomotion'
 import { mulberry32 } from '../../core/motion/noise'
 import { createTalkDriver, makeSpeechSynthAmplitude } from '../../core/motion/talkDriver'
+import { ARCHETYPE_CLIP_POSE_OFFSETS } from '../../core/skeleton/archetypes'
 import { CANONICAL_BONES } from '../../core/skeleton/canonical'
+import { useCharacterStore } from '../state/characterStore'
 import { useMotionStudio } from '../state/studioStores'
 import { useFaceRigStore } from '../viewport/FaceRig'
 import { usePlayStore } from './playStore'
@@ -79,6 +81,7 @@ function PlayModeDriver() {
     const mixer = new THREE.AnimationMixer(root)
     const machine = createClipMachine(mixer, animations, {
       hipsRebase: { from: [REF_HIPS[0], REF_HIPS[1], REF_HIPS[2]], to: hipsRest },
+      restPoseOffsets: ARCHETYPE_CLIP_POSE_OFFSETS[useCharacterStore.getState().spec.meta.archetype],
     })
     const locomotion = createLocomotion(root, { radius: 1.2 })
     const poleDir = new THREE.Vector3(0, 0, 1)

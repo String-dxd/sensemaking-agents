@@ -9,8 +9,11 @@
 //   - +Y up, character faces +Z, units are meters.
 //   - Reference character is 1.0 units tall (skull top at y = 1.0);
 //     archetype proportions (./archetypes.ts) rescale at build time.
-//   - Rest pose is standing: arms hang along the torso, ~12–17° from vertical
-//     with mitten wrists at hip level (AC benchmark, plan 007). NOT an A-pose.
+//   - Rest pose is standing in a relaxed A-POSE (AC/Pokopia villager stance):
+//     each arm angles DOWN-AND-OUT ~45° below horizontal from the shoulder,
+//     with a slight bend at the forearm (the chain is deliberately NOT one
+//     perfectly straight line — the elbow/wrist joints stay recoverable from
+//     positions).
 //   - Every bone's rest LOCAL ROTATION is identity — positions carry the
 //     whole pose. This keeps spec `boneScales` axes world-aligned (y = up)
 //     and lets the Blender builder export byte-identical rest transforms
@@ -51,13 +54,13 @@ const W: Record<BoneName, readonly [number, number, number]> = {
   'tail.3': [0, 0.385, -0.33],
   'tail.4': [0, 0.42, -0.4],
   shoulderL: [0.055, 0.52, 0],
-  upperArmL: [0.115, 0.505, 0.005],
-  foreArmL: [0.17, 0.415, 0.01],
-  handL: [0.205, 0.335, 0.015], // wrist at hip level (y≈0.34), just outside the flank
+  upperArmL: [0.105, 0.485, 0.005],
+  foreArmL: [0.155, 0.435, 0.01],
+  handL: [0.2, 0.39, 0.015], // wrist ~45° below the shoulder (relaxed A-pose drop)
   shoulderR: [-0.055, 0.52, 0],
-  upperArmR: [-0.115, 0.505, 0.005],
-  foreArmR: [-0.17, 0.415, 0.01],
-  handR: [-0.205, 0.335, 0.015],
+  upperArmR: [-0.105, 0.485, 0.005],
+  foreArmR: [-0.155, 0.435, 0.01],
+  handR: [-0.2, 0.39, 0.015],
   upperLegL: [0.075, 0.33, 0],
   lowerLegL: [0.075, 0.185, 0],
   footL: [0.075, 0.055, -0.01],
@@ -71,8 +74,8 @@ const W: Record<BoneName, readonly [number, number, number]> = {
   'socket.muzzle': [0, 0.75, 0.19],
   'socket.torso': [0, 0.47, 0.12],
   'socket.back': [0, 0.45, -0.14],
-  'socket.handL': [0.225, 0.305, 0.018],
-  'socket.handR': [-0.225, 0.305, 0.018],
+  'socket.handL': [0.215, 0.375, 0.018],
+  'socket.handR': [-0.215, 0.375, 0.018],
 }
 
 /** Parent of each bone — plan 000 §5's tree, verbatim (incl. 2026-07-03 amendment: shoulders under chest). */

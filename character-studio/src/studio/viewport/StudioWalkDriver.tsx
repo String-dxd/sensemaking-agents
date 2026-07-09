@@ -12,7 +12,9 @@ import { Suspense, useEffect } from 'react'
 import { CANONICAL_BONES } from '../../core/skeleton/canonical'
 import { createStudioWalk } from '../../core/motion/studioWalk'
 import { registerUpdate, unregisterUpdate } from '../../core/motion/frameLoop'
+import { ARCHETYPE_CLIP_POSE_OFFSETS } from '../../core/skeleton/archetypes'
 import { usePlayStore } from '../play/playStore'
+import { useCharacterStore } from '../state/characterStore'
 import { useMotionStudio } from '../state/studioStores'
 
 const clipsUrl = new URL('../../assets/clips/clips-core-v1.glb', import.meta.url).href
@@ -40,6 +42,7 @@ function StudioWalkDriverInner() {
     if (!studioWalk || mode === 'play' || !character) return
     const session = createStudioWalk(character.root, character.boneByName.values(), animations, {
       hipsRebase: { from: [REF_HIPS[0], REF_HIPS[1], REF_HIPS[2]], to: character.hipsRest },
+      restPoseOffsets: ARCHETYPE_CLIP_POSE_OFFSETS[useCharacterStore.getState().spec.meta.archetype],
     })
     // Clips own hips position + head rotation while walking — narrow the idle
     // layer to breath-only, exactly like PlayMode: its sway/microTurn channels

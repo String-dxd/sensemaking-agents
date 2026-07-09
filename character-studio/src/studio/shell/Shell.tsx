@@ -18,7 +18,7 @@
 // exercises them.
 
 import { Component, type ErrorInfo, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createDefaultCharacter } from '../../core/spec/defaults'
+import { createCharacterFromSpecies } from '../../core/species/registry'
 import { revertToLastAutosave } from '../roster/rosterStore'
 import { RosterView } from '../roster/RosterView'
 import { studioCommands } from '../state/commandStore'
@@ -143,7 +143,7 @@ class ViewportErrorBoundary extends Component<{ children: ReactNode }, ViewportE
   }
 
   private handleNewCharacter = (): void => {
-    useCharacterStore.getState().setSpec(createDefaultCharacter('biped-round'))
+    useCharacterStore.getState().setSpec(createCharacterFromSpecies('robin'))
     this.setState({ error: null })
   }
 

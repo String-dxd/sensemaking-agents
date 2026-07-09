@@ -26,7 +26,8 @@ them with better art freely, as long as everything here still holds.
   with zero roll). `test/core/skeleton/assets.test.ts` enforces this and
   compares every joint translation against `buildArchetypeSkeleton()` within
   1e-4.
-- Rest pose is **standing, A-pose-like, arms ~30° below horizontal**. This is
+- Rest pose is **standing, A-pose, arms ~45° below horizontal** (AC-villager
+  relaxed drop with a slight elbow bend — see `canonical.ts`). This is
   contractual for plan 007 — changing it re-exports every animation clip.
 - Loader note (already handled in code): three's `GLTFLoader` strips dots
   from node names; `assembleCharacter` restores canonical names on its
@@ -45,8 +46,10 @@ them with better art freely, as long as everything here still holds.
 - **Body morph targets (shape keys), exactly these five**, 0–1, with
   `targetNames` exported: `bellyRound`, `chubby`, `slim`, `headBig`,
   `headSmall`.
-- Proportions per archetype come from `skeleton.json` (heights 0.9 / 1.05 /
-  0.8; head ≈ 40 % of height, stubby limbs, mitten hands, big feet). The
+- Proportions per archetype come from `skeleton.json` (heights 0.88 / 0.92 /
+  0.8; chibi remodel 2026-07-08/09 — head ≈ 45–50 % of height, stubby limbs,
+  mitten hands, big feet; the bird is an AC-villager stack: head ON a
+  narrower egg torso, thin stick legs, wing-arms hanging to hip level). The
   cranium sphere (face-rig anchor + head collider) is
   `archetypeHead(archetype)` in `archetypes.ts` — keep the drawn head shell
   within ~1.07× of that radius or the face planes detach visibly.

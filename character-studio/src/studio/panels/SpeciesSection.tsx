@@ -1,6 +1,6 @@
 // SpeciesSection (advisor plan 009, step 2) — the species-first "Animal"
-// tab lead: class chips (All | Mammal | Bird) filter a grid of species
-// cards; clicking a card applies the full curated preset in ONE undoable
+// tab lead: a grid of species cards (bird-only studio, so no class filter
+// chips); clicking a card applies the full curated preset in ONE undoable
 // command; a Custom card unlocks the unfiltered part picker. The
 // personality select moved here from the old AnatomyArchetypeSection
 // (identity belongs to the Animal step); the archetype override lives in
@@ -13,15 +13,11 @@
 // no deep clone needed. Note `setSpec` also clears the store's `dirty`
 // flag (it is the "loading a file" path); accepted as-is per plan 009.
 
-import { useState } from 'react'
 import {
-  ANIMAL_CLASSES,
-  type AnimalClass,
   createCharacterFromSpecies,
   SPECIES_IDS,
   SPECIES_REGISTRY,
   type SpeciesId,
-  speciesForClass,
 } from '../../core/species/registry'
 import { PERSONALITY_FACE_DEFAULTS } from '../../core/spec/defaults'
 import { type CharacterSpec, PERSONALITIES, type Personality } from '../../core/spec/schema'
@@ -58,10 +54,6 @@ const cardButton = (active: boolean): React.CSSProperties => ({
   padding: '10px 6px',
   textAlign: 'center',
 })
-
-const CLASS_LABELS: Record<AnimalClass, string> = { mammal: 'Mammal', bird: 'Bird' }
-
-type ClassFilter = 'all' | AnimalClass
 
 /** Build the next spec for applying a species preset: the preset wholesale,
  * except identity fields the designer already owns (id, name, timestamps)
@@ -102,9 +94,9 @@ export function SpeciesSection() {
   const species = useCharacterStore((s) => s.spec.meta.species)
   const personality = useCharacterStore((s) => s.spec.meta.personality)
   const patch = useCharacterStore((s) => s.patch)
-  const [filter, setFilter] = useState<ClassFilter>('all')
 
-  const ids = filter === 'all' ? SPECIES_IDS : speciesForClass(filter)
+  // bird-only studio: every species is a bird, so no class filter chips
+  const ids = SPECIES_IDS
 
   // Custom just unlocks the unfiltered picker — nothing else changes.
   // Plain patch, not a command (consistent with the panel's other
@@ -132,17 +124,6 @@ export function SpeciesSection() {
 
   return (
     <PanelSection title="Animal">
-      <div style={{ display: 'flex', gap: 6 }} role="group" aria-label="Animal class filter">
-        <button type="button" style={chipButton(filter === 'all')} onClick={() => setFilter('all')}>
-          All
-        </button>
-        {ANIMAL_CLASSES.map((klass) => (
-          <button type="button" key={klass} style={chipButton(filter === klass)} onClick={() => setFilter(klass)}>
-            {CLASS_LABELS[klass]}
-          </button>
-        ))}
-      </div>
-
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
         {ids.map((id) => (
           <button type="button" key={id} style={cardButton(species === id)} onClick={() => applySpecies(id)}>

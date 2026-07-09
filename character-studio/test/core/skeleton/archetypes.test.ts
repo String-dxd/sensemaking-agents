@@ -36,15 +36,18 @@ describe('archetype proportions', () => {
     }
   })
 
-  it.each([...ARCHETYPES])('%s head is ≈40%% of total height (chibi bar)', (archetype) => {
+  it.each([...ARCHETYPES])('%s head is chibi-big relative to total height (chibi bar)', (archetype) => {
     const built = buildArchetypeSkeleton(archetype)
     const world = restWorldPositions(built)
     const head = archetypeHead(archetype)
     const headDiameter = head.radius * 2
     const total = world.head[1] + head.center[1] + head.radius
     const ratio = headDiameter / total
-    expect(ratio, `${archetype} head ratio ${ratio.toFixed(2)}`).toBeGreaterThan(0.33)
-    expect(ratio, `${archetype} head ratio ${ratio.toFixed(2)}`).toBeLessThan(0.52)
+    // Bird villagers carry the biggest head of the three (AC bird remodel:
+    // head diameter ≈55 % of height); bipeds stay in the ≈40-50 % chibi band.
+    const [lo, hi] = archetype === 'bird' ? [0.45, 0.6] : [0.33, 0.52]
+    expect(ratio, `${archetype} head ratio ${ratio.toFixed(2)}`).toBeGreaterThan(lo)
+    expect(ratio, `${archetype} head ratio ${ratio.toFixed(2)}`).toBeLessThan(hi)
   })
 
   it('collider groups expose a head sphere inside the cranium + torso backstops (plan 008)', () => {

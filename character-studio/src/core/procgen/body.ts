@@ -21,15 +21,16 @@ import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skelet
 import type { Archetype } from '../spec/schema'
 import { BODY_MORPHS } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
-import { headChannels, torsoChannels } from './kit/channels'
+import { accentAll, headChannels, torsoChannels } from './kit/channels'
 import { filletLimbIntoTorso, makeTorsoSdf } from './kit/fillet'
-import { capsuleGrid } from './kit/loft'
+import { capsuleGrid, chainCapsuleGrid } from './kit/loft'
 import { pearProfile } from './kit/profiles'
 import { type Opening, ellipsoidTransform, gridToPiece, unitSphere } from './kit/sphereGrid'
 import { MeshBuilder, manifoldReport, packSkinning } from './kit/stitch'
 import {
   type SurfacePiece,
   type Vec3,
+  setChannel,
   smoothstep,
   v as vec,
   vertexCount,
@@ -45,6 +46,11 @@ interface Style {
   torsoRz: number
   pear: number
   shoulderTaper: number
+  /** Torso ellipsoid overshoot below the hips joint (× torso height). */
+  torsoBottomOvershoot: number
+  /** Torso ellipsoid overshoot above the neck joint (× torso height) — small
+   * on the bird so a chin/neck line reads instead of swallowing the head. */
+  torsoTopOvershoot: number
   armR: number
   handR: number
   legR: number
@@ -55,9 +61,13 @@ interface Style {
 }
 
 const STYLE: Record<Archetype, Style> = {
-  'biped-round': { torsoRx: 0.8, torsoRz: 0.64, pear: 0.32, shoulderTaper: 0.18, armR: 0.046, handR: 0.052, legR: 0.064, foot: [0.06, 0.042, 0.096], headSquash: 0.95, headWide: 1.05, wing: false },
-  'biped-slim': { torsoRx: 0.8, torsoRz: 0.7, pear: 0.3, shoulderTaper: 0.22, armR: 0.042, handR: 0.048, legR: 0.06, foot: [0.058, 0.042, 0.088], headSquash: 0.95, headWide: 1.06, wing: false },
-  bird: { torsoRx: 0.85, torsoRz: 0.78, pear: 0.36, shoulderTaper: 0.14, armR: 0.042, handR: 0, legR: 0.038, foot: [0.05, 0.032, 0.084], headSquash: 0.96, headWide: 1.04, wing: true },
+  'biped-round': { torsoRx: 0.8, torsoRz: 0.64, pear: 0.32, shoulderTaper: 0.18, torsoBottomOvershoot: 0.42, torsoTopOvershoot: 0.55, armR: 0.046, handR: 0.052, legR: 0.064, foot: [0.06, 0.042, 0.096], headSquash: 0.95, headWide: 1.05, wing: false },
+  'biped-slim': { torsoRx: 0.8, torsoRz: 0.7, pear: 0.3, shoulderTaper: 0.22, torsoBottomOvershoot: 0.42, torsoTopOvershoot: 0.55, armR: 0.042, handR: 0.048, legR: 0.06, foot: [0.058, 0.042, 0.088], headSquash: 0.95, headWide: 1.06, wing: false },
+  // Bird (AC villager remodel 2026-07-09): egg torso narrower than the head
+  // but clearly PRESENT (max width incl. the pear bulge ~0.88·headR), lifted
+  // off the legs (small bottom overshoot → visible stick legs), small top
+  // overshoot so the head sits ON the body with a chin tuck.
+  bird: { torsoRx: 0.68, torsoRz: 0.7, pear: 0.3, shoulderTaper: 0.14, torsoBottomOvershoot: 0.3, torsoTopOvershoot: 0.33, armR: 0.055, handR: 0, legR: 0.05, foot: [0.06, 0.046, 0.13], headSquash: 1.02, headWide: 1, wing: true },
 }
 
 // Trunk shells (head + torso) share this azimuth resolution so their neck rings
@@ -122,6 +132,48 @@ function paintUv(piece: SurfacePiece, island: IslandName, frontCenter: boolean):
   }
 }
 
+/**
+ * Polyline for a chain-lofted limb: root (torso block-center) → arm joints →
+ * end. Interior waypoints that fail to ADVANCE along the root→end chord are
+ * dropped (on stubby chibi arms the upperArm joint is buried behind the
+ * torso-surface root; keeping it would fold the polyline back on itself and
+ * reverse the loft frames). Returns the kept points plus each keyed joint's
+ * cumulative-arclength param t∈[0,1] — the exact splits `chainWeights` needs
+ * for the loft to bend at that joint (dropped joints fall back to their chord
+ * projection).
+ */
+function limbPolyline(
+  root: Vec3,
+  joints: Array<{ p: Vec3; key?: string }>,
+  end: Vec3,
+): { points: Vec3[]; params: number[]; length: number; tOf: Record<string, number> } {
+  const chord = vec.norm(vec.sub(end, root))
+  const endAlong = vec.dot(vec.sub(end, root), chord)
+  const kept: Array<{ p: Vec3; key?: string }> = [{ p: root }]
+  let prev = 0
+  for (const jp of joints) {
+    const along = vec.dot(vec.sub(jp.p, root), chord)
+    if (along > prev + 1e-4 && along < endAlong - 1e-4) {
+      kept.push(jp)
+      prev = along
+    }
+  }
+  kept.push({ p: end })
+  const cum = [0]
+  for (let i = 1; i < kept.length; i++) cum.push(cum[i - 1] + vec.len(vec.sub(kept[i].p, kept[i - 1].p)))
+  const length = cum[cum.length - 1] || 1e-9
+  const tOf: Record<string, number> = {}
+  for (const jp of joints) {
+    if (!jp.key) continue
+    const ki = kept.indexOf(jp)
+    tOf[jp.key] =
+      ki >= 0
+        ? cum[ki] / length
+        : Math.min(Math.max(vec.dot(vec.sub(jp.p, root), chord) / length, 0), 1)
+  }
+  return { points: kept.map((k) => k.p), params: cum.map((c) => c / length), length, tOf }
+}
+
 /** Copy a limb loft's along-chain param (polar v01) into a per-vertex array. */
 function limbParamArray(piece: SurfacePiece): Float32Array {
   const n = vertexCount(piece)
@@ -141,10 +193,10 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
   const headR = head.radius
   const style = STYLE[archetype]
 
-  // torso ellipsoid params (bodies.py) --------------------------------------
+  // torso ellipsoid params (bodies.py; overshoots are STYLE knobs) -----------
   const torsoH = j.neck[1] - j.hips[1]
-  const torsoBottom = j.hips[1] - torsoH * 0.42
-  const torsoTop = j.neck[1] + torsoH * 0.55
+  const torsoBottom = j.hips[1] - torsoH * style.torsoBottomOvershoot
+  const torsoTop = j.neck[1] + torsoH * style.torsoTopOvershoot
   const cy = (torsoBottom + torsoTop) / 2
   const ry = (torsoTop - torsoBottom) / 2
   const rx = headR * style.torsoRx
@@ -155,7 +207,9 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
   const builder = new MeshBuilder()
 
   // Openings on the torso grid: neck (top pole), one block per limb root.
-  const neckRing = ringForY(TORSO_VSEG, cy, ry, j.neck[1])
+  // Guards: the neck ring stays ≥2 rings below the pole (a real bridge band
+  // survives above it) and the arm ring ≥2 rings below the neck ring.
+  const neckRing = Math.min(ringForY(TORSO_VSEG, cy, ry, j.neck[1]), TORSO_VSEG - 2)
   const armRing = Math.min(ringForY(TORSO_VSEG, cy, ry, j.upperArmL[1]), neckRing - 2)
   // leg openings sit low on the torso (near the bottom pole) so the leg
   // capsule drops vertically under the body instead of slanting in from the
@@ -217,41 +271,68 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
     const name = `arm${side}` as const
     const root = blockCenter(name)
     const upperArm = side === 'L' ? V(j.upperArmL) : V(j.upperArmR)
+    const foreArm = side === 'L' ? V(j.foreArmL) : V(j.foreArmR)
     const hand = side === 'L' ? V(j.handL) : V(j.handR)
     if (wing) {
-      // tucked wing: a plump teardrop lying against the flank, tip parting
-      // slightly outward/back — not a dangling stick
-      const sx = side === 'L' ? 1 : -1
-      const tip: Vec3 = [hand[0] + sx * 0.03 * u, hand[1] - 0.015 * u, hand[2] - 0.03 * u]
-      const wingSpan = Math.hypot(tip[0] - root[0], tip[1] - root[1], tip[2] - root[2])
-      const grid = capsuleGrid({ a: root, b: tip, radiusA: armR * 1.6, radiusB: armR * 0.8, useg: WING_USEG, vseg: WING_VSEG, bulge: 0.014 * u, fullness: 0.6 })
-      // z-flatten about the shoulder z (relaxed drape, not a paddle)
+      // hanging wing-arm (AC bird villager): a long, flat, tapered feather-arm
+      // draped down the flank — a multi-segment loft chained through the arm
+      // joints (root → upperArm → foreArm → hand → tip) so the mesh
+      // articulates at the elbow and wrist; plump at the shoulder, tapering to
+      // a pointy feather tip that reaches roughly hip height.
+      // The whole chain lives in the FLANK plane (z clamped to the shoulder z):
+      // any forward drift in the arm joints would curl the loft around the
+      // belly instead of hanging at the side.
+      // slight forward bias: at exactly the widest flank plane half the wing
+      // hides behind the torso from the front — AC wings drape a touch forward
+      const flankZ = upperArm[2] + 0.02 * u
+      const rootF: Vec3 = [root[0], root[1], flankZ]
+      const upperArmF: Vec3 = [upperArm[0], upperArm[1], flankZ]
+      const foreArmF: Vec3 = [foreArm[0], foreArm[1], flankZ]
+      const handF: Vec3 = [hand[0], hand[1], flankZ]
+      // feather tip extends past the hand along the (horizontal) chain line
+      const tipDir = vec.norm([(hand[0] - foreArm[0]) * 0.35, hand[1] - foreArm[1], 0])
+      const tip: Vec3 = [handF[0] + tipDir[0] * 0.07 * u, handF[1] + tipDir[1] * 0.07 * u, flankZ]
+      const chain = limbPolyline(rootF, [{ p: upperArmF }, { p: foreArmF, key: 'elbow' }, { p: handF, key: 'wrist' }], tip)
+      const wingSpan = chain.length
+      // thin tapered feather-BLADE (T-pose): the AC catalogue wing is a long
+      // flat plank thinning to a sharp horizontal point, not a plump paddle
+      const radii = chain.params.map((t) => armR * 1.05 + (armR * 0.18 - armR * 1.05) * t)
+      const grid = chainCapsuleGrid({ points: chain.points, radii, useg: WING_USEG, vseg: WING_VSEG, fullness: 0.45 })
+      // strong z-flatten about the shoulder z — a blade, not a paddle
       for (let i = 0; i < grid.pos.length / 3; i++) {
-        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.5 + upperArm[2]
+        grid.pos[i * 3 + 2] = (grid.pos[i * 3 + 2] - upperArm[2]) * 0.42 + upperArm[2]
       }
-      filletLimbIntoTorso(grid.pos, root, tip, armR * 1.6 * 0.5, armR * 0.8 * 0.5, torsoSdf, Math.min(0.05 * u, wingSpan * 0.28))
+      // short fillet reach: blend ONLY the shoulder root — a longer reach
+      // re-projects the hanging wing onto the flank and flattens it into the
+      // torso surface (reads as a dent, not a wing)
+      filletLimbIntoTorso(grid.pos, rootF, tip, armR * 1.05 * 0.5, armR * 0.18 * 0.5, torsoSdf, Math.min(0.035 * u, wingSpan * 0.16))
       const piece = gridToPiece(name, grid, [{ kind: 'poleBottom', ring: 1, loop: 'root' }])
-      chainWeights(piece, [`upperArm${side}`, `foreArm${side}`, `hand${side}`], [0.45, 0.8], 0.16)
-      // accent toward the wing tip
-      for (let i = 0; i < vertexCount(piece); i++) piece.channels[i * 4 + 3] = smoothstep(0.72, 0.95, piece.params[i * 2 + 1]) * 0.9
+      // splits at the ACTUAL arclength params of the foreArm/hand waypoints,
+      // so bone rotations bend the loft exactly at its geometric joints
+      chainWeights(piece, [`upperArm${side}`, `foreArm${side}`, `hand${side}`], [chain.tOf.elbow, chain.tOf.wrist], 0.16)
+      // crisp full-strength accent band at the wing tip (AC-style flat region)
+      for (let i = 0; i < vertexCount(piece); i++) piece.channels[i * 4 + 3] = smoothstep(0.78, 0.86, piece.params[i * 2 + 1])
       paintUv(piece, side === 'L' ? 'armL' : 'armR', false)
       limbParams[name] = limbParamArray(piece)
       builder.add(piece)
       builder.bridge(builder.loopIndex.torso[name], builder.loopIndex[name].root)
       return
     }
-    // plush arm: near-constant width, soft mitten end ------------------------
+    // plush arm: near-constant width chained through upperArm → foreArm →
+    // hand (elbow articulation), soft mitten end -----------------------------
     // fillet reach stays well under the root→hand span — an oversized reach
     // on a short chibi arm re-projects most of the capsule onto the torso
     // surface and crumples it into a faceted slab
-    const armSpan = Math.hypot(hand[0] - root[0], hand[1] - root[1], hand[2] - root[2])
-    const grid = capsuleGrid({ a: root, b: hand, radiusA: armR * 1.15, radiusB: armR * 0.95, useg: LIMB_USEG, vseg: LIMB_VSEG, fullness: 0.55 })
+    const chain = limbPolyline(root, [{ p: upperArm }, { p: foreArm, key: 'elbow' }], hand)
+    const armSpan = chain.length
+    const radii = chain.params.map((t) => armR * 1.15 + (armR * 0.95 - armR * 1.15) * t)
+    const grid = chainCapsuleGrid({ points: chain.points, radii, useg: LIMB_USEG, vseg: LIMB_VSEG, fullness: 0.55 })
     filletLimbIntoTorso(grid.pos, root, hand, armR * 1.15, armR * 0.95, torsoSdf, Math.min(0.055 * u, armSpan * 0.28))
     const arm = gridToPiece(name, grid, [
       { kind: 'poleBottom', ring: 1, loop: 'root' },
       { kind: 'poleTop', ring: LIMB_VSEG - 1, loop: 'wrist' },
     ])
-    chainWeights(arm, [`upperArm${side}`, `foreArm${side}`], [0.5], 0.18)
+    chainWeights(arm, [`upperArm${side}`, `foreArm${side}`], [chain.tOf.elbow], 0.18)
     paintUv(arm, side === 'L' ? 'armL' : 'armR', false)
     limbParams[name] = limbParamArray(arm)
     builder.add(arm)
@@ -283,6 +364,9 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
       { kind: 'poleTop', ring: LIMB_VSEG - 1, loop: 'ankle' },
     ])
     chainWeights(leg, [`upperLeg${side}`, `lowerLeg${side}`], [0.5], 0.16)
+    // bird legs are accent-colored (match the beak/feet, AC-style) below the
+    // body — fade in past the fillet so the accent doesn't bleed onto the torso
+    if (wing) setChannel(leg, 3, (i) => smoothstep(0.3, 0.5, leg.params[i * 2 + 1]))
     paintUv(leg, side === 'L' ? 'legL' : 'legR', false)
     limbParams[name] = limbParamArray(leg)
     builder.add(leg)
@@ -303,6 +387,8 @@ export function buildProceduralBody(archetype: Archetype): ProcBodyData {
     const footName = `foot${side}` as const
     const foot = gridToPiece(footName, footGrid, [{ kind: 'poleBottom', ring: 1, loop: 'ankle' }])
     footWeights(foot, footName, `toes${side}`, ankle[2], fzS)
+    // bird feet in solid accent (yellow/orange bird feet, matching the beak)
+    if (wing) accentAll(foot, 1)
     paintUv(foot, side === 'L' ? 'footL' : 'footR', false)
     builder.add(foot)
     builder.bridge(builder.loopIndex[name].ankle, builder.loopIndex[footName].ankle)

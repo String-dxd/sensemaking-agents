@@ -31,9 +31,7 @@ import {
   applyTextureId,
   defaultTextureResolver,
   getOutline,
-  patternMaskUrl,
   removeOutline,
-  resolvesAuthored,
   type ResolvedTextures,
   type TextureResolver,
 } from '../../core/materials'
@@ -61,7 +59,7 @@ import {
 } from '../../core/wardrobe'
 import { useCharacterStore } from '../state/characterStore'
 import { createSculptSession, finalizeSculptVisuals, useSculptStore } from '../state/sculptStore'
-import { FALLBACK_ASSIGN, useMotionStudio, useToonStudio } from '../state/studioStores'
+import { FALLBACK_ASSIGN, useMotionStudio, useSkeletonDebug, useToonStudio } from '../state/studioStores'
 import { usePlayStore } from '../play/playStore'
 import { createBodyMover } from './bodyMover'
 import { FaceRig } from './FaceRig'
@@ -138,35 +136,33 @@ export function CharacterRoot() {
 
   const body = BODY_REGISTRY[archetype]
 
-  // Body + anatomy parts are procedural (plan 013): memoized `def.source.build()`
-  // per structural key (archetype / part-id). Wardrobe items stay GLB until
-  // plan 016 and load through the inner <WardrobeItemLoader> below.
-  const bodyScene = useMemo(() => {
-    if (body.source?.kind !== 'procedural') throw new Error(`CharacterRoot: body "${archetype}" has no procedural source`)
-    return body.source.build()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [archetype])
+  // Body + anatomy parts load from the authored-GLB lane (2026-07-09): the
+  // Blender builders (scripts/blender/bodies.py / parts.py) are kept in
+  // visual lockstep with the procedural kit, and drei's useGLTF caches by
+  // url so reassembly shares geometry. The procedural `source.build()` lane
+  // remains for export tooling and panel thumbnails.
+  const gltfUrls = useMemo(
+    () => [body.url, ...equipped.map((e) => e.def.url as string)],
+    [body, equipped],
+  )
+  const gltfs = useGLTF(gltfUrls)
+  const bodyScene = gltfs[0].scene
   const partScenes = useMemo(() => {
     const scenes: Partial<Record<PartSlot, THREE.Object3D>> = {}
-    for (const { slot, def } of equipped) {
-      if (def.source?.kind === 'procedural') scenes[slot] = def.source.build()
-    }
+    equipped.forEach(({ slot }, i) => {
+      scenes[slot] = gltfs[i + 1].scene
+    })
     return scenes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partIdKey])
+  }, [gltfs, equipped])
   const itemUrls = useMemo(() => wornResolved.map((i) => i.def.url), [wornResolved])
   const itemIds = useMemo(() => wornResolved.map((i) => i.itemId), [wornResolved])
   const [itemScenes, setItemScenes] = useState<Record<string, THREE.Object3D>>({})
 
-  const bodyTextureId = materialsSpec.body?.textureId
   const maskEntries = useMemo(() => {
-    // plan 010: a body pattern (species preset) swaps the body mask for its
-    // baked variant; falls back to the plain authored mask otherwise.
-    const bodyMaskUrl = patternMaskUrl(bodyTextureId, archetype) ?? body.maskUrl
-    const entries: Array<{ region: Region; url: string }> = [{ region: 'body', url: bodyMaskUrl }]
+    const entries: Array<{ region: Region; url: string }> = [{ region: 'body', url: body.maskUrl }]
     for (const { def } of equipped) if (def.maskUrl) entries.push({ region: def.region, url: def.maskUrl })
     return entries
-  }, [body, equipped, bodyTextureId, archetype])
+  }, [body, equipped])
   const itemMaskEntries = useMemo(
     () => wornResolved.flatMap((i) => (i.def.maskUrl ? [{ itemId: i.itemId, url: i.def.maskUrl }] : [])),
     [wornResolved],
@@ -433,7 +429,7 @@ export function CharacterRoot() {
       if (!material) continue
       const assign = materialsSpec[region as Region] ?? FALLBACK_ASSIGN
       const resolveTexture: TextureResolver = (textureId) =>
-        resolvesAuthored(textureId)
+        textureId === 'authored'
           ? (texturesByRegion[region as Region] ?? { map: null, maskMap: null })
           : defaultTextureResolver(textureId)
       applyMaterialAssign(material, assign)
@@ -480,10 +476,29 @@ export function CharacterRoot() {
       {itemUrls.length > 0 && <WardrobeItemLoader urls={itemUrls} itemIds={itemIds} onScenes={setItemScenes} />}
       <Fragment key={assembled.root.uuid}>
         <primitive object={assembled.root} />
+        <SkeletonOverlay root={assembled.root} />
         {assembled.regionMaterials.body && (
           <FaceRig bodyMaterial={assembled.regionMaterials.body} hideMouth={assembled.hideMouth} />
         )}
       </Fragment>
     </Fragment>
   )
+}
+
+/** Bone-wiring overlay (Anatomy → Advanced → "Show skeleton"): a
+ * SkeletonHelper drawn over the live rig, depth-tested off so the wiring
+ * reads through the body shell while the skeleton sliders are dragged. */
+function SkeletonOverlay({ root }: { root: THREE.Object3D }) {
+  const show = useSkeletonDebug((s) => s.show)
+  const helper = useMemo(() => {
+    if (!show) return null
+    const h = new THREE.SkeletonHelper(root)
+    const material = h.material as THREE.LineBasicMaterial
+    material.depthTest = false
+    material.transparent = true
+    material.opacity = 0.9
+    return h
+  }, [root, show])
+  useEffect(() => () => helper?.dispose(), [helper])
+  return helper ? <primitive object={helper} /> : null
 }

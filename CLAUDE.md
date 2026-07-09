@@ -8,9 +8,11 @@ Rules here override default behavior. For deeper context, see `docs/` and `docs/
 
 - `pnpm dev` — dev server at `http://localhost:3000`
 - `pnpm dev:editor` — standalone island editor (r3f/drei) at `http://localhost:5180` (alias for `pnpm --filter island-editor dev`)
+- `pnpm dev:character-studio` — standalone character studio at `http://localhost:5190` (alias for `pnpm -C character-studio dev`)
 - `pnpm check` — Biome + `tsc --noEmit` (run before declaring a change done)
 - `pnpm check:island-editor` — typecheck + tests for the island editor (a pnpm workspace member; still **not** covered by `pnpm check`)
-- `pnpm check:all` — runs `pnpm check` then `pnpm check:island-editor` (both gates)
+- `pnpm check:character-studio` — typecheck + tests for character-studio (isolated pnpm root, own lockfile; **not** covered by `pnpm check` or `pnpm check:all`)
+- `pnpm check:all` — runs `pnpm check` then `pnpm check:island-editor` (does **not** include character-studio or bird-builder — run their checks separately)
 - `pnpm test` — Vitest (one-shot); `pnpm test:watch` for the loop
 - `pnpm build` — production build
 - `pnpm db:migrate` / `pnpm seed` — local DB setup
@@ -19,7 +21,14 @@ Rules here override default behavior. For deeper context, see `docs/` and `docs/
 
 Package manager is **pnpm only**. No npm / yarn lockfiles.
 
-**Standalone studios.** `island-editor/` (island shape designer) and `bird-builder/` (bird dress-up studio) are **isolated pnpm workspace roots** with their own `pnpm-workspace.yaml` + lockfile + modern `three@0.171` (r3f/drei) — deliberately separate from the product app's pinned `three@0.149`. Root tooling never sees them (`biome.json`/`vitest.config.ts`/`tsconfig.json` are scoped to `src`+`test`), so `pnpm check`/`test`/`build` are unaffected. Run each from its own dir (`cd bird-builder && pnpm install && pnpm dev`). The bird-builder is a **procedural-parametric** bird character creator (V2): variety from our own primitives (`BirdGenome` + `src/rig/buildProceduralBird.ts`, ported from the engine's `Kira.js`), with an authored-GLB upgrade lane (`bird-builder/ASSET-CONTRACT.md`). See `docs/plans/2026-06-17-002-feat-bird-builder-procedural-variety-refactor-plan.md`.
+**Standalone studios.** `island-editor/` (island shape designer, port `5180`), `bird-builder/` (bird dress-up studio), and `character-studio/` (animated 3D animal companion authoring, port `5190`) are separate creative tools outside the main app.
+
+- `bird-builder/` and `character-studio/` are **fully isolated pnpm workspace roots** — own `pnpm-workspace.yaml` + lockfile + modern `three` (r3f/drei) — deliberately separate from the product app's pinned `three@0.149`. Root tooling never sees them (`biome.json`/`vitest.config.ts`/`tsconfig.json` are scoped to `src`+`test`), so `pnpm check`/`test`/`build` are unaffected. `bird-builder` has no root alias — run it from its own dir (`cd bird-builder && pnpm install && pnpm dev`). `character-studio` has root aliases instead (`pnpm dev:character-studio`, `pnpm check:character-studio`); never add it to the root `pnpm-workspace.yaml#packages` or to any root `three` override — that would collapse the deliberate per-package version split.
+- `island-editor/` is **not** isolated the same way — it's a member of the root pnpm workspace (`pnpm-workspace.yaml#packages`), sharing the root lockfile/install; only its `three` runtime version (`0.171`) is split from the app's.
+
+The bird-builder is a **procedural-parametric** bird character creator (V2): variety from our own primitives (`BirdGenome` + `src/rig/buildProceduralBird.ts`, ported from the engine's `Kira.js`), with an authored-GLB upgrade lane (`bird-builder/ASSET-CONTRACT.md`). See `docs/plans/2026-06-17-002-feat-bird-builder-procedural-variety-refactor-plan.md`.
+
+character-studio authors animated animal companions (drawn-face toon aesthetic, spring-bone secondary motion) behind a versioned `CharacterSpec` (`src/core/spec/schema.ts`, `SPEC_VERSION`) — every schema change (field added/removed/renamed, range tightened, enum member added) must bump `SPEC_VERSION` and add a matching entry to `MIGRATIONS` in `src/core/spec/migrate.ts`, even when the migration is an identity transform. See `character-studio/README.md`.
 
 ---
 

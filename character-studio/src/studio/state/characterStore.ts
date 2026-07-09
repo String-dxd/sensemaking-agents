@@ -11,8 +11,8 @@
 // builds (perf).
 
 import { create } from 'zustand'
-import { createDefaultCharacter } from '../../core/spec/defaults'
 import { type CharacterSpec, CharacterSpecSchema } from '../../core/spec/schema'
+import { createCharacterFromSpecies } from '../../core/species/registry'
 
 function assertValidSpec(spec: CharacterSpec): void {
   const result = CharacterSpecSchema.safeParse(spec)
@@ -36,7 +36,7 @@ export interface CharacterStoreState {
 }
 
 export const useCharacterStore = create<CharacterStoreState>((set, get) => ({
-  spec: createDefaultCharacter('biped-round'),
+  spec: createCharacterFromSpecies('robin'),
   dirty: false,
   setSpec(spec) {
     if (import.meta.env.DEV) assertValidSpec(spec)

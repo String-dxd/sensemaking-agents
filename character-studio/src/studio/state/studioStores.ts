@@ -91,6 +91,13 @@ export const useAdvancedMode = create<{ advanced: boolean; setAdvanced(v: boolea
   setAdvanced: (advanced) => set({ advanced }),
 }))
 
+/** Draws a THREE.SkeletonHelper over the assembled rig so the bone wiring is
+ * visible while dragging the Advanced skeleton sliders (session-only). */
+export const useSkeletonDebug = create<{ show: boolean; setShow(v: boolean): void }>((set) => ({
+  show: false,
+  setShow: (show) => set({ show }),
+}))
+
 /** Safety net if a loaded spec omits a region (materials is a partial record). */
 export const FALLBACK_ASSIGN: MaterialAssign = {
   rampSoftness: 0.2,

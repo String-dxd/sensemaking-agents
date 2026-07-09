@@ -18,6 +18,7 @@ import {
   parseSpec,
   serializeSpec,
 } from '../../core/spec'
+import { createCharacterFromSpecies } from '../../core/species/registry'
 import { pushToast } from '../shell/Toasts'
 import { useCharacterStore } from '../state/characterStore'
 import { captureThumbnail } from './thumbnails'
@@ -390,7 +391,7 @@ export async function deleteCharacter(id: string): Promise<void> {
   const slots = await dbGetAllByIndex<AutosaveSlotRow>(AUTOSAVE_STORE, AUTOSAVE_BY_CHARACTER_INDEX, id)
   for (const slot of slots) if (slot.slotId !== undefined) await dbDelete(AUTOSAVE_STORE, slot.slotId)
   if (useCharacterStore.getState().spec.meta.id === id) {
-    useCharacterStore.getState().setSpec(createDefaultCharacter('biped-round'))
+    useCharacterStore.getState().setSpec(createCharacterFromSpecies('robin'))
   }
   await refreshRosterEntries()
 }

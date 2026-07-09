@@ -31,11 +31,11 @@ describe('species apply (plan 009 step 2 recipe)', () => {
     })
     const before = useCharacterStore.getState().spec
 
-    applySpecies('shiba')
+    applySpecies('owl')
 
     const spec = useCharacterStore.getState().spec
-    const preset = createCharacterFromSpecies('shiba')
-    expect(spec.meta.species).toBe('shiba')
+    const preset = createCharacterFromSpecies('owl')
+    expect(spec.meta.species).toBe('owl')
     expect(spec.meta.id).toBe(before.meta.id)
     expect(spec.meta.createdAt).toBe(before.meta.createdAt)
     expect(spec.meta.name).toBe('Mochi')
@@ -87,14 +87,14 @@ describe('species apply (plan 009 step 2 recipe)', () => {
         },
       },
     }
-    const next = specForSpeciesApply(seeded, 'shiba')
+    const next = specForSpeciesApply(seeded, 'owl')
     expect(next.anatomy.sculptDelta).toBeUndefined()
   })
 })
 
 describe('custom + archetype override', () => {
   it('picking Custom changes only meta.species', () => {
-    applySpecies('shiba')
+    applySpecies('owl')
     const before = useCharacterStore.getState().spec
 
     // Same plain patch the Custom card issues.

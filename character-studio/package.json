@@ -37,6 +37,7 @@
     "@gltf-transform/functions": "^4.4.1",
     "@napi-rs/canvas": "^1.0.2",
     "@sensemaking/companion-runtime": "workspace:*",
+    "@types/node": "^22.20.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "^0.185.0",

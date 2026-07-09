@@ -122,21 +122,30 @@ def fillet_limb_into_torso(
 
 
 # Per-archetype styling knobs (relative to skeleton scale where sensible).
+# Kept in lockstep with src/core/procgen/body.ts STYLE (chibi remodel 2026-07-08
+# + AC bird villager remodel 2026-07-09) — the TS procgen lane and these GLBs
+# must produce the same silhouette.
 STYLE = {
     "biped-round": dict(
-        torso_rx=0.80, torso_rz=0.62, pear=0.28, shoulder_taper=0.16,
-        arm_r=0.050, hand_r=0.058, leg_r=0.064, foot=(0.064, 0.044, 0.104),
-        head_squash=0.97, head_wide=1.05, wing=False,
+        torso_rx=0.80, torso_rz=0.64, pear=0.30, shoulder_taper=0.18,
+        torso_bottom_overshoot=0.42, torso_top_overshoot=0.55,
+        arm_r=0.046, hand_r=0.052, leg_r=0.064, foot=(0.060, 0.042, 0.096),
+        head_squash=0.95, head_wide=1.05, wing=False,
     ),
     "biped-slim": dict(
-        torso_rx=0.66, torso_rz=0.58, pear=0.22, shoulder_taper=0.18,
-        arm_r=0.042, hand_r=0.050, leg_r=0.050, foot=(0.054, 0.038, 0.092),
-        head_squash=0.99, head_wide=1.02, wing=False,
+        torso_rx=0.80, torso_rz=0.70, pear=0.30, shoulder_taper=0.22,
+        torso_bottom_overshoot=0.42, torso_top_overshoot=0.55,
+        arm_r=0.042, hand_r=0.048, leg_r=0.060, foot=(0.058, 0.042, 0.088),
+        head_squash=0.95, head_wide=1.06, wing=False,
     ),
+    # Bird (AC villager remodel 2026-07-09): egg torso narrower than the head
+    # but clearly present, lifted off thin stick legs (small bottom overshoot),
+    # small top overshoot so the head sits ON the body with a chin tuck.
     "bird": dict(
-        torso_rx=0.88, torso_rz=0.80, pear=0.36, shoulder_taper=0.14,
-        arm_r=0.034, hand_r=0.0, leg_r=0.028, foot=(0.056, 0.030, 0.102),
-        head_squash=0.96, head_wide=1.04, wing=True,
+        torso_rx=0.68, torso_rz=0.70, pear=0.30, shoulder_taper=0.14,
+        torso_bottom_overshoot=0.30, torso_top_overshoot=0.33,
+        arm_r=0.055, hand_r=0.0, leg_r=0.05, foot=(0.060, 0.046, 0.13),
+        head_squash=1.02, head_wide=1.0, wing=True,
     ),
 }
 
@@ -177,8 +186,8 @@ def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[
 
     # --- torso ---------------------------------------------------------------
     torso_h = j["neck"][1] - j["hips"][1]
-    torso_bottom = j["hips"][1] - torso_h * 0.42
-    torso_top = j["neck"][1] + torso_h * 0.55  # tucks up into the head shell
+    torso_bottom = j["hips"][1] - torso_h * style["torso_bottom_overshoot"]
+    torso_top = j["neck"][1] + torso_h * style["torso_top_overshoot"]  # tucks up into the head shell
     cy = (torso_bottom + torso_top) / 2
     ry = (torso_top - torso_bottom) / 2
     rx = head_r * style["torso_rx"]
@@ -210,15 +219,27 @@ def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[
         # the torso ~0.05 inboard, so the weld joins at the shoulder), the tip
         # tapered and leaning outward/backward so it parts slightly from the
         # body near torso bottom, like Jacques'/Lucha's.
+        # T-POSE wing (AC catalogue rest state, 2026-07-09 rev 3): the arm
+        # chain runs horizontally (skeleton arms y-scale ~0), so the wing is a
+        # flat tapered feather-plank extending straight out past the head's
+        # silhouette — plump at the shoulder, pointy horizontal tip.
         wing_a = j["upperArmL"] + np.array([0.02, 0.005, 0]) * u  # shoulder mass, proud of the flank
-        wing_b = j["handL"] + np.array([0.04, -0.02, -0.03]) * u  # tip parts outward + backward
-        w_r0, w_r1 = arm_r * 2.0, arm_r * 0.85
+        wing_b = j["handL"] + np.array([0.05, -0.005, -0.005]) * u  # feather tip straight out
+        w_r0, w_r1 = arm_r * 1.05, arm_r * 0.18
         wing = capsule_along(
             "armL", tuple(wing_a), tuple(wing_b),
             w_r0, w_r1, useg=14, vseg=12, bulge=0.014 * u, fullness=0.45,
         )
-        wing.verts[:, 2] *= 0.55  # relaxed flatten — volumetric drape, not a paddle
-        wing.verts[:, 2] += j["upperArmL"][2]
+        # strong flatten about the FLANK plane (shoulder z) — a thin feather
+        # BLADE, not a paddle; flattening toward world z=0 would slide the
+        # wing onto the torso's widest cross-section and the weld would eat it
+        z_flank = j["upperArmL"][2] + 0.02 * u
+        wing.verts[:, 2] = z_flank + (wing.verts[:, 2] - z_flank) * 0.42
+        # outward push past the belly bulge: the root stays planted inside the
+        # torso (the weld joins there), the mid+tip clear the egg's silhouette
+        # so the hanging wing reads at each side of the body from the front
+        t_wing = wing.params[:, 1]
+        wing.verts[:, 0] += np.sign(wing_b[0]) * smoothstep(0.12, 0.55, t_wing) * 0.02 * u
         # sculpted fillet: wing root flows into the torso, no crease
         if fillet:
             fillet_limb_into_torso(
@@ -245,11 +266,25 @@ def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[
         # near-constant-width plush limb (AC benchmark, plan 007): soft mitten
         # end, not a carrot taper. Was 1.45 -> 0.78; now 1.15 -> 0.95.
         arm = capsule_along("armL", tuple(arm_root), tuple(j["handL"]), arm_r * 1.15, arm_r * 0.95, useg=12, vseg=10, fullness=0.55)
+        # outward push (chibi remodel 2026-07-08 skeletons): the stubby A-pose
+        # arm chain hugs the fat pear flank — without pushing the mid/wrist
+        # clear of the torso surface the weld boolean swallows the whole arm
+        # (and the mitten with it), exporting an armless body
+        t_arm = arm.params[:, 1]
+        arm.verts[:, 0] += np.sign(j["handL"][0]) * smoothstep(0.18, 0.62, t_arm) * 0.07 * u
         # sculpted fillet: the shoulder flares tangentially into the torso
         if fillet:
             fillet_limb_into_torso(arm, arm_root, j["handL"], arm_r * 1.15, arm_r * 0.95, torso_sdf, k=0.055 * u)
         t = arm.params[:, 1]
         _chain_weights(arm, ["upperArmL", "foreArmL"], t, [0.5], 0.18)
+        # the buried root ring rides the CHEST: pre-blended source weights so
+        # the weld's nearest-vertex transfer never lands the whole arm|torso
+        # gradient on a single seam edge (candy-wrapper stretch on arm poses —
+        # the emerged stub is short, so its gradient runway is too)
+        root_blend = 1.0 - smoothstep(0.02, 0.32, t)
+        for bone in ("upperArmL", "foreArmL"):
+            arm.weights[bone] = arm.weights[bone] * (1.0 - root_blend)
+        arm.weights["chest"] = root_blend
         arm.uv_rect = UV_ARM_L
         shells.append(arm)
         armR = mirror_x(arm, "armR")
@@ -257,14 +292,21 @@ def build_body_shells(archetype: str, skel: dict, fillet: bool = True) -> tuple[
         shells.append(armR)
         aa = arm_root.tolist()
         ab = j["handL"].tolist()
-        junctions.append(dict(shell="armL", a=aa, b=ab, r0=arm_r * 1.15, r1=arm_r * 0.95, k=0.055 * u))
-        junctions.append(dict(shell="armR", a=_mir(aa), b=_mir(ab), r0=arm_r * 1.15, r1=arm_r * 0.95, k=0.055 * u))
+        # k is deliberately wider than the fillet's: on the chibi-stubby arm the
+        # emerged surface is short, so the weld's weight-smoothing band must
+        # reach further or the whole arm/torso gradient lands on a couple of
+        # edge rings (candy-wrapper stretch when the arm poses)
+        junctions.append(dict(shell="armL", a=aa, b=ab, r0=arm_r * 1.15, r1=arm_r * 0.95, k=0.1 * u))
+        junctions.append(dict(shell="armR", a=_mir(aa), b=_mir(ab), r0=arm_r * 1.15, r1=arm_r * 0.95, k=0.1 * u))
 
         # mitten hand blended INTO the arm end — deep tuck so the silhouette
         # reads as one soft mitten, not a ball on a stick (plan 007).
         wrist_in = (arm_root - j["handL"])
         wrist_in /= max(float(np.linalg.norm(wrist_in)), 1e-9)
-        hand_center = j["handL"] + wrist_in * hand_r * 0.85 + np.array([0.0, 0.0, 0.004]) * u
+        # the wrist end of the arm capsule was pushed 0.03u outboard above —
+        # the mitten rides the same offset so it stays socketed on the arm end
+        wrist_out_x = np.array([float(np.sign(j["handL"][0])) * 0.07, 0.0, 0.0]) * u
+        hand_center = j["handL"] + wrist_in * hand_r * 0.85 + np.array([0.0, 0.0, 0.004]) * u + wrist_out_x
         hand = ellipsoid("handL", tuple(hand_center), (hand_r, hand_r * 0.92, hand_r * 1.08), useg=12, vseg=9)
         hand.weights["handL"] = np.ones(len(hand.verts))
         hand.channel(CH_ACCENT, np.full(len(hand.verts), 0.85))
@@ -347,28 +389,30 @@ def _torso_weights(torso: Shell, j: dict[str, np.ndarray]) -> None:
 
 
 def _torso_channels(torso: Shell, cy: float, ry: float, rx: float, archetype: str) -> None:
+    # Ported from procgen/kit/channels.ts torsoChannels (AC flat-region look):
+    # a crisp front breast oval at FULL strength with a narrow soft edge — no
+    # wide airbrush falloff and no back saddle; the rest of the body reads as
+    # one solid primary, exactly like AC/Pokopia color blocking.
     v = torso.verts
-    # belly: soft front ellipse, centred slightly below the torso middle
     du = v[:, 0] / (rx * 0.85)
-    dv = (v[:, 1] - (cy - ry * 0.12)) / (ry * 0.62)
-    front = smoothstep(0.0, 0.35, v[:, 2] / max(rx, 1e-9))
-    belly = (1.0 - smoothstep(0.55, 1.0, np.sqrt(du * du + dv * dv))) * front
+    # breast oval: centered high on the chest so it meets the head bib at the
+    # neck seam (robin breast, not a low belly blob)
+    dv = (v[:, 1] - (cy + ry * 0.12)) / (ry * 0.75)
+    # front hemisphere gate, narrow transition so the oval doesn't wrap
+    front = smoothstep(0.05, 0.15, v[:, 2] / max(rx, 1e-9))
+    # full 1.0 inside the oval, ~0.08-wide soft edge at the rim
+    belly = (1.0 - smoothstep(0.82, 0.9, np.sqrt(du * du + dv * dv))) * front
     torso.channel(CH_BELLY, belly)
-    # secondary: back saddle
-    back = smoothstep(0.15, 0.75, -v[:, 2] / max(rx, 1e-9)) * smoothstep(cy - ry * 0.5, cy + ry * 0.45, v[:, 1])
-    torso.channel(CH_SECONDARY, back * 0.9)
 
 
 def _head_channels(head: Shell, center: np.ndarray, r: float, archetype: str) -> None:
+    # Ported from procgen/kit/channels.ts headChannels: a crisp full-strength
+    # face bib with a narrow edge; no secondary "cap" — a solid head reads
+    # cleaner on the chibi silhouette (AC color blocking).
     d = (head.verts - center[None, :]) / r
-    # face patch (belly tone): forward and slightly down — the muzzle zone
-    face = smoothstep(0.25, 0.75, d[:, 2]) * smoothstep(0.55, -0.1, d[:, 1])
-    head.channel(CH_BELLY, face * 0.9)
-    # cap (secondary): top-back
-    cap = smoothstep(0.3, 0.8, d[:, 1]) * smoothstep(0.25, -0.35, d[:, 2])
-    if archetype == "bird":
-        cap = smoothstep(0.05, 0.6, d[:, 1])  # bolder bird cap
-    head.channel(CH_SECONDARY, cap * 0.9)
+    side = 1.0 - smoothstep(0.45, 0.65, np.abs(d[:, 0]))
+    bib = smoothstep(0.35, 0.5, d[:, 2]) * (1.0 - smoothstep(0.1, 0.22, d[:, 1])) * side
+    head.channel(CH_BELLY, bib)
 
 
 # ---------------------------------------------------------------------------

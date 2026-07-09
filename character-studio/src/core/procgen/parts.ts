@@ -284,8 +284,13 @@ function muzzleBoxyDog(j: J): PartMesh[] {
 
 function muzzleBeakSmall(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const beak = closedCapsule('beak', [a[0], a[1] + 0.02, a[2] - 0.03], [a[0], a[1] - 0.012, a[2] + 0.085], 0.046, 0.007, 12, 10)
-  flatY(beak, a[1] + 0.004, 0.72)
+  // AC bird beaks are BIG and POINTY — a wedge whose BASE spans nearly half
+  // the face width, drooping slightly down to a near-point tip. The base cap
+  // TUCKS INTO the head (a well behind the face surface) so the wedge grows
+  // out of the face with no air gap; the high `fullness` keeps the visible
+  // cross-section wide right where it exits the surface.
+  const beak = closedCapsule('beak', [a[0], a[1] + 0.02, a[2] - 0.045], [a[0], a[1] - 0.025, a[2] + 0.165], 0.16, 0.014, 12, 10, 0, 0.7)
+  flatY(beak, a[1] + 0.004, 0.8)
   setChannelAll(beak, CH_ACCENT, 1)
   return [{ name: 'muzzle-beak-small', shells: [beak], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak], a) }]
 }
@@ -301,14 +306,16 @@ function muzzleBeakRound(j: J): PartMesh[] {
 
 function muzzleBeakHooked(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const upper = closedCapsule('beakU', [a[0], a[1] + 0.03, a[2] - 0.03], [a[0], a[1] - 0.005, a[2] + 0.075], 0.05, 0.014, 12, 10, 0.006)
+  // sized against the beak-small wedge: a real base, not a button nose. Base
+  // cap tucks INTO the head so the hook grows out of the face with no air gap.
+  const upper = closedCapsule('beakU', [a[0], a[1] + 0.03, a[2] - 0.045], [a[0], a[1] - 0.005, a[2] + 0.13], 0.095, 0.022, 12, 10, 0.006, 0.5)
   for (let i = 0; i < vertexCount(upper); i++) {
     const t = upper.params[i * 2 + 1]
     const hook = Math.max(t - 0.65, 0) ** 2
-    upper.pos[i * 3 + 1] -= hook * 0.16
-    upper.pos[i * 3 + 2] -= hook * 0.03
+    upper.pos[i * 3 + 1] -= hook * 0.22
+    upper.pos[i * 3 + 2] -= hook * 0.042
   }
-  const lower = closedEllipsoid('beakL', [a[0], a[1] - 0.022, a[2] + 0.008], [0.034, 0.016, 0.03], 10, 8)
+  const lower = closedEllipsoid('beakL', [a[0], a[1] - 0.024, a[2] - 0.005], [0.06, 0.026, 0.055], 10, 8)
   setChannelAll(upper, CH_ACCENT, 1)
   setChannelAll(lower, CH_ACCENT, 1)
   return [{ name: 'muzzle-beak-hooked', shells: [upper, lower], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([upper, lower], a) }]
@@ -316,10 +323,10 @@ function muzzleBeakHooked(j: J): PartMesh[] {
 
 function muzzleBillDuck(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const bill = closedCapsule('bill', [a[0], a[1] + 0.012, a[2] - 0.02], [a[0], a[1] - 0.006, a[2] + 0.095], 0.05, 0.03, 14, 10)
+  const bill = closedCapsule('bill', [a[0], a[1] + 0.012, a[2] - 0.02], [a[0], a[1] - 0.006, a[2] + 0.135], 0.07, 0.042, 14, 10)
   scaleX(bill, a[0], 1.5)
   flatY(bill, a[1], 0.42)
-  for (let i = 0; i < vertexCount(bill); i++) bill.pos[i * 3 + 1] += smoothstep(0.7, 1, bill.params[i * 2 + 1]) * 0.008
+  for (let i = 0; i < vertexCount(bill); i++) bill.pos[i * 3 + 1] += smoothstep(0.7, 1, bill.params[i * 2 + 1]) * 0.011
   setChannelAll(bill, CH_ACCENT, 1)
   return [{ name: 'muzzle-bill-duck', shells: [bill], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([bill], a) }]
 }
@@ -386,15 +393,16 @@ function tailFeatherFan(j: J): PartMesh[] {
   const angles = [-38, -19, 0, 19, 38]
   angles.forEach((ang, i) => {
     const a = (ang * Math.PI) / 180
-    const dir = vec.norm([Math.sin(a) * 0.9, 0.18, -Math.cos(a) * 0.9])
-    const tip = add(root, vec.scale(dir, Math.abs(ang) < 30 ? 0.26 : 0.22))
-    const f = closedCapsule(`feather${i}`, root, tip, 0.02, 0.035, 10, 10, 0.012)
+    // back-and-UP fan (AC style): plump rounded feathers, not a droopy scraggle
+    const dir = vec.norm([Math.sin(a) * 0.9, 0.5, -Math.cos(a) * 0.9])
+    const tip = add(root, vec.scale(dir, Math.abs(ang) < 30 ? 0.27 : 0.22))
+    const f = closedCapsule(`feather${i}`, root, tip, 0.034, 0.056, 10, 10, 0.012)
     flatY(f, root[1], 0.35)
     chainWeightsPiece(f, TAIL_BONES, [0.3, 0.55, 0.8], 0.12)
     setChannelFn(f, CH_SECONDARY, (k) => smoothstep(0.6, 0.9, f.params[k * 2 + 1]) * 0.85)
     shells.push(f)
   })
-  return [{ name: 'tail-feather-fan', shells, attach: null, morphKeys: lengthWidthKeys(shells, root, add(root, [0, 0.06, -0.26])) }]
+  return [{ name: 'tail-feather-fan', shells, attach: null, morphKeys: lengthWidthKeys(shells, root, add(root, [0, 0.097, -0.175])) }]
 }
 
 // claws + crest -----------------------------------------------------------------

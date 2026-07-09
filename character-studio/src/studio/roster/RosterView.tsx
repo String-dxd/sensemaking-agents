@@ -34,9 +34,9 @@ import {
 
 const mb = (bytes: number) => `${(bytes / (1024 * 1024)).toFixed(2)} MB`
 
+// bird-only studio: the biped archetypes remain in the schema/engine, but
+// new characters start from the bird archetype.
 const ARCHETYPE_CARDS: ReadonlyArray<{ id: Archetype; label: string; blurb: string }> = [
-  { id: 'biped-round', label: 'Biped — round', blurb: 'Stout, round-bodied upright animal.' },
-  { id: 'biped-slim', label: 'Biped — slim', blurb: 'Slender, upright animal.' },
   { id: 'bird', label: 'Bird', blurb: 'Feathered, beaked archetype.' },
 ]
 

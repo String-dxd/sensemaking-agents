@@ -179,13 +179,16 @@ export function defaultSpringRig(archetype: Archetype): SpringChainDef[] {
   return archetype === 'bird' ? BIRD_SPRING_RIG.map((c) => ({ ...c })) : BIPED_SPRING_RIG.map((c) => ({ ...c }))
 }
 
-// Default per-region toon material params (plan 005 step 6 look gate).
+// Default per-region toon material params (plan 005 step 6 look gate;
+// re-tuned 2026-07-09 against AC/Pokopia reference renders: softer, wider
+// terminator and a MUCH weaker rim — the strong rim read as plasticky edge
+// glow on the beak/limbs where AC reads flat matte felt).
 // shadowTint is a slightly cool violet — the shadow side must read pastel,
 // never gray (plan 000 §2.3). `authored` = the region mesh's own plan-006
 // palette-mask pack (assembly resolves it per region).
 const DEFAULT_MATERIAL_ASSIGN = {
-  rampSoftness: 0.2,
-  rimStrength: 0.3,
+  rampSoftness: 0.35,
+  rimStrength: 0.1,
   shadowTint: '#b8a8c8',
   outline: false,
   textureId: 'authored',

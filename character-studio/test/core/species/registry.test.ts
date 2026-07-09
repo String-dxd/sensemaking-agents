@@ -1,13 +1,11 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { getPattern, patternMaskUrl } from '../../../src/core/materials/patternRegistry'
+import { getPart, PART_REGISTRY, partsForSlot } from '../../../src/core/skeleton/partRegistry'
 import { migrateSpec } from '../../../src/core/spec/migrate'
 import { CharacterSpecSchema } from '../../../src/core/spec/schema'
-import { getPart, PART_REGISTRY, partsForSlot } from '../../../src/core/skeleton/partRegistry'
 import {
   createCharacterFromSpecies,
-  type SpeciesDef,
   SPECIES_IDS,
   SPECIES_REGISTRY,
   speciesForClass,
@@ -65,24 +63,21 @@ describe('species registry', () => {
     }
   })
 
-  it('speciesForClass partitions the Core-8 into 5 mammals and 3 birds', () => {
-    expect(speciesForClass('mammal').sort()).toEqual(['bear-cub', 'fox', 'rabbit', 'shiba', 'tabby-cat'].sort())
+  it('the species surface is bird-only: 3 birds, no mammal presets', () => {
     expect(speciesForClass('bird').sort()).toEqual(['duckling', 'owl', 'robin'].sort())
+    expect(speciesForClass('mammal')).toEqual([])
+    expect(SPECIES_IDS).toHaveLength(3)
+    for (const id of SPECIES_IDS) {
+      expect(SPECIES_REGISTRY[id].class).toBe('bird')
+      expect(SPECIES_REGISTRY[id].archetype).toBe('bird')
+    }
   })
 
-  it('every species patternId resolves to a registered pattern with a baked mask for its archetype (plans 010/011)', () => {
-    const withPattern = SPECIES_IDS.filter((id) => (SPECIES_REGISTRY[id] as SpeciesDef).patternId)
-    // all 8 Core species now carry patterns (3 birds + 5 mammals, plan 011)
-    expect(withPattern.sort()).toEqual(
-      ['bear-cub', 'duckling', 'fox', 'owl', 'rabbit', 'robin', 'shiba', 'tabby-cat'].sort(),
-    )
-    for (const id of withPattern) {
-      const def = SPECIES_REGISTRY[id] as SpeciesDef
-      const patternId = def.patternId as string
-      expect(getPattern(patternId), `${id} pattern ${patternId} registered`).not.toBeNull()
-      const url = patternMaskUrl(patternId, def.archetype)
-      expect(url, `${id} pattern ${patternId} has a mask for ${def.archetype}`).not.toBeNull()
-      expect(existsSync(fileURLToPath(url as string)), `${url} exists on disk`).toBe(true)
+  it('no species sets a baked pattern: body material stays on the authored/vertex-channel path', () => {
+    for (const id of SPECIES_IDS) {
+      const spec = createCharacterFromSpecies(id)
+      const textureId = spec.materials.body?.textureId
+      expect(textureId === undefined || textureId === 'authored' || textureId === 'none', `${id} body textureId ${textureId}`).toBe(true)
     }
   })
 })

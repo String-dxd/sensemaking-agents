@@ -34,8 +34,10 @@ import {
   type AnimationClip,
   type AnimationMixer,
   AnimationUtils,
+  Euler,
   LoopOnce,
   LoopRepeat,
+  Quaternion,
 } from 'three'
 
 export type MachineState = 'idle' | 'walk' | 'run' | 'sit' | 'talk'
@@ -88,6 +90,15 @@ export interface ClipMachineOptions {
   hipsRebase?: HipsRebase
   /** Fallback mode: play gestures on the base layer instead of additively. */
   fullBodyGestures?: boolean
+  /**
+   * Per-bone rest-pose compensation (XYZ euler, radians), pre-multiplied
+   * into every keyframe of that bone's rotation tracks at construction.
+   * Clips are authored on the REFERENCE rest pose (arms ~45° down); an
+   * archetype whose rest differs (the bird's T-pose wings) passes the delta
+   * here so played clips land on the authored silhouette. Additive gestures
+   * are unaffected — a constant pre-factor cancels in the additive delta.
+   */
+  restPoseOffsets?: Partial<Record<string, readonly [number, number, number]>>
 }
 
 export interface ClipMachine {
@@ -119,12 +130,18 @@ export function createClipMachine(
   clips: AnimationClip[],
   options: ClipMachineOptions = {},
 ): ClipMachine {
-  const { hipsRebase, fullBodyGestures = false } = options
+  const { hipsRebase, fullBodyGestures = false, restPoseOffsets } = options
 
   const byName = new Map<string, AnimationClip>()
   for (const clip of clips) byName.set(clip.name, clip)
   for (const name of REQUIRED_CLIPS) {
     if (!byName.has(name)) throw new Error(`clip machine: clip set is missing "${name}"`)
+  }
+
+  // Pre-built offset quaternions per bone (restPoseOffsets option).
+  const offsetQuats = new Map<string, Quaternion>()
+  for (const [bone, euler] of Object.entries(restPoseOffsets ?? {})) {
+    if (euler) offsetQuats.set(bone, new Quaternion().setFromEuler(new Euler(euler[0], euler[1], euler[2])))
   }
 
   // Clone before mutating: loaded clips are shared by the asset cache.
@@ -140,6 +157,22 @@ export function createClipMachine(
           track.values[i] = to[0] + (track.values[i] - from[0]) * deltaScale
           track.values[i + 1] = to[1] + (track.values[i + 1] - from[1]) * deltaScale
           track.values[i + 2] = to[2] + (track.values[i + 2] - from[2]) * deltaScale
+        }
+      }
+    }
+    if (offsetQuats.size > 0) {
+      const q = new Quaternion()
+      for (const track of clip.tracks) {
+        if (!track.name.endsWith('.quaternion')) continue
+        const offset = offsetQuats.get(track.name.slice(0, -'.quaternion'.length))
+        if (!offset) continue
+        for (let i = 0; i < track.values.length; i += 4) {
+          q.set(track.values[i], track.values[i + 1], track.values[i + 2], track.values[i + 3])
+          q.premultiply(offset)
+          track.values[i] = q.x
+          track.values[i + 1] = q.y
+          track.values[i + 2] = q.z
+          track.values[i + 3] = q.w
         }
       }
     }

@@ -228,6 +228,23 @@ export function createFootIK(legs: FootIkLeg[], options: FootIkOptions = {}): Fo
         // one, or the pin would hide the motion it needs to detect — keep
         // s.prev as the pre-IK sample (already stored above).
       }
+
+      // Hard ground collision (unconditional): the ankle never dips below its
+      // rest clearance. Stance pinning is a blended heuristic — at touchdown
+      // the descending foot can bottom out below rest before the anchor
+      // catches (clips are authored on reference proportions; on short-legged
+      // archetypes the plant drives the foot mesh through the floor). This
+      // clamp only ever pushes UP, so airborne swing poses are untouched.
+      s.leg.foot.updateWorldMatrix(true, false)
+      worldPos(s.leg.foot, _p)
+      const sink = groundY + s.restHeight - _p.y
+      if (sink > 1e-4) {
+        _target2.set(_p.x, groundY + s.restHeight, _p.z)
+        s.leg.foot.getWorldQuaternion(_qSaved)
+        solveTwoBoneIK(s.leg.upper, s.leg.lower, s.leg.foot, _target2, poleDir)
+        s.leg.foot.parent?.getWorldQuaternion(_qParent)
+        s.leg.foot.quaternion.copy(_qParent.invert()).multiply(_qSaved)
+      }
     }
   }
 

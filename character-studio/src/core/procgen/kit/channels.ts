@@ -12,7 +12,9 @@ export const CH_SECONDARY = 1
 export const CH_BELLY = 2
 export const CH_ACCENT = 3
 
-/** Torso belly (front ellipse) + back saddle (secondary). bodies.py:349-359. */
+/** Torso belly: a crisp front oval at full strength with a narrow soft edge
+ * (Animal-Crossing flat regions — no wide airbrush falloff, no back saddle:
+ * the rest of the body reads as one solid primary). */
 export function torsoChannels(
   piece: SurfacePiece,
   cy: number,
@@ -27,32 +29,29 @@ export function torsoChannels(
     const y = pos[i * 3 + 1]
     const z = pos[i * 3 + 2]
     const du = x / (rx * 0.85)
-    const dv = (y - (cy - ry * 0.12)) / (ry * 0.62)
-    const front = smoothstep(0.0, 0.35, z / rxSafe)
-    return (1.0 - smoothstep(0.55, 1.0, Math.hypot(du, dv))) * front
-  })
-  setChannel(piece, CH_SECONDARY, (i) => {
-    const y = pos[i * 3 + 1]
-    const z = pos[i * 3 + 2]
-    const back = smoothstep(0.15, 0.75, -z / rxSafe) * smoothstep(cy - ry * 0.5, cy + ry * 0.45, y)
-    return back * 0.9
+    // breast oval: centered high on the chest so it meets the head bib at the
+    // neck seam (robin breast, not a low belly blob)
+    const dv = (y - (cy + ry * 0.12)) / (ry * 0.75)
+    // front hemisphere gate, narrow transition so the oval doesn't wrap
+    const front = smoothstep(0.05, 0.15, z / rxSafe)
+    // full 1.0 inside the oval, ~0.08-wide soft edge at the rim
+    return (1.0 - smoothstep(0.82, 0.9, Math.hypot(du, dv))) * front
   })
 }
 
-/** Head face-patch (belly tone) + cap (secondary). bodies.py:362-371. */
-export function headChannels(piece: SurfacePiece, center: Vec3, r: number, archetype: string): void {
+/** Head face-patch (belly tone): a crisp full-strength patch on the front of
+ * the head with a narrow edge. No secondary "cap" — a solid head reads
+ * cleaner on the chibi bird. */
+export function headChannels(piece: SurfacePiece, center: Vec3, r: number, _archetype: string): void {
   const pos = piece.pos
   setChannel(piece, CH_BELLY, (i) => {
+    const dx = (pos[i * 3] - center[0]) / r
     const dy = (pos[i * 3 + 1] - center[1]) / r
     const dz = (pos[i * 3 + 2] - center[2]) / r
-    const face = smoothstep(0.25, 0.75, dz) * smoothstep(0.55, -0.1, dy)
-    return face * 0.9
-  })
-  setChannel(piece, CH_SECONDARY, (i) => {
-    const dy = (pos[i * 3 + 1] - center[1]) / r
-    const dz = (pos[i * 3 + 2] - center[2]) / r
-    const cap = archetype === 'bird' ? smoothstep(0.05, 0.6, dy) : smoothstep(0.3, 0.8, dy) * smoothstep(0.25, -0.35, dz)
-    return cap * 0.9
+    // rounded bib: front-gated, narrowed sideways so it reads as a face/chin
+    // patch instead of a visor band wrapping the whole head width
+    const side = 1.0 - smoothstep(0.45, 0.65, Math.abs(dx))
+    return smoothstep(0.35, 0.5, dz) * (1.0 - smoothstep(0.1, 0.22, dy)) * side
   })
 }
 

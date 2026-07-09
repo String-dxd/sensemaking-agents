@@ -183,10 +183,15 @@ def muzzle_boxy_dog(skel: dict):
 
 
 def muzzle_beak_small(skel: dict):
+    # AC bird beak (remodel 2026-07-09, in lockstep with procgen/parts.ts):
+    # a BIG pointy wedge — base spans ~a third of the face width, drooping
+    # slightly down to a near-point tip. The base cap TUCKS INTO the head so
+    # the wedge grows out of the face with no air gap; the high fullness
+    # keeps the cross-section wide where it exits the surface.
     j = joints(skel)
     a = j["socket.muzzle"]
-    beak = capsule_along("beak", (a[0], a[1] + 0.02, a[2] - 0.03), (a[0], a[1] - 0.012, a[2] + 0.085), 0.046, 0.007, useg=12, vseg=10)
-    beak.verts[:, 1] = (a[1] + 0.004) + (beak.verts[:, 1] - (a[1] + 0.004)) * 0.72  # squash vertically
+    beak = capsule_along("beak", (a[0], a[1] + 0.02, a[2] - 0.045), (a[0], a[1] - 0.025, a[2] + 0.165), 0.16, 0.014, useg=12, vseg=10, fullness=0.7)
+    beak.verts[:, 1] = (a[1] + 0.004) + (beak.verts[:, 1] - (a[1] + 0.004)) * 0.8  # squash vertically
     beak.channel(CH_ACCENT, np.ones(len(beak.verts)))
     shells = [beak]
     return [("muzzle-beak-small", shells, "socket.muzzle", _muzzle_length_key(shells, a))]
@@ -206,14 +211,16 @@ def muzzle_beak_round(skel: dict):
 def muzzle_beak_hooked(skel: dict):
     j = joints(skel)
     a = j["socket.muzzle"]
-    upper = capsule_along("beakU", (a[0], a[1] + 0.03, a[2] - 0.03), (a[0], a[1] - 0.005, a[2] + 0.075), 0.05, 0.014, useg=12, vseg=10, bulge=0.006)
+    # sized against the beak-small wedge: a real base, not a button nose. Base
+    # cap tucks INTO the head so the hook grows out of the face with no gap.
+    upper = capsule_along("beakU", (a[0], a[1] + 0.03, a[2] - 0.045), (a[0], a[1] - 0.005, a[2] + 0.13), 0.095, 0.022, useg=12, vseg=10, bulge=0.006, fullness=0.5)
     # hook: curl the tip DOWN and slightly back (smooth curl, no crease)
     t = upper.params[:, 1]
     hook = np.clip(t - 0.65, 0.0, None) ** 2
-    upper.verts[:, 1] -= hook * 0.16
-    upper.verts[:, 2] -= hook * 0.03
+    upper.verts[:, 1] -= hook * 0.22
+    upper.verts[:, 2] -= hook * 0.042
     # lower mandible: small ellipsoid tucked under
-    lower = ellipsoid("beakL", (a[0], a[1] - 0.022, a[2] + 0.008), (0.034, 0.016, 0.03), useg=10, vseg=8)
+    lower = ellipsoid("beakL", (a[0], a[1] - 0.024, a[2] - 0.005), (0.06, 0.026, 0.055), useg=10, vseg=8)
     shells = [upper, lower]
     for s in shells:
         s.channel(CH_ACCENT, np.ones(len(s.verts)))
@@ -223,11 +230,11 @@ def muzzle_beak_hooked(skel: dict):
 def muzzle_bill_duck(skel: dict):
     j = joints(skel)
     a = j["socket.muzzle"]
-    bill = capsule_along("bill", (a[0], a[1] + 0.012, a[2] - 0.02), (a[0], a[1] - 0.006, a[2] + 0.095), 0.05, 0.03, useg=14, vseg=10)
+    bill = capsule_along("bill", (a[0], a[1] + 0.012, a[2] - 0.02), (a[0], a[1] - 0.006, a[2] + 0.135), 0.07, 0.042, useg=14, vseg=10)
     bill.verts[:, 0] = a[0] + (bill.verts[:, 0] - a[0]) * 1.5  # wide
     bill.verts[:, 1] = a[1] + (bill.verts[:, 1] - a[1]) * 0.42  # flat
     t = bill.params[:, 1]
-    bill.verts[:, 1] += smoothstep(0.7, 1.0, t) * 0.008  # subtle tip upturn
+    bill.verts[:, 1] += smoothstep(0.7, 1.0, t) * 0.011  # subtle tip upturn
     bill.channel(CH_ACCENT, np.ones(len(bill.verts)))
     shells = [bill]
     return [("muzzle-bill-duck", shells, "socket.muzzle", _muzzle_length_key(shells, a))]
@@ -301,16 +308,18 @@ def tail_feather_fan(skel: dict):
     shells: list[Shell] = []
     for i, ang in enumerate((-38, -19, 0, 19, 38)):
         a = np.radians(ang)
-        direction = np.array([np.sin(a) * 0.9, 0.18, -np.cos(a) * 0.9])
+        # back-and-UP fan (AC style): plump rounded feathers, not a droopy
+        # scraggle (in lockstep with procgen/parts.ts tailFeatherFan)
+        direction = np.array([np.sin(a) * 0.9, 0.5, -np.cos(a) * 0.9])
         direction /= np.linalg.norm(direction)
-        tip = root + direction * (0.26 if abs(ang) < 30 else 0.22)
-        f = capsule_along(f"feather{i}", tuple(root), tuple(tip), 0.02, 0.035, useg=10, vseg=10, bulge=0.012)
+        tip = root + direction * (0.27 if abs(ang) < 30 else 0.22)
+        f = capsule_along(f"feather{i}", tuple(root), tuple(tip), 0.034, 0.056, useg=10, vseg=10, bulge=0.012)
         f.verts[:, 1] = root[1] + (f.verts[:, 1] - root[1]) * 0.35  # flat feathers
         t = f.params[:, 1]
         _chain_weights(f, TAIL_BONES, t, [0.3, 0.55, 0.8], 0.12)
         f.channel(CH_SECONDARY, smoothstep(0.6, 0.9, t) * 0.85)
         shells.append(f)
-    keys = _length_width_keys(shells, root, root + np.array([0, 0.06, -0.26]))
+    keys = _length_width_keys(shells, root, root + np.array([0, 0.097, -0.175]))
     return [("tail-feather-fan", shells, None, keys)]
 
 

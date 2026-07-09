@@ -72,11 +72,10 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
       hips: [1, 0.78, 1],
       ...legs(0.6),
       ...spineChain(0.88),
-      // wider x-reach than the other archetypes (plan 007): the round body's
-      // fat pear torso would otherwise swallow the near-vertical hanging arm
-      // along its length; pushing the forearm/hand clear of the flank keeps the
-      // arm a free limb (welds only at the buried shoulder, no pose-tear).
-      ...arms([1.3, 0.7, 1]),
+      // A-pose: the arm drops down-and-out ~45°; a touch of X-stretch keeps
+      // the mitten from burying itself in the fat pear flank while the chain
+      // still hugs the body reading chibi-stubby.
+      ...arms([1.1, 1, 1]),
     },
     headCenter: [0, 0.19, 0],
     headRadius: 0.235,
@@ -92,32 +91,70 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
       hips: [1, 0.8, 1],
       ...legs(0.6),
       ...spineChain(0.9),
-      // x-reach clears the egg torso's flank (same reasoning as biped-round):
-      // a hugging arm would be swallowed by the fillet and crumple into the
-      // torso surface; angling it outward keeps it a free plush limb.
-      ...arms([1.25, 0.7, 1]),
+      // A-pose: stubby plush arm hanging down-out along the egg torso's
+      // flank; mild X-stretch keeps the mitten clear of the surface.
+      ...arms([1.05, 1, 1]),
     },
     headCenter: [0, 0.19, 0],
     headRadius: 0.21,
   },
-  // Round bird: shortest overall, high ankles, wing-arms, fanned tail root
-  // (chibi pass 2026-07-08: bigger head, stubby legs, shorter tucked wings).
+  // Humanoid AC bird villager (remodel 2026-07-09): clearly STACKED — a big
+  // round head (~49 % of height in diameter) sitting ON a visible egg torso
+  // (top ~53 % of height, max width ~88 % of the head's), on thin stick legs
+  // (egg bottom ~24 % of height, feet grounded). The wing-arms hang near-
+  // vertically at the flank to hip level (see body.ts STYLE).
   bird: {
     archetype: 'bird',
-    height: 0.76,
-    uniformScale: 0.76 / 0.889,
+    height: 0.8,
+    uniformScale: 0.8 / 1.217,
     offsetScales: {
-      hips: [1, 0.75, 1],
-      ...legs(0.5),
-      ...spineChain(0.8),
-      ...arms([0.95, 0.6, 1]),
-      'tail.1': [1, 0.6, 1.1],
-      'tail.2': [1, 0.6, 1.1],
-      'tail.3': [1, 0.6, 1.1],
-      'tail.4': [1, 0.6, 1.1],
+      hips: [1, 1.05, 1],
+      ...legs(0.95),
+      ...spineChain(1),
+      // T-POSE wing-arm (AC catalogue rest state): the arm chain runs
+      // HORIZONTALLY out from a raised shoulder (y-drop scaled to ~0), the
+      // flat tapered wing extending straight past the head's silhouette —
+      // the classic AC bird villager default pose. Expressed per-archetype
+      // via offsetScales so the canonical reference skeleton (and every
+      // authored clip) stays untouched.
+      shoulderL: [1, 1.5, 1],
+      shoulderR: [1, 1.5, 1],
+      // y 0.35 (not ~0): the wing chain ROOT sits on the torso surface a
+      // touch below the shoulder, so a zero drop tilts the blade upward —
+      // the slight drop levels it out to the reference's horizontal line
+      ...arms([2.1, 0.35, 1]),
+      // The bird head is much bigger than the reference cranium, so the
+      // head-mounted sockets stretch out to its surface: beak root at the
+      // face front, lower third (goal: prominent beak), eyewear socket on the
+      // face surface, hat crown near the skull top.
+      'socket.muzzle': [1, 1.55, 1.5],
+      'socket.face': [1, 1.2, 1.45],
+      'socket.hat': [1, 1.6, 1],
+      // up-swept tail rest (AC sparrow/crane): the feather fan angles
+      // back-and-UP from the rump; the spring solver holds this line at rest
+      'tail.1': [1, 1.1, 1.1],
+      'tail.2': [1, 1.1, 1.1],
+      'tail.3': [1, 1.1, 1.1],
+      'tail.4': [1, 1.1, 1.1],
     },
-    headCenter: [0, 0.18, 0],
-    headRadius: 0.23,
+    headCenter: [0, 0.28, 0],
+    headRadius: 0.3,
+  },
+}
+
+/**
+ * Rest-pose compensation for played clips (ClipMachineOptions.restPoseOffsets):
+ * clips are authored on the REFERENCE rest (arms ~42° down); the bird rests in
+ * a T-POSE (~8° droop), so during Play its wing chain pre-rotates down by the
+ * difference — played clips then land on the silhouette the animator authored
+ * instead of wiggling around the horizontal.
+ */
+export const ARCHETYPE_CLIP_POSE_OFFSETS: Partial<
+  Record<Archetype, Partial<Record<BoneName, readonly [number, number, number]>>>
+> = {
+  bird: {
+    upperArmL: [0, 0, -0.58],
+    upperArmR: [0, 0, 0.58],
   },
 }
 
@@ -149,9 +186,18 @@ export function archetypeHead(archetype: Archetype): ArchetypeHead {
 }
 
 /** Torso front-depth as a fraction of the head radius — mirrors the
- * `torso_rz` proportions in scripts/blender/bodies.py STYLE (the bodies are
+ * `torsoRz` proportions in src/core/procgen/body.ts STYLE (the bodies are
  * built from these numbers, so the colliders track the real silhouette). */
-const TORSO_RZ: Record<Archetype, number> = { 'biped-round': 0.62, 'biped-slim': 0.7, bird: 0.8 }
+const TORSO_RZ: Record<Archetype, number> = { 'biped-round': 0.62, 'biped-slim': 0.7, bird: 0.7 }
+
+/** Torso-top overshoot past the neck joint — mirrors `torsoTopOvershoot` in
+ * body.ts STYLE (the bird's chin/neck line needs a small overshoot so the
+ * head is not swallowed; bipeds keep the classic 0.55). */
+const TORSO_TOP_OVERSHOOT: Record<Archetype, number> = { 'biped-round': 0.55, 'biped-slim': 0.55, bird: 0.33 }
+
+/** Torso-bottom overshoot below the hips joint — mirrors `torsoBottomOvershoot`
+ * in body.ts STYLE (the bird egg is lifted off the legs so they stay visible). */
+const TORSO_BOTTOM_OVERSHOOT: Record<Archetype, number> = { 'biped-round': 0.42, 'biped-slim': 0.42, bird: 0.3 }
 
 /**
  * Default collider set for an archetype: one skull sphere (group "head") for
@@ -169,8 +215,8 @@ export function archetypeColliderGroups(archetype: Archetype): ColliderGroup[] {
   const [, chestY] = world.chest
   // the bodies.py torso ellipsoid: bottom/top overshoot the hip/neck joints
   const torsoH = neckY - hipsY
-  const bottom = hipsY - torsoH * 0.42
-  const top = neckY + torsoH * 0.55
+  const bottom = hipsY - torsoH * TORSO_BOTTOM_OVERSHOOT[archetype]
+  const top = neckY + torsoH * TORSO_TOP_OVERSHOOT[archetype]
   const cy = (bottom + top) / 2
   const ry = (top - bottom) / 2
   const rz = head.radius * TORSO_RZ[archetype]

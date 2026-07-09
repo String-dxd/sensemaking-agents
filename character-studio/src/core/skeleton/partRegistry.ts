@@ -279,7 +279,10 @@ export const PART_REGISTRY = {
     classes: ['bird'],
     skinnedTo: TAIL_BONES,
     morphs: ['length', 'width'],
-    springProfile: spring(0.3, 20, 0.12),
+    // stiff, low-gravity: the fan must HOLD its authored back-and-up line at
+    // rest (AC sparrow/crane tail) and only jiggle on motion — a saggier
+    // profile folds it into a drooping spike
+    springProfile: spring(0.55, 8, 0.12),
   },
 
   // --- claws (rigid on hand/foot bones) -----------------------------------
@@ -371,21 +374,21 @@ export const BODY_REGISTRY: Record<'biped-round' | 'biped-slim' | 'bird', BodyDe
     url: bodyUrl('body-biped-round.glb'),
     maskUrl: maskUrl('body-biped-round.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 5, // authored-GLB welded topology (2026-07-09 remodel regen — v4 procedural sculpt deltas refuse loudly)
     source: { kind: 'procedural', build: () => buildProceduralBody('biped-round').scene },
   },
   'biped-slim': {
     url: bodyUrl('body-biped-slim.glb'),
     maskUrl: maskUrl('body-biped-slim.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 5, // authored-GLB welded topology (2026-07-09 remodel regen — v4 procedural sculpt deltas refuse loudly)
     source: { kind: 'procedural', build: () => buildProceduralBody('biped-slim').scene },
   },
   bird: {
     url: bodyUrl('body-bird.glb'),
     maskUrl: maskUrl('body-bird.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 5, // authored-GLB welded topology (2026-07-09 remodel regen — v4 procedural sculpt deltas refuse loudly)
     source: { kind: 'procedural', build: () => buildProceduralBody('bird').scene },
   },
 }

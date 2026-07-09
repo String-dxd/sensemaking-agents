@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { CH_BELLY, torsoChannels } from '../../../src/core/procgen/kit/channels'
 import { filletLimbIntoTorso, makeTorsoSdf } from '../../../src/core/procgen/kit/fillet'
-import { capsuleGrid } from '../../../src/core/procgen/kit/loft'
+import { capsuleGrid, chainCapsuleGrid } from '../../../src/core/procgen/kit/loft'
 import { pearProfile } from '../../../src/core/procgen/kit/profiles'
 import { ellipsoidTransform, gridToPiece, unitSphere } from '../../../src/core/procgen/kit/sphereGrid'
 import { MeshBuilder, manifoldReport, packSkinning } from '../../../src/core/procgen/kit/stitch'
@@ -140,6 +140,42 @@ describe('stitching (welded manifold)', () => {
         positions[a * 3 + 2] * (positions[p * 3] * positions[q * 3 + 1] - positions[p * 3 + 1] * positions[q * 3])
     }
     expect(vol6).toBeGreaterThan(0)
+  })
+})
+
+describe('chain capsule loft', () => {
+  it('poles land exactly on the first/last waypoints, param maps to arclength', () => {
+    const points: [number, number, number][] = [[0.1, 0.5, 0], [0.2, 0.48, 0.01], [0.3, 0.45, 0.02]]
+    const grid = chainCapsuleGrid({ points, radii: [0.06, 0.05, 0.03], useg: 12, vseg: 10 })
+    // a-pole (v01=0) at points[0], b-pole (v01=1) at points[last]
+    expect(grid.pos[grid.bottomPole * 3]).toBeCloseTo(0.1, 6)
+    expect(grid.pos[grid.bottomPole * 3 + 1]).toBeCloseTo(0.5, 6)
+    expect(grid.pos[grid.topPole * 3]).toBeCloseTo(0.3, 6)
+    expect(grid.pos[grid.topPole * 3 + 2]).toBeCloseTo(0.02, 6)
+  })
+
+  it('bridges a chain loft into a torso block (manifold, one component) and bends at its joints', () => {
+    const torso = unitSphere(12, 14)
+    ellipsoidTransform(torso, [0, 0.4, 0], [0.2, 0.35, 0.16])
+    const torsoPiece = gridToPiece('torso', torso, [
+      { kind: 'block', ringLo: 8, ringHi: 11, colStart: 2, colCount: 3, loop: 'shoulder' },
+    ])
+    // polyline with a real elbow bend halfway along
+    const arm = chainCapsuleGrid({
+      points: [[0.18, 0.5, 0], [0.28, 0.4, 0], [0.3, 0.25, 0]],
+      radii: [0.06, 0.055, 0.045],
+      useg: 12,
+      vseg: 10,
+    })
+    const armPiece = gridToPiece('armL', arm, [{ kind: 'poleBottom', ring: 1, loop: 'root' }])
+    const b = new MeshBuilder()
+    b.add(torsoPiece)
+    b.add(armPiece)
+    b.bridge(b.loopIndex.torso.shoulder, b.loopIndex.armL.root)
+    const rep = manifoldReport(b.build().indices)
+    expect(rep.boundaryEdges).toBe(0)
+    expect(rep.overSharedEdges).toBe(0)
+    expect(rep.components).toBe(1)
   })
 })
 

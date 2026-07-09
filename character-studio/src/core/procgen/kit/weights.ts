@@ -15,9 +15,10 @@ export function rigidWeight(piece: SurfacePiece, bone: string): void {
 /**
  * Chain-limb weights: split the loft's along-chain param t (polar v01, 0 at the
  * root pole → 1 at the tip) across `bones` with a smooth blend band at each
- * `split`. bodies.py:327-336 `_chain_weights`. Arm: `['upperArm','foreArm']`
- * split `[0.5]` width 0.18; leg: `['upperLeg','lowerLeg']` split `[0.5]` width
- * 0.16; wing: `['upperArm','foreArm','hand']` splits `[0.45,0.8]` width 0.16.
+ * `split`. bodies.py:327-336 `_chain_weights`. Leg: `['upperLeg','lowerLeg']`
+ * split `[0.5]` width 0.16. Chain-lofted arms/wings pass the ACTUAL
+ * cumulative-arclength params of their joint waypoints as splits (see
+ * body.ts `limbPolyline`) so the loft bends exactly at its geometric joints.
  */
 export function chainWeights(piece: SurfacePiece, bones: string[], splits: number[], width: number): void {
   const n = vertexCount(piece)

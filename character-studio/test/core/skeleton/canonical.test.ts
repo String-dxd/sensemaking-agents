@@ -105,17 +105,29 @@ describe('buildSkeleton', () => {
     }
   })
 
-  it('rest pose: arms hang along the torso (AC benchmark, plan 007), feet at ground', () => {
+  it('rest pose: A-pose — arms angle down-and-out ~45° below horizontal, feet at ground', () => {
     const world = restWorldPositions(buildSkeleton())
-    // Arm hangs nearly vertically: measure the deviation of the upperArm->hand
-    // direction from straight-down (plan 007 re-aim; start values give ≈23°).
+    // Relaxed AC-villager drop: the upperArm->hand direction slopes clearly
+    // below horizontal (a hanging arm, not the old horizontal T-pose).
     const dx = world.handL[0] - world.upperArmL[0]
-    const dy = world.handL[1] - world.upperArmL[1] // negative: hand below shoulder
-    const fromVerticalDeg = (Math.atan2(dx, -dy) * 180) / Math.PI
-    expect(fromVerticalDeg).toBeGreaterThan(5) // not pinned flush to the side
-    expect(fromVerticalDeg).toBeLessThan(30) // hugs the torso, not splayed A-pose
-    // wrist rests at hip level (mitten tip at the hip ±0.02, plan 007 benchmark)
-    expect(Math.abs(world.handL[1] - world.hips[1])).toBeLessThan(0.02)
+    const dy = world.handL[1] - world.upperArmL[1] // negative: the arm drops
+    expect(dx).toBeGreaterThan(0) // still out along +X
+    const belowHorizontalDeg = (Math.atan2(-dy, dx) * 180) / Math.PI
+    expect(belowHorizontalDeg).toBeGreaterThan(30) // a real A-pose drop…
+    expect(belowHorizontalDeg).toBeLessThan(60) // …but not hanging straight down
+    // wrist rests clearly below shoulder height (A-pose benchmark)
+    expect(world.handL[1]).toBeLessThan(world.shoulderL[1] - 0.08)
+    // slight bend at the forearm — the chain is deliberately NOT collinear
+    const seg1 = [world.foreArmL[0] - world.upperArmL[0], world.foreArmL[1] - world.upperArmL[1], world.foreArmL[2] - world.upperArmL[2]]
+    const seg2 = [world.handL[0] - world.foreArmL[0], world.handL[1] - world.foreArmL[1], world.handL[2] - world.foreArmL[2]]
+    const cross = [
+      seg1[1] * seg2[2] - seg1[2] * seg2[1],
+      seg1[2] * seg2[0] - seg1[0] * seg2[2],
+      seg1[0] * seg2[1] - seg1[1] * seg2[0],
+    ]
+    const sinBend = Math.hypot(...cross) / (Math.hypot(...seg1) * Math.hypot(...seg2))
+    expect(sinBend).toBeGreaterThan(0.005) // bent, not one straight line
+    expect(sinBend).toBeLessThan(0.2) // ...but only slightly
     expect(world.toesL[1]).toBeGreaterThan(0)
     expect(world.toesL[1]).toBeLessThan(0.05)
     expect(world.toesL[2]).toBeGreaterThan(world.footL[2]) // toes point forward (+Z)

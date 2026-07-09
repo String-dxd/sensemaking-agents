@@ -93,6 +93,37 @@ def _transfer_uvs(welded: bpy.types.Object, src: bpy.types.Object) -> None:
     bpy.ops.object.modifier_apply(modifier="uv_transfer")
 
 
+def _fix_seam_uvs(welded: bpy.types.Object, islands: list[tuple[float, float, float, float]]) -> int:
+    """Rewrap UV-wrap-seam faces after the nearest-poly transfer.
+
+    Front-centered islands wrap their azimuth at the island's u-edges (the
+    mesh's BACK centerline). POLYINTERP_NEAREST can hand a welded face loops
+    from OPPOSITE sides of that seam, stretching the face across the whole
+    island — it then samples the island interior (face bib, breast patch) and
+    paints a squiggly stripe of face colors down the character's back. For
+    any face whose loop-u span exceeds half its island, push the low-side
+    loops up to the island's right edge (u0-side == u1-side spatially).
+    Returns the number of faces fixed (for the build log)."""
+    uvl = welded.data.uv_layers.active.data
+    fixed = 0
+    for poly in welded.data.polygons:
+        us = [uvl[li].uv[0] for li in poly.loop_indices]
+        vs = [uvl[li].uv[1] for li in poly.loop_indices]
+        cv = sum(vs) / len(vs)
+        for u0, v0, u1, v1 in islands:
+            if not (v0 - 1e-4 <= cv <= v1 + 1e-4 and u0 - 1e-2 <= min(us) and max(us) <= u1 + 1e-2):
+                continue
+            span = u1 - u0
+            if max(us) - min(us) > span * 0.5:
+                mid = u0 + span * 0.5
+                for li in poly.loop_indices:
+                    if uvl[li].uv[0] < mid:
+                        uvl[li].uv[0] = min(uvl[li].uv[0] + span, u1)
+                fixed += 1
+            break
+    return fixed
+
+
 def _source_arrays(shells: list[Shell], meta: dict, u: float):
     """Concatenated per-vertex source data (same order as blender_io.build_object)."""
     bones: list[str] = []
@@ -203,6 +234,9 @@ def weld_body(shells: list[Shell], meta: dict, skel: dict, arm: bpy.types.Object
     # source object (UV loops) + numpy source per-vertex data
     src_obj, _offsets = blender_io.build_object("body_src", shells)
     _transfer_uvs(welded, src_obj)
+    seam_fixed = _fix_seam_uvs(welded, [tuple(s.uv_rect) for s in shells if s.uv_rect is not None])
+    if seam_fixed:
+        print(f"weld: rewrapped {seam_fixed} UV-seam faces")
 
     bones, src_verts, src_w, src_c, morph_src = _source_arrays(shells, meta, u)
 

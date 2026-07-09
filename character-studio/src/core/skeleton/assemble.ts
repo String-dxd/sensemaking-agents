@@ -18,7 +18,6 @@ import {
   type ToonMaterial,
   defaultTextureResolver,
 } from '../materials/toonMaterial'
-import { resolvesAuthored } from '../materials/patternRegistry'
 import type { ColliderGroup, SpringChainDef } from '../motion/springTypes'
 import type { BoneScale, CharacterSpec, PartSlot, Region } from '../spec/schema'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
@@ -285,18 +284,15 @@ export function assembleCharacter(
       shadowTint: '#b8a8c8',
       textureId: 'authored',
     }
-    // plan 010: a body pattern id resolves through the authored path — its
-    // baked mask is supplied via texturesByRegion (CharacterRoot swaps the
-    // body mask URL); the shader is unchanged.
     const resolveTexture: TextureResolver = (textureId) =>
-      resolvesAuthored(textureId)
+      textureId === 'authored'
         ? (assets.texturesByRegion?.[region] ?? { map: null, maskMap: null })
         : defaultTextureResolver(textureId)
     // Procedural meshes carry exact per-vertex palette channels; the authored
     // mask PNGs were baked against the retired GLB UV unwraps and misalign on
     // procedural UVs (dark limb streaks, muzzle blotches) — prefer the vertex
-    // path whenever the geometry has it. Species pattern masks are inert on
-    // this path until plan 015 rasterizes them from TS fields.
+    // path whenever the geometry has it. (Baked species pattern masks were
+    // removed — flat vertex-channel regions are the only body-color source.)
     const meshes = regionMeshes[region] ?? []
     const vertexChannels = meshes.length > 0 && meshes.every((m) => m.geometry.hasAttribute('paletteChannels'))
     const material = createToonMaterial(assign, spec.palette, { resolveTexture, vertexChannels })

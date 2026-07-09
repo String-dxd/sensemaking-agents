@@ -86,28 +86,47 @@ def _ensure_preview_materials() -> list[bpy.types.Material]:
     return mats
 
 
+def _shell_winds_inward(shell: Shell) -> bool:
+    """True when the closed shell's faces wind inward (negative signed volume).
+    meshkit's lofts wind by their local frame's handedness, which flips with
+    the capsule axis direction — an inside-out shell survives the glTF export
+    and backface culling then hides it from half the view angles (the
+    invisible-beak bug). Signed volume is deterministic even for shells that
+    self-intersect or overlap siblings (where Blender's normals_make_consistent
+    heuristic misjudges)."""
+    vol = 0.0
+    v = shell.verts
+    for f in shell.faces:
+        for k in range(1, len(f) - 1):
+            vol += float(np.dot(v[f[0]], np.cross(v[f[k]], v[f[k + 1]])))
+    return vol < 0.0
+
+
 def build_object(name: str, shells: list[Shell]) -> tuple[bpy.types.Object, list[int]]:
     """One mesh object from shells (concatenated). Returns (object, per-shell
-    vertex offsets). Y-up -> Blender Z-up conversion happens here."""
+    vertex offsets). Y-up -> Blender Z-up conversion happens here. Inward-
+    wound shells are reversed so every exported surface faces outward."""
+    flipped = [_shell_winds_inward(s) for s in shells]
     verts: list[tuple[float, float, float]] = []
     faces: list[tuple[int, ...]] = []
     offsets: list[int] = []
-    for shell in shells:
+    for shell, flip in zip(shells, flipped):
         offsets.append(len(verts))
         base = len(verts)
         verts.extend((float(x), float(-z), float(y)) for x, y, z in shell.verts)
-        faces.extend(tuple(base + i for i in f) for f in shell.faces)
+        shell_faces = [tuple(reversed(f)) for f in shell.faces] if flip else shell.faces
+        faces.extend(tuple(base + i for i in f) for f in shell_faces)
 
     mesh = bpy.data.meshes.new(name)
     mesh.from_pydata(verts, [], faces)
     mesh.update()
 
-    # UVs
+    # UVs (corner order mirrors any face reversal above)
     uv_layer = mesh.uv_layers.new(name="UVMap")
     loop_i = 0
-    for shell in shells:
+    for shell, flip in zip(shells, flipped):
         for corners in shell_loop_uvs(shell):
-            for uv in corners:
+            for uv in reversed(corners) if flip else corners:
                 uv_layer.data[loop_i].uv = uv
                 loop_i += 1
 

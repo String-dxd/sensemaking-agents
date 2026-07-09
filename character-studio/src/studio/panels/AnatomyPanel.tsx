@@ -26,7 +26,7 @@ import {
 } from '../../core/spec/schema'
 import { PanelSection } from '../shell/PanelSection'
 import { useCharacterStore } from '../state/characterStore'
-import { useAdvancedMode } from '../state/studioStores'
+import { useAdvancedMode, useSkeletonDebug } from '../state/studioStores'
 import { getPartThumbnail } from './partThumbnails'
 
 const selectStyle: React.CSSProperties = {
@@ -135,6 +135,8 @@ export function AnatomyPanel() {
   const klass = getSpecies(speciesId)?.class
   const advanced = useAdvancedMode((s) => s.advanced)
   const setAdvanced = useAdvancedMode((s) => s.setAdvanced)
+  const showSkeleton = useSkeletonDebug((s) => s.show)
+  const setShowSkeleton = useSkeletonDebug((s) => s.setShow)
   const rafPatch = useRafPatch()
   const slot = useSelectedSlot((s) => s.slot)
   const setSlot = useSelectedSlot((s) => s.setSlot)
@@ -279,7 +281,15 @@ export function AnatomyPanel() {
           </div>
 
           <div style={labelColStyle}>
-            <span style={{ opacity: 0.7 }}>Bone scales</span>
+            <span style={{ opacity: 0.7 }}>Skeleton</span>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={showSkeleton}
+                onChange={(e) => setShowSkeleton(e.target.checked)}
+              />
+              <span>Show skeleton wiring</span>
+            </label>
             {BONE_SCALE_GROUPS.filter((g) => parts[g.slot]).map((group) => {
               const current = parts[group.slot]?.boneScales?.[group.bones[0]]?.x ?? 1
               return (
