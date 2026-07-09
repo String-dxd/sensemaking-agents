@@ -13,7 +13,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 const MODELS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'models')
 
 const TREE_KINDS = ['fruitTree', 'pine', 'palm'] as const
-const WIND_AMPS: Record<(typeof TREE_KINDS)[number], number> = { fruitTree: 1, pine: 0.35, palm: 0.7 }
+const WIND_AMPS: Record<(typeof TREE_KINDS)[number], number> = { fruitTree: 1, pine: 0.35, palm: 1.25 }
 
 /** Parse a .glb from disk (no DOM needed — the assets embed no images). */
 function parseGlb(file: string): Promise<THREE.Group> {
