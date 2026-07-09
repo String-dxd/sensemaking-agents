@@ -121,16 +121,21 @@ describe('plan 018 bird part family', () => {
     }
   })
 
-  it('beak-small is never-invisible: base-to-tip z-extent ≥ 0.12', () => {
+  it('beak-small is never-invisible: base-to-tip z-extent ≥ 0.14 (plan 023 scale-up)', () => {
     const [, , ez] = extent(buildProceduralPart('beak-small'))
-    expect(ez).toBeGreaterThanOrEqual(0.12)
+    expect(ez).toBeGreaterThanOrEqual(0.14)
   })
 
-  it('beak-chicken and beak-penguin are face-dominant: z-extents ≥ 0.09 / 0.12', () => {
+  it('beak-hooked is card-proportion bold: z-extent ≥ 0.15 (plan 023 scale-up)', () => {
+    const [, , ez] = extent(buildProceduralPart('beak-hooked'))
+    expect(ez).toBeGreaterThanOrEqual(0.15)
+  })
+
+  it('beak-chicken and beak-penguin are face-dominant: z-extents ≥ 0.11 / 0.15 (plan 023 scale-up)', () => {
     const [, , chickenZ] = extent(buildProceduralPart('beak-chicken'))
-    expect(chickenZ).toBeGreaterThanOrEqual(0.09)
+    expect(chickenZ).toBeGreaterThanOrEqual(0.11)
     const [, , penguinZ] = extent(buildProceduralPart('beak-penguin'))
-    expect(penguinZ).toBeGreaterThanOrEqual(0.12)
+    expect(penguinZ).toBeGreaterThanOrEqual(0.15)
   })
 
   it('bill-duck is broad: x-extent ≥ y-extent × 2.2', () => {

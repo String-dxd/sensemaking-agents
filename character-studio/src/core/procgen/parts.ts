@@ -316,8 +316,8 @@ function muzzleBoxyDog(j: J): PartMesh[] {
 function muzzleBeakSmall(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
   const base: Vec3 = [a[0], a[1] + 0.012, a[2] - 0.025]
-  const tip: Vec3 = [a[0], a[1] - 0.018, a[2] + 0.105]
-  const beak = closedCapsule('beak', base, tip, 0.062, 0.012, 12, 10)
+  const tip: Vec3 = [a[0], a[1] - 0.02, a[2] + 0.13]
+  const beak = closedCapsule('beak', base, tip, 0.075, 0.014, 12, 10)
   flatY(beak, a[1] + 0.004, 0.8)
   diamondize(beak, base, dirTo(base, tip), 0.55)
   setChannelAll(beak, CH_ACCENT, 1)
@@ -327,12 +327,12 @@ function muzzleBeakSmall(j: J): PartMesh[] {
 function muzzleBeakRound(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
   const base: Vec3 = [a[0], a[1] + 0.022, a[2] - 0.025]
-  const tip: Vec3 = [a[0], a[1] - 0.014, a[2] + 0.078]
-  const upper = closedCapsule('beakU', base, tip, 0.068, 0.02, 12, 10, 0.008)
+  const tip: Vec3 = [a[0], a[1] - 0.016, a[2] + 0.108]
+  const upper = closedCapsule('beakU', base, tip, 0.082, 0.024, 12, 10, 0.008)
   flatY(upper, a[1] + 0.008, 0.82)
   diamondize(upper, base, dirTo(base, tip), 0.5)
-  const lowC: Vec3 = [a[0], a[1] - 0.022, a[2] + 0.018]
-  const lower = closedEllipsoid('beakL', lowC, [0.05, 0.022, 0.044], 10, 8)
+  const lowC: Vec3 = [a[0], a[1] - 0.026, a[2] + 0.026]
+  const lower = closedEllipsoid('beakL', lowC, [0.06, 0.026, 0.053], 10, 8)
   diamondize(lower, lowC, [0, 0, 1], 0.4)
   setChannelAll(upper, CH_ACCENT, 1)
   setChannelAll(lower, CH_ACCENT, 1)
@@ -342,8 +342,8 @@ function muzzleBeakRound(j: J): PartMesh[] {
 function muzzleBeakHooked(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
   const base: Vec3 = [a[0], a[1] + 0.028, a[2] - 0.028]
-  const tip: Vec3 = [a[0], a[1] - 0.005, a[2] + 0.097]
-  const upper = closedCapsule('beakU', base, tip, 0.066, 0.014, 12, 10, 0.006)
+  const tip: Vec3 = [a[0], a[1] - 0.005, a[2] + 0.137]
+  const upper = closedCapsule('beakU', base, tip, 0.082, 0.017, 12, 10, 0.006)
   flatY(upper, a[1] + 0.008, 0.85)
   diamondize(upper, base, dirTo(base, tip), 0.5)
   for (let i = 0; i < vertexCount(upper); i++) {
@@ -352,8 +352,8 @@ function muzzleBeakHooked(j: J): PartMesh[] {
     upper.pos[i * 3 + 1] -= hook * 0.28
     upper.pos[i * 3 + 2] -= hook * 0.05
   }
-  const lowC: Vec3 = [a[0], a[1] - 0.024, a[2] + 0.01]
-  const lower = closedEllipsoid('beakL', lowC, [0.04, 0.018, 0.034], 10, 8)
+  const lowC: Vec3 = [a[0], a[1] - 0.028, a[2] + 0.018]
+  const lower = closedEllipsoid('beakL', lowC, [0.05, 0.022, 0.042], 10, 8)
   diamondize(lower, lowC, [0, 0, 1], 0.4)
   setChannelAll(upper, CH_ACCENT, 1)
   setChannelAll(lower, CH_ACCENT, 1)
@@ -364,7 +364,7 @@ function muzzleBeakHooked(j: J): PartMesh[] {
 
 function muzzleBillDuck(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const bill = closedCapsule('bill', [a[0], a[1] + 0.01, a[2] - 0.02], [a[0], a[1] - 0.004, a[2] + 0.09], 0.05, 0.032, 14, 10)
+  const bill = closedCapsule('bill', [a[0], a[1] + 0.01, a[2] - 0.02], [a[0], a[1] - 0.005, a[2] + 0.12], 0.056, 0.036, 14, 10)
   scaleX(bill, a[0], 1.75)
   flatY(bill, a[1], 0.36)
   for (let i = 0; i < vertexCount(bill); i++) bill.pos[i * 3 + 1] += smoothstep(0.7, 1, bill.params[i * 2 + 1]) * 0.012
@@ -375,8 +375,8 @@ function muzzleBillDuck(j: J): PartMesh[] {
 function muzzleBeakChicken(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
   const base: Vec3 = [a[0], a[1] + 0.01, a[2] - 0.015]
-  const tip: Vec3 = [a[0], a[1] - 0.012, a[2] + 0.08]
-  const beak = closedCapsule('beak', base, tip, 0.058, 0.01, 12, 10)
+  const tip: Vec3 = [a[0], a[1] - 0.014, a[2] + 0.105]
+  const beak = closedCapsule('beak', base, tip, 0.068, 0.012, 12, 10)
   flatY(beak, a[1] + 0.002, 0.82)
   diamondize(beak, base, dirTo(base, tip), 0.6)
   setChannelAll(beak, CH_ACCENT, 1)
@@ -395,8 +395,8 @@ function muzzleBeakChicken(j: J): PartMesh[] {
 function muzzleBeakPenguin(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
   const base: Vec3 = [a[0], a[1] + 0.008, a[2] - 0.02]
-  const tip: Vec3 = [a[0], a[1] - 0.008, a[2] + 0.11]
-  const beak = closedCapsule('beak', base, tip, 0.052, 0.009, 12, 10)
+  const tip: Vec3 = [a[0], a[1] - 0.009, a[2] + 0.145]
+  const beak = closedCapsule('beak', base, tip, 0.06, 0.01, 12, 10)
   flatY(beak, a[1], 0.8)
   diamondize(beak, base, dirTo(base, tip), 0.4)
   for (let i = 0; i < vertexCount(beak); i++) {
