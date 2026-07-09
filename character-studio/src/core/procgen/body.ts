@@ -361,11 +361,11 @@ export function buildProceduralBody(archetype: Archetype, birdShape?: Partial<Bi
     }
     neckPiece.weights.set('head', nH)
     neckPiece.weights.set('chest', nC)
-    // UVs: top sliver of the torso island (patterns fade out up there)
-    for (let i = 0; i < vertexCount(neckPiece); i++) {
-      neckPiece.params[i * 2 + 1] = 0.94 + 0.06 * neckPiece.params[i * 2 + 1]
-    }
-    paintUv(neckPiece, 'torso', true)
+    // UVs: the neck gets the armL island to ITSELF — birds weld no arm
+    // pieces, so the rect is free, and body patterns (robin bib, peacock
+    // saddle) can no longer bleed onto the neck the way the old
+    // torso-top-sliver mapping let them.
+    paintUv(neckPiece, 'armL', true)
     builder.add(neckPiece)
     builder.bridge(builder.loopIndex.torso.neck, builder.loopIndex.neck.lo)
     builder.bridge(builder.loopIndex.neck.hi, builder.loopIndex.head.neck)

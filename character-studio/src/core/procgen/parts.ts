@@ -665,32 +665,6 @@ function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; ro
   hug(plate, 0.012)
   shells.push(plate)
 
-  // layered covert rows riding the OUTER face of the plate — the AC folded
-  // wing reads as 2 overlapping feather ledges before the tip scallops
-  if (spec.fingers > 0) {
-    const rows: Array<{ t: number; count: number; len: number; layer: number }> = [
-      { t: 0.42, count: 3, len: 0.085, layer: 0.012 },
-      { t: 0.66, count: 4, len: 0.095, layer: 0.006 },
-    ]
-    for (const row of rows) {
-      const anchor = path[Math.min(path.length - 1, Math.round(row.t * (path.length - 1)))]
-      for (let f = 0; f < row.count; f++) {
-        const t01 = row.count === 1 ? 0.5 : f / (row.count - 1)
-        const dir = vec.norm([0, -1, 0.16 - 0.34 * t01])
-        const base: Vec3 = [anchor[0] + row.layer, anchor[1] + 0.02, anchor[2] + 0.02 - 0.035 * t01]
-        const cov = closedCapsule(`wingC${row.t}f${f}`, base, add(base, vec.scale(dir, row.len)), spec.tipR * 0.34, spec.tipR * 0.46, 8, 6, 0.004)
-        scaleX(cov, base[0], spec.flat * 0.85)
-        const n = vertexCount(cov)
-        // ride whichever chain zone the anchor sits in
-        const bone = row.t < 0.5 ? 'foreArmL' : 'handL'
-        cov.weights.set(bone, new Array(n).fill(1))
-        setChannelFn(cov, CH_SECONDARY, (i) => smoothstep(0.55, 0.85, cov.params[i * 2 + 1]) * 0.8)
-        hug(cov, 0.02)
-        shells.push(cov)
-      }
-    }
-  }
-
   // feather fingers: short overlapping scallops fanning down-back from the
   // wrist — the AC folded-wing tip read
   for (let f = 0; f < spec.fingers; f++) {

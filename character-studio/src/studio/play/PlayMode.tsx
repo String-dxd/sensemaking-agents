@@ -108,6 +108,17 @@ function PlayModeDriver() {
     // hips drop so the egg rests ON the pedestal instead of through it.
     const isBird = useCharacterStore.getState().spec.meta.archetype === 'bird'
     const DEG = Math.PI / 180
+    const X_AXIS = new THREE.Vector3(1, 0, 0)
+    const Z_AXIS = new THREE.Vector3(0, 0, 1)
+    const qTmp = new THREE.Quaternion()
+    /** Post-multiply a local-axis rotation ON TOP of the clip's quaternion —
+     * adding euler components to a quaternion-driven bone composes in XYZ
+     * euler order and flung the seated legs sideways (round 8 bug). */
+    const addLocal = (bone: THREE.Object3D | undefined, axis: THREE.Vector3, rad: number): void => {
+      if (!bone || Math.abs(rad) < 1e-6) return
+      qTmp.setFromAxisAngle(axis, rad)
+      bone.quaternion.multiply(qTmp)
+    }
     let sitW = 0
     // Re-entering play (or reassembling mid-play) resumes the requested state.
     const startState = usePlayStore.getState().desiredState
@@ -175,16 +186,14 @@ function PlayModeDriver() {
         sitW += (target - sitW) * (1 - Math.exp(-dt / 0.18))
         if (sitW > 1e-3) {
           for (const side of ['L', 'R'] as const) {
-            const splay = (side === 'L' ? 1 : -1) * 14 * DEG
+            const splay = (side === 'L' ? 1 : -1) * 8 * DEG
             const upper = boneByName.get(`upperLeg${side}`)
             const lower = boneByName.get(`lowerLeg${side}`)
             const foot = boneByName.get(`foot${side}`)
-            if (upper) {
-              upper.rotation.x -= 46 * DEG * sitW // past horizontal — toes tip up
-              upper.rotation.z += splay * sitW // little V-spread, the AC toy sit
-            }
-            if (lower) lower.rotation.x -= 30 * DEG * sitW
-            if (foot) foot.rotation.x -= 10 * DEG * sitW
+            addLocal(upper, X_AXIS, -46 * DEG * sitW) // past horizontal — toes tip up
+            addLocal(upper, Z_AXIS, splay * sitW) // little V-spread, the AC toy sit
+            addLocal(lower, X_AXIS, -30 * DEG * sitW)
+            addLocal(foot, X_AXIS, -10 * DEG * sitW)
           }
           const hips = boneByName.get('hips')
           if (hips) {
