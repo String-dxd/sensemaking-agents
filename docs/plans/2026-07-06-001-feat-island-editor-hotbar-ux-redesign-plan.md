@@ -1,7 +1,7 @@
 ---
 title: Island editor — bottom hotbar UX redesign (Spline + sandbox-game inspired)
 type: feat
-status: implemented — executed on branch feat/island-editor-hotbar-ux (from main, commit 123c418e), advisor-reviewed & APPROVED (gates 83 tests green; scope clean — only the 2 ui/ files; App.tsx + package.json diffs empty; 13 inline SVGs; dead CSS removed; live browser QA confirms hotbar renders + tool/brush switching + hint update work; console clean). PENDING operator look sign-off before merge.
+status: done — merged to main via #78 (executed on branch feat/island-editor-hotbar-ux; advisor-reviewed & APPROVED; gates green)
 date: 2026-07-06
 written_against_commit: 288f7375
 ---

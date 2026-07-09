@@ -1,7 +1,7 @@
 ---
 title: Island editor — model panel (left-pane palette to pick & arm a placeable object)
 type: feat
-status: done
+status: done — merged to main via #79
 date: 2026-07-06
 written_against_commit: b375cdbb
 base_branch: feat/island-editor-object-placement (Plan B)

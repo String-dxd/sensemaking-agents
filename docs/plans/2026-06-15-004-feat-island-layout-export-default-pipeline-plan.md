@@ -1,7 +1,7 @@
 ---
 title: Island Editor — layout export, committed default & decorOffsets uuid re-key
 type: feat
-status: proposed
+status: done — merged via #74; superseded in part by the #76 tile-grid rewrite
 date: 2026-06-15
 revised: 2026-06-15 (post design-review — offset re-key promoted to in-scope; two artifacts)
 written_against_commit: 22856862

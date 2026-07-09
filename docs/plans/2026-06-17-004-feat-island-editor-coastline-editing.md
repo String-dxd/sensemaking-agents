@@ -1,7 +1,7 @@
 ---
 title: Island editor — coastline add/insert/delete points + numeric point & world-size entry
 type: feat
-status: proposed
+status: done — merged via 023eb2d3; coastline editing later retired to legacy/ by the #76 rewrite
 date: 2026-06-17
 written_against_commit: b6dc287d
 initiative: 2026-06-17-000-island-editor-improvements-overview.md

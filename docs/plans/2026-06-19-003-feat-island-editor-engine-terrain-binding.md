@@ -1,7 +1,7 @@
 ---
 title: Wire the editor's IslandSpec terrain into the product engine (silhouette-first)
 type: feat
-status: proposed — DECISION REQUIRED before execution
+status: rejected 2026-07-08 — superseded by the #76 tile-grid rewrite. The plan's mechanism (sampleCoastline / isInsidePolygon / evaluateHeight, the IslandSpec coastline-spline model) now lives in island-editor/src/terrain/legacy/. The goal (engine consumes editor-authored terrain) stays valid but needs a fresh plan against the tile-grid model, is a larger product/visual call (the editor's tile-grid look differs from the product's polar island), and remains gated on the pending ambient-visual rebuild. Not executable as written.
 date: 2026-06-19
 written_against_commit: dda45ec1
 initiative: 2026-06-17-000-island-editor-improvements-overview.md

@@ -35,7 +35,11 @@ describe('shoreDistanceField', () => {
     const ring2 = f.data[latticeAt(f.res, WORLD, cx + 3 * step, cx)]
     expect(ring1).toBeGreaterThan(0) // water beyond the shore
     expect(ring2).toBeGreaterThan(ring1) // increasing outward
-    expect(ring2 - ring1).toBeCloseTo(step, 4) // ≈ one lattice step per ring
+    // Roughly one lattice step per ring. Not exact: the isoline smoothing pass
+    // flattens the ramp near a lone cell's conical tip (straight shores keep
+    // their exact gradient — a box average of a linear ramp is the same ramp).
+    expect(ring2 - ring1).toBeGreaterThan(step * 0.5)
+    expect(ring2 - ring1).toBeLessThan(step * 1.5)
   })
 
   it('an all-ocean grid is uniformly large positive', () => {

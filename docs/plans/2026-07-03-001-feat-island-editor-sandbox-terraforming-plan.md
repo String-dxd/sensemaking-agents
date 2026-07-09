@@ -1,7 +1,7 @@
 ---
 title: Island editor — sandbox terraforming refactor (Animal Crossing / Pokopia-style)
 type: feat
-status: implemented — all 10 steps done on branch feat/island-editor-sandbox-terraforming; gates green; live QA + adversarial review passed; P1 fixed. PENDING operator look sign-off before merge.
+status: done — merged to main via #76 (executed on branch feat/island-editor-sandbox-terraforming; gates green, live QA + adversarial review passed, P1 fixed)
 date: 2026-07-03
 revised: 2026-07-03 (grill pass 1 — rendering rebuilt around the product island's materials; grill pass 2 — terrace math fixed for thin features, 2× shore field, color-space guidance, staged execution + operator look sign-off)
 written_against_commit: 62e28619

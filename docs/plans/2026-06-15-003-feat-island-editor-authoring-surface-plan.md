@@ -1,7 +1,7 @@
 ---
 title: Island Editor — dev-gated authoring surface (panel · palette/add · delete · inspector · full add/remove · preview)
 type: feat
-status: proposed
+status: done — merged via #74; superseded in part by the #76 tile-grid rewrite
 date: 2026-06-15
 revised: 2026-06-15 (post design-review — full add/remove incl. tree rebuild; inspector transforms; preview toggle)
 written_against_commit: 22856862

@@ -1,7 +1,7 @@
 ---
 title: Agent-editable island — design spike (op vocabulary, headless runner, binding)
 type: spike
-status: proposed
+status: done — merged via 023eb2d3 (agent-editing design spike)
 date: 2026-06-17
 written_against_commit: b6dc287d
 initiative: 2026-06-17-000-island-editor-improvements-overview.md

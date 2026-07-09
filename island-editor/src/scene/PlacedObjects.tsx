@@ -1,25 +1,15 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
-import { buildObjectModel } from '../models/buildObjectModel'
 import { hashString } from '../models/rand'
+import { registerPaintedModel } from '../models/textureThemes'
+import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { blurTiers, type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
+import { useCanopyWind } from './useCanopyWind'
 
 // Models are authored ~1 world-unit tall/footprint, so the per-object jitter
 // scale multiplies directly. A single knob if the whole set reads too big/small.
 const BASE_OBJECT_SCALE = 1.0
-
-/** Dispose every geometry + material under a group (r3f does NOT auto-dispose an
- *  object passed via <primitive>, so we do it on unmount / remove). */
-function disposeModel(model: THREE.Object3D) {
-  model.traverse((n) => {
-    if (!(n instanceof THREE.Mesh)) return
-    n.geometry.dispose()
-    const mat = n.material
-    if (Array.isArray(mat)) mat.forEach((m) => m.dispose())
-    else mat.dispose()
-  })
-}
 
 interface PlacedObjectsProps {
   spec: IslandSpec
@@ -59,13 +49,40 @@ interface PlacedObjectMeshProps {
 function PlacedObjectMesh({ spec, object: o, blurred, placeMode, onRemove }: PlacedObjectMeshProps) {
   // Deterministic per id: the same object re-derives the same silhouette on
   // reload; stable across spec ticks so terrain edits don't rebuild the model.
-  const model = useMemo(() => buildObjectModel(o.kind, hashString(o.id)), [o.kind, o.id])
-  useEffect(() => () => disposeModel(model), [model])
+  // (r3f does NOT auto-dispose a <primitive> object, so we dispose on unmount —
+  // disposeObjectModel no-ops for shared GLB clones.)
+  const model = useObjectModel(o.kind, hashString(o.id))
+  // Register on MOUNT, not just at build: StrictMode's probe cycle disposes the
+  // model once while it keeps rendering, silently dropping per-instance
+  // materials (bush) from the theme registry — re-registering keeps them live.
+  useEffect(() => {
+    registerPaintedModel(model)
+    return () => disposeObjectModel(model)
+  }, [model])
 
   const { x, y, z } = worldPositionOfObject(spec, o, blurred)
+
+  // Spring-damper wind on the crown (see wind.ts): the world position feeds the
+  // traveling gust front, the object id seeds the flutter phase.
+  useCanopyWind(model, o.id, x, z)
+
+  // Hover target: in place mode (where a click removes), hovering any placed
+  // object shows a soft translucent box around its bounds so it's unambiguous
+  // what a click will hit. Bounds are model-local (measured at rest, before
+  // wind sway) and live inside the transformed group, so the box tracks the
+  // object's yaw/scale for free.
+  const [hovered, setHovered] = useState(false)
+  const bounds = useMemo(() => {
+    const box = new THREE.Box3().setFromObject(model)
+    const size = new THREE.Vector3()
+    const center = new THREE.Vector3()
+    box.getSize(size)
+    box.getCenter(center)
+    return { size, center }
+  }, [model])
+
   return (
-    <primitive
-      object={model}
+    <group
       position={[x, y, z]}
       rotation={[0, o.yaw, 0]}
       scale={o.scale * BASE_OBJECT_SCALE}
@@ -79,6 +96,20 @@ function PlacedObjectMesh({ spec, object: o, blurred, placeMode, onRemove }: Pla
         e.stopPropagation()
         onRemove(o.id)
       }}
-    />
+      onPointerOver={(e: ThreeEvent<PointerEvent>) => {
+        if (!placeMode) return
+        e.stopPropagation()
+        setHovered(true)
+      }}
+      onPointerOut={() => setHovered(false)}
+    >
+      <primitive object={model} />
+      {placeMode && hovered && (
+        <mesh position={bounds.center} raycast={() => null}>
+          <boxGeometry args={[bounds.size.x * 1.06, bounds.size.y * 1.06, bounds.size.z * 1.06]} />
+          <meshBasicMaterial color={0xfff0a8} transparent opacity={0.3} depthWrite={false} />
+        </mesh>
+      )}
+    </group>
   )
 }

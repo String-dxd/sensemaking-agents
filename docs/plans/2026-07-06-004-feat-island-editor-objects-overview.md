@@ -1,13 +1,21 @@
 ---
 title: Island editor — placeable objects (procedural trees/bushes/rocks + drop + model panel) — initiative overview
 type: overview
-status: proposed
+status: done — initiative shipped to main via #79 (models + placement + model panel); land-gate hardened by #81. See reconcile note below.
 date: 2026-07-06
 written_against_commit: b375cdbb
 base_branch: feat/island-editor-distributed-layout (merge to main first; then base on main)
 ---
 
 # Placeable objects initiative — overview & plan index
+
+> **Reconcile note (2026-07-08):** DONE. The whole initiative shipped to `main`
+> via **#79** ("distributed layout + camera + placeable objects — models,
+> placement, panel") — plans A/B/C = `005`/`006`/`007`. The land-gate follow-up
+> shipped via **#81** (`009`); raise/lower-to-target via **#80** (`008`). The
+> follow-on object-model **texture/reshape** pass (`2026-07-07-001`) was executed
+> and advisor-approved this session and is pending merge. No open work remains in
+> this initiative.
 
 > A sequenced set of self-contained plans that let a user **place procedural objects**
 > (trees, bushes, rocks) onto the island in the standalone editor, pick them from a

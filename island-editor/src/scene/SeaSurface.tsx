@@ -48,7 +48,10 @@ export function SeaSurface({ spec }: { spec: IslandSpec }) {
   useEffect(() => () => material.dispose(), [material])
 
   useFrame((state) => {
-    material.uniforms.uTime.value = state.clock.elapsedTime
+    // The app integrates its ocean clock at 0.45× real time when calm (rain
+    // speeds it up); the ported shore layers were tuned at that pace, so match
+    // it here — full speed makes the wash/ripples churn instead of lap.
+    material.uniforms.uTime.value = state.clock.elapsedTime * 0.45
   })
 
   return (

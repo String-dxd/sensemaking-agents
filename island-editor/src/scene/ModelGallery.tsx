@@ -1,9 +1,11 @@
-import { useEffect, useMemo } from 'react'
+import { Suspense, useEffect } from 'react'
 import { OrbitControls, Text } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import * as THREE from 'three'
-import { buildObjectModel } from '../models/buildObjectModel'
+import { registerPaintedModel } from '../models/textureThemes'
+import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { OBJECT_KINDS, type ObjectKind } from '../terrain/terrainGrid'
+import { StylePanel } from '../ui/StylePanel'
+import { useCanopyWind } from './useCanopyWind'
 
 // Dev-only view (gated behind `?gallery` in main.tsx): lays out every ObjectKind
 // across a row, with a few seeds per kind down the depth axis so the seeded
@@ -14,16 +16,6 @@ const SEEDS = [1, 2, 3]
 const SPACING_X = 1.6
 const SPACING_Z = 1.6
 
-function disposeGroup(group: THREE.Group): void {
-  group.traverse((o) => {
-    const mesh = o as THREE.Mesh
-    if (!mesh.isMesh) return
-    mesh.geometry.dispose()
-    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-    for (const m of materials) m.dispose()
-  })
-}
-
 function GalleryModel({
   kind,
   seed,
@@ -33,8 +25,18 @@ function GalleryModel({
   seed: number
   position: [number, number, number]
 }) {
-  const model = useMemo(() => buildObjectModel(kind, seed), [kind, seed])
-  useEffect(() => () => disposeGroup(model), [model])
+  const model = useObjectModel(kind, seed)
+  // Same StrictMode guard as PlacedObjectMesh: re-register painted materials on
+  // mount so the probe-cycle dispose doesn't freeze them out of theme switches.
+  useEffect(() => {
+    registerPaintedModel(model)
+    return () => disposeObjectModel(model)
+  }, [model])
+
+  // Spring-damper wind on the crown (same hook as PlacedObjects): the gallery
+  // position feeds the traveling gust front, so gusts visibly sweep the rows.
+  useCanopyWind(model, `${kind}-${seed}`, position[0], position[2])
+
   return <primitive object={model} position={position} />
 }
 
@@ -54,16 +56,18 @@ export function ModelGallery() {
           <meshStandardMaterial color="#7fae5a" />
         </mesh>
 
-        {OBJECT_KINDS.map((kind, i) =>
-          SEEDS.map((seed, j) => (
-            <GalleryModel
-              key={`${kind}-${seed}`}
-              kind={kind}
-              seed={seed}
-              position={[i * SPACING_X - offsetX, 0, j * SPACING_Z - offsetZ]}
-            />
-          )),
-        )}
+        <Suspense fallback={null}>
+          {OBJECT_KINDS.map((kind, i) =>
+            SEEDS.map((seed, j) => (
+              <GalleryModel
+                key={`${kind}-${seed}`}
+                kind={kind}
+                seed={seed}
+                position={[i * SPACING_X - offsetX, 0, j * SPACING_Z - offsetZ]}
+              />
+            )),
+          )}
+        </Suspense>
 
         {OBJECT_KINDS.map((kind, i) => (
           <Text
@@ -80,6 +84,7 @@ export function ModelGallery() {
 
         <OrbitControls target={[0, 0.6, 0]} />
       </Canvas>
+      <StylePanel />
     </div>
   )
 }

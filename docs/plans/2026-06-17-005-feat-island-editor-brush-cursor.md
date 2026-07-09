@@ -1,7 +1,7 @@
 ---
 title: Island editor — brush cursor ring in sculpt mode
 type: feat
-status: proposed
+status: done — merged via 023eb2d3; sculpt brush later retired by the #76 rewrite
 date: 2026-06-17
 written_against_commit: b6dc287d
 initiative: 2026-06-17-000-island-editor-improvements-overview.md

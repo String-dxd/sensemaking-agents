@@ -5,10 +5,12 @@ import { buildIslandField, composeGeometry, updateGeometry } from '../terrain/bu
 import { blurTiers, sampleTierField, terraceHeight, type IslandSpec, worldToCell } from '../terrain/terrainGrid'
 import { createIslandGroundMaterial } from './materials/IslandGroundMaterial'
 
+const UP = new THREE.Vector3(0, 1, 0)
+
 interface IslandTerrainProps {
   spec: IslandSpec
   brushSize: number
-  /** When true (hold-Space), pointer drags fall through to OrbitControls instead
+  /** When true (hold-Cmd), pointer drags fall through to OrbitControls instead
    *  of painting, so the camera can be orbited/panned over the island. */
   cameraMode?: boolean
   /** When true (a model kind is armed), pointer moves report the hovered point
@@ -80,6 +82,14 @@ export function IslandTerrain({
 
   const painting = useRef(false)
   const cursorRef = useRef<THREE.Mesh>(null)
+  // Stroke-locked horizontal picking plane. Painting against the live mesh is a
+  // feedback loop: raising a cell grows the geometry under the cursor, the next
+  // pointermove raycast hits the new taller column's slope, and its x/z maps to
+  // a NEIGHBORING cell — a single click with 1px of jitter smears onto cells
+  // around it. Locking the pick plane at the first hit's height makes the rest
+  // of the stroke immune to its own edits.
+  const strokePlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0))
+  const strokeHit = useRef(new THREE.Vector3())
 
   // End the stroke even if the pointer releases off the terrain.
   useEffect(() => {
@@ -113,10 +123,10 @@ export function IslandTerrain({
     cursor.visible = true
   }
 
-  // Precedence in both handlers: camera (hold-Space) wins → then place mode →
-  // then paint. So hold-Space always orbits, even while a model is armed.
+  // Precedence in both handlers: camera (hold-Cmd) wins → then place mode →
+  // then paint. So hold-Cmd always orbits, even while a model is armed.
   const handleDown = (e: ThreeEvent<PointerEvent>) => {
-    // Hold-Space: let the drag reach OrbitControls instead of painting/placing.
+    // Hold-Cmd: let the drag reach OrbitControls instead of painting/placing.
     if (cameraMode) return
     if (placeMode) {
       e.stopPropagation()
@@ -125,8 +135,17 @@ export function IslandTerrain({
     }
     e.stopPropagation()
     painting.current = true
+    // A hit on a cliff SIDE face is ambiguous between the tall column that owns
+    // the face and the low cell in front of it. Resolve OUTWARD (along the face
+    // normal) to the cell in front: growing a column requires clicking its TOP.
+    // The inward reading turns near-misses into runaway spikes — aim at the low
+    // block beside a slope, graze the slope instead, and the tall column gets
+    // +1 tier per click. (Floor hits have an up normal, so x/z is unchanged.)
+    const p = e.point.clone()
+    if (e.face) p.addScaledVector(e.face.normal, 0.25 * (spec.worldSize / spec.grid.cols))
+    strokePlane.current.set(UP, -e.point.y)
     onPaintStart?.()
-    onPaint?.(e.point.x, e.point.z)
+    onPaint?.(p.x, p.z)
   }
   const handleMove = (e: ThreeEvent<PointerEvent>) => {
     if (cameraMode) {
@@ -141,7 +160,11 @@ export function IslandTerrain({
     }
     moveCursor(e.point.x, e.point.z)
     if (!painting.current) return
-    onPaint?.(e.point.x, e.point.z)
+    // Mid-stroke picks go against the stroke-locked plane, not the mesh — see
+    // the strokePlane comment above.
+    if (e.ray.intersectPlane(strokePlane.current, strokeHit.current)) {
+      onPaint?.(strokeHit.current.x, strokeHit.current.z)
+    }
   }
   const handleOut = () => {
     if (cursorRef.current) cursorRef.current.visible = false

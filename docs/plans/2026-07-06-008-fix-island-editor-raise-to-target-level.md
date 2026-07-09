@@ -1,7 +1,7 @@
 ---
 title: Island editor — raise/lower to a target level (stop over-raising already-raised neighbors)
 type: fix
-status: done
+status: done — merged to main via #80
 date: 2026-07-06
 written_against_commit: a29a3cf2
 base_branch: main

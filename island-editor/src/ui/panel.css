@@ -224,3 +224,54 @@
     transform: none;
   }
 }
+
+/* Top-center style panel: texture theme chips. */
+.style-panel {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: rgba(16, 22, 38, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #e7ecf6;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  user-select: none;
+  opacity: 0.9;
+  transition: opacity 160ms ease;
+}
+.style-panel:hover {
+  opacity: 1;
+}
+.style-panel__label {
+  margin-right: 2px;
+  color: rgba(231, 236, 246, 0.55);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.style-panel__chip {
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.style-panel__chip:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.style-panel__chip.is-active {
+  background: rgba(255, 122, 89, 0.22);
+  border-color: rgba(255, 122, 89, 0.55);
+}

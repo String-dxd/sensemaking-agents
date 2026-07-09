@@ -1,7 +1,7 @@
 ---
 title: Island editor — fix per-frame full-field rebuild during coastline drag
 type: perf
-status: proposed
+status: done — merged via 023eb2d3; coastline surface later retired to legacy/ by the #76 rewrite
 date: 2026-06-17
 written_against_commit: b6dc287d
 initiative: 2026-06-17-000-island-editor-improvements-overview.md

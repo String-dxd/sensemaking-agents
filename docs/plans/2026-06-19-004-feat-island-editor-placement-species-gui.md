@@ -1,7 +1,7 @@
 ---
 title: GUI for object placement + species palette (resolve the host-app fork first)
 type: feat
-status: proposed — DECISION REQUIRED before execution
+status: deferred 2026-07-08 — the gap is real (product still boots from hand-edited defaultIslandLayout.json + defaultSpeciesPalette.json) but low-value now. The #79 editor object system does NOT resolve the fork — its kinds (bush/fruitTree/palm/pine/rock) differ from the product's (tree/flower/fruit/mailbox/telescope + species), and the editor does not write the product's files. Both options remain L-effort. If revived, prefer Option B (in-product editor, real meshes, direct write-back). Do not build now.
 date: 2026-06-19
 written_against_commit: dda45ec1
 initiative: 2026-06-17-000-island-editor-improvements-overview.md
