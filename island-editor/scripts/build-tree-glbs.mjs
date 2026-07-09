@@ -342,25 +342,31 @@ function buildPine() {
 // (references: a low-poly palm render + the official AC coconut palm)
 // ---------------------------------------------------------------------------
 
-/** One palm frond: a creased tapering strip — a shallow inverted-V cross
- *  section (edges fold below the midrib) that arcs outward and droops along
- *  its length, widest mid-blade, ending in a point. UVs run u across the blade
- *  and v along it, so the leaflet texture's fringe follows the blade. Rendered
- *  double-sided (a strip has no volume). Consumes exactly two rand(). */
+/** One palm frond: a creased tapering strip — a deep inverted-V cross section
+ *  (edges fold well below the midrib, the toy render's plump center crease)
+ *  that reaches up briefly then arcs hard DOWN, so the fronds together read as
+ *  an umbrella dome with hanging tips. Widest mid-blade with a rounded tip and
+ *  gently notched edges. UVs run u across the blade and v along it, so the
+ *  leaflet texture's fringe follows the blade. Rendered double-sided (a strip
+ *  has no volume). Consumes exactly two rand(). */
 function frondBlade(L, W, mat, rand) {
-  const N = 7
-  const rise = 0.32 + rand() * 0.08 // initial upward reach…
-  const droop = 0.85 + rand() * 0.12 // …arched over, tips hanging
+  const N = 8
+  // OPEN umbrella: tips end only ~0.2 below the crown base. (First attempt
+  // used droop ~1.0 — tips fell 0.5+, the blades curtained down around the
+  // trunk and the crown read as a closed artichoke from the game camera.)
+  const rise = 0.42 + rand() * 0.06 // quick reach up over the hub…
+  const droop = 0.64 + rand() * 0.08 // …then a gentle arc just past horizontal
   const positions = []
   const uvs = []
   for (let s = 0; s <= N; s++) {
     const t = s / N
     const out = L * t
     const y = rise * t - droop * t * t
-    // Narrow stem, then BROAD along the whole length with a rounded tip —
-    // the AC feather frond (the leaflet map's fringe does the rest).
-    const w = W * Math.min(1, 0.3 + t * 3) * Math.sqrt(1 - t ** 3)
-    const fold = 0.48 * w
+    // Narrow stem, then PLUMP through the middle, closing in a rounded tip;
+    // the sin wobble nicks shallow notches into the edges (the toy scallops).
+    const w =
+      W * Math.min(1, 0.25 + t * 2.5) * (1 - t ** 2.8) ** 0.6 * (0.94 + 0.1 * Math.abs(Math.sin(t * 9.4)))
+    const fold = 0.5 * w
     positions.push(out, y - fold, -w, out, y, 0, out, y - fold, w)
     uvs.push(0, t, 0.5, t, 1, t)
   }
@@ -390,56 +396,69 @@ function buildPalm() {
   lean.rotation.z = 0.06
   root.add(lean)
 
-  // Trunk: a flared foot + five stacked tapering segments, each a touch wider
-  // at its base than the segment below's top — the stepped knuckles of the
-  // low-poly reference. Octagonal so the steps read as facets.
+  // Trunk: five stacked plump PILLOW segments (squashed spheres, the toy
+  // render's quilted barrels) tapering gently upward, with tiny alternating
+  // sideways nudges so the column curves organically instead of telescoping.
   const palmBark = new THREE.MeshStandardMaterial({ color: 0xc9954f, roughness: 0.9, metalness: 0 })
   palmBark.name = 'bark-palm'
-  const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.21, 0.1, 8), palmBark)
-  foot.name = 'trunk'
-  foot.position.y = 0.05
-  lean.add(foot)
-  const radii = [0.155, 0.138, 0.12, 0.105, 0.09]
-  const SEG_H = 0.16
+  const radii = [0.19, 0.17, 0.155, 0.14, 0.125]
+  const SEG_H = 0.26 // pillow height (sphere squashed to this)
+  const STEP = 0.185 // vertical stride — pillows overlap so shoulders nest
+  let segY = SEG_H / 2 - 0.03 // bottom pillow sits slightly into the ground
   for (let i = 0; i < radii.length; i++) {
-    const seg = new THREE.Mesh(new THREE.CylinderGeometry(radii[i] * 0.84, radii[i], SEG_H, 8), palmBark)
-    seg.position.y = 0.1 + SEG_H / 2 + i * (SEG_H - 0.005)
+    const seg = new THREE.Mesh(new THREE.SphereGeometry(radii[i], 10, 8), palmBark)
+    seg.scale.y = SEG_H / (radii[i] * 2)
+    seg.position.set((i % 2 === 0 ? 1 : -1) * 0.008 * i, segY, 0)
+    if (i === 0) seg.name = 'trunk'
     lean.add(seg)
+    segY += STEP
   }
 
   const canopy = new THREE.Group()
   canopy.name = 'canopy'
-  canopy.position.y = 0.1 + radii.length * (SEG_H - 0.005) + 0.02
+  canopy.position.y = segY - STEP + SEG_H * 0.38
   canopy.userData.windAmp = 0.7
   lean.add(canopy)
 
+  // Emissive floor: fronds are thin DoubleSide strips, so half of them face
+  // away from the sun at any angle — without a lift their undersides crush to
+  // near-black and the crown reads lopsided ("weird direction"). The soft
+  // self-light keeps both faces in the same painted key.
   const frondMat = new THREE.MeshStandardMaterial({
     color: LEAF,
+    emissive: 0x2a5a26,
     roughness: 0.95,
     metalness: 0,
     side: THREE.DoubleSide,
   })
   frondMat.name = 'frond'
 
-  // Crown hub hides the blade stems and plugs the umbrella's center so the
-  // crown reads solid from above.
-  const hub = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 6), frondMat)
-  hub.scale.y = 0.55
-  hub.position.y = 0.03
+  // Crown hub: a big rounded cap covering the blade roots AND the top trunk
+  // pillow (which otherwise peeks orange through the crown center) — the toy
+  // render's smooth center dome the upper fronds tuck under.
+  const hub = new THREE.Mesh(new THREE.SphereGeometry(0.2, 9, 7), frondMat)
+  hub.scale.y = 0.6
+  hub.position.y = 0.04
   canopy.add(hub)
 
-  // Seven broad feather fronds fanned around the crown (the AC palm), each
-  // arching up-and-over with hanging tips; small per-frond lift variation.
-  const frondCount = 9
-  for (let i = 0; i < frondCount; i++) {
-    const holder = new THREE.Group()
-    holder.rotation.y = (i / frondCount) * Math.PI * 2 + (rand() - 0.5) * 0.25
-    const blade = frondBlade(0.68 + rand() * 0.06, 0.125, frondMat, rand)
-    blade.rotation.z = 0.02 + (rand() - 0.5) * 0.08
-    holder.add(blade)
-    // Blades are authored along +x; the holder's yaw fans them around.
-    holder.rotation.order = 'YXZ'
-    canopy.add(holder)
+  // Two rings of plump creased fronds (blades are authored along +x; each
+  // holder's yaw fans them around): a long low ring forming the umbrella rim,
+  // and a shorter steeper ring layered on top — the reference's stacked dome.
+  const rings = [
+    { count: 7, L: 0.78, W: 0.25, pitch: -0.12, y: 0, yawOff: 0 },
+    { count: 5, L: 0.52, W: 0.19, pitch: 0.1, y: 0.07, yawOff: 0.45 },
+  ]
+  for (const ring of rings) {
+    for (let i = 0; i < ring.count; i++) {
+      const holder = new THREE.Group()
+      holder.rotation.y = (i / ring.count) * Math.PI * 2 + ring.yawOff + (rand() - 0.5) * 0.25
+      holder.position.y = ring.y
+      const blade = frondBlade(ring.L + rand() * 0.05, ring.W, frondMat, rand)
+      blade.rotation.z = ring.pitch + (rand() - 0.5) * 0.08
+      holder.add(blade)
+      holder.rotation.order = 'YXZ'
+      canopy.add(holder)
+    }
   }
 
   // Two big bright coconuts hanging just under the crown (the AC pair).

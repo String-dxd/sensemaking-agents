@@ -90,9 +90,13 @@ describe('buildObjectModel', () => {
     }
   })
 
-  it('bush and rock have no canopy group (the wind hook must no-op on them)', () => {
-    for (const kind of PROCEDURAL_KINDS) {
-      expect(buildObjectModel(kind, 7).getObjectByName('canopy')).toBeUndefined()
-    }
+  it("bush carries a 'canopy' group with a gentle windAmp (shrubs rustle in the wind)", () => {
+    const canopy = buildObjectModel('bush', 7).getObjectByName('canopy')
+    expect(canopy).toBeInstanceOf(THREE.Group)
+    expect((canopy as THREE.Group).userData.windAmp).toBe(0.25)
+  })
+
+  it('rock has no canopy group (the wind hook must no-op on it)', () => {
+    expect(buildObjectModel('rock', 7).getObjectByName('canopy')).toBeUndefined()
   })
 })

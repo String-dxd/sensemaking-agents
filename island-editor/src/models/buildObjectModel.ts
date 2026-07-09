@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { ObjectKind } from '../terrain/terrainGrid'
 import { hashString, mulberry32 } from './rand'
 import { modelTexture } from './textures'
+import { registerPaintedMaterial } from './textureThemes'
 
 // Stylized PROCEDURAL models built from three.js primitives — now only the
 // small ground clutter (bush, rock). The tree kinds moved to the GLB lane:
@@ -127,64 +128,43 @@ function bakeBushShade(mesh: THREE.Mesh, y0: number, y1: number, creviceDepth: n
   geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
 }
 
-// A leafy shrub (no flowers): a GRANULAR mound of overlapping leaf clumps —
-// one central mass, a ring of side clumps, and 1–2 top clumps — all sharing
-// the bush-leaves map with layered baked lighting (gradient × per-clump
-// crevice + soft sky light). Shape counts/sizes are seeded so no two bushes
-// match; deliberately small next to the ~1.7-unit trees.
+// A leafy shrub (no flowers): ONE dome, same footprint as before — the
+// "stack" lives in the LEAVES, not in piled blobs: the leaf map carries the
+// layered-leaf read, a strong scalloped displacement makes the silhouette
+// bulge like leaf clumps, and the layered bake (gradient × crevice + soft sky
+// light) shades it. Wrapped in a named 'canopy' group with a gentle windAmp
+// so the wind spring rustles it like the trees.
 function bush(rand: Rand): THREE.Object3D[] {
-  const parts: THREE.Object3D[] = []
-
-  // ONE shared material: the bush-leaves map (full-color, the sand-pipeline
-  // approach) is the surface color once loaded; until then a LEAF-green
-  // fallback tint. Vertex colors carry the hue-neutral layered lighting.
+  // The bush-leaves map (full-color, the sand-pipeline approach) is the
+  // surface color once loaded; until then a LEAF-green fallback tint. Vertex
+  // colors carry the hue-neutral layered lighting. Registered per instance
+  // with the texture-theme registry (live theme switching / textures-off);
+  // disposeObjectModel unregisters it.
   const mat = new THREE.MeshStandardMaterial({ color: LEAF, vertexColors: true, roughness: 1, metalness: 0 })
   mat.name = 'bush-foliage'
-  if (typeof document !== 'undefined') {
-    modelTexture('bush-leaves', (t) => {
-      mat.map = t
-      mat.color.set(0xffffff)
-      mat.needsUpdate = true
-    })
-  }
+  // The paint spec lets registerPaintedModel re-register this material after a
+  // StrictMode dispose/remount cycle (which unregisters it while it still renders).
+  mat.userData.paint = { map: 'bush-leaves', offTint: LEAF }
+  if (typeof document !== 'undefined') registerPaintedMaterial(mat, 'bush-leaves', 0xffffff, LEAF)
 
-  const R = 0.17 + rand() * 0.07 // overall footprint radius, 0.17..0.24
-  const lobes: THREE.Mesh[] = []
-  let topY = 0
-  const addLobe = (r: number, x: number, y: number, z: number) => {
-    const geo = new THREE.IcosahedronGeometry(r, 2)
-    lumpy(geo, rand, 0.14 * r)
-    const lobe = new THREE.Mesh(geo, mat)
-    lobe.scale.y = 0.82 + rand() * 0.12
-    lobe.position.set(x, y, z)
-    lobe.rotation.y = rand() * Math.PI
-    parts.push(lobe)
-    lobes.push(lobe)
-    topY = Math.max(topY, y + r * lobe.scale.y)
-  }
+  // Base-pivoted canopy group: the wind spring finds it by name and rocks the
+  // whole mound gently (windAmp well under the trees' — shrubs rustle, not sway).
+  const canopy = new THREE.Group()
+  canopy.name = 'canopy'
+  canopy.userData.windAmp = 0.25
 
-  // Central mass carrying the mound…
-  addLobe(R * 0.95, 0, R * 0.62, 0)
-  // …a seeded ring of side clumps…
-  const sideCount = 3 + Math.floor(rand() * 3) // 3..5
-  const ringYaw = rand() * Math.PI * 2
-  for (let i = 0; i < sideCount; i++) {
-    const az = ringYaw + (i / sideCount) * Math.PI * 2 + (rand() - 0.5) * 0.5
-    const r = R * (0.5 + rand() * 0.2)
-    addLobe(r, Math.cos(az) * R * 0.72, r * 0.7 + rand() * 0.04, Math.sin(az) * R * 0.72)
-  }
-  // …and 1–2 clumps sitting on top.
-  const topCount = 1 + Math.floor(rand() * 2)
-  for (let i = 0; i < topCount; i++) {
-    const az = rand() * Math.PI * 2
-    const r = R * (0.45 + rand() * 0.15)
-    addLobe(r, Math.cos(az) * R * 0.3, R * 1.05 + rand() * 0.05, Math.sin(az) * R * 0.3)
-  }
+  const R = 0.17 + rand() * 0.07 // same footprint as before, 0.17..0.24
+  const geo = new THREE.IcosahedronGeometry(R, 2)
+  lumpy(geo, rand, 0.24 * R) // strong scallop: the silhouette bulges like leaf clumps
+  const dome = new THREE.Mesh(geo, mat)
+  const squash = 0.66 + rand() * 0.18
+  dome.scale.set(1 + (rand() - 0.5) * 0.2, squash, 1 + (rand() - 0.5) * 0.2)
+  dome.position.y = R * 0.55
+  dome.rotation.y = rand() * Math.PI
+  bakeBushShade(dome, 0, R * 0.55 + R * squash, 0.3)
+  canopy.add(dome)
 
-  // Bake after topY is known so the gradient spans the whole mound.
-  for (const lobe of lobes) bakeBushShade(lobe, 0, topY, 0.28)
-
-  return parts
+  return [canopy]
 }
 
 // An AC boulder (reference: pale flat-topped stones with soft-rounded corners):

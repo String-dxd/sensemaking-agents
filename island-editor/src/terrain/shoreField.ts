@@ -101,5 +101,58 @@ export function shoreDistanceField(grid: TerrainGrid, worldSize: number, scale =
     data[idx] = isLand[idx] ? -magnitude : magnitude
   }
 
+  // Round the isolines: the BFS runs on a binarized mask, so every foam band in
+  // the sea shader would trace the tile outline's exact staircase. Blurring the
+  // SIGNED field rounds its contours (corners of the zero-crossing bow into
+  // arcs) while straight shores are untouched — a box average of a linear ramp
+  // is the same ramp. Radius = `scale` lattice cells = one grid tile: enough to
+  // round single-tile steps. Sign-preserving: a plain blur would average away
+  // the core of one-tile features (a lone land cell, a small pond), so each
+  // point is clamped to a small value of its original sign instead of flipping.
+  smoothField(data, isLand, res, scale, 2, latticeStep * 0.25)
+
   return { res, data }
+}
+
+/** In-place separable box blur, `passes` iterations (2 ≈ Gaussian). Clamped
+ *  edges. Radius in lattice cells. After blurring, every point is clamped to at
+ *  least `minMag` of its ORIGINAL sign (from the land mask) so smoothing never
+ *  flips land to water or vice versa — thin features keep a small core. */
+function smoothField(
+  data: Float32Array,
+  isLand: Uint8Array,
+  res: number,
+  radius: number,
+  passes: number,
+  minMag: number,
+): void {
+  const tmp = new Float32Array(data.length)
+  const norm = 1 / (2 * radius + 1)
+  for (let p = 0; p < passes; p++) {
+    for (let j = 0; j < res; j++) {
+      for (let i = 0; i < res; i++) {
+        let sum = 0
+        for (let k = -radius; k <= radius; k++) {
+          sum += data[j * res + Math.min(res - 1, Math.max(0, i + k))]
+        }
+        tmp[j * res + i] = sum * norm
+      }
+    }
+    for (let j = 0; j < res; j++) {
+      for (let i = 0; i < res; i++) {
+        let sum = 0
+        for (let k = -radius; k <= radius; k++) {
+          sum += tmp[Math.min(res - 1, Math.max(0, j + k)) * res + i]
+        }
+        data[j * res + i] = sum * norm
+      }
+    }
+  }
+  for (let idx = 0; idx < data.length; idx++) {
+    if (isLand[idx]) {
+      if (data[idx] > -minMag) data[idx] = -minMag
+    } else if (data[idx] < minMag) {
+      data[idx] = minMag
+    }
+  }
 }

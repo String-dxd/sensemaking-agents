@@ -4,7 +4,8 @@ import * as THREE from 'three'
 import type { ObjectKind } from '../terrain/terrainGrid'
 import { buildObjectModel, type ProceduralKind } from './buildObjectModel'
 import { mulberry32 } from './rand'
-import { modelTexture, type ModelTextureName } from './textures'
+import type { ModelTextureName } from './textures'
+import { registerPaintedMaterial, unregisterPaintedMaterial } from './textureThemes'
 
 // The GLB lane: tree kinds ship as authored .glb assets (built + checked in by
 // scripts/build-tree-glbs.mjs); the rest stay procedural (buildObjectModel).
@@ -31,8 +32,11 @@ const GLB_URL_LIST = Object.values(GLB_MODEL_URLS)
  *  frames aren't white; when a map takes over, `tint` multiplies it — white
  *  renders the map as painted, the bark tints pull the golden wood maps toward
  *  the browns of the AC reference trunks. */
-const SURFACE_MAPS: Record<string, { map: ModelTextureName; tint: number }> = {
-  foliage: { map: 'foliage-leaves', tint: 0xffffff },
+const SURFACE_MAPS: Record<string, { map: ModelTextureName; tint: number; offTint?: number }> = {
+  // The broadleaf crown is authored WHITE (its map carries the color), so the
+  // textures-off flat matte look needs an explicit leaf green; every other
+  // material's authored color already IS its matte fallback.
+  foliage: { map: 'foliage-leaves', tint: 0xffffff, offTint: 0x8fd062 },
   'foliage-cedar': { map: 'foliage-cedar', tint: 0xffffff },
   frond: { map: 'palm-frond', tint: 0xffffff },
   'bark-palm': { map: 'palm-trunk', tint: 0xe8d3a8 },
@@ -40,11 +44,11 @@ const SURFACE_MAPS: Record<string, { map: ModelTextureName; tint: number }> = {
   'bark-cedar': { map: 'bark-painted', tint: 0xa87a58 },
 }
 
-/** Attach the codex-painted maps to a cached GLB scene's named materials, once
- *  (guarded per material — clones share these, so this runs a single time per
- *  asset for the app's lifetime). The map + white tint land only in the
- *  texture's onReady — until then (or forever, if the file is missing) the
- *  material keeps its authored fallback tint instead of rendering black. */
+/** Register a cached GLB scene's named materials with the texture-theme
+ *  registry, once (guarded per material — clones share these, so this runs a
+ *  single time per asset for the app's lifetime). The registry applies the
+ *  active theme's map (or restores the authored fallback tint for 'off') and
+ *  re-points these materials live whenever the theme changes. */
 function attachPaintedMaps(scene: THREE.Object3D): void {
   scene.traverse((n) => {
     if (!(n instanceof THREE.Mesh)) return
@@ -54,11 +58,7 @@ function attachPaintedMaps(scene: THREE.Object3D): void {
       m.userData.painted = true
       const entry = SURFACE_MAPS[m.name]
       if (!entry) continue
-      modelTexture(entry.map, (tex) => {
-        m.map = tex
-        m.color.set(entry.tint)
-        m.needsUpdate = true
-      })
+      registerPaintedMaterial(m, entry.map, entry.tint, entry.offTint)
     }
   })
 }
@@ -122,8 +122,10 @@ export function disposeObjectModel(model: THREE.Object3D): void {
   model.traverse((n) => {
     if (!(n instanceof THREE.Mesh)) return
     n.geometry.dispose()
-    const mat = n.material
-    if (Array.isArray(mat)) mat.forEach((m) => m.dispose())
-    else mat.dispose()
+    const mats = Array.isArray(n.material) ? n.material : [n.material]
+    for (const m of mats) {
+      unregisterPaintedMaterial(m) // procedural mats (bush) are theme-registered per instance
+      m.dispose()
+    }
   })
 }

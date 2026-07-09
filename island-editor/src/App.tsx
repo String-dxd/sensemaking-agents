@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OrbitControls } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
+import { MOUSE } from 'three'
 import type { Camera, Vector3 } from 'three'
 import { createCommandStack } from './editor/commandStack'
 import { clearSaved, createAutosaver, loadSpec } from './editor/persistence'
@@ -37,6 +38,7 @@ import {
 import { CameraDock } from './ui/CameraDock'
 import { FileBar } from './ui/FileBar'
 import { ModelPanel } from './ui/ModelPanel'
+import { StylePanel } from './ui/StylePanel'
 import { type BrushSize, type Tool, ToolPanel } from './ui/ToolPanel'
 
 const SAVED = loadSpec()
@@ -58,7 +60,7 @@ export function App() {
   const [tool, setTool] = useState<Tool>('raise')
   const [brushSize, setBrushSize] = useState<BrushSize>(1)
   const [orbitEnabled, setOrbitEnabled] = useState(true)
-  // Hold-Space: drags orbit the camera instead of painting.
+  // Hold-Cmd: drags orbit the camera instead of painting.
   const [cameraMode, setCameraMode] = useState(false)
 
   // Object placement: an armed kind (null = not placing). While armed, the
@@ -280,9 +282,10 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [undo, redo])
 
-  // ── Hold-Space to orbit ───────────────────────────────────────────────────────
-  // While Space is held, drags fall through to OrbitControls (see IslandTerrain's
-  // cameraMode guard). blur clears it so a lost focus can't leave it stuck on.
+  // ── Hold-Cmd to orbit ─────────────────────────────────────────────────────────
+  // While Cmd (or Ctrl) is held, drags fall through to OrbitControls (see
+  // IslandTerrain's cameraMode guard). blur clears it so a lost focus can't
+  // leave it stuck on.
   useEffect(() => {
     const inEditable = (t: EventTarget | null) => {
       const el = t as HTMLElement | null
@@ -291,17 +294,15 @@ export function App() {
       )
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.code !== 'Space' ||
-        inEditable(e.target) ||
-        (e.target as HTMLElement | null)?.tagName === 'BUTTON'
-      )
-        return
-      e.preventDefault() // stop the page from scrolling on Space
+      // Cmd (Meta) held = camera mode; Ctrl works too for non-mac keyboards.
+      // Cmd+Z / Cmd+Shift+Z still reach the undo handler — camera mode only
+      // matters while a pointer drag is in progress.
+      if (e.key !== 'Meta' && e.key !== 'Control') return
+      if (inEditable(e.target)) return
       setCameraMode(true)
     }
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === 'Space') setCameraMode(false)
+      if (e.key === 'Meta' || e.key === 'Control') setCameraMode(false)
     }
     const onBlur = () => setCameraMode(false)
     window.addEventListener('keydown', onKeyDown)
@@ -420,6 +421,12 @@ export function App() {
           ref={setControls}
           makeDefault
           enabled={orbitEnabled || cameraMode}
+          // Drag = PAN, never orbit — rotation happens only via the CameraDock
+          // buttons/presets. Ground-plane panning (not screen-space) so the
+          // island slides under the camera without changing altitude.
+          enableRotate={false}
+          screenSpacePanning={false}
+          mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
           minDistance={4}
           maxDistance={120}
         />
@@ -451,6 +458,7 @@ export function App() {
         onRecenter={recenter}
       />
       <FileBar onExport={exportSpec} onImport={openImport} onReset={reset} />
+      <StylePanel />
       <ModelPanel placeKind={placeKind} onPick={onPick} />
     </div>
   )

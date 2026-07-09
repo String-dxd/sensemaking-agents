@@ -21,7 +21,7 @@ interface CameraDockProps {
 }
 
 /** Bottom-right camera dock: view presets + rotate/zoom/recenter nudges, with a
- *  muted caption for the hold-Space orbit gesture. */
+ *  muted caption for the hold-Cmd orbit gesture. */
 export function CameraDock({
   onDesignerView,
   onTopView,
@@ -56,7 +56,7 @@ export function CameraDock({
           <RecenterIcon />
         </IconButton>
       </div>
-      <div className="camera-dock__hint">Hold Space to orbit</div>
+      <div className="camera-dock__hint">Hold ⌘ to pan</div>
     </div>
   )
 }

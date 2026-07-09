@@ -1,8 +1,10 @@
 import { Suspense, useEffect } from 'react'
 import { OrbitControls, Text } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
+import { registerPaintedModel } from '../models/textureThemes'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { OBJECT_KINDS, type ObjectKind } from '../terrain/terrainGrid'
+import { StylePanel } from '../ui/StylePanel'
 import { useCanopyWind } from './useCanopyWind'
 
 // Dev-only view (gated behind `?gallery` in main.tsx): lays out every ObjectKind
@@ -24,7 +26,12 @@ function GalleryModel({
   position: [number, number, number]
 }) {
   const model = useObjectModel(kind, seed)
-  useEffect(() => () => disposeObjectModel(model), [model])
+  // Same StrictMode guard as PlacedObjectMesh: re-register painted materials on
+  // mount so the probe-cycle dispose doesn't freeze them out of theme switches.
+  useEffect(() => {
+    registerPaintedModel(model)
+    return () => disposeObjectModel(model)
+  }, [model])
 
   // Spring-damper wind on the crown (same hook as PlacedObjects): the gallery
   // position feeds the traveling gust front, so gusts visibly sweep the rows.
@@ -77,6 +84,7 @@ export function ModelGallery() {
 
         <OrbitControls target={[0, 0.6, 0]} />
       </Canvas>
+      <StylePanel />
     </div>
   )
 }
