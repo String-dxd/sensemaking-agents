@@ -610,17 +610,17 @@ interface WingSpec {
 }
 
 function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; root: Vec3; tip: Vec3 } {
-  // round 9: the folded wing sweeps DOWN-BACK along the flank toward the tail
-  // root (the AC fold), not down-forward like the canonical arm chain. The
-  // mesh path gets a progressive rearward bias; the bones stay where they
-  // are, so walk/wave/sit clips are untouched.
-  const sh = add(V(j.upperArmL), [0, 0, -0.012])
-  const el = add(V(j.foreArmL), [0, 0, -0.045])
-  const wr = add(V(j.handL), [0, 0, -0.11])
-  const dirWr = dirTo(el, wr)
-  const tipPt = add(wr, vec.scale(dirWr, spec.ext))
-  const L = vec.len(vec.sub(el, sh)) + vec.len(vec.sub(wr, el)) + spec.ext
-  const path = smoothPath([sh, el, wr, tipPt], 40)
+  // round 9 rev 2 (operator): the folded wing hangs STRAIGHT DOWN from the
+  // shoulder — no forward drift, no tail sweep. Narrow where it meets the
+  // shoulder, wider AND thicker toward the bottom (teardrop), ending in
+  // stepped feather tips that extend past the plate's bottom edge so they
+  // read in silhouette from BOTH faces (the old wrist-fan cards sat between
+  // plate and body and got clipped).
+  const sh = V(j.upperArmL)
+  const dSE = vec.len(vec.sub(V(j.foreArmL), sh))
+  const dEW = vec.len(vec.sub(V(j.handL), V(j.foreArmL)))
+  const L = dSE + dEW + spec.ext
+  const tipPt: Vec3 = [sh[0], sh[1] - L, sh[2]]
 
   // flank-hug clamp (outward only): the plate may never sink into the egg
   const bird = ARCHETYPES_DEF.bird
@@ -652,35 +652,45 @@ function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; ro
   }
 
   const shells: SurfacePiece[] = []
-  // main plate: authored straight up from the shoulder, bent onto the chain
-  const plate = closedCapsule('wingPlate', sh, add(sh, [0, L, 0]), spec.rootR, spec.tipR, 10, 14, 0.012)
-  scaleX(plate, sh[0], spec.flat)
-  bendChain(plate.pos, sh, L, path)
+  // main plate: a vertical teardrop — narrow at the shoulder, widening toward
+  // the bottom (closedCapsule radii), and THICKER toward the bottom too (the
+  // x-flatten factor grows with v01 instead of being uniform).
+  const plate = closedCapsule('wingPlate', sh, tipPt, spec.rootR, spec.tipR, 10, 14, 0.012)
+  for (let i = 0; i < vertexCount(plate); i++) {
+    const v01 = plate.params[i * 2 + 1]
+    const f = spec.flat * (0.65 + 0.55 * v01)
+    plate.pos[i * 3] = sh[0] + (plate.pos[i * 3] - sh[0]) * f
+    // squash the bottom hemisphere cap: the plate ends in a soft flat edge so
+    // the stepped feather tips below it stay proud instead of swallowed
+    const py = plate.pos[i * 3 + 1]
+    if (py < tipPt[1]) plate.pos[i * 3 + 1] = tipPt[1] + (py - tipPt[1]) * 0.25
+  }
   if (curl > 0) {
     for (let i = 0; i < vertexCount(plate); i++) {
       const v01 = plate.params[i * 2 + 1]
       plate.pos[i * 3] += v01 * v01 * curl
     }
   }
-  const dSE = vec.len(vec.sub(el, sh))
-  const dEW = vec.len(vec.sub(wr, el))
   chainWeightsPiece(plate, ARM_L, [dSE / L, (dSE + dEW) / L], 0.12)
   setChannelFn(plate, CH_ACCENT, (i) => smoothstep(0.82, 0.94, plate.params[i * 2 + 1]))
   hug(plate, 0.012)
   shells.push(plate)
 
-  // feather fingers: short overlapping scallops fanning down-back from the
-  // wrist — the AC folded-wing tip read
+  // stepped feather tips: flat rounded lobes fanned front→back across the
+  // plate's bottom edge, each extending BELOW it (rear-most longest) so the
+  // scallops read in silhouette from both faces instead of being clipped
+  // against the flank.
   for (let f = 0; f < spec.fingers; f++) {
     const t01 = spec.fingers === 1 ? 0.5 : f / (spec.fingers - 1)
-    const dir = vec.norm([0, -1, -0.12 - 0.38 * t01])
-    const base: Vec3 = [wr[0], wr[1] + 0.02, wr[2] + 0.01 - 0.02 * t01]
-    const finger = closedCapsule(`wingF${f}`, base, add(base, vec.scale(dir, spec.fingerLen)), spec.tipR * 0.42, spec.tipR * 0.5, 8, 7, 0.006)
-    scaleX(finger, base[0], spec.flat * 0.9)
+    const zOff = (0.5 - t01) * spec.tipR * 1.5
+    const len = spec.fingerLen * (0.7 + 0.5 * t01)
+    const base: Vec3 = [sh[0], sh[1] - L + len * 0.35, sh[2] + zOff]
+    const finger = closedCapsule(`wingF${f}`, base, add(base, [0, -len, 0]), spec.tipR * 0.4, spec.tipR * 0.32, 8, 7, 0.006)
+    scaleX(finger, sh[0], spec.flat * 1.1)
     const n = vertexCount(finger)
     finger.weights.set('handL', new Array(n).fill(1))
     setChannelFn(finger, CH_SECONDARY, (i) => (finger.params[i * 2 + 1] > 0.45 ? 0.85 : 0))
-    hug(finger, 0.016)
+    hug(finger, 0.012)
     shells.push(finger)
   }
   return { shells, root: sh, tip: tipPt }
@@ -698,19 +708,19 @@ function pairWing(name: string, j: J, spec: WingSpec, curl = 0): PartMesh[] {
 }
 
 function wingRound(j: J): PartMesh[] {
-  // default songbird/chicken: a slim little arm-wing
-  return pairWing('wing-round', j, { rootR: 0.022, tipR: 0.05, flat: 0.35, ext: 0.05, fingers: 3, fingerLen: 0.085 })
+  // default songbird/chicken: teardrop — narrow shoulder, wide round bottom
+  return pairWing('wing-round', j, { rootR: 0.02, tipR: 0.068, flat: 0.42, ext: 0.05, fingers: 3, fingerLen: 0.07 })
 }
 
 function wingEagle(j: J): PartMesh[] {
   // eagle/owl/peacock: bigger and THICKER (the raptor bulk the operator asked
-  // for) with a longer feather-finger fan
-  return pairWing('wing-eagle', j, { rootR: 0.03, tipR: 0.066, flat: 0.5, ext: 0.1, fingers: 4, fingerLen: 0.115 })
+  // for) with a longer stepped-tip fan
+  return pairWing('wing-eagle', j, { rootR: 0.026, tipR: 0.088, flat: 0.55, ext: 0.1, fingers: 4, fingerLen: 0.09 })
 }
 
 function wingFlipper(j: J): PartMesh[] {
   // penguin: one smooth flat paddle, no fingers, slight outward curl
-  return pairWing('wing-flipper', j, { rootR: 0.03, tipR: 0.048, flat: 0.45, ext: 0.06, fingers: 0, fingerLen: 0 }, 0.035)
+  return pairWing('wing-flipper', j, { rootR: 0.028, tipR: 0.06, flat: 0.45, ext: 0.06, fingers: 0, fingerLen: 0 }, 0.035)
 }
 
 // claws + bird legs ------------------------------------------------------------
