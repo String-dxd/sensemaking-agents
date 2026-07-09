@@ -254,8 +254,23 @@ describe('plan 023 wing part family', () => {
       }
       return minY
     }
+    // round 9 rev 3: every wing is ONE carved teardrop (same topology), so
+    // slimness is a front-to-back width fact, not a tri-count fact.
+    const zWidth = (id: string): number => {
+      let minZ = Infinity
+      let maxZ = -Infinity
+      for (const m of meshes(buildProceduralPart(id))) {
+        const p = m.geometry.getAttribute('position')
+        for (let i = 0; i < p.count; i++) {
+          if (p.getX(i) < 0) continue // one side only
+          minZ = Math.min(minZ, p.getZ(i))
+          maxZ = Math.max(maxZ, p.getZ(i))
+        }
+      }
+      return maxZ - minZ
+    }
     expect(low('wing-eagle')).toBeLessThan(low('wing-round'))
-    expect(triCount(buildProceduralPart('wing-flipper'))).toBeLessThan(triCount(buildProceduralPart('wing-round')))
+    expect(zWidth('wing-flipper')).toBeLessThan(zWidth('wing-round'))
   })
 
   it('pickers list the three wing variants for birds', () => {
