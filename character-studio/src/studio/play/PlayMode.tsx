@@ -30,6 +30,7 @@ import { mulberry32 } from '../../core/motion/noise'
 import { createTalkDriver, makeSpeechSynthAmplitude } from '../../core/motion/talkDriver'
 import { CANONICAL_BONES } from '../../core/skeleton/canonical'
 import { useMotionStudio } from '../state/studioStores'
+import { useCharacterStore } from '../state/characterStore'
 import { useFaceRigStore } from '../viewport/FaceRig'
 import { usePlayStore } from './playStore'
 
@@ -98,6 +99,16 @@ function PlayModeDriver() {
 
     // Clips own hips position + head rotation now; keep only breath.
     idle?.setChannels({ headBob: false, sway: false, microTurn: false })
+
+    // ---- bird sit adaptation (round 7) ---------------------------------------
+    // The shared sit clip folds mammal legs; on the bird's half-scale stick
+    // legs the folded tips dig below the floor and the sit reads legless.
+    // While seated, blend the thighs toward horizontal (legs point forward
+    // out of the egg — the AC toy sit), undo the shin fold, and clamp the
+    // hips drop so the egg rests ON the pedestal instead of through it.
+    const isBird = useCharacterStore.getState().spec.meta.archetype === 'bird'
+    const DEG = Math.PI / 180
+    let sitW = 0
     // Re-entering play (or reassembling mid-play) resumes the requested state.
     const startState = usePlayStore.getState().desiredState
     if (startState !== 'idle') machine.setState(startState)
@@ -158,6 +169,30 @@ function PlayModeDriver() {
       }
       machine.setLocomotionTimeScale(locomotion.getGaitTimeScale())
       machine.update(dt)
+
+      if (isBird) {
+        const target = desired === 'sit' ? 1 : 0
+        sitW += (target - sitW) * (1 - Math.exp(-dt / 0.18))
+        if (sitW > 1e-3) {
+          for (const side of ['L', 'R'] as const) {
+            const splay = (side === 'L' ? 1 : -1) * 14 * DEG
+            const upper = boneByName.get(`upperLeg${side}`)
+            const lower = boneByName.get(`lowerLeg${side}`)
+            const foot = boneByName.get(`foot${side}`)
+            if (upper) {
+              upper.rotation.x -= 46 * DEG * sitW // past horizontal — toes tip up
+              upper.rotation.z += splay * sitW // little V-spread, the AC toy sit
+            }
+            if (lower) lower.rotation.x -= 30 * DEG * sitW
+            if (foot) foot.rotation.x -= 10 * DEG * sitW
+          }
+          const hips = boneByName.get('hips')
+          if (hips) {
+            const minY = hipsRest[1] * 0.66
+            if (hips.position.y < minY) hips.position.y += (minY - hips.position.y) * sitW
+          }
+        }
+      }
 
       // Talk driver lifecycle follows the desired state.
       if (desired === 'talk' && !talk.isTalking()) talk.start(makeSpeechSynthAmplitude(mulberry32(SOAK_SEED + 7)))

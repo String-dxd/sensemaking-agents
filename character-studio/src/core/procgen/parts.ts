@@ -625,13 +625,25 @@ function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; ro
   const tX = jb.upperArmL[0] - u * j.upperArmL[0]
   const tY = jb.upperArmL[1] - u * j.upperArmL[1]
   const dims = birdTrunkDims(jb, bird.headRadius * u)
+  // Ring-uniform hug (round 7): the old per-vertex clamp flattened the
+  // plate's inner face against the egg while the outer face stayed — the
+  // wing read as sunk INTO the body (worst on the owl). Each cross-section
+  // ring now shifts outward AS A WHOLE by the offset its innermost vertex
+  // needs, so the plate keeps its authored shape while riding the flank.
   const hug = (piece: SurfacePiece, clearance: number): void => {
+    const need = new Map<number, number>()
     for (let i = 0; i < vertexCount(piece); i++) {
       const v01 = piece.params[i * 2 + 1]
       const yW = piece.pos[i * 3 + 1] * u + tY
       const minX = (birdFlankX(dims, yW) + clearance - tX) / u
-      const blend = smoothstep(0.06, 0.3, v01)
-      if (piece.pos[i * 3] < minX) piece.pos[i * 3] += (minX - piece.pos[i * 3]) * blend
+      const gap = minX - piece.pos[i * 3]
+      const key = Math.round(v01 * 1000)
+      if (gap > (need.get(key) ?? 0)) need.set(key, gap)
+    }
+    for (let i = 0; i < vertexCount(piece); i++) {
+      const v01 = piece.params[i * 2 + 1]
+      const offset = need.get(Math.round(v01 * 1000)) ?? 0
+      if (offset > 0) piece.pos[i * 3] += offset * smoothstep(0.06, 0.3, v01)
     }
   }
 
@@ -652,6 +664,32 @@ function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; ro
   setChannelFn(plate, CH_ACCENT, (i) => smoothstep(0.82, 0.94, plate.params[i * 2 + 1]))
   hug(plate, 0.012)
   shells.push(plate)
+
+  // layered covert rows riding the OUTER face of the plate — the AC folded
+  // wing reads as 2 overlapping feather ledges before the tip scallops
+  if (spec.fingers > 0) {
+    const rows: Array<{ t: number; count: number; len: number; layer: number }> = [
+      { t: 0.42, count: 3, len: 0.085, layer: 0.012 },
+      { t: 0.66, count: 4, len: 0.095, layer: 0.006 },
+    ]
+    for (const row of rows) {
+      const anchor = path[Math.min(path.length - 1, Math.round(row.t * (path.length - 1)))]
+      for (let f = 0; f < row.count; f++) {
+        const t01 = row.count === 1 ? 0.5 : f / (row.count - 1)
+        const dir = vec.norm([0, -1, 0.16 - 0.34 * t01])
+        const base: Vec3 = [anchor[0] + row.layer, anchor[1] + 0.02, anchor[2] + 0.02 - 0.035 * t01]
+        const cov = closedCapsule(`wingC${row.t}f${f}`, base, add(base, vec.scale(dir, row.len)), spec.tipR * 0.34, spec.tipR * 0.46, 8, 6, 0.004)
+        scaleX(cov, base[0], spec.flat * 0.85)
+        const n = vertexCount(cov)
+        // ride whichever chain zone the anchor sits in
+        const bone = row.t < 0.5 ? 'foreArmL' : 'handL'
+        cov.weights.set(bone, new Array(n).fill(1))
+        setChannelFn(cov, CH_SECONDARY, (i) => smoothstep(0.55, 0.85, cov.params[i * 2 + 1]) * 0.8)
+        hug(cov, 0.02)
+        shells.push(cov)
+      }
+    }
+  }
 
   // feather fingers: short overlapping scallops fanning down-back from the
   // wrist — the AC folded-wing tip read
@@ -780,6 +818,24 @@ function birdLegSide(j: J, side: 'L' | 'R', webbed: boolean): SurfacePiece[] {
     setChannelAll(web, CH_ACCENT, 1)
     shells.push(web)
   } else {
+    // foot arch wedge: the AC foot has a small instep the toes SPLIT from,
+    // rather than three fingers poking straight out of the ankle
+    const wedge = closedCapsule(
+      `instep${side}`,
+      [ankleRef[0], soleY + lift * 1.25, ankleRef[2] + heelZ - 0.004],
+      [ankleRef[0], soleY + lift * 0.9, ankleRef[2] + heelZ + 0.05],
+      toeR * 1.5,
+      toeR * 1.15,
+      10,
+      6,
+      0,
+      0.5,
+    )
+    flatY(wedge, soleY + lift, 0.72)
+    const wn = vertexCount(wedge)
+    wedge.weights.set(footBone, new Array(wn).fill(1))
+    setChannelAll(wedge, CH_ACCENT, 1)
+    shells.push(wedge)
     toe(`toeMid${side}`, 0, 0.1, toeR)
     toe(`toeIn${side}`, -32, 0.09, toeR * 0.86)
     toe(`toeOut${side}`, 32, 0.09, toeR * 0.86)

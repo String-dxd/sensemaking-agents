@@ -115,7 +115,12 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
       ...legs(0.5),
       ...spineChain(1.05),
       // round 5: the arm chain IS the wing skeleton now — near-vertical
-      // (x pulled in) and longer, so the skinned wing hangs like a small arm
+      // (x pulled in) and longer, so the skinned wing hangs like a small arm.
+      // round 7: shoulders ride HIGH on the egg (AC folded wings start at
+      // the neck line, not mid-body) — the shoulder offset from the chest
+      // is stretched upward and tucked inward.
+      shoulderL: [0.8, 2.7, 1],
+      shoulderR: [0.8, 2.7, 1],
       ...arms([0.8, 0.95, 1]),
       'tail.1': [1, 0.6, 1.1],
       'tail.2': [1, 0.6, 1.1],
