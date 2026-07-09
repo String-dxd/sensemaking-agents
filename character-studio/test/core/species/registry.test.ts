@@ -107,4 +107,19 @@ describe('species registry', () => {
       expect(existsSync(fileURLToPath(url as string)), `${url} exists on disk`).toBe(true)
     }
   })
+
+  it('every species with paletteVariants has variant #0 deep-equal to its preset palette (plan 021 step 3, the "default" swatch)', () => {
+    const withVariants = SPECIES_IDS.filter((id) => (SPECIES_REGISTRY[id] as SpeciesDef).paletteVariants)
+    // plan 021: at least the 8 bird species carry variants.
+    expect(withVariants.sort()).toEqual(
+      ['bowerbird', 'chicken', 'duckling', 'eagle', 'owl', 'peacock', 'penguin', 'robin'].sort(),
+    )
+    for (const id of withVariants) {
+      const def = SPECIES_REGISTRY[id] as SpeciesDef
+      const variants = def.paletteVariants
+      expect(variants, `${id} has variants`).toBeDefined()
+      expect(variants?.length ?? 0, `${id} has at least 3 variants`).toBeGreaterThanOrEqual(3)
+      expect(variants?.[0]?.palette, `${id} variant #0 equals preset palette`).toEqual(def.palette)
+    }
+  })
 })

@@ -55,6 +55,12 @@ export interface SpeciesDef {
   /** Bird-archetype silhouette overrides (plan 017); ignored for mammals. */
   birdShape?: Partial<BirdBodyShape>
   personality: Personality
+  /**
+   * Mii-style color swatch row (plan 021 step 3): curated full-palette
+   * recolors a player can one-tap apply. Variant #0 MUST equal `palette`
+   * above exactly (the "default" swatch) — enforced by a registry test.
+   */
+  paletteVariants?: ReadonlyArray<{ id: string; label: string; palette: CharacterSpec['palette'] }>
 }
 
 export const SPECIES_REGISTRY = {
@@ -210,6 +216,44 @@ export const SPECIES_REGISTRY = {
       padsNose: '#5a4636',
     },
     personality: 'cheerful',
+    paletteVariants: [
+      {
+        id: 'classic',
+        label: 'Classic',
+        palette: {
+          primary: '#8a6f5a',
+          secondary: '#6f5847',
+          belly: '#e2653f',
+          accentA: '#f2c23e',
+          accentB: '#4a3a2e',
+          padsNose: '#5a4636',
+        },
+      },
+      {
+        id: 'blue-jay',
+        label: 'Blue Jay',
+        palette: {
+          primary: '#3a6fb5',
+          secondary: '#294f85',
+          belly: '#e8ecf2',
+          accentA: '#1e1e1e',
+          accentB: '#294f85',
+          padsNose: '#3a2a20',
+        },
+      },
+      {
+        id: 'gold',
+        label: 'Gold',
+        palette: {
+          primary: '#d9a23a',
+          secondary: '#b8842a',
+          belly: '#f2c23e',
+          accentA: '#8a3a2a',
+          accentB: '#5a4020',
+          padsNose: '#5a4020',
+        },
+      },
+    ],
   },
   owl: {
     id: 'owl',
@@ -236,6 +280,44 @@ export const SPECIES_REGISTRY = {
       padsNose: '#5a4636',
     },
     personality: 'proud',
+    paletteVariants: [
+      {
+        id: 'classic',
+        label: 'Classic',
+        palette: {
+          primary: '#7d5a3e',
+          secondary: '#5d4430',
+          belly: '#f0e4c8',
+          accentA: '#e8b23a',
+          accentB: '#3a2c20',
+          padsNose: '#5a4636',
+        },
+      },
+      {
+        id: 'snowy',
+        label: 'Snowy',
+        palette: {
+          primary: '#eef1f4',
+          secondary: '#d3d9e0',
+          belly: '#ffffff',
+          accentA: '#2a2a2a',
+          accentB: '#b8c0c9',
+          padsNose: '#c9a23a',
+        },
+      },
+      {
+        id: 'barn',
+        label: 'Barn',
+        palette: {
+          primary: '#c98a4a',
+          secondary: '#a8703a',
+          belly: '#f7ecd8',
+          accentA: '#5a3a26',
+          accentB: '#8a5a34',
+          padsNose: '#3a2a20',
+        },
+      },
+    ],
   },
   duckling: {
     id: 'duckling',
@@ -262,6 +344,44 @@ export const SPECIES_REGISTRY = {
       padsNose: '#b8742a',
     },
     personality: 'cheerful',
+    paletteVariants: [
+      {
+        id: 'classic',
+        label: 'Classic',
+        palette: {
+          primary: '#f2d349',
+          secondary: '#e8c53e',
+          belly: '#faeaa8',
+          accentA: '#f0913a',
+          accentB: '#c9a23a',
+          padsNose: '#b8742a',
+        },
+      },
+      {
+        id: 'chocolate',
+        label: 'Chocolate',
+        palette: {
+          primary: '#8a5a34',
+          secondary: '#6f4526',
+          belly: '#d9b98f',
+          accentA: '#f0913a',
+          accentB: '#4a3020',
+          padsNose: '#3a2a20',
+        },
+      },
+      {
+        id: 'silver',
+        label: 'Silver',
+        palette: {
+          primary: '#c9ccd2',
+          secondary: '#a8adb8',
+          belly: '#eef0f4',
+          accentA: '#f0913a',
+          accentB: '#7a808a',
+          padsNose: '#b8742a',
+        },
+      },
+    ],
   },
   eagle: {
     id: 'eagle',
@@ -288,6 +408,44 @@ export const SPECIES_REGISTRY = {
       padsNose: '#5a4636',
     },
     personality: 'proud',
+    paletteVariants: [
+      {
+        id: 'classic',
+        label: 'Classic',
+        palette: {
+          primary: '#6b4a34',
+          secondary: '#4e3626',
+          belly: '#f4efe4',
+          accentA: '#f2c23e',
+          accentB: '#2e2019',
+          padsNose: '#5a4636',
+        },
+      },
+      {
+        id: 'golden',
+        label: 'Golden',
+        palette: {
+          primary: '#8a6a3a',
+          secondary: '#6f5228',
+          belly: '#c9a862',
+          accentA: '#f2c23e',
+          accentB: '#3a2a18',
+          padsNose: '#5a4020',
+        },
+      },
+      {
+        id: 'dark-morph',
+        label: 'Dark Morph',
+        palette: {
+          primary: '#3a2c22',
+          secondary: '#241a14',
+          belly: '#6f5236',
+          accentA: '#f2c23e',
+          accentB: '#1a120c',
+          padsNose: '#2a2018',
+        },
+      },
+    ],
   },
   penguin: {
     id: 'penguin',
@@ -314,6 +472,44 @@ export const SPECIES_REGISTRY = {
       padsNose: '#111722',
     },
     personality: 'calm',
+    paletteVariants: [
+      {
+        id: 'classic',
+        label: 'Classic',
+        palette: {
+          primary: '#2e3a52',
+          secondary: '#1f2938',
+          belly: '#f7f4ec',
+          accentA: '#f0913a',
+          accentB: '#111722',
+          padsNose: '#111722',
+        },
+      },
+      {
+        id: 'emperor',
+        label: 'Emperor',
+        palette: {
+          primary: '#1c2230',
+          secondary: '#10141c',
+          belly: '#fdf8e8',
+          accentA: '#f2c23e',
+          accentB: '#0a0d12',
+          padsNose: '#0a0d12',
+        },
+      },
+      {
+        id: 'gentoo',
+        label: 'Gentoo',
+        palette: {
+          primary: '#38455e',
+          secondary: '#252f42',
+          belly: '#f2efe4',
+          accentA: '#e85a3a',
+          accentB: '#151a24',
+          padsNose: '#e85a3a',
+        },
+      },
+    ],
   },
   chicken: {
     id: 'chicken',
@@ -340,6 +536,44 @@ export const SPECIES_REGISTRY = {
       padsNose: '#8a3a2a',
     },
     personality: 'cheerful',
+    paletteVariants: [
+      {
+        id: 'classic',
+        label: 'Classic',
+        palette: {
+          primary: '#f7f2e8',
+          secondary: '#d94f3a',
+          belly: '#efe6d2',
+          accentA: '#f2c23e',
+          accentB: '#8a3a2a',
+          padsNose: '#8a3a2a',
+        },
+      },
+      {
+        id: 'black',
+        label: 'Black',
+        palette: {
+          primary: '#2a2a2e',
+          secondary: '#d94f3a',
+          belly: '#3f3f45',
+          accentA: '#f2c23e',
+          accentB: '#8a3a2a',
+          padsNose: '#8a3a2a',
+        },
+      },
+      {
+        id: 'buff',
+        label: 'Buff',
+        palette: {
+          primary: '#e8c07a',
+          secondary: '#c9975a',
+          belly: '#f7ecd8',
+          accentA: '#f2c23e',
+          accentB: '#8a5a34',
+          padsNose: '#8a3a2a',
+        },
+      },
+    ],
   },
   peacock: {
     id: 'peacock',
@@ -366,6 +600,44 @@ export const SPECIES_REGISTRY = {
       padsNose: '#173a7a',
     },
     personality: 'proud',
+    paletteVariants: [
+      {
+        id: 'classic',
+        label: 'Classic',
+        palette: {
+          primary: '#2f5bb5',
+          secondary: '#2e8a5a',
+          belly: '#dff0e8',
+          accentA: '#f2c23e',
+          accentB: '#173a7a',
+          padsNose: '#173a7a',
+        },
+      },
+      {
+        id: 'white',
+        label: 'White',
+        palette: {
+          primary: '#f4f2ec',
+          secondary: '#e2ddd0',
+          belly: '#ffffff',
+          accentA: '#f2c23e',
+          accentB: '#c9c2b0',
+          padsNose: '#c9c2b0',
+        },
+      },
+      {
+        id: 'java-green',
+        label: 'Java Green',
+        palette: {
+          primary: '#2e8a5a',
+          secondary: '#246b46',
+          belly: '#cde8d6',
+          accentA: '#f2c23e',
+          accentB: '#173a2a',
+          padsNose: '#173a2a',
+        },
+      },
+    ],
   },
   bowerbird: {
     id: 'bowerbird',
@@ -391,6 +663,44 @@ export const SPECIES_REGISTRY = {
       padsNose: '#4a4f6a',
     },
     personality: 'mischievous',
+    paletteVariants: [
+      {
+        id: 'classic',
+        label: 'Classic',
+        palette: {
+          primary: '#23283f',
+          secondary: '#3a4470',
+          belly: '#2c3352',
+          accentA: '#dfe3ea',
+          accentB: '#7a5ac9',
+          padsNose: '#4a4f6a',
+        },
+      },
+      {
+        id: 'regent',
+        label: 'Regent',
+        palette: {
+          primary: '#1c1a18',
+          secondary: '#f2c23e',
+          belly: '#2a2622',
+          accentA: '#f2d97a',
+          accentB: '#0c0a08',
+          padsNose: '#3a2a10',
+        },
+      },
+      {
+        id: 'spotted',
+        label: 'Spotted',
+        palette: {
+          primary: '#6f5738',
+          secondary: '#8a7350',
+          belly: '#d9c9a8',
+          accentA: '#e8d9b8',
+          accentB: '#3a2c1e',
+          padsNose: '#3a2c1e',
+        },
+      },
+    ],
   },
 } as const satisfies Record<string, SpeciesDef>
 

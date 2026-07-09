@@ -11,7 +11,8 @@ import {
 } from '../../core/spec/schema'
 import { PanelSection } from '../shell/PanelSection'
 import { useCharacterStore } from '../state/characterStore'
-import { FALLBACK_ASSIGN, useToonStudio } from '../state/studioStores'
+import { FALLBACK_ASSIGN, useAdvancedMode, useToonStudio } from '../state/studioStores'
+import { PatternCards, SwatchRow } from './SwatchRow'
 
 // Material & palette control panel (plan 005, step 5). Every control writes
 // through the characterStore's `patch` — the viewport picks changes up via
@@ -86,6 +87,8 @@ export function MaterialPanel() {
   const setRegion = useSelectedRegion((s) => s.setRegion)
   const terminatorWarmth = useToonStudio((s) => s.terminatorWarmth)
   const setTerminatorWarmth = useToonStudio((s) => s.setTerminatorWarmth)
+  const advanced = useAdvancedMode((s) => s.advanced)
+  const setAdvanced = useAdvancedMode((s) => s.setAdvanced)
 
   const assign = materials[region] ?? FALLBACK_ASSIGN
 
@@ -103,103 +106,125 @@ export function MaterialPanel() {
   }
 
   return (
-    <PanelSection title="Material">
-      <div style={labelColStyle}>
-        <span style={{ opacity: 0.7 }}>Palette</span>
-        {PALETTE_SLOTS.map((slot) => (
-          <label key={slot} style={rowStyle}>
-            <input type="color" value={palette[slot]} onChange={(e) => setPaletteSlot(slot, e.target.value)} />
-            <span>{PALETTE_LABELS[slot]}</span>
-          </label>
-        ))}
-      </div>
-
-      <label style={labelColStyle}>
-        <span style={{ opacity: 0.7 }}>Region</span>
-        <select style={selectStyle} value={region} onChange={(e) => setRegion(e.target.value as Region)}>
-          {REGIONS.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label style={labelColStyle}>
-        <span>Ramp softness: {assign.rampSoftness.toFixed(2)}</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={assign.rampSoftness}
-          onChange={(e) => setAssign({ rampSoftness: Number(e.target.value) })}
-        />
-      </label>
-
-      <label style={labelColStyle}>
-        <span>Rim strength: {assign.rimStrength.toFixed(2)}</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={assign.rimStrength}
-          onChange={(e) => setAssign({ rimStrength: Number(e.target.value) })}
-        />
-      </label>
-
-      <label style={rowStyle}>
-        <input type="color" value={assign.shadowTint} onChange={(e) => setAssign({ shadowTint: e.target.value })} />
-        <span>Shadow tint</span>
-      </label>
-
-      <label style={labelColStyle}>
-        <span>
-          Terminator warmth: {terminatorWarmth.toFixed(2)} <em style={{ opacity: 0.6 }}>(studio, all regions)</em>
-        </span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={terminatorWarmth}
-          onChange={(e) => setTerminatorWarmth(Number(e.target.value))}
-        />
-      </label>
-
-      <label style={rowStyle}>
-        <input
-          type="checkbox"
-          checked={assign.outline ?? false}
-          onChange={(e) => setAssign({ outline: e.target.checked })}
-        />
-        Outline
-      </label>
-
-      <label style={labelColStyle}>
-        <span style={{ opacity: 0.7 }}>Texture</span>
-        <select
-          style={selectStyle}
-          value={assign.textureId ?? 'none'}
-          onChange={(e) => {
-            const id = e.target.value
-            rafPatch((draft) => {
-              const current = draft.materials[region] ?? FALLBACK_ASSIGN
-              const next = { ...current }
-              if (id === 'none') delete next.textureId
-              else next.textureId = id
-              draft.materials = { ...draft.materials, [region]: next }
-            })
-          }}
+    <PanelSection
+      title="Material"
+      actions={
+        <button
+          type="button"
+          style={{ ...selectStyle, cursor: 'pointer' }}
+          aria-expanded={advanced}
+          onClick={() => setAdvanced(!advanced)}
         >
-          {TEXTURE_IDS.map((id) => (
-            <option key={id} value={id}>
-              {id}
-            </option>
-          ))}
-        </select>
-      </label>
+          {advanced ? 'Advanced ▾' : 'Advanced ▸'}
+        </button>
+      }
+    >
+      {/* Default view (plan 021 steps 3/4): color swatches + pattern cards,
+          both one-tap and undoable. Raw palette/material editing moves to
+          Advanced below. */}
+      <SwatchRow />
+      <PatternCards />
+
+      {advanced ? (
+        <>
+          <div style={labelColStyle}>
+            <span style={{ opacity: 0.7 }}>Palette</span>
+            {PALETTE_SLOTS.map((slot) => (
+              <label key={slot} style={rowStyle}>
+                <input type="color" value={palette[slot]} onChange={(e) => setPaletteSlot(slot, e.target.value)} />
+                <span>{PALETTE_LABELS[slot]}</span>
+              </label>
+            ))}
+          </div>
+
+          <label style={labelColStyle}>
+            <span style={{ opacity: 0.7 }}>Region</span>
+            <select style={selectStyle} value={region} onChange={(e) => setRegion(e.target.value as Region)}>
+              {REGIONS.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label style={labelColStyle}>
+            <span>Ramp softness: {assign.rampSoftness.toFixed(2)}</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={assign.rampSoftness}
+              onChange={(e) => setAssign({ rampSoftness: Number(e.target.value) })}
+            />
+          </label>
+
+          <label style={labelColStyle}>
+            <span>Rim strength: {assign.rimStrength.toFixed(2)}</span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={assign.rimStrength}
+              onChange={(e) => setAssign({ rimStrength: Number(e.target.value) })}
+            />
+          </label>
+
+          <label style={rowStyle}>
+            <input type="color" value={assign.shadowTint} onChange={(e) => setAssign({ shadowTint: e.target.value })} />
+            <span>Shadow tint</span>
+          </label>
+
+          <label style={labelColStyle}>
+            <span>
+              Terminator warmth: {terminatorWarmth.toFixed(2)} <em style={{ opacity: 0.6 }}>(studio, all regions)</em>
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={terminatorWarmth}
+              onChange={(e) => setTerminatorWarmth(Number(e.target.value))}
+            />
+          </label>
+
+          <label style={rowStyle}>
+            <input
+              type="checkbox"
+              checked={assign.outline ?? false}
+              onChange={(e) => setAssign({ outline: e.target.checked })}
+            />
+            Outline
+          </label>
+
+          <label style={labelColStyle}>
+            <span style={{ opacity: 0.7 }}>Texture</span>
+            <select
+              style={selectStyle}
+              value={assign.textureId ?? 'none'}
+              onChange={(e) => {
+                const id = e.target.value
+                rafPatch((draft) => {
+                  const current = draft.materials[region] ?? FALLBACK_ASSIGN
+                  const next = { ...current }
+                  if (id === 'none') delete next.textureId
+                  else next.textureId = id
+                  draft.materials = { ...draft.materials, [region]: next }
+                })
+              }}
+            >
+              {TEXTURE_IDS.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      ) : null}
     </PanelSection>
   )
 }
