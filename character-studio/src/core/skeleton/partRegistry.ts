@@ -84,6 +84,7 @@ export function meshVersionOf(def: { meshVersion?: number }): number {
 
 const EAR_BONES = ['earL.1', 'earL.2', 'earR.1', 'earR.2'] as const satisfies readonly BoneName[]
 const TAIL_BONES = ['tail.1', 'tail.2', 'tail.3', 'tail.4'] as const satisfies readonly BoneName[]
+const WING_BONES = ['upperArmL', 'foreArmL', 'handL', 'upperArmR', 'foreArmR', 'handR'] as const satisfies readonly BoneName[]
 
 const spring = (
   stiffness: number,
@@ -219,6 +220,33 @@ export const PART_REGISTRY = {
     morphs: ['length'],
     hidesMouth: true,
   },
+  // New beaks (plan 018): procedural source is authoritative; the url is a
+  // placeholder so the CharacterRoot/companionExport `url !== null` filter keeps
+  // the part, and maskUrl is null (per-vertex channels carry the color).
+  'beak-chicken': {
+    slot: 'muzzle',
+    label: 'Chicken beak',
+    url: partUrl('muzzle-beak-small.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('beak-chicken') },
+    maskUrl: null,
+    region: 'muzzle',
+    classes: ['bird'],
+    attachTo: ['socket.muzzle'],
+    morphs: ['length'],
+    hidesMouth: true,
+  },
+  'beak-penguin': {
+    slot: 'muzzle',
+    label: 'Penguin beak',
+    url: partUrl('muzzle-beak-small.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('beak-penguin') },
+    maskUrl: null,
+    region: 'muzzle',
+    classes: ['bird'],
+    attachTo: ['socket.muzzle'],
+    morphs: ['length'],
+    hidesMouth: true,
+  },
 
   // --- tails (skinned to the tail chain) ----------------------------------
   'curl-shiba': {
@@ -281,6 +309,76 @@ export const PART_REGISTRY = {
     morphs: ['length', 'width'],
     springProfile: spring(0.3, 20, 0.12),
   },
+  // New bird tails (plan 018): procedural source is authoritative; url is a
+  // placeholder (see the beak note above); maskUrl null (per-vertex channels).
+  'tail-sickle-rooster': {
+    slot: 'tail',
+    label: 'Rooster sickle',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('tail-sickle-rooster') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: TAIL_BONES,
+    morphs: ['length', 'width'],
+    // stiff, low-gravity: the authored arcs must HOLD at rest (reviewer round 1
+    // — the plan's looser numbers sagged the sickles down beside the legs)
+    springProfile: spring(0.6, 6, 0.12),
+  },
+  'tail-train-peacock': {
+    slot: 'tail',
+    label: 'Peacock train',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('tail-train-peacock') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: TAIL_BONES,
+    morphs: ['length', 'width'],
+    // stiff, low-gravity: the upright fan must stay upright at rest (reviewer
+    // round 1 — the plan's looser numbers dropped the train like a broom)
+    springProfile: spring(0.7, 4, 0.1),
+  },
+
+  // --- wings (plan 023: skinned to the arm chains). Region note: REGIONS has
+  // no `wings` entry (adding one is a saved-spec materials-record change) —
+  // wings are feather plumage and share the `tail` material region. No
+  // springProfile: the arm chain is clip-driven, never spring-solved
+  // (SPRING_CHAIN_BONES excludes arm bones), so wings hold stiff by
+  // construction. url is a placeholder per the plan-018 convention.
+  'wing-round': {
+    slot: 'wings',
+    label: 'Round wing',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 023)
+    source: { kind: 'procedural', build: () => buildProceduralPart('wing-round') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: WING_BONES,
+    morphs: ['length', 'width'],
+  },
+  'wing-eagle': {
+    slot: 'wings',
+    label: 'Eagle wing',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 023)
+    source: { kind: 'procedural', build: () => buildProceduralPart('wing-eagle') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: WING_BONES,
+    morphs: ['length', 'width'],
+  },
+  'wing-flipper': {
+    slot: 'wings',
+    label: 'Penguin flipper',
+    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 023)
+    source: { kind: 'procedural', build: () => buildProceduralPart('wing-flipper') },
+    maskUrl: null,
+    region: 'tail',
+    classes: ['bird'],
+    skinnedTo: WING_BONES,
+    morphs: ['length', 'width'],
+  },
 
   // --- claws (rigid on hand/foot bones) -----------------------------------
   'mitten-none': {
@@ -303,6 +401,31 @@ export const PART_REGISTRY = {
     attachTo: ['handL', 'handR', 'footL', 'footR'],
     morphs: [],
   },
+  // bird legs (round 5): the whole visible leg — uniform tarsus stick + three
+  // separated toes — is one skinned part on the LEG BONE CHAIN. The bird body
+  // welds no legs at all.
+  'bird-toes': {
+    slot: 'claws',
+    label: 'Bird legs',
+    url: partUrl('claws-stub.glb'), // placeholder; procedural source is authoritative
+    source: { kind: 'procedural', build: () => buildProceduralPart('bird-toes') },
+    maskUrl: null,
+    region: 'claws',
+    classes: ['bird'],
+    skinnedTo: ['upperLegL', 'lowerLegL', 'footL', 'upperLegR', 'lowerLegR', 'footR'],
+    morphs: [],
+  },
+  'bird-toes-webbed': {
+    slot: 'claws',
+    label: 'Webbed legs',
+    url: partUrl('claws-stub.glb'), // placeholder; procedural source is authoritative
+    source: { kind: 'procedural', build: () => buildProceduralPart('bird-toes-webbed') },
+    maskUrl: null,
+    region: 'claws',
+    classes: ['bird'],
+    skinnedTo: ['upperLegL', 'lowerLegL', 'footL', 'upperLegR', 'lowerLegR', 'footR'],
+    morphs: [],
+  },
 
   // --- crests (rigid on the head-top socket). Region note: REGIONS has no
   // `crest` entry (plan-004 schema) — crests are head plumage and share the
@@ -322,6 +445,30 @@ export const PART_REGISTRY = {
     url: partUrl('crest-feather-tuft.glb'),
     source: { kind: 'procedural', build: () => buildProceduralPart('feather-tuft') },
     maskUrl: maskUrl('part-crest-feather-tuft.mask.png'),
+    region: 'ears',
+    classes: ['bird'],
+    attachTo: ['socket.hat'],
+    morphs: [],
+  },
+  // New crests (plan 018): procedural source is authoritative; url is a
+  // placeholder (see the beak note above); maskUrl null (per-vertex channels).
+  'comb-chicken': {
+    slot: 'crest',
+    label: 'Chicken comb',
+    url: partUrl('crest-feather-tuft.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('comb-chicken') },
+    maskUrl: null,
+    region: 'ears',
+    classes: ['bird'],
+    attachTo: ['socket.hat'],
+    morphs: [],
+  },
+  'crest-peacock': {
+    slot: 'crest',
+    label: 'Peacock crest',
+    url: partUrl('crest-feather-tuft.glb'), // placeholder; procedural source is authoritative (plan 018)
+    source: { kind: 'procedural', build: () => buildProceduralPart('crest-peacock') },
+    maskUrl: null,
     region: 'ears',
     classes: ['bird'],
     attachTo: ['socket.hat'],
@@ -371,21 +518,21 @@ export const BODY_REGISTRY: Record<'biped-round' | 'biped-slim' | 'bird', BodyDe
     url: bodyUrl('body-biped-round.glb'),
     maskUrl: maskUrl('body-biped-round.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 6, // plan 017 r2: wrap-seam vertex split (new vertex layout — older sculpt deltas refuse loudly)
     source: { kind: 'procedural', build: () => buildProceduralBody('biped-round').scene },
   },
   'biped-slim': {
     url: bodyUrl('body-biped-slim.glb'),
     maskUrl: maskUrl('body-biped-slim.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 6, // plan 017 r2: wrap-seam vertex split (new vertex layout — older sculpt deltas refuse loudly)
     source: { kind: 'procedural', build: () => buildProceduralBody('biped-slim').scene },
   },
   bird: {
     url: bodyUrl('body-bird.glb'),
     maskUrl: maskUrl('body-bird.mask.png'),
     morphs: BODY_MORPHS,
-    meshVersion: 4, // plan 013: procedural stitched-shell topology (new vertex layout — v3 sculpt deltas refuse loudly)
+    meshVersion: 6, // plan 017 r2: wrap-seam vertex split atop AC bird anatomy (older sculpt deltas refuse loudly)
     source: { kind: 'procedural', build: () => buildProceduralBody('bird').scene },
   },
 }

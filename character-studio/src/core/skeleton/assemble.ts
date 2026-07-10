@@ -54,6 +54,9 @@ export interface AssembledCharacter {
   regionMaterials: Partial<Record<Region, ToonMaterial>>
   /** Meshes per region (outline toggling). */
   regionMeshes: Partial<Record<Region, THREE.Mesh[]>>
+  /** Lower-mandible meshes (userData.beakJaw), hinged at their attach bone —
+   * the talk layer rotates these to open/close the beak. Empty for mammals. */
+  beakJaw: THREE.Mesh[]
   /** Dispose everything assembly created (materials; geometry is shared). */
   dispose(): void
 }
@@ -215,6 +218,7 @@ export function assembleCharacter(
 
   // --- parts ------------------------------------------------------------------
   const equipped: Array<{ def: PartDef }> = []
+  const beakJaw: THREE.Mesh[] = []
   let hideMouth = false
   let mouthRadialOffset = 0
 
@@ -270,6 +274,7 @@ export function assembleCharacter(
         applyMorphs(mesh, entry.morphs)
         tagMesh(mesh, def.region)
         bone.add(mesh)
+        if (mesh.userData.beakJaw) beakJaw.push(mesh)
       }
     }
 
@@ -294,11 +299,15 @@ export function assembleCharacter(
         : defaultTextureResolver(textureId)
     // Procedural meshes carry exact per-vertex palette channels; the authored
     // mask PNGs were baked against the retired GLB UV unwraps and misalign on
-    // procedural UVs (dark limb streaks, muzzle blotches) — prefer the vertex
-    // path whenever the geometry has it. Species pattern masks are inert on
-    // this path until plan 015 rasterizes them from TS fields.
+    // procedural UVs (dark limb streaks, muzzle blotches). Plan 019 rasterizes
+    // the BODY channels into a UV-aligned mask (crisp two-tone regions the
+    // vertex path can't hold at mesh density) — so prefer that mask when the
+    // resolver supplies one, and keep the vertex path for everything else
+    // (parts, and any region without a rasterized mask).
     const meshes = regionMeshes[region] ?? []
-    const vertexChannels = meshes.length > 0 && meshes.every((m) => m.geometry.hasAttribute('paletteChannels'))
+    const hasVertexChannels = meshes.length > 0 && meshes.every((m) => m.geometry.hasAttribute('paletteChannels'))
+    const hasRasterizedMask = resolveTexture(assign.textureId ?? 'none').maskMap !== null
+    const vertexChannels = hasVertexChannels && !hasRasterizedMask
     const material = createToonMaterial(assign, spec.palette, { resolveTexture, vertexChannels })
     regionMaterials[region] = material
     for (const mesh of regionMeshes[region] ?? []) mesh.material = material
@@ -323,6 +332,7 @@ export function assembleCharacter(
     headRadius: head.radius,
     hideMouth,
     mouthRadialOffset,
+    beakJaw,
     springChains,
     colliderGroups,
     regionMaterials,

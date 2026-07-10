@@ -6,9 +6,9 @@
 
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
-import { buildProceduralBody } from '../../../src/core/procgen/body'
+import { buildProceduralBody, DEFAULT_BIRD_SHAPE } from '../../../src/core/procgen/body'
 import { buildProceduralPart } from '../../../src/core/procgen/parts'
-import { buildArchetypeSkeleton } from '../../../src/core/skeleton/archetypes'
+import { ARCHETYPES_DEF, buildArchetypeSkeleton } from '../../../src/core/skeleton/archetypes'
 import { BODY_REGISTRY, PART_IDS, PART_REGISTRY, type PartDef } from '../../../src/core/skeleton/partRegistry'
 import { ARCHETYPES, BONE_NAMES, type Archetype } from '../../../src/core/spec/schema'
 
@@ -48,8 +48,15 @@ describe('procedural archetype bodies', () => {
       const ref = built.boneByName.get(name)
       expect(ref, name).toBeDefined()
       if (!ref) continue
+      // anatomy round 3: the bird body raises the head bone by the species
+      // neck lift (DEFAULT_BIRD_SHAPE.neckLength · headRadius) — every other
+      // bone still matches the plain archetype skeleton exactly.
+      const neckLift =
+        archetype === 'bird' && name === 'head'
+          ? DEFAULT_BIRD_SHAPE.neckLength * ARCHETYPES_DEF.bird.headRadius * ARCHETYPES_DEF.bird.uniformScale
+          : 0
       expect(Math.abs(bone.position.x - ref.position.x), `${name} x`).toBeLessThan(1e-4)
-      expect(Math.abs(bone.position.y - ref.position.y), `${name} y`).toBeLessThan(1e-4)
+      expect(Math.abs(bone.position.y - (ref.position.y + neckLift)), `${name} y`).toBeLessThan(1e-4)
       expect(Math.abs(bone.position.z - ref.position.z), `${name} z`).toBeLessThan(1e-4)
     }
   })

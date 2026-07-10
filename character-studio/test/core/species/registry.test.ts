@@ -39,15 +39,15 @@ describe('species registry', () => {
     }
   })
 
-  it("partsForSlot filters by class: 'muzzle' bird-only returns beaks, mammal-only returns non-beaks, unfiltered returns all six", () => {
+  it("partsForSlot filters by class: 'muzzle' bird-only returns beaks, mammal-only returns non-beaks, unfiltered returns all eight", () => {
     const birdMuzzles = partsForSlot('muzzle', 'bird')
     const mammalMuzzles = partsForSlot('muzzle', 'mammal')
     const allMuzzles = partsForSlot('muzzle')
 
-    // plan 010 added beak-hooked / bill-duck (bird-only)
-    expect(birdMuzzles.sort()).toEqual(['beak-hooked', 'beak-round', 'beak-small', 'bill-duck'])
+    // plan 010 added beak-hooked / bill-duck; plan 018 added beak-chicken / beak-penguin (all bird-only)
+    expect(birdMuzzles.sort()).toEqual(['beak-chicken', 'beak-hooked', 'beak-penguin', 'beak-round', 'beak-small', 'bill-duck'])
     expect(mammalMuzzles.sort()).toEqual(['boxy-dog', 'short-cat'])
-    expect(allMuzzles).toHaveLength(6)
+    expect(allMuzzles).toHaveLength(8)
     for (const id of birdMuzzles) {
       expect(PART_REGISTRY[id].classes).toContain('bird')
     }
@@ -56,33 +56,70 @@ describe('species registry', () => {
     }
   })
 
-  it('migrates both saved v1 fixtures to v2 with meta.species defaulted to custom', () => {
+  it('migrates both saved v1 fixtures to the current version with meta.species defaulted to custom', () => {
     for (const name of ['hero-shiba.character.json', 'default-dog.character.json']) {
       const raw = JSON.parse(readFileSync(fixturePath(name), 'utf8'))
       const migrated = migrateSpec(raw)
-      expect(migrated.meta.specVersion).toBe(2)
+      expect(migrated.meta.specVersion).toBe(3)
       expect(migrated.meta.species).toBe('custom')
+      // mammal fixtures never gain a wings entry (plan 023 v2→v3 is bird-only)
+      expect(migrated.anatomy.parts.wings).toBeUndefined()
     }
   })
 
-  it('speciesForClass partitions the Core-8 into 5 mammals and 3 birds', () => {
+  it('speciesForClass partitions the 13-species roster into 5 mammals and 8 birds (plan 020)', () => {
     expect(speciesForClass('mammal').sort()).toEqual(['bear-cub', 'fox', 'rabbit', 'shiba', 'tabby-cat'].sort())
-    expect(speciesForClass('bird').sort()).toEqual(['duckling', 'owl', 'robin'].sort())
+    expect(speciesForClass('bird').sort()).toEqual(
+      ['bowerbird', 'chicken', 'duckling', 'eagle', 'owl', 'peacock', 'penguin', 'robin'].sort(),
+    )
   })
 
-  it('every species patternId resolves to a registered pattern with a baked mask for its archetype (plans 010/011)', () => {
+  it('every species patternId resolves to a registered pattern with a baked mask for its archetype (plans 010/011/020)', () => {
     const withPattern = SPECIES_IDS.filter((id) => (SPECIES_REGISTRY[id] as SpeciesDef).patternId)
-    // all 8 Core species now carry patterns (3 birds + 5 mammals, plan 011)
+    // plan 020: bowerbird is intentionally pattern-less (uniform gloss, palette-only read)
     expect(withPattern.sort()).toEqual(
-      ['bear-cub', 'duckling', 'fox', 'owl', 'rabbit', 'robin', 'shiba', 'tabby-cat'].sort(),
+      [
+        'bear-cub',
+        'chicken',
+        'duckling',
+        'eagle',
+        'fox',
+        'owl',
+        'peacock',
+        'penguin',
+        'rabbit',
+        'robin',
+        'shiba',
+        'tabby-cat',
+      ].sort(),
     )
+    // plan 019's bird set (eagle/penguin/chicken/peacock) is rasterizer-resolved,
+    // not baked — their registry entries carry no `masks` and patternMaskUrl()
+    // returns null by design; still assert the pattern itself is registered.
+    const rasterOnly = new Set(['pattern-eagle', 'pattern-penguin', 'pattern-chicken', 'pattern-peacock'])
     for (const id of withPattern) {
       const def = SPECIES_REGISTRY[id] as SpeciesDef
       const patternId = def.patternId as string
       expect(getPattern(patternId), `${id} pattern ${patternId} registered`).not.toBeNull()
+      if (rasterOnly.has(patternId)) continue
       const url = patternMaskUrl(patternId, def.archetype)
       expect(url, `${id} pattern ${patternId} has a mask for ${def.archetype}`).not.toBeNull()
       expect(existsSync(fileURLToPath(url as string)), `${url} exists on disk`).toBe(true)
+    }
+  })
+
+  it('every species with paletteVariants has variant #0 deep-equal to its preset palette (plan 021 step 3, the "default" swatch)', () => {
+    const withVariants = SPECIES_IDS.filter((id) => (SPECIES_REGISTRY[id] as SpeciesDef).paletteVariants)
+    // plan 021: at least the 8 bird species carry variants.
+    expect(withVariants.sort()).toEqual(
+      ['bowerbird', 'chicken', 'duckling', 'eagle', 'owl', 'peacock', 'penguin', 'robin'].sort(),
+    )
+    for (const id of withVariants) {
+      const def = SPECIES_REGISTRY[id] as SpeciesDef
+      const variants = def.paletteVariants
+      expect(variants, `${id} has variants`).toBeDefined()
+      expect(variants?.length ?? 0, `${id} has at least 3 variants`).toBeGreaterThanOrEqual(3)
+      expect(variants?.[0]?.palette, `${id} variant #0 equals preset palette`).toEqual(def.palette)
     }
   })
 })

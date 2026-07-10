@@ -49,7 +49,9 @@ function Lighting({ gizmosAllowed }: { gizmosAllowed: boolean }) {
 
 function Pedestal() {
   return (
-    <mesh position={[0, 0, 0]} receiveShadow>
+    // top face at y=0 — the character's soles sit ON the pedestal; centring the
+    // cylinder at 0 buried every foot half a disc deep (the "cut-off feet" bug)
+    <mesh position={[0, -0.05, 0]} receiveShadow>
       <cylinderGeometry args={[3, 3, 0.1, 64]} />
       <meshStandardMaterial color="#e8e8ec" roughness={0.9} />
     </mesh>

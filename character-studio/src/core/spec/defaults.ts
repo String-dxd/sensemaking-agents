@@ -112,8 +112,9 @@ const DEFAULT_PARTS: Record<Archetype, CharacterSpec['anatomy']['parts']> = {
   bird: {
     muzzle: { partId: 'beak-small', morphs: {} },
     tail: { partId: 'feather-fan', morphs: {} },
-    claws: { partId: 'mitten-none', morphs: {} },
+    claws: { partId: 'bird-toes', morphs: {} },
     crest: { partId: 'feather-tuft', morphs: {} },
+    wings: { partId: 'wing-round', morphs: {} },
   },
 }
 

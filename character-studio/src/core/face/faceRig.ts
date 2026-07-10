@@ -53,6 +53,13 @@ export interface FaceRigConfig {
    * setFaceMap on the body material) and null again on dispose.
    */
   applyTexture(texture: THREE.CanvasTexture | null): void
+  /**
+   * Beak articulation (anatomy round 3): receives the eased jaw openness
+   * (0 closed … 1 wide) every update. The viewport layer rotates the
+   * assembled beakJaw meshes with it, so a talking bird's beak flaps like
+   * the AC ones instead of relying on the (hidden) drawn mouth alone.
+   */
+  applyJaw?(open01: number): void
 }
 
 export interface FaceRigState {
@@ -96,6 +103,27 @@ const BLINK_SEQUENCE: ReadonlyArray<{ cell: EyeCellName; duration: number }> = [
 ]
 
 const GAZE_TAU_S = 0.08
+
+/** Per-mouth-cell jaw openness targets (beak articulation). The viseme cells
+ * map to the amplitude the talk driver picked; expression cells give beaked
+ * species a matching resting pose (surprised 'oh' → agape). */
+const JAW_OPEN: Record<MouthCellName, number> = {
+  neutral: 0,
+  smile: 0.1,
+  open: 0.55,
+  frown: 0.04,
+  oh: 0.7,
+  grin: 0.18,
+  pout: 0.04,
+  tongue: 0.5,
+  vAa: 0.75,
+  vEe: 0.4,
+  vOh: 1,
+  vMm: 0.08,
+}
+/** Jaw easing: fast open, slightly slower close (reads as a snappy flap). */
+const JAW_TAU_OPEN_S = 0.035
+const JAW_TAU_CLOSE_S = 0.07
 
 /** Eased-gaze movement below this since the last draw skips the redraw. */
 const GAZE_REDRAW_EPSILON = 1e-4
@@ -219,8 +247,16 @@ export function createFaceRig(config: FaceRigConfig): FaceRig {
     dirty = false
   }
 
+  let jawCurrent = 0
+
   function update(dt: number): void {
     updateBlink(dt)
+    if (config.applyJaw) {
+      const jawTarget = JAW_OPEN[mouthOverride ?? shown.mouth]
+      const tau = jawTarget > jawCurrent ? JAW_TAU_OPEN_S : JAW_TAU_CLOSE_S
+      jawCurrent += (jawTarget - jawCurrent) * (1 - Math.exp(-dt / tau))
+      config.applyJaw(jawCurrent)
+    }
     const k = 1 - Math.exp(-dt / GAZE_TAU_S)
     gazeCurrent.x += (gazeTarget.x - gazeCurrent.x) * k
     gazeCurrent.y += (gazeTarget.y - gazeCurrent.y) * k

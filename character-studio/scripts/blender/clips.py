@@ -496,24 +496,29 @@ def clip_talk_idle() -> bpy.types.Action:
 
 
 def clip_gesture_wave() -> bpy.types.Action:
+    # AC-style wave (anatomy round 6): the shoulder is a BALL-AND-SOCKET —
+    # the arm rises on a compound forward+out+yaw rotation (not the old flat
+    # 90-degree sideways flag) — and the elbow is a HINGE: a base curl brings
+    # the hand up beside the head, then the wave itself is the forearm
+    # sweeping about the elbow with the hand lagging a beat behind.
     c = Clip("gestureWave", 45, loop=False)
     # anticipation: R arm dips in/down before flying up
     c.key("upperArmR", 0, rot=(0, 0, 0))
-    c.key("upperArmR", 4, rot=(0, 4, 10))
-    c.key("upperArmR", 11, rot=(0, 8, -76))   # arm up-out (Z- lifts the -X limb)
-    c.key("upperArmR", 34, rot=(0, 6, -72))
-    c.key("upperArmR", 41, rot=(0, -3, 5))    # drop-through overshoot
+    c.key("upperArmR", 4, rot=(8, 0, 6))
+    c.key("upperArmR", 11, rot=(-68, -12, -26))  # ball-and-socket raise: up-FORWARD + out
+    c.key("upperArmR", 34, rot=(-64, -10, -23))
+    c.key("upperArmR", 41, rot=(5, 0, 4))        # drop-through overshoot
     c.key("upperArmR", 45, rot=(0, 0, 0))
     c.key("shoulderR", 1, rot=(0, 0, 0))
     c.key("shoulderR", 10, rot=(0, 0, -8))
     c.key("shoulderR", 36, rot=(0, 0, -6))
     c.key("shoulderR", 45, rot=(0, 0, 0))
-    # forearm wave: decaying oscillation, hand lags one frame behind
+    # elbow: base hinge curl (hand up beside the head) + decaying sweep
     c.key("foreArmR", 2, rot=(0, 0, 0))
-    c.key("foreArmR", 12, rot=(0, 0, -26))
-    for f, a in [(16, 26), (21, -24), (26, 22), (30, -16), (33, 10)]:
-        c.key("foreArmR", f, rot=(0, 0, a - 8))
-    c.key("foreArmR", 42, rot=(0, 0, 4))
+    c.key("foreArmR", 12, rot=(-38, 0, -22))
+    for f, a in [(16, 22), (21, -20), (26, 18), (30, -13), (33, 8)]:
+        c.key("foreArmR", f, rot=(-34, 0, a - 6))
+    c.key("foreArmR", 42, rot=(-4, 0, 3))
     c.key("foreArmR", 45, rot=(0, 0, 0))
     c.key("handR", 3, rot=(0, 0, 0))
     for f, a in [(13, -14), (17, 12), (22, -12), (27, 10), (31, -8), (35, 0)]:

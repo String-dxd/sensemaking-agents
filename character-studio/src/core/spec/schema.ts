@@ -23,7 +23,7 @@ import { z } from 'zod'
 import { StudioLookSchema } from './lighting'
 import type { SpringChainDef, SpringJointParams } from '../motion/springTypes'
 
-export const SPEC_VERSION = 2
+export const SPEC_VERSION = 3
 
 // --- primitives -------------------------------------------------------------
 
@@ -88,7 +88,7 @@ export const BONE_NAMES = [
 export const BoneNameSchema = z.enum(BONE_NAMES)
 export type BoneName = z.infer<typeof BoneNameSchema>
 
-export const PART_SLOTS = ['ears', 'muzzle', 'tail', 'brows', 'claws', 'crest'] as const
+export const PART_SLOTS = ['ears', 'muzzle', 'tail', 'brows', 'claws', 'crest', 'wings'] as const
 export const PartSlotSchema = z.enum(PART_SLOTS)
 export type PartSlot = z.infer<typeof PartSlotSchema>
 

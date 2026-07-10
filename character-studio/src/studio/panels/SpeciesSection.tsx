@@ -28,6 +28,7 @@ import { type CharacterSpec, PERSONALITIES, type Personality } from '../../core/
 import { PanelSection } from '../shell/PanelSection'
 import { useCharacterStore } from '../state/characterStore'
 import { studioCommands } from '../state/commandStore'
+import { SwatchRow } from './SwatchRow'
 
 const selectStyle: React.CSSProperties = {
   padding: '4px 6px',
@@ -153,6 +154,8 @@ export function SpeciesSection() {
           Custom
         </button>
       </div>
+
+      <SwatchRow />
 
       <label style={labelColStyle}>
         <span style={{ opacity: 0.7 }}>Personality (관상 face)</span>

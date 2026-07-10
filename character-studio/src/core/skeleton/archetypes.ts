@@ -105,12 +105,23 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
   bird: {
     archetype: 'bird',
     height: 0.76,
-    uniformScale: 0.76 / 0.889,
+    // denominator = reference skull-top with these offsets: hips 0.255 +
+    // spine chain (0.06+0.06+0.10+0.06)·1.05 + headCenter 0.18 + headRadius
+    // 0.23 = 0.959 (anatomy round 4: trunk lengthened so the body is a
+    // STANDING egg — taller than wide — instead of a lying one)
+    uniformScale: 0.76 / 0.959,
     offsetScales: {
       hips: [1, 0.75, 1],
       ...legs(0.5),
-      ...spineChain(0.8),
-      ...arms([0.95, 0.6, 1]),
+      ...spineChain(1.05),
+      // round 5: the arm chain IS the wing skeleton now — near-vertical
+      // (x pulled in) and longer, so the skinned wing hangs like a small arm.
+      // round 7: shoulders ride HIGH on the egg (AC folded wings start at
+      // the neck line, not mid-body) — the shoulder offset from the chest
+      // is stretched upward and tucked inward.
+      shoulderL: [0.8, 2.7, 1],
+      shoulderR: [0.8, 2.7, 1],
+      ...arms([0.8, 0.95, 1]),
       'tail.1': [1, 0.6, 1.1],
       'tail.2': [1, 0.6, 1.1],
       'tail.3': [1, 0.6, 1.1],

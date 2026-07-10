@@ -14,6 +14,8 @@
 // NOT welded to the body, so no manifold constraint here.
 
 import * as THREE from 'three'
+import { ARCHETYPES_DEF, archetypeBuildOptions } from '../skeleton/archetypes'
+import { birdFlankX, birdTrunkDims } from './birdTrunk'
 import { type BuiltSkeleton, buildSkeleton, restWorldPositions } from '../skeleton/canonical'
 import { PART_REGISTRY, type PartId } from '../skeleton/partRegistry'
 import { BONE_NAMES, type BoneName } from '../spec/schema'
@@ -174,6 +176,37 @@ const scaleX = (p: SurfacePiece, aboutX: number, factor: number): void => {
   const n = vertexCount(p)
   for (let i = 0; i < n; i++) p.pos[i * 3] = (p.pos[i * 3] - aboutX) * factor + aboutX
 }
+/** Blend a shell's cross-section toward a diamond (the AC low-poly beak read).
+ * Splits each vertex's offset from `about` into an axis component (kept) and a
+ * radial remainder expressed in an orthonormal (u,v) basis ⊥ `axis`; the diamond
+ * radius for direction θ is 1/(|cosθ|+|sinθ|) — 1 on the axes, √½ on the
+ * diagonals, so only the diagonals pull in and the top/bottom/left/right extents
+ * are unchanged. `v` is aimed as up-ish as possible so a ridge (a diamond vertex)
+ * sits along the beak top (AC culmen), not a flat facet. `k` = 0 (round) … 1
+ * (hard diamond). */
+function diamondize(p: SurfacePiece, about: Vec3, axis: Vec3, k: number): void {
+  const ax = vec.norm(axis)
+  const ref: Vec3 = Math.abs(ax[1]) > 0.9 ? [0, 0, 1] : [0, 1, 0]
+  const u = vec.norm(vec.cross(ref, ax)) // side axis
+  const w = vec.norm(vec.cross(ax, u)) // up-ish axis → top ridge along +w
+  const n = vertexCount(p)
+  for (let i = 0; i < n; i++) {
+    const rel: Vec3 = [p.pos[i * 3] - about[0], p.pos[i * 3 + 1] - about[1], p.pos[i * 3 + 2] - about[2]]
+    const along = vec.dot(rel, ax)
+    const qu = vec.dot(rel, u)
+    const qw = vec.dot(rel, w)
+    const r = Math.hypot(qu, qw)
+    if (r < 1e-9) continue
+    const diamond = 1 / (Math.abs(qu / r) + Math.abs(qw / r))
+    const f = 1 - k + diamond * k
+    const nu = qu * f
+    const nw = qw * f
+    p.pos[i * 3] = about[0] + along * ax[0] + nu * u[0] + nw * w[0]
+    p.pos[i * 3 + 1] = about[1] + along * ax[1] + nu * u[1] + nw * w[1]
+    p.pos[i * 3 + 2] = about[2] + along * ax[2] + nu * u[2] + nw * w[2]
+  }
+}
+
 // Inner-ear dish reads as accentA (soft pink on the rabbit, darker fur tones
 // elsewhere) — belly tone was indistinguishable from the coat on pale species.
 // Call BEFORE any bendChain so the mask follows the authored (unbent) surface.
@@ -284,44 +317,131 @@ function muzzleBoxyDog(j: J): PartMesh[] {
 
 function muzzleBeakSmall(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const beak = closedCapsule('beak', [a[0], a[1] + 0.02, a[2] - 0.03], [a[0], a[1] - 0.012, a[2] + 0.085], 0.046, 0.007, 12, 10)
-  flatY(beak, a[1] + 0.004, 0.72)
+  const base: Vec3 = [a[0], a[1] + 0.012, a[2] - 0.025]
+  const tip: Vec3 = [a[0], a[1] - 0.02, a[2] + 0.13]
+  const beak = closedCapsule('beak', base, tip, 0.075, 0.014, 12, 10)
+  flatY(beak, a[1] + 0.004, 0.8)
+  diamondize(beak, base, dirTo(base, tip), 0.55)
   setChannelAll(beak, CH_ACCENT, 1)
-  return [{ name: 'muzzle-beak-small', shells: [beak], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak], a) }]
+  return [
+    { name: 'muzzle-beak-small', shells: [beak], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak], a) },
+    beakJaw(a, 0.085, 0.05),
+  ]
+}
+
+/** Lower mandible as its OWN PartMesh/mesh so assembly can hinge it — the
+ * beak opens and closes while talking (anatomy round 3). A flat under-wedge
+ * tucked beneath the upper beak; closed it disappears into the upper's
+ * silhouette, open it drops and reads as the AC talking flap. */
+function beakJaw(a: Vec3, len: number, halfW: number, drop = 0.016): PartMesh {
+  const base: Vec3 = [a[0], a[1] - drop, a[2] - 0.02]
+  const tip: Vec3 = [a[0], a[1] - drop - 0.012, a[2] + len]
+  const jaw = closedCapsule('beakJaw', base, tip, halfW, 0.012, 12, 8)
+  flatY(jaw, base[1] + 0.004, 0.5)
+  diamondize(jaw, base, dirTo(base, tip), 0.45)
+  setChannelAll(jaw, CH_ACCENT, 1)
+  return { name: 'muzzle-beak.jaw', shells: [jaw], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([jaw], a) }
 }
 
 function muzzleBeakRound(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const upper = closedCapsule('beakU', [a[0], a[1] + 0.025, a[2] - 0.03], [a[0], a[1] - 0.02, a[2] + 0.07], 0.052, 0.018, 12, 10, 0.008)
-  const lower = closedEllipsoid('beakL', [a[0], a[1] - 0.018, a[2] + 0.012], [0.038, 0.02, 0.038], 10, 8)
+  const base: Vec3 = [a[0], a[1] + 0.022, a[2] - 0.025]
+  const tip: Vec3 = [a[0], a[1] - 0.016, a[2] + 0.108]
+  const upper = closedCapsule('beakU', base, tip, 0.082, 0.024, 12, 10, 0.008)
+  flatY(upper, a[1] + 0.008, 0.82)
+  diamondize(upper, base, dirTo(base, tip), 0.5)
+  const lowC: Vec3 = [a[0], a[1] - 0.026, a[2] + 0.026]
+  const lower = closedEllipsoid('beakL', lowC, [0.06, 0.026, 0.053], 10, 8)
+  diamondize(lower, lowC, [0, 0, 1], 0.4)
   setChannelAll(upper, CH_ACCENT, 1)
   setChannelAll(lower, CH_ACCENT, 1)
-  return [{ name: 'muzzle-beak-round', shells: [upper, lower], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([upper, lower], a) }]
+  return [
+    { name: 'muzzle-beak-round', shells: [upper], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([upper], a) },
+    { name: 'muzzle-beak-round.jaw', shells: [lower], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([lower], a) },
+  ]
 }
 
 function muzzleBeakHooked(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const upper = closedCapsule('beakU', [a[0], a[1] + 0.03, a[2] - 0.03], [a[0], a[1] - 0.005, a[2] + 0.075], 0.05, 0.014, 12, 10, 0.006)
+  const base: Vec3 = [a[0], a[1] + 0.028, a[2] - 0.028]
+  const tip: Vec3 = [a[0], a[1] - 0.005, a[2] + 0.137]
+  const upper = closedCapsule('beakU', base, tip, 0.082, 0.017, 12, 10, 0.006)
+  flatY(upper, a[1] + 0.008, 0.85)
+  diamondize(upper, base, dirTo(base, tip), 0.5)
   for (let i = 0; i < vertexCount(upper); i++) {
     const t = upper.params[i * 2 + 1]
-    const hook = Math.max(t - 0.65, 0) ** 2
-    upper.pos[i * 3 + 1] -= hook * 0.16
-    upper.pos[i * 3 + 2] -= hook * 0.03
+    const hook = Math.max(t - 0.6, 0) ** 2
+    upper.pos[i * 3 + 1] -= hook * 0.28
+    upper.pos[i * 3 + 2] -= hook * 0.05
   }
-  const lower = closedEllipsoid('beakL', [a[0], a[1] - 0.022, a[2] + 0.008], [0.034, 0.016, 0.03], 10, 8)
+  const lowC: Vec3 = [a[0], a[1] - 0.028, a[2] + 0.018]
+  const lower = closedEllipsoid('beakL', lowC, [0.05, 0.022, 0.042], 10, 8)
+  diamondize(lower, lowC, [0, 0, 1], 0.4)
   setChannelAll(upper, CH_ACCENT, 1)
   setChannelAll(lower, CH_ACCENT, 1)
-  return [{ name: 'muzzle-beak-hooked', shells: [upper, lower], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([upper, lower], a) }]
+  // dark tip zone (plan 019/020 palette makes it Apollo-dark)
+  setChannelFn(upper, CH_SECONDARY, (i) => (upper.params[i * 2 + 1] > 0.8 ? 0.9 : 0))
+  return [
+    { name: 'muzzle-beak-hooked', shells: [upper], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([upper], a) },
+    { name: 'muzzle-beak-hooked.jaw', shells: [lower], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([lower], a) },
+  ]
 }
 
 function muzzleBillDuck(j: J): PartMesh[] {
   const a = V(j['socket.muzzle'])
-  const bill = closedCapsule('bill', [a[0], a[1] + 0.012, a[2] - 0.02], [a[0], a[1] - 0.006, a[2] + 0.095], 0.05, 0.03, 14, 10)
-  scaleX(bill, a[0], 1.5)
-  flatY(bill, a[1], 0.42)
-  for (let i = 0; i < vertexCount(bill); i++) bill.pos[i * 3 + 1] += smoothstep(0.7, 1, bill.params[i * 2 + 1]) * 0.008
+  const bill = closedCapsule('bill', [a[0], a[1] + 0.01, a[2] - 0.02], [a[0], a[1] - 0.005, a[2] + 0.12], 0.056, 0.036, 14, 10)
+  scaleX(bill, a[0], 1.75)
+  flatY(bill, a[1], 0.36)
+  for (let i = 0; i < vertexCount(bill); i++) bill.pos[i * 3 + 1] += smoothstep(0.7, 1, bill.params[i * 2 + 1]) * 0.012
   setChannelAll(bill, CH_ACCENT, 1)
-  return [{ name: 'muzzle-bill-duck', shells: [bill], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([bill], a) }]
+  // lower bill: same wide flat plate, slightly smaller, tucked under
+  const lowBill = closedCapsule('billJaw', [a[0], a[1] - 0.012, a[2] - 0.015], [a[0], a[1] - 0.022, a[2] + 0.105], 0.05, 0.032, 14, 10)
+  scaleX(lowBill, a[0], 1.7)
+  flatY(lowBill, a[1] - 0.016, 0.3)
+  setChannelAll(lowBill, CH_ACCENT, 1)
+  return [
+    { name: 'muzzle-bill-duck', shells: [bill], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([bill], a) },
+    { name: 'muzzle-bill-duck.jaw', shells: [lowBill], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([lowBill], a) },
+  ]
+}
+
+function muzzleBeakChicken(j: J): PartMesh[] {
+  const a = V(j['socket.muzzle'])
+  const base: Vec3 = [a[0], a[1] + 0.01, a[2] - 0.015]
+  const tip: Vec3 = [a[0], a[1] - 0.014, a[2] + 0.105]
+  const beak = closedCapsule('beak', base, tip, 0.068, 0.012, 12, 10)
+  flatY(beak, a[1] + 0.002, 0.82)
+  diamondize(beak, base, dirTo(base, tip), 0.6)
+  setChannelAll(beak, CH_ACCENT, 1)
+  // red wattle: two lobes hanging under the beak base / chin (centers ~0.035
+  // below the base, slightly forward — hanging wattles, not whiskers)
+  const wattleY = base[1] - 0.035
+  const wattleL = closedEllipsoid('wattleL', [a[0] + 0.012, wattleY, a[2] + 0.03], [0.02, 0.036, 0.016], 10, 8)
+  const wattleR = closedEllipsoid('wattleR', [a[0] - 0.012, wattleY, a[2] + 0.03], [0.02, 0.036, 0.016], 10, 8)
+  setChannelAll(wattleL, CH_SECONDARY, 1)
+  setChannelAll(wattleR, CH_SECONDARY, 1)
+  return [
+    { name: 'muzzle-beak-chicken', shells: [beak, wattleL, wattleR], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak, wattleL, wattleR], a) },
+    beakJaw(a, 0.07, 0.045, 0.014),
+  ]
+}
+
+function muzzleBeakPenguin(j: J): PartMesh[] {
+  const a = V(j['socket.muzzle'])
+  const base: Vec3 = [a[0], a[1] + 0.008, a[2] - 0.02]
+  const tip: Vec3 = [a[0], a[1] - 0.009, a[2] + 0.145]
+  const beak = closedCapsule('beak', base, tip, 0.06, 0.01, 12, 10)
+  flatY(beak, a[1], 0.8)
+  diamondize(beak, base, dirTo(base, tip), 0.4)
+  for (let i = 0; i < vertexCount(beak); i++) {
+    const t = beak.params[i * 2 + 1]
+    beak.pos[i * 3 + 1] -= t * t * 0.02
+  }
+  setChannelAll(beak, CH_ACCENT, 1)
+  return [
+    { name: 'muzzle-beak-penguin', shells: [beak], attach: 'socket.muzzle', morphKeys: muzzleLengthKey([beak], a) },
+    beakJaw(a, 0.105, 0.038, 0.012),
+  ]
 }
 
 // tails -------------------------------------------------------------------------
@@ -383,21 +503,255 @@ function tailStubRound(j: J): PartMesh[] {
 function tailFeatherFan(j: J): PartMesh[] {
   const root = tailChain(j)
   const shells: SurfacePiece[] = []
-  const angles = [-38, -19, 0, 19, 38]
+  const angles = [-30, -15, 0, 15, 30]
   angles.forEach((ang, i) => {
     const a = (ang * Math.PI) / 180
-    const dir = vec.norm([Math.sin(a) * 0.9, 0.18, -Math.cos(a) * 0.9])
-    const tip = add(root, vec.scale(dir, Math.abs(ang) < 30 ? 0.26 : 0.22))
+    const dir = vec.norm([Math.sin(a) * 0.9, 0.45, -Math.cos(a) * 0.9])
+    const tip = add(root, vec.scale(dir, Math.abs(ang) < 20 ? 0.3 : 0.25))
     const f = closedCapsule(`feather${i}`, root, tip, 0.02, 0.035, 10, 10, 0.012)
-    flatY(f, root[1], 0.35)
+    flatY(f, root[1], 0.5)
     chainWeightsPiece(f, TAIL_BONES, [0.3, 0.55, 0.8], 0.12)
     setChannelFn(f, CH_SECONDARY, (k) => smoothstep(0.6, 0.9, f.params[k * 2 + 1]) * 0.85)
     shells.push(f)
   })
-  return [{ name: 'tail-feather-fan', shells, attach: null, morphKeys: lengthWidthKeys(shells, root, add(root, [0, 0.06, -0.26])) }]
+  return [{ name: 'tail-feather-fan', shells, attach: null, morphKeys: lengthWidthKeys(shells, root, add(root, [0, 0.13, -0.26])) }]
 }
 
-// claws + crest -----------------------------------------------------------------
+function tailSickleRooster(j: J): PartMesh[] {
+  const root = tailChain(j)
+  const shells: SurfacePiece[] = []
+  const L = 0.34
+  const fan = [-12, 0, 12]
+  fan.forEach((deg, i) => {
+    const fx = Math.sin((deg * Math.PI) / 180) * 0.14
+    const feather = closedCapsule(`sickle${i}`, root, add(root, [0, L, 0]), 0.02, 0.008, 10, 16, 0.01)
+    // arc rising ABOVE the back then curving down BEHIND the body (apex ~+0.22;
+    // reviewer round 1: authored high so spring rest sag never drops the arcs
+    // beside the legs)
+    const path: Vec3[] = [
+      root,
+      add(root, [fx * 0.3, 0.14, -0.04]),
+      add(root, [fx * 0.7, 0.22, -0.16]),
+      add(root, [fx, 0.16, -0.3]),
+      add(root, [fx * 1.1, 0.04, -0.37]),
+    ]
+    bendChain(feather.pos, root, L, smoothPath(path, 40))
+    chainWeightsPiece(feather, TAIL_BONES, [0.3, 0.55, 0.8], 0.1)
+    setChannelFn(feather, CH_SECONDARY, (k) => (feather.params[k * 2 + 1] > 0.85 ? 0.9 : 0))
+    shells.push(feather)
+  })
+  return [{ name: 'tail-sickle-rooster', shells, attach: null, morphKeys: lengthWidthKeys(shells, root, add(root, [0, 0.04, -0.37])) }]
+}
+
+function tailTrainPeacock(j: J): PartMesh[] {
+  const root = tailChain(j)
+  const shells: SurfacePiece[] = []
+  // near-vertical fan, only ~15° back-tilt (reviewer round 1: rest pose must
+  // read upright behind the torso, tips at/above mid-head height)
+  const tilt = (15 * Math.PI) / 180
+  const up: Vec3 = [0, Math.cos(tilt), -Math.sin(tilt)] // upright, tilted back
+  const xhat: Vec3 = [1, 0, 0]
+  const planeN = vec.norm(vec.cross(xhat, up)) // out-of-plane normal
+  const N = 7
+  for (let i = 0; i < N; i++) {
+    const f01 = i / (N - 1)
+    const phi = (-55 + f01 * 110) * (Math.PI / 180)
+    const dir = vec.norm(add(vec.scale(up, Math.cos(phi)), vec.scale(xhat, Math.sin(phi))))
+    const len = 0.24 + (1 - Math.abs(f01 - 0.5) * 2) * 0.06 // 0.24 edges → 0.30 centre
+    const tip = add(root, vec.scale(dir, len))
+    const feather = closedCapsule(`train${i}`, root, tip, 0.016, 0.03, 10, 12, 0.01)
+    // flatten perpendicular to the fan plane (thin flat feathers)
+    for (let k = 0; k < vertexCount(feather); k++) {
+      const d =
+        (feather.pos[k * 3] - root[0]) * planeN[0] +
+        (feather.pos[k * 3 + 1] - root[1]) * planeN[1] +
+        (feather.pos[k * 3 + 2] - root[2]) * planeN[2]
+      feather.pos[k * 3] -= planeN[0] * d * 0.6
+      feather.pos[k * 3 + 1] -= planeN[1] * d * 0.6
+      feather.pos[k * 3 + 2] -= planeN[2] * d * 0.6
+    }
+    chainWeightsPiece(feather, TAIL_BONES, [0.3, 0.55, 0.8], 0.12)
+    // eyespot: accent ring band near the tip, belly spot core inside it
+    setChannelFn(feather, CH_ACCENT, (k) => {
+      const t = feather.params[k * 2 + 1]
+      return smoothstep(0.78, 0.86, t) * (1 - smoothstep(0.9, 0.97, t))
+    })
+    setChannelFn(feather, CH_BELLY, (k) => smoothstep(0.9, 0.96, feather.params[k * 2 + 1]))
+    shells.push(feather)
+  }
+  return [{ name: 'tail-train-peacock', shells, attach: null, morphKeys: lengthWidthKeys(shells, root, add(root, vec.scale(up, 0.3))) }]
+}
+
+// wings (plan 023) ----------------------------------------------------------------
+//
+// AC read: the wing is its own layer riding the flank — narrow at the shoulder,
+// WIDENING toward the tip, ending in overlapping scallop rows of flat feathers
+// (Zion's blue wing with white tips; Phil's brown layered scallops). Skinned to
+// the arm chain; authored in reference space around the reference shoulder.
+
+// wings (round 5) — authored ALONG THE ARM CHAIN and skinned to it, so the
+// wing hangs off the shoulder and swings like a little arm (the AC read: the
+// folded wing IS the villager's arm). One tapered plate follows shoulder →
+// elbow → wrist → tip via bendChain; finger scallops fan from the wrist.
+// Per-species proportion knobs (eagle/owl: bigger, thicker) live in WingSpec.
+const ARM_L = ['upperArmL', 'foreArmL', 'handL']
+
+interface WingSpec {
+  /** Fan HALF-WIDTH (front→back) at the shoulder (narrow) / at the tip (wide). */
+  rootR: number
+  tipR: number
+  /** Plate thickness factor (eagle/owl thicker). */
+  flat: number
+  /** Extension of the wing length beyond the arm chain (reference m). */
+  ext: number
+  /** Feather lobes scalloped into the fan's bottom edge (0 = smooth flipper). */
+  fingers: number
+  /** Scallop notch depth (reference m). */
+  fingerLen: number
+}
+
+function wingSideL(j: J, spec: WingSpec, curl = 0): { shells: SurfacePiece[]; root: Vec3; tip: Vec3 } {
+  // round 9 rev 4 (operator): the folded wing hangs STRAIGHT DOWN and fans
+  // out like a folded bird wing — a clean flat paddle whose front→back width
+  // grows all the way to the bottom (a FAN, no teardrop re-narrowing), whose
+  // bottom edge is scalloped into ROUNDED feather lobes (raised-cosine, so
+  // both the lobes and the notches between them are soft, matching AC's
+  // clean read). Built as its own paddle grid — NOT a capsule, which
+  // converged to a pole and produced the pointy, coarse tip.
+  // round 9 rev 6 (operator): raise the whole wing so its top tucks up into
+  // the shoulder/neck junction (ROOT_LIFT), and splay it OUTWARD as it drops
+  // — a straight diagonal blade (top near the body, tip swung away), matching
+  // the front-view arrows. The bones stay put, so the wave action is unchanged.
+  const ROOT_LIFT = 0.045
+  const SPLAY = 0.05
+  const sh0 = V(j.upperArmL)
+  const sh: Vec3 = [sh0[0], sh0[1] + ROOT_LIFT, sh0[2]] // raised mesh root
+  const dSE = vec.len(vec.sub(V(j.foreArmL), sh0))
+  const dEW = vec.len(vec.sub(V(j.handL), V(j.foreArmL)))
+  const L = dSE + dEW + spec.ext
+  const tipPt: Vec3 = [sh[0] + SPLAY, sh[1] - L, sh[2]]
+
+  // flank-hug clamp (outward only): the plate may never sink into the egg
+  const bird = ARCHETYPES_DEF.bird
+  const u = bird.uniformScale
+  const jb = restWorldPositions(buildSkeleton(archetypeBuildOptions('bird')))
+  const tX = jb.upperArmL[0] - u * j.upperArmL[0]
+  const tY = jb.upperArmL[1] - u * j.upperArmL[1]
+  const dims = birdTrunkDims(jb, bird.headRadius * u)
+  // Ring-uniform hug (round 7): the old per-vertex clamp flattened the
+  // plate's inner face against the egg while the outer face stayed — the
+  // wing read as sunk INTO the body (worst on the owl). Each cross-section
+  // ring now shifts outward AS A WHOLE by the offset its innermost vertex
+  // needs, so the plate keeps its authored shape while riding the flank.
+  const hug = (piece: SurfacePiece, clearance: number): void => {
+    const need = new Map<number, number>()
+    for (let i = 0; i < vertexCount(piece); i++) {
+      const v01 = piece.params[i * 2 + 1]
+      const yW = piece.pos[i * 3 + 1] * u + tY
+      const minX = (birdFlankX(dims, yW) + clearance - tX) / u
+      const gap = minX - piece.pos[i * 3]
+      const key = Math.round(v01 * 1000)
+      if (gap > (need.get(key) ?? 0)) need.set(key, gap)
+    }
+    for (let i = 0; i < vertexCount(piece); i++) {
+      const v01 = piece.params[i * 2 + 1]
+      const offset = need.get(Math.round(v01 * 1000)) ?? 0
+      if (offset > 0) piece.pos[i * 3] += offset * smoothstep(0.06, 0.3, v01)
+    }
+  }
+
+  const shells: SurfacePiece[] = []
+  // Fan paddle — its own grid (sphere topology, remapped). params carry
+  // az-u01 (around the thin cross-section) and s-v01 (shoulder→tip); the
+  // bottom pole is re-centred at the tip so the fan ends in a FLAT scalloped
+  // edge instead of converging to a point. Higher segment counts keep the
+  // surface smooth (the old capsule read as coarse/faceted).
+  const USEG = 32 // more columns → the scallop lobes read round, not faceted
+  const VSEG = 18
+  const sMax = (VSEG - 1) / VSEG // v01 of the last ring before the tip pole
+  const sCarve = 0.6 // where the scallop fringe begins (eased in gradually)
+  const grid = unitSphere(USEG, VSEG)
+  const plate = gridToPiece('wingPlate', grid)
+  const scallopY = (az: number, s: number): number => {
+    let y = -L * Math.min(1, s / sMax) // straight down; last ring & pole both at −L
+    if (spec.fingers > 0 && s > sCarve) {
+      // rounded feather scallops along the bottom edge: a raised cosine across
+      // the front→back width lifts the NOTCHES up while the lobes hang full,
+      // so both lobes and notches are soft (no spikes).
+      const zz = Math.cos(az) // −1 (back) … +1 (front)
+      const phase = ((zz + 1) / 2) * spec.fingers
+      const frac = phase - Math.floor(phase)
+      const bump = 0.5 - 0.5 * Math.cos(2 * Math.PI * frac) // 0 at notch, 1 at lobe centre
+      y += spec.fingerLen * (1 - bump) * smoothstep(sCarve, 1, s)
+    }
+    return y
+  }
+  for (let i = 0; i < vertexCount(plate); i++) {
+    const az = plate.params[i * 2] * 2 * Math.PI
+    const s = plate.params[i * 2 + 1]
+    const sr = Math.min(1, s / sMax) // 0 at shoulder → 1 at the widest (last) ring
+    const halfW = spec.rootR + (spec.tipR - spec.rootR) * sr // fan width (z), straight sides
+    const halfT = spec.flat * (spec.rootR * 0.9 + spec.tipR * 0.5 * sr) // thickness (x), plate-thin
+    let x: number
+    let y: number
+    let z: number
+    if (i === grid.bottomPole) {
+      // shoulder cap centre
+      x = 0
+      z = 0
+      y = 0
+    } else if (i === grid.topPole) {
+      // tip cap centre — sits at the mean scallop depth so the flat fanned
+      // bottom stays flush (no central spike below the lobes)
+      x = 0
+      z = 0
+      y = -L + (spec.fingers > 0 ? spec.fingerLen * 0.5 : 0)
+    } else {
+      x = Math.sin(az) * halfT
+      z = Math.cos(az) * halfW
+      y = scallopY(az, s)
+    }
+    x += SPLAY * sr // outward diagonal lean, straight from root to tip
+    if (curl > 0) x += s * s * curl // penguin flipper bows outward toward the tip
+    plate.pos[i * 3] = sh[0] + x
+    plate.pos[i * 3 + 1] = sh[1] + y
+    plate.pos[i * 3 + 2] = sh[2] + z
+  }
+  chainWeightsPiece(plate, ARM_L, [dSE / L, (dSE + dEW) / L], 0.12)
+  setChannelFn(plate, CH_ACCENT, (i) => smoothstep(0.82, 0.96, plate.params[i * 2 + 1]))
+  hug(plate, 0.012)
+  shells.push(plate)
+  return { shells, root: sh, tip: tipPt }
+}
+
+/** L shells + mirrored R shells in one PartMesh, morph keys spanning both. */
+function pairWing(name: string, j: J, spec: WingSpec, curl = 0): PartMesh[] {
+  const { shells, root, tip } = wingSideL(j, spec, curl)
+  const right = shells.map((p, i) => mirrorX(p, `${p.name}R${i}`))
+  const keysL = lengthWidthKeys(shells, root, tip)
+  const keysR = lengthWidthKeys(right, [-root[0], root[1], root[2]], [-tip[0], tip[1], tip[2]])
+  const morphKeys: Record<string, Float32Array> = {}
+  for (const k of Object.keys(keysL)) morphKeys[k] = concatF32(keysL[k], keysR[k])
+  return [{ name, shells: [...shells, ...right], attach: null, morphKeys }]
+}
+
+function wingRound(j: J): PartMesh[] {
+  // default songbird/chicken: a fan — narrow shoulder opening wide at the tip,
+  // with a shallow, finely-scalloped feather hem
+  return pairWing('wing-round', j, { rootR: 0.018, tipR: 0.092, flat: 0.55, ext: 0.04, fingers: 4, fingerLen: 0.014 })
+}
+
+function wingEagle(j: J): PartMesh[] {
+  // eagle/owl/peacock: bigger, wider fan, THICKER, one more feather lobe
+  return pairWing('wing-eagle', j, { rootR: 0.022, tipR: 0.12, flat: 0.62, ext: 0.09, fingers: 5, fingerLen: 0.018 })
+}
+
+function wingFlipper(j: J): PartMesh[] {
+  // penguin: one smooth fanned paddle, no scallops, slight outward curl
+  return pairWing('wing-flipper', j, { rootR: 0.026, tipR: 0.075, flat: 0.5, ext: 0.05, fingers: 0, fingerLen: 0 }, 0.03)
+}
+
+// claws + bird legs ------------------------------------------------------------
 
 function clawsStub(j: J): PartMesh[] {
   const handDir = dirTo(V(j.foreArmL), V(j.handL))
@@ -423,24 +777,156 @@ function clawsStub(j: J): PartMesh[] {
   })
 }
 
+// bird legs (round 5) — the WHOLE visible leg is one proper mesh per side:
+// a thin straight tarsus stick (AC bird legs carry no muscle or fat — they
+// are uniform sticks) plus three separated toes and a hind toe, authored
+// along the reference LEG BONE CHAIN and skinned to it (upperLeg/lowerLeg/
+// foot), so it compresses onto the bird skeleton exactly, swings with walk
+// clips and folds when sitting. This replaces round 4's rigid toe pads AND
+// the old welded mammal-derived leg (deleted from the bird body build).
+
+function birdLegSide(j: J, side: 'L' | 'R', webbed: boolean): SurfacePiece[] {
+  const u = ARCHETYPES_DEF.bird.uniformScale
+  const jb = restWorldPositions(buildSkeleton(archetypeBuildOptions('bird')))
+  const hip = V(j[`upperLeg${side}` as BoneName])
+  const ankleRef = V(j[`foot${side}` as BoneName])
+  const footBone = `foot${side}` as const
+  const shells: SurfacePiece[] = []
+
+  // --- tarsus: a UNIFORM thin stick, top hidden inside the egg. The bottom
+  // reaches the GROUND-aligned toe hub, not the foot BONE — the bird foot
+  // bone rests well above the sole (legs are half-scaled), and ending the
+  // stick there left a floating gap between leg and foot (round 6 defect).
+  const soleRef = ankleRef[1] - jb[footBone][1] / u // authored y that lands on world 0
+  const top: Vec3 = [hip[0], hip[1] + 0.1, hip[2]]
+  const bottom: Vec3 = [ankleRef[0], soleRef + 0.012, ankleRef[2]]
+  const stick = closedCapsule(`tarsus${side}`, top, bottom, 0.02, 0.019, 10, 12, 0, 0.4)
+  chainWeightsPiece(stick, [`upperLeg${side}`, `lowerLeg${side}`, footBone], [0.45, 0.82], 0.08)
+  setChannelAll(stick, CH_ACCENT, 1)
+  shells.push(stick)
+
+  // --- toes: fully weighted to the foot bone, soles landing on world y=0
+  // after the skinned remap (world = birdBone + u·(v − refBone)).
+  const soleY = soleRef
+  const toeR = 0.024
+  const flat = 0.6
+  const lift = toeR * flat
+  const heelZ = -0.012
+  const toe = (name: string, angDeg: number, len: number, r: number): void => {
+    const a = (angDeg * Math.PI) / 180
+    const dir: Vec3 = [Math.sin(a), 0, Math.cos(a)]
+    const base: Vec3 = [ankleRef[0], soleY + lift, ankleRef[2] + heelZ]
+    const tip = add(base, vec.scale(dir, len))
+    const t = closedCapsule(name, base, tip, r, r * 0.75, 10, 8, 0, 0.55)
+    flatY(t, soleY + lift, flat)
+    const n = vertexCount(t)
+    t.weights.set(footBone, new Array(n).fill(1))
+    setChannelAll(t, CH_ACCENT, 1)
+    shells.push(t)
+  }
+  if (webbed) {
+    toe(`toeMid${side}`, 0, 0.082, toeR * 0.88)
+    toe(`toeIn${side}`, -24, 0.07, toeR * 0.82)
+    toe(`toeOut${side}`, 24, 0.07, toeR * 0.82)
+    const web = closedEllipsoid(`web${side}`, [ankleRef[0], soleY + lift * 0.7, ankleRef[2] + heelZ + 0.042], [0.05, lift * 0.55, 0.048], 12, 8)
+    const n = vertexCount(web)
+    web.weights.set(footBone, new Array(n).fill(1))
+    setChannelAll(web, CH_ACCENT, 1)
+    shells.push(web)
+  } else {
+    // foot arch wedge: the AC foot has a small instep the toes SPLIT from,
+    // rather than three fingers poking straight out of the ankle
+    const wedge = closedCapsule(
+      `instep${side}`,
+      [ankleRef[0], soleY + lift * 1.25, ankleRef[2] + heelZ - 0.004],
+      [ankleRef[0], soleY + lift * 0.9, ankleRef[2] + heelZ + 0.05],
+      toeR * 1.5,
+      toeR * 1.15,
+      10,
+      6,
+      0,
+      0.5,
+    )
+    flatY(wedge, soleY + lift, 0.72)
+    const wn = vertexCount(wedge)
+    wedge.weights.set(footBone, new Array(wn).fill(1))
+    setChannelAll(wedge, CH_ACCENT, 1)
+    shells.push(wedge)
+    toe(`toeMid${side}`, 0, 0.1, toeR)
+    toe(`toeIn${side}`, -32, 0.09, toeR * 0.86)
+    toe(`toeOut${side}`, 32, 0.09, toeR * 0.86)
+    toe(`toeHind${side}`, 180, 0.046, toeR * 0.78)
+  }
+  return shells
+}
+
+function birdToes(j: J): PartMesh[] {
+  return [{ name: 'bird-toes', shells: [...birdLegSide(j, 'L', false), ...birdLegSide(j, 'R', false)], attach: null, morphKeys: {} }]
+}
+
+function birdToesWebbed(j: J): PartMesh[] {
+  return [{ name: 'bird-toes-webbed', shells: [...birdLegSide(j, 'L', true), ...birdLegSide(j, 'R', true)], attach: null, morphKeys: {} }]
+}
+
 function crestFeatherTuft(j: J): PartMesh[] {
+  // Two owl brow tufts (Blathers): a trio at +x, mirrored to −x, each aimed
+  // up-and-out from the crown sides.
+  const a = V(j['socket.hat'])
+  const specs: Array<[number, number]> = [
+    [-35, 0.085],
+    [-15, 0.11],
+    [8, 0.08],
+  ]
+  const base = add(a, [0.055, -0.005, 0])
+  const right: SurfacePiece[] = specs.map(([ang, ln], i) => {
+    const r = (ang * Math.PI) / 180
+    const dir = vec.norm([Math.sin(r) + 0.35, Math.cos(r), -0.15])
+    const f = closedCapsule(`tuftR${i}`, base, add(base, vec.scale(dir, ln)), 0.016, 0.02, 8, 8, 0.006)
+    scaleX(f, base[0], 0.5)
+    setChannelAll(f, CH_ACCENT, 1)
+    return f
+  })
+  const left = right.map((p, i) => mirrorX(p, `tuftL${i}`))
+  return [{ name: 'crest-feather-tuft', shells: [...right, ...left], attach: 'socket.hat', morphKeys: {} }]
+}
+
+function crestCombChicken(j: J): PartMesh[] {
+  // Serrated red crown ridge: 4 overlapping thin lobes along the head midline,
+  // descending back-to-front.
+  const a = V(j['socket.hat'])
+  const zs = [-0.07, -0.015, 0.04, 0.09]
+  const shells = zs.map((dz, i) => {
+    const h = 0.07 - (i / (zs.length - 1)) * 0.02 // 0.07 back → 0.05 front
+    const c: Vec3 = [a[0], a[1] + h * 0.45, a[2] + dz]
+    const lobe = closedEllipsoid(`comb${i}`, c, [0.02, h, 0.045], 10, 8)
+    setChannelAll(lobe, CH_SECONDARY, 1)
+    return lobe
+  })
+  return [{ name: 'crest-comb-chicken', shells, attach: 'socket.hat', morphKeys: {} }]
+}
+
+function crestPeacock(j: J): PartMesh[] {
+  // 3 thin stalks with teardrop tips (the peacock's upright crown fan).
   const a = V(j['socket.hat'])
   const shells: SurfacePiece[] = []
   const specs: Array<[number, number]> = [
-    [-24, 0.1],
-    [0, 0.14],
-    [24, 0.1],
+    [-14, 0.1],
+    [0, 0.12],
+    [14, 0.1],
   ]
   specs.forEach(([ang, ln], i) => {
     const r = (ang * Math.PI) / 180
-    const dir = vec.norm([Math.sin(r) * 0.45, Math.cos(r * 0.6), -0.35])
-    const base = add(a, [Math.sin(r) * 0.02, -0.01, 0])
-    const f = closedCapsule(`tuft${i}`, base, add(base, vec.scale(dir, ln)), 0.016, 0.024, 8, 8, 0.006)
-    scaleX(f, base[0], 0.5)
-    setChannelAll(f, CH_ACCENT, 1)
-    shells.push(f)
+    const dir = vec.norm([Math.sin(r), Math.cos(r), -0.1])
+    const base = add(a, [Math.sin(r) * 0.01, 0, 0])
+    const end = add(base, vec.scale(dir, ln))
+    const stalk = closedCapsule(`stalk${i}`, base, end, 0.006, 0.004, 8, 8)
+    setChannelAll(stalk, CH_ACCENT, 1)
+    shells.push(stalk)
+    const tip = closedEllipsoid(`teardrop${i}`, end, [0.016, 0.02, 0.01], 8, 6)
+    setChannelAll(tip, CH_SECONDARY, 1)
+    shells.push(tip)
   })
-  return [{ name: 'crest-feather-tuft', shells, attach: 'socket.hat', morphKeys: {} }]
+  return [{ name: 'crest-peacock', shells, attach: 'socket.hat', morphKeys: {} }]
 }
 
 const BUILDERS: Partial<Record<PartId, (j: J) => PartMesh[]>> = {
@@ -454,13 +940,24 @@ const BUILDERS: Partial<Record<PartId, (j: J) => PartMesh[]>> = {
   'beak-round': muzzleBeakRound,
   'beak-hooked': muzzleBeakHooked,
   'bill-duck': muzzleBillDuck,
+  'beak-chicken': muzzleBeakChicken,
+  'beak-penguin': muzzleBeakPenguin,
   'curl-shiba': tailCurlShiba,
   'fluff-fox': tailFluffFox,
   'slim-cat': tailSlimCat,
   'stub-round': tailStubRound,
   'feather-fan': tailFeatherFan,
+  'tail-sickle-rooster': tailSickleRooster,
+  'tail-train-peacock': tailTrainPeacock,
   'stub-claws': clawsStub,
+  'bird-toes': birdToes,
+  'bird-toes-webbed': birdToesWebbed,
+  'wing-round': wingRound,
+  'wing-eagle': wingEagle,
+  'wing-flipper': wingFlipper,
   'feather-tuft': crestFeatherTuft,
+  'comb-chicken': crestCombChicken,
+  'crest-peacock': crestPeacock,
 }
 
 // --- scene assembly -----------------------------------------------------------
@@ -558,6 +1055,9 @@ export function buildProceduralPart(partId: string): THREE.Object3D {
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial())
     mesh.name = pm.name
     mesh.userData.attachBone = bone
+    // lower mandibles hinge at the muzzle socket — assembly collects these
+    // so the talk layer can open/close the beak (anatomy round 3)
+    if (pm.name.endsWith('.jaw')) mesh.userData.beakJaw = true
     mesh.frustumCulled = false
     scene.add(mesh)
   }

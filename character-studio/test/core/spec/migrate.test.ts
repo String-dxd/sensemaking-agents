@@ -26,6 +26,29 @@ describe('migrateSpec', () => {
     expect(() => migrateSpec({ meta: { specVersion: -1 } })).toThrow(/no migration registered/i)
   })
 
+  it('v2 -> v3: a bird spec gains the default wings part (plan 023)', () => {
+    const spec = createDefaultCharacter('bird', 'cheerful')
+    const v2 = structuredClone(spec) as unknown as {
+      meta: Record<string, unknown>
+      anatomy: { parts: Record<string, unknown> }
+    }
+    v2.meta.specVersion = 2
+    delete v2.anatomy.parts.wings
+    const migrated = migrateSpec(v2)
+    expect(migrated.meta.specVersion).toBe(3)
+    expect(migrated.anatomy.parts.wings).toEqual({ partId: 'wing-round', morphs: {} })
+  })
+
+  it('v2 -> v3: a mammal spec is unchanged besides the version', () => {
+    const spec = createDefaultCharacter('biped-round', 'gentle')
+    const v2 = structuredClone(spec) as unknown as { meta: Record<string, unknown> }
+    v2.meta.specVersion = 2
+    const migrated = migrateSpec(v2)
+    expect(migrated.meta.specVersion).toBe(3)
+    expect(migrated.anatomy.parts.wings).toBeUndefined()
+    expect(migrated).toEqual({ ...spec, meta: { ...spec.meta, specVersion: 3 } })
+  })
+
   it('runs a synthetic v0 -> v1 migration end to end and the result validates', () => {
     // Register a throwaway v0 migration for this test only, exercising the
     // real machinery (not a stand-in) — restored in `finally` so it can't
