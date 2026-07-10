@@ -421,12 +421,16 @@ export function App() {
           ref={setControls}
           makeDefault
           enabled={orbitEnabled || cameraMode}
-          // Drag = PAN, never orbit — rotation happens only via the CameraDock
-          // buttons/presets. Ground-plane panning (not screen-space) so the
-          // island slides under the camera without changing altitude.
-          enableRotate={false}
+          // Plain drag = PAN (ground-plane, so the island slides under the
+          // camera without changing altitude); holding Cmd/Ctrl (camera mode)
+          // ORBITS. The mapping stays LEFT: PAN on purpose — OrbitControls
+          // flips a modifier-held PAN drag into ROTATE internally (and would
+          // flip a ROTATE mapping into pan, so LEFT: ROTATE here would undo
+          // itself). enableRotate gates that flip to camera mode only.
+          enableRotate={cameraMode}
           screenSpacePanning={false}
           mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
+          maxPolarAngle={Math.PI / 2 - 0.05} // never orbit below the horizon
           minDistance={4}
           maxDistance={120}
         />

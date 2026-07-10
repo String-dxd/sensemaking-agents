@@ -86,10 +86,12 @@ function randomizeComposition(model: THREE.Object3D, kind: ObjectKind, seed: num
       child.rotation.y += rand() * Math.PI
     }
   } else if (kind === 'palm') {
+    // The crown's tiers are authored strictly uniform (45° rim spacing) so the
+    // star reads even from above; keep the per-instance jitter well under the
+    // spacing or placements clump back into the crumpled-mass look.
     for (const child of canopy.children) {
       if (child.children.length === 0) continue // frond holders only (groups)
-      child.rotation.y += (rand() - 0.5) * 0.3
-      child.rotation.z = (rand() - 0.5) * 0.1
+      child.rotation.y += (rand() - 0.5) * 0.1
     }
   }
 }

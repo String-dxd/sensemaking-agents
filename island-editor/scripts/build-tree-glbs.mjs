@@ -338,37 +338,57 @@ function buildPine() {
 }
 
 // ---------------------------------------------------------------------------
-// palm — segmented stepped trunk, broad arched blade fronds, green coconuts
-// (references: a low-poly palm render + the official AC coconut palm)
+// palm — low-poly cozy remodel (2026-07-09): a gently CURVED trunk of stacked
+// flared collar bands + chunky flat-faceted fronds whose edges are cut into
+// deep rounded leaflet lobes. References: two cozy-game low-poly palm renders
+// (soft scalloped-lobe crowns / papercraft faceted fronds over banded,
+// pineapple-notched trunks). Unlike the smooth broadleaf/cedar set, the palm
+// is deliberately FLAT-shaded everywhere — the facets ARE the style.
 // ---------------------------------------------------------------------------
 
-/** One palm frond: a creased tapering strip — a deep inverted-V cross section
- *  (edges fold well below the midrib, the toy render's plump center crease)
- *  that reaches up briefly then arcs hard DOWN, so the fronds together read as
- *  an umbrella dome with hanging tips. Widest mid-blade with a rounded tip and
- *  gently notched edges. UVs run u across the blade and v along it, so the
- *  leaflet texture's fringe follows the blade. Rendered double-sided (a strip
- *  has no volume). Consumes exactly two rand(). */
-function frondBlade(L, W, mat, rand) {
-  const N = 8
-  // OPEN umbrella: tips end only ~0.2 below the crown base. (First attempt
-  // used droop ~1.0 — tips fell 0.5+, the blades curtained down around the
-  // trunk and the crown read as a closed artichoke from the game camera.)
-  const rise = 0.42 + rand() * 0.06 // quick reach up over the hub…
-  const droop = 0.64 + rand() * 0.08 // …then a gentle arc just past horizontal
+/** Re-index to per-face normals: the flat papercraft facet shading. */
+function faceted(geo) {
+  const g = geo.toNonIndexed()
+  g.computeVertexNormals()
+  return g
+}
+
+/** One palm frond: a narrow creased LANCE — a pointed diamond silhouette
+ *  (widest ~35% out, tapering to a sharp tip) with sawtooth leaflet points
+ *  cut into the edges, folded along a center crease. The SPINE is a true
+ *  palm arc: it leaves the growth point climbing at `theta0` (radians above
+ *  horizontal) and bends continuously through `bend` radians, so the frond
+ *  reaches up-and-out then arches over with the tip hanging — the fountain
+ *  shape every real palm crown has. The crease fold stays perpendicular to
+ *  the spine's local direction (a vertical fold would flatten the steep
+ *  base). Flat-faceted; UVs run u across the blade, v along it; double-sided
+ *  (a strip has no volume). Consumes exactly two rand(). */
+function frondBlade(L, W, theta0, bend, mat, rand) {
+  const N = 7 // few long facets — the papercraft reference blades are plain
+  const th0 = theta0 + (rand() - 0.5) * 0.1
+  const dth = bend + (rand() - 0.5) * 0.14
   const positions = []
   const uvs = []
+  const ds = L / N
+  let px = 0
+  let py = 0
   for (let s = 0; s <= N; s++) {
     const t = s / N
-    const out = L * t
-    const y = rise * t - droop * t * t
-    // Narrow stem, then PLUMP through the middle, closing in a rounded tip;
-    // the sin wobble nicks shallow notches into the edges (the toy scallops).
-    const w =
-      W * Math.min(1, 0.25 + t * 2.5) * (1 - t ** 2.8) ** 0.6 * (0.94 + 0.1 * Math.abs(Math.sin(t * 9.4)))
-    const fold = 0.5 * w
-    positions.push(out, y - fold, -w, out, y, 0, out, y - fold, w)
+    const theta = th0 - dth * t // spine direction, bending over as it goes
+    // Clean diamond silhouette: near-linear widen to ~40% out, straight
+    // taper to a point. No edge teeth — the reference blades are plain
+    // creased lances; the low segment count alone gives the faceted look.
+    const env = t < 0.4 ? 0.4 + (t / 0.4) * 0.6 : (1 - t) / 0.6
+    const w = W * env
+    // Fold perpendicular to the spine: edges drop toward the blade's local
+    // "down" (sin, -cos), keeping the V crease through the whole arc.
+    const fold = 0.42 * W * env
+    const fx = fold * Math.sin(theta)
+    const fy = -fold * Math.cos(theta)
+    positions.push(px + fx, py + fy, -w, px, py, 0, px + fx, py + fy, w)
     uvs.push(0, t, 0.5, t, 1, t)
+    px += Math.cos(theta) * ds
+    py += Math.sin(theta) * ds
   }
   const indices = []
   for (let s = 0; s < N; s++) {
@@ -380,8 +400,7 @@ function frondBlade(L, W, mat, rand) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2))
   geo.setIndex(indices)
-  geo.computeVertexNormals()
-  return new THREE.Mesh(geo, mat)
+  return new THREE.Mesh(faceted(geo), mat)
 }
 
 function buildPalm() {
@@ -389,41 +408,50 @@ function buildPalm() {
   const root = new THREE.Group()
   root.name = 'palm'
 
-  // The whole tree leans slightly from its base (the lean is part of the
-  // asset; the runtime adds per-instance yaw, so the lean direction varies).
-  const lean = new THREE.Group()
-  lean.name = 'lean'
-  lean.rotation.z = 0.06
-  root.add(lean)
+  // Curved spine, baked into the asset (the runtime adds per-instance yaw, so
+  // the bend direction varies): vertical at the base, leaning increasingly
+  // toward +x with height — the reference palms all bow, never telescope.
+  const TRUNK_H = 1.35
+  const BEND = 0.24 // total sideways offset at the crown
+  const spineX = (t) => BEND * t * t
+  const spineTilt = (t) => Math.atan2(2 * BEND * t, TRUNK_H) // lean angle from vertical
 
-  // Trunk: five stacked plump PILLOW segments (squashed spheres, the toy
-  // render's quilted barrels) tapering gently upward, with tiny alternating
-  // sideways nudges so the column curves organically instead of telescoping.
+  // Trunk: ONE smooth tapered column following the spine (the simplified
+  // reference trunks are plain faceted poles — no notch bands): 5 stacked
+  // frustum segments with continuous radii, 7 radial sides, flat facets.
+  // Broad at the root (extra ground flare), ~55% radius under the crown.
   const palmBark = new THREE.MeshStandardMaterial({ color: 0xc9954f, roughness: 0.9, metalness: 0 })
   palmBark.name = 'bark-palm'
-  const radii = [0.19, 0.17, 0.155, 0.14, 0.125]
-  const SEG_H = 0.26 // pillow height (sphere squashed to this)
-  const STEP = 0.185 // vertical stride — pillows overlap so shoulders nest
-  let segY = SEG_H / 2 - 0.03 // bottom pillow sits slightly into the ground
-  for (let i = 0; i < radii.length; i++) {
-    const seg = new THREE.Mesh(new THREE.SphereGeometry(radii[i], 10, 8), palmBark)
-    seg.scale.y = SEG_H / (radii[i] * 2)
-    seg.position.set((i % 2 === 0 ? 1 : -1) * 0.008 * i, segY, 0)
+  const SEGS = 5
+  const segH = TRUNK_H / SEGS
+  const radiusAt = (t) => (0.115 - 0.052 * t) * (t < 0.08 ? 1.14 : 1)
+  for (let i = 0; i < SEGS; i++) {
+    const t0 = i / SEGS
+    const t1 = (i + 1) / SEGS
+    const seg = new THREE.Mesh(
+      // 1.03 height overlap hides hairline gaps where the tilt changes.
+      faceted(new THREE.CylinderGeometry(radiusAt(t1), radiusAt(t0), segH * 1.03, 7, 1)),
+      palmBark,
+    )
+    const tm = (t0 + t1) / 2
+    seg.position.set(spineX(tm), TRUNK_H * tm, 0)
+    seg.rotation.z = -spineTilt(tm)
     if (i === 0) seg.name = 'trunk'
-    lean.add(seg)
-    segY += STEP
+    root.add(seg)
   }
 
   const canopy = new THREE.Group()
   canopy.name = 'canopy'
-  canopy.position.y = segY - STEP + SEG_H * 0.38
-  canopy.userData.windAmp = 0.7
-  lean.add(canopy)
+  canopy.position.set(spineX(1), TRUNK_H - 0.02, 0)
+  // Palms are the LOOSEST crown in the set: long flexible fronds catch every
+  // gust, so they sway harder than the broadleaf (1), not softer.
+  canopy.userData.windAmp = 1.25
+  root.add(canopy)
 
   // Emissive floor: fronds are thin DoubleSide strips, so half of them face
   // away from the sun at any angle — without a lift their undersides crush to
-  // near-black and the crown reads lopsided ("weird direction"). The soft
-  // self-light keeps both faces in the same painted key.
+  // near-black and the crown reads lopsided. The soft self-light keeps both
+  // faces in the same painted key.
   const frondMat = new THREE.MeshStandardMaterial({
     color: LEAF,
     emissive: 0x2a5a26,
@@ -433,44 +461,33 @@ function buildPalm() {
   })
   frondMat.name = 'frond'
 
-  // Crown hub: a big rounded cap covering the blade roots AND the top trunk
-  // pillow (which otherwise peeks orange through the crown center) — the toy
-  // render's smooth center dome the upper fronds tuck under.
-  const hub = new THREE.Mesh(new THREE.SphereGeometry(0.2, 9, 7), frondMat)
-  hub.scale.y = 0.6
-  hub.position.y = 0.04
+  // Crown hub: a small faceted knuckle covering the blade roots and the
+  // trunk's top band.
+  const hub = new THREE.Mesh(faceted(new THREE.SphereGeometry(0.1, 7, 5)), frondMat)
+  hub.scale.y = 0.65
+  hub.position.y = 0.02
   canopy.add(hub)
 
-  // Two rings of plump creased fronds (blades are authored along +x; each
-  // holder's yaw fans them around): a long low ring forming the umbrella rim,
-  // and a shorter steeper ring layered on top — the reference's stacked dome.
-  const rings = [
-    { count: 7, L: 0.78, W: 0.25, pitch: -0.12, y: 0, yawOff: 0 },
-    { count: 5, L: 0.52, W: 0.19, pitch: 0.1, y: 0.07, yawOff: 0.45 },
+  // The simplified crown: TWO strictly uniform tiers — 8 long rim fronds at
+  // 45° spacing arching over, and 4 short steep ones sitting exactly between
+  // them — with NO per-frond yaw jitter, so the star reads clean and even
+  // from every direction (the reference crowns are tidy bursts; the earlier
+  // jittered 16-frond stack read as a crumpled mass in-game). Per-blade
+  // theta/bend jitter alone keeps it from looking stamped. Holders stay
+  // GROUPS: the runtime re-fans them per placement.
+  const tiers = [
+    { count: 8, L: 0.72, W: 0.2, theta0: 0.75, bend: 1.4, yawOff: 0 },
+    { count: 4, L: 0.48, W: 0.15, theta0: 1.2, bend: 0.95, yawOff: Math.PI / 8 },
   ]
-  for (const ring of rings) {
-    for (let i = 0; i < ring.count; i++) {
+  for (const tier of tiers) {
+    for (let i = 0; i < tier.count; i++) {
       const holder = new THREE.Group()
-      holder.rotation.y = (i / ring.count) * Math.PI * 2 + ring.yawOff + (rand() - 0.5) * 0.25
-      holder.position.y = ring.y
-      const blade = frondBlade(ring.L + rand() * 0.05, ring.W, frondMat, rand)
-      blade.rotation.z = ring.pitch + (rand() - 0.5) * 0.08
+      holder.rotation.y = (i / tier.count) * Math.PI * 2 + tier.yawOff
+      const blade = frondBlade(tier.L + rand() * 0.04, tier.W, tier.theta0, tier.bend, frondMat, rand)
       holder.add(blade)
       holder.rotation.order = 'YXZ'
       canopy.add(holder)
     }
-  }
-
-  // Two big bright coconuts hanging just under the crown (the AC pair).
-  const cocoMat = new THREE.MeshStandardMaterial({ color: 0xa9ce55, roughness: 0.95, metalness: 0 })
-  cocoMat.name = 'coconut'
-  const cocoAz = rand() * Math.PI * 2
-  for (let i = 0; i < 2; i++) {
-    const a = cocoAz + i * 1.1 + (rand() - 0.5) * 0.3
-    const coconut = new THREE.Mesh(new THREE.SphereGeometry(0.085, 9, 7), cocoMat)
-    coconut.scale.y = 1.15
-    coconut.position.set(Math.cos(a) * 0.11, -0.08, Math.sin(a) * 0.11)
-    canopy.add(coconut)
   }
 
   return root
