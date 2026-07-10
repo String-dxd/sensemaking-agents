@@ -362,13 +362,11 @@ function faceted(geo) {
  *  shape every real palm crown has. The crease fold stays perpendicular to
  *  the spine's local direction (a vertical fold would flatten the steep
  *  base). Flat-faceted; UVs run u across the blade, v along it; double-sided
- *  (a strip has no volume). Consumes exactly three rand(). */
+ *  (a strip has no volume). Consumes exactly two rand(). */
 function frondBlade(L, W, theta0, bend, mat, rand) {
-  const TEETH = 5 // pointed leaflets per side
-  const N = TEETH * 4
-  const th0 = theta0 + (rand() - 0.5) * 0.12
-  const dth = bend + (rand() - 0.5) * 0.16
-  const phase = rand() // shifts the leaflet pattern per blade
+  const N = 7 // few long facets — the papercraft reference blades are plain
+  const th0 = theta0 + (rand() - 0.5) * 0.1
+  const dth = bend + (rand() - 0.5) * 0.14
   const positions = []
   const uvs = []
   const ds = L / N
@@ -377,13 +375,11 @@ function frondBlade(L, W, theta0, bend, mat, rand) {
   for (let s = 0; s <= N; s++) {
     const t = s / N
     const theta = th0 - dth * t // spine direction, bending over as it goes
-    // Lance silhouette: quick widen to ~35% out, gentle taper to a pointed
-    // tip — plump through the middle (the cozy reference), not needle-thin.
-    const env = t < 0.35 ? 0.45 + (t / 0.35) * 0.55 : ((1 - t) / 0.65) ** 0.85
-    // Sawtooth leaflets: a triangle wave nicks pointed teeth into the edge —
-    // crisp papercraft points, shallow enough to keep the blade plump.
-    const tri = 2 * Math.abs(((TEETH * t + phase) % 1) - 0.5)
-    const w = W * env * (0.72 + 0.28 * tri)
+    // Clean diamond silhouette: near-linear widen to ~40% out, straight
+    // taper to a point. No edge teeth — the reference blades are plain
+    // creased lances; the low segment count alone gives the faceted look.
+    const env = t < 0.4 ? 0.4 + (t / 0.4) * 0.6 : (1 - t) / 0.6
+    const w = W * env
     // Fold perpendicular to the spine: edges drop toward the blade's local
     // "down" (sin, -cos), keeping the V crease through the whole arc.
     const fold = 0.42 * W * env
@@ -420,32 +416,28 @@ function buildPalm() {
   const spineX = (t) => BEND * t * t
   const spineTilt = (t) => Math.atan2(2 * BEND * t, TRUNK_H) // lean angle from vertical
 
-  // Trunk: SLIM stacked notch bands following the spine — each band swells
-  // gently to a small lip and steps under the next, so the silhouette stays
-  // one smooth taper with fine pineapple notches (the reference trunks are
-  // slender columns with delicate ledges, not stacked pots). 8 bands, 7
-  // radial segments, flat facets.
+  // Trunk: ONE smooth tapered column following the spine (the simplified
+  // reference trunks are plain faceted poles — no notch bands): 5 stacked
+  // frustum segments with continuous radii, 7 radial sides, flat facets.
+  // Broad at the root (extra ground flare), ~55% radius under the crown.
   const palmBark = new THREE.MeshStandardMaterial({ color: 0xc9954f, roughness: 0.9, metalness: 0 })
   palmBark.name = 'bark-palm'
-  const BANDS = 8
-  const bandH = (TRUNK_H / BANDS) * 1.12 // slight overlap so shoulders nest
-  for (let i = 0; i < BANDS; i++) {
-    const t = i / BANDS
-    // Real palm taper: broad at the root, distinctly thinner under the crown
-    // (top radius ≈ 55% of base), with an extra flare on the ground band.
-    const r = (0.115 - 0.052 * t) * (i === 0 ? 1.12 : 1)
-    const profile = [
-      new THREE.Vector2(r * 0.88, 0),
-      new THREE.Vector2(r, bandH * 0.6),
-      new THREE.Vector2(r * 1.04, bandH * 0.88), // small notch lip
-      new THREE.Vector2(r * 0.78, bandH * 0.98), // step under the next band
-      new THREE.Vector2(0, bandH), // closed so no see-through at grazing angles
-    ]
-    const band = new THREE.Mesh(faceted(new THREE.LatheGeometry(profile, 7)), palmBark)
-    band.position.set(spineX(t), TRUNK_H * t, 0)
-    band.rotation.z = -spineTilt(t)
-    if (i === 0) band.name = 'trunk'
-    root.add(band)
+  const SEGS = 5
+  const segH = TRUNK_H / SEGS
+  const radiusAt = (t) => (0.115 - 0.052 * t) * (t < 0.08 ? 1.14 : 1)
+  for (let i = 0; i < SEGS; i++) {
+    const t0 = i / SEGS
+    const t1 = (i + 1) / SEGS
+    const seg = new THREE.Mesh(
+      // 1.03 height overlap hides hairline gaps where the tilt changes.
+      faceted(new THREE.CylinderGeometry(radiusAt(t1), radiusAt(t0), segH * 1.03, 7, 1)),
+      palmBark,
+    )
+    const tm = (t0 + t1) / 2
+    seg.position.set(spineX(tm), TRUNK_H * tm, 0)
+    seg.rotation.z = -spineTilt(tm)
+    if (i === 0) seg.name = 'trunk'
+    root.add(seg)
   }
 
   const canopy = new THREE.Group()
@@ -476,24 +468,22 @@ function buildPalm() {
   hub.position.y = 0.02
   canopy.add(hub)
 
-  // The fountain crown, FOUR interleaved age tiers so fronds fill every
-  // direction AND every launch angle (a single-tier ring reads as one flat
-  // sheet from the game's top-down camera): old rim fronds lie low and hang,
-  // mid fronds arch at ~55°, young ones climb steeply, and two center spears
-  // stand nearly vertical. Each tier's yaw offset staggers it between the
-  // tiers beside it. Holders stay GROUPS: the runtime re-fans them per
-  // placement.
+  // The simplified crown: TWO strictly uniform tiers — 8 long rim fronds at
+  // 45° spacing arching over, and 4 short steep ones sitting exactly between
+  // them — with NO per-frond yaw jitter, so the star reads clean and even
+  // from every direction (the reference crowns are tidy bursts; the earlier
+  // jittered 16-frond stack read as a crumpled mass in-game). Per-blade
+  // theta/bend jitter alone keeps it from looking stamped. Holders stay
+  // GROUPS: the runtime re-fans them per placement.
   const tiers = [
-    { count: 5, L: 0.74, W: 0.21, theta0: 0.62, bend: 1.65, yawOff: 0 },
-    { count: 5, L: 0.66, W: 0.19, theta0: 0.95, bend: 1.35, yawOff: Math.PI / 5 },
-    { count: 4, L: 0.52, W: 0.16, theta0: 1.22, bend: 0.95, yawOff: 0.35 },
-    { count: 2, L: 0.38, W: 0.12, theta0: 1.45, bend: 0.55, yawOff: 1.2 },
+    { count: 8, L: 0.72, W: 0.2, theta0: 0.75, bend: 1.4, yawOff: 0 },
+    { count: 4, L: 0.48, W: 0.15, theta0: 1.2, bend: 0.95, yawOff: Math.PI / 8 },
   ]
   for (const tier of tiers) {
     for (let i = 0; i < tier.count; i++) {
       const holder = new THREE.Group()
-      holder.rotation.y = (i / tier.count) * Math.PI * 2 + tier.yawOff + (rand() - 0.5) * 0.14
-      const blade = frondBlade(tier.L + rand() * 0.05, tier.W, tier.theta0, tier.bend, frondMat, rand)
+      holder.rotation.y = (i / tier.count) * Math.PI * 2 + tier.yawOff
+      const blade = frondBlade(tier.L + rand() * 0.04, tier.W, tier.theta0, tier.bend, frondMat, rand)
       holder.add(blade)
       holder.rotation.order = 'YXZ'
       canopy.add(holder)
