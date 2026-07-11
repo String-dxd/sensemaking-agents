@@ -2,6 +2,9 @@ import './panel.css'
 import { type ObjectKind, OBJECT_KINDS } from '../terrain/terrainGrid'
 import { IconButton, KIND_META } from './icons'
 
+/** Same for every kind — how placement works once a tile is armed. */
+const PLACE_HINT = 'Click terrain to drop · click an object to remove · Esc to stop'
+
 interface ModelPanelProps {
   placeKind: ObjectKind | null
   onPick: (k: ObjectKind) => void
@@ -11,20 +14,21 @@ interface ModelPanelProps {
 export function ModelPanel({ placeKind, onPick }: ModelPanelProps) {
   return (
     <div className="model-panel">
-      <div className="model-panel__header">Place</div>
-      <div className="model-panel__tiles">
-        {OBJECT_KINDS.map((k) => {
-          const { label, Icon } = KIND_META[k]
-          return (
-            <IconButton key={k} title={label} active={placeKind === k} onClick={() => onPick(k)}>
-              <Icon />
-            </IconButton>
-          )
-        })}
-      </div>
-      <p className="model-panel__caption">
-        Click terrain to drop · click an object to remove · Esc to stop
-      </p>
+      {OBJECT_KINDS.map((k) => {
+        const { label, Icon } = KIND_META[k]
+        return (
+          <IconButton
+            key={k}
+            title={label}
+            hint={PLACE_HINT}
+            tipSide="right"
+            active={placeKind === k}
+            onClick={() => onPick(k)}
+          >
+            <Icon />
+          </IconButton>
+        )
+      })}
     </div>
   )
 }

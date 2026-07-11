@@ -11,13 +11,13 @@ interface FileBarProps {
 export function FileBar({ onExport, onImport, onReset }: FileBarProps) {
   return (
     <div className="file-bar">
-      <IconButton title="Export" onClick={onExport}>
+      <IconButton title="Export" tipSide="left" onClick={onExport}>
         <ExportIcon />
       </IconButton>
-      <IconButton title="Import" onClick={onImport}>
+      <IconButton title="Import" tipSide="left" onClick={onImport}>
         <ImportIcon />
       </IconButton>
-      <IconButton title="Reset" danger onClick={onReset}>
+      <IconButton title="Reset" tipSide="left" danger onClick={onReset}>
         <ResetIcon />
       </IconButton>
     </div>

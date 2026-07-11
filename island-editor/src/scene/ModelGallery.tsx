@@ -4,7 +4,6 @@ import { Canvas } from '@react-three/fiber'
 import { registerPaintedModel } from '../models/textureThemes'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { OBJECT_KINDS, type ObjectKind } from '../terrain/terrainGrid'
-import { StylePanel } from '../ui/StylePanel'
 import { useCanopyWind } from './useCanopyWind'
 
 // Dev-only view (gated behind `?gallery` in main.tsx): lays out every ObjectKind
@@ -84,7 +83,6 @@ export function ModelGallery() {
 
         <OrbitControls target={[0, 0.6, 0]} />
       </Canvas>
-      <StylePanel />
     </div>
   )
 }

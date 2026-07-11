@@ -205,9 +205,20 @@ export const KIND_META: Record<ObjectKind, { label: string; Icon: FC }> = {
   rock: { label: 'Rock', Icon: RockIcon },
 }
 
-/** Shared 40×40 icon tile used across the hotbar, camera dock, and file bar. */
+export type TipSide = 'top' | 'right' | 'left'
+
+/**
+ * Shared 40×40 icon tile used across the hotbar, camera dock, file bar, and model
+ * panel. `hint` adds a second tooltip line — that's where per-tool prose lives now,
+ * instead of an always-on caption under the panel.
+ *
+ * The tooltip is our own element rather than the native `title` attribute: native
+ * tooltips can't hold two lines, take ~1s to appear, and can't be styled.
+ */
 export function IconButton({
   title,
+  hint,
+  tipSide = 'top',
   active,
   disabled,
   danger,
@@ -215,6 +226,8 @@ export function IconButton({
   children,
 }: {
   title: string
+  hint?: string
+  tipSide?: TipSide
   active?: boolean
   disabled?: boolean
   danger?: boolean
@@ -222,16 +235,21 @@ export function IconButton({
   children: ReactNode
 }) {
   return (
-    <button
-      type="button"
-      className={`tile${active ? ' is-active' : ''}${danger ? ' is-danger' : ''}`}
-      title={title}
-      aria-label={title}
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {children}
-    </button>
+    <span className={`tip-wrap tip-wrap--${tipSide}`}>
+      <button
+        type="button"
+        className={`tile${active ? ' is-active' : ''}${danger ? ' is-danger' : ''}`}
+        aria-label={title}
+        aria-pressed={active}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+      <span className="tip" role="tooltip">
+        <span className="tip__title">{title}</span>
+        {hint ? <span className="tip__hint">{hint}</span> : null}
+      </span>
+    </span>
   )
 }

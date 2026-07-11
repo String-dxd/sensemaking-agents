@@ -38,7 +38,6 @@ import {
 import { CameraDock } from './ui/CameraDock'
 import { FileBar } from './ui/FileBar'
 import { ModelPanel } from './ui/ModelPanel'
-import { StylePanel } from './ui/StylePanel'
 import { type BrushSize, type Tool, ToolPanel } from './ui/ToolPanel'
 
 const SAVED = loadSpec()
@@ -60,7 +59,7 @@ export function App() {
   const [tool, setTool] = useState<Tool>('raise')
   const [brushSize, setBrushSize] = useState<BrushSize>(1)
   const [orbitEnabled, setOrbitEnabled] = useState(true)
-  // Hold-Cmd: drags orbit the camera instead of painting.
+  // Hold-Space: drags orbit the camera instead of painting.
   const [cameraMode, setCameraMode] = useState(false)
 
   // Object placement: an armed kind (null = not placing). While armed, the
@@ -282,10 +281,9 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [undo, redo])
 
-  // ── Hold-Cmd to orbit ─────────────────────────────────────────────────────────
-  // While Cmd (or Ctrl) is held, drags fall through to OrbitControls (see
-  // IslandTerrain's cameraMode guard). blur clears it so a lost focus can't
-  // leave it stuck on.
+  // ── Hold-Space to orbit ───────────────────────────────────────────────────────
+  // While Space is held, drags fall through to OrbitControls (see IslandTerrain's
+  // cameraMode guard). blur clears it so a lost focus can't leave it stuck on.
   useEffect(() => {
     const inEditable = (t: EventTarget | null) => {
       const el = t as HTMLElement | null
@@ -294,15 +292,15 @@ export function App() {
       )
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      // Cmd (Meta) held = camera mode; Ctrl works too for non-mac keyboards.
-      // Cmd+Z / Cmd+Shift+Z still reach the undo handler — camera mode only
-      // matters while a pointer drag is in progress.
-      if (e.key !== 'Meta' && e.key !== 'Control') return
+      if (e.code !== 'Space') return
       if (inEditable(e.target)) return
+      // Space's own defaults would fight the gesture: it scrolls the page and
+      // re-fires whichever panel tile was clicked last (buttons activate on Space).
+      e.preventDefault()
       setCameraMode(true)
     }
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Meta' || e.key === 'Control') setCameraMode(false)
+      if (e.code === 'Space') setCameraMode(false)
     }
     const onBlur = () => setCameraMode(false)
     window.addEventListener('keydown', onKeyDown)
@@ -421,15 +419,21 @@ export function App() {
           ref={setControls}
           makeDefault
           enabled={orbitEnabled || cameraMode}
-          // Plain drag = PAN (ground-plane, so the island slides under the
-          // camera without changing altitude); holding Cmd/Ctrl (camera mode)
-          // ORBITS. The mapping stays LEFT: PAN on purpose — OrbitControls
-          // flips a modifier-held PAN drag into ROTATE internally (and would
-          // flip a ROTATE mapping into pan, so LEFT: ROTATE here would undo
-          // itself). enableRotate gates that flip to camera mode only.
+          // Plain drag = PAN (ground-plane, so the island slides under the camera
+          // without changing altitude); hold-Space (camera mode) ORBITS, so the
+          // left button remaps to ROTATE for the duration of the hold.
+          //
+          // Space can't ride along on the pointer event the way the old Cmd
+          // gesture did: OrbitControls only flips a PAN drag into a rotate when
+          // it sees ctrl/meta/shift on the mousedown (see its _STATE.PAN case).
+          // A bare LEFT: PAN would therefore just pan while Space is held.
           enableRotate={cameraMode}
           screenSpacePanning={false}
-          mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
+          mouseButtons={{
+            LEFT: cameraMode ? MOUSE.ROTATE : MOUSE.PAN,
+            MIDDLE: MOUSE.DOLLY,
+            RIGHT: MOUSE.PAN,
+          }}
           maxPolarAngle={Math.PI / 2 - 0.05} // never orbit below the horizon
           minDistance={4}
           maxDistance={120}
@@ -462,7 +466,6 @@ export function App() {
         onRecenter={recenter}
       />
       <FileBar onExport={exportSpec} onImport={openImport} onReset={reset} />
-      <StylePanel />
       <ModelPanel placeKind={placeKind} onPick={onPick} />
     </div>
   )

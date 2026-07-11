@@ -10,7 +10,7 @@ const UP = new THREE.Vector3(0, 1, 0)
 interface IslandTerrainProps {
   spec: IslandSpec
   brushSize: number
-  /** When true (hold-Cmd), pointer drags fall through to OrbitControls instead
+  /** When true (hold-Space), pointer drags fall through to OrbitControls instead
    *  of painting, so the camera can be orbited/panned over the island. */
   cameraMode?: boolean
   /** When true (a model kind is armed), pointer moves report the hovered point
@@ -123,10 +123,10 @@ export function IslandTerrain({
     cursor.visible = true
   }
 
-  // Precedence in both handlers: camera (hold-Cmd) wins → then place mode →
-  // then paint. So hold-Cmd always orbits, even while a model is armed.
+  // Precedence in both handlers: camera (hold-Space) wins → then place mode →
+  // then paint. So hold-Space always orbits, even while a model is armed.
   const handleDown = (e: ThreeEvent<PointerEvent>) => {
-    // Hold-Cmd: let the drag reach OrbitControls instead of painting/placing.
+    // Hold-Space: let the drag reach OrbitControls instead of painting/placing.
     if (cameraMode) return
     if (placeMode) {
       e.stopPropagation()

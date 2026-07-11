@@ -15,7 +15,6 @@ import { loadSharedTexture, type ModelTextureName } from './textures'
 export const TEXTURE_THEMES = ['classic', 'pastel', 'storybook', 'off'] as const
 export type TextureTheme = (typeof TEXTURE_THEMES)[number]
 
-const STORAGE_KEY = 'island-editor.texture-theme'
 const WHITE = new THREE.Color(0xffffff)
 
 interface PaintedEntry {
@@ -30,11 +29,9 @@ interface PaintedEntry {
 const registry = new Set<PaintedEntry>()
 const byMaterial = new Map<THREE.MeshStandardMaterial, PaintedEntry>()
 
-let current: TextureTheme = (() => {
-  if (typeof localStorage === 'undefined') return 'classic'
-  const saved = localStorage.getItem(STORAGE_KEY) as TextureTheme | null
-  return saved && (TEXTURE_THEMES as readonly string[]).includes(saved) ? saved : 'classic'
-})()
+// The editor always boots classic. There's no theme picker in the UI any more, so
+// a persisted choice could only strand someone on a theme they can't switch off.
+let current: TextureTheme = 'classic'
 
 export function currentTextureTheme(): TextureTheme {
   return current
@@ -116,10 +113,11 @@ export function unregisterPaintedMaterial(mat: THREE.Material): void {
   registry.delete(entry)
 }
 
-/** Switch the active theme and re-point every registered material. */
+/** Switch the active theme and re-point every registered material. No UI drives
+ *  this now that the texture picker is gone — it's the seam a future picker (or a
+ *  test) restyles the live scene through. */
 export function setTextureTheme(theme: TextureTheme): void {
   if (theme === current) return
   current = theme
-  if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, theme)
   for (const entry of registry) apply(entry)
 }
