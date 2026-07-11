@@ -396,7 +396,11 @@ export function App() {
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
-      <Canvas camera={{ position: [14, 11, 14], fov: 50 }}>
+      <Canvas
+        camera={{ position: [14, 11, 14], fov: 50 }}
+        shadows="soft"
+        gl={{ toneMappingExposure: 1.1 }}
+      >
         <Backdrop />
         <SeaSurface key={`${spec.grid.cols}x${spec.grid.rows}`} spec={spec} />
         <IslandTerrain

@@ -41,8 +41,8 @@ export function ModelGallery() {
     <div style={{ position: 'fixed', inset: 0 }}>
       <Canvas camera={{ position: [0, 3, 7], fov: 50 }}>
         <color attach="background" args={['#bcd7ff']} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[18, 20, 10]} intensity={1.15} />
+        <hemisphereLight args={['#cfe5ff', '#c8bb94', 0.65]} />
+        <directionalLight position={[18, 20, 10]} color="#ffedcc" intensity={1.55} />
 
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[24, 24]} />

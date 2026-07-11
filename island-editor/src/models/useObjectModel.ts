@@ -74,6 +74,16 @@ export function useObjectModel(kind: ObjectKind, seed: number): THREE.Group {
       randomizeInstance(model, seed)
     }
 
+    // Enable shadows on all meshes in the model (single choke point for all
+    // object kinds, catching both procedural and GLB-cloned instances).
+    model.traverse((node) => {
+      if ((node as THREE.Mesh).isMesh) {
+        const mesh = node as THREE.Mesh
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+      }
+    })
+
     return model
   }, [kind, seed, gltfs])
 }

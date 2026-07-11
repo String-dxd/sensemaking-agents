@@ -175,6 +175,8 @@ export function IslandTerrain({
       <mesh
         geometry={geometry}
         material={material}
+        castShadow
+        receiveShadow
         onPointerDown={handleDown}
         onPointerMove={handleMove}
         onPointerOut={handleOut}

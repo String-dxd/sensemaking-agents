@@ -14,11 +14,25 @@ describe('IslandGroundMaterial', () => {
   const mat = createIslandGroundMaterial({ sand: new THREE.Texture(), cliff: new THREE.Texture() })
 
   it('exposes the expected uniforms', () => {
-    for (const u of ['uSandTexture', 'uCliffTexture', 'uGrassColor', 'uSunDirection', 'uSeaLevel']) {
+    for (const u of [
+      'uSandTexture',
+      'uCliffTexture',
+      'uGrassColor',
+      'uSunDirection',
+      'uSunColor',
+      'uSkyColor',
+      'uSeaLevel',
+    ]) {
       expect(mat.uniforms[u]).toBeDefined()
     }
     expect(mat.uniforms.uGrassColor.value.getHexString()).toBe('4a8f3f')
     expect(mat.uniforms.uSunDirection.value.length()).toBeCloseTo(1, 6) // normalized
+    expect(mat.uniforms.uSunColor.value.getHexString()).toBe('ffedcc')
+    expect(mat.uniforms.uSkyColor.value.getHexString()).toBe('8fa8c8')
+  })
+
+  it('is light-aware and shadow-receiving', () => {
+    expect(mat.lights).toBe(true)
   })
 
   it('ends the fragment shader with the color-space include', () => {
