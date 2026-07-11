@@ -35,7 +35,7 @@ describe('specIO', () => {
   it('round-trips a v4 spec with placed objects', () => {
     const spec = seedIsland()
     spec.objects = [
-      makePlacedObject('fruitTree', 10, 12, mulberry32(1)),
+      makePlacedObject('tree', 10, 12, mulberry32(1)),
       makePlacedObject('rock', 40, 5, mulberry32(2)),
     ]
     const back = deserializeSpec(serializeSpec(spec))
@@ -45,14 +45,14 @@ describe('specIO', () => {
 
   it('serializes the grid as digit-string rows and objects as a plain array', () => {
     const spec = seedIsland()
-    spec.objects = [makePlacedObject('pine', 1, 2, mulberry32(3))]
+    spec.objects = [makePlacedObject('tree', 1, 2, mulberry32(3))]
     const json = JSON.parse(serializeSpec(spec))
     expect(json.version).toBe(4)
     expect(json.grid.tiers).toHaveLength(GRID_ROWS)
     expect(typeof json.grid.tiers[0]).toBe('string')
     expect(json.grid.tiers[0]).toHaveLength(GRID_COLS)
     expect(Array.isArray(json.objects)).toBe(true)
-    expect(json.objects[0].kind).toBe('pine')
+    expect(json.objects[0].kind).toBe('tree')
   })
 
   it('validates a v2 spec and returns it migrated to v4 with a 64×64 grid + empty objects', () => {
@@ -87,6 +87,21 @@ describe('specIO', () => {
     const parsed = JSON.parse(serializeSpec(seedIsland()))
     parsed.objects = [{ id: 'x', kind: 'dragon', c: 0, r: 0, yaw: 0, scale: 1 }]
     expect(() => validateSpecObject(parsed)).toThrow(/objects\[0\]\.kind/)
+  })
+
+  it('migrates the retired tree kinds (fruitTree/pine/palm) to `tree` instead of rejecting the spec', () => {
+    // An island saved before the three authored trees collapsed into one Meshy
+    // asset must still open — the ids are stable, only the kind is rewritten.
+    const parsed = JSON.parse(serializeSpec(seedIsland()))
+    parsed.objects = [
+      { id: 'a', kind: 'fruitTree', c: 1, r: 1, yaw: 0, scale: 1 },
+      { id: 'b', kind: 'pine', c: 2, r: 2, yaw: 0, scale: 1 },
+      { id: 'c', kind: 'palm', c: 3, r: 3, yaw: 0, scale: 1 },
+      { id: 'd', kind: 'rock', c: 4, r: 4, yaw: 0, scale: 1 },
+    ]
+    const spec = validateSpecObject(parsed)
+    expect(spec.objects.map((o) => o.kind)).toEqual(['tree', 'tree', 'tree', 'rock'])
+    expect(spec.objects.map((o) => o.id)).toEqual(['a', 'b', 'c', 'd'])
   })
 
   it('throws on an object with an out-of-range cell', () => {

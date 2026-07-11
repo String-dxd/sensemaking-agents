@@ -229,13 +229,24 @@ export function evaluateHeight(spec: IslandSpec, x: number, z: number, blurred?:
 }
 
 // ── Object kinds ───────────────────────────────────────────────────────────
-// The decorative object kinds the procedural model factory (src/models/
-// buildObjectModel.ts) can build. Placement (Plan B) + palette (Plan C) build on
-// this. Kept in the pure spec module so the enum the renderer consumes lives
-// alongside the rest of the headless-testable core.
+// The decorative object kinds the renderer can place. `tree` and `rock` load
+// authored GLB assets (public/models/, built by scripts/optimize-meshy-glb.mjs);
+// `bush` is still built procedurally (src/models/buildObjectModel.ts). Kept in
+// the pure spec module so the enum the renderer consumes lives alongside the
+// rest of the headless-testable core.
 
-export type ObjectKind = 'fruitTree' | 'pine' | 'palm' | 'bush' | 'rock'
-export const OBJECT_KINDS: ObjectKind[] = ['fruitTree', 'pine', 'palm', 'bush', 'rock']
+export type ObjectKind = 'tree' | 'bush' | 'rock'
+export const OBJECT_KINDS: ObjectKind[] = ['tree', 'bush', 'rock']
+
+/** Kinds retired on 2026-07-11, when the three authored tree variants collapsed
+ *  into the single Meshy `tree` asset. Saved islands (and exported spec files)
+ *  still carry them, so `validateSpecObject` rewrites them on load rather than
+ *  rejecting the spec — an island saved yesterday must still open. */
+export const LEGACY_OBJECT_KINDS: Record<string, ObjectKind> = {
+  fruitTree: 'tree',
+  pine: 'tree',
+  palm: 'tree',
+}
 
 // ── Placed objects (v4) ──────────────────────────────────────────────────────
 // A decorative object dropped on the terrain. Position is a grid CELL (snapped)

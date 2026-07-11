@@ -2,3 +2,8 @@ node_modules
 dist
 *.local
 .DS_Store
+
+# Raw Meshy AI source exports (65 MB+). Only scripts/optimize-meshy-glb.mjs reads
+# these; the built ~240 KB assets in public/models/ are what ship. See
+# assets/meshy/README.md.
+assets/meshy/*.glb

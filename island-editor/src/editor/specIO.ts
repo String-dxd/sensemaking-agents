@@ -14,6 +14,7 @@ import {
   GRID_ROWS,
   type IslandSpec,
   MAX_TIER,
+  LEGACY_OBJECT_KINDS,
   type ObjectKind,
   OBJECT_KINDS,
   type PlacedObject,
@@ -106,7 +107,9 @@ function validateObjects(input: unknown, grid: TerrainGrid): PlacedObject[] {
     if (typeof o.id !== 'string' || o.id.length === 0) {
       throw new Error(`Invalid island spec: objects[${i}].id must be a non-empty string`)
     }
-    if (typeof o.kind !== 'string' || !OBJECT_KINDS.includes(o.kind as ObjectKind)) {
+    // Retired kinds (fruitTree/pine/palm) migrate to `tree` rather than throwing.
+    const kind = (LEGACY_OBJECT_KINDS[o.kind as string] ?? o.kind) as ObjectKind
+    if (typeof o.kind !== 'string' || !OBJECT_KINDS.includes(kind)) {
       throw new Error(`Invalid island spec: objects[${i}].kind must be one of ${OBJECT_KINDS.join(', ')}`)
     }
     if (!Number.isInteger(o.c) || (o.c as number) < 0 || (o.c as number) >= grid.cols) {
@@ -121,7 +124,7 @@ function validateObjects(input: unknown, grid: TerrainGrid): PlacedObject[] {
     if (!isFiniteNumber(o.scale) || (o.scale as number) <= 0) {
       throw new Error(`Invalid island spec: objects[${i}].scale must be a finite number > 0`)
     }
-    return { id: o.id, kind: o.kind as ObjectKind, c: o.c as number, r: o.r as number, yaw: o.yaw, scale: o.scale }
+    return { id: o.id, kind, c: o.c as number, r: o.r as number, yaw: o.yaw, scale: o.scale }
   })
 }
 

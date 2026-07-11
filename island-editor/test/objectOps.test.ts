@@ -39,8 +39,8 @@ describe('objectOps — makePlacedObject', () => {
   it('carries kind/c/r and yields in-range yaw + scale', () => {
     const rand = mulberry32(1234)
     for (let i = 0; i < 200; i++) {
-      const o = makePlacedObject('pine', 3, 7, rand)
-      expect(o.kind).toBe('pine')
+      const o = makePlacedObject('tree', 3, 7, rand)
+      expect(o.kind).toBe('tree')
       expect(o.c).toBe(3)
       expect(o.r).toBe(7)
       expect(o.yaw).toBeGreaterThanOrEqual(0)
@@ -48,7 +48,7 @@ describe('objectOps — makePlacedObject', () => {
       expect(o.scale).toBeGreaterThanOrEqual(0.85)
       expect(o.scale).toBeLessThan(1.15)
       expect(typeof o.id).toBe('string')
-      expect(o.id.startsWith('pine-')).toBe(true)
+      expect(o.id.startsWith('tree-')).toBe(true)
     }
   })
 
@@ -60,8 +60,8 @@ describe('objectOps — makePlacedObject', () => {
   })
 
   it('is deterministic given the same rand sequence', () => {
-    const a = makePlacedObject('palm', 1, 2, mulberry32(7))
-    const b = makePlacedObject('palm', 1, 2, mulberry32(7))
+    const a = makePlacedObject('tree', 1, 2, mulberry32(7))
+    const b = makePlacedObject('tree', 1, 2, mulberry32(7))
     expect(a).toEqual(b)
   })
 })

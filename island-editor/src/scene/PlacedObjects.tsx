@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
 import { hashString } from '../models/rand'
-import { registerPaintedModel } from '../models/textureThemes'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { blurTiers, type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
 import { useCanopyWind } from './useCanopyWind'
@@ -52,13 +51,7 @@ function PlacedObjectMesh({ spec, object: o, blurred, placeMode, onRemove }: Pla
   // (r3f does NOT auto-dispose a <primitive> object, so we dispose on unmount —
   // disposeObjectModel no-ops for shared GLB clones.)
   const model = useObjectModel(o.kind, hashString(o.id))
-  // Register on MOUNT, not just at build: StrictMode's probe cycle disposes the
-  // model once while it keeps rendering, silently dropping per-instance
-  // materials (bush) from the theme registry — re-registering keeps them live.
-  useEffect(() => {
-    registerPaintedModel(model)
-    return () => disposeObjectModel(model)
-  }, [model])
+  useEffect(() => () => disposeObjectModel(model), [model])
 
   const { x, y, z } = worldPositionOfObject(spec, o, blurred)
 

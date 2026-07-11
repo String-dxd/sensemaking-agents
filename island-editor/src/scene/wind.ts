@@ -64,7 +64,7 @@ export class CanopySpring {
     // Where the wind is pushing this crown right now: the traveling gust sets
     // the magnitude, a small fast per-tree flutter roughens it (leaf noise the
     // broad field is too smooth to carry), and windAmp scales it per kind
-    // (fruitTree 1 > palm 0.7 > stiff cedar 0.35).
+    // (tree 0.55 > bush 0.25).
     const gust = gustStrength(t, worldX, worldZ)
     const flutter = 0.012 * Math.sin(t * 2.9 + this.phase) + 0.008 * Math.sin(t * 4.3 + this.phase * 2.1)
     const lean = (MAX_LEAN * gust + flutter) * amp

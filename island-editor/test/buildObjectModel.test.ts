@@ -4,7 +4,7 @@ import { buildObjectModel, type ProceduralKind } from '../src/models/buildObject
 
 // The tree kinds moved to authored GLB assets (see treeGlbs.test.ts for that
 // contract); this suite covers the remaining procedural ground clutter.
-const PROCEDURAL_KINDS: ProceduralKind[] = ['bush', 'rock']
+const PROCEDURAL_KINDS: ProceduralKind[] = ['bush']
 
 describe('buildObjectModel', () => {
   it('returns a named THREE.Group with children for every procedural kind', () => {
@@ -95,8 +95,5 @@ describe('buildObjectModel', () => {
     expect(canopy).toBeInstanceOf(THREE.Group)
     expect((canopy as THREE.Group).userData.windAmp).toBe(0.25)
   })
-
-  it('rock has no canopy group (the wind hook must no-op on it)', () => {
-    expect(buildObjectModel('rock', 7).getObjectByName('canopy')).toBeUndefined()
-  })
+  // The tree's and rock's equivalents are asset facts now — see objectGlbs.test.ts.
 })
