@@ -8,6 +8,7 @@ import {
   type BehaviorEnv,
   type BehaviorState,
   behaviorClip,
+  IDLE_POSE_AT_END,
   commandMoveTo,
   createBehaviorState,
   sampleShoreDistance,
@@ -32,6 +33,11 @@ interface CharacterActorProps {
 /** How far below the waterline the group sits while swimming — waterline at
  *  the chick's belly (look knob; the clip is horizontal, no pitch needed). */
 const SWIM_SINK = 0.12
+// Breathing bob for the held idle pose. The chick is 0.6 world units tall, so
+// 1.2 cm is ~2% of its height: legible as breathing at any zoom, invisible as
+// movement. ~0.4 Hz (2.5 rad/s) is a resting breath, not a pant.
+const BREATH_RISE = 0.012
+const BREATH_RATE = 2.5
 
 /**
  * The single placed character: a skinned, animated actor. Mirrors
@@ -117,11 +123,18 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
   const [resolvedClip, setResolvedClip] = useState<CharacterClip>(clip === 'auto' ? 'Walking' : clip)
   const resolvedRef = useRef<CharacterClip>(resolvedClip)
 
+  // Whether the resolved clip is being HELD as the idle pose rather than played.
+  // Mirrored the same way, and kept separate from the clip NAME on purpose: the
+  // idle pose borrows a real clip (see IDLE_POSE_CLIP), and that same clip picked
+  // from the dock must still animate normally — only the idle PHASE freezes it.
+  const [idlePose, setIdlePose] = useState(false)
+  const idleRef = useRef(false)
+
   // Click-to-move command channel (plan 026). Initialized to the CURRENT seq
   // at mount so stale pre-mount clicks never fire.
   const lastSeq = useRef(characterCommand.seq)
 
-  useFrame((_, dt) => {
+  useFrame((st, dt) => {
     const group = groupRef.current
     const s = stateRef.current
     if (!group || !s) return
@@ -159,13 +172,18 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
     const targetY = swimming ? spec.seaLevel - SWIM_SINK : ground
     smoothY.current =
       smoothY.current === null ? targetY : smoothY.current + (targetY - smoothY.current) * Math.min(1, 10 * dt)
-    group.position.set(s.x, smoothY.current, s.z)
+    // Breathing bob: the idle pose is a frozen frame, so this slow rise-and-fall
+    // is the only thing keeping a stopped bird from reading as a crashed one.
+    const idling = clip === 'auto' && s.phase === 'idle'
+    const bob = idling ? Math.sin(st.clock.elapsedTime * BREATH_RATE) * BREATH_RISE : 0
+    const visibleY = smoothY.current + bob
+    group.position.set(s.x, visibleY, s.z)
     group.rotation.y = s.yaw
 
     // Live pose for the grass fade disc (GrassLayer) and the sea wake rings
     // (SeaSurface, plan 027). The y written is the BLENDED, visible one.
     characterPose.x = s.x
-    characterPose.y = smoothY.current
+    characterPose.y = visibleY
     characterPose.z = s.z
     characterPose.active = true
     characterPose.swimming = swimming
@@ -175,16 +193,31 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
       resolvedRef.current = next
       setResolvedClip(next)
     }
+    if (idling !== idleRef.current) {
+      idleRef.current = idling
+      setIdlePose(idling)
+    }
   })
 
   useEffect(() => {
     const action = actions[resolvedClip]
     if (!action) return
     action.reset().fadeIn(0.25).play()
+    if (idlePose) {
+      // Idle is a HELD pose, not a played clip: park the action on one frame and
+      // stop its clock. (The bird's aliveness comes from the breathing bob in
+      // useFrame.) Without the freeze the borrowed clip would run — the bird
+      // would wave at you every time it stopped walking.
+      action.time = IDLE_POSE_AT_END ? action.getClip().duration : 0
+      action.timeScale = 0
+    } else {
+      action.timeScale = 1
+    }
     return () => {
       action.fadeOut(0.25)
+      action.timeScale = 1 // the next user of this action must not inherit the freeze
     }
-  }, [actions, resolvedClip])
+  }, [actions, resolvedClip, idlePose])
 
   const [hovered, setHovered] = useState(false)
 

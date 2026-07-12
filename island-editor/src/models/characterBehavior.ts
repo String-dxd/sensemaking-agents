@@ -21,7 +21,7 @@ export function sampleShoreDistance(field: ShoreField, worldSize: number, x: num
   return field.data[j * field.res + i]
 }
 
-export type BehaviorPhase = 'walk' | 'sleep' | 'wake' | 'swim' | 'talk' | 'goto'
+export type BehaviorPhase = 'walk' | 'idle' | 'sleep' | 'wake' | 'swim' | 'talk' | 'goto'
 
 export interface BehaviorState {
   phase: BehaviorPhase
@@ -74,11 +74,64 @@ function rollWalk(s: BehaviorState, rand: () => number): void {
   s.remaining = 4 + rand() * 5
 }
 
-/** Enter sleep with the plan-026 stop-nap roll (5–9 s — every stop is a nap
- *  now, so it's shorter than 025's occasional 6–12 s). */
+/** Enter sleep with the stop-nap roll (5–9 s). */
 function rollSleep(s: BehaviorState, rand: () => number): void {
   s.phase = 'sleep'
   s.remaining = 5 + rand() * 4
+}
+
+/** Enter idle: stand and breathe for 6–10 s. This is what a STOP normally is —
+ *  the idle clip is a held standing pose plus a breathing bob (CharacterActor),
+ *  because character.glb ships no idle animation of its own. */
+function rollIdle(s: BehaviorState, rand: () => number): void {
+  s.phase = 'idle'
+  s.remaining = 6 + rand() * 4
+}
+
+/** Chance that a stop is a real nap rather than a plain idle. Plan 026 made
+ *  EVERY stop a nap, which read as a bird that does nothing but sleep; naps are
+ *  now the occasional treat they were meant to be. */
+const NAP_CHANCE = 0.25
+
+/** The stop: mostly idle, occasionally a nap. Draws ONE rand for the coin flip
+ *  before the duration roll — so a `() => 0.5` stub deterministically idles. */
+function rollStop(s: BehaviorState, rand: () => number): void {
+  if (rand() < NAP_CHANCE) rollSleep(s, rand)
+  else rollIdle(s, rand)
+}
+
+/** Enter swim with a rolled paddle-about duration (4–8 s). When it expires the
+ *  bird heads for land — it does NOT stop at sea (see the swim case). */
+function rollSwim(s: BehaviorState, rand: () => number): void {
+  s.phase = 'swim'
+  s.remaining = 4 + rand() * 4
+}
+
+/** Unit vector pointing back toward land: the steepest DESCENT of the signed
+ *  shore distance (+ = water), by central differences on the same field the
+ *  leash reads. `SHORE_PROBE` must clear a couple of lattice steps — the field
+ *  samples nearest-lattice (worldSize/(cols·2) ≈ 0.19 u), so a smaller probe
+ *  would difference two identical cells and read a flat zero. Returns null
+ *  where the field is genuinely flat (open sea in a test fixture, say), which
+ *  the caller treats as "no opinion — keep the current heading". */
+const SHORE_PROBE = 0.4
+function shoreward(env: BehaviorEnv, x: number, z: number): { x: number; z: number } | null {
+  const gx = env.shoreDistanceAt(x + SHORE_PROBE, z) - env.shoreDistanceAt(x - SHORE_PROBE, z)
+  const gz = env.shoreDistanceAt(x, z + SHORE_PROBE) - env.shoreDistanceAt(x, z - SHORE_PROBE)
+  const len = Math.hypot(gx, gz)
+  if (len < 1e-6) return null
+  return { x: -gx / len, z: -gz / len } // negative gradient = toward land
+}
+
+/** Steer `s.yaw` toward a heading at a bounded turn rate (shared by goto and
+ *  the swim-home leg). */
+function steerToward(s: BehaviorState, dirX: number, dirZ: number, rate: number, dt: number): void {
+  const want = Math.atan2(dirX, dirZ)
+  let diff = Math.atan2(Math.sin(want - s.yaw), Math.cos(want - s.yaw))
+  const maxTurn = rate * dt
+  if (diff > maxTurn) diff = maxTurn
+  else if (diff < -maxTurn) diff = -maxTurn
+  s.yaw += diff
 }
 
 export function createBehaviorState(x: number, z: number, yaw: number, rand: () => number): BehaviorState {
@@ -130,17 +183,20 @@ export function advanceBehavior(s: BehaviorState, dt: number, env: BehaviorEnv):
       }
       s.x = nx
       s.z = nz
-      // Walked into water → swim (entered from any moving phase; swim has no
-      // timer, it exits on the walked-back-ashore condition below).
+      // Walked into water → swim (entered from any moving phase).
       if (env.heightAt(s.x, s.z) <= env.seaLevel + WATER_ENTER) {
-        s.phase = 'swim'
-        s.remaining = 0
+        rollSwim(s, env.rand)
         break
       }
       s.remaining -= dt
-      // Walk expiry → stop and nap (plan 026: the wave is gone; every stop
-      // is a lie-down-and-sleep, then the wake clip, then walk on).
-      if (s.remaining <= 0) rollSleep(s, env.rand)
+      // Walk expiry → stop: stand idle, or now and then a nap.
+      if (s.remaining <= 0) rollStop(s, env.rand)
+      break
+    }
+    case 'idle': {
+      // Stand still and breathe. No movement; expiry → walk on.
+      s.remaining -= dt
+      if (s.remaining <= 0) rollWalk(s, env.rand)
       break
     }
     case 'sleep': {
@@ -169,12 +225,7 @@ export function advanceBehavior(s: BehaviorState, dt: number, env: BehaviorEnv):
     case 'goto': {
       // Steer toward the target with a bounded turn rate (shortest angular
       // difference, clamped to GOTO_TURN·dt per tick).
-      const want = Math.atan2(s.tx - s.x, s.tz - s.z)
-      let diff = Math.atan2(Math.sin(want - s.yaw), Math.cos(want - s.yaw))
-      const maxTurn = GOTO_TURN * dt
-      if (diff > maxTurn) diff = maxTurn
-      else if (diff < -maxTurn) diff = -maxTurn
-      s.yaw += diff
+      steerToward(s, s.tx - s.x, s.tz - s.z, GOTO_TURN, dt)
       // Footing decides the gait: swim speed in water, walk speed ashore.
       // Uses s.wet from the previous tick's hysteresis update (plan 027)
       // instead of re-deriving with a single threshold — same no-flip-flop
@@ -186,27 +237,38 @@ export function advanceBehavior(s: BehaviorState, dt: number, env: BehaviorEnv):
       // The swim leash blocks the route → abandon the target (deterministic,
       // no endless circling): resume swim in water / a re-rolled walk ashore.
       if (env.heightAt(nx, nz) <= env.seaLevel + WATER_ENTER && env.shoreDistanceAt(nx, nz) > MAX_SWIM_DIST) {
-        if (wet) {
-          s.phase = 'swim'
-          s.remaining = 0
-        } else {
-          rollWalk(s, env.rand)
-        }
+        if (wet) rollSwim(s, env.rand)
+        else rollWalk(s, env.rand)
         break
       }
       s.x = nx
       s.z = nz
-      // Arrival within 0.2 u → it stopped → nap (plan-026 stop rule).
+      // Arrival within 0.2 u → it stopped. Ashore that is the plan-026 nap; in
+      // WATER there is no stopping — hand off to swim, which paddles out its
+      // roll and then heads for land. (This used to nap unconditionally, so a
+      // click on the sea left the bird asleep and floating on it.)
       const dx = s.tx - s.x
       const dz = s.tz - s.z
-      if (dx * dx + dz * dz < 0.04) rollSleep(s, env.rand)
+      if (dx * dx + dz * dz < 0.04) {
+        if (s.wet) rollSwim(s, env.rand)
+        else rollStop(s, env.rand)
+      }
       break
     }
     case 'swim': {
-      // Swim forward; the leash refuses any step whose CANDIDATE position is
-      // farther than MAX_SWIM_DIST from shore and steers home instead (keeps
-      // turning until a step becomes legal). Never transitions to sleep in
-      // water; exits to walk (re-rolled duration) once back ashore.
+      // A swim ALWAYS ends on land: there is no stop, nap or idle at sea. The
+      // bird paddles about for its rolled duration, then turns for shore and
+      // keeps swimming until the walked-ashore exit below fires. (Before, the
+      // swim had no timer and no homing — it could only reach land by chance,
+      // and a goto that finished in the water simply lay down and slept there.)
+      s.remaining -= dt
+      if (s.remaining <= 0) {
+        const home = shoreward(env, s.x, s.z)
+        if (home) steerToward(s, home.x, home.z, SWIM_STEER, dt)
+      }
+      // The leash refuses any step whose CANDIDATE position is farther than
+      // MAX_SWIM_DIST from shore and steers instead (keeps turning until a step
+      // becomes legal).
       const nx = s.x + Math.sin(s.yaw) * SWIM_SPEED * dt
       const nz = s.z + Math.cos(s.yaw) * SWIM_SPEED * dt
       if (env.shoreDistanceAt(nx, nz) > MAX_SWIM_DIST) {
@@ -234,13 +296,30 @@ export function advanceBehavior(s: BehaviorState, dt: number, env: BehaviorEnv):
   s.wet = s.wet ? h <= env.seaLevel + WATER_EXIT : h <= env.seaLevel + WATER_ENTER
 }
 
+/** The idle POSE: character.glb ships no idle animation, so idle is this clip
+ *  FROZEN at one frame (CharacterActor sets timeScale 0) plus a breathing bob —
+ *  never played through, so the wave itself (which starts later in the clip) is
+ *  never seen. Frame 0 of the wave is the rig's neutral standing stance, which
+ *  is the closest thing to an idle the asset has. Checked by eye against the
+ *  alternatives: the wake clip's LAST frame (the obvious guess) is a slumped,
+ *  half-lying pose, not a stand. Swap these two constants to retune the pose —
+ *  nothing else depends on the choice. If an Idle clip is ever baked into the
+ *  GLB, point IDLE_POSE_CLIP at it and drop the freeze in CharacterActor. */
+export const IDLE_POSE_CLIP: CharacterClip = 'Wave_for_Help_2'
+export const IDLE_POSE_AT_END = false
+
 /** The clip each phase plays (dock 'auto' mode). goto is water-aware: it
  *  swims when the footing is wet, walks ashore. The swim-DRAUGHT decision
- *  stays out of here (the actor uses `s.wet || s.phase === 'swim'` for y). */
+ *  stays out of here (the actor uses `s.wet || s.phase === 'swim'` for y).
+ *  NOTE 'idle' returns a clip it does NOT play: the actor freezes it on one
+ *  frame (see IDLE_POSE_CLIP). That decision keys off the PHASE, never off the
+ *  clip name — the same clip chosen from the dock still animates. */
 export function behaviorClip(s: Pick<BehaviorState, 'phase' | 'wet'>): CharacterClip {
   switch (s.phase) {
     case 'walk':
       return 'Walking'
+    case 'idle':
+      return IDLE_POSE_CLIP
     case 'sleep':
       return 'Stand_To_Side_Lying'
     case 'wake':

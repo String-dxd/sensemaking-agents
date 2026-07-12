@@ -40,24 +40,33 @@ function tick(s: BehaviorState, env: BehaviorEnv, n: number, dt = 0.1): void {
 }
 
 describe('behavior machine transitions', () => {
-  it('walk expires straight into sleep (5–9 s), then wake (2.6 s), then walk — no wave', () => {
-    // rand stub 0.5: no wander drift, walk duration 6.5 s, sleep roll 7 s.
+  it('walk expires into a standing IDLE (6–10 s), then walks on — the stop is not a nap', () => {
+    // rand stub 0.5: no wander drift, walk 6.5 s; 0.5 >= NAP_CHANCE → idle, 8 s.
     const env = makeEnv({ rand: () => 0.5 })
     const s = createBehaviorState(0, 0, 0, () => 0.5)
     expect(s.phase).toBe('walk')
     expect(s.remaining).toBeCloseTo(6.5, 6)
-    tick(s, env, 66) // 6.6 s > 6.5 — plan 026: the stop is a nap, not a wave
-    expect(s.phase).toBe('sleep')
-    expect(s.remaining).toBeCloseTo(5 + 0.5 * 4, 4)
+    tick(s, env, 66) // 6.6 s > 6.5
+    expect(s.phase).toBe('idle')
+    expect(s.remaining).toBeCloseTo(6 + 0.5 * 4, 4)
     const { x, z } = s
-    tick(s, env, 71) // 7.1 s > 7.0
-    expect(s.phase).toBe('wake')
-    tick(s, env, 10) // 1.0 s into the 2.6 s wake — still waking
-    expect(s.phase).toBe('wake')
-    // Neither sleep nor (so far) wake moved the chick.
+    tick(s, env, 50) // 5 s into the 8 s idle — still idling, and rooted
+    expect(s.phase).toBe('idle')
     expect(s.x).toBe(x)
     expect(s.z).toBe(z)
-    tick(s, env, 20) // past the wake timer → walking again
+    tick(s, env, 40) // past the idle timer → walking again, no wake clip in sight
+    expect(s.phase).toBe('walk')
+  })
+
+  it('a stop naps instead when the coin flip lands under NAP_CHANCE: sleep → wake → walk', () => {
+    // rand stub 0.1: 0.1 < 0.25 → nap. (Walk duration 4.5 s, sleep roll 5.4 s.)
+    const env = makeEnv({ rand: () => 0.1 })
+    const s = createBehaviorState(0, 0, 0, () => 0.1)
+    tick(s, env, 46) // past the 4.5 s walk
+    expect(s.phase).toBe('sleep')
+    tick(s, env, 55) // past the 5.4 s nap
+    expect(s.phase).toBe('wake')
+    tick(s, env, 27) // past the 2.6 s wake
     expect(s.phase).toBe('walk')
   })
 
@@ -143,7 +152,7 @@ describe('behavior machine transitions', () => {
 })
 
 describe('click-to-move (goto)', () => {
-  it('commandMoveTo from walk enters goto, converges on the target, and arrival naps', () => {
+  it('commandMoveTo from walk enters goto, converges on the target, and arrival stops', () => {
     const env = makeEnv({ rand: () => 0.5 })
     const s = createBehaviorState(0, 0, 0, () => 0.5)
     commandMoveTo(s, 0, 1.5) // straight ahead of yaw 0
@@ -157,7 +166,33 @@ describe('click-to-move (goto)', () => {
       prev = d
     }
     tick(s, env, 40) // more than enough to cover the remaining ~0.8 u
-    expect(s.phase).toBe('sleep') // it stopped → per plan 026, it naps
+    expect(s.phase).toBe('idle') // it stopped on DRY land → stands (rand 0.5 ≥ NAP_CHANCE)
+  })
+
+  it('a goto that finishes IN THE WATER swims — a bird never stops at sea', () => {
+    // Underwater everywhere, well inside the leash: the goto reaches its target
+    // and hands off to swim instead of lying down asleep on the open sea.
+    const env = makeEnv({ rand: () => 0.5, heightAt: () => -1, shoreDistanceAt: () => 0.5 })
+    const s = makeState({ phase: 'goto', x: 0, z: 0, yaw: 0, tx: 0, tz: 1.5, wet: true })
+    tick(s, env, 80)
+    expect(s.phase).toBe('swim')
+    expect(s.wet).toBe(true)
+  })
+
+  it('a swim whose paddle-about expires steers back toward land and ends ashore', () => {
+    // Shore distance falls off toward -z, so "downhill" (toward land) is -z; the
+    // bird starts facing +z (out to sea) and must turn around. Land begins at z < 0.
+    const env = makeEnv({
+      rand: () => 0.5,
+      heightAt: (_x: number, z: number) => (z < 0 ? 1 : -1), // dry land at z < 0
+      shoreDistanceAt: (_x: number, z: number) => z, // + = water, decreasing toward land
+    })
+    const s = makeState({ phase: 'swim', x: 0, z: 1, yaw: 0, remaining: 0, wet: true })
+    // ~1.3 s to turn around, then ~4 s of swimming home; 8 s covers it with room
+    // to spare while staying inside the walk roll that follows.
+    tick(s, env, 80)
+    expect(s.phase).toBe('walk') // reached dry land and resumed walking
+    expect(s.z).toBeLessThan(0)
   })
 
   it('commandMoveTo from sleep wakes first (gotoPending), then goes — not walk', () => {
