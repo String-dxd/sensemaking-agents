@@ -198,8 +198,10 @@ describe('click-to-move (goto)', () => {
 
   it('a leash-blocked route abandons the target instead of circling forever', () => {
     // Wet start: every candidate step exceeds the leash → back to plain swim.
+    // (wet: true — plan 027: goto's footing reads the hysteresis-maintained
+    // s.wet instead of re-deriving, so an in-water fixture must carry it.)
     const wetEnv = makeEnv({ rand: () => 0.5, heightAt: () => -1, shoreDistanceAt: () => MAX_SWIM_DIST + 1 })
-    const inWater = makeState({ phase: 'goto', x: 5, z: 5, tx: 8, tz: 8 })
+    const inWater = makeState({ phase: 'goto', x: 5, z: 5, tx: 8, tz: 8, wet: true })
     advanceBehavior(inWater, 0.1, wetEnv)
     expect(inWater.phase).toBe('swim')
 
@@ -223,6 +225,34 @@ describe('click-to-move (goto)', () => {
     tick(s, env, 36) // crosses TALK_SECONDS
     expect(s.phase).toBe('walk')
     expect(s.gotoPending).toBe(false)
+  })
+})
+
+describe('water hysteresis (plan 027)', () => {
+  const BETWEEN = 0.04 // between WATER_ENTER (0.02) and WATER_EXIT (0.07)
+
+  it('a walking bird does NOT enter swim in the hysteresis band', () => {
+    const env = makeEnv({ rand: () => 0.5, heightAt: () => BETWEEN })
+    const s = createBehaviorState(0, 0, 0, () => 0.5)
+    tick(s, env, 20)
+    expect(s.phase).toBe('walk')
+    expect(s.wet).toBe(false) // never crossed the enter threshold
+  })
+
+  it('a swimming bird does NOT exit swim in the hysteresis band (no flip-flop zone)', () => {
+    const env = makeEnv({ rand: () => 0.5, heightAt: () => BETWEEN })
+    const s = makeState({ phase: 'swim', x: 5, z: 5, wet: true })
+    tick(s, env, 20)
+    expect(s.phase).toBe('swim')
+    expect(s.wet).toBe(true) // once wet, stays wet until clearly ashore
+  })
+
+  it('the swim exits once the ground is clearly above the exit threshold', () => {
+    const env = makeEnv({ rand: () => 0.5, heightAt: () => 0.1 }) // > seaLevel + 0.07
+    const s = makeState({ phase: 'swim', x: 5, z: 5, wet: true })
+    advanceBehavior(s, 0.1, env)
+    expect(s.phase).toBe('walk')
+    expect(s.wet).toBe(false)
   })
 })
 

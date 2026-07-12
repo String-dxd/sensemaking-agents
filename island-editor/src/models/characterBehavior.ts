@@ -59,7 +59,11 @@ const GOTO_TURN = 3.5 // rad/s max steering rate toward a click-to-move target
 const WAKE_SECONDS = 2.6
 const SWIM_STEER = 2.4 // rad/s turned while the leash refuses a step
 const EDGE_MARGIN = 1 // world-edge leash: keep |x|,|z| under worldSize/2 - this
-const WATER_EPS = 0.02 // heightAt <= seaLevel + this counts as water
+// Water hysteresis (plan 027): entry and exit use DIFFERENT thresholds so the
+// phase can't flip-flop swim↔walk every few ticks right at the waterline
+// (each flip restarted the clip and popped the draught — the "patchy swim").
+const WATER_ENTER = 0.02 // heightAt <= seaLevel + this → start swimming
+const WATER_EXIT = 0.07 // heightAt >  seaLevel + this → back ashore (above the 0.05 beach top)
 
 /** Enter walk with a freshly rolled 4–9 s duration. */
 function rollWalk(s: BehaviorState, rand: () => number): void {
@@ -125,7 +129,7 @@ export function advanceBehavior(s: BehaviorState, dt: number, env: BehaviorEnv):
       s.z = nz
       // Walked into water → swim (entered from any moving phase; swim has no
       // timer, it exits on the walked-back-ashore condition below).
-      if (env.heightAt(s.x, s.z) <= env.seaLevel + WATER_EPS) {
+      if (env.heightAt(s.x, s.z) <= env.seaLevel + WATER_ENTER) {
         s.phase = 'swim'
         s.remaining = 0
         break
@@ -169,13 +173,16 @@ export function advanceBehavior(s: BehaviorState, dt: number, env: BehaviorEnv):
       else if (diff < -maxTurn) diff = -maxTurn
       s.yaw += diff
       // Footing decides the gait: swim speed in water, walk speed ashore.
-      const wet = env.heightAt(s.x, s.z) <= env.seaLevel + WATER_EPS
+      // Uses s.wet from the previous tick's hysteresis update (plan 027)
+      // instead of re-deriving with a single threshold — same no-flip-flop
+      // guarantee as the swim phase itself.
+      const wet = s.wet
       const speed = wet ? SWIM_SPEED : WALK_SPEED
       const nx = s.x + Math.sin(s.yaw) * speed * dt
       const nz = s.z + Math.cos(s.yaw) * speed * dt
       // The swim leash blocks the route → abandon the target (deterministic,
       // no endless circling): resume swim in water / a re-rolled walk ashore.
-      if (env.heightAt(nx, nz) <= env.seaLevel + WATER_EPS && env.shoreDistanceAt(nx, nz) > MAX_SWIM_DIST) {
+      if (env.heightAt(nx, nz) <= env.seaLevel + WATER_ENTER && env.shoreDistanceAt(nx, nz) > MAX_SWIM_DIST) {
         if (wet) {
           s.phase = 'swim'
           s.remaining = 0
@@ -205,7 +212,9 @@ export function advanceBehavior(s: BehaviorState, dt: number, env: BehaviorEnv):
         s.x = nx
         s.z = nz
       }
-      if (env.heightAt(s.x, s.z) > env.seaLevel + WATER_EPS) rollWalk(s, env.rand)
+      // Exit uses the HIGHER hysteresis threshold: only clearly ashore ends
+      // the swim, so the waterline can't churn swim↔walk (plan 027).
+      if (env.heightAt(s.x, s.z) > env.seaLevel + WATER_EXIT) rollWalk(s, env.rand)
       break
     }
     case 'talk': {
@@ -217,7 +226,9 @@ export function advanceBehavior(s: BehaviorState, dt: number, env: BehaviorEnv):
   }
   // Footing after this tick — drives the goto clip (walk vs swim gait) and
   // the actor's swim draught. Maintained on EVERY advance, whatever the phase.
-  s.wet = env.heightAt(s.x, s.z) <= env.seaLevel + WATER_EPS
+  // Hysteresis (plan 027): once wet, stays wet until clearly ashore.
+  const h = env.heightAt(s.x, s.z)
+  s.wet = s.wet ? h <= env.seaLevel + WATER_EXIT : h <= env.seaLevel + WATER_ENTER
 }
 
 /** The clip each phase plays (dock 'auto' mode). goto is water-aware: it

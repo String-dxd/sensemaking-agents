@@ -83,17 +83,23 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
   // from home. Terrain edits elsewhere deliberately do not reset it.
   const home = worldPositionOfObject(spec, o, blurred)
   const stateRef = useRef<BehaviorState | null>(null)
+  // Rate-limited vertical blend (plan 027): the ground↔draught change eases
+  // at 10/s instead of popping when the swim starts/ends at the shoreline.
+  const smoothY = useRef<number | null>(null)
   // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on id + home cell by design
   useEffect(() => {
     const { x, z } = worldPositionOfObject(spec, o, blurred)
     stateRef.current = createBehaviorState(x, z, o.yaw, mulberry32(hashString(o.id)))
+    smoothY.current = null // re-place snaps to the new ground, no glide (plan 027)
   }, [o.id, o.c, o.r])
 
   // Mark the live pose inactive when the character is removed so the grass
-  // fade disc falls back to the spec-written uniform (plan 024).
+  // fade disc falls back to the spec-written uniform (plan 024) and the sea
+  // wake shuts off (plan 027).
   useEffect(
     () => () => {
       characterPose.active = false
+      characterPose.swimming = false
     },
     [],
   )
@@ -128,6 +134,7 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
       characterPose.y = home.y
       characterPose.z = home.z
       characterPose.active = true
+      characterPose.swimming = false
       return
     }
 
@@ -145,16 +152,23 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
 
     // Resolve y: land follows the terrain (cliff edges snap — accepted until a
     // jump clip exists); swimming (incl. a wet goto) sits at a fixed draught.
+    // The ground↔draught switch is BLENDED at 10/s (plan 027) so entering or
+    // leaving the water never pops the body vertically.
+    const swimming = s.phase === 'swim' || (s.phase === 'goto' && s.wet)
     const ground = env.heightAt(s.x, s.z)
-    const y = s.phase === 'swim' || (s.phase === 'goto' && s.wet) ? spec.seaLevel - SWIM_SINK : ground
-    group.position.set(s.x, y, s.z)
+    const targetY = swimming ? spec.seaLevel - SWIM_SINK : ground
+    smoothY.current =
+      smoothY.current === null ? targetY : smoothY.current + (targetY - smoothY.current) * Math.min(1, 10 * dt)
+    group.position.set(s.x, smoothY.current, s.z)
     group.rotation.y = s.yaw
 
-    // Live pose for the grass fade disc (read in GrassLayer's useFrame).
+    // Live pose for the grass fade disc (GrassLayer) and the sea wake rings
+    // (SeaSurface, plan 027). The y written is the BLENDED, visible one.
     characterPose.x = s.x
-    characterPose.y = y
+    characterPose.y = smoothY.current
     characterPose.z = s.z
     characterPose.active = true
+    characterPose.swimming = swimming
 
     const next = clip === 'auto' ? behaviorClip(s) : clip
     if (next !== resolvedRef.current) {

@@ -137,14 +137,30 @@ describe('SeaMaterial', () => {
   )
 
   it('exposes the expected uniforms with the product palette defaults', () => {
-    for (const u of ['uSea', 'uDeep', 'uFoam', 'uShoreTex', 'uWorldSize', 'uFoamCells', 'uShortBubbles', 'uTime']) {
+    for (const u of [
+      'uSea',
+      'uDeep',
+      'uFoam',
+      'uShoreTex',
+      'uWorldSize',
+      'uFoamCells',
+      'uShortBubbles',
+      'uTime',
+      'uSwim',
+    ]) {
       expect(mat.uniforms[u]).toBeDefined()
     }
     expect(mat.uniforms.uSea.value.getHexString()).toBe('2a8ca0')
     expect(mat.uniforms.uDeep.value.getHexString()).toBe('1560a0')
     expect(mat.uniforms.uFoam.value.getHexString()).toBe('b3ffff')
     expect(mat.uniforms.uWorldSize.value).toBe(WORLD)
+    expect(mat.uniforms.uSwim.value.w).toBe(0) // no wake by default
     expect(mat.transparent).toBe(true)
+  })
+
+  it('carries the swim-wake ring band gated by uSwim.w (plan 027)', () => {
+    expect(mat.fragmentShader).toContain('uSwim.w')
+    expect(mat.fragmentShader).toContain('sin(swimD * 12.0 - uTime * 11.0')
   })
 
   it('ends the fragment shader with the color-space include', () => {
