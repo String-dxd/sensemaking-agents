@@ -62,8 +62,11 @@ const EDGE_MARGIN = 1 // world-edge leash: keep |x|,|z| under worldSize/2 - this
 // Water hysteresis (plan 027): entry and exit use DIFFERENT thresholds so the
 // phase can't flip-flop swim↔walk every few ticks right at the waterline
 // (each flip restarted the clip and popped the draught — the "patchy swim").
-const WATER_ENTER = 0.02 // heightAt <= seaLevel + this → start swimming
-const WATER_EXIT = 0.07 // heightAt >  seaLevel + this → back ashore (above the 0.05 beach top)
+// Both thresholds MUST stay below the beach top (tier 1 = seaLevel + 0.05): an
+// exit bar above it is unreachable from the sand, so a bird that came ashore
+// keeps the swim clip and draught while walking the dry beach.
+const WATER_ENTER = -0.02 // heightAt <= seaLevel + this → submerged, start swimming
+const WATER_EXIT = 0.02 // heightAt >  seaLevel + this → dry footing, back ashore
 
 /** Enter walk with a freshly rolled 4–9 s duration. */
 function rollWalk(s: BehaviorState, rand: () => number): void {

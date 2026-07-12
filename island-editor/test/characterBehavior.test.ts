@@ -13,7 +13,7 @@ import {
 } from '../src/models/characterBehavior'
 import { mulberry32 } from '../src/models/rand'
 import { shoreDistanceField } from '../src/terrain/shoreField'
-import { cellCenter, createOceanGrid, GRID_COLS } from '../src/terrain/terrainGrid'
+import { cellCenter, createOceanGrid, DEFAULT_TIER_HEIGHTS, GRID_COLS } from '../src/terrain/terrainGrid'
 
 const WORLD = 24
 
@@ -229,7 +229,7 @@ describe('click-to-move (goto)', () => {
 })
 
 describe('water hysteresis (plan 027)', () => {
-  const BETWEEN = 0.04 // between WATER_ENTER (0.02) and WATER_EXIT (0.07)
+  const BETWEEN = 0 // between WATER_ENTER (-0.02) and WATER_EXIT (0.02): the waterline itself
 
   it('a walking bird does NOT enter swim in the hysteresis band', () => {
     const env = makeEnv({ rand: () => 0.5, heightAt: () => BETWEEN })
@@ -248,11 +248,23 @@ describe('water hysteresis (plan 027)', () => {
   })
 
   it('the swim exits once the ground is clearly above the exit threshold', () => {
-    const env = makeEnv({ rand: () => 0.5, heightAt: () => 0.1 }) // > seaLevel + 0.07
+    const env = makeEnv({ rand: () => 0.5, heightAt: () => 0.1 }) // > seaLevel + 0.02
     const s = makeState({ phase: 'swim', x: 5, z: 5, wet: true })
     advanceBehavior(s, 0.1, env)
     expect(s.phase).toBe('walk')
     expect(s.wet).toBe(false)
+  })
+
+  // The band must clear the beach: tier 1's top is the lowest LAND the bird can
+  // stand on, so if the exit threshold sits above it the bird beaches itself and
+  // keeps swimming across dry sand (observed: a bird doing breaststroke up the shore).
+  it('a swimming bird that reaches the sand tier comes ashore', () => {
+    const beachTop = DEFAULT_TIER_HEIGHTS[1] // 0.05 — dry land, the lowest there is
+    const env = makeEnv({ rand: () => 0.5, heightAt: () => beachTop })
+    const s = makeState({ phase: 'swim', x: 5, z: 5, wet: true })
+    advanceBehavior(s, 0.1, env)
+    expect(s.phase).toBe('walk')
+    expect(s.wet).toBe(false) // no swim clip, no swim draught on the sand
   })
 })
 
