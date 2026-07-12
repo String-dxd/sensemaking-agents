@@ -35,28 +35,50 @@ export const BLADES_PER_CELL = 64
  *  future deliberate-slope feature would need to rethink this rule. */
 const CLIFF_DROP = 0.05
 
+/** SoA blade layout matching GrassLayer's instanced attributes exactly, so the
+ *  scatter can fill the GPU-bound arrays directly (plan 029 — no per-blade
+ *  object allocation on the paint-drag hot path). Float64Array is accepted so
+ *  the object-view wrapper below stays LOSSLESS (float32 quantization happens
+ *  exactly where it always did: at the GPU attribute, which GrassLayer passes
+ *  in as Float32Array). */
+export interface GrassBladeArrays {
+  /** xyz per blade (3 floats) */
+  offsets: Float32Array | Float64Array
+  /** yaw, height per blade (2 floats) */
+  yawScales: Float32Array | Float64Array
+  /** shade, phase per blade (2 floats) */
+  shadePhases: Float32Array | Float64Array
+}
+
 /** Scatter `perCell` blades over every grass-painted LAND cell (plan 020's
- *  BOTW meadow). Blades jitter ±0.575 cells around the center — 15% overflow
- *  past the cell edge, so adjacent painted cells interlock into a continuous
- *  meadow with organic edges instead of visible crop rows. Each blade's y is
- *  the terrain height at ITS OWN x/z (blades follow slopes); blades whose
- *  ground lands at or below sea level are skipped (shore-edge overflow must
- *  not stand in water), as are blades that dropped off the cell's plateau
- *  onto a terrace wall (CLIFF_DROP; plan 021). Deterministic: same spec →
- *  identical array (row-major cell scan, one mulberry32(cellIndex + 1)
- *  stream per cell). */
-export function grassBlades(spec: IslandSpec, perCell = BLADES_PER_CELL): GrassBlade[] {
+ *  BOTW meadow), writing into caller-owned arrays (capacity ≥ cells×perCell
+ *  blades); returns the blade COUNT. Blades jitter ±0.575 cells around the
+ *  center — 15% overflow past the cell edge, so adjacent painted cells
+ *  interlock into a continuous meadow with organic edges instead of visible
+ *  crop rows. Each blade's y is the terrain height at ITS OWN x/z (blades
+ *  follow slopes); blades whose ground lands at or below sea level are
+ *  skipped (shore-edge overflow must not stand in water), as are blades that
+ *  dropped off the cell's plateau onto a terrace wall (CLIFF_DROP; plan 021).
+ *  Deterministic: same spec → identical fill (row-major cell scan, one
+ *  mulberry32(cellIndex + 1) stream per cell). Zero allocations beyond the
+ *  one blurTiers (pass `blurred` to avoid even that). */
+export function fillGrassBlades(
+  spec: IslandSpec,
+  out: GrassBladeArrays,
+  perCell = BLADES_PER_CELL,
+  blurred?: Float32Array,
+): number {
   const { grid, worldSize, tierHeights, seaLevel } = spec
   const cellSize = worldSize / grid.cols
-  const blurred = blurTiers(grid)
-  const out: GrassBlade[] = []
+  const blur = blurred ?? blurTiers(grid)
+  let count = 0
   for (let r = 0; r < grid.rows; r++) {
     for (let c = 0; c < grid.cols; c++) {
       const i = cellIndex(grid, c, r)
       if (grid.surface[i] !== SURFACE_GRASS) continue
       if (!isLandTier(grid.tiers[i], tierHeights, seaLevel)) continue
       const { x: cx, z: cz } = cellCenter(worldSize, grid, c, r)
-      const yCell = evaluateHeight(spec, cx, cz, blurred)
+      const yCell = evaluateHeight(spec, cx, cz, blur)
       // +1 because mulberry32(0) is a degenerate seed (yields 0 as its first
       // draw); per blade the draw order is dx, dz, yaw, height, shade, phase.
       const rand = mulberry32(i + 1)
@@ -67,11 +89,46 @@ export function grassBlades(spec: IslandSpec, perCell = BLADES_PER_CELL): GrassB
         const height = 0.08 + rand() * 0.2
         const shade = rand()
         const phase = rand() * Math.PI * 2
-        const y = evaluateHeight(spec, x, z, blurred)
+        const y = evaluateHeight(spec, x, z, blur)
         if (y <= seaLevel + 0.01) continue // edge blades must not stand in water
         if (Math.abs(y - yCell) > CLIFF_DROP) continue // spilled onto a terrace wall
-        out.push({ x, y, z, yaw, height, shade, phase })
+        out.offsets[count * 3] = x
+        out.offsets[count * 3 + 1] = y
+        out.offsets[count * 3 + 2] = z
+        out.yawScales[count * 2] = yaw
+        out.yawScales[count * 2 + 1] = height
+        out.shadePhases[count * 2] = shade
+        out.shadePhases[count * 2 + 1] = phase
+        count++
       }
+    }
+  }
+  return count
+}
+
+/** Object-array view of the scatter (test-facing contract; GrassLayer uses
+ *  fillGrassBlades directly). Materialized FROM the SoA fill, so determinism
+ *  is identical by construction. */
+export function grassBlades(spec: IslandSpec, perCell = BLADES_PER_CELL): GrassBlade[] {
+  const capacity = spec.grid.cols * spec.grid.rows * perCell
+  // Float64 buffers: the object view must carry the exact same values the old
+  // object-pushing implementation produced (tests assert y to 1e-10).
+  const arrays: GrassBladeArrays = {
+    offsets: new Float64Array(capacity * 3),
+    yawScales: new Float64Array(capacity * 2),
+    shadePhases: new Float64Array(capacity * 2),
+  }
+  const count = fillGrassBlades(spec, arrays, perCell)
+  const out: GrassBlade[] = new Array(count)
+  for (let i = 0; i < count; i++) {
+    out[i] = {
+      x: arrays.offsets[i * 3],
+      y: arrays.offsets[i * 3 + 1],
+      z: arrays.offsets[i * 3 + 2],
+      yaw: arrays.yawScales[i * 2],
+      height: arrays.yawScales[i * 2 + 1],
+      shade: arrays.shadePhases[i * 2],
+      phase: arrays.shadePhases[i * 2 + 1],
     }
   }
   return out

@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { shoreDistanceField } from '../terrain/shoreField'
+import { shoreFieldForSpec } from '../terrain/specCache'
 import type { IslandSpec } from '../terrain/terrainGrid'
 import { characterPose } from './characterPose'
 import { createSeaMaterial, createShoreDataTexture, updateShoreDataTexture } from './materials/SeaMaterial'
@@ -33,12 +33,12 @@ export function SeaSurface({ spec }: { spec: IslandSpec }) {
 
   // Shore texture: created once (fixed lattice resolution), refreshed per edit.
   const shoreTex = useMemo(
-    () => createShoreDataTexture(shoreDistanceField(spec.grid, spec.worldSize)),
+    () => createShoreDataTexture(shoreFieldForSpec(spec)),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- created once; updated in place below
     [],
   )
   useEffect(() => {
-    updateShoreDataTexture(shoreTex, shoreDistanceField(spec.grid, spec.worldSize))
+    updateShoreDataTexture(shoreTex, shoreFieldForSpec(spec))
   }, [shoreTex, spec])
   useEffect(() => () => shoreTex.dispose(), [shoreTex])
 

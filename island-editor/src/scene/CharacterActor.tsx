@@ -16,7 +16,7 @@ import {
 import { characterCommand } from './characterCommand'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { hashString, mulberry32 } from '../models/rand'
-import { shoreDistanceField } from '../terrain/shoreField'
+import { shoreFieldForSpec } from '../terrain/specCache'
 import { evaluateHeight, type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
 import { characterPose } from './characterPose'
 
@@ -65,7 +65,7 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
   // The behavior env: pure terrain queries + a seeded stream (NO Math.random).
   // Rebuilt per spec edit — the shore field is the same one the sea shader
   // derives its foam from, recomputed on the same trigger.
-  const shore = useMemo(() => shoreDistanceField(spec.grid, spec.worldSize), [spec])
+  const shore = useMemo(() => shoreFieldForSpec(spec), [spec])
   const env = useMemo<BehaviorEnv>(
     () => ({
       heightAt: (x: number, z: number) => evaluateHeight(spec, x, z, blurred),

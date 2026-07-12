@@ -4,7 +4,8 @@ import * as THREE from 'three'
 import type { ClipSelection } from '../models/characterAsset'
 import { hashString } from '../models/rand'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
-import { blurTiers, type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
+import { blurredForSpec } from '../terrain/specCache'
+import { type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
 import { CharacterActor } from './CharacterActor'
 import { useCanopyWind } from './useCanopyWind'
 
@@ -26,7 +27,7 @@ interface PlacedObjectsProps {
  *  shared `PlacedObjectMesh`. */
 export function PlacedObjects({ spec, placeMode, onRemove, clip }: PlacedObjectsProps) {
   // Blurred tier field for terrain-top height sampling; recomputed per spec edit.
-  const blurred = useMemo(() => blurTiers(spec.grid), [spec])
+  const blurred = useMemo(() => blurredForSpec(spec), [spec])
   return (
     <>
       {spec.objects.map((o) =>
