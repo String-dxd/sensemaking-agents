@@ -27,9 +27,9 @@ function NextIcon() {
   )
 }
 
-/** Bottom-center dock, shown only while a character is placed: cycles the
- *  animation clip it plays. Sits directly above the hotbar (see
- *  `.animation-dock` in panel.css). */
+/** Bottom-left dock, shown only while a character is placed: cycles the
+ *  animation clip it plays. Deliberately NOT above the hotbar — that is where
+ *  the hotbar's tool tooltips open (see `.animation-dock` in panel.css). */
 export function AnimationDock({ clip, onPrev, onNext }: AnimationDockProps) {
   // 'Auto' = the plan-025 behavior machine; concrete clips are the manual
   // override. The cycle is ['auto', ...CHARACTER_CLIPS] (11 entries).

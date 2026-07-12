@@ -13,7 +13,13 @@
   color: #e7ecf6;
   font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
   user-select: none;
-  z-index: 10;
+  /* Outranks the other fixed panels (all z-index 10). A panel's z-index makes
+     it a STACKING CONTEXT, which traps its tooltips inside: `.tip`'s z-index 20
+     only orders it against its hotbar siblings, never against another panel. So
+     a tooltip flying up out of the hotbar can only clear a neighbouring panel if
+     the HOTBAR ITSELF outranks that panel. (Raising `.tip` instead does nothing
+     — that was the bug: tool tooltips rendered behind the animation dock.) */
+  z-index: 20;
 }
 
 .hotbar__row {
@@ -201,15 +207,16 @@
   opacity: 1;
 }
 
-/* ── Bottom-center animation dock ─────────────────────────────────────────────
-   Shown only while a character is placed. Sits directly above the hotbar: the
-   hotbar occupies bottom:20px up through its ~56px row height, so this dock's
-   bottom sits at that row's top edge plus the hotbar's own 8px gap-to-edge. */
+/* ── Bottom-left animation dock ───────────────────────────────────────────────
+   Shown only while a character is placed. It used to sit directly above the
+   hotbar, which put it exactly where the hotbar's tool tooltips open — so every
+   tooltip landed under it. Moved to the free bottom-left corner: clear of the
+   hotbar's upward tooltip column, of the left-edge model panel (vertically
+   centered), and of the bottom-right camera dock. */
 .animation-dock {
   position: fixed;
-  bottom: 84px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 20px;
+  left: 16px;
   z-index: 10;
   color: #e7ecf6;
   font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
