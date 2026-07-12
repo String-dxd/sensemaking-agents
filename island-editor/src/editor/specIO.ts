@@ -13,6 +13,7 @@ import {
   GRID_COLS,
   GRID_ROWS,
   type IslandSpec,
+  LEGACY_DEFAULT_TIER_HEIGHTS,
   MAX_TIER,
   LEGACY_OBJECT_KINDS,
   type ObjectKind,
@@ -173,11 +174,20 @@ export function validateSpecObject(parsed: unknown): IslandSpec {
   // v3 migrates forward with an empty objects layer; v4 validates its objects.
   const objects = o.version === CURRENT_SPEC_VERSION ? validateObjects(o.objects, grid) : []
 
+  // Specs saved before the 2026-07-12 beach lowering carry the old default
+  // heights; rewrite exactly that array to the current defaults so autosaved
+  // islands pick up the retuned shoreline. Custom heights pass through as-is.
+  const th = o.tierHeights as number[]
+  const isLegacyDefault =
+    th.length === LEGACY_DEFAULT_TIER_HEIGHTS.length &&
+    th.every((v, i) => v === LEGACY_DEFAULT_TIER_HEIGHTS[i])
+  const tierHeights = isLegacyDefault ? DEFAULT_TIER_HEIGHTS.slice() : th.slice()
+
   return {
     version: CURRENT_SPEC_VERSION,
     worldSize: o.worldSize,
     seaLevel: o.seaLevel,
-    tierHeights: (o.tierHeights as number[]).slice(),
+    tierHeights,
     grid,
     objects,
   }

@@ -42,8 +42,18 @@ export interface IslandSpec {
 }
 
 /** Default tier tops. Tier 2 = 1.0 matches the engine's plateauTopY (see the
- *  v2 seed comment). Seafloor matches v2 seafloorDepth. */
-export const DEFAULT_TIER_HEIGHTS = [-1.2, 0.12, 1.0, 1.65, 2.3]
+ *  v2 seed comment). Seafloor matches v2 seafloorDepth. Tier 1 (the beach) was
+ *  lowered 0.12 → 0.05 on 2026-07-12 so the shore sits nearly flush with the
+ *  sea; the floor is the sea shader's ripple crest (+0.027 — see the vertex
+ *  2-sine in SeaMaterial.ts), so keep it above ~0.035 or waves clip the sand. */
+export const DEFAULT_TIER_HEIGHTS = [-1.2, 0.05, 1.0, 1.65, 2.3]
+
+/** The default tier tops before the 2026-07-12 beach lowering. Saved/exported
+ *  specs that still carry exactly this array migrate to DEFAULT_TIER_HEIGHTS on
+ *  load (see validateSpecObject) — an island saved yesterday must still open,
+ *  and should pick up the retuned shoreline. Custom-authored heights are never
+ *  rewritten. Also keeps legacy v1/v2 rasterization stable (see specV2.ts). */
+export const LEGACY_DEFAULT_TIER_HEIGHTS = [-1.2, 0.12, 1.0, 1.65, 2.3]
 
 /** Current spec version. `validateSpecObject` accepts this and older versions and
  *  normalizes (migrates) to it. Single source of truth for the literal. */

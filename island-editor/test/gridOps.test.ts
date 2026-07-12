@@ -125,14 +125,14 @@ describe('gridOps', () => {
   })
 
   it('isLandTier: tiers 1..4 with default heights and seaLevel 0 are land', () => {
-    expect(isLandTier(1, DEFAULT_TIER_HEIGHTS, 0)).toBe(true) // 0.12 > 0
+    expect(isLandTier(1, DEFAULT_TIER_HEIGHTS, 0)).toBe(true) // 0.05 > 0
     expect(isLandTier(2, DEFAULT_TIER_HEIGHTS, 0)).toBe(true)
     expect(isLandTier(3, DEFAULT_TIER_HEIGHTS, 0)).toBe(true)
     expect(isLandTier(4, DEFAULT_TIER_HEIGHTS, 0)).toBe(true)
   })
 
   it('isLandTier respects a custom seaLevel', () => {
-    expect(isLandTier(1, DEFAULT_TIER_HEIGHTS, 0.5)).toBe(false) // 0.12 <= 0.5
+    expect(isLandTier(1, DEFAULT_TIER_HEIGHTS, 0.5)).toBe(false) // 0.05 <= 0.5
     expect(isLandTier(2, DEFAULT_TIER_HEIGHTS, 0.5)).toBe(true) // 1.0 > 0.5
   })
 

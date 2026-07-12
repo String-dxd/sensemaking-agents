@@ -118,8 +118,10 @@ void main() {
   float broad = groundNoise(vWorld.xz * 2.2);
   sand = mix(sand * 0.95, sand * 1.05, broad);
   // Wet-sand darkening where the ground sits near the waterline (keyed to
-  // seaLevel, not the app's radial terms).
-  float wet = 1.0 - smoothstep(0.0, 0.08, abs(vWorld.y - uSeaLevel));
+  // seaLevel, not the app's radial terms). Band end must stay below the beach
+  // freeboard (tier 1 top − seaLevel, 0.05) so the flat top reads dry and the
+  // wet gradient stays a rim effect.
+  float wet = 1.0 - smoothstep(0.0, 0.04, abs(vWorld.y - uSeaLevel));
   sand = mix(sand, sand * vec3(0.72, 0.70, 0.62), wet * 0.45);
 
   // Grass (tiers ≥ 2): flat tone + two hash-noise octaves (±10% brightness).

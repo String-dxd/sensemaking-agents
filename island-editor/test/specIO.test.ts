@@ -3,7 +3,13 @@ import { deserializeSpec, serializeSpec, validateSpecObject } from '../src/edito
 import { mulberry32 } from '../src/models/rand'
 import { makePlacedObject } from '../src/terrain/objectOps'
 import { seedIsland } from '../src/terrain/seed'
-import { DEFAULT_TIER_HEIGHTS, GRID_COLS, GRID_ROWS } from '../src/terrain/terrainGrid'
+import {
+  createOceanGrid,
+  DEFAULT_TIER_HEIGHTS,
+  GRID_COLS,
+  GRID_ROWS,
+  LEGACY_DEFAULT_TIER_HEIGHTS,
+} from '../src/terrain/terrainGrid'
 
 // A hand-built legacy v2 spec (a triangle island).
 function v2Spec() {
@@ -125,5 +131,37 @@ describe('specIO', () => {
     const bad = JSON.parse(serializeSpec(spec))
     bad.tierHeights = [0, 0, 1, 2, 3]
     expect(() => validateSpecObject(bad)).toThrow(/strictly-ascending/)
+  })
+})
+
+describe('tierHeights migration', () => {
+  // Minimal valid v4 spec object, following the file's own convention for
+  // hand-built specs (see applyOps.test.ts): an ocean grid, no objects.
+  function minimalV4Spec(tierHeights: number[]) {
+    return {
+      version: 4,
+      worldSize: 24,
+      seaLevel: 0,
+      tierHeights,
+      grid: createOceanGrid(),
+      objects: [],
+    }
+  }
+
+  it('migrates a spec carrying exactly the legacy default tier heights to the current defaults', () => {
+    const spec = validateSpecObject(minimalV4Spec(LEGACY_DEFAULT_TIER_HEIGHTS.slice()))
+    expect(spec.tierHeights).toEqual(DEFAULT_TIER_HEIGHTS)
+  })
+
+  it('preserves custom-authored tier heights untouched', () => {
+    const custom = [-1, 0.3, 0.9, 1.4, 2]
+    const spec = validateSpecObject(minimalV4Spec(custom))
+    expect(spec.tierHeights).toEqual(custom)
+  })
+
+  it('does not migrate a near-miss array that only resembles the legacy defaults', () => {
+    const nearMiss = [-1.2, 0.12, 1.0, 1.65, 2.31] // last entry differs from LEGACY_DEFAULT_TIER_HEIGHTS
+    const spec = validateSpecObject(minimalV4Spec(nearMiss))
+    expect(spec.tierHeights).toEqual(nearMiss)
   })
 })
