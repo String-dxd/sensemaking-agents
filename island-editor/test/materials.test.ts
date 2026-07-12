@@ -45,13 +45,25 @@ describe('GrassBladeMaterial', () => {
   const mat = createGrassBladeMaterial()
 
   it('exposes the expected uniforms with the BOTW palette defaults', () => {
-    for (const u of ['uTime', 'uWindDir', 'uWindStrength', 'uBaseColor', 'uTipColor']) {
+    for (const u of [
+      'uTime',
+      'uWindDir',
+      'uWindStrength',
+      'uBaseColor',
+      'uTipColor',
+      'uWidenStart',
+      'uWidenEnd',
+      'uWidenMax',
+    ]) {
       expect(mat.uniforms[u]).toBeDefined()
     }
     expect(mat.uniforms.uBaseColor.value.getHexString()).toBe('2e6b2a')
     expect(mat.uniforms.uTipColor.value.getHexString()).toBe('a8d84f')
     expect(mat.uniforms.uWindDir.value.length()).toBeCloseTo(1, 6) // normalized
-    expect(mat.uniforms.uWindStrength.value).toBeCloseTo(0.045, 6)
+    expect(mat.uniforms.uWindStrength.value).toBeCloseTo(0.12, 6)
+    expect(mat.uniforms.uWidenStart.value).toBeCloseTo(8, 6)
+    expect(mat.uniforms.uWidenEnd.value).toBeCloseTo(30, 6)
+    expect(mat.uniforms.uWidenMax.value).toBeCloseTo(2.5, 6)
     expect(mat.uniforms.uTime.value).toBe(0)
   })
 
@@ -69,6 +81,14 @@ describe('GrassBladeMaterial', () => {
       expect(mat.vertexShader).toContain(`attribute`)
       expect(mat.vertexShader).toContain(attr)
     }
+  })
+
+  it('leans blades proportionally to their height (constant lean angle)', () => {
+    expect(mat.vertexShader).toContain('* tip * aYawScale.y')
+  })
+
+  it('widens blade cards with camera distance to stay above the sub-pixel floor', () => {
+    expect(mat.vertexShader).toContain('smoothstep(uWidenStart, uWidenEnd,')
   })
 })
 
