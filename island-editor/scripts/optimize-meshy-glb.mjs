@@ -123,24 +123,7 @@ const ASSETS = {
     doubleSided: false,
     windAmp: null, // no canopy node → useCanopyWind no-ops; stones don't sway
   },
-  grass: {
-    src: 'assets/meshy/grass.glb',
-    out: 'public/models/grass.glb',
-    material: 'grass-tuft',
-    meshNode: 'tuft',
-    // One tuft ≈ one grid cell: the 64-cell grid over worldSize 24 gives a
-    // 0.375-unit cell; the source patch is 0.12 wide × 0.06 tall, so height
-    // 0.16 scales the footprint to ~0.32 — the instanced layer (GrassLayer,
-    // plan 016) adds per-cell scale jitter on top.
-    height: 0.16,
-    // 3.5k tris — nothing to decimate, so the UV-atlas problem that forces the
-    // tree's vertex-color bake never comes up; the 512² WebP keeps blade color.
-    bakeVertexColors: false,
-    simplify: null,
-    textureSize: 512,
-    doubleSided: true, // grass blades are open shells, visible from both sides
-    windAmp: null, // rendered as a static InstancedMesh; the canopy spring never sees it
-  },
+  // (grass went procedural in plan 020 — see GrassLayer.tsx/GrassBladeMaterial.ts; no GLB entry.)
   // SKINNED — dispatched to buildCharacter() below instead of the static
   // pipeline above. See buildCharacter's own comment for why: this asset ships
   // at SOURCE scale (~1.62 tall, base already at y=0) — the runtime (plan 017)

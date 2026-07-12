@@ -3,6 +3,7 @@
 // is Step 10's visual QA.
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
+import { createGrassBladeMaterial } from '../src/scene/materials/GrassBladeMaterial'
 import { createIslandGroundMaterial } from '../src/scene/materials/IslandGroundMaterial'
 import { createSeaMaterial, createShoreDataTexture, updateShoreDataTexture } from '../src/scene/materials/SeaMaterial'
 import { shoreDistanceField } from '../src/terrain/shoreField'
@@ -37,6 +38,37 @@ describe('IslandGroundMaterial', () => {
 
   it('ends the fragment shader with the color-space include', () => {
     expect(mat.fragmentShader).toContain('#include <colorspace_fragment>')
+  })
+})
+
+describe('GrassBladeMaterial', () => {
+  const mat = createGrassBladeMaterial()
+
+  it('exposes the expected uniforms with the BOTW palette defaults', () => {
+    for (const u of ['uTime', 'uWindDir', 'uWindStrength', 'uBaseColor', 'uTipColor']) {
+      expect(mat.uniforms[u]).toBeDefined()
+    }
+    expect(mat.uniforms.uBaseColor.value.getHexString()).toBe('2e6b2a')
+    expect(mat.uniforms.uTipColor.value.getHexString()).toBe('a8d84f')
+    expect(mat.uniforms.uWindDir.value.length()).toBeCloseTo(1, 6) // normalized
+    expect(mat.uniforms.uWindStrength.value).toBeCloseTo(0.045, 6)
+    expect(mat.uniforms.uTime.value).toBe(0)
+  })
+
+  it('renders blade cards double-sided and opaque', () => {
+    expect(mat.side).toBe(THREE.DoubleSide)
+    expect(mat.transparent).toBe(false)
+  })
+
+  it('ends the fragment shader with the color-space include', () => {
+    expect(mat.fragmentShader).toContain('#include <colorspace_fragment>')
+  })
+
+  it('reads the per-instance attributes the GrassLayer geometry provides', () => {
+    for (const attr of ['aOffset', 'aYawScale', 'aShadePhase']) {
+      expect(mat.vertexShader).toContain(`attribute`)
+      expect(mat.vertexShader).toContain(attr)
+    }
   })
 })
 

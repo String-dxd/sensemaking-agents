@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { grassInstanceTransforms } from '../src/terrain/grassField'
+import { BLADES_PER_CELL, grassBlades } from '../src/terrain/grassField'
 import {
+  cellCenter,
   cellIndex,
   createOceanGrid,
   DEFAULT_TIER_HEIGHTS,
@@ -15,22 +16,44 @@ function specFrom(grid: IslandSpec['grid']): IslandSpec {
   return { version: 5, worldSize: WORLD, seaLevel: 0, tierHeights: DEFAULT_TIER_HEIGHTS, grid, objects: [] }
 }
 
-describe('grassField — grassInstanceTransforms', () => {
+describe('grassField — grassBlades', () => {
   it('emits nothing for an unpainted (all-auto) grid', () => {
-    expect(grassInstanceTransforms(specFrom(createOceanGrid()))).toEqual([])
+    expect(grassBlades(specFrom(createOceanGrid()))).toEqual([])
   })
 
-  it('emits a transform only for grass-painted LAND cells, not a painted water cell', () => {
+  it('scatters exactly BLADES_PER_CELL blades near an interior painted land cell', () => {
     const grid = createOceanGrid()
-    const land = cellIndex(grid, 32, 32)
-    const water = cellIndex(grid, 10, 10)
-    grid.tiers[land] = 2 // above sea level (land)
-    // grid.tiers[water] stays 0 (ocean floor, below sea level)
-    grid.surface[land] = SURFACE_GRASS
-    grid.surface[water] = SURFACE_GRASS
+    const c = 32
+    const r = 32
+    // Raise the whole 3×3 neighborhood to tier 2 so the blurred terrain stays
+    // above sea level across the painted cell's full scatter radius — an
+    // ISOLATED raised cell's edges blur down toward the surrounding ocean and
+    // would water-clip its outer blades (that clipping is the shore contract,
+    // tested below; here we want the no-clipping count).
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        grid.tiers[cellIndex(grid, c + dc, r + dr)] = 2
+      }
+    }
+    grid.surface[cellIndex(grid, c, r)] = SURFACE_GRASS
     const spec = specFrom(grid)
-    const transforms = grassInstanceTransforms(spec)
-    expect(transforms).toHaveLength(1)
+    const blades = grassBlades(spec)
+    expect(blades).toHaveLength(BLADES_PER_CELL)
+
+    // Every blade stays within the ±0.575-cell scatter of the cell center.
+    const cellSize = WORLD / grid.cols
+    const center = cellCenter(WORLD, grid, c, r)
+    for (const b of blades) {
+      expect(Math.abs(b.x - center.x)).toBeLessThanOrEqual(0.575 * cellSize)
+      expect(Math.abs(b.z - center.z)).toBeLessThanOrEqual(0.575 * cellSize)
+    }
+  })
+
+  it('emits nothing for a grass-painted WATER cell', () => {
+    const grid = createOceanGrid()
+    grid.surface[cellIndex(grid, 10, 10)] = SURFACE_GRASS
+    // tiers[10,10] stays 0 (ocean floor, below sea level)
+    expect(grassBlades(specFrom(grid))).toHaveLength(0)
   })
 
   it('is deterministic: two calls on the same spec produce identical output', () => {
@@ -44,35 +67,54 @@ describe('grassField — grassInstanceTransforms', () => {
       grid.surface[cellIndex(grid, c, r)] = SURFACE_GRASS
     }
     const spec = specFrom(grid)
-    expect(grassInstanceTransforms(spec)).toEqual(grassInstanceTransforms(spec))
+    expect(grassBlades(spec)).toEqual(grassBlades(spec))
   })
 
-  it('y matches evaluateHeight at the cell center', () => {
+  it("every blade's y is the terrain height at the blade's own x/z, above sea level", () => {
     const grid = createOceanGrid()
     grid.tiers[cellIndex(grid, 32, 32)] = 3
     grid.surface[cellIndex(grid, 32, 32)] = SURFACE_GRASS
     const spec = specFrom(grid)
-    const [t] = grassInstanceTransforms(spec)
-    expect(t).toBeDefined()
-    expect(t.y).toBeCloseTo(evaluateHeight(spec, t.x, t.z), 10)
+    const blades = grassBlades(spec)
+    expect(blades.length).toBeGreaterThan(0)
+    for (const b of blades.slice(0, 5)) {
+      expect(b.y).toBeCloseTo(evaluateHeight(spec, b.x, b.z), 10)
+    }
+    for (const b of blades) {
+      expect(b.y).toBeGreaterThan(spec.seaLevel)
+    }
   })
 
-  it('yaw is in [0, 2π) and scale is in [0.95, 1.35] across many painted cells', () => {
+  it('yaw/height/shade/phase stay within their documented ranges across many cells', () => {
     const grid = createOceanGrid()
-    for (let r = 0; r < grid.rows; r += 3) {
-      for (let c = 0; c < grid.cols; c += 3) {
+    for (let r = 0; r < grid.rows; r += 5) {
+      for (let c = 0; c < grid.cols; c += 5) {
         grid.tiers[cellIndex(grid, c, r)] = 2
         grid.surface[cellIndex(grid, c, r)] = SURFACE_GRASS
       }
     }
-    const spec = specFrom(grid)
-    const transforms = grassInstanceTransforms(spec)
-    expect(transforms.length).toBeGreaterThan(0)
-    for (const t of transforms) {
-      expect(t.yaw).toBeGreaterThanOrEqual(0)
-      expect(t.yaw).toBeLessThan(Math.PI * 2)
-      expect(t.scale).toBeGreaterThanOrEqual(0.95)
-      expect(t.scale).toBeLessThan(1.35)
+    const blades = grassBlades(specFrom(grid))
+    expect(blades.length).toBeGreaterThan(0)
+    for (const b of blades) {
+      expect(b.yaw).toBeGreaterThanOrEqual(0)
+      expect(b.yaw).toBeLessThan(Math.PI * 2)
+      expect(b.height).toBeGreaterThanOrEqual(0.1)
+      expect(b.height).toBeLessThan(0.24)
+      expect(b.shade).toBeGreaterThanOrEqual(0)
+      expect(b.shade).toBeLessThan(1)
+      expect(b.phase).toBeGreaterThanOrEqual(0)
+      expect(b.phase).toBeLessThan(Math.PI * 2)
     }
+  })
+
+  it('respects a custom perCell density', () => {
+    const grid = createOceanGrid()
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        grid.tiers[cellIndex(grid, 32 + dc, 32 + dr)] = 2 // no water clipping (see above)
+      }
+    }
+    grid.surface[cellIndex(grid, 32, 32)] = SURFACE_GRASS
+    expect(grassBlades(specFrom(grid), 3)).toHaveLength(3)
   })
 })

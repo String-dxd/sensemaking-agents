@@ -1,79 +1,108 @@
-import { useEffect, useMemo, useRef } from 'react'
-import { useGLTF } from '@react-three/drei'
+import { useEffect, useMemo } from 'react'
+import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { applyToonMaterials } from '../models/toonMaterial'
-import { grassInstanceTransforms } from '../terrain/grassField'
+import { BLADES_PER_CELL, grassBlades } from '../terrain/grassField'
 import type { IslandSpec } from '../terrain/terrainGrid'
+import { createGrassBladeMaterial } from './materials/GrassBladeMaterial'
 
-const UP = new THREE.Vector3(0, 1, 0)
+/** Renders every grass-painted cell as ~BLADES_PER_CELL procedural blade cards
+ *  in ONE instanced draw call (plan 020's BOTW meadow — replaces the one
+ *  GLB-tuft-per-cell layer, whose 64×64 lattice of identical clumps read as
+ *  crop rows). Blade positions come from the pure grassBlades helper
+ *  (grassField.ts): jittered past cell borders so painted regions interlock,
+ *  terrain-height-following, water-clipped at shore edges. Wind is entirely
+ *  vertex-shader-side (GrassBladeMaterial) — per-instance JS springs don't
+ *  scale to a hundred thousand blades. Frozen under prefers-reduced-motion,
+ *  same contract as useCanopyWind. */
 
-/** Renders every grass-painted cell (see grassField.grassInstanceTransforms) as
- *  one instance of the grass.glb tuft mesh — a single InstancedMesh draw call
- *  regardless of how many cells are painted (up to the grid's cell count),
- *  instead of per-tuft <primitive> clones (which would defeat the perf design
- *  the same way PlacedObjects' per-object clones are fine only because objects
- *  are sparse; painted grass can cover the whole island).
- *
- *  Meshopt quantization caveat (see useObjectModel.ts): meshopt parks its
- *  dequantization translate+scale on the node HOLDING the mesh — for grass.glb
- *  that's the 'tuft' node, not the mesh itself — so that node's matrixWorld
- *  must be folded into every instance matrix, or every tuft would sit offset
- *  and undersized relative to its painted cell. */
+// One tapered blade card: 5 vertices / 3 triangles, base at y=0, unit height,
+// uv.y = height fraction (0 base → 1 tip; the shader bends by uv.y²). Shared
+// module-level template — each mount's InstancedBufferGeometry copies it.
+const BLADE_W = 0.045
+function bladeCard(): THREE.BufferGeometry {
+  const geo = new THREE.BufferGeometry()
+  // prettier-ignore
+  const positions = new Float32Array([
+    -BLADE_W / 2, 0, 0,
+    BLADE_W / 2, 0, 0,
+    -BLADE_W / 3, 0.55, 0,
+    BLADE_W / 3, 0.55, 0,
+    0, 1, 0,
+  ])
+  const uvs = new Float32Array([0, 0, 1, 0, 0, 0.55, 1, 0.55, 0.5, 1])
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+  geo.setIndex([0, 1, 2, 1, 3, 2, 2, 3, 4])
+  return geo
+}
+const CARD = bladeCard()
+
 export function GrassLayer({ spec }: { spec: IslandSpec }) {
-  const gltf = useGLTF('/models/grass.glb')
+  // Capacity = full-grid worst case (every cell painted). The App.tsx mount
+  // keys this component on grid dims, so a re-mount reallocates on resize.
+  const capacity = spec.grid.cols * spec.grid.rows * BLADES_PER_CELL
 
-  const { geometry, material, dequant } = useMemo(() => {
-    let mesh: THREE.Mesh | undefined
-    // Toon-convert the CACHED scene in place (idempotent) before extracting
-    // the material, so the InstancedMesh renders toon too (plan 019).
-    applyToonMaterials(gltf.scene)
-    gltf.scene.updateMatrixWorld(true)
-    gltf.scene.traverse((n) => {
-      if (!mesh && (n as THREE.Mesh).isMesh) mesh = n as THREE.Mesh
-    })
-    if (!mesh) throw new Error('grass.glb has no mesh')
-    return {
-      geometry: mesh.geometry,
-      material: mesh.material as THREE.Material,
-      dequant: mesh.matrixWorld.clone(),
-    }
-  }, [gltf])
+  const { geometry, material } = useMemo(() => {
+    const geometry = new THREE.InstancedBufferGeometry()
+    // copy() clones the card's index + position/uv; the narrower parameter
+    // type on InstancedBufferGeometry.copy is safe to widen for a plain card.
+    geometry.copy(CARD as THREE.InstancedBufferGeometry)
+    geometry.setAttribute('aOffset', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3))
+    geometry.setAttribute('aYawScale', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2))
+    geometry.setAttribute('aShadePhase', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2))
+    geometry.instanceCount = 0
+    return { geometry, material: createGrassBladeMaterial() }
+  }, [capacity])
 
-  const meshRef = useRef<THREE.InstancedMesh>(null)
-  // Upper bound on painted cells (grid cols × rows); `count` is set to the
-  // actual painted-cell total below, so unused instance slots simply don't draw.
-  const capacity = spec.grid.cols * spec.grid.rows
+  // Own geometry/material (nothing shared with a loader cache) → dispose for
+  // real on unmount / reallocation.
+  useEffect(
+    () => () => {
+      geometry.dispose()
+      material.dispose()
+    },
+    [geometry, material],
+  )
 
+  // Refill the instanced attributes on every spec edit (paint/erase/undo all
+  // produce a new spec object — same trigger the old per-cell layer used).
   useEffect(() => {
-    const im = meshRef.current
-    if (!im) return
-    const m = new THREE.Matrix4()
-    const q = new THREE.Quaternion()
-    const p = new THREE.Vector3()
-    const s = new THREE.Vector3()
-    const transforms = grassInstanceTransforms(spec)
-    transforms.forEach((t, idx) => {
-      p.set(t.x, t.y, t.z)
-      q.setFromAxisAngle(UP, t.yaw)
-      s.setScalar(t.scale)
-      // Compose the placement transform, then fold in the mesh-holder node's
-      // dequantization matrix so the tuft's authored offset/scale survives.
-      m.compose(p, q, s).multiply(dequant)
-      im.setMatrixAt(idx, m)
+    const blades = grassBlades(spec)
+    const offset = geometry.getAttribute('aOffset') as THREE.InstancedBufferAttribute
+    const yawScale = geometry.getAttribute('aYawScale') as THREE.InstancedBufferAttribute
+    const shadePhase = geometry.getAttribute('aShadePhase') as THREE.InstancedBufferAttribute
+    blades.forEach((b, i) => {
+      offset.setXYZ(i, b.x, b.y, b.z)
+      yawScale.setXY(i, b.yaw, b.height)
+      shadePhase.setXY(i, b.shade, b.phase)
     })
-    im.count = transforms.length
-    im.instanceMatrix.needsUpdate = true
-  }, [spec, dequant])
+    geometry.instanceCount = blades.length
+    offset.needsUpdate = true
+    yawScale.needsUpdate = true
+    shadePhase.needsUpdate = true
+  }, [spec, geometry])
+
+  // Wind clock — frozen (uTime stays 0) under prefers-reduced-motion, same
+  // matchMedia-once pattern as useCanopyWind.
+  const reduce = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+    [],
+  )
+  useFrame((state) => {
+    if (reduce) return
+    material.uniforms.uTime.value = state.clock.elapsedTime
+  })
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[geometry, material, capacity]}
-      castShadow
-      receiveShadow
+    <mesh
+      geometry={geometry}
+      material={material}
+      // Per-blade shadows are noise at this scale; the ground's painted
+      // under-tint plays the grounding role instead.
+      castShadow={false}
+      receiveShadow={false}
       frustumCulled={false} // instance bounds aren't tracked; the island is always in frame
       raycast={() => null} // never intercept paint/place picks
     />
   )
 }
-useGLTF.preload('/models/grass.glb')

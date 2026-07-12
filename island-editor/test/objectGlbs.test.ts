@@ -19,9 +19,9 @@ import { beforeAll, describe, expect, it } from 'vitest'
 
 const MODELS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'models')
 
-const KINDS = ['tree', 'rock', 'grass'] as const
+const KINDS = ['tree', 'rock'] as const
 
-/** The whole point of the import pipeline: the raws are 48.2 MB, 8.1 MB and 10.4 MB.
+/** The whole point of the import pipeline: the raws are 32.3 MB and 8.1 MB.
  *  Any rebuild that lands near those numbers has silently lost the decimation or the
  *  texture compression.
  *
@@ -34,11 +34,11 @@ const KINDS = ['tree', 'rock', 'grass'] as const
  *  512² quality-80 WebP is only ~50 KB — the payload is irreducible geometry
  *  (weld() is exact-match only, and simplify is deliberately off for this asset),
  *  so the budget sits just above the actual 972 KB output. */
-const SIZE_BUDGET_KB: Record<(typeof KINDS)[number], number> = { tree: 1000, rock: 200, grass: 250 }
-const TRI_BUDGET: Record<(typeof KINDS)[number], number> = { tree: 40_000, rock: 5_000, grass: 5_000 }
+const SIZE_BUDGET_KB: Record<(typeof KINDS)[number], number> = { tree: 1000, rock: 200 }
+const TRI_BUDGET: Record<(typeof KINDS)[number], number> = { tree: 40_000, rock: 5_000 }
 
 /** Authored world scale — placement multiplies its own 0.85..1.15 jitter on top. */
-const HEIGHT: Record<(typeof KINDS)[number], number> = { tree: 1.7, rock: 0.24, grass: 0.16 }
+const HEIGHT: Record<(typeof KINDS)[number], number> = { tree: 1.7, rock: 0.24 }
 
 const docs = new Map<string, Document>()
 
@@ -116,19 +116,10 @@ describe('object GLB assets', () => {
     expect(names).toContain('stone')
   })
 
-  it('the grass has no canopy — it is a static InstancedMesh source, not wind-driven', () => {
-    const names = (docs.get('grass') as Document)
-      .getRoot()
-      .listNodes()
-      .map((n) => n.getName())
-    expect(names).not.toContain('canopy')
-    expect(names).toContain('tuft')
-  })
-
   it('the tree keeps a single compressed base map and nothing else', () => {
     // Re-baselined 2026-07-12: tree-2.glb ("Emerald Canopy") is pre-decimated and
     // textured — its look lives in the base map, not per-vertex color, so unlike
-    // the old source this one keeps its UV atlas (mirrors the rock/grass contract).
+    // the old source this one keeps its UV atlas (mirrors the rock contract).
     const doc = docs.get('tree') as Document
     const textures = doc.getRoot().listTextures()
     expect(textures).toHaveLength(1)
@@ -138,14 +129,6 @@ describe('object GLB assets', () => {
 
   it('the rock keeps a single compressed base map and nothing else', () => {
     const doc = docs.get('rock') as Document
-    const textures = doc.getRoot().listTextures()
-    expect(textures).toHaveLength(1)
-    expect(textures[0].getMimeType()).toBe('image/webp')
-    expect(textures[0].getSize()).toEqual([512, 512])
-  })
-
-  it('the grass keeps a single compressed base map and nothing else', () => {
-    const doc = docs.get('grass') as Document
     const textures = doc.getRoot().listTextures()
     expect(textures).toHaveLength(1)
     expect(textures[0].getMimeType()).toBe('image/webp')
@@ -230,7 +213,7 @@ function mat4mul(a: ArrayLike<number>, b: ArrayLike<number>): number[] {
  * step quantizes POSITION to a normalized Int16 range. For an ordinary
  * (non-skinned) mesh, gltf-transform compensates by writing a corrective
  * scale+offset onto the node that holds the mesh — which is what makes
- * `getBounds()` correct for tree/rock/grass above. But per the glTF skinning
+ * `getBounds()` correct for tree/rock above. But per the glTF skinning
  * spec, a SKINNED mesh's node transform is mathematically inert (it cancels out
  * of the render equation), so gltf-transform can't put the correction there —
  * instead (see `@gltf-transform/functions`' `quantize.ts`, `transformSkin`) it

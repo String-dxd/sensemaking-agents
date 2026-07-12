@@ -9,18 +9,21 @@ directory; only `scripts/optimize-meshy-glb.mjs` does, and only when you re-run 
 | ---------------- | ------------------------------------------ | -------- |
 | `tree.glb`       | "Emerald Canopy" (`tree-3.glb` on disk — a RETEXTURE of the same 31k-tri model) | 32.3 MB |
 | `rock.glb`       | "Lone Rock in the Meadow"                  | 8.1 MB   |
-| `grass.glb`      | "Grass Patch on Grid"                       | 10.6 MB  |
 | `character.glb`  | "Sunny Chick biped" — the `..._Meshy_Merged_Animations.glb` GLB from the zip (NOT `..._Character_output.glb`, which only carries a 0.03s dummy clip) | 6.9 MB |
 
 The maintainer's downloads for these landed under generic names (`tree.glb`,
-`tree-3.glb`, `grass.glb`, `bird.zip`) rather than their original Meshy export
+`tree-3.glb`, `bird.zip`) rather than their original Meshy export
 filenames — content was verified by inspection (triangle counts, bounds, material
 layout, animation clip names/durations) before staging, not by filename.
+
+Grass is no longer an asset: it went procedural in plan 020 (blade cards built
+in `src/scene/GrassLayer.tsx`, shaded by `src/scene/materials/GrassBladeMaterial.ts`)
+— the old "Grass Patch on Grid" raw stopped being consumed and its GLB was removed.
 
 ## Rebuilding
 
 ```sh
-pnpm build:models          # all four
+pnpm build:models          # all three
 node scripts/optimize-meshy-glb.mjs tree   # one
 ```
 
@@ -29,7 +32,6 @@ The script prints what it did:
 ```
 tree   31523 KB →  972 KB  (32× smaller)   tris    31,358 → 31,358   scale ×0.094
 rock    7903 KB →   80 KB  (99× smaller)   tris     2,709 →  2,709   scale ×0.800
-grass  10366 KB →   89 KB  (116× smaller)   tris     3,022 →  3,022   scale ×1.600
 character   6757 KB →  541 KB  (12× smaller)   tris     8,730 →  8,730   clips 10
 ```
 
