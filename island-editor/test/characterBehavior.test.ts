@@ -4,6 +4,7 @@ import {
   type BehaviorEnv,
   type BehaviorState,
   behaviorClip,
+  commandMoveTo,
   createBehaviorState,
   MAX_SWIM_DIST,
   sampleShoreDistance,
@@ -28,37 +29,32 @@ function makeEnv(overrides: Partial<BehaviorEnv> = {}): BehaviorEnv {
   }
 }
 
+/** A state literal with the plan-026 fields defaulted. */
+function makeState(overrides: Partial<BehaviorState> = {}): BehaviorState {
+  return { phase: 'walk', x: 0, z: 0, yaw: 0, remaining: 5, tx: 0, tz: 0, gotoPending: false, wet: false, ...overrides }
+}
+
 /** Tick the machine n times at a fixed dt. */
 function tick(s: BehaviorState, env: BehaviorEnv, n: number, dt = 0.1): void {
   for (let i = 0; i < n; i++) advanceBehavior(s, dt, env)
 }
 
 describe('behavior machine transitions', () => {
-  it('walk expires into hi, and hi resumes walking on the 70% branch', () => {
-    // rand stub 0.5: no wander drift, walk duration 6.5 s, hi branch 0.5 < 0.7.
+  it('walk expires straight into sleep (5–9 s), then wake (2.6 s), then walk — no wave', () => {
+    // rand stub 0.5: no wander drift, walk duration 6.5 s, sleep roll 7 s.
     const env = makeEnv({ rand: () => 0.5 })
     const s = createBehaviorState(0, 0, 0, () => 0.5)
     expect(s.phase).toBe('walk')
     expect(s.remaining).toBeCloseTo(6.5, 6)
-    tick(s, env, 66) // 6.6 s > 6.5
-    expect(s.phase).toBe('hi')
-    tick(s, env, 29) // 2.9 s > the 2.8 s hi duration
-    expect(s.phase).toBe('walk')
-  })
-
-  it('hi falls asleep on the 30% branch, then wake (2.6 s) leads back to walk', () => {
-    // rand stub 0.9: hi branch 0.9 >= 0.7 → sleep for 6 + 0.9*6 = 11.4 s.
-    const env = makeEnv({ rand: () => 0.9 })
-    const s: BehaviorState = { phase: 'hi', x: 0, z: 0, yaw: 0, remaining: 0.1 }
-    tick(s, env, 1) // 0.1 s consumes the last of hi → sleep entered fresh
+    tick(s, env, 66) // 6.6 s > 6.5 — plan 026: the stop is a nap, not a wave
     expect(s.phase).toBe('sleep')
-    expect(s.remaining).toBeCloseTo(11.4, 4)
+    expect(s.remaining).toBeCloseTo(5 + 0.5 * 4, 4)
     const { x, z } = s
-    tick(s, env, 115) // 11.5 s > 11.4
+    tick(s, env, 71) // 7.1 s > 7.0
     expect(s.phase).toBe('wake')
     tick(s, env, 10) // 1.0 s into the 2.6 s wake — still waking
     expect(s.phase).toBe('wake')
-    // Neither hi, sleep, nor (so far) wake moved the chick.
+    // Neither sleep nor (so far) wake moved the chick.
     expect(s.x).toBe(x)
     expect(s.z).toBe(z)
     tick(s, env, 20) // past the wake timer → walking again
@@ -83,7 +79,8 @@ describe('behavior machine transitions', () => {
     const s = createBehaviorState(0, 0, 0, () => 0.5)
     advanceBehavior(s, 0.1, env)
     expect(s.phase).toBe('swim')
-    expect(behaviorClip(s.phase)).toBe('Swim_Forward')
+    expect(s.wet).toBe(true)
+    expect(behaviorClip(s)).toBe('Swim_Forward')
   })
 
   it('the leash refuses steps beyond MAX_SWIM_DIST — position holds while yaw steers home', () => {
@@ -92,7 +89,7 @@ describe('behavior machine transitions', () => {
       heightAt: () => -1, // stays in water
       shoreDistanceAt: () => MAX_SWIM_DIST + 1, // every candidate step is too far out
     })
-    const s: BehaviorState = { phase: 'swim', x: 5, z: 5, yaw: 0, remaining: 0 }
+    const s = makeState({ phase: 'swim', x: 5, z: 5, remaining: 0 })
     tick(s, env, 50)
     expect(s.phase).toBe('swim')
     expect(s.x).toBe(5) // never moved
@@ -103,7 +100,7 @@ describe('behavior machine transitions', () => {
   it('triggerTalk works from walk AND sleep; talk is stationary and resumes walk', () => {
     for (const phase of ['walk', 'sleep'] as const) {
       const env = makeEnv({ rand: () => 0.5 })
-      const s: BehaviorState = { phase, x: 1, z: 2, yaw: 0.3, remaining: 5 }
+      const s = makeState({ phase, x: 1, z: 2, yaw: 0.3 })
       triggerTalk(s)
       expect(s.phase).toBe('talk')
       expect(s.remaining).toBe(TALK_SECONDS)
@@ -142,6 +139,90 @@ describe('behavior machine transitions', () => {
       }
     }
     expect(a).toEqual(b)
+  })
+})
+
+describe('click-to-move (goto)', () => {
+  it('commandMoveTo from walk enters goto, converges on the target, and arrival naps', () => {
+    const env = makeEnv({ rand: () => 0.5 })
+    const s = createBehaviorState(0, 0, 0, () => 0.5)
+    commandMoveTo(s, 0, 1.5) // straight ahead of yaw 0
+    expect(s.phase).toBe('goto')
+    expect(s.gotoPending).toBe(false)
+    let prev = Math.hypot(s.tx - s.x, s.tz - s.z)
+    for (let i = 0; i < 10; i++) {
+      advanceBehavior(s, 0.1, env)
+      const d = Math.hypot(s.tx - s.x, s.tz - s.z)
+      expect(d).toBeLessThan(prev) // strictly decreasing over a second of ticks
+      prev = d
+    }
+    tick(s, env, 40) // more than enough to cover the remaining ~0.8 u
+    expect(s.phase).toBe('sleep') // it stopped → per plan 026, it naps
+  })
+
+  it('commandMoveTo from sleep wakes first (gotoPending), then goes — not walk', () => {
+    const env = makeEnv({ rand: () => 0.5 })
+    const s = makeState({ phase: 'sleep', remaining: 8 })
+    commandMoveTo(s, 3, 4)
+    expect(s.phase).toBe('wake')
+    expect(s.gotoPending).toBe(true)
+    expect(s.remaining).toBeCloseTo(2.6, 6)
+    tick(s, env, 27) // 2.7 s > 2.6
+    expect(s.phase).toBe('goto')
+    expect(s.tx).toBe(3)
+    expect(s.tz).toBe(4)
+  })
+
+  it('steering toward a target directly behind never turns faster than 3.5 rad/s', () => {
+    const env = makeEnv({ rand: () => 0.5 })
+    const s = makeState({ phase: 'goto', yaw: 0, tx: 0, tz: -5 }) // target behind (want = π)
+    const dt = 0.1
+    for (let i = 0; i < 12; i++) {
+      const before = s.yaw
+      advanceBehavior(s, dt, env)
+      expect(Math.abs(s.yaw - before)).toBeLessThanOrEqual(3.5 * dt + 1e-9)
+    }
+  })
+
+  it('goto is water-aware: wet maps to Swim_Forward, dry to Walking, and advancing into water sets wet', () => {
+    expect(behaviorClip({ phase: 'goto', wet: true })).toBe('Swim_Forward')
+    expect(behaviorClip({ phase: 'goto', wet: false })).toBe('Walking')
+
+    const env = makeEnv({ rand: () => 0.5, heightAt: () => -1 }) // wet region everywhere
+    const s = makeState({ phase: 'goto', tx: 0, tz: 5 })
+    expect(s.wet).toBe(false)
+    advanceBehavior(s, 0.1, env)
+    expect(s.wet).toBe(true)
+    expect(behaviorClip(s)).toBe('Swim_Forward')
+  })
+
+  it('a leash-blocked route abandons the target instead of circling forever', () => {
+    // Wet start: every candidate step exceeds the leash → back to plain swim.
+    const wetEnv = makeEnv({ rand: () => 0.5, heightAt: () => -1, shoreDistanceAt: () => MAX_SWIM_DIST + 1 })
+    const inWater = makeState({ phase: 'goto', x: 5, z: 5, tx: 8, tz: 8 })
+    advanceBehavior(inWater, 0.1, wetEnv)
+    expect(inWater.phase).toBe('swim')
+
+    // Dry start whose next step lands in blocked water → re-rolled walk.
+    const dryEnv = makeEnv({
+      rand: () => 0.5,
+      heightAt: (_x: number, z: number) => (z > 0.01 ? -1 : 1), // water just ahead
+      shoreDistanceAt: () => MAX_SWIM_DIST + 1,
+    })
+    const ashore = makeState({ phase: 'goto', x: 0, z: 0, yaw: 0, tx: 0, tz: 5 })
+    advanceBehavior(ashore, 0.1, dryEnv)
+    expect(ashore.phase).toBe('walk')
+    expect(ashore.remaining).toBeCloseTo(6.5, 6) // rollWalk re-rolled 4 + 0.5·5
+  })
+
+  it('triggerTalk during goto drops the target: talk, then walk (never back to goto)', () => {
+    const env = makeEnv({ rand: () => 0.5 })
+    const s = makeState({ phase: 'goto', tx: 5, tz: 5 })
+    triggerTalk(s)
+    expect(s.phase).toBe('talk')
+    tick(s, env, 36) // crosses TALK_SECONDS
+    expect(s.phase).toBe('walk')
+    expect(s.gotoPending).toBe(false)
   })
 })
 

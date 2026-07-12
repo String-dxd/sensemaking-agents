@@ -18,6 +18,7 @@ import {
   ZOOM_OUT_FACTOR,
 } from './scene/cameraOps'
 import { GrassLayer } from './scene/GrassLayer'
+import { issueMoveCommand } from './scene/characterCommand'
 import { IslandTerrain } from './scene/IslandTerrain'
 import { PlaceGhost } from './scene/PlaceGhost'
 import { PlacedObjects } from './scene/PlacedObjects'
@@ -494,6 +495,7 @@ export function App() {
           onPaintStart={onPaintStart}
           onPaint={paint}
           onPaintEnd={onPaintEnd}
+          onCommandMove={issueMoveCommand}
         />
         {/* GLB-backed models suspend while their assets stream in. */}
         <Suspense fallback={null}>

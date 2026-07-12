@@ -8,10 +8,12 @@ import {
   type BehaviorEnv,
   type BehaviorState,
   behaviorClip,
+  commandMoveTo,
   createBehaviorState,
   sampleShoreDistance,
   triggerTalk,
 } from '../models/characterBehavior'
+import { characterCommand } from './characterCommand'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { hashString, mulberry32 } from '../models/rand'
 import { shoreDistanceField } from '../terrain/shoreField'
@@ -109,6 +111,10 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
   const [resolvedClip, setResolvedClip] = useState<CharacterClip>(clip === 'auto' ? 'Walking' : clip)
   const resolvedRef = useRef<CharacterClip>(resolvedClip)
 
+  // Click-to-move command channel (plan 026). Initialized to the CURRENT seq
+  // at mount so stale pre-mount clicks never fire.
+  const lastSeq = useRef(characterCommand.seq)
+
   useFrame((_, dt) => {
     const group = groupRef.current
     const s = stateRef.current
@@ -125,14 +131,22 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
       return
     }
 
+    // Consume a pending click-to-move command (by sequence number). Under a
+    // manual override the seq is still synced — commands are swallowed, not
+    // queued for when Auto resumes.
+    if (characterCommand.seq !== lastSeq.current) {
+      lastSeq.current = characterCommand.seq
+      if (clip === 'auto') commandMoveTo(s, characterCommand.x, characterCommand.z)
+    }
+
     // Manual override (concrete dock clip): freeze in place — do not advance;
     // the position stays wherever the walk left it. 'auto' runs the machine.
     if (clip === 'auto') advanceBehavior(s, dt, env)
 
     // Resolve y: land follows the terrain (cliff edges snap — accepted until a
-    // jump clip exists); swimming sits at a fixed draught below the sea line.
+    // jump clip exists); swimming (incl. a wet goto) sits at a fixed draught.
     const ground = env.heightAt(s.x, s.z)
-    const y = s.phase === 'swim' ? spec.seaLevel - SWIM_SINK : ground
+    const y = s.phase === 'swim' || (s.phase === 'goto' && s.wet) ? spec.seaLevel - SWIM_SINK : ground
     group.position.set(s.x, y, s.z)
     group.rotation.y = s.yaw
 
@@ -142,7 +156,7 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
     characterPose.z = s.z
     characterPose.active = true
 
-    const next = clip === 'auto' ? behaviorClip(s.phase) : clip
+    const next = clip === 'auto' ? behaviorClip(s) : clip
     if (next !== resolvedRef.current) {
       resolvedRef.current = next
       setResolvedClip(next)
