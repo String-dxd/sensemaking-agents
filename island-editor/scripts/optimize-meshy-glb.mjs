@@ -44,6 +44,7 @@ import {
   getBounds,
   meshopt,
   prune,
+  resample,
   simplify,
   textureCompress,
   transformMesh,
@@ -75,19 +76,26 @@ const ASSETS = {
     material: 'tree-surface',
     meshNode: 'crown',
     height: 1.7,
-    // See bakeVertexColors: the tree CANNOT be decimated while it carries
-    // Meshy's UV atlas, so its albedo is baked to vertex colors and the atlas is
-    // dropped. That is also just the house style — every procedural model here is
-    // a matte mass with baked vertex-color shading.
-    bakeVertexColors: true,
-    // Contrast stretch on the baked albedo. Meshy renders the canopy fairly flat,
-    // and with no UVs there is no roughness/metalness map to shape it — the vertex
-    // colors ARE the only per-point signal the tree has, so the depth has to come
-    // from here. Deepens the shadow inside the crown and brightens the sunlit
-    // tips. 1 = leave the albedo alone.
-    colorContrast: 1.35,
-    simplify: { ratio: 0.03, error: 0.05 }, // 1.0M tris → ~25k
-    textureSize: 1024,
+    // UPDATED 2026-07-12: the source (tree-2.glb, "Emerald Canopy" re-export) is
+    // now a pre-decimated 31k-tri mesh whose stylized look lives in its baked
+    // textures (incl. a normal map the shared pipeline strips, same as every
+    // other asset), NOT in per-vertex color. bakeVertexColors + simplify existed
+    // ONLY to make the OLD 1.76M-tri atlas'd source decimatable — baking now would
+    // throw away real texture detail for no reason, and there is nothing left to
+    // decimate. This follows the rock's keep-the-atlas lane instead.
+    bakeVertexColors: false,
+    simplify: null, // 31k tris is already under the 40k budget
+    // The bark/leaf base map is high-entropy: at 1024² quality 85 it alone cost
+    // 618 KB. Dropping to 512² + quality 80 gets it to ~209 KB — pushing quality
+    // lower barely moves it further (quality 50 only saved another ~15 KB over
+    // 80), so this is close to the floor for this map without visible banding.
+    // Even so, total output lands at 819 KB (see SIZE_BUDGET_KB.tree in
+    // objectGlbs.test.ts for why): the OTHER ~610 KB is geometry, not texture —
+    // 58k vertices for 31k triangles, because a real UV atlas (unlike the old
+    // vertex-color tree) splits vertices at every chart seam, and this source
+    // is intentionally left undecimated (see simplify above).
+    textureSize: 512,
+    textureQuality: 80,
     doubleSided: true, // the crown's leaf shells read from both faces
     windAmp: 0.55,
   },
@@ -105,6 +113,36 @@ const ASSETS = {
     textureSize: 512,
     doubleSided: false,
     windAmp: null, // no canopy node → useCanopyWind no-ops; stones don't sway
+  },
+  grass: {
+    src: 'assets/meshy/grass.glb',
+    out: 'public/models/grass.glb',
+    material: 'grass-tuft',
+    meshNode: 'tuft',
+    // One tuft ≈ one grid cell: the 64-cell grid over worldSize 24 gives a
+    // 0.375-unit cell; the source patch is 0.12 wide × 0.06 tall, so height
+    // 0.16 scales the footprint to ~0.32 — the instanced layer (GrassLayer,
+    // plan 016) adds per-cell scale jitter on top.
+    height: 0.16,
+    // 3.5k tris — nothing to decimate, so the UV-atlas problem that forces the
+    // tree's vertex-color bake never comes up; the 512² WebP keeps blade color.
+    bakeVertexColors: false,
+    simplify: null,
+    textureSize: 512,
+    doubleSided: true, // grass blades are open shells, visible from both sides
+    windAmp: null, // rendered as a static InstancedMesh; the canopy spring never sees it
+  },
+  // SKINNED — dispatched to buildCharacter() below instead of the static
+  // pipeline above. See buildCharacter's own comment for why: this asset ships
+  // at SOURCE scale (~1.62 tall, base already at y=0) — the runtime (plan 017)
+  // scales it at placement time, because baking scale into a skinned mesh's
+  // vertices without also rewriting the skin's inverse-bind matrices and every
+  // animation track corrupts the pose.
+  character: {
+    src: 'assets/meshy/character.glb',
+    out: 'public/models/character.glb',
+    material: 'character-surface',
+    skinned: true,
   },
 }
 
@@ -300,8 +338,96 @@ function reroot(document, cfg) {
   scene.addChild(canopy)
 }
 
+/**
+ * Skinned asset build — the Sunny Chick character. A dedicated pipeline
+ * because the shared `build()` above would corrupt it. Two contracts differ
+ * from every static asset in `ASSETS`:
+ *
+ *  (a) SHIPS AT SOURCE SCALE (~1.62 tall, base already at y=0). `normalize()`
+ *      bakes a uniform scale + recenter into vertex POSITIONS — safe for a
+ *      static mesh, but a skinned mesh's rest-pose positions are read through
+ *      its skin's inverse-bind matrices and re-posed every frame by the
+ *      animation tracks. Baking a transform into the vertices without also
+ *      rewriting every IBM and keyframe corrupts the pose. So this asset
+ *      keeps its Meshy scale and the runtime (plan 017) scales it at
+ *      placement time instead.
+ *  (b) NO DECIMATION, NO REROOTING, NO VERTEX-COLOR BAKE. `simplify`, `weld`,
+ *      `reroot`, and `bakeVertexColors` all assume there is no skin/animation
+ *      riding on the vertex and node layout they rewrite. Every transform
+ *      below is one that provably leaves the skin and animation tracks
+ *      intact: material cleanup, `resample` (losslessly thins dense
+ *      per-frame keyframes), `dedup`, texture compression, `prune`, and
+ *      `meshopt` — the mesh geometry and node graph are otherwise untouched.
+ */
+async function buildCharacter(cfg) {
+  const src = join(ROOT, cfg.src)
+  const out = join(ROOT, cfg.out)
+
+  let srcBytes
+  try {
+    srcBytes = statSync(src).size
+  } catch {
+    throw new Error(`Missing raw asset ${cfg.src} — see assets/meshy/README.md for where to put it.`)
+  }
+
+  await MeshoptEncoder.ready
+
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder })
+  const document = await io.read(src)
+  const srcTris = triangleCount(document)
+
+  // Same matte contract as the static assets, plus strip the Meshy specular
+  // extension — the scene doesn't drive it and it fights the same matte look.
+  for (const material of document.getRoot().listMaterials()) {
+    material
+      .setName(cfg.material)
+      .setEmissiveTexture(null)
+      .setEmissiveFactor([0, 0, 0])
+      .setMetallicRoughnessTexture(null)
+      .setNormalTexture(null)
+      .setMetallicFactor(0)
+      .setRoughnessFactor(1)
+    material.setExtension('KHR_materials_specular', null)
+    material.setExtension('KHR_materials_ior', null)
+  }
+
+  // resample losslessly thins dense per-frame keyframes down to the curve's
+  // actual keys; dedup/prune/meshopt are the same compression pass as the
+  // static pipeline. 1024² (not the static assets' 512) — the character is
+  // the scene's hero and its face detail lives entirely in this map.
+  await document.transform(
+    resample(),
+    dedup(),
+    textureCompress({
+      encoder: sharp,
+      targetFormat: 'webp',
+      slots: /baseColorTexture/,
+      resize: [1024, 1024],
+      quality: 85,
+    }),
+    prune(),
+    meshopt({ encoder: MeshoptEncoder, level: 'high' }),
+  )
+
+  mkdirSync(dirname(out), { recursive: true })
+  await io.write(out, document)
+
+  const outBytes = statSync(out).size
+  const tris = triangleCount(document)
+  const clips = document.getRoot().listAnimations().length
+  console.log(
+    `character ${KB(srcBytes).padStart(9)} → ${KB(outBytes).padStart(7)}` +
+      `  (${(srcBytes / outBytes).toFixed(0)}× smaller)   ` +
+      `tris ${srcTris.toLocaleString().padStart(9)} → ${tris.toLocaleString().padStart(6)}   ` +
+      `clips ${clips}`,
+  )
+}
+
 async function build(name) {
   const cfg = ASSETS[name]
+  if (cfg.skinned) return buildCharacter(cfg)
   const src = join(ROOT, cfg.src)
   const out = join(ROOT, cfg.out)
 
@@ -360,7 +486,7 @@ async function build(name) {
       targetFormat: 'webp',
       slots: /baseColorTexture/,
       resize: [cfg.textureSize, cfg.textureSize],
-      quality: 85,
+      quality: cfg.textureQuality ?? 85,
     }),
     prune(),
     meshopt({ encoder: MeshoptEncoder, level: 'high' }),
