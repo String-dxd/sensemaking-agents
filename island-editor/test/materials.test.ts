@@ -49,11 +49,14 @@ describe('GrassBladeMaterial', () => {
       'uTime',
       'uWindDir',
       'uWindStrength',
+      'uGustBend',
       'uBaseColor',
       'uTipColor',
       'uWidenStart',
       'uWidenEnd',
       'uWidenMax',
+      'uHideStart',
+      'uHideEnd',
     ]) {
       expect(mat.uniforms[u]).toBeDefined()
     }
@@ -61,9 +64,12 @@ describe('GrassBladeMaterial', () => {
     expect(mat.uniforms.uTipColor.value.getHexString()).toBe('a8d84f')
     expect(mat.uniforms.uWindDir.value.length()).toBeCloseTo(1, 6) // normalized
     expect(mat.uniforms.uWindStrength.value).toBeCloseTo(0.12, 6)
+    expect(mat.uniforms.uGustBend.value).toBeCloseTo(1.25, 6)
     expect(mat.uniforms.uWidenStart.value).toBeCloseTo(8, 6)
-    expect(mat.uniforms.uWidenEnd.value).toBeCloseTo(30, 6)
-    expect(mat.uniforms.uWidenMax.value).toBeCloseTo(2.5, 6)
+    expect(mat.uniforms.uWidenEnd.value).toBeCloseTo(20, 6)
+    expect(mat.uniforms.uWidenMax.value).toBeCloseTo(1.5, 6)
+    expect(mat.uniforms.uHideStart.value).toBeCloseTo(22, 6)
+    expect(mat.uniforms.uHideEnd.value).toBeCloseTo(32, 6)
     expect(mat.uniforms.uTime.value).toBe(0)
   })
 
@@ -83,12 +89,17 @@ describe('GrassBladeMaterial', () => {
     }
   })
 
-  it('leans blades proportionally to their height (constant lean angle)', () => {
-    expect(mat.vertexShader).toContain('* tip * aYawScale.y')
+  it('bends blades as a rotation about the base — gust crests sweep tips toward the ground', () => {
+    // sin moves the tip along the wind, 1-cos drops it: strong gusts lay
+    // susceptible blades nearly flat instead of stretching them sideways.
+    expect(mat.vertexShader).toContain('sin(bend) * p.y')
+    expect(mat.vertexShader).toContain('(1.0 - cos(bend)) * p.y')
+    expect(mat.vertexShader).toContain('uGustBend * gust')
   })
 
-  it('widens blade cards with camera distance to stay above the sub-pixel floor', () => {
+  it('widens blade cards at mid distance, then hides them entirely past the hide band', () => {
     expect(mat.vertexShader).toContain('smoothstep(uWidenStart, uWidenEnd,')
+    expect(mat.vertexShader).toContain('smoothstep(uHideStart, uHideEnd,')
   })
 })
 

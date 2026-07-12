@@ -22,25 +22,35 @@ import * as THREE from 'three'
 export interface GrassBladeOptions {
   /** Normalized in the material; matches the scene's general gust direction. */
   windDir?: THREE.Vector2
-  /** Dimensionless lean ratio (sway amplitude): tip push as a fraction of blade height per unit sway. */
+  /** Base sway amplitude in radians of blade bend per unit sway (the idle wiggle). */
   windStrength?: number
+  /** Peak extra bend (radians) a fully susceptible blade gets at a gust crest —
+   *  1.25 ≈ 72°, which on top of the base sway sweeps some blades nearly flat. */
+  gustBend?: number
   baseColor?: THREE.ColorRepresentation
   tipColor?: THREE.ColorRepresentation
   /** Camera distance (world units) at which the sub-pixel width floor starts ramping in. */
   widenStart?: number
   /** Camera distance (world units) at which the width floor reaches its max. */
   widenEnd?: number
-  /** Max extra width fraction added at/after widenEnd (e.g. 2.5 → up to 3.5x width). */
+  /** Max extra width fraction added at/after widenEnd (e.g. 1.5 → up to 2.5x width). */
   widenMax?: number
+  /** Camera distance at which blades start shrinking away (zoom-out declutter). */
+  hideStart?: number
+  /** Camera distance at which blades are fully hidden. */
+  hideEnd?: number
 }
 
 const VERTEX = /* glsl */ `
 uniform float uTime;
 uniform vec2 uWindDir;
 uniform float uWindStrength;
+uniform float uGustBend;
 uniform float uWidenStart;
 uniform float uWidenEnd;
 uniform float uWidenMax;
+uniform float uHideStart;
+uniform float uHideEnd;
 
 attribute vec3 aOffset;
 attribute vec2 aYawScale;
@@ -56,26 +66,32 @@ void main() {
   // Rotate the card by yaw, scale by blade height, translate to the offset.
   vec3 p = position * vec3(1.0, aYawScale.y, 1.0);
 
-  // Sub-pixel guard: widen the card with view distance so a blade never
-  // projects below ~a pixel and pops out of existence when zoomed out
-  // (maintainer report: grass "lazy renders" with zoom / at the island's
-  // far side). Near-camera width is unchanged.
+  // Distance behavior (maintainer-tuned): mid-range blades WIDEN a little so
+  // they stay crisp instead of dissolving into sub-pixel noise, then past
+  // uHideStart the whole card SHRINKS smoothly to nothing — zoomed-out views
+  // deliberately hide the grass (declutter), and it grows back on zoom-in.
   float dist = distance(cameraPosition, aOffset);
   p.x *= 1.0 + uWidenMax * smoothstep(uWidenStart, uWidenEnd, dist);
+  p *= 1.0 - smoothstep(uHideStart, uHideEnd, dist);
 
   float s = sin(aYawScale.x);
   float c = cos(aYawScale.x);
   vec3 world = aOffset + vec3(c * p.x + s * p.z, p.y, -s * p.x + c * p.z);
 
-  // Traveling gust: two detuned sines over time + world position, phase-offset
-  // per blade; only the tip bends (uv.y² weight) so the base stays planted.
-  // uWindStrength is a dimensionless lean ratio (tip push as a fraction of
-  // blade height per unit sway), so the lean angle stays constant across
-  // blade heights instead of flattening short blades.
+  // Wind = base sway + a traveling gust front, expressed as a BEND ANGLE
+  // (radians) about the blade base. The sin/cos rotation moves the tip along
+  // the wind AND drops it toward the ground as it bends, so gust crests sweep
+  // susceptible blades nearly flat (~80°) instead of stretching them sideways.
+  // aShadePhase.x doubles as gust susceptibility: only some blades whip hard,
+  // the rest just lean — reads as turbulence, not a uniform push.
   float sway = sin(uTime * 1.4 + aShadePhase.y + world.x * 0.9 + world.z * 0.7)
              + 0.5 * sin(uTime * 2.3 + aShadePhase.y * 1.7 + world.x * 1.6);
-  float tip = uv.y * uv.y;
-  world.xz += uWindDir * sway * uWindStrength * tip * aYawScale.y;
+  float along = world.x * uWindDir.x + world.z * uWindDir.y;
+  float gust = smoothstep(0.55, 1.0, 0.5 + 0.5 * sin(uTime * 0.7 - along * 0.35 + aShadePhase.y * 0.4));
+  float suscept = 0.15 + 0.85 * aShadePhase.x;
+  float bend = (uWindStrength * sway + uGustBend * gust * suscept) * uv.y;
+  world.xz += uWindDir * sin(bend) * p.y;
+  world.y -= (1.0 - cos(bend)) * p.y; // tip sinks as it bends — the near-flat look
 
   gl_Position = projectionMatrix * viewMatrix * vec4(world, 1.0);
 }
@@ -103,9 +119,12 @@ export function createGrassBladeMaterial(opts: GrassBladeOptions = {}): THREE.Sh
       uTime: { value: 0 },
       uWindDir: { value: (opts.windDir ?? new THREE.Vector2(0.8, 0.6)).clone().normalize() },
       uWindStrength: { value: opts.windStrength ?? 0.12 },
+      uGustBend: { value: opts.gustBend ?? 1.25 },
       uWidenStart: { value: opts.widenStart ?? 8.0 },
-      uWidenEnd: { value: opts.widenEnd ?? 30.0 },
-      uWidenMax: { value: opts.widenMax ?? 2.5 },
+      uWidenEnd: { value: opts.widenEnd ?? 20.0 },
+      uWidenMax: { value: opts.widenMax ?? 1.5 },
+      uHideStart: { value: opts.hideStart ?? 22.0 },
+      uHideEnd: { value: opts.hideEnd ?? 32.0 },
       // Base reads deeper than the ground's 0x4a8f3f under-tint so blades
       // stand out against painted cells; tips are the reference's yellow-green.
       uBaseColor: { value: new THREE.Color(opts.baseColor ?? 0x2e6b2a) },
