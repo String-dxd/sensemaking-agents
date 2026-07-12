@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { mulberry32 } from '../src/models/rand'
-import { addObject, makePlacedObject, removeObject } from '../src/terrain/objectOps'
+import {
+  addObject,
+  findCharacter,
+  makePlacedObject,
+  objectAt,
+  removeObject,
+  withSingleCharacter,
+} from '../src/terrain/objectOps'
 import type { PlacedObject } from '../src/terrain/terrainGrid'
 
 function obj(id: string): PlacedObject {
@@ -63,5 +70,69 @@ describe('objectOps — makePlacedObject', () => {
     const a = makePlacedObject('tree', 1, 2, mulberry32(7))
     const b = makePlacedObject('tree', 1, 2, mulberry32(7))
     expect(a).toEqual(b)
+  })
+
+  it('gives the character kind scale === 1 (no decorative jitter), unlike other kinds', () => {
+    const rand = mulberry32(99)
+    for (let i = 0; i < 50; i++) {
+      const o = makePlacedObject('character', 2, 4, rand)
+      expect(o.scale).toBe(1)
+      expect(o.kind).toBe('character')
+    }
+  })
+
+  it('keeps other kinds inside the existing jitter range', () => {
+    const rand = mulberry32(5)
+    for (const kind of ['tree', 'bush', 'rock'] as const) {
+      const o = makePlacedObject(kind, 0, 0, rand)
+      expect(o.scale).toBeGreaterThanOrEqual(0.85)
+      expect(o.scale).toBeLessThan(1.15)
+    }
+  })
+})
+
+describe('objectOps — objectAt', () => {
+  it('finds the object occupying a cell', () => {
+    const a = { ...obj('a'), c: 3, r: 5 }
+    const b = { ...obj('b'), c: 1, r: 1 }
+    expect(objectAt([a, b], 3, 5)).toBe(a)
+    expect(objectAt([a, b], 1, 1)).toBe(b)
+  })
+
+  it('returns undefined when the cell is empty', () => {
+    const a = { ...obj('a'), c: 3, r: 5 }
+    expect(objectAt([a], 0, 0)).toBeUndefined()
+  })
+})
+
+describe('objectOps — findCharacter', () => {
+  it('returns undefined when no character is present', () => {
+    expect(findCharacter([obj('a'), obj('b')])).toBeUndefined()
+  })
+
+  it('returns the character entry when present', () => {
+    const character: PlacedObject = { id: 'char-1', kind: 'character', c: 0, r: 0, yaw: 0, scale: 1 }
+    expect(findCharacter([obj('a'), character, obj('b')])).toBe(character)
+  })
+})
+
+describe('objectOps — withSingleCharacter', () => {
+  const char1: PlacedObject = { id: 'char-1', kind: 'character', c: 0, r: 0, yaw: 0, scale: 1 }
+  const char2: PlacedObject = { id: 'char-2', kind: 'character', c: 5, r: 5, yaw: 0, scale: 1 }
+
+  it('appends a character to a list with zero existing characters', () => {
+    const before = [obj('a'), obj('b')]
+    const after = withSingleCharacter(before, char1)
+    expect(after).toEqual([obj('a'), obj('b'), char1])
+    expect(before).toEqual([obj('a'), obj('b')]) // input untouched
+  })
+
+  it('replaces an existing character, leaving exactly one, others untouched, order stable', () => {
+    const before = [obj('a'), char1, obj('b')]
+    const after = withSingleCharacter(before, char2)
+    // Non-character entries keep their relative order; the (new) character is
+    // appended last.
+    expect(after).toEqual([obj('a'), obj('b'), char2])
+    expect(after.filter((o) => o.kind === 'character')).toHaveLength(1)
   })
 })

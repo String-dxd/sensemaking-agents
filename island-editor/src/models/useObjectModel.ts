@@ -1,13 +1,19 @@
 import { useMemo } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
+// SkeletonUtils.clone rebinds a skinned scene's skeleton to the clone; a plain
+// .clone(true) leaves the SkinnedMesh bound to the ORIGINAL skeleton (see the
+// character branch below for why that matters).
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { CHARACTER_HEIGHT, CHARACTER_SOURCE_HEIGHT } from './characterAsset'
 import type { ObjectKind } from '../terrain/terrainGrid'
 import { buildObjectModel, type ProceduralKind } from './buildObjectModel'
 import { mulberry32 } from './rand'
 
-// The GLB lane: `tree` and `rock` ship as authored .glb assets, built from the
-// raw Meshy AI exports by scripts/optimize-meshy-glb.mjs and checked in under
-// public/models/. `bush` is still procedural (buildObjectModel).
+// The GLB lane: `tree`, `rock`, and `character` ship as authored .glb assets,
+// built from the raw Meshy AI exports by scripts/optimize-meshy-glb.mjs and
+// checked in under public/models/. `bush` is still procedural
+// (buildObjectModel).
 //
 // The assets are EXT_meshopt_compression'd; nothing is needed here to read that
 // — drei's useGLTF registers three's MeshoptDecoder by default. (Same for the
@@ -19,6 +25,7 @@ import { mulberry32 } from './rand'
 const GLB_MODEL_URLS: Partial<Record<ObjectKind, string>> = {
   tree: '/models/tree.glb',
   rock: '/models/rock.glb',
+  character: '/models/character.glb',
 }
 const GLB_URL_LIST = Object.values(GLB_MODEL_URLS)
 
@@ -69,9 +76,21 @@ export function useObjectModel(kind: ObjectKind, seed: number): THREE.Group {
       model = buildObjectModel(kind as ProceduralKind, seed)
     } else {
       const source = gltfs[GLB_URL_LIST.indexOf(url)].scene
-      model = source.clone(true) as THREE.Group
+      if (kind === 'character') {
+        // SkeletonUtils.clone: a plain .clone(true) leaves the SkinnedMesh
+        // bound to the ORIGINAL skeleton — it would render at the cache's
+        // pose/position, not the clone's. Wrap in a group so the world-scale
+        // normalization (the runtime height contract) never touches the
+        // skinned node itself.
+        const inner = cloneSkinned(source) as THREE.Group
+        model = new THREE.Group()
+        model.add(inner)
+        model.scale.setScalar(CHARACTER_HEIGHT / CHARACTER_SOURCE_HEIGHT)
+      } else {
+        model = source.clone(true) as THREE.Group
+        randomizeInstance(model, seed)
+      }
       model.userData.sharedAssets = true
-      randomizeInstance(model, seed)
     }
 
     // Enable shadows on all meshes in the model (single choke point for all
@@ -81,6 +100,11 @@ export function useObjectModel(kind: ObjectKind, seed: number): THREE.Group {
         const mesh = node as THREE.Mesh
         mesh.castShadow = true
         mesh.receiveShadow = true
+      }
+      // Animated verts move outside the static bounds computed at bind pose
+      // and get frustum-culled mid-clip otherwise.
+      if ((node as THREE.SkinnedMesh).isSkinnedMesh) {
+        node.frustumCulled = false
       }
     })
 

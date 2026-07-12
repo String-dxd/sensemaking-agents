@@ -251,8 +251,12 @@ export function evaluateHeight(spec: IslandSpec, x: number, z: number, blurred?:
 // the pure spec module so the enum the renderer consumes lives alongside the
 // rest of the headless-testable core.
 
-export type ObjectKind = 'tree' | 'bush' | 'rock'
-export const OBJECT_KINDS: ObjectKind[] = ['tree', 'bush', 'rock']
+// `character` is max-1 per island (enforced in objectOps/specIO, not here —
+// this module stays a pure enum) and renders through `CharacterActor`, not
+// the shared `PlacedObjectMesh` (it needs a skeletal mixer the static kinds
+// don't have).
+export type ObjectKind = 'tree' | 'bush' | 'rock' | 'character'
+export const OBJECT_KINDS: ObjectKind[] = ['tree', 'bush', 'rock', 'character']
 
 /** Kinds retired on 2026-07-11, when the three authored tree variants collapsed
  *  into the single Meshy `tree` asset. Saved islands (and exported spec files)

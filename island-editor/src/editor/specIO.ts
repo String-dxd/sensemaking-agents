@@ -98,12 +98,17 @@ function validateTierHeights(v: unknown): v is number[] {
 
 /** Validate a serialized `objects` array (v4). Each entry is field-validated and
  *  throws with an index+field message on failure — matching the file's grid
- *  validation style. Cells are range-checked against the (already-parsed) grid. */
+ *  validation style. Cells are range-checked against the (already-parsed) grid.
+ *  Invariant enforced AFTER per-entry validation (normalize, don't throw — same
+ *  register as the `LEGACY_OBJECT_KINDS` migration): at most one `character`
+ *  entry survives, the first if several are present. Runs on both deserialized
+ *  files and `applyOps`' final in-memory gate, so a batch of ops can never
+ *  leave two characters on the spec either. */
 function validateObjects(input: unknown, grid: TerrainGrid): PlacedObject[] {
   if (!Array.isArray(input)) {
     throw new Error('Invalid island spec: objects must be an array')
   }
-  return input.map((raw, i) => {
+  const objects = input.map((raw, i) => {
     if (typeof raw !== 'object' || raw === null) {
       throw new Error(`Invalid island spec: objects[${i}] must be an object`)
     }
@@ -129,6 +134,13 @@ function validateObjects(input: unknown, grid: TerrainGrid): PlacedObject[] {
       throw new Error(`Invalid island spec: objects[${i}].scale must be a finite number > 0`)
     }
     return { id: o.id, kind, c: o.c as number, r: o.r as number, yaw: o.yaw, scale: o.scale }
+  })
+  let seenCharacter = false
+  return objects.filter((o) => {
+    if (o.kind !== 'character') return true
+    if (seenCharacter) return false // drop every character after the first
+    seenCharacter = true
+    return true
   })
 }
 

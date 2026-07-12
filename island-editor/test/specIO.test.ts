@@ -124,6 +124,28 @@ describe('specIO', () => {
     expect(() => validateSpecObject(parsed)).toThrow(/objects\[0\]\.scale/)
   })
 
+  it('normalizes two character entries down to the FIRST, everything else preserved', () => {
+    const parsed = JSON.parse(serializeSpec(seedIsland()))
+    parsed.objects = [
+      { id: 'rock-1', kind: 'rock', c: 0, r: 0, yaw: 0, scale: 1 },
+      { id: 'char-first', kind: 'character', c: 10, r: 10, yaw: 0, scale: 1 },
+      { id: 'char-second', kind: 'character', c: 20, r: 20, yaw: 0, scale: 1 },
+      { id: 'tree-1', kind: 'tree', c: 5, r: 5, yaw: 0, scale: 1 },
+    ]
+    const spec = validateSpecObject(parsed)
+    expect(spec.objects.map((o) => o.id)).toEqual(['rock-1', 'char-first', 'tree-1'])
+    expect(spec.objects.filter((o) => o.kind === 'character')).toHaveLength(1)
+  })
+
+  it('round-trips a spec with a single character unchanged', () => {
+    const parsed = JSON.parse(serializeSpec(seedIsland()))
+    parsed.objects = [{ id: 'char-1', kind: 'character', c: 10, r: 10, yaw: 0, scale: 1 }]
+    const spec = validateSpecObject(parsed)
+    expect(spec.objects).toEqual([{ id: 'char-1', kind: 'character', c: 10, r: 10, yaw: 0, scale: 1 }])
+    const back = deserializeSpec(serializeSpec(spec))
+    expect(back.objects).toEqual(spec.objects)
+  })
+
   it('throws on malformed JSON', () => {
     expect(() => deserializeSpec('{not json')).toThrow(/malformed JSON/)
   })

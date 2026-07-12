@@ -21,8 +21,16 @@ import { IslandTerrain } from './scene/IslandTerrain'
 import { PlaceGhost } from './scene/PlaceGhost'
 import { PlacedObjects } from './scene/PlacedObjects'
 import { SeaSurface } from './scene/SeaSurface'
+import { CHARACTER_CLIPS, type CharacterClip, DEFAULT_CLIP } from './models/characterAsset'
 import { adjustTierToward, brushCells, isLandTier, setSurface, setTier } from './terrain/gridOps'
-import { addObject, makePlacedObject, removeObject } from './terrain/objectOps'
+import {
+  addObject,
+  findCharacter,
+  makePlacedObject,
+  objectAt,
+  removeObject,
+  withSingleCharacter,
+} from './terrain/objectOps'
 import { seedIsland } from './terrain/seed'
 import {
   cellIndex,
@@ -36,6 +44,7 @@ import {
   SURFACE_GRASS,
   worldToCell,
 } from './terrain/terrainGrid'
+import { AnimationDock } from './ui/AnimationDock'
 import { CameraDock } from './ui/CameraDock'
 import { FileBar } from './ui/FileBar'
 import { ModelPanel } from './ui/ModelPanel'
@@ -71,6 +80,10 @@ export function App() {
   placeKindRef.current = placeKind
   // Hovered cell for the ghost preview (null = off-terrain / out of bounds).
   const [ghostCell, setGhostCell] = useState<{ c: number; r: number } | null>(null)
+
+  // The placed character's animation clip — ephemeral UI state, not part of
+  // the serialized spec (decided out of scope for this plan).
+  const [clip, setClip] = useState<CharacterClip>(DEFAULT_CLIP)
 
   // The spec lives in a ref (its grid arrays mutated in place by grid ops) with
   // a tick to trigger recompute — keeps stamp application out of a React
@@ -206,8 +219,32 @@ export function App() {
       const s = specRef.current
       const { c, r } = worldToCell(s.worldSize, s.grid, x, z)
       if (!isLandCell(s, c, r)) return
+      const objs = s.objects
+      if (kind === 'character') {
+        // Needs an EMPTY land cell; replaces any existing character (max 1).
+        if (objectAt(objs, c, r)) return
+        const prev = findCharacter(objs)
+        const o = makePlacedObject(kind, c, r, Math.random) // runtime jitter is fine here
+        applyObjects(withSingleCharacter(objs, o))
+        stack.push({
+          label: 'Place character',
+          do: () => applyObjects(withSingleCharacter(specRef.current.objects, o)),
+          undo: () =>
+            applyObjects(
+              prev
+                ? withSingleCharacter(removeObject(specRef.current.objects, o.id), prev)
+                : removeObject(specRef.current.objects, o.id),
+            ),
+        })
+        bumpStack()
+        return
+      }
+      // Static kinds: never drop INTO the character's cell (visual collision);
+      // stacking on each other stays allowed (pre-existing behavior).
+      const blocker = objectAt(objs, c, r)
+      if (blocker?.kind === 'character') return
       const o = makePlacedObject(kind, c, r, Math.random) // runtime jitter is fine here
-      applyObjects(addObject(s.objects, o))
+      applyObjects(addObject(objs, o))
       stack.push({
         label: 'Place object',
         do: () => applyObjects(addObject(specRef.current.objects, o)),
@@ -248,6 +285,18 @@ export function App() {
   const onPick = useCallback((k: ObjectKind) => {
     setPlaceKind((cur) => (cur === k ? null : k))
   }, [])
+
+  // ── Animation cycler ─────────────────────────────────────────────────────────
+  const hasCharacter = spec.objects.some((o) => o.kind === 'character')
+  const cycleClip = useCallback((dir: 1 | -1) => {
+    setClip((cur) => {
+      const i = CHARACTER_CLIPS.indexOf(cur)
+      const next = (i + dir + CHARACTER_CLIPS.length) % CHARACTER_CLIPS.length
+      return CHARACTER_CLIPS[next]
+    })
+  }, [])
+  const prevClip = useCallback(() => cycleClip(-1), [cycleClip])
+  const nextClip = useCallback(() => cycleClip(1), [cycleClip])
 
   // ── Undo / redo ─────────────────────────────────────────────────────────────
   const undo = useCallback(() => {
@@ -418,7 +467,7 @@ export function App() {
         {/* GLB-backed models suspend while their assets stream in. */}
         <Suspense fallback={null}>
           <GrassLayer key={`${spec.grid.cols}x${spec.grid.rows}`} spec={spec} />
-          <PlacedObjects spec={spec} placeMode={placeMode} onRemove={removeObj} />
+          <PlacedObjects spec={spec} placeMode={placeMode} onRemove={removeObj} clip={clip} />
           {placeKind !== null && <PlaceGhost spec={spec} kind={placeKind} cell={ghostCell} />}
         </Suspense>
         <OrbitControls
@@ -473,6 +522,7 @@ export function App() {
       />
       <FileBar onExport={exportSpec} onImport={openImport} onReset={reset} />
       <ModelPanel placeKind={placeKind} onPick={onPick} />
+      {hasCharacter && <AnimationDock clip={clip} onPrev={prevClip} onNext={nextClip} />}
     </div>
   )
 }

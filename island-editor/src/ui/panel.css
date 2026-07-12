@@ -175,6 +175,51 @@
   opacity: 1;
 }
 
+/* ── Bottom-center animation dock ─────────────────────────────────────────────
+   Shown only while a character is placed. Sits directly above the hotbar: the
+   hotbar occupies bottom:20px up through its ~56px row height, so this dock's
+   bottom sits at that row's top edge plus the hotbar's own 8px gap-to-edge. */
+.animation-dock {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  color: #e7ecf6;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  user-select: none;
+}
+.animation-dock__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: rgba(16, 22, 38, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  opacity: 0.9;
+  transition: opacity 160ms ease;
+}
+.animation-dock__row:hover {
+  opacity: 1;
+}
+.animation-dock__label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 168px;
+  text-align: center;
+  font-weight: 600;
+}
+.animation-dock__index {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.62;
+}
+
 /* ── Tile tooltips ──────────────────────────────────────────────────────────
    Every panel's prose lives here now: a title line plus an optional hint line,
    shown on hover or keyboard focus. Purely CSS-positioned — the panels sit in

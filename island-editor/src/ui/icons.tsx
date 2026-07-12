@@ -185,10 +185,21 @@ export const RockIcon: FC = () => (
   </svg>
 )
 
+// Round body + head + a small beak triangle — a glanceable chick silhouette,
+// matching the character asset's Sunny Chick read.
+export const ChickIcon: FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="14" r="7" />
+    <circle cx="12" cy="6.5" r="4" />
+    <path d="M16 6.5l3.5 1.2-3.5 1.2z" />
+  </svg>
+)
+
 export const KIND_META: Record<ObjectKind, { label: string; Icon: FC }> = {
   tree: { label: 'Tree', Icon: TreeIcon },
   bush: { label: 'Bush', Icon: BushIcon },
   rock: { label: 'Rock', Icon: RockIcon },
+  character: { label: 'Chick', Icon: ChickIcon },
 }
 
 export type TipSide = 'top' | 'right' | 'left'
