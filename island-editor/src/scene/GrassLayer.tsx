@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { BLADES_PER_CELL, grassBlades } from '../terrain/grassField'
-import type { IslandSpec } from '../terrain/terrainGrid'
+import { blurTiers, type IslandSpec, worldPositionOfObject } from '../terrain/terrainGrid'
 import { createGrassBladeMaterial } from './materials/GrassBladeMaterial'
 
 /** Renders every grass-painted cell as ~BLADES_PER_CELL procedural blade cards
@@ -15,12 +15,14 @@ import { createGrassBladeMaterial } from './materials/GrassBladeMaterial'
  *  scale to a hundred thousand blades. Frozen under prefers-reduced-motion,
  *  same contract as useCanopyWind. */
 
-// One tapered blade card: 5 vertices / 3 triangles, base at y=0, unit height,
-// uv.y = height fraction (0 base → 1 tip; the shader bends by uv.y²). Shared
-// module-level template — each mount's InstancedBufferGeometry copies it.
-// Width retuned 0.045 → 0.018 per maintainer feedback (plan 021): at blade
-// heights of 0.10–0.24 the old width read as leek stalks, not grass. The
-// mid-vertex taper (±BLADE_W/3) scales with it.
+// One tapered blade card: 5 vertices / 3 triangles, base at y=0, unit height.
+// uv.y = height fraction (0 base → 1 tip; the shader bends by uv.y);
+// uv.x = 0..1 across the blade (the fragment's soft-edge feather reads it —
+// plan 024). Shared module-level template — each mount's
+// InstancedBufferGeometry copies it.
+// Width retuned 0.045 → 0.018 per maintainer feedback (plan 021); mid
+// vertices pulled in and up (±BLADE_W/4 at y=0.6, plan 024) so the blade
+// reads as a sharp spike rather than a rounded leaf.
 const BLADE_W = 0.018
 function bladeCard(): THREE.BufferGeometry {
   const geo = new THREE.BufferGeometry()
@@ -28,11 +30,11 @@ function bladeCard(): THREE.BufferGeometry {
   const positions = new Float32Array([
     -BLADE_W / 2, 0, 0,
     BLADE_W / 2, 0, 0,
-    -BLADE_W / 3, 0.55, 0,
-    BLADE_W / 3, 0.55, 0,
+    -BLADE_W / 4, 0.6, 0,
+    BLADE_W / 4, 0.6, 0,
     0, 1, 0,
   ])
-  const uvs = new Float32Array([0, 0, 1, 0, 0, 0.55, 1, 0.55, 0.5, 1])
+  const uvs = new Float32Array([0, 0, 1, 0, 0.25, 0.6, 0.75, 0.6, 0.5, 1])
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
   geo.setIndex([0, 1, 2, 1, 3, 2, 2, 3, 4])
@@ -83,7 +85,19 @@ export function GrassLayer({ spec }: { spec: IslandSpec }) {
     offset.needsUpdate = true
     yawScale.needsUpdate = true
     shadePhase.needsUpdate = true
-  }, [spec, geometry])
+
+    // Character reaction + fade disc (plan 024): the placed character is
+    // static per spec, so the uniform updates here — no per-frame tracking.
+    // One blurTiers per edit is the same cost PlacedObjects already pays.
+    const char = spec.objects.find((o) => o.kind === 'character')
+    const u = material.uniforms.uCharPos.value as THREE.Vector4
+    if (char) {
+      const { x, y, z } = worldPositionOfObject(spec, char, blurTiers(spec.grid))
+      u.set(x, y, z, 1)
+    } else {
+      u.set(0, 0, 0, 0)
+    }
+  }, [spec, geometry, material])
 
   // Wind clock — frozen (uTime stays 0) under prefers-reduced-motion, same
   // matchMedia-once pattern as useCanopyWind.

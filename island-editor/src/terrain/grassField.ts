@@ -21,10 +21,10 @@ export interface GrassBlade {
   phase: number
 }
 
-// Density knob; ~196k blades worst-case full grid. Retuned 24 → 48 (plan 021):
-// thinner blades (BLADE_W 0.045 → 0.018) need tighter packing — maintainer
-// feedback. GrassLayer's buffer capacity derives from this constant.
-export const BLADES_PER_CELL = 48
+// Density knob; ~262k blades worst-case full grid. Retuned 24 → 48 (plan 021)
+// → 64 (plan 024, "blades close to each other" per the maintainer's BOTW
+// reference). GrassLayer's buffer capacity derives from this constant.
+export const BLADES_PER_CELL = 64
 
 /** Plateau interiors are flat (terraced terrain: smoothstep is 0 or 1 away
  *  from walls), so any per-blade height deviating from the CELL CENTER's
@@ -64,7 +64,7 @@ export function grassBlades(spec: IslandSpec, perCell = BLADES_PER_CELL): GrassB
         const x = cx + (rand() * 2 - 1) * 0.575 * cellSize
         const z = cz + (rand() * 2 - 1) * 0.575 * cellSize
         const yaw = rand() * Math.PI * 2
-        const height = 0.1 + rand() * 0.14
+        const height = 0.08 + rand() * 0.2
         const shade = rand()
         const phase = rand() * Math.PI * 2
         const y = evaluateHeight(spec, x, z, blurred)

@@ -57,6 +57,12 @@ describe('GrassBladeMaterial', () => {
       'uWidenMax',
       'uHideStart',
       'uHideEnd',
+      'uDirSpread',
+      'uCharPos',
+      'uCharRadius',
+      'uCharBend',
+      'uCharFadeInner',
+      'uCharFadeOuter',
     ]) {
       expect(mat.uniforms[u]).toBeDefined()
     }
@@ -70,12 +76,19 @@ describe('GrassBladeMaterial', () => {
     expect(mat.uniforms.uWidenMax.value).toBeCloseTo(1.5, 6)
     expect(mat.uniforms.uHideStart.value).toBeCloseTo(22, 6)
     expect(mat.uniforms.uHideEnd.value).toBeCloseTo(32, 6)
+    expect(mat.uniforms.uDirSpread.value).toBeCloseTo(0.6, 6)
+    expect(mat.uniforms.uCharRadius.value).toBeCloseTo(1.4, 6)
+    expect(mat.uniforms.uCharBend.value).toBeCloseTo(0.9, 6)
+    expect(mat.uniforms.uCharFadeInner.value).toBeCloseTo(0.35, 6)
+    expect(mat.uniforms.uCharFadeOuter.value).toBeCloseTo(0.9, 6)
+    expect(mat.uniforms.uCharPos.value.w).toBe(0) // no character by default
     expect(mat.uniforms.uTime.value).toBe(0)
   })
 
-  it('renders blade cards double-sided and opaque', () => {
+  it('renders blade cards double-sided with alpha-to-coverage, never alpha blending', () => {
     expect(mat.side).toBe(THREE.DoubleSide)
     expect(mat.transparent).toBe(false)
+    expect(mat.alphaToCoverage).toBe(true)
   })
 
   it('ends the fragment shader with the color-space include', () => {
@@ -90,11 +103,22 @@ describe('GrassBladeMaterial', () => {
   })
 
   it('bends blades as a rotation about the base — gust crests sweep tips toward the ground', () => {
-    // sin moves the tip along the wind, 1-cos drops it: strong gusts lay
-    // susceptible blades nearly flat instead of stretching them sideways.
-    expect(mat.vertexShader).toContain('sin(bend) * p.y')
+    // sin moves the tip along the composed bend vector, 1-cos drops it: strong
+    // gusts lay susceptible blades nearly flat instead of stretching sideways.
+    expect(mat.vertexShader).toContain('bendDir * sin(bend) * p.y')
     expect(mat.vertexShader).toContain('(1.0 - cos(bend)) * p.y')
     expect(mat.vertexShader).toContain('uGustBend * gust')
+  })
+
+  it('composes per-blade wind direction and the character push into one bend vector', () => {
+    expect(mat.vertexShader).toContain('uDirSpread')
+    expect(mat.vertexShader).toContain('uCharBend')
+    expect(mat.vertexShader).toContain('smoothstep(uCharFadeInner, uCharFadeOuter,')
+  })
+
+  it('feathers the blade edges softly via uv.x for the alpha-to-coverage look', () => {
+    expect(mat.fragmentShader).toContain('smoothstep(0.0, 0.18, vUv.x)')
+    expect(mat.fragmentShader.trimEnd().endsWith('#include <colorspace_fragment>\n}')).toBe(true)
   })
 
   it('widens blade cards at mid distance, then hides them entirely past the hide band', () => {

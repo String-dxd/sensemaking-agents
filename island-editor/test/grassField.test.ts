@@ -134,8 +134,8 @@ describe('grassField — grassBlades', () => {
     for (const b of blades) {
       expect(b.yaw).toBeGreaterThanOrEqual(0)
       expect(b.yaw).toBeLessThan(Math.PI * 2)
-      expect(b.height).toBeGreaterThanOrEqual(0.1)
-      expect(b.height).toBeLessThan(0.24)
+      expect(b.height).toBeGreaterThanOrEqual(0.08)
+      expect(b.height).toBeLessThan(0.28)
       expect(b.shade).toBeGreaterThanOrEqual(0)
       expect(b.shade).toBeLessThan(1)
       expect(b.phase).toBeGreaterThanOrEqual(0)
