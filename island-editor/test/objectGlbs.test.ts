@@ -25,15 +25,16 @@ const KINDS = ['tree', 'rock', 'grass'] as const
  *  Any rebuild that lands near those numbers has silently lost the decimation or the
  *  texture compression.
  *
- *  tree: re-baselined 2026-07-12. The source (tree-2.glb, "Emerald Canopy") is a
- *  pre-decimated, textured 31k-tri model — unlike the old 1.76M-tri atlas'd source,
- *  there's nothing to vertex-color-bake or simplify away, so this asset keeps its
- *  real UV atlas (like the rock) instead. That atlas splits vertices at every chart
- *  seam (58k vertices for 31k triangles), which costs ~610 KB of geometry alone —
- *  texture compression (quality 80, 512² — see optimize-meshy-glb.mjs) can't touch
- *  that, so the budget is set just above the actual 819 KB output rather than the
- *  old 400 KB ceiling that applied to the vertex-color-baked (textureless) tree. */
-const SIZE_BUDGET_KB: Record<(typeof KINDS)[number], number> = { tree: 850, rock: 200, grass: 250 }
+ *  tree: re-baselined again 2026-07-12 for plan 019 (source is now tree-3.glb, an
+ *  "Emerald Canopy" RETEXTURE of the same pre-decimated 31k-tri model). Like tree-2
+ *  there is nothing to vertex-color-bake or simplify away, so it keeps its real UV
+ *  atlas — but tree-3's RE-ATLASED UVs split the mesh to 88,542 seam-duplicate
+ *  vertices (+53% vs tree-2's 58k), and plan 019 restored vertex NORMALS (toon
+ *  lighting consumes them; plan 018's unlit build had let prune() drop them). The
+ *  512² quality-80 WebP is only ~50 KB — the payload is irreducible geometry
+ *  (weld() is exact-match only, and simplify is deliberately off for this asset),
+ *  so the budget sits just above the actual 972 KB output. */
+const SIZE_BUDGET_KB: Record<(typeof KINDS)[number], number> = { tree: 1000, rock: 200, grass: 250 }
 const TRI_BUDGET: Record<(typeof KINDS)[number], number> = { tree: 40_000, rock: 5_000, grass: 5_000 }
 
 /** Authored world scale — placement multiplies its own 0.85..1.15 jitter on top. */
@@ -172,21 +173,22 @@ describe('object GLB assets', () => {
     expect(used).toContain('EXT_meshopt_compression')
   })
 
-  it.each(KINDS)('%s is KHR_materials_unlit — baked lighting shown as-is, never re-lit by the scene sun', (kind) => {
-    // GLTFLoader converts KHR_materials_unlit to MeshBasicMaterial (plan 018):
-    // the Meshy base maps carry baked lighting, so the scene's hemisphere +
-    // directional sun must never shade these objects a second time.
+  it.each(KINDS)('%s ships vertex normals — toon lighting consumes them', (kind) => {
+    // Plan 019: objects are toon-lit at runtime (MeshToonMaterial via
+    // src/models/toonMaterial.ts), which needs vertex NORMALs. Plan 018's
+    // unlit() pipeline let prune() drop them — this guards against that
+    // pipeline coming back by accident: no unlit extension, normals present.
     const doc = docs.get(kind) as Document
+    for (const mesh of doc.getRoot().listMeshes()) {
+      for (const prim of mesh.listPrimitives()) {
+        expect(prim.getAttribute('NORMAL')).not.toBeNull()
+      }
+    }
     const materials = doc.getRoot().listMaterials()
     expect(materials.length).toBeGreaterThan(0)
     for (const material of materials) {
-      expect(material.getExtension('KHR_materials_unlit')).not.toBeNull()
+      expect(material.getExtension('KHR_materials_unlit')).toBeNull()
     }
-    const used = doc
-      .getRoot()
-      .listExtensionsUsed()
-      .map((e) => e.extensionName)
-    expect(used).toContain('KHR_materials_unlit')
   })
 })
 
@@ -336,18 +338,19 @@ describe('character GLB asset', () => {
     expect(used).toContain('EXT_meshopt_compression')
   })
 
-  it('is KHR_materials_unlit — baked lighting shown as-is, never re-lit by the scene sun', () => {
-    // Same contract as the static kinds (plan 018): GLTFLoader converts the
-    // extension to MeshBasicMaterial, on skinned meshes too.
+  it('ships vertex normals — toon lighting consumes them', () => {
+    // Same contract as the static kinds (plan 019): the character is toon-lit
+    // at runtime too (MeshToonMaterial works on skinned meshes), so its
+    // normals must survive prune() and no unlit extension may reappear.
+    for (const mesh of characterDoc.getRoot().listMeshes()) {
+      for (const prim of mesh.listPrimitives()) {
+        expect(prim.getAttribute('NORMAL')).not.toBeNull()
+      }
+    }
     const materials = characterDoc.getRoot().listMaterials()
     expect(materials.length).toBeGreaterThan(0)
     for (const material of materials) {
-      expect(material.getExtension('KHR_materials_unlit')).not.toBeNull()
+      expect(material.getExtension('KHR_materials_unlit')).toBeNull()
     }
-    const used = characterDoc
-      .getRoot()
-      .listExtensionsUsed()
-      .map((e) => e.extensionName)
-    expect(used).toContain('KHR_materials_unlit')
   })
 })

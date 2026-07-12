@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
+import { applyToonMaterials } from '../models/toonMaterial'
 import { grassInstanceTransforms } from '../terrain/grassField'
 import type { IslandSpec } from '../terrain/terrainGrid'
 
@@ -23,6 +24,9 @@ export function GrassLayer({ spec }: { spec: IslandSpec }) {
 
   const { geometry, material, dequant } = useMemo(() => {
     let mesh: THREE.Mesh | undefined
+    // Toon-convert the CACHED scene in place (idempotent) before extracting
+    // the material, so the InstancedMesh renders toon too (plan 019).
+    applyToonMaterials(gltf.scene)
     gltf.scene.updateMatrixWorld(true)
     gltf.scene.traverse((n) => {
       if (!mesh && (n as THREE.Mesh).isMesh) mesh = n as THREE.Mesh

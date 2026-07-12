@@ -7,13 +7,13 @@ directory; only `scripts/optimize-meshy-glb.mjs` does, and only when you re-run 
 
 | file            | source prompt                              | raw size |
 | ---------------- | ------------------------------------------ | -------- |
-| `tree.glb`       | "Emerald Canopy" (re-export, `tree-2.glb` on disk) | 50.6 MB |
+| `tree.glb`       | "Emerald Canopy" (`tree-3.glb` on disk — a RETEXTURE of the same 31k-tri model) | 32.3 MB |
 | `rock.glb`       | "Lone Rock in the Meadow"                  | 8.1 MB   |
 | `grass.glb`      | "Grass Patch on Grid"                       | 10.6 MB  |
 | `character.glb`  | "Sunny Chick biped" — the `..._Meshy_Merged_Animations.glb` GLB from the zip (NOT `..._Character_output.glb`, which only carries a 0.03s dummy clip) | 6.9 MB |
 
 The maintainer's downloads for these landed under generic names (`tree.glb`,
-`tree-2.glb`, `grass.glb`, `bird.zip`) rather than their original Meshy export
+`tree-3.glb`, `grass.glb`, `bird.zip`) rather than their original Meshy export
 filenames — content was verified by inspection (triangle counts, bounds, material
 layout, animation clip names/durations) before staging, not by filename.
 
@@ -27,10 +27,10 @@ node scripts/optimize-meshy-glb.mjs tree   # one
 The script prints what it did:
 
 ```
-tree      49423 KB →  819 KB  (60× smaller)   tris    31,365 → 31,365   scale ×0.094
-rock       7903 KB →   80 KB  (99× smaller)   tris     2,709 →  2,709   scale ×1.000
-grass     10366 KB →   89 KB (116× smaller)   tris     3,022 →  3,022   scale ×1.600
-character  6757 KB →  541 KB  (12× smaller)   tris     8,730 →  8,730   clips 10
+tree   31523 KB →  972 KB  (32× smaller)   tris    31,358 → 31,358   scale ×0.094
+rock    7903 KB →   80 KB  (99× smaller)   tris     2,709 →  2,709   scale ×0.800
+grass  10366 KB →   89 KB  (116× smaller)   tris     3,022 →  3,022   scale ×1.600
+character   6757 KB →  541 KB  (12× smaller)   tris     8,730 →  8,730   clips 10
 ```
 
 `test/objectGlbs.test.ts` is the guard rail — it fails if a rebuild drifts off the

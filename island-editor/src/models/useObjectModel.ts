@@ -9,6 +9,7 @@ import { CHARACTER_HEIGHT, CHARACTER_SOURCE_HEIGHT } from './characterAsset'
 import type { ObjectKind } from '../terrain/terrainGrid'
 import { buildObjectModel, type ProceduralKind } from './buildObjectModel'
 import { mulberry32 } from './rand'
+import { applyToonMaterials } from './toonMaterial'
 
 // The GLB lane: `tree`, `rock`, and `character` ship as authored .glb assets,
 // built from the raw Meshy AI exports by scripts/optimize-meshy-glb.mjs and
@@ -76,6 +77,11 @@ export function useObjectModel(kind: ObjectKind, seed: number): THREE.Group {
       model = buildObjectModel(kind as ProceduralKind, seed)
     } else {
       const source = gltfs[GLB_URL_LIST.indexOf(url)].scene
+      // Toon-convert the CACHED scene in place (idempotent) BEFORE cloning, so
+      // every clone — including the character's SkeletonUtils clone — shares
+      // the converted materials and the never-dispose-shared rule holds
+      // (plan 019: BOTW toon lighting).
+      applyToonMaterials(source)
       if (kind === 'character') {
         // SkeletonUtils.clone: a plain .clone(true) leaves the SkinnedMesh
         // bound to the ORIGINAL skeleton — it would render at the cache's

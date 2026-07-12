@@ -2,14 +2,16 @@ import * as THREE from 'three'
 import type { ObjectKind } from '../terrain/terrainGrid'
 import { hashString, mulberry32 } from './rand'
 import { modelTexture } from './textures'
+import { objectGradientMap } from './toonMaterial'
 
 // Stylized PROCEDURAL models built from three.js primitives — now only the bush.
 // `tree` and `rock` ship as authored GLB assets (public/models/, built by
 // scripts/optimize-meshy-glb.mjs) and load through useObjectModel, which routes
-// non-GLB kinds back here. Art direction is unchanged and the GLBs match it:
-// matte masses with baked shading, rendered UNLIT (plan 018) — the GLBs via
-// KHR_materials_unlit → MeshBasicMaterial, the bush via MeshBasicMaterial with
-// its lighting baked into vertex colors. The scene sun never re-shades them.
+// non-GLB kinds back here. Art direction matches across lanes: matte masses
+// with baked shading, TOON-LIT (plan 019) — the GLBs get MeshToonMaterial at
+// load time (src/models/toonMaterial.ts), the bush builds with MeshToonMaterial
+// directly; baked vertex colors multiply the shared toon ramp, so the whole
+// scene shades as one system under the existing sun + hemisphere lights.
 // Deterministic given a seed so previews are stable and placement re-derives the
 // same variety on reload. No Math.random / Date — the seeded PRNG is the only
 // entropy source.
@@ -111,9 +113,13 @@ function bakeBushShade(mesh: THREE.Mesh, y0: number, y1: number, creviceDepth: n
 function bush(rand: Rand): THREE.Object3D[] {
   // The bush-leaves map is the surface color; vertex colors carry only the
   // hue-neutral layered lighting that multiplies it.
-  // MeshBasicMaterial (unlit): the shading is already baked into those vertex
-  // colors, matching the GLB assets' KHR_materials_unlit contract (plan 018).
-  const mat = new THREE.MeshBasicMaterial({ color: LEAF, vertexColors: true })
+  // MeshToonMaterial: the baked vertex-color shading now MULTIPLIES the toon
+  // lighting — same system as the GLB objects (plan 019).
+  const mat = new THREE.MeshToonMaterial({
+    color: LEAF,
+    vertexColors: true,
+    gradientMap: objectGradientMap(),
+  })
   mat.name = 'bush-foliage'
   // Attach the map on LOAD, not eagerly: a material pointing at a texture whose
   // pixels haven't arrived renders BLACK, so the LEAF tint holds the fallback
