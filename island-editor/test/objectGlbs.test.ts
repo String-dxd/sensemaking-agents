@@ -171,6 +171,23 @@ describe('object GLB assets', () => {
       .map((e) => e.extensionName)
     expect(used).toContain('EXT_meshopt_compression')
   })
+
+  it.each(KINDS)('%s is KHR_materials_unlit — baked lighting shown as-is, never re-lit by the scene sun', (kind) => {
+    // GLTFLoader converts KHR_materials_unlit to MeshBasicMaterial (plan 018):
+    // the Meshy base maps carry baked lighting, so the scene's hemisphere +
+    // directional sun must never shade these objects a second time.
+    const doc = docs.get(kind) as Document
+    const materials = doc.getRoot().listMaterials()
+    expect(materials.length).toBeGreaterThan(0)
+    for (const material of materials) {
+      expect(material.getExtension('KHR_materials_unlit')).not.toBeNull()
+    }
+    const used = doc
+      .getRoot()
+      .listExtensionsUsed()
+      .map((e) => e.extensionName)
+    expect(used).toContain('KHR_materials_unlit')
+  })
 })
 
 /** The 10 clip names baked into the merged-animations export (see
@@ -317,5 +334,20 @@ describe('character GLB asset', () => {
       .listExtensionsUsed()
       .map((e) => e.extensionName)
     expect(used).toContain('EXT_meshopt_compression')
+  })
+
+  it('is KHR_materials_unlit — baked lighting shown as-is, never re-lit by the scene sun', () => {
+    // Same contract as the static kinds (plan 018): GLTFLoader converts the
+    // extension to MeshBasicMaterial, on skinned meshes too.
+    const materials = characterDoc.getRoot().listMaterials()
+    expect(materials.length).toBeGreaterThan(0)
+    for (const material of materials) {
+      expect(material.getExtension('KHR_materials_unlit')).not.toBeNull()
+    }
+    const used = characterDoc
+      .getRoot()
+      .listExtensionsUsed()
+      .map((e) => e.extensionName)
+    expect(used).toContain('KHR_materials_unlit')
   })
 })

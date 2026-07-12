@@ -7,8 +7,9 @@ import { modelTexture } from './textures'
 // `tree` and `rock` ship as authored GLB assets (public/models/, built by
 // scripts/optimize-meshy-glb.mjs) and load through useObjectModel, which routes
 // non-GLB kinds back here. Art direction is unchanged and the GLBs match it:
-// matte masses with baked vertex-color shading, lit for the scene sun
-// (Backdrop.tsx: ambient 0.6 + a directional 1.15 at [18,20,10]).
+// matte masses with baked shading, rendered UNLIT (plan 018) — the GLBs via
+// KHR_materials_unlit → MeshBasicMaterial, the bush via MeshBasicMaterial with
+// its lighting baked into vertex colors. The scene sun never re-shades them.
 // Deterministic given a seed so previews are stable and placement re-derives the
 // same variety on reload. No Math.random / Date — the seeded PRNG is the only
 // entropy source.
@@ -110,7 +111,9 @@ function bakeBushShade(mesh: THREE.Mesh, y0: number, y1: number, creviceDepth: n
 function bush(rand: Rand): THREE.Object3D[] {
   // The bush-leaves map is the surface color; vertex colors carry only the
   // hue-neutral layered lighting that multiplies it.
-  const mat = new THREE.MeshStandardMaterial({ color: LEAF, vertexColors: true, roughness: 1, metalness: 0 })
+  // MeshBasicMaterial (unlit): the shading is already baked into those vertex
+  // colors, matching the GLB assets' KHR_materials_unlit contract (plan 018).
+  const mat = new THREE.MeshBasicMaterial({ color: LEAF, vertexColors: true })
   mat.name = 'bush-foliage'
   // Attach the map on LOAD, not eagerly: a material pointing at a texture whose
   // pixels haven't arrived renders BLACK, so the LEAF tint holds the fallback

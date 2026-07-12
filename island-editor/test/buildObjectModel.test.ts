@@ -67,8 +67,10 @@ describe('buildObjectModel', () => {
         if (!(o instanceof THREE.Mesh)) return
         const mats = Array.isArray(o.material) ? o.material : [o.material]
         for (const m of mats) {
-          expect(m).toBeInstanceOf(THREE.MeshStandardMaterial)
-          const map = (m as THREE.MeshStandardMaterial).map
+          // MeshBasicMaterial = unlit, matching the GLB assets' KHR_materials_unlit
+          // contract (plan 018) — the bush's shading is baked into vertex colors.
+          expect(m).toBeInstanceOf(THREE.MeshBasicMaterial)
+          const map = (m as THREE.MeshBasicMaterial).map
           expect(map === null || map instanceof THREE.Texture).toBe(true)
         }
       })

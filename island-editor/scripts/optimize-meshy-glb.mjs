@@ -22,7 +22,17 @@
 //      wind spring (useCanopyWind + wind.ts) drives them unchanged. Meshy fuses
 //      trunk and leaves into ONE mesh, so the pivot sits at the base and the
 //      whole tree bows — hence a gentler windAmp than the authored trees used.
-//   5. Textures → WebP, geometry → EXT_meshopt_compression.
+//   5. Mark every material KHR_materials_unlit. Meshy's color maps already have
+//      lighting baked in, so shading them again with the scene's hemisphere +
+//      directional sun double-shades them — unlit is the intended stylized look
+//      (plan 018). GLTFLoader converts KHR_materials_unlit straight to
+//      MeshBasicMaterial with zero loader-side setup, on skinned meshes too; the
+//      objects still CAST shadows onto the lit terrain (a depth-pass concern),
+//      they just stop RECEIVING shadows or reacting to the sun. Placing unlit()
+//      BEFORE prune() also lets prune drop the now-unused vertex NORMALs
+//      (~2-14% smaller files); if lit materials are ever wanted back, remove
+//      unlit() and rebuild — normals regenerate from the raws.
+//   6. Textures → WebP, geometry → EXT_meshopt_compression.
 //
 // Why meshopt + WebP over Draco + KTX2: both decode with ZERO loader-side setup
 // here — drei's useGLTF registers MeshoptDecoder by default, and three r171
@@ -48,6 +58,7 @@ import {
   simplify,
   textureCompress,
   transformMesh,
+  unlit,
   weld,
 } from '@gltf-transform/functions'
 import { MeshoptDecoder, MeshoptEncoder, MeshoptSimplifier } from 'meshoptimizer'
@@ -407,6 +418,7 @@ async function buildCharacter(cfg) {
       resize: [1024, 1024],
       quality: 85,
     }),
+    unlit(),
     prune(),
     meshopt({ encoder: MeshoptEncoder, level: 'high' }),
   )
@@ -488,6 +500,7 @@ async function build(name) {
       resize: [cfg.textureSize, cfg.textureSize],
       quality: cfg.textureQuality ?? 85,
     }),
+    unlit(),
     prune(),
     meshopt({ encoder: MeshoptEncoder, level: 'high' }),
   )
