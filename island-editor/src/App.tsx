@@ -5,6 +5,7 @@ import { MOUSE } from 'three'
 import type { Camera, Vector3 } from 'three'
 import { createCommandStack } from './editor/commandStack'
 import { clearSaved, createAutosaver, loadSpec } from './editor/persistence'
+import { loadSpecFromRepo, saveSpecToRepo } from './editor/repoStore'
 import { downloadSpec, importSpecFromFile } from './editor/specIO'
 import { Backdrop } from './scene/Backdrop'
 import {
@@ -395,6 +396,28 @@ export function App() {
     [stack, bumpStack],
   )
 
+  // Save/Load persist to the repo-tracked saves/island.json via the dev-server
+  // middleware (server/islandSavePlugin.ts). Silent on success; alert on failure.
+  const saveToRepo = useCallback(async () => {
+    try {
+      await saveSpecToRepo(specRef.current)
+    } catch (err) {
+      alert(`Could not save island: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [])
+
+  const loadFromRepo = useCallback(async () => {
+    try {
+      const spec = await loadSpecFromRepo()
+      specRef.current = spec
+      setGridTick((t) => t + 1)
+      stack.clear() // never let undo resurrect pre-load state
+      bumpStack()
+    } catch (err) {
+      alert(`Could not load island: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [stack, bumpStack])
+
   // ── Camera presets ────────────────────────────────────────────────────────────
   // Capture the three OrbitControls instance drei forwards via a callback ref,
   // narrowed to the minimal shape we touch (no three-stdlib type dependency).
@@ -520,7 +543,7 @@ export function App() {
         onZoomIn={zoomIn}
         onRecenter={recenter}
       />
-      <FileBar onExport={exportSpec} onImport={openImport} onReset={reset} />
+      <FileBar onSave={saveToRepo} onLoad={loadFromRepo} onExport={exportSpec} onImport={openImport} onReset={reset} />
       <ModelPanel placeKind={placeKind} onPick={onPick} />
       {hasCharacter && <AnimationDock clip={clip} onPrev={prevClip} onNext={nextClip} />}
     </div>

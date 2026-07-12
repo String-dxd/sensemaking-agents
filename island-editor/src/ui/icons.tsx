@@ -98,6 +98,21 @@ export const ImportIcon: FC = () => (
   </svg>
 )
 
+export const SaveIcon: FC = () => (
+  <svg {...svgProps}>
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+    <path d="M17 21v-8H7v8" />
+    <path d="M7 3v5h8" />
+  </svg>
+)
+
+export const LoadIcon: FC = () => (
+  <svg {...svgProps}>
+    <path d="M4 19V5a1 1 0 0 1 1-1h4l2 2h7a1 1 0 0 1 1 1v3" />
+    <path d="M4 19l2.5-8H22l-3 8z" />
+  </svg>
+)
+
 export const ResetIcon: FC = () => (
   <svg {...svgProps}>
     <path d="M3 3v5h5" />
