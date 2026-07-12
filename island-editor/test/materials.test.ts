@@ -23,6 +23,7 @@ describe('IslandGroundMaterial', () => {
       'uSunColor',
       'uSkyColor',
       'uSeaLevel',
+      'uBeachTop',
     ]) {
       expect(mat.uniforms[u]).toBeDefined()
     }
@@ -30,6 +31,11 @@ describe('IslandGroundMaterial', () => {
     expect(mat.uniforms.uSunDirection.value.length()).toBeCloseTo(1, 6) // normalized
     expect(mat.uniforms.uSunColor.value.getHexString()).toBe('ffedcc')
     expect(mat.uniforms.uSkyColor.value.getHexString()).toBe('8fa8c8')
+    expect(mat.uniforms.uBeachTop.value).toBeCloseTo(0.05, 6)
+  })
+
+  it('gates the cliff texture above the beach top — sand-only shoreline (plan 028)', () => {
+    expect(mat.fragmentShader).toContain('smoothstep(uBeachTop + 0.02, uBeachTop + 0.30,')
   })
 
   it('is light-aware and shadow-receiving', () => {

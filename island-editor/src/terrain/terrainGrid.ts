@@ -176,8 +176,16 @@ function bilinear(field: ArrayLike<number>, cols: number, u: number, v: number):
   const c1 = Math.min(c0 + 1, cols - 1)
   const rows = field.length / cols
   const r1 = Math.min(r0 + 1, rows - 1)
-  const fu = u - c0
-  const fv = v - r0
+  let fu = u - c0
+  let fv = v - r0
+  // C1 "smooth bilinear" (plan 028): smoothstepped fractions round the
+  // field's iso-contours — plain bilinear contours are piecewise-linear with
+  // kinks at every lattice point, which rendered the island silhouette as a
+  // diamond sawtooth. At integer u/v the fractions are 0/1, so CELL-CENTER
+  // VALUES ARE EXACT AND UNCHANGED — the thin-feature amplitude invariant
+  // documented on sampleTierField (BLUR_MIX comment) is preserved.
+  fu = fu * fu * (3 - 2 * fu)
+  fv = fv * fv * (3 - 2 * fv)
   const h00 = field[r0 * cols + c0]
   const h10 = field[r0 * cols + c1]
   const h01 = field[r1 * cols + c0]

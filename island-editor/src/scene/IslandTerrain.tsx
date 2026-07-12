@@ -76,8 +76,10 @@ export function IslandTerrain({
   useEffect(() => () => geometry.dispose(), [geometry])
 
   const material = useMemo(
-    () => createIslandGroundMaterial(textures, { seaLevel: spec.seaLevel }),
-    [textures, spec.seaLevel],
+    // beachTop tracks spec.tierHeights[1] (plan 028): cliff texture only
+    // begins above the beach tier's top — sand-only shoreline.
+    () => createIslandGroundMaterial(textures, { seaLevel: spec.seaLevel, beachTop: spec.tierHeights[1] }),
+    [textures, spec.seaLevel, spec.tierHeights],
   )
   useEffect(() => () => material.dispose(), [material])
 

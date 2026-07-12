@@ -35,6 +35,9 @@ export interface GroundOptions {
   /** Cool ambient tint filling shadowed/up-facing surfaces (BOTW sky bounce). */
   skyColor?: THREE.ColorRepresentation
   seaLevel?: number
+  /** World height of the beach tier's top (`spec.tierHeights[1]`). Cliff
+   *  texture only begins above it — sand-only shoreline (plan 028). */
+  beachTop?: number
 }
 
 const VERTEX = /* glsl */ `
@@ -89,6 +92,7 @@ uniform vec3 uSunDirection;
 uniform vec3 uSunColor;
 uniform vec3 uSkyColor;
 uniform float uSeaLevel;
+uniform float uBeachTop;
 
 varying vec3 vWorld;
 varying vec3 vNormal;
@@ -155,6 +159,12 @@ void main() {
   // removes cliff the terrace term already covers.
   float slope = 1.0 - clamp(normalize(vNormal).y, 0.0, 1.0);
   float wallF = max(smoothstep(0.25, 0.45, vWallness), smoothstep(0.35, 0.6, slope));
+  // Sand-only shoreline (plan 028): the beach tier's little drop to the sea
+  // is geometrically steep, so it classified as cliff — a brown lip along
+  // every shore. Cliff texture only begins ABOVE the beach top; at and below
+  // it, steep faces keep the flat (sand) color, and the existing wet-sand
+  // darkening handles the waterline.
+  wallF *= smoothstep(uBeachTop + 0.02, uBeachTop + 0.30, vWorld.y);
   vec3 albedo = mix(flatColor, cliff, wallF);
 
   // ── Lighting — BOTW-style: warm sun, cool sky ambient, soft toon curve ────
@@ -197,6 +207,7 @@ export function createIslandGroundMaterial(
       uSunColor: { value: new THREE.Color(opts.sunColor ?? 0xffedcc) },
       uSkyColor: { value: new THREE.Color(opts.skyColor ?? 0x8fa8c8) },
       uSeaLevel: { value: opts.seaLevel ?? 0 },
+      uBeachTop: { value: opts.beachTop ?? 0.05 },
     },
   ])
   uniforms.uSandTexture.value = textures.sand
