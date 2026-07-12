@@ -9,6 +9,8 @@ import {
   GRID_COLS,
   GRID_ROWS,
   LEGACY_DEFAULT_TIER_HEIGHTS,
+  SURFACE_AUTO,
+  SURFACE_GRASS,
 } from '../src/terrain/terrainGrid'
 
 // A hand-built legacy v2 spec (a triangle island).
@@ -27,10 +29,10 @@ function v2Spec() {
 }
 
 describe('specIO', () => {
-  it('round-trips a v4 spec through serialize/deserialize', () => {
+  it('round-trips a v5 spec through serialize/deserialize', () => {
     const spec = seedIsland()
     const back = deserializeSpec(serializeSpec(spec))
-    expect(back.version).toBe(4)
+    expect(back.version).toBe(5)
     expect(back.worldSize).toBe(spec.worldSize)
     expect(back.seaLevel).toBe(spec.seaLevel)
     expect(back.tierHeights).toEqual(spec.tierHeights)
@@ -38,14 +40,14 @@ describe('specIO', () => {
     expect(back.objects).toEqual([])
   })
 
-  it('round-trips a v4 spec with placed objects', () => {
+  it('round-trips a v5 spec with placed objects', () => {
     const spec = seedIsland()
     spec.objects = [
       makePlacedObject('tree', 10, 12, mulberry32(1)),
       makePlacedObject('rock', 40, 5, mulberry32(2)),
     ]
     const back = deserializeSpec(serializeSpec(spec))
-    expect(back.version).toBe(4)
+    expect(back.version).toBe(5)
     expect(back.objects).toEqual(spec.objects)
   })
 
@@ -53,7 +55,7 @@ describe('specIO', () => {
     const spec = seedIsland()
     spec.objects = [makePlacedObject('tree', 1, 2, mulberry32(3))]
     const json = JSON.parse(serializeSpec(spec))
-    expect(json.version).toBe(4)
+    expect(json.version).toBe(5)
     expect(json.grid.tiers).toHaveLength(GRID_ROWS)
     expect(typeof json.grid.tiers[0]).toBe('string')
     expect(json.grid.tiers[0]).toHaveLength(GRID_COLS)
@@ -61,9 +63,9 @@ describe('specIO', () => {
     expect(json.objects[0].kind).toBe('tree')
   })
 
-  it('validates a v2 spec and returns it migrated to v4 with a 64×64 grid + empty objects', () => {
+  it('validates a v2 spec and returns it migrated to v5 with a 64×64 grid + empty objects', () => {
     const spec = validateSpecObject(v2Spec())
-    expect(spec.version).toBe(4)
+    expect(spec.version).toBe(5)
     expect(spec.worldSize).toBe(24)
     expect(spec.seaLevel).toBe(0.25) // taken from v2 heightProfile.seaLevel
     expect(spec.tierHeights).toEqual(DEFAULT_TIER_HEIGHTS)
@@ -74,19 +76,19 @@ describe('specIO', () => {
     expect(spec.objects).toEqual([])
   })
 
-  it('migrates a v3 spec to v4 with an empty objects array', () => {
-    // Build a valid v3 file: serialize a v4 seed, then downgrade to version 3
+  it('migrates a v3 spec to v5 with an empty objects array', () => {
+    // Build a valid v3 file: serialize a v5 seed, then downgrade to version 3
     // and strip the objects field (a genuine pre-v4 payload).
     const parsed = JSON.parse(serializeSpec(seedIsland()))
     parsed.version = 3
     parsed.objects = undefined
     const spec = validateSpecObject(parsed)
-    expect(spec.version).toBe(4)
+    expect(spec.version).toBe(5)
     expect(spec.objects).toEqual([])
   })
 
   it('throws on an unsupported version', () => {
-    expect(() => validateSpecObject({ ...v2Spec(), version: 5 })).toThrow(/version must be/)
+    expect(() => validateSpecObject({ ...v2Spec(), version: 6 })).toThrow(/version must be/)
   })
 
   it('throws on an invalid object entry (unknown kind)', () => {
@@ -131,6 +133,64 @@ describe('specIO', () => {
     const bad = JSON.parse(serializeSpec(spec))
     bad.tierHeights = [0, 0, 1, 2, 3]
     expect(() => validateSpecObject(bad)).toThrow(/strictly-ascending/)
+  })
+})
+
+describe('v5 surface migration (dirt path removed, code 1 now means grass)', () => {
+  // A grid with a couple of painted cells (surface code 1), following the
+  // file's own convention for hand-built specs.
+  function paintedGrid() {
+    const grid = createOceanGrid()
+    grid.surface[0] = SURFACE_GRASS
+    grid.surface[10] = SURFACE_GRASS
+    grid.tiers[0] = 2 // land, so the paint would be meaningful if it survived
+    return grid
+  }
+
+  it('clears a v4 payload’s painted surface on load, preserving tiers and objects', () => {
+    const parsed = {
+      version: 4,
+      worldSize: 24,
+      seaLevel: 0,
+      tierHeights: DEFAULT_TIER_HEIGHTS.slice(),
+      grid: paintedGrid(),
+      objects: [{ id: 'x', kind: 'rock', c: 5, r: 5, yaw: 0, scale: 1 }],
+    }
+    const spec = validateSpecObject(parsed)
+    expect(spec.version).toBe(5)
+    expect(spec.grid.surface.every((s) => s === SURFACE_AUTO)).toBe(true)
+    expect(spec.grid.tiers[0]).toBe(2) // tiers untouched
+    expect(spec.objects).toHaveLength(1)
+    expect(spec.objects[0].id).toBe('x')
+  })
+
+  it('clears a v3 payload’s painted surface on load, with objects forced empty', () => {
+    const parsed = {
+      version: 3,
+      worldSize: 24,
+      seaLevel: 0,
+      tierHeights: DEFAULT_TIER_HEIGHTS.slice(),
+      grid: paintedGrid(),
+    }
+    const spec = validateSpecObject(parsed)
+    expect(spec.version).toBe(5)
+    expect(spec.grid.surface.every((s) => s === SURFACE_AUTO)).toBe(true)
+    expect(spec.objects).toEqual([])
+  })
+
+  it('preserves a v5 payload’s painted surface (grass survives its own round-trip)', () => {
+    const parsed = {
+      version: 5,
+      worldSize: 24,
+      seaLevel: 0,
+      tierHeights: DEFAULT_TIER_HEIGHTS.slice(),
+      grid: paintedGrid(),
+      objects: [],
+    }
+    const spec = validateSpecObject(parsed)
+    expect(spec.version).toBe(5)
+    expect(spec.grid.surface[0]).toBe(SURFACE_GRASS)
+    expect(spec.grid.surface[10]).toBe(SURFACE_GRASS)
   })
 })
 

@@ -8,7 +8,7 @@ import {
   setSurface,
   setTier,
 } from '../src/terrain/gridOps'
-import { cellIndex, createOceanGrid, DEFAULT_TIER_HEIGHTS, MAX_TIER, SURFACE_PATH } from '../src/terrain/terrainGrid'
+import { cellIndex, createOceanGrid, DEFAULT_TIER_HEIGHTS, MAX_TIER, SURFACE_GRASS } from '../src/terrain/terrainGrid'
 
 describe('gridOps', () => {
   it('adjustTier raises and clamps at MAX_TIER', () => {
@@ -84,9 +84,9 @@ describe('gridOps', () => {
   it('setSurface touches only the listed cells', () => {
     const grid = createOceanGrid()
     const target = cellIndex(grid, 20, 20)
-    setSurface(grid, [target], SURFACE_PATH)
-    expect(grid.surface[target]).toBe(SURFACE_PATH)
-    expect(grid.surface.filter((s) => s === SURFACE_PATH)).toHaveLength(1)
+    setSurface(grid, [target], SURFACE_GRASS)
+    expect(grid.surface[target]).toBe(SURFACE_GRASS)
+    expect(grid.surface.filter((s) => s === SURFACE_GRASS)).toHaveLength(1)
   })
 
   it('setTier clamps out-of-range values', () => {

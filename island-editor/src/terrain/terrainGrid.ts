@@ -9,7 +9,7 @@ export const MAX_TIER = 4 // tiers 0..4
 export const GRID_COLS = 64
 export const GRID_ROWS = 64
 export const SURFACE_AUTO = 0 // grass/sand derived from tier
-export const SURFACE_PATH = 1 // dirt path tint
+export const SURFACE_GRASS = 1 // painted grass tufts (v5; was dirt path in ≤v4)
 
 /** Corner-rounding strength for the terrace field (knob, 0..0.4). See the WHY
  *  comment in `sampleTierField`. */
@@ -28,7 +28,7 @@ export interface TerrainGrid {
 }
 
 export interface IslandSpec {
-  version: 4
+  version: 5
   /** Square world bounds: X and Z each span [-worldSize/2, worldSize/2]. */
   worldSize: number
   /** World Y of the water surface. */
@@ -56,8 +56,14 @@ export const DEFAULT_TIER_HEIGHTS = [-1.2, 0.05, 1.0, 1.65, 2.3]
 export const LEGACY_DEFAULT_TIER_HEIGHTS = [-1.2, 0.12, 1.0, 1.65, 2.3]
 
 /** Current spec version. `validateSpecObject` accepts this and older versions and
- *  normalizes (migrates) to it. Single source of truth for the literal. */
-export const CURRENT_SPEC_VERSION = 4
+ *  normalizes (migrates) to it. Single source of truth for the literal.
+ *
+ *  v5 (2026-07-12): surface code 1 now means painted grass (drag-painted tufts,
+ *  rendered by GrassLayer) instead of the removed dirt-path tool. A ≤v4 file's
+ *  path paint encoded a feature that no longer exists, so `validateSpecObject`
+ *  clears surface code 1 back to SURFACE_AUTO on migration — tiers and objects
+ *  are untouched. */
+export const CURRENT_SPEC_VERSION = 5
 
 // ── Grid indexing ────────────────────────────────────────────────────────────
 

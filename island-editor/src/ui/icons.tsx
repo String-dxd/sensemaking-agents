@@ -1,7 +1,7 @@
 import type { FC, ReactNode } from 'react'
 import type { ObjectKind } from '../terrain/terrainGrid'
 
-export type Tool = 'raise' | 'lower' | 'water' | 'path' | 'erase'
+export type Tool = 'raise' | 'lower' | 'water' | 'grass' | 'erase'
 export type BrushSize = 1 | 2 | 3
 
 // Shared stroke-icon attributes (24×24 viewBox; sized to 20px by panel.css).
@@ -35,9 +35,11 @@ export const WaterIcon: FC = () => (
   </svg>
 )
 
-export const PathIcon: FC = () => (
+export const GrassIcon: FC = () => (
   <svg {...svgProps}>
-    <path d="M5 12h14" strokeDasharray="3 4" />
+    <path d="M12 20c0-6-2-10-5-13" />
+    <path d="M12 20V6" />
+    <path d="M12 20c0-6 2-10 5-13" />
   </svg>
 )
 
@@ -156,7 +158,7 @@ export const TOOL_META: Record<Tool, { label: string; Icon: FC }> = {
   raise: { label: 'Raise', Icon: RaiseIcon },
   lower: { label: 'Lower', Icon: LowerIcon },
   water: { label: 'Water', Icon: WaterIcon },
-  path: { label: 'Path', Icon: PathIcon },
+  grass: { label: 'Grass', Icon: GrassIcon },
   erase: { label: 'Erase', Icon: EraseIcon },
 }
 

@@ -16,6 +16,7 @@ import {
   ZOOM_IN_FACTOR,
   ZOOM_OUT_FACTOR,
 } from './scene/cameraOps'
+import { GrassLayer } from './scene/GrassLayer'
 import { IslandTerrain } from './scene/IslandTerrain'
 import { PlaceGhost } from './scene/PlaceGhost'
 import { PlacedObjects } from './scene/PlacedObjects'
@@ -32,7 +33,7 @@ import {
   type ObjectKind,
   type PlacedObject,
   SURFACE_AUTO,
-  SURFACE_PATH,
+  SURFACE_GRASS,
   worldToCell,
 } from './terrain/terrainGrid'
 import { CameraDock } from './ui/CameraDock'
@@ -165,8 +166,8 @@ export function App() {
       case 'water':
         setTier(grid, cells, 0)
         break
-      case 'path':
-        setSurface(grid, cells, SURFACE_PATH)
+      case 'grass':
+        setSurface(grid, cells, SURFACE_GRASS)
         break
       case 'erase':
         setSurface(grid, cells, SURFACE_AUTO)
@@ -416,6 +417,7 @@ export function App() {
         />
         {/* GLB-backed models suspend while their assets stream in. */}
         <Suspense fallback={null}>
+          <GrassLayer key={`${spec.grid.cols}x${spec.grid.rows}`} spec={spec} />
           <PlacedObjects spec={spec} placeMode={placeMode} onRemove={removeObj} />
           {placeKind !== null && <PlaceGhost spec={spec} kind={placeKind} cell={ghostCell} />}
         </Suspense>

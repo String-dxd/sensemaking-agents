@@ -3,11 +3,11 @@ import { applyOps } from '../src/agent/applyOps'
 import type { Op } from '../src/agent/ops'
 import { validateSpecObject } from '../src/editor/specIO'
 import { seedIsland } from '../src/terrain/seed'
-import { cellIndex, createOceanGrid, DEFAULT_TIER_HEIGHTS, type IslandSpec, SURFACE_PATH } from '../src/terrain/terrainGrid'
+import { cellIndex, createOceanGrid, DEFAULT_TIER_HEIGHTS, type IslandSpec, SURFACE_GRASS } from '../src/terrain/terrainGrid'
 
 // A tiny all-ocean v3 spec for isolated op cases.
 function oceanSpec(): IslandSpec {
-  return { version: 4, worldSize: 24, seaLevel: 0, tierHeights: DEFAULT_TIER_HEIGHTS.slice(), grid: createOceanGrid(), objects: [] }
+  return { version: 5, worldSize: 24, seaLevel: 0, tierHeights: DEFAULT_TIER_HEIGHTS.slice(), grid: createOceanGrid(), objects: [] }
 }
 
 describe('applyOps (v3 grid vocabulary)', () => {
@@ -50,10 +50,10 @@ describe('applyOps (v3 grid vocabulary)', () => {
     it('sets the surface code over the rect', () => {
       const spec = oceanSpec()
       const { spec: next, errors } = applyOps(spec, [
-        { op: 'paintRect', c0: 5, r0: 5, c1: 6, r1: 6, surface: SURFACE_PATH },
+        { op: 'paintRect', c0: 5, r0: 5, c1: 6, r1: 6, surface: SURFACE_GRASS },
       ])
       expect(errors).toHaveLength(0)
-      expect(next.grid.surface.filter((s) => s === SURFACE_PATH)).toHaveLength(4)
+      expect(next.grid.surface.filter((s) => s === SURFACE_GRASS)).toHaveLength(4)
     })
   })
 
@@ -94,7 +94,7 @@ describe('applyOps (v3 grid vocabulary)', () => {
       const { spec: next, errors } = applyOps(spec, [
         { op: 'fillRect', c0: 20, r0: 20, c1: 25, r1: 25, tier: 3 },
         { op: 'adjustRect', c0: 22, r0: 22, c1: 23, r1: 23, delta: 1 },
-        { op: 'paintRect', c0: 30, r0: 30, c1: 32, r1: 32, surface: SURFACE_PATH },
+        { op: 'paintRect', c0: 30, r0: 30, c1: 32, r1: 32, surface: SURFACE_GRASS },
       ])
       expect(errors).toHaveLength(0)
       expect(errors.some((e) => e.op === 'validate')).toBe(false)

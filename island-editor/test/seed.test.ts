@@ -6,8 +6,8 @@ describe('seedIsland', () => {
   const spec = seedIsland()
   const { grid } = spec
 
-  it('is a 64×64 v4 spec with an empty objects layer', () => {
-    expect(spec.version).toBe(4)
+  it('is a 64×64 v5 spec with an empty objects layer', () => {
+    expect(spec.version).toBe(5)
     expect(grid.cols).toBe(GRID_COLS)
     expect(grid.rows).toBe(GRID_ROWS)
     expect(grid.tiers).toHaveLength(GRID_COLS * GRID_ROWS)

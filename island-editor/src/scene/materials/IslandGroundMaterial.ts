@@ -133,9 +133,11 @@ void main() {
   float grassF = smoothstep(1.25, 1.75, vTierFlat);
   vec3 flatColor = mix(sand, grass, grassF);
 
-  // Path: dirt-tint lane on flat ground, tier ≥ 1 (applied before lighting).
-  float pathF = smoothstep(0.5, 0.9, vSurface) * smoothstep(0.6, 1.0, vTierFlat);
-  flatColor = mix(flatColor, vec3(0.62, 0.47, 0.30), pathF * 0.7);
+  // Painted grass (surface code 1): tint the ground under the instanced tufts
+  // (GrassLayer) toward the grass tone so patch edges blend instead of sitting
+  // on bare sand. Land only (tier ≥ 1) — paint on water cells stays invisible.
+  float grassPaintF = smoothstep(0.5, 0.9, vSurface) * smoothstep(0.6, 1.0, vTierFlat);
+  flatColor = mix(flatColor, uGrassColor * 0.85, grassPaintF * 0.55);
 
   // ── Walls ──────────────────────────────────────────────────────────────────
   // Cliff texture with a planar UV that follows the wall.

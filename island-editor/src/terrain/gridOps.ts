@@ -3,14 +3,14 @@
 // pre-clone in agent/applyOps.ts and the stroke-start snapshot in App.tsx).
 // NO three/r3f imports.
 
-import { cellIndex, inBounds, MAX_TIER, SURFACE_AUTO, SURFACE_PATH, type TerrainGrid } from './terrainGrid'
+import { cellIndex, inBounds, MAX_TIER, SURFACE_AUTO, SURFACE_GRASS, type TerrainGrid } from './terrainGrid'
 
 function clampTier(t: number): number {
   return t < 0 ? 0 : t > MAX_TIER ? MAX_TIER : t
 }
 
 function clampSurface(s: number): number {
-  return s < SURFACE_AUTO ? SURFACE_AUTO : s > SURFACE_PATH ? SURFACE_PATH : s
+  return s < SURFACE_AUTO ? SURFACE_AUTO : s > SURFACE_GRASS ? SURFACE_GRASS : s
 }
 
 /** In-bounds cell indices of the size×size block centered on (centerC, centerR).

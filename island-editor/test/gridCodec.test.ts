@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { decodeGrid, encodeGrid, type SerializedGrid } from '../src/editor/gridCodec'
-import { createOceanGrid, MAX_TIER, SURFACE_PATH } from '../src/terrain/terrainGrid'
+import { createOceanGrid, MAX_TIER, SURFACE_GRASS } from '../src/terrain/terrainGrid'
 
 function sampleGrid() {
   const grid = createOceanGrid(4, 3)
   grid.tiers[0] = 4
   grid.tiers[5] = 2
-  grid.surface[5] = SURFACE_PATH
+  grid.surface[5] = SURFACE_GRASS
   return grid
 }
 
@@ -53,7 +53,7 @@ describe('gridCodec', () => {
     expect(() => decodeGrid(s)).toThrow(/exceeds max/)
   })
 
-  it('throws when a surface digit exceeds SURFACE_PATH', () => {
+  it('throws when a surface digit exceeds SURFACE_GRASS', () => {
     const s = encoded()
     s.surface[0] = '2000'
     expect(() => decodeGrid(s)).toThrow(/exceeds max/)

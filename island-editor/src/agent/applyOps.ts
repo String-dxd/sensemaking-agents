@@ -1,7 +1,7 @@
 import { validateSpecObject } from '../editor/specIO'
 import { adjustTier, fillRect, setSurface, setTier } from '../terrain/gridOps'
 import { seedIsland } from '../terrain/seed'
-import { type IslandSpec, MAX_TIER, SURFACE_AUTO, SURFACE_PATH, type TerrainGrid } from '../terrain/terrainGrid'
+import { type IslandSpec, MAX_TIER, SURFACE_AUTO, SURFACE_GRASS, type TerrainGrid } from '../terrain/terrainGrid'
 import type { Op, OpError } from './ops'
 
 /** A rect op's coordinate fields, validated as integers in bounds with c0≤c1. */
@@ -56,8 +56,8 @@ function applyOne(spec: IslandSpec, op: Op): IslandSpec {
       return { ...spec, grid }
     }
     case 'paintRect': {
-      if (op.surface !== SURFACE_AUTO && op.surface !== SURFACE_PATH) {
-        throw new Error(`surface must be ${SURFACE_AUTO} or ${SURFACE_PATH}, got ${String(op.surface)}`)
+      if (op.surface !== SURFACE_AUTO && op.surface !== SURFACE_GRASS) {
+        throw new Error(`surface must be ${SURFACE_AUTO} or ${SURFACE_GRASS}, got ${String(op.surface)}`)
       }
       validateRect(spec.grid, op)
       const grid = cloneGrid(spec.grid)
