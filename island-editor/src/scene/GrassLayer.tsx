@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { BLADES_PER_CELL, grassBlades } from '../terrain/grassField'
 import { blurTiers, type IslandSpec, worldPositionOfObject } from '../terrain/terrainGrid'
+import { characterPose } from './characterPose'
 import { createGrassBladeMaterial } from './materials/GrassBladeMaterial'
 
 /** Renders every grass-painted cell as ~BLADES_PER_CELL procedural blade cards
@@ -108,6 +109,16 @@ export function GrassLayer({ spec }: { spec: IslandSpec }) {
   useFrame((state) => {
     if (reduce) return
     material.uniforms.uTime.value = state.clock.elapsedTime
+    // Fade disc follows the LIVE (roaming) character pose (plan 025); the
+    // spec-keyed effect above stays as the fallback for the static case.
+    if (characterPose.active) {
+      ;(material.uniforms.uCharPos.value as THREE.Vector4).set(
+        characterPose.x,
+        characterPose.y,
+        characterPose.z,
+        1,
+      )
+    }
   })
 
   return (

@@ -1,9 +1,9 @@
 import './panel.css'
-import { CHARACTER_CLIPS, type CharacterClip } from '../models/characterAsset'
+import { CHARACTER_CLIPS, type ClipSelection } from '../models/characterAsset'
 import { IconButton } from './icons'
 
 interface AnimationDockProps {
-  clip: CharacterClip
+  clip: ClipSelection
   onPrev: () => void
   onNext: () => void
 }
@@ -31,10 +31,13 @@ function NextIcon() {
  *  animation clip it plays. Sits directly above the hotbar (see
  *  `.animation-dock` in panel.css). */
 export function AnimationDock({ clip, onPrev, onNext }: AnimationDockProps) {
-  const label = clip.replace(/_/g, ' ')
+  // 'Auto' = the plan-025 behavior machine; concrete clips are the manual
+  // override. The cycle is ['auto', ...CHARACTER_CLIPS] (11 entries).
+  const label = clip === 'auto' ? 'Auto' : clip.replace(/_/g, ' ')
   // 1-based position in the cycling order, so the dock also reads as a
-  // progress indicator (e.g. "3 / 10") rather than just a bare name.
-  const position = CHARACTER_CLIPS.indexOf(clip) + 1
+  // progress indicator (e.g. "1 / 11" for Auto) rather than just a bare name.
+  const cycleLength = CHARACTER_CLIPS.length + 1
+  const position = clip === 'auto' ? 1 : CHARACTER_CLIPS.indexOf(clip) + 2
   return (
     <div className="animation-dock">
       <div className="animation-dock__row">
@@ -44,7 +47,7 @@ export function AnimationDock({ clip, onPrev, onNext }: AnimationDockProps) {
         <span className="animation-dock__label">
           {label}
           <span className="animation-dock__index">
-            {position} / {CHARACTER_CLIPS.length}
+            {position} / {cycleLength}
           </span>
         </span>
         <IconButton title="Next animation" onClick={onNext}>

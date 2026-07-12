@@ -22,7 +22,7 @@ import { IslandTerrain } from './scene/IslandTerrain'
 import { PlaceGhost } from './scene/PlaceGhost'
 import { PlacedObjects } from './scene/PlacedObjects'
 import { SeaSurface } from './scene/SeaSurface'
-import { CHARACTER_CLIPS, type CharacterClip, DEFAULT_CLIP } from './models/characterAsset'
+import { CHARACTER_CLIPS, type ClipSelection } from './models/characterAsset'
 import { adjustTierToward, brushCells, isLandTier, setSurface, setTier } from './terrain/gridOps'
 import {
   addObject,
@@ -87,8 +87,10 @@ export function App() {
   const [ghostCell, setGhostCell] = useState<{ c: number; r: number } | null>(null)
 
   // The placed character's animation clip — ephemeral UI state, not part of
-  // the serialized spec (decided out of scope for this plan).
-  const [clip, setClip] = useState<CharacterClip>(DEFAULT_CLIP)
+  // the serialized spec (decided out of scope for this plan). 'auto' (default,
+  // plan 025) hands the clip to the behavior machine; a concrete clip is the
+  // manual override that freezes the chick in place.
+  const [clip, setClip] = useState<ClipSelection>('auto')
 
   // The spec lives in a ref (its grid arrays mutated in place by grid ops) with
   // a tick to trigger recompute — keeps stamp application out of a React
@@ -295,9 +297,11 @@ export function App() {
   const hasCharacter = spec.objects.some((o) => o.kind === 'character')
   const cycleClip = useCallback((dir: 1 | -1) => {
     setClip((cur) => {
-      const i = CHARACTER_CLIPS.indexOf(cur)
-      const next = (i + dir + CHARACTER_CLIPS.length) % CHARACTER_CLIPS.length
-      return CHARACTER_CLIPS[next]
+      // 'auto' (the behavior machine) leads the cycle, then every concrete clip.
+      const cycle: readonly ClipSelection[] = ['auto', ...CHARACTER_CLIPS]
+      const i = cycle.indexOf(cur)
+      const next = (i + dir + cycle.length) % cycle.length
+      return cycle[next]
     })
   }, [])
   const prevClip = useCallback(() => cycleClip(-1), [cycleClip])

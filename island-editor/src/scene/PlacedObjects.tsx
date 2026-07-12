@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
-import type { CharacterClip } from '../models/characterAsset'
+import type { ClipSelection } from '../models/characterAsset'
 import { hashString } from '../models/rand'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { blurTiers, type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
@@ -16,8 +16,8 @@ interface PlacedObjectsProps {
   spec: IslandSpec
   placeMode: boolean
   onRemove: (id: string) => void
-  /** The animation clip the placed character (if any) should play. */
-  clip: CharacterClip
+  /** The dock's clip selection for the placed character ('auto' = behavior machine). */
+  clip: ClipSelection
 }
 
 /** Render every placed object on the terrain. In place mode, a pointer-down on an

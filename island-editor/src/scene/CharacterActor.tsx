@@ -1,11 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAnimations, useGLTF } from '@react-three/drei'
-import type { ThreeEvent } from '@react-three/fiber'
+import { type ThreeEvent, useFrame } from '@react-three/fiber'
 import type * as THREE from 'three'
-import type { CharacterClip } from '../models/characterAsset'
+import type { CharacterClip, ClipSelection } from '../models/characterAsset'
+import {
+  advanceBehavior,
+  type BehaviorEnv,
+  type BehaviorState,
+  behaviorClip,
+  createBehaviorState,
+  sampleShoreDistance,
+  triggerTalk,
+} from '../models/characterBehavior'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
-import { hashString } from '../models/rand'
-import { type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
+import { hashString, mulberry32 } from '../models/rand'
+import { shoreDistanceField } from '../terrain/shoreField'
+import { evaluateHeight, type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
+import { characterPose } from './characterPose'
 
 interface CharacterActorProps {
   spec: IslandSpec
@@ -13,8 +24,12 @@ interface CharacterActorProps {
   blurred: Float32Array
   placeMode: boolean
   onRemove: (id: string) => void
-  clip: CharacterClip
+  clip: ClipSelection
 }
+
+/** How far below the waterline the group sits while swimming — waterline at
+ *  the chick's belly (look knob; the clip is horizontal, no pitch needed). */
+const SWIM_SINK = 0.12
 
 /**
  * The single placed character: a skinned, animated actor. Mirrors
@@ -22,6 +37,12 @@ interface CharacterActorProps {
  * swaps the static bounds-box hover highlight for one with FIXED dims (see
  * below) and adds a drei animation mixer bound to the clip cycler in
  * AnimationDock.
+ *
+ * Plan 025: when the dock selects 'auto' (the default) the pure behavior
+ * machine (characterBehavior.ts) drives position/yaw/clip from useFrame —
+ * wander, wave, sleep/wake, swim with a shore leash, click-to-talk. Picking
+ * a concrete clip freezes the chick where it stands and loops that clip.
+ * Movement is runtime-only: the spec keeps the placed cell as "home".
  */
 export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, clip }: CharacterActorProps) {
   // The scaled wrapper group from useObjectModel's character branch (a
@@ -39,31 +60,124 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
   // groupRef is an ancestor of the actual skinned node, not the node itself.
   const { actions } = useAnimations(animations, groupRef)
 
+  // The behavior env: pure terrain queries + a seeded stream (NO Math.random).
+  // Rebuilt per spec edit — the shore field is the same one the sea shader
+  // derives its foam from, recomputed on the same trigger.
+  const shore = useMemo(() => shoreDistanceField(spec.grid, spec.worldSize), [spec])
+  const env = useMemo<BehaviorEnv>(
+    () => ({
+      heightAt: (x: number, z: number) => evaluateHeight(spec, x, z, blurred),
+      shoreDistanceAt: (x: number, z: number) => sampleShoreDistance(shore, spec.worldSize, x, z),
+      seaLevel: spec.seaLevel,
+      worldSize: spec.worldSize,
+      rand: mulberry32(hashString(o.id) ^ 0x9e3779b9),
+    }),
+    [spec, blurred, shore, o.id],
+  )
+
+  // Home = the placed cell's terrain top (what the spec stores). The behavior
+  // state lives in a ref (per-frame mutation, no re-renders) and RESETS when
+  // the character is re-placed (id or home cell change) — the walk restarts
+  // from home. Terrain edits elsewhere deliberately do not reset it.
+  const home = worldPositionOfObject(spec, o, blurred)
+  const stateRef = useRef<BehaviorState | null>(null)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keyed on id + home cell by design
   useEffect(() => {
-    const action = actions[clip]
+    const { x, z } = worldPositionOfObject(spec, o, blurred)
+    stateRef.current = createBehaviorState(x, z, o.yaw, mulberry32(hashString(o.id)))
+  }, [o.id, o.c, o.r])
+
+  // Mark the live pose inactive when the character is removed so the grass
+  // fade disc falls back to the spec-written uniform (plan 024).
+  useEffect(
+    () => () => {
+      characterPose.active = false
+    },
+    [],
+  )
+
+  // Wind-down under prefers-reduced-motion: no autonomous movement (same
+  // matchMedia-once pattern as GrassLayer).
+  const reduce = useMemo(
+    () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+    [],
+  )
+
+  // The clip actually playing. The phase lives in a ref, so the RESOLVED clip
+  // is mirrored into state from useFrame only when it changes (cheap string
+  // compare) — that drives the existing crossfade effect below.
+  const [resolvedClip, setResolvedClip] = useState<CharacterClip>(clip === 'auto' ? 'Walking' : clip)
+  const resolvedRef = useRef<CharacterClip>(resolvedClip)
+
+  useFrame((_, dt) => {
+    const group = groupRef.current
+    const s = stateRef.current
+    if (!group || !s) return
+
+    if (reduce) {
+      // No movement: pin to home, keep the pose store honest, skip the rest.
+      group.position.set(home.x, home.y, home.z)
+      group.rotation.y = o.yaw
+      characterPose.x = home.x
+      characterPose.y = home.y
+      characterPose.z = home.z
+      characterPose.active = true
+      return
+    }
+
+    // Manual override (concrete dock clip): freeze in place — do not advance;
+    // the position stays wherever the walk left it. 'auto' runs the machine.
+    if (clip === 'auto') advanceBehavior(s, dt, env)
+
+    // Resolve y: land follows the terrain (cliff edges snap — accepted until a
+    // jump clip exists); swimming sits at a fixed draught below the sea line.
+    const ground = env.heightAt(s.x, s.z)
+    const y = s.phase === 'swim' ? spec.seaLevel - SWIM_SINK : ground
+    group.position.set(s.x, y, s.z)
+    group.rotation.y = s.yaw
+
+    // Live pose for the grass fade disc (read in GrassLayer's useFrame).
+    characterPose.x = s.x
+    characterPose.y = y
+    characterPose.z = s.z
+    characterPose.active = true
+
+    const next = clip === 'auto' ? behaviorClip(s.phase) : clip
+    if (next !== resolvedRef.current) {
+      resolvedRef.current = next
+      setResolvedClip(next)
+    }
+  })
+
+  useEffect(() => {
+    const action = actions[resolvedClip]
     if (!action) return
     action.reset().fadeIn(0.25).play()
     return () => {
       action.fadeOut(0.25)
     }
-  }, [actions, clip])
-
-  const { x, y, z } = worldPositionOfObject(spec, o, blurred)
+  }, [actions, resolvedClip])
 
   const [hovered, setHovered] = useState(false)
 
   return (
     <group
       ref={groupRef}
-      position={[x, y, z]}
+      position={[home.x, home.y, home.z]}
       rotation={[0, o.yaw, 0]}
       // Same remove-on-pointer-down-in-place-mode precedence as
       // PlacedObjectMesh: terrain places on pointer-down, so we must
-      // intercept the same event and stopPropagation() to win.
+      // intercept the same event and stopPropagation() to win. Outside place
+      // mode, a pointer-down means "talk to me" (plan 025) — stopPropagation
+      // also keeps the paint tools from painting under the chick.
       onPointerDown={(e: ThreeEvent<PointerEvent>) => {
-        if (!placeMode) return
+        if (placeMode) {
+          e.stopPropagation()
+          onRemove(o.id)
+          return
+        }
         e.stopPropagation()
-        onRemove(o.id)
+        if (stateRef.current) triggerTalk(stateRef.current)
       }}
       onPointerOver={(e: ThreeEvent<PointerEvent>) => {
         if (!placeMode) return

@@ -14,6 +14,8 @@ export const CHARACTER_CLIPS = [
   'Swim_Forward',
 ] as const
 export type CharacterClip = (typeof CHARACTER_CLIPS)[number]
+/** Dock selection: 'auto' = behavior machine drives the clip (plan 025). */
+export type ClipSelection = CharacterClip | 'auto'
 export const DEFAULT_CLIP: CharacterClip = 'Walking'
 /** World height of the placed character. The GLB ships at SOURCE scale
  *  (~1.62 — skinned meshes must not be scale-baked); the renderer divides
