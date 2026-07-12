@@ -28,7 +28,7 @@ const SIZE_BUDGET_KB: Record<(typeof KINDS)[number], number> = { tree: 400, rock
 const TRI_BUDGET: Record<(typeof KINDS)[number], number> = { tree: 40_000, rock: 5_000 }
 
 /** Authored world scale — placement multiplies its own 0.85..1.15 jitter on top. */
-const HEIGHT: Record<(typeof KINDS)[number], number> = { tree: 1.7, rock: 0.3 }
+const HEIGHT: Record<(typeof KINDS)[number], number> = { tree: 1.7, rock: 0.24 }
 
 const docs = new Map<string, Document>()
 

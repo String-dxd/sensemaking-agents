@@ -60,7 +60,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
  * `height` is the authoring contract, in world units: the authored trees this
  * replaces stood 1.45–1.70 tall with a ~1.2–1.45 footprint, and the procedural
  * rock it replaces was small ground clutter (~0.1–0.35 tall). The Meshy rock
- * already exports at 0.75 × 0.30, so its scale factor lands at ~1.
+ * exports at 0.75 × 0.30, so its scale factor lands just under 1.
  *
  * `simplify.error` is a HARD CAP as a fraction of mesh radius, and it binds
  * BEFORE `ratio` — meshoptimizer treats the UV-atlas chart borders of a Meshy
@@ -96,7 +96,7 @@ const ASSETS = {
     out: 'public/models/rock.glb',
     material: 'rock-surface',
     meshNode: 'stone',
-    height: 0.3,
+    height: 0.24,
     // Keeps its atlas: at 2.7k tris there is nothing to decimate, so the seams
     // that block the tree never come up, and a 512² WebP costs ~60 KB for detail
     // (lichen, cracks) that 2.7k vertices could never carry.
