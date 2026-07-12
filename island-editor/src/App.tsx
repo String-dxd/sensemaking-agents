@@ -8,6 +8,7 @@ import { clearSaved, createAutosaver, loadSpec } from './editor/persistence'
 import { loadSpecFromRepo, saveSpecToRepo } from './editor/repoStore'
 import { downloadSpec, importSpecFromFile } from './editor/specIO'
 import { Backdrop } from './scene/Backdrop'
+import { FrameStatsProbe } from './scene/frameStats'
 import {
   DEFAULT_CAMERA,
   dolly,
@@ -49,6 +50,7 @@ import {
 import { AnimationDock } from './ui/AnimationDock'
 import { CameraDock } from './ui/CameraDock'
 import { FileBar } from './ui/FileBar'
+import { StatsHud } from './ui/StatsHud'
 import { ModelPanel } from './ui/ModelPanel'
 import { type BrushSize, type Tool, ToolPanel } from './ui/ToolPanel'
 
@@ -484,6 +486,7 @@ export function App() {
         gl={{ toneMappingExposure: 1.1 }}
       >
         <Backdrop />
+        <FrameStatsProbe />
         <SeaSurface key={`${spec.grid.cols}x${spec.grid.rows}`} spec={spec} />
         <IslandTerrain
           spec={spec}
@@ -557,6 +560,7 @@ export function App() {
         onZoomIn={zoomIn}
         onRecenter={recenter}
       />
+      <StatsHud />
       <FileBar onSave={saveToRepo} onLoad={loadFromRepo} onExport={exportSpec} onImport={openImport} onReset={reset} />
       <ModelPanel placeKind={placeKind} onPick={onPick} />
       {hasCharacter && <AnimationDock clip={clip} onPrev={prevClip} onNext={nextClip} />}

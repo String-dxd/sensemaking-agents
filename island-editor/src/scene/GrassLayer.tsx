@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { BLADES_PER_CELL, grassBlades } from '../terrain/grassField'
-import { blurTiers, type IslandSpec, worldPositionOfObject } from '../terrain/terrainGrid'
+import { BLADES_PER_CELL, fillGrassBlades } from '../terrain/grassField'
+import { blurredForSpec } from '../terrain/specCache'
+import { type IslandSpec, worldPositionOfObject } from '../terrain/terrainGrid'
 import { characterPose } from './characterPose'
 import { createGrassBladeMaterial } from './materials/GrassBladeMaterial'
 
@@ -73,16 +74,23 @@ export function GrassLayer({ spec }: { spec: IslandSpec }) {
   // Refill the instanced attributes on every spec edit (paint/erase/undo all
   // produce a new spec object — same trigger the old per-cell layer used).
   useEffect(() => {
-    const blades = grassBlades(spec)
     const offset = geometry.getAttribute('aOffset') as THREE.InstancedBufferAttribute
     const yawScale = geometry.getAttribute('aYawScale') as THREE.InstancedBufferAttribute
     const shadePhase = geometry.getAttribute('aShadePhase') as THREE.InstancedBufferAttribute
-    blades.forEach((b, i) => {
-      offset.setXYZ(i, b.x, b.y, b.z)
-      yawScale.setXY(i, b.yaw, b.height)
-      shadePhase.setXY(i, b.shade, b.phase)
-    })
-    geometry.instanceCount = blades.length
+    // Fill the instanced attribute arrays DIRECTLY (plan 029): they are
+    // exactly the scatter's SoA layout, so no per-blade objects or copy loop
+    // exist on the paint-drag hot path.
+    const count = fillGrassBlades(
+      spec,
+      {
+        offsets: offset.array as Float32Array,
+        yawScales: yawScale.array as Float32Array,
+        shadePhases: shadePhase.array as Float32Array,
+      },
+      BLADES_PER_CELL,
+      blurredForSpec(spec),
+    )
+    geometry.instanceCount = count
     offset.needsUpdate = true
     yawScale.needsUpdate = true
     shadePhase.needsUpdate = true
@@ -93,7 +101,7 @@ export function GrassLayer({ spec }: { spec: IslandSpec }) {
     const char = spec.objects.find((o) => o.kind === 'character')
     const u = material.uniforms.uCharPos.value as THREE.Vector4
     if (char) {
-      const { x, y, z } = worldPositionOfObject(spec, char, blurTiers(spec.grid))
+      const { x, y, z } = worldPositionOfObject(spec, char, blurredForSpec(spec))
       u.set(x, y, z, 1)
     } else {
       u.set(0, 0, 0, 0)

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { ThreeEvent } from '@react-three/fiber'
 import { buildIslandField, composeGeometry, updateGeometry } from '../terrain/buildIslandGeometry'
-import { blurTiers, sampleTierField, terraceHeight, type IslandSpec, worldToCell } from '../terrain/terrainGrid'
+import { blurredForSpec } from '../terrain/specCache'
+import { sampleTierField, terraceHeight, type IslandSpec, worldToCell } from '../terrain/terrainGrid'
 import { createIslandGroundMaterial } from './materials/IslandGroundMaterial'
 
 const UP = new THREE.Vector3(0, 1, 0)
@@ -84,7 +85,7 @@ export function IslandTerrain({
   useEffect(() => () => material.dispose(), [material])
 
   // Blurred tier field for cursor height sampling (cheap, cached per edit).
-  const blurred = useMemo(() => blurTiers(spec.grid), [spec])
+  const blurred = useMemo(() => blurredForSpec(spec), [spec])
 
   const painting = useRef(false)
   const cursorRef = useRef<THREE.Mesh>(null)
