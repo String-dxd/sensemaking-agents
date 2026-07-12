@@ -173,12 +173,26 @@ belong to the Character Studio suite above — each is independent unless its ow
 | 024 | Island editor: BOTW grass v2 — soft-edged sharp blades, per-blade wind, character bend + fade disc (ref: "All Zelda BOTW grass techniques revealed") | P1 | M | through `74e9392` | DONE (merged to `feat/island-editor-v2` @ 008b505 ff, 2026-07-12; 214 tests; browser pass by reviewer below) |
 | 025 | Island editor: autonomous character — wander/hi/sleep/wake, swim + shore leash, click-to-talk, dock keeps manual override ('Auto' entry) | P1 | L | **024 merged** (GrassLayer uCharPos goes live-tracking; CharacterActor untouched by 024) | DONE (merged to `feat/island-editor-v2` @ 7d465d8 ff, 2026-07-12; 223 tests; wander + "Auto 1/11" dock verified headless; click-to-talk, swim leash, and sleep cycle are machine-tested — real-time human view still worthwhile) |
 
+| 026 | Island editor: click-to-move command (camera-mode click) + stops sleep→wake instead of hi wave | P1 | M | 025 merged | DONE (merged to `feat/island-editor-v2` @ 2fcc200 ff, 2026-07-12; 228 tests; executor also fixed a latent gotoPending-across-talk bug) |
+| 027 | Island editor: swim wake ripples + smooth swim transitions (hysteresis + vertical blend — fixes "patchy" swim restarts) | P1 | S | **026 merged** (shares CharacterActor; mirrors its draught condition into characterPose.swimming) | DONE (merged to `feat/island-editor-v2` @ 4c60fe8 ff, 2026-07-12; 232 tests) |
+| 028 | Island editor: smooth terrain silhouette (C1 smooth-bilinear tier sampling) + sand-only shoreline (uBeachTop cliff gate) | P1 | M | **027 merged** (materials.test.ts overlap) | DONE (merged to `feat/island-editor-v2` @ 85eb7c4 ff, 2026-07-12; 233 tests, zero expectation changes — invariants held) |
+| 029 | Island editor: FPS/resource HUD + edit-path perf (dedupe double shore-BFS, per-spec WeakMap caches, allocation-free grass scatter; zero visual change) | P1 | M | **027 + 028 merged** (CharacterActor/SeaSurface/terrain overlap) | DONE (merged to `feat/island-editor-v2` @ 5a6e5a9, 2026-07-12; 236 tests; grassField determinism tests passed UNMODIFIED — no-visual-change confirmed, and a pixel diff vs the pre-029 frame is empty outside the HUD, the wind-animated grass and the wave foam) |
+
 Post-plan direct work (operator-directed, executed by the advisor inline,
 2026-07-12, commits `77ab254`/`2c4218c`/`74e9392`): gusty rotation-bend grass
 wind (some blades whip near-flat; `uGustBend`), zoom-out grass HIDING
 (supersedes 022's always-visible widen — widen now 8→20 ×2.5, hide 22→32;
 the operator wanted declutter, not permanence), a hotbar Camera orbit tool
 (sticky hold-Space, pan disabled), and the operator's saved island committed.
+
+Post-029 direct work (operator-directed, commit `e80d6ed`): the bird kept the
+swim clip and draught while walking on dry sand — plan 027's water hysteresis
+put WATER_EXIT (seaLevel + 0.07) ABOVE the beach tier's top (0.05), so no sand
+cell could ever clear the exit bar and a beached bird never came ashore. The
+band now brackets the waterline (enter −0.02, exit +0.02), same 0.04 width, so
+the anti-flip-flop guarantee survives; a regression test pins the beached case
+at the exact tier-1 height. Same commit softened 027's swim wake (narrower ring
+crest, falloff out by ~0.85 rather than 1.2 units, mix weight 0.70 → 0.30).
 
 Island-editor dependency notes:
 
