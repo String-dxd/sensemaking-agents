@@ -72,6 +72,10 @@ export function App() {
   const [orbitEnabled, setOrbitEnabled] = useState(true)
   // Hold-Space: drags orbit the camera instead of painting.
   const [cameraMode, setCameraMode] = useState(false)
+  // The hotbar Camera tool is the sticky version of hold-Space: while selected,
+  // plain drags orbit (no pan) and terrain editing is off.
+  const cameraToolActive = tool === 'camera'
+  const orbiting = cameraMode || cameraToolActive
 
   // Object placement: an armed kind (null = not placing). While armed, the
   // terrain reports the hovered cell for the ghost and a click drops an object.
@@ -479,7 +483,7 @@ export function App() {
         <IslandTerrain
           spec={spec}
           brushSize={brushSize}
-          cameraMode={cameraMode}
+          cameraMode={orbiting}
           placeMode={placeMode}
           onPlaceHover={onPlaceHover}
           onPlaceClick={placeObject}
@@ -496,19 +500,23 @@ export function App() {
         <OrbitControls
           ref={setControls}
           makeDefault
-          enabled={orbitEnabled || cameraMode}
+          enabled={orbitEnabled || orbiting}
           // Plain drag = PAN (ground-plane, so the island slides under the camera
-          // without changing altitude); hold-Space (camera mode) ORBITS, so the
-          // left button remaps to ROTATE for the duration of the hold.
+          // without changing altitude); hold-Space or the hotbar Camera tool
+          // ORBITS, so the left button remaps to ROTATE for the duration.
           //
           // Space can't ride along on the pointer event the way the old Cmd
           // gesture did: OrbitControls only flips a PAN drag into a rotate when
           // it sees ctrl/meta/shift on the mousedown (see its _STATE.PAN case).
           // A bare LEFT: PAN would therefore just pan while Space is held.
-          enableRotate={cameraMode}
+          //
+          // The Camera TOOL is orbit-only by request: pan is disabled entirely
+          // (hold-Space keeps right-drag pan, the tool does not).
+          enableRotate={orbiting}
+          enablePan={!cameraToolActive}
           screenSpacePanning={false}
           mouseButtons={{
-            LEFT: cameraMode ? MOUSE.ROTATE : MOUSE.PAN,
+            LEFT: orbiting ? MOUSE.ROTATE : MOUSE.PAN,
             MIDDLE: MOUSE.DOLLY,
             RIGHT: MOUSE.PAN,
           }}

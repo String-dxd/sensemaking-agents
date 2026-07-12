@@ -1,7 +1,7 @@
 import type { FC, ReactNode } from 'react'
 import type { ObjectKind } from '../terrain/terrainGrid'
 
-export type Tool = 'raise' | 'lower' | 'water' | 'grass' | 'erase'
+export type Tool = 'raise' | 'lower' | 'water' | 'grass' | 'erase' | 'camera'
 export type BrushSize = 1 | 2 | 3
 
 // Shared stroke-icon attributes (24×24 viewBox; sized to 20px by panel.css).
@@ -169,12 +169,22 @@ export const BrushIcon: FC<{ size: BrushSize }> = ({ size }) => {
   )
 }
 
+// Orbit-camera tool: an eye ringed by an orbit path (drag = rotate, no pan).
+export const CameraOrbitIcon: FC = () => (
+  <svg {...svgProps}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M20.2 9.2c1 3.4-2 7.4-6.9 8.8-4.9 1.5-9.7-.1-10.7-3.5" />
+    <path d="M3.8 14.8c-1-3.4 2-7.4 6.9-8.8 4.9-1.5 9.7.1 10.7 3.5" />
+  </svg>
+)
+
 export const TOOL_META: Record<Tool, { label: string; Icon: FC }> = {
   raise: { label: 'Raise', Icon: RaiseIcon },
   lower: { label: 'Lower', Icon: LowerIcon },
   water: { label: 'Water', Icon: WaterIcon },
   grass: { label: 'Grass', Icon: GrassIcon },
   erase: { label: 'Erase', Icon: EraseIcon },
+  camera: { label: 'Camera', Icon: CameraOrbitIcon },
 }
 
 // ── Model panel object silhouettes ─────────────────────────────────────────────

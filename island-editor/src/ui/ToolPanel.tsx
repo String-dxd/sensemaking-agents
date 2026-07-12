@@ -3,7 +3,7 @@ import { type BrushSize, BrushIcon, IconButton, RedoIcon, type Tool, TOOL_META, 
 
 export type { BrushSize, Tool } from './icons'
 
-const TOOLS: Tool[] = ['raise', 'lower', 'water', 'grass', 'erase']
+const TOOLS: Tool[] = ['raise', 'lower', 'water', 'grass', 'erase', 'camera']
 const SIZES: BrushSize[] = [1, 2, 3]
 
 const TOOL_HINTS: Record<Tool, string> = {
@@ -12,6 +12,7 @@ const TOOL_HINTS: Record<Tool, string> = {
   water: 'Carve cells down to the ocean floor — water flows in.',
   grass: 'Click-drag to plant grass on land.',
   erase: 'Erase painted grass back to bare ground.',
+  camera: 'Drag to orbit the camera (no pan). Pick another tool to edit again.',
 }
 
 interface ToolPanelProps {
