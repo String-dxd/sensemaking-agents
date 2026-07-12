@@ -49,6 +49,35 @@ describe('grassField — grassBlades', () => {
     }
   })
 
+  it('clips blades that spill onto a terrace wall', () => {
+    const grid = createOceanGrid()
+    const c = 32
+    const r = 32
+    // 3×3 tier-2 neighborhood EXCEPT the entire c+1 column, which stays a
+    // tier LOWER (1, still land) — the painted center cell now borders a
+    // terrace wall, so scatter spilling east lands on the cliff face (above
+    // sea level, so the sea clip alone would keep it) and must be clipped.
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        grid.tiers[cellIndex(grid, c + dc, r + dr)] = dc === 1 ? 1 : 2
+      }
+    }
+    grid.surface[cellIndex(grid, c, r)] = SURFACE_GRASS
+    const spec = specFrom(grid)
+    const blades = grassBlades(spec)
+
+    // Some blades survive, some spilled ones got cliff-clipped.
+    expect(blades.length).toBeGreaterThan(0)
+    expect(blades.length).toBeLessThan(BLADES_PER_CELL)
+
+    // Every survivor stands on the painted cell's own plateau.
+    const center = cellCenter(WORLD, grid, c, r)
+    const yCell = evaluateHeight(spec, center.x, center.z)
+    for (const b of blades) {
+      expect(Math.abs(b.y - yCell)).toBeLessThanOrEqual(0.05)
+    }
+  })
+
   it('emits nothing for a grass-painted WATER cell', () => {
     const grid = createOceanGrid()
     grid.surface[cellIndex(grid, 10, 10)] = SURFACE_GRASS
@@ -72,7 +101,14 @@ describe('grassField — grassBlades', () => {
 
   it("every blade's y is the terrain height at the blade's own x/z, above sea level", () => {
     const grid = createOceanGrid()
-    grid.tiers[cellIndex(grid, 32, 32)] = 3
+    // 3×3 raised neighborhood (see above): an ISOLATED raised cell is a spike,
+    // not a plateau — its blurred height falls off inside the cell, so the
+    // plan-021 cliff clip would (correctly) reject every blade.
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        grid.tiers[cellIndex(grid, 32 + dc, 32 + dr)] = 3
+      }
+    }
     grid.surface[cellIndex(grid, 32, 32)] = SURFACE_GRASS
     const spec = specFrom(grid)
     const blades = grassBlades(spec)

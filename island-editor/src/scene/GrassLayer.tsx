@@ -18,7 +18,10 @@ import { createGrassBladeMaterial } from './materials/GrassBladeMaterial'
 // One tapered blade card: 5 vertices / 3 triangles, base at y=0, unit height,
 // uv.y = height fraction (0 base → 1 tip; the shader bends by uv.y²). Shared
 // module-level template — each mount's InstancedBufferGeometry copies it.
-const BLADE_W = 0.045
+// Width retuned 0.045 → 0.018 per maintainer feedback (plan 021): at blade
+// heights of 0.10–0.24 the old width read as leek stalks, not grass. The
+// mid-vertex taper (±BLADE_W/3) scales with it.
+const BLADE_W = 0.018
 function bladeCard(): THREE.BufferGeometry {
   const geo = new THREE.BufferGeometry()
   // prettier-ignore
