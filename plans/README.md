@@ -194,6 +194,21 @@ the anti-flip-flop guarantee survives; a regression test pins the beached case
 at the exact tier-1 height. Same commit softened 027's swim wake (narrower ring
 crest, falloff out by ~0.85 rather than 1.2 units, mix weight 0.70 → 0.30).
 
+Further post-029 direct work (not previously logged here): commit `eea909ad`
+raised the hotbar tooltips above the animation dock (z-order); commit `0e4122b6`
+made stops an IDLE (stand + breathe) with only an occasional nap (`NAP_CHANCE`
+0.25) instead of plan 026's every-stop sleep, and guaranteed a swim always ends
+on land (no idle/nap at sea). Latest fix (this change): a SWIMMING bird sat at a
+fixed draught `seaLevel − SWIM_SINK` (−0.12) that ignored the seabed, so on the
+approach to shore its body was buried up to ~0.14 u (a quarter of the chick)
+inside the rising beach until the swim→walk exit fired (ground > seaLevel +
+0.02) — "swimming into the island." The draught is now clamped to the ground
+beneath it (`bodyTargetY` in characterBehavior.ts), so the bird rides up the
+sand instead of through it and the swim→walk hand-off is vertically continuous;
+a unit test pins the never-below-ground invariant. Verified headlessly against
+the saved island: every one of 12 shore approaches buried the body 0.11–0.14 u
+before, 0.000 u after.
+
 Island-editor dependency notes:
 
 - **Recommended order: 014 → 015 → 016 → 017.** 014 and 016 both edit

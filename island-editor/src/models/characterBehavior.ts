@@ -309,8 +309,9 @@ export const IDLE_POSE_CLIP: CharacterClip = 'Wave_for_Help_2'
 export const IDLE_POSE_AT_END = false
 
 /** The clip each phase plays (dock 'auto' mode). goto is water-aware: it
- *  swims when the footing is wet, walks ashore. The swim-DRAUGHT decision
- *  stays out of here (the actor uses `s.wet || s.phase === 'swim'` for y).
+ *  swims when the footing is wet, walks ashore. The swim-DRAUGHT *depth* is an
+ *  actor constant (SWIM_SINK); this module only owns where that draught lands —
+ *  see `bodyTargetY`.
  *  NOTE 'idle' returns a clip it does NOT play: the actor freezes it on one
  *  frame (see IDLE_POSE_CLIP). That decision keys off the PHASE, never off the
  *  clip name — the same clip chosen from the dock still animates. */
@@ -331,4 +332,17 @@ export function behaviorClip(s: Pick<BehaviorState, 'phase' | 'wet'>): Character
     case 'talk':
       return 'Talk_Passionately'
   }
+}
+
+/** Where the body sits vertically this frame (the actor blends toward this at
+ *  10/s — plan 027). Ashore it follows the ground. While swimming it rides at a
+ *  fixed draught (`swimSink`) below the waterline — but CLAMPED so it is never
+ *  below the seabed/beach beneath it. Without the clamp a bird coming ashore
+ *  keeps the flat draught until the swim→walk exit fires (ground > seaLevel +
+ *  WATER_EXIT), which on a steep shore leaves its body buried up to
+ *  swimSink+WATER_EXIT (~0.14 u, a quarter of the chick) inside the island —
+ *  the "swimming into the island" bug. Clamped, it rides up the sand instead,
+ *  and the swim→walk hand-off is continuous (no vertical pop to smooth). */
+export function bodyTargetY(swimming: boolean, seaLevel: number, swimSink: number, ground: number): number {
+  return swimming ? Math.max(seaLevel - swimSink, ground) : ground
 }

@@ -4,6 +4,7 @@ import {
   type BehaviorEnv,
   type BehaviorState,
   behaviorClip,
+  bodyTargetY,
   commandMoveTo,
   createBehaviorState,
   MAX_SWIM_DIST,
@@ -300,6 +301,32 @@ describe('water hysteresis (plan 027)', () => {
     advanceBehavior(s, 0.1, env)
     expect(s.phase).toBe('walk')
     expect(s.wet).toBe(false) // no swim clip, no swim draught on the sand
+  })
+})
+
+describe('bodyTargetY (swim draught never sinks into the island)', () => {
+  const SEA = 0
+  const SINK = 0.12 // CharacterActor.SWIM_SINK
+
+  it('ashore, the body follows the ground exactly', () => {
+    expect(bodyTargetY(false, SEA, SINK, 0.5)).toBe(0.5)
+    expect(bodyTargetY(false, SEA, SINK, 1.0)).toBe(1.0)
+  })
+
+  it('over deep water, the body rides at the fixed draught below the waterline', () => {
+    expect(bodyTargetY(true, SEA, SINK, -1.2)).toBeCloseTo(SEA - SINK, 9)
+    expect(bodyTargetY(true, SEA, SINK, -0.5)).toBeCloseTo(SEA - SINK, 9)
+  })
+
+  it('coming ashore, the body rides UP the seabed instead of burying in it', () => {
+    // Beach top (tier 1 = 0.05) is above the -0.12 draught: the swimming body
+    // sits ON the sand, never inside it. This is the "swim into the island" fix.
+    expect(bodyTargetY(true, SEA, SINK, 0.05)).toBe(0.05)
+    // Invariant: a swimming body is NEVER below the terrain beneath it, at any
+    // seabed height it can cross before the swim→walk exit fires.
+    for (const ground of [-1.2, -0.5, -0.12, -0.05, 0, 0.02, 0.05]) {
+      expect(bodyTargetY(true, SEA, SINK, ground)).toBeGreaterThanOrEqual(ground - 1e-9)
+    }
   })
 })
 

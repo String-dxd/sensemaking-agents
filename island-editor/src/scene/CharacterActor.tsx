@@ -8,6 +8,7 @@ import {
   type BehaviorEnv,
   type BehaviorState,
   behaviorClip,
+  bodyTargetY,
   IDLE_POSE_AT_END,
   commandMoveTo,
   createBehaviorState,
@@ -164,12 +165,14 @@ export function CharacterActor({ spec, object: o, blurred, placeMode, onRemove, 
     if (clip === 'auto') advanceBehavior(s, dt, env)
 
     // Resolve y: land follows the terrain (cliff edges snap — accepted until a
-    // jump clip exists); swimming (incl. a wet goto) sits at a fixed draught.
+    // jump clip exists); swimming (incl. a wet goto) sits at a fixed draught,
+    // but never below the seabed/beach so the bird rides up the sand coming
+    // ashore instead of swimming buried in the island (see bodyTargetY).
     // The ground↔draught switch is BLENDED at 10/s (plan 027) so entering or
     // leaving the water never pops the body vertically.
     const swimming = s.phase === 'swim' || (s.phase === 'goto' && s.wet)
     const ground = env.heightAt(s.x, s.z)
-    const targetY = swimming ? spec.seaLevel - SWIM_SINK : ground
+    const targetY = bodyTargetY(swimming, spec.seaLevel, SWIM_SINK, ground)
     smoothY.current =
       smoothY.current === null ? targetY : smoothY.current + (targetY - smoothY.current) * Math.min(1, 10 * dt)
     // Breathing bob: the idle pose is a frozen frame, so this slow rise-and-fall
