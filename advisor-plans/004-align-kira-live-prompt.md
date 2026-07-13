@@ -1,5 +1,14 @@
 # Plan 004: Align the live voice prompt with the Kira spec (Singlish, readback, coaching)
 
+> ⚠️ **STALE — DO NOT EXECUTE AS WRITTEN (flagged 2026-07-13).** This plan was
+> built on the spec's *original draft* prompt design, which centers an explicit
+> `[readback]` closing move. The canonical spec now in-repo
+> (`advisor-plans/context/myworld-demo-transcripts.md`, `# Prompt Design v2`)
+> **bans** readback/summary framing, mandates 5–20-word turns, and forbids
+> "fair?"-style closers. The plan needs a rewrite against Prompt Design v2
+> before execution. Its "Current state" analysis (which prompt file governs
+> which mode) remains accurate and reusable.
+
 > **Executor instructions**: Follow step by step; verify each step. Honor STOP
 > conditions. Update this plan's row in `advisor-plans/README.md` when done.
 >
