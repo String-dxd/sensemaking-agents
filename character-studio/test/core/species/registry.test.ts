@@ -74,6 +74,22 @@ describe('species registry', () => {
     )
   })
 
+  it('each bird species selects its dedicated wing silhouette', () => {
+    const expected = {
+      robin: 'wing-robin',
+      owl: 'wing-owl',
+      duckling: 'wing-duck',
+      eagle: 'wing-eagle',
+      penguin: 'wing-flipper',
+      chicken: 'wing-chicken',
+      peacock: 'wing-peacock',
+      bowerbird: 'wing-bowerbird',
+    } as const
+    for (const [species, wing] of Object.entries(expected)) {
+      expect(SPECIES_REGISTRY[species as keyof typeof expected].parts.wings?.partId).toBe(wing)
+    }
+  })
+
   it('every species patternId resolves to a registered pattern with a baked mask for its archetype (plans 010/011/020)', () => {
     const withPattern = SPECIES_IDS.filter((id) => (SPECIES_REGISTRY[id] as SpeciesDef).patternId)
     // plan 020: bowerbird is intentionally pattern-less (uniform gloss, palette-only read)

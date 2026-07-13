@@ -258,6 +258,8 @@ def export_glb(path: str, objects: list[bpy.types.Object]) -> None:
         export_def_bones=False,
         export_lights=False,
         export_cameras=False,
+        export_vertex_color="ACTIVE",
+        export_all_vertex_colors=False,
     )
     props = bpy.ops.export_scene.gltf.get_rna_type().properties.keys()
     bpy.ops.export_scene.gltf(**{k: v for k, v in kwargs.items() if k in props})

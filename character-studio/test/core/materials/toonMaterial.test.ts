@@ -107,7 +107,7 @@ describe('shader injection', () => {
     const material = createToonMaterial(BASE_ASSIGN, PALETTE)
     injectToonShader(shader, material.userData.toonUniforms)
     expect(shader.fragmentShader).not.toContain('#include <lights_toon_pars_fragment>')
-    for (const name of ['uWrap', 'uSoftness', 'uRimStrength', 'uTerminatorWarmth', 'uShadowTint']) {
+    for (const name of ['uWrap', 'uSoftness', 'uRimStrength', 'uTerminatorWarmth', 'uShadowTint', 'uGrainStrength']) {
       expect(shader.fragmentShader).toContain(name)
       expect(shader.uniforms).toHaveProperty(name)
     }
@@ -126,6 +126,7 @@ describe('shader injection', () => {
     expect(shader.vertexShader).toContain('#include <begin_vertex>')
     expect(shader.vertexShader).toContain('#include <common>')
     expect(shader.vertexShader).toContain('USE_PALETTE_VERTEX')
+    expect(shader.vertexShader).toContain('vGrainPosition = transformed')
   })
 
   it('adds the vertex-channel palette branch to the fragment shader', () => {
@@ -133,6 +134,17 @@ describe('shader injection', () => {
     injectToonShader(shader, createToonMaterial(BASE_ASSIGN, PALETTE).userData.toonUniforms)
     expect(shader.fragmentShader).toContain('USE_PALETTE_VERTEX')
     expect(shader.fragmentShader).toContain('vPaletteChannels')
+  })
+
+  it('adds stable object-space micro-grain without touching map UV transforms', () => {
+    const shader = freshShader()
+    const material = createToonMaterial(BASE_ASSIGN, PALETTE, { grainStrength: 0.055 })
+    injectToonShader(shader, material.userData.toonUniforms)
+    expect(shader.fragmentShader).toContain('toonGrainHash')
+    expect(shader.fragmentShader).toContain('vGrainPosition')
+    expect(material.userData.toonUniforms.uGrainStrength.value).toBeCloseTo(0.055)
+    expect(material.map?.offset.toArray()).toEqual([0, 0])
+    expect(material.map?.repeat.toArray()).toEqual([1, 1])
   })
 })
 

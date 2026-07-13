@@ -74,6 +74,7 @@ export interface ToonUniforms {
   uPaletteColors: { value: THREE.Color[] }
   uMaskMap: { value: THREE.Texture | null }
   uFaceMap: { value: THREE.Texture | null }
+  uGrainStrength: { value: number }
 }
 
 export interface ToonMaterialData {
@@ -99,6 +100,8 @@ export interface ToonMaterialOptions {
   /** Palette weights from the geometry's `paletteChannels` vec4 attribute
    * (procedural meshes). Overrides the mask-texture path. */
   vertexChannels?: boolean
+  /** Stable object-space plumage grain. Zero disables it. */
+  grainStrength?: number
 }
 
 // --- GLSL injection ----------------------------------------------------------
@@ -141,6 +144,11 @@ void RE_IndirectDiffuse_Toon( const in vec3 irradiance, const in vec3 geometryPo
 
 const MASK_PARS = /* glsl */ `
 #include <map_pars_fragment>
+varying vec3 vGrainPosition;
+uniform float uGrainStrength;
+float toonGrainHash( vec3 cell ) {
+	return fract( sin( dot( cell, vec3( 12.9898, 78.233, 37.719 ) ) ) * 43758.5453 );
+}
 #ifdef USE_PALETTE_MASK
 	uniform sampler2D uMaskMap;
 #endif
@@ -173,6 +181,9 @@ const MASK_FRAGMENT = /* glsl */ `
 		+ paletteMask.b * uPaletteColors[ 2 ]
 		+ paletteMask.a * uPaletteColors[ 3 ];
 #endif
+	float fineGrain = toonGrainHash( floor( vGrainPosition * 420.0 ) ) - 0.5;
+	float softGrain = toonGrainHash( floor( vGrainPosition * 145.0 ) + 19.0 ) - 0.5;
+	diffuseColor.rgb *= 1.0 + uGrainStrength * ( fineGrain * 0.72 + softGrain * 0.28 );
 `
 
 // Vertex-side plumbing for USE_PALETTE_VERTEX: declare the attribute/varying
@@ -180,6 +191,7 @@ const MASK_FRAGMENT = /* glsl */ `
 // the define is on — the skinning/morph-target chunks stay byte-identical.
 const PALETTE_VERTEX_PARS = /* glsl */ `
 #include <common>
+varying vec3 vGrainPosition;
 #ifdef USE_PALETTE_VERTEX
 	attribute vec4 paletteChannels;
 	varying vec4 vPaletteChannels;
@@ -188,6 +200,7 @@ const PALETTE_VERTEX_PARS = /* glsl */ `
 
 const PALETTE_VERTEX_MAIN = /* glsl */ `
 #include <begin_vertex>
+vGrainPosition = transformed;
 #ifdef USE_PALETTE_VERTEX
 	vPaletteChannels = paletteChannels;
 #endif
@@ -273,6 +286,7 @@ export function createToonMaterial(assign: MaterialAssign, palette: Palette, opt
     uPaletteColors: { value: resolvePalette(palette) },
     uMaskMap: { value: textures.maskMap },
     uFaceMap: { value: null },
+    uGrainStrength: { value: opts.grainStrength ?? 0 },
   }
 
   const material = new THREE.MeshToonMaterial() as ToonMaterial

@@ -58,4 +58,27 @@ describe('procedural companion export', () => {
     })
     expect(finite).toBe(true)
   }, 60_000)
+
+  it('preserves paletteChannels as VEC4 COLOR_0 only on source meshes that carry them', async () => {
+    const gltf = await parseGlbHeadless<{ scene: THREE.Object3D }>(
+      glb,
+      new GLTFLoader() as never,
+      MeshoptDecoder,
+    )
+    let coloredMeshes = 0
+    gltf.scene.traverse((object) => {
+      const mesh = object as THREE.Mesh
+      if (!mesh.isMesh) return
+      const color = mesh.geometry.getAttribute('color')
+      if (color) {
+        coloredMeshes++
+        expect(color.itemSize, mesh.name).toBe(4)
+      }
+    })
+    expect(coloredMeshes).toBeGreaterThan(0)
+    for (const faceName of ['eyeWhiteL', 'eyeWhiteR', 'pupilL', 'pupilR', 'browL', 'browR', 'mouth']) {
+      const face = gltf.scene.getObjectByName(faceName) as THREE.Mesh | undefined
+      expect(face?.geometry.hasAttribute('color'), faceName).toBe(false)
+    }
+  }, 60_000)
 })

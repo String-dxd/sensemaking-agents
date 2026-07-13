@@ -105,6 +105,24 @@ function WardrobeItemLoader({
   return null
 }
 
+function AnatomyPartLoader({
+  urls,
+  onScenes,
+}: {
+  urls: string[]
+  onScenes: (scenes: Record<string, THREE.Object3D>) => void
+}) {
+  const loaded = useGLTF(urls)
+  useEffect(() => {
+    const scenes: Record<string, THREE.Object3D> = {}
+    loaded.forEach((gltf, index) => {
+      scenes[urls[index]] = gltf.scene
+    })
+    onScenes(scenes)
+  }, [loaded, urls, onScenes])
+  return null
+}
+
 export function CharacterRoot() {
   const archetype = useCharacterStore((s) => s.spec.meta.archetype)
   const speciesId = useCharacterStore((s) => s.spec.meta.species)
@@ -141,22 +159,31 @@ export function CharacterRoot() {
 
   const body = BODY_REGISTRY[archetype]
 
-  // Body + anatomy parts are procedural (plan 013): memoized `def.source.build()`
-  // per structural key (archetype / part-id). Wardrobe items stay GLB until
-  // plan 016 and load through the inner <WardrobeItemLoader> below.
+  // Bodies and legacy anatomy parts remain procedural. Authored anatomy parts
+  // and wardrobe items load as GLBs, keyed by URL so stale species assets can
+  // never occupy the same slot after a selection change.
   const bodyScene = useMemo(() => {
     if (body.source?.kind !== 'procedural') throw new Error(`CharacterRoot: body "${archetype}" has no procedural source`)
     return buildBodyScene(archetype, speciesId)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [archetype, speciesId])
+  const glbPartUrls = useMemo(
+    () => equipped.flatMap(({ def }) => (def.source?.kind === 'glb' ? [def.source.url] : [])),
+    [equipped],
+  )
+  const [loadedPartScenes, setLoadedPartScenes] = useState<Record<string, THREE.Object3D>>({})
   const partScenes = useMemo(() => {
     const scenes: Partial<Record<PartSlot, THREE.Object3D>> = {}
     for (const { slot, def } of equipped) {
       if (def.source?.kind === 'procedural') scenes[slot] = def.source.build()
+      else if (def.source?.kind === 'glb') {
+        const loadedScene = loadedPartScenes[def.source.url]
+        if (loadedScene) scenes[slot] = loadedScene
+      }
     }
     return scenes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partIdKey])
+  }, [partIdKey, loadedPartScenes])
   const itemUrls = useMemo(() => wornResolved.map((i) => i.def.url), [wornResolved])
   const itemIds = useMemo(() => wornResolved.map((i) => i.itemId), [wornResolved])
   const [itemScenes, setItemScenes] = useState<Record<string, THREE.Object3D>>({})
@@ -477,6 +504,7 @@ export function CharacterRoot() {
     // scene objects (advisor plan 002): it draws into the body material's
     // head UVs, so it follows morphs/sculpt/bone scales for free.
     <Fragment>
+      {glbPartUrls.length > 0 && <AnatomyPartLoader urls={glbPartUrls} onScenes={setLoadedPartScenes} />}
       {itemUrls.length > 0 && <WardrobeItemLoader urls={itemUrls} itemIds={itemIds} onScenes={setItemScenes} />}
       <Fragment key={assembled.root.uuid}>
         <primitive object={assembled.root} />

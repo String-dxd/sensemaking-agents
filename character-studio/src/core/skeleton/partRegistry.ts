@@ -51,6 +51,13 @@ export interface PartDef {
   /** Morph target (shape key) names this part exposes as sliders. */
   morphs: readonly string[]
   /**
+   * Opt-in authored-GLB contract: treat glTF `COLOR_0` as RGBA palette-mask
+   * weights and expose it to the toon shader as `paletteChannels`. GLTFLoader
+   * names `COLOR_0` `color`; arbitrary GLBs must never be reinterpreted this
+   * way unless their registry entry explicitly enables the contract.
+   */
+  paletteFromVertexColor?: boolean
+  /**
    * If set, the spring chains covering this part's bones get these joint
    * params (floppy ears springier than upright ones). Skinned parts only.
    */
@@ -95,6 +102,7 @@ const spring = (
 
 const partUrl = (file: string) => new URL(`../../assets/anatomy/parts/${file}`, import.meta.url).href
 const maskUrl = (file: string) => new URL(`../../assets/anatomy/textures/${file}`, import.meta.url).href
+const authoredWingUrl = (file: string) => `${partUrl(file)}?placement=3`
 
 export const PART_REGISTRY = {
   // --- ears (skinned to the ear chains) ----------------------------------
@@ -360,24 +368,58 @@ export const PART_REGISTRY = {
   'wing-eagle': {
     slot: 'wings',
     label: 'Eagle wing',
-    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 023)
-    source: { kind: 'procedural', build: () => buildProceduralPart('wing-eagle') },
+    url: authoredWingUrl('wing-eagle-authored.glb'),
+    source: { kind: 'glb', url: authoredWingUrl('wing-eagle-authored.glb') },
     maskUrl: null,
     region: 'tail',
     classes: ['bird'],
     skinnedTo: WING_BONES,
-    morphs: ['length', 'width'],
+    morphs: [],
+    paletteFromVertexColor: true,
+    meshVersion: 3,
   },
   'wing-flipper': {
     slot: 'wings',
     label: 'Penguin flipper',
-    url: partUrl('tail-feather-fan.glb'), // placeholder; procedural source is authoritative (plan 023)
-    source: { kind: 'procedural', build: () => buildProceduralPart('wing-flipper') },
+    url: authoredWingUrl('wing-penguin-authored.glb'),
+    source: { kind: 'glb', url: authoredWingUrl('wing-penguin-authored.glb') },
     maskUrl: null,
     region: 'tail',
     classes: ['bird'],
     skinnedTo: WING_BONES,
-    morphs: ['length', 'width'],
+    morphs: [],
+    paletteFromVertexColor: true,
+    meshVersion: 3,
+  },
+  'wing-robin': {
+    slot: 'wings', label: 'Robin wing', url: authoredWingUrl('wing-robin-authored.glb'),
+    source: { kind: 'glb', url: authoredWingUrl('wing-robin-authored.glb') }, maskUrl: null,
+    region: 'tail', classes: ['bird'], skinnedTo: WING_BONES, morphs: [], paletteFromVertexColor: true, meshVersion: 3,
+  },
+  'wing-owl': {
+    slot: 'wings', label: 'Owl wing', url: authoredWingUrl('wing-owl-authored.glb'),
+    source: { kind: 'glb', url: authoredWingUrl('wing-owl-authored.glb') }, maskUrl: null,
+    region: 'tail', classes: ['bird'], skinnedTo: WING_BONES, morphs: [], paletteFromVertexColor: true, meshVersion: 3,
+  },
+  'wing-duck': {
+    slot: 'wings', label: 'Duck wing', url: authoredWingUrl('wing-duck-authored.glb'),
+    source: { kind: 'glb', url: authoredWingUrl('wing-duck-authored.glb') }, maskUrl: null,
+    region: 'tail', classes: ['bird'], skinnedTo: WING_BONES, morphs: [], paletteFromVertexColor: true, meshVersion: 3,
+  },
+  'wing-chicken': {
+    slot: 'wings', label: 'Chicken wing', url: authoredWingUrl('wing-chicken-authored.glb'),
+    source: { kind: 'glb', url: authoredWingUrl('wing-chicken-authored.glb') }, maskUrl: null,
+    region: 'tail', classes: ['bird'], skinnedTo: WING_BONES, morphs: [], paletteFromVertexColor: true, meshVersion: 3,
+  },
+  'wing-peacock': {
+    slot: 'wings', label: 'Peacock wing', url: authoredWingUrl('wing-peacock-authored.glb'),
+    source: { kind: 'glb', url: authoredWingUrl('wing-peacock-authored.glb') }, maskUrl: null,
+    region: 'tail', classes: ['bird'], skinnedTo: WING_BONES, morphs: [], paletteFromVertexColor: true, meshVersion: 3,
+  },
+  'wing-bowerbird': {
+    slot: 'wings', label: 'Bowerbird wing', url: authoredWingUrl('wing-bowerbird-authored.glb'),
+    source: { kind: 'glb', url: authoredWingUrl('wing-bowerbird-authored.glb') }, maskUrl: null,
+    region: 'tail', classes: ['bird'], skinnedTo: WING_BONES, morphs: [], paletteFromVertexColor: true, meshVersion: 3,
   },
 
   // --- claws (rigid on hand/foot bones) -----------------------------------

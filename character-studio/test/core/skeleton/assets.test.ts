@@ -80,7 +80,7 @@ describe('procedural archetype bodies', () => {
 })
 
 describe('procedural anatomy parts', () => {
-  const authored = PART_IDS.filter((id) => PART_REGISTRY[id].url !== null)
+  const authored = PART_IDS.filter((id) => (PART_REGISTRY[id] as PartDef).source?.kind === 'procedural')
 
   it.each(authored)('%s attachment structure matches its registry entry', (id) => {
     const def: PartDef = PART_REGISTRY[id]

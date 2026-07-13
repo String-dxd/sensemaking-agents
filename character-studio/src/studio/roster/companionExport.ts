@@ -46,8 +46,9 @@ export async function loadBrowserAssets(spec: CharacterSpec): Promise<CompileAss
     if (!entry) continue
     const def = getPart(entry.partId)
     if (!def || def.url === null) continue
-    if (def.source?.kind !== 'procedural') throw new Error(`export: part "${entry.partId}" has no procedural source`)
-    partScenes[slot as PartSlot] = def.source.build()
+    if (def.source?.kind === 'procedural') partScenes[slot as PartSlot] = def.source.build()
+    else if (def.source?.kind === 'glb') partScenes[slot as PartSlot] = (await loader.loadAsync(def.source.url)).scene
+    else throw new Error(`export: part "${entry.partId}" has no asset source`)
     if (def.maskUrl && !maskPngsByRegion[def.region]) {
       await fetchBytes(def.maskUrl)
         .then((b) => {

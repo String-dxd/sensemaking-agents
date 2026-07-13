@@ -158,6 +158,8 @@ export interface BuildSkeletonOptions {
    * moves its whole subtree, which is exactly how limb lengths shorten.
    */
   offsetScales?: Partial<Record<BoneName, readonly [number, number, number]>>
+  /** Archetype-specific LOCAL rest offsets, before uniform scaling. */
+  offsetOverrides?: Partial<Record<BoneName, readonly [number, number, number]>>
   /** Uniform multiplier applied to every local offset (overall height). */
   uniformScale?: number
 }
@@ -168,7 +170,7 @@ export interface BuildSkeletonOptions {
  * over it, and a name lookup. World matrices are up to date on return.
  */
 export function buildSkeleton(options: BuildSkeletonOptions = {}): BuiltSkeleton {
-  const { offsetScales = {}, uniformScale = 1 } = options
+  const { offsetScales = {}, offsetOverrides = {}, uniformScale = 1 } = options
   const boneByName = new Map<BoneName, Bone>()
   const bones: Bone[] = []
 
@@ -176,10 +178,11 @@ export function buildSkeleton(options: BuildSkeletonOptions = {}): BuiltSkeleton
     const bone = new Bone()
     bone.name = def.name
     const scale = offsetScales[def.name]
+    const offset = offsetOverrides[def.name] ?? def.position
     bone.position.set(
-      def.position[0] * (scale?.[0] ?? 1) * uniformScale,
-      def.position[1] * (scale?.[1] ?? 1) * uniformScale,
-      def.position[2] * (scale?.[2] ?? 1) * uniformScale,
+      offset[0] * (scale?.[0] ?? 1) * uniformScale,
+      offset[1] * (scale?.[1] ?? 1) * uniformScale,
+      offset[2] * (scale?.[2] ?? 1) * uniformScale,
     )
     if (def.parent) {
       const parent = boneByName.get(def.parent)

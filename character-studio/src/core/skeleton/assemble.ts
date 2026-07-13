@@ -67,6 +67,17 @@ const CANONICAL_CHAINS: ReadonlyArray<{ name: string; bones: readonly BoneName[]
   { name: 'tail', bones: ['tail.1', 'tail.2', 'tail.3', 'tail.4'], colliders: [] },
 ]
 
+const BIRD_GRAIN_BY_SPECIES: Readonly<Record<string, number>> = {
+  robin: 0.060,
+  owl: 0.065,
+  duckling: 0.052,
+  eagle: 0.055,
+  penguin: 0.035,
+  chicken: 0.052,
+  peacock: 0.048,
+  bowerbird: 0.060,
+}
+
 // three's GLTFLoader sanitizes node names for PropertyBinding — it STRIPS
 // DOTS, so the canonical `earL.1` arrives as `earL1` even though the GLB is
 // byte-correct (verified with gltf-transform in assets.test.ts). Assembly
@@ -92,6 +103,38 @@ function collectSkinnedMeshes(root: THREE.Object3D): THREE.SkinnedMesh[] {
     if ((o as THREE.SkinnedMesh).isSkinnedMesh) out.push(o as THREE.SkinnedMesh)
   })
   return out
+}
+
+/**
+ * Adapt an explicitly opted-in authored GLB's standard `COLOR_0` attribute to
+ * the studio's RGBA palette-weight attribute. The BufferAttribute is aliased,
+ * not copied: geometry remains cache-shared and no per-assembly buffer is
+ * allocated. Parts without the registry flag never enter this path.
+ */
+function applyVertexColorPaletteContract(root: THREE.Object3D, partId: string): void {
+  root.traverse((object) => {
+    const mesh = object as THREE.Mesh
+    if (!mesh.isMesh) return
+    const existing = mesh.geometry.getAttribute('paletteChannels')
+    if (existing) {
+      if (existing.itemSize !== 4) {
+        throw new Error(
+          `assemble: part "${partId}" mesh "${mesh.name}" has paletteChannels itemSize ${existing.itemSize}; expected 4`,
+        )
+      }
+      return
+    }
+    const color = mesh.geometry.getAttribute('color')
+    if (!color) {
+      throw new Error(
+        `assemble: part "${partId}" mesh "${mesh.name}" opts into COLOR_0 palette weights but has no color attribute`,
+      )
+    }
+    if (color.itemSize !== 4) {
+      throw new Error(`assemble: part "${partId}" mesh "${mesh.name}" has COLOR_0 itemSize ${color.itemSize}; expected 4`)
+    }
+    mesh.geometry.setAttribute('paletteChannels', color)
+  })
 }
 
 function applyMorphs(mesh: THREE.Mesh, morphs: Record<string, number>): void {
@@ -235,6 +278,7 @@ export function assembleCharacter(
     if (!pristine) continue // asset not loaded (caller decides whether that is an error)
     const partScene = cloneSkinned(pristine)
     restoreCanonicalNames(partScene)
+    if (def.paletteFromVertexColor) applyVertexColorPaletteContract(partScene, entry.partId)
 
     if (def.skinnedTo) {
       // Rebind the part's skinned meshes onto the BODY skeleton by bone name.
@@ -308,7 +352,13 @@ export function assembleCharacter(
     const hasVertexChannels = meshes.length > 0 && meshes.every((m) => m.geometry.hasAttribute('paletteChannels'))
     const hasRasterizedMask = resolveTexture(assign.textureId ?? 'none').maskMap !== null
     const vertexChannels = hasVertexChannels && !hasRasterizedMask
-    const material = createToonMaterial(assign, spec.palette, { resolveTexture, vertexChannels })
+    const birdPlumage = archetype === 'bird' && (region === 'body' || region === 'tail' || region === 'ears')
+    const grainStrength = birdPlumage ? (BIRD_GRAIN_BY_SPECIES[spec.meta.species] ?? 0.05) : 0
+    const material = createToonMaterial(assign, spec.palette, {
+      resolveTexture,
+      vertexChannels,
+      grainStrength,
+    })
     regionMaterials[region] = material
     for (const mesh of regionMeshes[region] ?? []) mesh.material = material
   }

@@ -100,6 +100,23 @@ function stubEarScene(): THREE.Object3D {
   return scene
 }
 
+function stubSkinnedColorScene(name: string, boneName: string, colorItemSize = 4): THREE.Object3D {
+  const scene = new THREE.Group()
+  const { bones, skeleton } = buildSkeleton()
+  scene.add(bones[0])
+  const boneIndex = skeleton.bones.findIndex((bone) => bone.name === boneName)
+  const geometry = geometryWithMorphs([], boneIndex)
+  geometry.setAttribute(
+    'color',
+    new THREE.Float32BufferAttribute(new Float32Array(3 * colorItemSize).fill(0.25), colorItemSize),
+  )
+  const mesh = new THREE.SkinnedMesh(geometry, new THREE.MeshBasicMaterial())
+  mesh.name = name
+  mesh.bind(skeleton)
+  scene.add(mesh)
+  return scene
+}
+
 function stubRigidScene(name: string, attachBone: string, morphs: string[]): THREE.Object3D {
   const scene = new THREE.Group()
   const geometry = new THREE.BufferGeometry()
@@ -201,6 +218,77 @@ describe('assembleCharacter', () => {
     const scale = new THREE.Vector3()
     inv.decompose(new THREE.Vector3(), new THREE.Quaternion(), scale)
     expect(scale.x).toBeCloseTo(u, 5)
+  })
+
+  it('aliases opted-in authored COLOR_0 weights to paletteChannels', () => {
+    const registry: Record<string, PartDef> = {
+      'stub-palette-wing': {
+        slot: 'wings',
+        label: 'Palette wing',
+        url: 'stub://palette-wing.glb',
+        maskUrl: null,
+        region: 'tail',
+        classes: ['bird'],
+        skinnedTo: ['upperArmL'],
+        morphs: [],
+        paletteFromVertexColor: true,
+      },
+    }
+    const spec = specWith('bird', { wings: { partId: 'stub-palette-wing', morphs: {} } })
+    const assembled = assembleCharacter(spec, registry, {
+      bodyScene: stubBodyScene('bird'),
+      partScenes: { wings: stubSkinnedColorScene('paletteWing', 'upperArmL') },
+    })
+    const wing = assembled.root.getObjectByName('paletteWing') as THREE.SkinnedMesh
+    expect(wing.geometry.getAttribute('paletteChannels')).toBe(wing.geometry.getAttribute('color'))
+    expect(assembled.regionMaterials.tail?.userData.toonDefines.paletteVertex).toBe(true)
+  })
+
+  it('does not reinterpret vertex colors on parts without the explicit palette contract', () => {
+    const registry: Record<string, PartDef> = {
+      'stub-colored-part': {
+        slot: 'wings',
+        label: 'Ordinary colored part',
+        url: 'stub://colored-part.glb',
+        maskUrl: null,
+        region: 'tail',
+        classes: ['bird'],
+        skinnedTo: ['upperArmL'],
+        morphs: [],
+      },
+    }
+    const spec = specWith('bird', { wings: { partId: 'stub-colored-part', morphs: {} } })
+    const assembled = assembleCharacter(spec, registry, {
+      bodyScene: stubBodyScene('bird'),
+      partScenes: { wings: stubSkinnedColorScene('ordinaryColor', 'upperArmL') },
+    })
+    const wing = assembled.root.getObjectByName('ordinaryColor') as THREE.SkinnedMesh
+    expect(wing.geometry.hasAttribute('color')).toBe(true)
+    expect(wing.geometry.hasAttribute('paletteChannels')).toBe(false)
+    expect(assembled.regionMaterials.tail?.userData.toonDefines.paletteVertex).toBe(false)
+  })
+
+  it('rejects opted-in COLOR_0 attributes that are not RGBA', () => {
+    const registry: Record<string, PartDef> = {
+      'stub-invalid-palette-wing': {
+        slot: 'wings',
+        label: 'Invalid palette wing',
+        url: 'stub://invalid-palette-wing.glb',
+        maskUrl: null,
+        region: 'tail',
+        classes: ['bird'],
+        skinnedTo: ['upperArmL'],
+        morphs: [],
+        paletteFromVertexColor: true,
+      },
+    }
+    const spec = specWith('bird', { wings: { partId: 'stub-invalid-palette-wing', morphs: {} } })
+    expect(() =>
+      assembleCharacter(spec, registry, {
+        bodyScene: stubBodyScene('bird'),
+        partScenes: { wings: stubSkinnedColorScene('invalidPalette', 'upperArmL', 3) },
+      }),
+    ).toThrow(/COLOR_0 itemSize 3; expected 4/)
   })
 
   it('parents rigid parts to their attach bone at archetype scale', () => {

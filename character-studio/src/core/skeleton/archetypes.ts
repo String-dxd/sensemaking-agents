@@ -23,6 +23,7 @@ export interface ArchetypeDef {
   uniformScale: number
   /** Per-bone component-wise rest-offset multipliers (see BuildSkeletonOptions). */
   offsetScales: Partial<Record<BoneName, readonly [number, number, number]>>
+  offsetOverrides?: Partial<Record<BoneName, readonly [number, number, number]>>
   /** Cranium centre relative to the `head` bone, reference space. */
   headCenter: readonly [number, number, number]
   /** Cranium radius, reference space. */
@@ -119,13 +120,26 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
       // round 7: shoulders ride HIGH on the egg (AC folded wings start at
       // the neck line, not mid-body) — the shoulder offset from the chest
       // is stretched upward and tucked inward.
-      shoulderL: [0.8, 2.7, 1],
-      shoulderR: [0.8, 2.7, 1],
-      ...arms([0.8, 0.95, 1]),
+      shoulderL: [1, 1, 1],
+      shoulderR: [1, 1, 1],
+      ...arms([1, 1, 1]),
       'tail.1': [1, 0.6, 1.1],
       'tail.2': [1, 0.6, 1.1],
       'tail.3': [1, 0.6, 1.1],
       'tail.4': [1, 0.6, 1.1],
+    },
+    // Bird-only folded-wing rig. The arm chain sits on the egg's outer flank
+    // in rest pose and descends as one shallow diagonal, matching the wing
+    // mesh's modeling axis. Mammal rest offsets remain canonical.
+    offsetOverrides: {
+      shoulderL: [0.06325, 0.1362, 0],
+      upperArmL: [0.078, 0, 0.005],
+      foreArmL: [0.0418, -0.0855, 0.005],
+      handL: [0.0077, -0.0912, 0.005],
+      shoulderR: [-0.06325, 0.1362, 0],
+      upperArmR: [-0.078, 0, 0.005],
+      foreArmR: [-0.0418, -0.0855, 0.005],
+      handR: [-0.0077, -0.0912, 0.005],
     },
     headCenter: [0, 0.18, 0],
     headRadius: 0.23,
@@ -135,7 +149,7 @@ export const ARCHETYPES_DEF: Record<Archetype, ArchetypeDef> = {
 /** BuildSkeletonOptions for an archetype (feed to buildSkeleton). */
 export function archetypeBuildOptions(archetype: Archetype): BuildSkeletonOptions {
   const def = ARCHETYPES_DEF[archetype]
-  return { offsetScales: def.offsetScales, uniformScale: def.uniformScale }
+  return { offsetScales: def.offsetScales, offsetOverrides: def.offsetOverrides, uniformScale: def.uniformScale }
 }
 
 /** Build the canonical skeleton at an archetype's proportions. */

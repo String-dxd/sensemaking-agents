@@ -8,7 +8,7 @@ import { buildProceduralPart } from '../../../src/core/procgen/parts'
 import { getPart, PART_IDS, PART_REGISTRY, type PartDef, type PartId, partsForSlot } from '../../../src/core/skeleton/partRegistry'
 import { BONE_NAMES } from '../../../src/core/spec/schema'
 
-const authored = PART_IDS.filter((id) => PART_REGISTRY[id].url !== null)
+const authored = PART_IDS.filter((id) => (PART_REGISTRY[id] as PartDef).source?.kind === 'procedural')
 
 function meshes(scene: THREE.Object3D): THREE.Mesh[] {
   const out: THREE.Mesh[] = []
@@ -175,7 +175,7 @@ describe('plan 018 bird part family', () => {
     for (const id of BIRD_PART_ADDITIONS) {
       const def = getPart(id)
       expect(def, id).not.toBeNull()
-      expect(def?.source?.kind, id).toBe('procedural')
+      expect(['procedural', 'glb'], id).toContain(def?.source?.kind)
     }
   })
 
@@ -196,16 +196,17 @@ describe('plan 018 bird part family', () => {
 
 // --- plan 023: wings as separate feather-fan parts ------------------------------
 
-const WING_IDS = ['wing-round', 'wing-eagle', 'wing-flipper'] as const
+const WING_IDS = ['wing-round', 'wing-robin', 'wing-duck', 'wing-chicken', 'wing-peacock', 'wing-bowerbird', 'wing-flipper'] as const
+const ALL_WING_IDS = ['wing-round', 'wing-eagle', 'wing-flipper', 'wing-robin', 'wing-owl', 'wing-duck', 'wing-chicken', 'wing-peacock', 'wing-bowerbird'] as const
 const ARM_BONES = new Set(['upperArmL', 'foreArmL', 'handL', 'upperArmR', 'foreArmR', 'handR'])
 
 describe('plan 023 wing part family', () => {
   it('every wing id is a bird-only wings-slot part skinned to the arm chains', () => {
-    for (const id of WING_IDS) {
+    for (const id of ALL_WING_IDS) {
       const def = getPart(id)
       expect(def?.slot, id).toBe('wings')
       expect(def?.classes, id).toEqual(['bird'])
-      expect(def?.source?.kind, id).toBe('procedural')
+      expect(['procedural', 'glb'], id).toContain(def?.source?.kind)
       expect([...(def?.skinnedTo ?? [])].sort()).toEqual([...ARM_BONES].sort())
     }
   })
@@ -245,17 +246,7 @@ describe('plan 023 wing part family', () => {
     }
   })
 
-  it('wing-eagle drops lower than wing-round; wing-flipper is the slimmest single paddle', () => {
-    const low = (id: string): number => {
-      let minY = Infinity
-      for (const m of meshes(buildProceduralPart(id))) {
-        const p = m.geometry.getAttribute('position')
-        for (let i = 0; i < p.count; i++) minY = Math.min(minY, p.getY(i))
-      }
-      return minY
-    }
-    // round 9 rev 3: every wing is ONE carved teardrop (same topology), so
-    // slimness is a front-to-back width fact, not a tri-count fact.
+  it('wing-flipper is slimmer front-to-back than the soft wing', () => {
     const zWidth = (id: string): number => {
       let minZ = Infinity
       let maxZ = -Infinity
@@ -269,12 +260,11 @@ describe('plan 023 wing part family', () => {
       }
       return maxZ - minZ
     }
-    expect(low('wing-eagle')).toBeLessThan(low('wing-round'))
     expect(zWidth('wing-flipper')).toBeLessThan(zWidth('wing-round'))
   })
 
-  it('pickers list the three wing variants for birds', () => {
-    expect(partsForSlot('wings', 'bird')).toEqual(['wing-round', 'wing-eagle', 'wing-flipper'])
+  it('pickers list every species wing for birds', () => {
+    expect(partsForSlot('wings', 'bird')).toEqual(ALL_WING_IDS)
     expect(partsForSlot('wings', 'mammal')).toEqual([])
   })
 })

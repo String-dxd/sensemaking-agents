@@ -331,12 +331,26 @@ function addRegionMesh(
   const position = geom.getAttribute('position') as THREE.BufferAttribute
   const normal = geom.getAttribute('normal') as THREE.BufferAttribute | undefined
   const uv = geom.getAttribute('uv') as THREE.BufferAttribute | undefined
+  const paletteChannels = geom.getAttribute('paletteChannels') as THREE.BufferAttribute | undefined
   const index = geom.getIndex()
 
   const prim = doc.createPrimitive()
   prim.setAttribute('POSITION', attributeAccessor(doc, position, 'VEC3'))
   if (normal) prim.setAttribute('NORMAL', attributeAccessor(doc, normal, 'VEC3'))
   if (uv) prim.setAttribute('TEXCOORD_0', attributeAccessor(doc, uv, 'VEC2'))
+  if (paletteChannels) {
+    if (paletteChannels.itemSize !== 4) {
+      throw new Error(`compile: mesh "${mesh.name}" paletteChannels itemSize ${paletteChannels.itemSize}; expected 4`)
+    }
+    if (paletteChannels.count !== position.count) {
+      throw new Error(
+        `compile: mesh "${mesh.name}" paletteChannels count ${paletteChannels.count}; expected ${position.count}`,
+      )
+    }
+    const color = attributeAccessor(doc, paletteChannels, 'VEC4')
+    color.setNormalized(paletteChannels.normalized)
+    prim.setAttribute('COLOR_0', color)
+  }
   if (index) prim.setIndices(accessor(doc, 'SCALAR', new (TypedArrayOf(index))(index.array as unknown as ArrayLike<number>)))
 
   const skinned = mesh as THREE.SkinnedMesh

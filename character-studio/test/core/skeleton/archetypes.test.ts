@@ -65,4 +65,27 @@ describe('archetype proportions', () => {
       }
     }
   })
+
+  it('bird wing joints form a mirrored, downward folded chain outside the chest', () => {
+    const world = restWorldPositions(buildArchetypeSkeleton('bird'))
+    for (const side of ['L', 'R'] as const) {
+      const sign = side === 'L' ? 1 : -1
+      const shoulder = world[`shoulder${side}`]
+      const upper = world[`upperArm${side}`]
+      const fore = world[`foreArm${side}`]
+      const hand = world[`hand${side}`]
+
+      expect(upper[0] * sign).toBeGreaterThan(shoulder[0] * sign)
+      expect(fore[0] * sign).toBeGreaterThan(upper[0] * sign)
+      expect(hand[0] * sign).toBeGreaterThan(fore[0] * sign)
+      expect(fore[1]).toBeLessThan(upper[1] - 0.05)
+      expect(hand[1]).toBeLessThan(fore[1] - 0.05)
+    }
+
+    for (const bone of ['shoulder', 'upperArm', 'foreArm', 'hand'] as const) {
+      expect(world[`${bone}L`][0]).toBeCloseTo(-world[`${bone}R`][0], 6)
+      expect(world[`${bone}L`][1]).toBeCloseTo(world[`${bone}R`][1], 6)
+      expect(world[`${bone}L`][2]).toBeCloseTo(world[`${bone}R`][2], 6)
+    }
+  })
 })

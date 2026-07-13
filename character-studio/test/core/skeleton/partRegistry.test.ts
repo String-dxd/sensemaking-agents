@@ -56,6 +56,24 @@ describe('part registry', () => {
     }
   })
 
+  it('opts only authored wing GLBs into the COLOR_0 palette contract', () => {
+    const authoredWingIds = [
+      'wing-robin',
+      'wing-owl',
+      'wing-duck',
+      'wing-eagle',
+      'wing-flipper',
+      'wing-chicken',
+      'wing-peacock',
+      'wing-bowerbird',
+    ] as const
+    for (const id of authoredWingIds) {
+      expect(PART_REGISTRY[id].source?.kind, id).toBe('glb')
+      expect(PART_REGISTRY[id].paletteFromVertexColor, id).toBe(true)
+    }
+    expect((PART_REGISTRY['wing-round'] as PartDef).paletteFromVertexColor).toBeUndefined()
+  })
+
   it('spring profiles only appear on spring-chain-skinned parts', () => {
     for (const id of PART_IDS) {
       const def: PartDef = PART_REGISTRY[id]
