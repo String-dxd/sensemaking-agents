@@ -151,6 +151,73 @@ BLOCKED fallback without it).
 - Fixed mesh topology (no dyntopo). meshopt+KTX2, not Draco. GLB self-sufficient
   for naive viewers; `SEN_companion` extension carries the "alive" data.
 
+## Standalone advisor plans (outside the Character Studio suite)
+
+Later improve-skill runs add plans here with monotonic numbering. These do NOT
+belong to the Character Studio suite above — each is independent unless its own
+"Depends on" says otherwise.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 014 | Island editor: lower beach tier flush with the sea | P2 | S | — | DONE (merged to `feat/island-editor-v2` @ 696a321 ff, 2026-07-12) |
+| 015 | Island editor: build new Meshy assets (tree v2, grass, character) | P1 | M | — | DONE (merged to `feat/island-editor-v2` @ 696a321 ff; tree source became tree-2.glb mid-run, budget re-baselined 850 KB) |
+| 016 | Island editor: drag-painted grass replaces the dirt path (spec v5) | P1 | L | 015 | DONE (merged to `feat/island-editor-v2` @ 696a321 ff) |
+| 017 | Island editor: one animated character + collision + clip cycler | P1 | L | 015 (run after 016) | DONE (merged to `feat/island-editor-v2` @ 696a321 ff) |
+| 018 | Island editor: render placed objects unlit (KHR_materials_unlit) | P2 | S | 015–017 | DONE (merged @ 696a321; **superseded by 019** — maintainer chose BOTW toon over unlit after seeing it) |
+| 019 | Island editor: BOTW toon lighting on objects + tree-3 retexture | P1 | M | 014–018 merged | DONE (merged to `feat/island-editor-v2` @ 40db083 ff, 2026-07-12; amendment: tree budget → 1000 KB — tree-3's re-atlas splits 88,542 verts, geometry irreducible; visual orbit check pending human view) |
+| 020 | Island editor: procedural BOTW grass blades + shader wind (drops grass.glb) | P1 | M-L | 019 (execute after — shared files; supersedes 019's grass bits) | DONE (merged to `feat/island-editor-v2` @ 1ae1ce7 ff, 2026-07-12; grass.glb retired; in-browser paint/wind/perf check pending human view) |
+| 021 | Island editor: thinner, denser grass blades + cliff-face clip (maintainer feedback) | P1 | S | 020 merged | DONE (merged to `feat/island-editor-v2` @ 9faf64b ff, 2026-07-12; BLADE_W 0.018, 48/cell, CLIFF_DROP 0.05; verified via headless screenshot — cliff faces clean) |
+| 022 | Island editor: gentle height-proportional grass wind + distance-stable blade width (maintainer feedback) | P1 | S | 021 merged | DONE (merged to `feat/island-editor-v2` @ bedb66b ff, 2026-07-12; lean ratio 0.12, widen 8→30 ×3.5; headless-verified — grass visible at max zoom-out, sway gentle) |
+| 023 | Island editor: save/load island state to a repo-tracked file (maintainer feature request) | P1 | M | 021 merged (independent of 022 — no shared files) | DONE (merged to `feat/island-editor-v2` @ f7e346d ff, 2026-07-12; headless-verified end-to-end — Save writes saves/island.json, Reset → starter, Load restores) |
+
+| 024 | Island editor: BOTW grass v2 — soft-edged sharp blades, per-blade wind, character bend + fade disc (ref: "All Zelda BOTW grass techniques revealed") | P1 | M | through `74e9392` | DONE (merged to `feat/island-editor-v2` @ 008b505 ff, 2026-07-12; 214 tests; browser pass by reviewer below) |
+| 025 | Island editor: autonomous character — wander/hi/sleep/wake, swim + shore leash, click-to-talk, dock keeps manual override ('Auto' entry) | P1 | L | **024 merged** (GrassLayer uCharPos goes live-tracking; CharacterActor untouched by 024) | DONE (merged to `feat/island-editor-v2` @ 7d465d8 ff, 2026-07-12; 223 tests; wander + "Auto 1/11" dock verified headless; click-to-talk, swim leash, and sleep cycle are machine-tested — real-time human view still worthwhile) |
+
+| 026 | Island editor: click-to-move command (camera-mode click) + stops sleep→wake instead of hi wave | P1 | M | 025 merged | DONE (merged to `feat/island-editor-v2` @ 2fcc200 ff, 2026-07-12; 228 tests; executor also fixed a latent gotoPending-across-talk bug) |
+| 027 | Island editor: swim wake ripples + smooth swim transitions (hysteresis + vertical blend — fixes "patchy" swim restarts) | P1 | S | **026 merged** (shares CharacterActor; mirrors its draught condition into characterPose.swimming) | DONE (merged to `feat/island-editor-v2` @ 4c60fe8 ff, 2026-07-12; 232 tests) |
+| 028 | Island editor: smooth terrain silhouette (C1 smooth-bilinear tier sampling) + sand-only shoreline (uBeachTop cliff gate) | P1 | M | **027 merged** (materials.test.ts overlap) | DONE (merged to `feat/island-editor-v2` @ 85eb7c4 ff, 2026-07-12; 233 tests, zero expectation changes — invariants held) |
+| 029 | Island editor: FPS/resource HUD + edit-path perf (dedupe double shore-BFS, per-spec WeakMap caches, allocation-free grass scatter; zero visual change) | P1 | M | **027 + 028 merged** (CharacterActor/SeaSurface/terrain overlap) | DONE (merged to `feat/island-editor-v2` @ 5a6e5a9, 2026-07-12; 236 tests; grassField determinism tests passed UNMODIFIED — no-visual-change confirmed, and a pixel diff vs the pre-029 frame is empty outside the HUD, the wind-animated grass and the wave foam) |
+
+Post-plan direct work (operator-directed, executed by the advisor inline,
+2026-07-12, commits `77ab254`/`2c4218c`/`74e9392`): gusty rotation-bend grass
+wind (some blades whip near-flat; `uGustBend`), zoom-out grass HIDING
+(supersedes 022's always-visible widen — widen now 8→20 ×2.5, hide 22→32;
+the operator wanted declutter, not permanence), a hotbar Camera orbit tool
+(sticky hold-Space, pan disabled), and the operator's saved island committed.
+
+Post-029 direct work (operator-directed, commit `e80d6ed`): the bird kept the
+swim clip and draught while walking on dry sand — plan 027's water hysteresis
+put WATER_EXIT (seaLevel + 0.07) ABOVE the beach tier's top (0.05), so no sand
+cell could ever clear the exit bar and a beached bird never came ashore. The
+band now brackets the waterline (enter −0.02, exit +0.02), same 0.04 width, so
+the anti-flip-flop guarantee survives; a regression test pins the beached case
+at the exact tier-1 height. Same commit softened 027's swim wake (narrower ring
+crest, falloff out by ~0.85 rather than 1.2 units, mix weight 0.70 → 0.30).
+
+Further post-029 direct work (not previously logged here): commit `eea909ad`
+raised the hotbar tooltips above the animation dock (z-order); commit `0e4122b6`
+made stops an IDLE (stand + breathe) with only an occasional nap (`NAP_CHANCE`
+0.25) instead of plan 026's every-stop sleep, and guaranteed a swim always ends
+on land (no idle/nap at sea). Latest fix (this change): a SWIMMING bird sat at a
+fixed draught `seaLevel − SWIM_SINK` (−0.12) that ignored the seabed, so on the
+approach to shore its body was buried up to ~0.14 u (a quarter of the chick)
+inside the rising beach until the swim→walk exit fired (ground > seaLevel +
+0.02) — "swimming into the island." The draught is now clamped to the ground
+beneath it (`bodyTargetY` in characterBehavior.ts), so the bird rides up the
+sand instead of through it and the swim→walk hand-off is vertically continuous;
+a unit test pins the never-below-ground invariant. Verified headlessly against
+the saved island: every one of 12 shore approaches buried the body 0.11–0.14 u
+before, 0.000 u after.
+
+Island-editor dependency notes:
+
+- **Recommended order: 014 → 015 → 016 → 017.** 014 and 016 both edit
+  `specIO.ts`'s migration path; 016 and 017 both edit `App.tsx`/`icons.tsx`
+  and 017's spec tests assume 016's v5 bump — run them sequentially, not in
+  parallel worktrees.
+- 015 is pure asset pipeline (no `src/` changes); 016 needs its `grass.glb`,
+  017 needs its `character.glb` + clip-name contract test.
+
 ## Findings considered and rejected
 
 See `000-architecture-and-strategy.md` §3 for the full rejected-alternatives

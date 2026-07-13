@@ -1,7 +1,7 @@
 import type { FC, ReactNode } from 'react'
 import type { ObjectKind } from '../terrain/terrainGrid'
 
-export type Tool = 'raise' | 'lower' | 'water' | 'path' | 'erase'
+export type Tool = 'raise' | 'lower' | 'water' | 'grass' | 'erase' | 'camera'
 export type BrushSize = 1 | 2 | 3
 
 // Shared stroke-icon attributes (24×24 viewBox; sized to 20px by panel.css).
@@ -35,9 +35,11 @@ export const WaterIcon: FC = () => (
   </svg>
 )
 
-export const PathIcon: FC = () => (
+export const GrassIcon: FC = () => (
   <svg {...svgProps}>
-    <path d="M5 12h14" strokeDasharray="3 4" />
+    <path d="M12 20c0-6-2-10-5-13" />
+    <path d="M12 20V6" />
+    <path d="M12 20c0-6 2-10 5-13" />
   </svg>
 )
 
@@ -93,6 +95,21 @@ export const ImportIcon: FC = () => (
     <path d="M12 13V3" />
     <path d="M8 9l4 4 4-4" />
     <path d="M4 15v4h16v-4" />
+  </svg>
+)
+
+export const SaveIcon: FC = () => (
+  <svg {...svgProps}>
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+    <path d="M17 21v-8H7v8" />
+    <path d="M7 3v5h8" />
+  </svg>
+)
+
+export const LoadIcon: FC = () => (
+  <svg {...svgProps}>
+    <path d="M4 19V5a1 1 0 0 1 1-1h4l2 2h7a1 1 0 0 1 1 1v3" />
+    <path d="M4 19l2.5-8H22l-3 8z" />
   </svg>
 )
 
@@ -152,36 +169,32 @@ export const BrushIcon: FC<{ size: BrushSize }> = ({ size }) => {
   )
 }
 
+// Orbit-camera tool: an eye ringed by an orbit path (drag = rotate, no pan).
+export const CameraOrbitIcon: FC = () => (
+  <svg {...svgProps}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M20.2 9.2c1 3.4-2 7.4-6.9 8.8-4.9 1.5-9.7-.1-10.7-3.5" />
+    <path d="M3.8 14.8c-1-3.4 2-7.4 6.9-8.8 4.9-1.5 9.7.1 10.7 3.5" />
+  </svg>
+)
+
 export const TOOL_META: Record<Tool, { label: string; Icon: FC }> = {
   raise: { label: 'Raise', Icon: RaiseIcon },
   lower: { label: 'Lower', Icon: LowerIcon },
   water: { label: 'Water', Icon: WaterIcon },
-  path: { label: 'Path', Icon: PathIcon },
+  grass: { label: 'Grass', Icon: GrassIcon },
   erase: { label: 'Erase', Icon: EraseIcon },
+  camera: { label: 'Camera', Icon: CameraOrbitIcon },
 }
 
 // ── Model panel object silhouettes ─────────────────────────────────────────────
 // Glanceable solid glyphs (not live 3D — see the Plan C maintenance notes). Filled
-// shapes read better as silhouettes, so these use fill="currentColor" like BrushIcon;
-// the palm uses the shared stroke props since its fronds read as lines.
-export const FruitTreeIcon: FC = () => (
+// shapes read better as silhouettes, so these use fill="currentColor" like BrushIcon.
+// The broadleaf glyph tracks the asset: a wide canopy over a stubby trunk.
+export const TreeIcon: FC = () => (
   <svg viewBox="0 0 24 24" fill="currentColor">
-    <rect x="10.5" y="13" width="3" height="8" />
-    <circle cx="12" cy="9" r="6" />
-  </svg>
-)
-
-export const PineIcon: FC = () => (
-  <svg viewBox="0 0 24 24" fill="currentColor">
-    <rect x="11" y="18" width="2" height="4" />
-    <path d="M12 2l5 7H7zM12 8l6 8H6z" />
-  </svg>
-)
-
-export const PalmIcon: FC = () => (
-  <svg {...svgProps}>
-    <path d="M12 22V9" />
-    <path d="M12 9c-4-3-8-2-9 1M12 9c4-3 8-2 9 1M12 9c-1-4 1-7 0-8M12 9c1-4-1-7 0-8" />
+    <rect x="10.5" y="15" width="3" height="6" />
+    <circle cx="12" cy="10" r="7" />
   </svg>
 )
 
@@ -197,17 +210,37 @@ export const RockIcon: FC = () => (
   </svg>
 )
 
+// Round body + head + a small beak triangle — a glanceable chick silhouette,
+// matching the character asset's Sunny Chick read.
+export const ChickIcon: FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="12" cy="14" r="7" />
+    <circle cx="12" cy="6.5" r="4" />
+    <path d="M16 6.5l3.5 1.2-3.5 1.2z" />
+  </svg>
+)
+
 export const KIND_META: Record<ObjectKind, { label: string; Icon: FC }> = {
-  fruitTree: { label: 'Fruit tree', Icon: FruitTreeIcon },
-  pine: { label: 'Pine', Icon: PineIcon },
-  palm: { label: 'Palm', Icon: PalmIcon },
+  tree: { label: 'Tree', Icon: TreeIcon },
   bush: { label: 'Bush', Icon: BushIcon },
   rock: { label: 'Rock', Icon: RockIcon },
+  character: { label: 'Chick', Icon: ChickIcon },
 }
 
-/** Shared 40×40 icon tile used across the hotbar, camera dock, and file bar. */
+export type TipSide = 'top' | 'right' | 'left'
+
+/**
+ * Shared 40×40 icon tile used across the hotbar, camera dock, file bar, and model
+ * panel. `hint` adds a second tooltip line — that's where per-tool prose lives now,
+ * instead of an always-on caption under the panel.
+ *
+ * The tooltip is our own element rather than the native `title` attribute: native
+ * tooltips can't hold two lines, take ~1s to appear, and can't be styled.
+ */
 export function IconButton({
   title,
+  hint,
+  tipSide = 'top',
   active,
   disabled,
   danger,
@@ -215,6 +248,8 @@ export function IconButton({
   children,
 }: {
   title: string
+  hint?: string
+  tipSide?: TipSide
   active?: boolean
   disabled?: boolean
   danger?: boolean
@@ -222,16 +257,21 @@ export function IconButton({
   children: ReactNode
 }) {
   return (
-    <button
-      type="button"
-      className={`tile${active ? ' is-active' : ''}${danger ? ' is-danger' : ''}`}
-      title={title}
-      aria-label={title}
-      aria-pressed={active}
-      disabled={disabled}
-      onClick={onClick}
-    >
-      {children}
-    </button>
+    <span className={`tip-wrap tip-wrap--${tipSide}`}>
+      <button
+        type="button"
+        className={`tile${active ? ' is-active' : ''}${danger ? ' is-danger' : ''}`}
+        aria-label={title}
+        aria-pressed={active}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        {children}
+      </button>
+      <span className="tip" role="tooltip">
+        <span className="tip__title">{title}</span>
+        {hint ? <span className="tip__hint">{hint}</span> : null}
+      </span>
+    </span>
   )
 }

@@ -32,6 +32,9 @@ packages:
 allowBuilds:
   better-sqlite3: true
   esbuild: true
+  # island-editor's asset pipeline (scripts/optimize-meshy-glb.mjs) uses sharp to
+  # resize/re-encode textures. Build-time only — never bundled into the browser.
+  sharp: true
 
 overrides:
   '@tanstack/history': 1.161.6

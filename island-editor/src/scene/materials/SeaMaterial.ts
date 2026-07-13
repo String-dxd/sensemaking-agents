@@ -87,6 +87,9 @@ uniform float uWorldSize;
 uniform sampler2D uFoamCells;
 uniform sampler2D uShortBubbles;
 uniform float uTime;
+// Swim wake (plan 027): .xy = bird world x/z, .w = 1 while swimming else 0
+// (.z unused — reserved as an intensity channel). Runtime-driven only.
+uniform vec4 uSwim;
 
 varying vec3 vWorld;
 
@@ -172,6 +175,19 @@ void main() {
   col = mix(col, shoreWhite, max(contactLip * 0.46, foamLip * (0.52 + foamFlow * 0.20)));
   col = mix(col, shoreWhite, shortBubbles * 0.62);
 
+  /* ----- SWIM WAKE (plan 027) --------------------------------------------
+   * Expanding foam rings around the swimming bird. uTime runs at 0.45x wall
+   * clock (SeaSurface), so ring phase uses a higher multiplier. Rings fade
+   * in from the body (not under it) and out by ~0.85 world units. The crest
+   * band is narrow and the mix weight low: a hint of disturbed water, not the
+   * hard white bullseye the first pass drew. */
+  float swimD = distance(vWorld.xz, uSwim.xy);
+  float swimRing = smoothstep(0.80, 0.99, 0.5 + 0.5 * sin(swimD * 12.0 - uTime * 11.0));
+  float swimWake = uSwim.w * swimRing
+                 * smoothstep(0.06, 0.22, swimD)
+                 * (1.0 - smoothstep(0.30, 0.85, swimD));
+  col = mix(col, shoreWhite, swimWake * 0.30);
+
   // Atmospheric horizon fade: this is a flat plane (the studio stage skips the
   // app's curved-earth), so without a fade its far edge reads as a hard square
   // against the sky. Lighten the open water toward a pale haze with distance,
@@ -204,6 +220,9 @@ export function createSeaMaterial(
       uFoamCells: { value: textures.foamCells },
       uShortBubbles: { value: textures.shortBubbles },
       uTime: { value: 0 },
+      // Swim wake (plan 027) — runtime-driven from SeaSurface's useFrame via
+      // the characterPose singleton; no constructor option.
+      uSwim: { value: new THREE.Vector4(0, 0, 0, 0) },
     },
     vertexShader: VERTEX,
     fragmentShader: FRAGMENT,

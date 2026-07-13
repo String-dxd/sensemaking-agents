@@ -6,9 +6,11 @@ import { CanopySpring } from './wind'
 
 /**
  * Drive a model's named 'canopy' group with the spring-damper wind sim
- * (wind.ts). Tree kinds carry the group with a per-kind stiffness in
- * userData.windAmp (fruitTree 1, palm 0.7, pine 0.35); bush/rock resolve no
- * canopy → no-op. `key` seeds the per-tree flutter phase (object id / seed);
+ * (wind.ts). The tree and bush carry the group with a per-kind stiffness in
+ * userData.windAmp (tree 0.55, bush 0.25); rock has no canopy → no-op. The tree
+ * asset fuses trunk and leaves into one mesh, so its pivot sits at the BASE and
+ * the whole tree bows — hence the gentler amplitude than a crown-only sway would
+ * take. `key` seeds the per-tree flutter phase (object id / seed);
  * `worldX`/`worldZ` place the tree in the traveling gust front so downwind
  * neighbours catch the same gust a beat later. Frozen (crown at rest) under
  * prefers-reduced-motion. Render-layer only — the deterministic model builder

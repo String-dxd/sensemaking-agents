@@ -1,10 +1,8 @@
 import { Suspense, useEffect } from 'react'
 import { OrbitControls, Text } from '@react-three/drei'
 import { Canvas } from '@react-three/fiber'
-import { registerPaintedModel } from '../models/textureThemes'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
 import { OBJECT_KINDS, type ObjectKind } from '../terrain/terrainGrid'
-import { StylePanel } from '../ui/StylePanel'
 import { useCanopyWind } from './useCanopyWind'
 
 // Dev-only view (gated behind `?gallery` in main.tsx): lays out every ObjectKind
@@ -26,12 +24,7 @@ function GalleryModel({
   position: [number, number, number]
 }) {
   const model = useObjectModel(kind, seed)
-  // Same StrictMode guard as PlacedObjectMesh: re-register painted materials on
-  // mount so the probe-cycle dispose doesn't freeze them out of theme switches.
-  useEffect(() => {
-    registerPaintedModel(model)
-    return () => disposeObjectModel(model)
-  }, [model])
+  useEffect(() => () => disposeObjectModel(model), [model])
 
   // Spring-damper wind on the crown (same hook as PlacedObjects): the gallery
   // position feeds the traveling gust front, so gusts visibly sweep the rows.
@@ -48,8 +41,8 @@ export function ModelGallery() {
     <div style={{ position: 'fixed', inset: 0 }}>
       <Canvas camera={{ position: [0, 3, 7], fov: 50 }}>
         <color attach="background" args={['#bcd7ff']} />
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[18, 20, 10]} intensity={1.15} />
+        <hemisphereLight args={['#cfe5ff', '#c8bb94', 0.65]} />
+        <directionalLight position={[18, 20, 10]} color="#ffedcc" intensity={1.55} />
 
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[24, 24]} />
@@ -84,7 +77,6 @@ export function ModelGallery() {
 
         <OrbitControls target={[0, 0.6, 0]} />
       </Canvas>
-      <StylePanel />
     </div>
   )
 }

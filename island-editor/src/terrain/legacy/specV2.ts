@@ -10,7 +10,7 @@
 import {
   cellCenter,
   createOceanGrid,
-  DEFAULT_TIER_HEIGHTS,
+  LEGACY_DEFAULT_TIER_HEIGHTS,
   MAX_TIER,
   SURFACE_AUTO,
   type TerrainGrid,
@@ -335,12 +335,15 @@ export function rasterizeV2ToGrid(v2: IslandSpecV2, cols: number, rows: number):
   return grid
 }
 
-/** Index of the DEFAULT_TIER_HEIGHTS entry closest to `height`. */
+/** Index of the LEGACY_DEFAULT_TIER_HEIGHTS entry closest to `height`. The v2
+ *  analytic profile was authored against those heights; pinning the mapping to
+ *  them keeps v1/v2 rasterization (and the seed island's silhouette) stable
+ *  when DEFAULT_TIER_HEIGHTS is retuned. */
 function nearestTier(height: number): number {
   let best = 0
   let bestDist = Infinity
   for (let i = 0; i <= MAX_TIER; i++) {
-    const d = Math.abs(height - DEFAULT_TIER_HEIGHTS[i])
+    const d = Math.abs(height - LEGACY_DEFAULT_TIER_HEIGHTS[i])
     if (d < bestDist) {
       bestDist = d
       best = i

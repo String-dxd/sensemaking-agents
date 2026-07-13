@@ -1,114 +1,119 @@
 import { useMemo } from 'react'
 import { useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
+// SkeletonUtils.clone rebinds a skinned scene's skeleton to the clone; a plain
+// .clone(true) leaves the SkinnedMesh bound to the ORIGINAL skeleton (see the
+// character branch below for why that matters).
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { CHARACTER_HEIGHT, CHARACTER_SOURCE_HEIGHT } from './characterAsset'
 import type { ObjectKind } from '../terrain/terrainGrid'
 import { buildObjectModel, type ProceduralKind } from './buildObjectModel'
 import { mulberry32 } from './rand'
-import type { ModelTextureName } from './textures'
-import { registerPaintedMaterial, unregisterPaintedMaterial } from './textureThemes'
+import { applyToonMaterials } from './toonMaterial'
 
-// The GLB lane: tree kinds ship as authored .glb assets (built + checked in by
-// scripts/build-tree-glbs.mjs); the rest stay procedural (buildObjectModel).
+// The GLB lane: `tree`, `rock`, and `character` ship as authored .glb assets,
+// built from the raw Meshy AI exports by scripts/optimize-meshy-glb.mjs and
+// checked in under public/models/. `bush` is still procedural
+// (buildObjectModel).
+//
+// The assets are EXT_meshopt_compression'd; nothing is needed here to read that
+// — drei's useGLTF registers three's MeshoptDecoder by default. (Same for the
+// rock's WebP base map: three decodes EXT_texture_webp natively.)
+//
 // GLB scenes are cached by drei's useGLTF and CLONED per placement — clones
 // share geometry/materials with the cache, so they must never be disposed
 // (userData.sharedAssets marks that; disposeObjectModel honors it).
 const GLB_MODEL_URLS: Partial<Record<ObjectKind, string>> = {
-  fruitTree: '/models/fruitTree.glb',
-  pine: '/models/pine.glb',
-  palm: '/models/palm.glb',
+  tree: '/models/tree.glb',
+  rock: '/models/rock.glb',
+  character: '/models/character.glb',
 }
 const GLB_URL_LIST = Object.values(GLB_MODEL_URLS)
 
 /**
- * Resolve the display model for an object kind: a per-instance clone of the
- * cached GLB scene for authored kinds, a freshly built procedural group
- * otherwise. Deterministic per (kind, seed) — GLB variety comes from a seeded
- * crown yaw (placement adds its own yaw/scale on top). Suspends while the GLB
- * assets load, so callers must render under <Suspense>.
+ * Seeded per-instance variety on a GLB clone, written to the 'canopy' node.
+ *
+ * Clones share geometry/materials with the useGLTF cache but own their node
+ * TRANSFORMS, so this rearranges nothing cached. It has to go on 'canopy'
+ * specifically: meshopt QUANTIZES vertex positions and compensates with a
+ * translate+scale on the node that holds the mesh ('crown'), so rotating or
+ * scaling THAT node would pivot the tree about the quantization offset instead
+ * of its base — it would visibly swing off its stump. 'canopy' is a node we
+ * author ourselves and quantization never touches it, so it stays identity and
+ * is the one safe handle.
+ *
+ * Only X/Z scale and Y rotation are ours: the wind spring writes canopy
+ * rotation.x/z and scale.y every frame (see useCanopyWind), and would overwrite
+ * anything we left there.
  */
-/** Per-kind FULL-COLOR surface maps (the sand-pipeline approach: the map IS
- *  the surface color; the GLB's hue-neutral vertex bake shades it). Keyed by
- *  the authoring material name. The GLBs carry fallback tints so untextured
- *  frames aren't white; when a map takes over, `tint` multiplies it — white
- *  renders the map as painted, the bark tints pull the golden wood maps toward
- *  the browns of the AC reference trunks. */
-const SURFACE_MAPS: Record<string, { map: ModelTextureName; tint: number; offTint?: number }> = {
-  // The broadleaf crown is authored WHITE (its map carries the color), so the
-  // textures-off flat matte look needs an explicit leaf green; every other
-  // material's authored color already IS its matte fallback.
-  foliage: { map: 'foliage-leaves', tint: 0xffffff, offTint: 0x8fd062 },
-  'foliage-cedar': { map: 'foliage-cedar', tint: 0xffffff },
-  frond: { map: 'palm-frond', tint: 0xffffff },
-  'bark-palm': { map: 'palm-trunk', tint: 0xe8d3a8 },
-  bark: { map: 'bark-painted', tint: 0xbf9a6e },
-  'bark-cedar': { map: 'bark-painted', tint: 0xa87a58 },
-}
-
-/** Register a cached GLB scene's named materials with the texture-theme
- *  registry, once (guarded per material — clones share these, so this runs a
- *  single time per asset for the app's lifetime). The registry applies the
- *  active theme's map (or restores the authored fallback tint for 'off') and
- *  re-points these materials live whenever the theme changes. */
-function attachPaintedMaps(scene: THREE.Object3D): void {
-  scene.traverse((n) => {
-    if (!(n instanceof THREE.Mesh)) return
-    const mats = Array.isArray(n.material) ? n.material : [n.material]
-    for (const m of mats) {
-      if (!(m instanceof THREE.MeshStandardMaterial) || m.userData.painted) continue
-      m.userData.painted = true
-      const entry = SURFACE_MAPS[m.name]
-      if (!entry) continue
-      registerPaintedMaterial(m, entry.map, entry.tint, entry.offTint)
-    }
-  })
-}
-
-/** Seeded per-instance composition variety on a GLB clone. Clones share
- *  geometry/materials but own their node TRANSFORMS, so we can rearrange the
- *  crown without touching the cache: every tree gets a crown yaw; fruitTree
- *  additionally re-scales/nudges/spins each crown mass (the lobes overlap
- *  heavily, so ±10% keeps the mass cohesive while the silhouette changes);
- *  palm re-fans its frond holders. Pine skirts must stay put — the dense cone
- *  stack only tolerates yaw. The wind spring writes canopy rotation.x/z only,
- *  so all of this survives the sway. */
-function randomizeComposition(model: THREE.Object3D, kind: ObjectKind, seed: number): void {
+function randomizeInstance(model: THREE.Object3D, seed: number): void {
   const canopy = model.getObjectByName('canopy')
-  if (!canopy) return
+  if (!canopy) return // rock — stones don't sway, and don't need a pivot
   const rand = mulberry32(seed)
   canopy.rotation.y = rand() * Math.PI * 2
-  if (kind === 'fruitTree') {
-    for (const child of canopy.children) {
-      if (!(child as THREE.Mesh).isMesh) continue
-      child.scale.multiplyScalar(0.9 + rand() * 0.2)
-      child.position.x += (rand() - 0.5) * 0.07
-      child.position.y += (rand() - 0.5) * 0.05
-      child.position.z += (rand() - 0.5) * 0.07
-      child.rotation.y += rand() * Math.PI
-    }
-  } else if (kind === 'palm') {
-    // The crown's tiers are authored strictly uniform (45° rim spacing) so the
-    // star reads even from above; keep the per-instance jitter well under the
-    // spacing or placements clump back into the crumpled-mass look.
-    for (const child of canopy.children) {
-      if (child.children.length === 0) continue // frond holders only (groups)
-      child.rotation.y += (rand() - 0.5) * 0.1
-    }
-  }
+  // Girth only. Meshy fuses trunk and leaves into one mesh, so there are no
+  // crown masses to re-compose the way the authored trees allowed — a stand of
+  // these gets its variety from placement yaw/scale plus this width jitter.
+  const girth = 0.92 + rand() * 0.16
+  canopy.scale.x = girth
+  canopy.scale.z = girth
 }
 
+/**
+ * Resolve the display model for an object kind: a per-instance clone of the
+ * cached GLB scene for authored kinds, a freshly built procedural group
+ * otherwise. Deterministic per (kind, seed). Suspends while the GLB assets load,
+ * so callers must render under <Suspense>.
+ */
 export function useObjectModel(kind: ObjectKind, seed: number): THREE.Group {
   // Every GLB is loaded unconditionally (stable hook order across kinds) — the
   // set is tiny and the cache is shared app-wide.
   const gltfs = useGLTF(GLB_URL_LIST)
   return useMemo(() => {
+    let model: THREE.Group
     const url = GLB_MODEL_URLS[kind]
     // Anything without a GLB entry is by definition a procedural kind.
-    if (!url) return buildObjectModel(kind as ProceduralKind, seed)
-    const source = gltfs[GLB_URL_LIST.indexOf(url)].scene
-    attachPaintedMaps(source)
-    const model = source.clone(true) as THREE.Group
-    model.userData.sharedAssets = true
-    randomizeComposition(model, kind, seed)
+    if (!url) {
+      model = buildObjectModel(kind as ProceduralKind, seed)
+    } else {
+      const source = gltfs[GLB_URL_LIST.indexOf(url)].scene
+      // Toon-convert the CACHED scene in place (idempotent) BEFORE cloning, so
+      // every clone — including the character's SkeletonUtils clone — shares
+      // the converted materials and the never-dispose-shared rule holds
+      // (plan 019: BOTW toon lighting).
+      applyToonMaterials(source)
+      if (kind === 'character') {
+        // SkeletonUtils.clone: a plain .clone(true) leaves the SkinnedMesh
+        // bound to the ORIGINAL skeleton — it would render at the cache's
+        // pose/position, not the clone's. Wrap in a group so the world-scale
+        // normalization (the runtime height contract) never touches the
+        // skinned node itself.
+        const inner = cloneSkinned(source) as THREE.Group
+        model = new THREE.Group()
+        model.add(inner)
+        model.scale.setScalar(CHARACTER_HEIGHT / CHARACTER_SOURCE_HEIGHT)
+      } else {
+        model = source.clone(true) as THREE.Group
+        randomizeInstance(model, seed)
+      }
+      model.userData.sharedAssets = true
+    }
+
+    // Enable shadows on all meshes in the model (single choke point for all
+    // object kinds, catching both procedural and GLB-cloned instances).
+    model.traverse((node) => {
+      if ((node as THREE.Mesh).isMesh) {
+        const mesh = node as THREE.Mesh
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+      }
+      // Animated verts move outside the static bounds computed at bind pose
+      // and get frustum-culled mid-clip otherwise.
+      if ((node as THREE.SkinnedMesh).isSkinnedMesh) {
+        node.frustumCulled = false
+      }
+    })
+
     return model
   }, [kind, seed, gltfs])
 }
@@ -125,9 +130,6 @@ export function disposeObjectModel(model: THREE.Object3D): void {
     if (!(n instanceof THREE.Mesh)) return
     n.geometry.dispose()
     const mats = Array.isArray(n.material) ? n.material : [n.material]
-    for (const m of mats) {
-      unregisterPaintedMaterial(m) // procedural mats (bush) are theme-registered per instance
-      m.dispose()
-    }
+    for (const m of mats) m.dispose()
   })
 }

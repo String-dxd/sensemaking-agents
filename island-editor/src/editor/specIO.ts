@@ -1,7 +1,9 @@
-// v4 spec serialization + validation. Keeps the accepts-old-versions-normalizes-
+// v5 spec serialization + validation. Keeps the accepts-old-versions-normalizes-
 // to-current contract: v1/v2 files are validated by the legacy module and migrated
 // (rasterized) to a grid on load; v3 files migrate forward with an empty objects
-// layer; v4 files validate their objects array. NO three/r3f imports.
+// layer; v4 files validate their objects array; both v3 and v4 have their surface
+// layer's dirt-path paint cleared (v5 repurposes that code to mean grass); v5
+// files validate objects and keep their surface as-is. NO three/r3f imports.
 //
 // Sole serialization/validation module since the Step 9 cutover (the legacy
 // validator lives in terrain/legacy/specV2.ts, imported only from here and seed).
@@ -13,11 +15,14 @@ import {
   GRID_COLS,
   GRID_ROWS,
   type IslandSpec,
+  LEGACY_DEFAULT_TIER_HEIGHTS,
   MAX_TIER,
+  LEGACY_OBJECT_KINDS,
   type ObjectKind,
   OBJECT_KINDS,
   type PlacedObject,
-  SURFACE_PATH,
+  SURFACE_AUTO,
+  SURFACE_GRASS,
   type TerrainGrid,
 } from '../terrain/terrainGrid'
 import { decodeGrid, encodeGrid } from './gridCodec'
@@ -67,7 +72,7 @@ function validateNumericGrid(g: Record<string, unknown>): TerrainGrid {
     }
     return (arr as number[]).slice()
   }
-  return { cols, rows, tiers: check(g.tiers, 'tiers', MAX_TIER), surface: check(g.surface, 'surface', SURFACE_PATH) }
+  return { cols, rows, tiers: check(g.tiers, 'tiers', MAX_TIER), surface: check(g.surface, 'surface', SURFACE_GRASS) }
 }
 
 /** Accept either a serialized grid (digit-string rows) or an in-memory numeric
@@ -93,12 +98,17 @@ function validateTierHeights(v: unknown): v is number[] {
 
 /** Validate a serialized `objects` array (v4). Each entry is field-validated and
  *  throws with an index+field message on failure — matching the file's grid
- *  validation style. Cells are range-checked against the (already-parsed) grid. */
+ *  validation style. Cells are range-checked against the (already-parsed) grid.
+ *  Invariant enforced AFTER per-entry validation (normalize, don't throw — same
+ *  register as the `LEGACY_OBJECT_KINDS` migration): at most one `character`
+ *  entry survives, the first if several are present. Runs on both deserialized
+ *  files and `applyOps`' final in-memory gate, so a batch of ops can never
+ *  leave two characters on the spec either. */
 function validateObjects(input: unknown, grid: TerrainGrid): PlacedObject[] {
   if (!Array.isArray(input)) {
     throw new Error('Invalid island spec: objects must be an array')
   }
-  return input.map((raw, i) => {
+  const objects = input.map((raw, i) => {
     if (typeof raw !== 'object' || raw === null) {
       throw new Error(`Invalid island spec: objects[${i}] must be an object`)
     }
@@ -106,7 +116,9 @@ function validateObjects(input: unknown, grid: TerrainGrid): PlacedObject[] {
     if (typeof o.id !== 'string' || o.id.length === 0) {
       throw new Error(`Invalid island spec: objects[${i}].id must be a non-empty string`)
     }
-    if (typeof o.kind !== 'string' || !OBJECT_KINDS.includes(o.kind as ObjectKind)) {
+    // Retired kinds (fruitTree/pine/palm) migrate to `tree` rather than throwing.
+    const kind = (LEGACY_OBJECT_KINDS[o.kind as string] ?? o.kind) as ObjectKind
+    if (typeof o.kind !== 'string' || !OBJECT_KINDS.includes(kind)) {
       throw new Error(`Invalid island spec: objects[${i}].kind must be one of ${OBJECT_KINDS.join(', ')}`)
     }
     if (!Number.isInteger(o.c) || (o.c as number) < 0 || (o.c as number) >= grid.cols) {
@@ -121,13 +133,24 @@ function validateObjects(input: unknown, grid: TerrainGrid): PlacedObject[] {
     if (!isFiniteNumber(o.scale) || (o.scale as number) <= 0) {
       throw new Error(`Invalid island spec: objects[${i}].scale must be a finite number > 0`)
     }
-    return { id: o.id, kind: o.kind as ObjectKind, c: o.c as number, r: o.r as number, yaw: o.yaw, scale: o.scale }
+    return { id: o.id, kind, c: o.c as number, r: o.r as number, yaw: o.yaw, scale: o.scale }
+  })
+  let seenCharacter = false
+  return objects.filter((o) => {
+    if (o.kind !== 'character') return true
+    if (seenCharacter) return false // drop every character after the first
+    seenCharacter = true
+    return true
   })
 }
 
-/** Validate an already-parsed value as an IslandSpec, migrating v1/v2/v3 → v4.
+/** Validate an already-parsed value as an IslandSpec, migrating v1/v2/v3/v4 → v5.
  *  v1/v2 rasterize to the grid AND get `objects: []`; v3 gets `objects: []`; v4
- *  validates its `objects`. Throws with a field-level message on failure. */
+ *  and v5 validate their `objects`. Surface code 1 meant the now-removed path
+ *  tool through v4 and now means "painted grass" (v5) — a ≤v4 file's painted
+ *  surface encoded a feature that no longer exists, so it is cleared to
+ *  SURFACE_AUTO on migration (tiers and objects are untouched); v5 files keep
+ *  their surface as-is. Throws with a field-level message on failure. */
 export function validateSpecObject(parsed: unknown): IslandSpec {
   if (typeof parsed !== 'object' || parsed === null) {
     throw new Error('Invalid island spec: root must be an object')
@@ -147,9 +170,9 @@ export function validateSpecObject(parsed: unknown): IslandSpec {
     }
   }
 
-  if (o.version !== 3 && o.version !== CURRENT_SPEC_VERSION) {
+  if (o.version !== 3 && o.version !== 4 && o.version !== CURRENT_SPEC_VERSION) {
     throw new Error(
-      `Invalid island spec: version must be 1, 2, 3, or ${CURRENT_SPEC_VERSION}, got ${String(o.version)}`,
+      `Invalid island spec: version must be 1, 2, 3, 4, or ${CURRENT_SPEC_VERSION}, got ${String(o.version)}`,
     )
   }
 
@@ -167,14 +190,30 @@ export function validateSpecObject(parsed: unknown): IslandSpec {
 
   // toGrid throws its own field-level messages on a bad grid.
   const grid = toGrid(o.grid)
-  // v3 migrates forward with an empty objects layer; v4 validates its objects.
-  const objects = o.version === CURRENT_SPEC_VERSION ? validateObjects(o.objects, grid) : []
+  // Surface code 1 meant the now-removed path tool through v4; an island saved
+  // yesterday must still open, so ≤v4 paint silently disappears (tiers and
+  // objects are untouched) rather than being reinterpreted as grass. v5 files
+  // keep their surface as painted — grass survives its own round-trip.
+  if (o.version === 3 || o.version === 4) {
+    grid.surface = grid.surface.map(() => SURFACE_AUTO)
+  }
+  // v3 migrates forward with an empty objects layer; v4 and v5 validate theirs.
+  const objects = o.version !== 3 ? validateObjects(o.objects, grid) : []
+
+  // Specs saved before the 2026-07-12 beach lowering carry the old default
+  // heights; rewrite exactly that array to the current defaults so autosaved
+  // islands pick up the retuned shoreline. Custom heights pass through as-is.
+  const th = o.tierHeights as number[]
+  const isLegacyDefault =
+    th.length === LEGACY_DEFAULT_TIER_HEIGHTS.length &&
+    th.every((v, i) => v === LEGACY_DEFAULT_TIER_HEIGHTS[i])
+  const tierHeights = isLegacyDefault ? DEFAULT_TIER_HEIGHTS.slice() : th.slice()
 
   return {
     version: CURRENT_SPEC_VERSION,
     worldSize: o.worldSize,
     seaLevel: o.seaLevel,
-    tierHeights: (o.tierHeights as number[]).slice(),
+    tierHeights,
     grid,
     objects,
   }

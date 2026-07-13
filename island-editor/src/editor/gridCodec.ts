@@ -2,7 +2,7 @@
 // readable, git-diffable, agent-writable, ~4 KB per layer. Digits are the integer
 // codes, capped at 9 (MAX_TIER = 4, fine). NO three/r3f imports.
 
-import { MAX_TIER, SURFACE_PATH, type TerrainGrid } from '../terrain/terrainGrid'
+import { MAX_TIER, SURFACE_GRASS, type TerrainGrid } from '../terrain/terrainGrid'
 
 export interface SerializedGrid {
   cols: number
@@ -79,6 +79,6 @@ export function decodeGrid(serialized: unknown): TerrainGrid {
     cols,
     rows,
     tiers: decodeLayer(o.tiers, cols, rows, 'tiers', MAX_TIER),
-    surface: decodeLayer(o.surface, cols, rows, 'surface', SURFACE_PATH),
+    surface: decodeLayer(o.surface, cols, rows, 'surface', SURFACE_GRASS),
   }
 }

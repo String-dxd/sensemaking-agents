@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
 import * as THREE from 'three'
+import type { ClipSelection } from '../models/characterAsset'
 import { hashString } from '../models/rand'
-import { registerPaintedModel } from '../models/textureThemes'
 import { disposeObjectModel, useObjectModel } from '../models/useObjectModel'
-import { blurTiers, type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
+import { blurredForSpec } from '../terrain/specCache'
+import { type IslandSpec, type PlacedObject, worldPositionOfObject } from '../terrain/terrainGrid'
+import { CharacterActor } from './CharacterActor'
 import { useCanopyWind } from './useCanopyWind'
 
 // Models are authored ~1 world-unit tall/footprint, so the per-object jitter
@@ -15,25 +17,41 @@ interface PlacedObjectsProps {
   spec: IslandSpec
   placeMode: boolean
   onRemove: (id: string) => void
+  /** The dock's clip selection for the placed character ('auto' = behavior machine). */
+  clip: ClipSelection
 }
 
 /** Render every placed object on the terrain. In place mode, a pointer-down on an
- *  object removes it (see the precedence note on `PlacedObjectMesh`). */
-export function PlacedObjects({ spec, placeMode, onRemove }: PlacedObjectsProps) {
+ *  object removes it (see the precedence note on `PlacedObjectMesh`). The
+ *  `character` kind routes to `CharacterActor` (skeletal mixer) instead of the
+ *  shared `PlacedObjectMesh`. */
+export function PlacedObjects({ spec, placeMode, onRemove, clip }: PlacedObjectsProps) {
   // Blurred tier field for terrain-top height sampling; recomputed per spec edit.
-  const blurred = useMemo(() => blurTiers(spec.grid), [spec])
+  const blurred = useMemo(() => blurredForSpec(spec), [spec])
   return (
     <>
-      {spec.objects.map((o) => (
-        <PlacedObjectMesh
-          key={o.id}
-          spec={spec}
-          object={o}
-          blurred={blurred}
-          placeMode={placeMode}
-          onRemove={onRemove}
-        />
-      ))}
+      {spec.objects.map((o) =>
+        o.kind === 'character' ? (
+          <CharacterActor
+            key={o.id}
+            spec={spec}
+            object={o}
+            blurred={blurred}
+            placeMode={placeMode}
+            onRemove={onRemove}
+            clip={clip}
+          />
+        ) : (
+          <PlacedObjectMesh
+            key={o.id}
+            spec={spec}
+            object={o}
+            blurred={blurred}
+            placeMode={placeMode}
+            onRemove={onRemove}
+          />
+        ),
+      )}
     </>
   )
 }
@@ -52,13 +70,7 @@ function PlacedObjectMesh({ spec, object: o, blurred, placeMode, onRemove }: Pla
   // (r3f does NOT auto-dispose a <primitive> object, so we dispose on unmount —
   // disposeObjectModel no-ops for shared GLB clones.)
   const model = useObjectModel(o.kind, hashString(o.id))
-  // Register on MOUNT, not just at build: StrictMode's probe cycle disposes the
-  // model once while it keeps rendering, silently dropping per-instance
-  // materials (bush) from the theme registry — re-registering keeps them live.
-  useEffect(() => {
-    registerPaintedModel(model)
-    return () => disposeObjectModel(model)
-  }, [model])
+  useEffect(() => () => disposeObjectModel(model), [model])
 
   const { x, y, z } = worldPositionOfObject(spec, o, blurred)
 

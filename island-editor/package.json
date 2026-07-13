@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "apply-ops": "tsx scripts/apply-ops.mjs"
+    "apply-ops": "tsx scripts/apply-ops.mjs",
+    "build:models": "node scripts/optimize-meshy-glb.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.0.0",
@@ -22,10 +23,15 @@
     "three": "^0.171.0"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.4.1",
+    "@gltf-transform/extensions": "^4.4.1",
+    "@gltf-transform/functions": "^4.4.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "0.184.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "meshoptimizer": "^1.1.1",
+    "sharp": "^0.34.5",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vite": "^7.0.0",

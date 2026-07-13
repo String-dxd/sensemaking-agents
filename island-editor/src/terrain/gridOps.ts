@@ -3,14 +3,14 @@
 // pre-clone in agent/applyOps.ts and the stroke-start snapshot in App.tsx).
 // NO three/r3f imports.
 
-import { cellIndex, inBounds, MAX_TIER, SURFACE_AUTO, SURFACE_PATH, type TerrainGrid } from './terrainGrid'
+import { cellIndex, inBounds, MAX_TIER, SURFACE_AUTO, SURFACE_GRASS, type TerrainGrid } from './terrainGrid'
 
 function clampTier(t: number): number {
   return t < 0 ? 0 : t > MAX_TIER ? MAX_TIER : t
 }
 
 function clampSurface(s: number): number {
-  return s < SURFACE_AUTO ? SURFACE_AUTO : s > SURFACE_PATH ? SURFACE_PATH : s
+  return s < SURFACE_AUTO ? SURFACE_AUTO : s > SURFACE_GRASS ? SURFACE_GRASS : s
 }
 
 /** In-bounds cell indices of the size×size block centered on (centerC, centerR).
@@ -59,7 +59,7 @@ export function setSurface(grid: TerrainGrid, cells: number[], surface: number):
 }
 
 /** True when tier `t`'s flat top sits strictly above the sea — i.e. the cell is
- *  land, not ocean floor. Under the default heights [-1.2, 0.12, 1.0, 1.65, 2.3]
+ *  land, not ocean floor. Under the default heights [-1.2, 0.05, 1.0, 1.65, 2.3]
  *  with seaLevel 0, tier 0 is water and tiers 1..4 are land. Robust to a custom
  *  seaLevel / tierHeights (e.g. an imported spec). An out-of-range tier is water. */
 export function isLandTier(tier: number, tierHeights: number[], seaLevel: number): boolean {

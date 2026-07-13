@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { shoreDistanceField } from '../terrain/shoreField'
+import { shoreFieldForSpec } from '../terrain/specCache'
 import type { IslandSpec } from '../terrain/terrainGrid'
+import { characterPose } from './characterPose'
 import { createSeaMaterial, createShoreDataTexture, updateShoreDataTexture } from './materials/SeaMaterial'
 
 /** The sea plane, shaded by the grid-derived shore-distance field. The shore
@@ -32,12 +33,12 @@ export function SeaSurface({ spec }: { spec: IslandSpec }) {
 
   // Shore texture: created once (fixed lattice resolution), refreshed per edit.
   const shoreTex = useMemo(
-    () => createShoreDataTexture(shoreDistanceField(spec.grid, spec.worldSize)),
+    () => createShoreDataTexture(shoreFieldForSpec(spec)),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- created once; updated in place below
     [],
   )
   useEffect(() => {
-    updateShoreDataTexture(shoreTex, shoreDistanceField(spec.grid, spec.worldSize))
+    updateShoreDataTexture(shoreTex, shoreFieldForSpec(spec))
   }, [shoreTex, spec])
   useEffect(() => () => shoreTex.dispose(), [shoreTex])
 
@@ -52,6 +53,10 @@ export function SeaSurface({ spec }: { spec: IslandSpec }) {
     // speeds it up); the ported shore layers were tuned at that pace, so match
     // it here — full speed makes the wash/ripples churn instead of lap.
     material.uniforms.uTime.value = state.clock.elapsedTime * 0.45
+    // Swim wake rings (plan 027): follow the live character pose; .w gates the
+    // whole effect off whenever the bird is absent or ashore.
+    const swim = material.uniforms.uSwim.value as THREE.Vector4
+    swim.set(characterPose.x, characterPose.z, 0, characterPose.active && characterPose.swimming ? 1 : 0)
   })
 
   return (

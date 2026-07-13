@@ -5,8 +5,10 @@ import { MOUSE } from 'three'
 import type { Camera, Vector3 } from 'three'
 import { createCommandStack } from './editor/commandStack'
 import { clearSaved, createAutosaver, loadSpec } from './editor/persistence'
+import { loadSpecFromRepo, saveSpecToRepo } from './editor/repoStore'
 import { downloadSpec, importSpecFromFile } from './editor/specIO'
 import { Backdrop } from './scene/Backdrop'
+import { FrameStatsProbe } from './scene/frameStats'
 import {
   DEFAULT_CAMERA,
   dolly,
@@ -16,12 +18,22 @@ import {
   ZOOM_IN_FACTOR,
   ZOOM_OUT_FACTOR,
 } from './scene/cameraOps'
+import { GrassLayer } from './scene/GrassLayer'
+import { issueMoveCommand } from './scene/characterCommand'
 import { IslandTerrain } from './scene/IslandTerrain'
 import { PlaceGhost } from './scene/PlaceGhost'
 import { PlacedObjects } from './scene/PlacedObjects'
 import { SeaSurface } from './scene/SeaSurface'
+import { CHARACTER_CLIPS, type ClipSelection } from './models/characterAsset'
 import { adjustTierToward, brushCells, isLandTier, setSurface, setTier } from './terrain/gridOps'
-import { addObject, makePlacedObject, removeObject } from './terrain/objectOps'
+import {
+  addObject,
+  findCharacter,
+  makePlacedObject,
+  objectAt,
+  removeObject,
+  withSingleCharacter,
+} from './terrain/objectOps'
 import { seedIsland } from './terrain/seed'
 import {
   cellIndex,
@@ -32,13 +44,14 @@ import {
   type ObjectKind,
   type PlacedObject,
   SURFACE_AUTO,
-  SURFACE_PATH,
+  SURFACE_GRASS,
   worldToCell,
 } from './terrain/terrainGrid'
+import { AnimationDock } from './ui/AnimationDock'
 import { CameraDock } from './ui/CameraDock'
 import { FileBar } from './ui/FileBar'
+import { StatsHud } from './ui/StatsHud'
 import { ModelPanel } from './ui/ModelPanel'
-import { StylePanel } from './ui/StylePanel'
 import { type BrushSize, type Tool, ToolPanel } from './ui/ToolPanel'
 
 const SAVED = loadSpec()
@@ -60,8 +73,12 @@ export function App() {
   const [tool, setTool] = useState<Tool>('raise')
   const [brushSize, setBrushSize] = useState<BrushSize>(1)
   const [orbitEnabled, setOrbitEnabled] = useState(true)
-  // Hold-Cmd: drags orbit the camera instead of painting.
+  // Hold-Space: drags orbit the camera instead of painting.
   const [cameraMode, setCameraMode] = useState(false)
+  // The hotbar Camera tool is the sticky version of hold-Space: while selected,
+  // plain drags orbit (no pan) and terrain editing is off.
+  const cameraToolActive = tool === 'camera'
+  const orbiting = cameraMode || cameraToolActive
 
   // Object placement: an armed kind (null = not placing). While armed, the
   // terrain reports the hovered cell for the ghost and a click drops an object.
@@ -71,6 +88,12 @@ export function App() {
   placeKindRef.current = placeKind
   // Hovered cell for the ghost preview (null = off-terrain / out of bounds).
   const [ghostCell, setGhostCell] = useState<{ c: number; r: number } | null>(null)
+
+  // The placed character's animation clip — ephemeral UI state, not part of
+  // the serialized spec (decided out of scope for this plan). 'auto' (default,
+  // plan 025) hands the clip to the behavior machine; a concrete clip is the
+  // manual override that freezes the chick in place.
+  const [clip, setClip] = useState<ClipSelection>('auto')
 
   // The spec lives in a ref (its grid arrays mutated in place by grid ops) with
   // a tick to trigger recompute — keeps stamp application out of a React
@@ -166,8 +189,8 @@ export function App() {
       case 'water':
         setTier(grid, cells, 0)
         break
-      case 'path':
-        setSurface(grid, cells, SURFACE_PATH)
+      case 'grass':
+        setSurface(grid, cells, SURFACE_GRASS)
         break
       case 'erase':
         setSurface(grid, cells, SURFACE_AUTO)
@@ -206,8 +229,32 @@ export function App() {
       const s = specRef.current
       const { c, r } = worldToCell(s.worldSize, s.grid, x, z)
       if (!isLandCell(s, c, r)) return
+      const objs = s.objects
+      if (kind === 'character') {
+        // Needs an EMPTY land cell; replaces any existing character (max 1).
+        if (objectAt(objs, c, r)) return
+        const prev = findCharacter(objs)
+        const o = makePlacedObject(kind, c, r, Math.random) // runtime jitter is fine here
+        applyObjects(withSingleCharacter(objs, o))
+        stack.push({
+          label: 'Place character',
+          do: () => applyObjects(withSingleCharacter(specRef.current.objects, o)),
+          undo: () =>
+            applyObjects(
+              prev
+                ? withSingleCharacter(removeObject(specRef.current.objects, o.id), prev)
+                : removeObject(specRef.current.objects, o.id),
+            ),
+        })
+        bumpStack()
+        return
+      }
+      // Static kinds: never drop INTO the character's cell (visual collision);
+      // stacking on each other stays allowed (pre-existing behavior).
+      const blocker = objectAt(objs, c, r)
+      if (blocker?.kind === 'character') return
       const o = makePlacedObject(kind, c, r, Math.random) // runtime jitter is fine here
-      applyObjects(addObject(s.objects, o))
+      applyObjects(addObject(objs, o))
       stack.push({
         label: 'Place object',
         do: () => applyObjects(addObject(specRef.current.objects, o)),
@@ -249,6 +296,20 @@ export function App() {
     setPlaceKind((cur) => (cur === k ? null : k))
   }, [])
 
+  // ── Animation cycler ─────────────────────────────────────────────────────────
+  const hasCharacter = spec.objects.some((o) => o.kind === 'character')
+  const cycleClip = useCallback((dir: 1 | -1) => {
+    setClip((cur) => {
+      // 'auto' (the behavior machine) leads the cycle, then every concrete clip.
+      const cycle: readonly ClipSelection[] = ['auto', ...CHARACTER_CLIPS]
+      const i = cycle.indexOf(cur)
+      const next = (i + dir + cycle.length) % cycle.length
+      return cycle[next]
+    })
+  }, [])
+  const prevClip = useCallback(() => cycleClip(-1), [cycleClip])
+  const nextClip = useCallback(() => cycleClip(1), [cycleClip])
+
   // ── Undo / redo ─────────────────────────────────────────────────────────────
   const undo = useCallback(() => {
     if (stack.undo()) bumpStack()
@@ -282,10 +343,9 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [undo, redo])
 
-  // ── Hold-Cmd to orbit ─────────────────────────────────────────────────────────
-  // While Cmd (or Ctrl) is held, drags fall through to OrbitControls (see
-  // IslandTerrain's cameraMode guard). blur clears it so a lost focus can't
-  // leave it stuck on.
+  // ── Hold-Space to orbit ───────────────────────────────────────────────────────
+  // While Space is held, drags fall through to OrbitControls (see IslandTerrain's
+  // cameraMode guard). blur clears it so a lost focus can't leave it stuck on.
   useEffect(() => {
     const inEditable = (t: EventTarget | null) => {
       const el = t as HTMLElement | null
@@ -294,15 +354,15 @@ export function App() {
       )
     }
     const onKeyDown = (e: KeyboardEvent) => {
-      // Cmd (Meta) held = camera mode; Ctrl works too for non-mac keyboards.
-      // Cmd+Z / Cmd+Shift+Z still reach the undo handler — camera mode only
-      // matters while a pointer drag is in progress.
-      if (e.key !== 'Meta' && e.key !== 'Control') return
+      if (e.code !== 'Space') return
       if (inEditable(e.target)) return
+      // Space's own defaults would fight the gesture: it scrolls the page and
+      // re-fires whichever panel tile was clicked last (buttons activate on Space).
+      e.preventDefault()
       setCameraMode(true)
     }
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Meta' || e.key === 'Control') setCameraMode(false)
+      if (e.code === 'Space') setCameraMode(false)
     }
     const onBlur = () => setCameraMode(false)
     window.addEventListener('keydown', onKeyDown)
@@ -346,6 +406,28 @@ export function App() {
     },
     [stack, bumpStack],
   )
+
+  // Save/Load persist to the repo-tracked saves/island.json via the dev-server
+  // middleware (server/islandSavePlugin.ts). Silent on success; alert on failure.
+  const saveToRepo = useCallback(async () => {
+    try {
+      await saveSpecToRepo(specRef.current)
+    } catch (err) {
+      alert(`Could not save island: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [])
+
+  const loadFromRepo = useCallback(async () => {
+    try {
+      const spec = await loadSpecFromRepo()
+      specRef.current = spec
+      setGridTick((t) => t + 1)
+      stack.clear() // never let undo resurrect pre-load state
+      bumpStack()
+    } catch (err) {
+      alert(`Could not load island: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }, [stack, bumpStack])
 
   // ── Camera presets ────────────────────────────────────────────────────────────
   // Capture the three OrbitControls instance drei forwards via a callback ref,
@@ -398,38 +480,55 @@ export function App() {
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
-      <Canvas camera={{ position: [14, 11, 14], fov: 50 }}>
+      <Canvas
+        camera={{ position: [14, 11, 14], fov: 50 }}
+        shadows="soft"
+        gl={{ toneMappingExposure: 1.1 }}
+      >
         <Backdrop />
+        <FrameStatsProbe />
         <SeaSurface key={`${spec.grid.cols}x${spec.grid.rows}`} spec={spec} />
         <IslandTerrain
           spec={spec}
           brushSize={brushSize}
-          cameraMode={cameraMode}
+          cameraMode={orbiting}
           placeMode={placeMode}
           onPlaceHover={onPlaceHover}
           onPlaceClick={placeObject}
           onPaintStart={onPaintStart}
           onPaint={paint}
           onPaintEnd={onPaintEnd}
+          onCommandMove={issueMoveCommand}
         />
         {/* GLB-backed models suspend while their assets stream in. */}
         <Suspense fallback={null}>
-          <PlacedObjects spec={spec} placeMode={placeMode} onRemove={removeObj} />
+          <GrassLayer key={`${spec.grid.cols}x${spec.grid.rows}`} spec={spec} />
+          <PlacedObjects spec={spec} placeMode={placeMode} onRemove={removeObj} clip={clip} />
           {placeKind !== null && <PlaceGhost spec={spec} kind={placeKind} cell={ghostCell} />}
         </Suspense>
         <OrbitControls
           ref={setControls}
           makeDefault
-          enabled={orbitEnabled || cameraMode}
-          // Plain drag = PAN (ground-plane, so the island slides under the
-          // camera without changing altitude); holding Cmd/Ctrl (camera mode)
-          // ORBITS. The mapping stays LEFT: PAN on purpose — OrbitControls
-          // flips a modifier-held PAN drag into ROTATE internally (and would
-          // flip a ROTATE mapping into pan, so LEFT: ROTATE here would undo
-          // itself). enableRotate gates that flip to camera mode only.
-          enableRotate={cameraMode}
+          enabled={orbitEnabled || orbiting}
+          // Plain drag = PAN (ground-plane, so the island slides under the camera
+          // without changing altitude); hold-Space or the hotbar Camera tool
+          // ORBITS, so the left button remaps to ROTATE for the duration.
+          //
+          // Space can't ride along on the pointer event the way the old Cmd
+          // gesture did: OrbitControls only flips a PAN drag into a rotate when
+          // it sees ctrl/meta/shift on the mousedown (see its _STATE.PAN case).
+          // A bare LEFT: PAN would therefore just pan while Space is held.
+          //
+          // The Camera TOOL is orbit-only by request: pan is disabled entirely
+          // (hold-Space keeps right-drag pan, the tool does not).
+          enableRotate={orbiting}
+          enablePan={!cameraToolActive}
           screenSpacePanning={false}
-          mouseButtons={{ LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
+          mouseButtons={{
+            LEFT: orbiting ? MOUSE.ROTATE : MOUSE.PAN,
+            MIDDLE: MOUSE.DOLLY,
+            RIGHT: MOUSE.PAN,
+          }}
           maxPolarAngle={Math.PI / 2 - 0.05} // never orbit below the horizon
           minDistance={4}
           maxDistance={120}
@@ -461,9 +560,10 @@ export function App() {
         onZoomIn={zoomIn}
         onRecenter={recenter}
       />
-      <FileBar onExport={exportSpec} onImport={openImport} onReset={reset} />
-      <StylePanel />
+      <StatsHud />
+      <FileBar onSave={saveToRepo} onLoad={loadFromRepo} onExport={exportSpec} onImport={openImport} onReset={reset} />
       <ModelPanel placeKind={placeKind} onPick={onPick} />
+      {hasCharacter && <AnimationDock clip={clip} onPrev={prevClip} onNext={nextClip} />}
     </div>
   )
 }

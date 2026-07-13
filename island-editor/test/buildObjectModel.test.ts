@@ -4,7 +4,7 @@ import { buildObjectModel, type ProceduralKind } from '../src/models/buildObject
 
 // The tree kinds moved to authored GLB assets (see treeGlbs.test.ts for that
 // contract); this suite covers the remaining procedural ground clutter.
-const PROCEDURAL_KINDS: ProceduralKind[] = ['bush', 'rock']
+const PROCEDURAL_KINDS: ProceduralKind[] = ['bush']
 
 describe('buildObjectModel', () => {
   it('returns a named THREE.Group with children for every procedural kind', () => {
@@ -67,8 +67,11 @@ describe('buildObjectModel', () => {
         if (!(o instanceof THREE.Mesh)) return
         const mats = Array.isArray(o.material) ? o.material : [o.material]
         for (const m of mats) {
-          expect(m).toBeInstanceOf(THREE.MeshStandardMaterial)
-          const map = (m as THREE.MeshStandardMaterial).map
+          // MeshToonMaterial = toon-lit, matching the GLB assets' runtime
+          // conversion (plan 019) — the bush's baked vertex-color shading
+          // multiplies the shared toon ramp.
+          expect(m).toBeInstanceOf(THREE.MeshToonMaterial)
+          const map = (m as THREE.MeshToonMaterial).map
           expect(map === null || map instanceof THREE.Texture).toBe(true)
         }
       })
@@ -95,8 +98,5 @@ describe('buildObjectModel', () => {
     expect(canopy).toBeInstanceOf(THREE.Group)
     expect((canopy as THREE.Group).userData.windAmp).toBe(0.25)
   })
-
-  it('rock has no canopy group (the wind hook must no-op on it)', () => {
-    expect(buildObjectModel('rock', 7).getObjectByName('canopy')).toBeUndefined()
-  })
+  // The tree's and rock's equivalents are asset facts now — see objectGlbs.test.ts.
 })

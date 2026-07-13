@@ -3,15 +3,16 @@ import { type BrushSize, BrushIcon, IconButton, RedoIcon, type Tool, TOOL_META, 
 
 export type { BrushSize, Tool } from './icons'
 
-const TOOLS: Tool[] = ['raise', 'lower', 'water', 'path', 'erase']
+const TOOLS: Tool[] = ['raise', 'lower', 'water', 'grass', 'erase', 'camera']
 const SIZES: BrushSize[] = [1, 2, 3]
 
 const TOOL_HINTS: Record<Tool, string> = {
   raise: 'Click-drag to raise land one cliff tier per stroke.',
   lower: 'Click-drag to lower land one cliff tier per stroke.',
   water: 'Carve cells down to the ocean floor — water flows in.',
-  path: 'Paint a dirt path onto flat ground.',
-  erase: 'Erase painted paths back to grass or sand.',
+  grass: 'Click-drag to plant grass on land.',
+  erase: 'Erase painted grass back to bare ground.',
+  camera: 'Drag to orbit the camera (no pan). Pick another tool to edit again.',
 }
 
 interface ToolPanelProps {
@@ -37,13 +38,18 @@ export function ToolPanel({
 }: ToolPanelProps) {
   return (
     <div className="hotbar">
-      <div className="hotbar__hint">{TOOL_HINTS[tool]}</div>
       <div className="hotbar__row">
         <div className="hotbar__group">
           {TOOLS.map((t) => {
             const { label, Icon } = TOOL_META[t]
             return (
-              <IconButton key={t} title={label} active={tool === t} onClick={() => onToolChange(t)}>
+              <IconButton
+                key={t}
+                title={label}
+                hint={TOOL_HINTS[t]}
+                active={tool === t}
+                onClick={() => onToolChange(t)}
+              >
                 <Icon />
               </IconButton>
             )
@@ -57,6 +63,7 @@ export function ToolPanel({
             <IconButton
               key={s}
               title={`Brush ${s}×${s}`}
+              hint={`Paint a ${s}×${s} block of cells per stroke.`}
               active={brushSize === s}
               onClick={() => onBrushSizeChange(s)}
             >
@@ -68,10 +75,10 @@ export function ToolPanel({
         <span className="hotbar__divider" />
 
         <div className="hotbar__group">
-          <IconButton title="Undo (⌘Z)" disabled={!canUndo} onClick={onUndo}>
+          <IconButton title="Undo" hint="⌘Z" disabled={!canUndo} onClick={onUndo}>
             <UndoIcon />
           </IconButton>
-          <IconButton title="Redo (⇧⌘Z)" disabled={!canRedo} onClick={onRedo}>
+          <IconButton title="Redo" hint="⇧⌘Z" disabled={!canRedo} onClick={onRedo}>
             <RedoIcon />
           </IconButton>
         </div>

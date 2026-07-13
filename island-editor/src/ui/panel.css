@@ -13,22 +13,13 @@
   color: #e7ecf6;
   font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
   user-select: none;
-  z-index: 10;
-}
-
-/* Active tool's hint, centered just above the bar. min-height keeps the bar from
-   jumping if a hint is ever empty. */
-.hotbar__hint {
-  min-height: 1.4em;
-  max-width: 340px;
-  padding: 3px 12px;
-  border-radius: 9px;
-  text-align: center;
-  font-size: 11px;
-  opacity: 0.75;
-  background: rgba(16, 22, 38, 0.55);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  /* Outranks the other fixed panels (all z-index 10). A panel's z-index makes
+     it a STACKING CONTEXT, which traps its tooltips inside: `.tip`'s z-index 20
+     only orders it against its hotbar siblings, never against another panel. So
+     a tooltip flying up out of the hotbar can only clear a neighbouring panel if
+     the HOTBAR ITSELF outranks that panel. (Raising `.tip` instead does nothing
+     — that was the bug: tool tooltips rendered behind the animation dock.) */
+  z-index: 20;
 }
 
 .hotbar__row {
@@ -137,23 +128,43 @@
   opacity: 1;
 }
 
-/* Bottom-right camera dock: preset/rotate/zoom/recenter grid + orbit caption. */
+/* Top-left performance HUD: same glass card, smaller tabular type so the
+   numbers don't jitter in width as they tick (plan 029). */
+.stats-hud {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  z-index: 10;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(16, 22, 38, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #e7ecf6;
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  opacity: 0.75;
+  transition: opacity 160ms ease;
+}
+.stats-hud:hover {
+  opacity: 1;
+}
+
+/* Bottom-right camera dock: preset/rotate/zoom/recenter grid. */
 .camera-dock {
   right: 20px;
   bottom: 20px;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
 }
 .camera-dock__grid {
   display: grid;
   grid-template-columns: repeat(2, 40px);
   gap: 6px;
-}
-.camera-dock__hint {
-  font-size: 11px;
-  opacity: 0.6;
-  text-align: center;
 }
 
 /* Top-right file bar: export / import / reset. */
@@ -167,7 +178,8 @@
 /* ── Left-edge model panel ──────────────────────────────────────────────────
    Fourth fixed zone. Vertically centered on the left edge (the distributed
    layout reserved this edge), so it stays clear of the bottom-center hotbar,
-   the bottom-right camera dock, and the top-right file bar. */
+   the bottom-right camera dock, and the top-right file bar. A bare icon rail:
+   the "Place" header and the placement caption both moved into tile tooltips. */
 .model-panel {
   position: fixed;
   left: 16px;
@@ -177,8 +189,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
   border-radius: 16px;
   background: rgba(16, 22, 38, 0.82);
   -webkit-backdrop-filter: blur(8px);
@@ -194,26 +206,110 @@
 .model-panel:hover {
   opacity: 1;
 }
-.model-panel__header {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0.7;
+
+/* ── Bottom-left animation dock ───────────────────────────────────────────────
+   Shown only while a character is placed. It used to sit directly above the
+   hotbar, which put it exactly where the hotbar's tool tooltips open — so every
+   tooltip landed under it. Moved to the free bottom-left corner: clear of the
+   hotbar's upward tooltip column, of the left-edge model panel (vertically
+   centered), and of the bottom-right camera dock. */
+.animation-dock {
+  position: fixed;
+  bottom: 20px;
+  left: 16px;
+  z-index: 10;
+  color: #e7ecf6;
+  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
+  user-select: none;
 }
-.model-panel__tiles {
+.animation-dock__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: rgba(16, 22, 38, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  opacity: 0.9;
+  transition: opacity 160ms ease;
+}
+.animation-dock__row:hover {
+  opacity: 1;
+}
+.animation-dock__label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-.model-panel__caption {
-  margin: 0;
-  max-width: 96px;
-  font-size: 10px;
-  line-height: 1.35;
+  align-items: center;
+  min-width: 168px;
   text-align: center;
-  opacity: 0.55;
+  font-weight: 600;
 }
+.animation-dock__index {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.62;
+}
+
+/* ── Tile tooltips ──────────────────────────────────────────────────────────
+   Every panel's prose lives here now: a title line plus an optional hint line,
+   shown on hover or keyboard focus. Purely CSS-positioned — the panels sit in
+   fixed screen corners, so a static side per panel never collides with an edge. */
+.tip-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.tip {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  background: rgba(10, 14, 26, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  color: #e7ecf6;
+  font: 12px/1.35 ui-sans-serif, system-ui, sans-serif;
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 120ms ease, visibility 120ms;
+}
+.tip__title {
+  font-weight: 600;
+}
+.tip__hint {
+  font-size: 11px;
+  opacity: 0.62;
+}
+.tip-wrap--top .tip {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.tip-wrap--right .tip {
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.tip-wrap--left .tip {
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.tip-wrap:hover .tip,
+.tip-wrap:focus-within .tip {
+  opacity: 1;
+  visibility: visible;
+}
+/* A disabled tile (undo/redo with nothing to do) fires no hover events in some
+   browsers; its wrapper still does, so the tooltip keeps working. */
 
 @media (prefers-reduced-motion: reduce) {
   .tile {
@@ -223,55 +319,4 @@
   .tile:active {
     transform: none;
   }
-}
-
-/* Top-center style panel: texture theme chips. */
-.style-panel {
-  position: fixed;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border-radius: 16px;
-  background: rgba(16, 22, 38, 0.82);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  color: #e7ecf6;
-  font: 12px/1.4 ui-sans-serif, system-ui, sans-serif;
-  user-select: none;
-  opacity: 0.9;
-  transition: opacity 160ms ease;
-}
-.style-panel:hover {
-  opacity: 1;
-}
-.style-panel__label {
-  margin-right: 2px;
-  color: rgba(231, 236, 246, 0.55);
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.style-panel__chip {
-  padding: 5px 10px;
-  border-radius: 10px;
-  border: 1px solid transparent;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
-}
-.style-panel__chip:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-.style-panel__chip.is-active {
-  background: rgba(255, 122, 89, 0.22);
-  border-color: rgba(255, 122, 89, 0.55);
 }

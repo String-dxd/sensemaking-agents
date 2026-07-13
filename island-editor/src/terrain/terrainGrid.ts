@@ -9,7 +9,7 @@ export const MAX_TIER = 4 // tiers 0..4
 export const GRID_COLS = 64
 export const GRID_ROWS = 64
 export const SURFACE_AUTO = 0 // grass/sand derived from tier
-export const SURFACE_PATH = 1 // dirt path tint
+export const SURFACE_GRASS = 1 // painted grass tufts (v5; was dirt path in ≤v4)
 
 /** Corner-rounding strength for the terrace field (knob, 0..0.4). See the WHY
  *  comment in `sampleTierField`. */
@@ -28,7 +28,7 @@ export interface TerrainGrid {
 }
 
 export interface IslandSpec {
-  version: 4
+  version: 5
   /** Square world bounds: X and Z each span [-worldSize/2, worldSize/2]. */
   worldSize: number
   /** World Y of the water surface. */
@@ -42,12 +42,28 @@ export interface IslandSpec {
 }
 
 /** Default tier tops. Tier 2 = 1.0 matches the engine's plateauTopY (see the
- *  v2 seed comment). Seafloor matches v2 seafloorDepth. */
-export const DEFAULT_TIER_HEIGHTS = [-1.2, 0.12, 1.0, 1.65, 2.3]
+ *  v2 seed comment). Seafloor matches v2 seafloorDepth. Tier 1 (the beach) was
+ *  lowered 0.12 → 0.05 on 2026-07-12 so the shore sits nearly flush with the
+ *  sea; the floor is the sea shader's ripple crest (+0.027 — see the vertex
+ *  2-sine in SeaMaterial.ts), so keep it above ~0.035 or waves clip the sand. */
+export const DEFAULT_TIER_HEIGHTS = [-1.2, 0.05, 1.0, 1.65, 2.3]
+
+/** The default tier tops before the 2026-07-12 beach lowering. Saved/exported
+ *  specs that still carry exactly this array migrate to DEFAULT_TIER_HEIGHTS on
+ *  load (see validateSpecObject) — an island saved yesterday must still open,
+ *  and should pick up the retuned shoreline. Custom-authored heights are never
+ *  rewritten. Also keeps legacy v1/v2 rasterization stable (see specV2.ts). */
+export const LEGACY_DEFAULT_TIER_HEIGHTS = [-1.2, 0.12, 1.0, 1.65, 2.3]
 
 /** Current spec version. `validateSpecObject` accepts this and older versions and
- *  normalizes (migrates) to it. Single source of truth for the literal. */
-export const CURRENT_SPEC_VERSION = 4
+ *  normalizes (migrates) to it. Single source of truth for the literal.
+ *
+ *  v5 (2026-07-12): surface code 1 now means painted grass (drag-painted tufts,
+ *  rendered by GrassLayer) instead of the removed dirt-path tool. A ≤v4 file's
+ *  path paint encoded a feature that no longer exists, so `validateSpecObject`
+ *  clears surface code 1 back to SURFACE_AUTO on migration — tiers and objects
+ *  are untouched. */
+export const CURRENT_SPEC_VERSION = 5
 
 // ── Grid indexing ────────────────────────────────────────────────────────────
 
@@ -160,8 +176,16 @@ function bilinear(field: ArrayLike<number>, cols: number, u: number, v: number):
   const c1 = Math.min(c0 + 1, cols - 1)
   const rows = field.length / cols
   const r1 = Math.min(r0 + 1, rows - 1)
-  const fu = u - c0
-  const fv = v - r0
+  let fu = u - c0
+  let fv = v - r0
+  // C1 "smooth bilinear" (plan 028): smoothstepped fractions round the
+  // field's iso-contours — plain bilinear contours are piecewise-linear with
+  // kinks at every lattice point, which rendered the island silhouette as a
+  // diamond sawtooth. At integer u/v the fractions are 0/1, so CELL-CENTER
+  // VALUES ARE EXACT AND UNCHANGED — the thin-feature amplitude invariant
+  // documented on sampleTierField (BLUR_MIX comment) is preserved.
+  fu = fu * fu * (3 - 2 * fu)
+  fv = fv * fv * (3 - 2 * fv)
   const h00 = field[r0 * cols + c0]
   const h10 = field[r0 * cols + c1]
   const h01 = field[r1 * cols + c0]
@@ -229,13 +253,28 @@ export function evaluateHeight(spec: IslandSpec, x: number, z: number, blurred?:
 }
 
 // ── Object kinds ───────────────────────────────────────────────────────────
-// The decorative object kinds the procedural model factory (src/models/
-// buildObjectModel.ts) can build. Placement (Plan B) + palette (Plan C) build on
-// this. Kept in the pure spec module so the enum the renderer consumes lives
-// alongside the rest of the headless-testable core.
+// The decorative object kinds the renderer can place. `tree` and `rock` load
+// authored GLB assets (public/models/, built by scripts/optimize-meshy-glb.mjs);
+// `bush` is still built procedurally (src/models/buildObjectModel.ts). Kept in
+// the pure spec module so the enum the renderer consumes lives alongside the
+// rest of the headless-testable core.
 
-export type ObjectKind = 'fruitTree' | 'pine' | 'palm' | 'bush' | 'rock'
-export const OBJECT_KINDS: ObjectKind[] = ['fruitTree', 'pine', 'palm', 'bush', 'rock']
+// `character` is max-1 per island (enforced in objectOps/specIO, not here —
+// this module stays a pure enum) and renders through `CharacterActor`, not
+// the shared `PlacedObjectMesh` (it needs a skeletal mixer the static kinds
+// don't have).
+export type ObjectKind = 'tree' | 'bush' | 'rock' | 'character'
+export const OBJECT_KINDS: ObjectKind[] = ['tree', 'bush', 'rock', 'character']
+
+/** Kinds retired on 2026-07-11, when the three authored tree variants collapsed
+ *  into the single Meshy `tree` asset. Saved islands (and exported spec files)
+ *  still carry them, so `validateSpecObject` rewrites them on load rather than
+ *  rejecting the spec — an island saved yesterday must still open. */
+export const LEGACY_OBJECT_KINDS: Record<string, ObjectKind> = {
+  fruitTree: 'tree',
+  pine: 'tree',
+  palm: 'tree',
+}
 
 // ── Placed objects (v4) ──────────────────────────────────────────────────────
 // A decorative object dropped on the terrain. Position is a grid CELL (snapped)

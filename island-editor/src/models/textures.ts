@@ -13,7 +13,7 @@ const waiters = new Map<string, Array<(t: THREE.Texture) => void>>()
  *  NOT eagerly: a material pointing at a texture whose file is missing renders
  *  BLACK, so callers keep their painted fallback tint until the pixels are
  *  really available. Never dispose the returned texture — it is shared. */
-export function loadSharedTexture(url: string, onReady?: (tex: THREE.Texture) => void): THREE.Texture {
+function loadSharedTexture(url: string, onReady?: (tex: THREE.Texture) => void): THREE.Texture {
   let tex = cache.get(url)
   if (!tex) {
     tex = new THREE.TextureLoader().load(url, (t) => {
@@ -40,17 +40,10 @@ export function loadSharedTexture(url: string, onReady?: (tex: THREE.Texture) =>
   return tex
 }
 
-export type ModelTextureName =
-  | 'bark-soft-streaks'
-  | 'leaf-soft-tufts'
-  | 'rock-soft-speckle'
-  | 'foliage-leaves'
-  | 'foliage-cedar'
-  | 'bush-leaves'
-  | 'palm-frond'
-  | 'palm-trunk'
-  | 'rock-painted'
-  | 'bark-painted'
+// Only the bush is still procedural, so it's the only model that needs a map
+// from /textures — `tree` carries its color in baked vertex colors and `rock`
+// embeds its own WebP base map in the GLB.
+export type ModelTextureName = 'bush-leaves'
 
 /** Lazily load a model texture from /textures. Cached for the app's lifetime —
  *  callers must NOT dispose these (PlacedObjects disposes materials only, and
