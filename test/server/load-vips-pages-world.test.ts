@@ -70,8 +70,8 @@ describe('loadVipsPages world data helpers', () => {
     const demoA = loadStudentSpaceShellData('demo-a')
     const demoB = loadStudentSpaceShellData('demo-b')
 
-    expect(demoA?.identity).toMatchObject({ name: 'Mei', className: 'Sec 4, NA' })
-    expect(demoA?.calendarEvents.map((event) => event.date)).toContain('2025-10-14')
+    expect(demoA?.identity).toMatchObject({ name: 'Ming Liang', className: 'Sec 2' })
+    expect(demoA?.calendarEvents.map((event) => event.date)).toContain('2026-01-20')
     expect(demoA?.teacherLetters[0]).toMatchObject({
       from: 'Ms Tan',
       read: false,

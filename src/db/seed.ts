@@ -13,8 +13,9 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { eq, sql } from 'drizzle-orm'
-import type { VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
+import type { Mood, VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
+import { mirrorMoodTag } from '~/server/mood-tags'
 import { type TenantContext, withStudent } from './client'
 import { type CartographerPathway, insertCartographerOutput, upsertVipsPage } from './queries'
 import {
@@ -45,6 +46,7 @@ export interface SeedReflectionFixture {
   inferred_meaning?: string
   story_reframe?: string
   review_status?: SeedMirrorReviewStatus
+  mood?: Mood
   created_at: string
 }
 
@@ -200,6 +202,9 @@ export async function seed(): Promise<SeedResult> {
         if (reflectionId === undefined) throw new Error('seed: inserted mirror row missing id')
         reflectionIds.push(reflectionId)
         await applyMirrorReviewStatus(ctx.db, student.student_id, reflectionId, r.review_status)
+        if (r.mood) {
+          await attachMirrorTag(ctx.db, student.student_id, reflectionId, mirrorMoodTag(r.mood))
+        }
         count++
       }
 
@@ -351,6 +356,15 @@ async function applyMirrorReviewStatus(
         : null
   if (!label) return
 
+  await attachMirrorTag(db, studentId, entryId, label)
+}
+
+async function attachMirrorTag(
+  db: SeedTransaction,
+  studentId: string,
+  entryId: number,
+  label: string,
+): Promise<void> {
   const existing = await db.select({ id: tags.id }).from(tags).where(sql`${tags.label} = ${label}`)
   let tagId = existing[0]?.id
   if (tagId === undefined) {

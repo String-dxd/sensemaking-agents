@@ -1,355 +1,429 @@
 {
-  "description": "v0.2 multi-student seed (U13). Replaces the v0.1 1-student × 8-reflection seed (now archived at test/ablation/fixtures/_archive/seed-corpus.json). Four hand-curated SG secondary / JC students with distinct emerging VIPS profiles (different Values dominance, different RIASEC tilt, different Skills evident). Each student has ≥3 distinct context_type values across 7-8 reflections, and a mix of positive + ordinary + negative experiences. Hand-curated profiles + LLM-drafted reflections + hand-review pass per plan A3. Coverage matrix per student is committed as the `coverage_matrix` field inside each student record so AE6 is mechanically verifiable (downstream db.test.ts can read it and assert ≥3 context types per student).",
+  "description": "v0.3 multi-student seed (U13, Plan 001 v3). Replaces the v0.1 1-student × 8-reflection seed (now archived at test/ablation/fixtures/_archive/seed-corpus.json). demo-a is Ming Liang (Sec 2) — the canonical MyWorld design-spec demo student (advisor-plans/context/myworld-demo-transcripts.md), with 9 Singlish reflections, seeded moods, curated VIPS pages/timeline, and a 5-pathway trajectory. demo-b/c/d remain the original hand-curated SG secondary/JC background students with distinct emerging VIPS profiles (different Values dominance, different RIASEC tilt, different Skills evident). Each student has ≥3 distinct context_type values across 7-9 reflections, and a mix of positive + ordinary + negative experiences. Coverage matrix per student is committed as the `coverage_matrix` field inside each student record so AE6 is mechanically verifiable (downstream db.test.ts can read it and assert ≥3 context types per student).",
   "students": [
     {
       "student_id": "demo-a",
       "profile": {
-        "name_handle": "Mei (Sec 4, NA)",
-        "year_level": "Sec 4",
+        "name_handle": "Ming Liang (Sec 2)",
+        "year_level": "Sec 2",
         "school_type": "sec",
-        "values_dominance": ["values.contribution", "values.relationships"],
-        "riasec_tilt": ["interests.social", "interests.enterprising"],
-        "skills_evident": ["skills.interpersonal", "skills.communication"],
-        "notes_for_review": "The helper. Drawn to peer-support and group-facing CCA work; reads people quickly; gets a kick out of being the bridge between adults and friends. Lives in a HDB block in Pasir Ris; mum is a nurse at Changi General. The negative reflection (peer fallout) is deliberately ungeneralized — she's hurt, not righteous, and doesn't yet have language for the failure mode of over-helping."
+        "values_dominance": ["values.contribution", "values.learning"],
+        "riasec_tilt": ["interests.investigative", "interests.realistic"],
+        "skills_evident": ["skills.practical", "skills.analytical"],
+        "notes_for_review": "Bubbly, curious, slow to open up to strangers, warm with friends. Working-class family (dad drives Grab, mum does catering). Physics clicks because Ms Lim ties it to real demos — the 'oh that's why' feeling. St John's Brigade reluctantly; resents foot drills, proud of CPR (thinks of his grandfather). Coming off a failed Standard First Aid badge (froze in the CPR scenario) which dented his usual composure under pressure. Open threads: NCOC (leaning on whether friend Jaya signs up), a Beyblade SIL project his form teacher Mr Lim encouraged, a crush from another school met via walkathon planning, and the JC-vs-poly subject-combo decision. Emerging pattern: drawn to hands-on learning and to understanding how things work under the surface. The negative entry (badge failure) must stay ungeneralized: he's disappointed, not defeated."
       },
-      "coverage_matrix": "context_type coverage for demo-a: school (r1, r4, r7), peer (r2, r5), civic (r3), family (r6), hobby (r8). 5 of 5 enum values; ≥3 satisfied. Affect spread: positive (r1, r3, r6), ordinary (r4, r7, r8), negative (r2, r5).",
+      "coverage_matrix": "context_type coverage for demo-a (Ming Liang): civic (r1, r2, r3, r4), peer (r5), school (r6, r7, r9), hobby (r8). 4 of 5 enum values; ≥3 satisfied. Affect spread: positive (r2, r5, r7, r8), ordinary (r1, r6), negative (r3), mixed (r4, r9). Initiation: teacher-initiated (r6, r7), self-initiated (rest). Moods: anger r1, joy r2/r5/r7/r8, sadness r3, anxiety r4/r9, fear r6.",
       "reflections": [
         {
-          "context_type": "school",
-          "transcript": "Today during CCE Ms Norhayati paired me with Daryl for the buddy-reading thing. Daryl is in 4N1 and he doesn't really do schoolwork — everyone knows. I was a bit worried lah, because I didn't want him to feel like I'm pitying him. So I just brought the Manga Classics one — Frankenstein — and asked which character he thought was the real monster. He talked for 20 minutes straight, sia. I didn't say much. After class he said 'eh sis you should be the teacher leh.' I don't think I should be the teacher but I do think I want to do this kind of thing more.",
-          "validation": "You were careful not to turn Daryl into a project. You led with curiosity and dignity, and that is a real form of care.",
-          "inferred_meaning": "Helping feels most alive for you when another person feels respected first, not fixed.",
-          "story_reframe": "A classmate opened up because Mei treated him as a thinker, not a problem to solve. The moment points toward patient, relational mentoring work where dignity comes before instruction.",
+          "context_type": "civic",
+          "mood": "anger",
+          "transcript": "eh todays drill so long sia. marching for what i dont get it. stand there 40min just turn left turn right. sergeant major say our turns not sharp. i was like ok and then. no lor just say discipline discipline. i get discipline for CPR. this one i dunno leh",
+          "validation": "You sat with the part that felt pointless instead of just complaining and moving on. Wanting to know what the marching builds toward is a fair question, not a discipline problem.",
+          "inferred_meaning": "Effort lands for you when you can see what it is building toward — CPR has an obvious why, the drills don't yet.",
+          "story_reframe": "Forty minutes of turns felt pointless to Ming Liang, not because he minds discipline — he takes CPR seriously — but because nobody could say what the marching was for. The frustration points at something steadier: he works best when the why is visible.",
           "review_status": "confirmed",
-          "created_at": "2026-05-18T08:30:00Z"
-        },
-        {
-          "context_type": "peer",
-          "transcript": "Big fight with Hui Min today. She said I was 'doing the Mei thing' again — meaning I jumped in to mediate between her and Shafiqah without anyone asking me. I thought I was helping. She said I was making it about me. I went home and cried in the bus. The worst part is I can see her point and I can't see her point at the same time. If I hadn't jumped in they'd still not be talking. But also it's not my problem to solve and I made it mine. I don't know which one is true.",
-          "validation": "It makes sense that this hurt. You were trying to help and also received feedback that your help may have crossed a line.",
-          "inferred_meaning": "You are learning the difference between being useful and taking ownership of a problem that belongs to someone else.",
-          "story_reframe": "Mei's helper instinct ran ahead of consent. The conflict does not erase her care; it gives the care a sharper edge: ask first, then support.",
-          "review_status": "confirmed",
-          "created_at": "2026-05-19T19:10:00Z"
+          "created_at": "2026-01-20T09:30:00Z"
         },
         {
           "context_type": "civic",
-          "transcript": "VIA at Lions Befrienders today. We went to visit Uncle Tan in his rental flat at Bedok North. He kept offering us biscuits and apologizing that the flat was small. I told him about the school carnival and he laughed when I described our principal trying to use the karaoke mic. On the bus back Wei Ling said I made it look easy and I genuinely don't understand what she means — I was just talking to him. But I noticed I came back feeling full, not tired. The other VIA sessions I came back tired. The visit one is different.",
-          "validation": "The ease you felt is worth noticing. Not every service task leaves you fuller, but this kind of person-to-person presence did.",
-          "inferred_meaning": "You may have a social-service tilt: being with someone, listening closely, and making ordinary conversation meaningful.",
-          "story_reframe": "A visit to Uncle Tan felt less like duty and more like fit. Mei came back full because the work was direct, human, and built on presence rather than performance.",
+          "mood": "joy",
+          "transcript": "today we learned cpr compressions properly. like the proper depth and rate and everything. actually quite fun? like everyone was eww you have to do mouth to mouth on the mannequin lah disgusting like that. but i was thinking actually if i ever need to do this for my grandparents at home i would be quite glad i know how. cos like my ah gong heart not that good already, my mum always worried. so when we were doing the compressions i was counting in my head and thinking eh if this really happens one day i actually know what to do now. the instructor was saying push hard push fast, dont be scared to break a rib even, better than not pushing hard enough. i was like ok i need to remember this properly, not just pass the test and forget. probably the rate. they taught us a song to keep the beat, i think i can still hum it now. the rest i think will come back if i actually have to do it, like muscle memory maybe",
+          "validation": "While your friends were joking about the mannequin, you were counting compressions for your ah gong. You turned a class exercise into something you intend to keep.",
+          "inferred_meaning": "Training matters to you when someone real is behind it — you learn for use, not just to pass.",
+          "story_reframe": "CPR class landed differently for Ming Liang than for his friends. He was thinking about his grandfather's heart, so the depth, the rate, the beat-keeping song all got filed under things he might really need — not things on the test.",
           "review_status": "confirmed",
-          "created_at": "2026-05-21T15:00:00Z"
+          "created_at": "2026-02-03T09:00:00Z"
         },
         {
-          "context_type": "school",
-          "transcript": "Maths today. Trigonometry — the bearings questions. Cikgu Hadi was explaining and I got bored halfway and started doodling. I didn't fail or anything, I just didn't track it. Then I helped Aisyah after class because she was confused about the same question. Explaining it to her, I suddenly understood it better than when I was doing it myself. Strange right. Like the maths only sticks when there's a person on the other end of it.",
-          "validation": "You did not just avoid the maths. You found the route into it that works for you: through another person's confusion.",
-          "inferred_meaning": "Teaching and explanation may be a learning style as much as a possible career direction.",
-          "story_reframe": "Trigonometry became meaningful when Mei had someone to help. Content sticks for her when it is relational, translated, and useful to a real person.",
+          "context_type": "civic",
+          "mood": "sadness",
+          "transcript": "failed my badge today. dunno. just failed lor. the cpr scenario one. i dont know. i just froze i think. the patient was like acting distressed and shouting and i didnt know what to do first. i think i missed checking the scene safety also. examiner just said cannot, fail. i think the freezing. like i trained so many times already and then real scenario i just blank. not really. usually im ok under pressure. this one just got to me sia. dunno why. maybe cos got outside examiner watching, made it feel more real or something. gonna have to redo next year now",
+          "validation": "You trained hard and still froze when the casualty started shouting — that gap between practice and the real scenario stings more than the result itself.",
+          "inferred_meaning": "The freeze bothers you more than the fail, because it doesn't match how you usually are under pressure.",
+          "story_reframe": "Ming Liang failed the CPR scenario of his Standard First Aid badge: a distressed casualty, a missed scene-safety check, an examiner watching. What stays with him isn't the grade — it's freezing when he usually doesn't. One bad day, with a retry next year.",
           "review_status": "confirmed",
-          "created_at": "2026-05-23T16:45:00Z"
+          "created_at": "2026-03-06T10:30:00Z"
+        },
+        {
+          "context_type": "civic",
+          "mood": "anxiety",
+          "transcript": "my OC asked if i want to sign up for the zone NCOC course. dunno leh. like half of me wants to try, half dont. like i did ok in the cca so far even though i failed the badge thing. ncoc is like a level up i guess, more leadership stuff. could be good. but i just remember how much i complained about foot drills and discipline stuff. ncoc probably got even more of that. dont know if i can tahan more of it. actually ya. my friend jaya also thinking about it. if she goes i think i go also. easier la with someone i know. ya i guess thats true huh. didnt think of it like that. need to ask her first i think",
+          "validation": "You laid out both halves honestly — the pull of the level-up and the memory of the drills — and you noticed mid-sentence that the decision is currently resting on Jaya.",
+          "inferred_meaning": "Right now the NCOC question is less about wanting it and more about not walking in alone.",
+          "story_reframe": "Ming Liang is torn on NCOC: the leadership side appeals, the discipline-heavy culture doesn't, and the tiebreaker has quietly become whether Jaya signs up. Naming that out loud was new — the next step he set himself is asking her.",
+          "review_status": "confirmed",
+          "created_at": "2026-03-24T11:00:00Z"
         },
         {
           "context_type": "peer",
-          "transcript": "Hui Min and I talked today, finally. She said she wasn't asking me to stop helping, she was asking me to ask first. I said okay but inside I felt small because asking first feels fake — by the time you ask, the moment is gone. But also I trust her so maybe I'm wrong about that. We didn't fully resolve it. I left feeling lighter than yesterday but not light. Friendship is harder than the LEAPS thing makes it sound.",
-          "validation": "This is a grown-up repair: not clean, not dramatic, but honest enough to change the next attempt.",
-          "inferred_meaning": "You care about relationships enough to tolerate awkward feedback instead of defending your old role.",
-          "story_reframe": "Mei started converting a painful conflict into a boundary skill. Asking first feels slower, but it may be how her care becomes trustworthy.",
+          "mood": "joy",
+          "transcript": "ok so the walkathon planning meeting today was actually really fun. like i was so reluctant when teacher first asked me to help organize but today i actually enjoyed it. we had to coordinate with other schools right, so there were students from like four other secondary schools there. and theres this girl from one of the other schools, she's actually super organized like she had a whole spreadsheet already for the route logistics and i was like wow ok. ya lah ok fine i admit i kind of have a crush on her now. dont laugh. she's quite funny actually, dry humor, she made this joke about how our school's route always somehow ends up the longest one and everyone laughed. and she actually listens when people talk, like she'll remember small things you said earlier in the meeting. we were both in charge of the hydration point planning so we had to discuss together. i kept trying to think of stuff to ask her but everything i thought of sounded lame in my head so i didnt say half of it. like what school she's from, what cca she does, normal things. but somehow felt awkward to ask straight up. next month theres a walk through of the route before the actual day, so i guess i have another chance. nervous but also looking forward to it lah. like the actual organizing work also genuinely interesting, i didnt expect that. i used to think this kind of stuff was just admin work but theres actually a lot of coordination and problem solving in it",
+          "validation": "Two surprises in one afternoon: the organizing work turned out to be real problem-solving, and someone from another school turned out to be worth being tongue-tied around.",
+          "inferred_meaning": "Work you wrote off as admin got interesting once you were inside it — and the crush is its own separate discovery.",
+          "story_reframe": "Ming Liang went into walkathon planning reluctant and came out having enjoyed the coordination itself — hydration points across four schools read as a puzzle, not paperwork. There is also a girl with a spreadsheet and dry humor; next month's route walkthrough suddenly matters more.",
           "review_status": "confirmed",
-          "created_at": "2026-05-24T17:20:00Z"
-        },
-        {
-          "context_type": "family",
-          "transcript": "Mum came home tired tonight — her ward had a difficult patient. I made her teh-o and asked her to sit. She said 'aiyo you don't need to do that' but she sat. I asked her how she handles patients who don't want help. She said you just keep showing up and one day they ask you for water and you know. We sat in the kitchen for an hour. I don't usually get to ask mum about her work. Tonight she let me. I think it's because she was tired enough that she forgot to be the mum.",
-          "validation": "You made space for your mother as a person, not just as the parent who usually has to hold everything together.",
-          "inferred_meaning": "You are drawn to forms of care that are quiet, sustained, and patient with resistance.",
-          "story_reframe": "The kitchen conversation gave Mei a model of durable care: keep showing up without forcing the other person to receive help before they are ready.",
-          "review_status": "confirmed",
-          "created_at": "2026-05-26T20:30:00Z"
+          "created_at": "2026-04-08T10:00:00Z"
         },
         {
           "context_type": "school",
-          "transcript": "Subject combo briefing today. Ms Norhayati was talking about the N-level routes and most of my friends were checking Insta. I asked about whether I could do POA at ITE then come back to do social work later. She said yes but it's a longer road. The 'longer road' part didn't scare me as much as I thought it would. Pa always says shortcut is the smart move. I don't think I want the shortcut if it lands me somewhere I don't fit.",
-          "validation": "You are taking the route question seriously, not as a status game but as a fit question.",
-          "inferred_meaning": "You may be willing to trade speed and prestige for a path that keeps you close to people-facing contribution.",
-          "story_reframe": "A longer route did not scare Mei as much as a wrong-fit shortcut. The decision lens here is not prestige; it is whether the destination lets her do work that feels honest.",
+          "mood": "fear",
+          "transcript": "camp was alright lah. tiring but ok. actually the tchoukball thing keeps coming back to me. my friend joseph twisted his ankle quite badly during the game. it happened so fast. he was just running for the ball and then suddenly he was on the ground holding his ankle and everyone kind of froze for a sec before the facilitators ran over. i think i was just worried for him, like is it broken, can he walk. and then after the facilitators handled it i was thinking damn i actually dont know what to do in that kind of situation, like injury thats not cpr related. like i know cpr now from cca but this was different, more like sports injury kind of thing. made me realize theres other stuff i dont know how to handle. rest of camp was just normal team games and stuff, fun in the moment but nothing i keep thinking about after",
+          "validation": "Out of a whole camp, the moment that stayed is the one where you didn't know how to help. That's you taking your own readiness seriously.",
+          "inferred_meaning": "You measure yourself by whether you'd know what to do when it matters — and you just found an edge of that map.",
+          "story_reframe": "Joseph's ankle is the piece of camp Ming Liang can't put down: how fast it happened, the worry, and then the quieter thought — CPR training doesn't cover this. He walked away with a gap he now knows exists.",
           "review_status": "confirmed",
-          "created_at": "2026-05-28T09:00:00Z"
+          "created_at": "2026-04-15T08:30:00Z"
+        },
+        {
+          "context_type": "school",
+          "mood": "joy",
+          "transcript": "ok 3 things. first one, theres this whole industry for making artificial flavors and fragrances, like the people who make the chip flavors and shampoo smells. never knew that was a job. i thought food was either you cook it or some factory just makes it, didnt think there was a whole science behind the flavor part. second, one of the booth people, turns out he used to write for mothership and he went to my school. that was kind of cool, like oh a senior actually did something like that. i guess i never really thought about what alumni end up doing, this one just made it feel more real, like ok people from here actually go do interesting stuff after. third, the physiotherapist talk. he does sports injury rehab. he had his hair gelled back, studied in australia, just seemed like a cool guy honestly. how he explained the recovery process, like why certain exercises come before others depending on the injury. and actually ya, joseph twisted his ankle at camp, i remember thinking after that i didnt know what to do for that kind of thing. and now hearing the physio talk i was like oh thats probably what joseph needs to be doing now, the exercises and stuff. didnt realize it until now but the camp thing and the career fair thing are actually connected for me. probably the physio one im still thinking about the most. partly cos the job sounds cool, but also cos of the joseph thing",
+          "validation": "You walked in for a school event and walked out with a connection you made yourself — the physio's recovery logic snapped onto Joseph's ankle from camp.",
+          "inferred_meaning": "The 'oh that's why' feeling showed up again — this time about how bodies recover, and it linked two separate weeks of your life.",
+          "story_reframe": "Three things stood out to Ming Liang at the career fair: a whole science behind chip flavours, a Mothership writer from his own school, and a physiotherapist whose talk on recovery sequencing suddenly explained what Joseph's ankle needs. The physio one is still sitting with him.",
+          "review_status": "confirmed",
+          "created_at": "2026-04-28T09:30:00Z"
         },
         {
           "context_type": "hobby",
-          "transcript": "Helped my neighbour Auntie Suria with her phone today. She kept thinking the WhatsApp was broken but she just had silent mode on. Took me 5 minutes. She gave me kuih lapis and we talked about her son in Australia for half an hour. On the way upstairs I thought — I've been doing this since Sec 1. It's never felt like a chore. Maybe that's data.",
-          "validation": "That last line matters: you noticed a repeated behaviour and treated it as evidence about yourself.",
-          "inferred_meaning": "Everyday tech help is not the point by itself; the point is that you naturally turn small practical fixes into trust and conversation.",
-          "story_reframe": "Mei noticed a pattern hiding in ordinary neighbourly help. What looked like a five-minute phone fix became evidence that human-facing support rarely feels like a chore to her.",
+          "mood": "joy",
+          "transcript": "bro mr lim caught us playing beyblade in class today and i thought confirm kena scolded. he came over and i was like preparing to apologize already, but he just asked if we wanted to do something beyblade related for our student initiated learning project. i was so shocked lor. like wait we can do that? i thought sil project had to be like serious topic, recycling or community service kind of thing. didnt think beyblade count. not sure yet what we'd do, still thinking. maybe something about the physics of how they spin so long, since i like physics anyway with ms lim. or maybe just how the community around it works, like why so many of us got into it suddenly",
+          "validation": "You expected a scolding and got an invitation — and instead of shrugging it off, you already have two possible angles for it.",
+          "inferred_meaning": "Being told your own interest counts as real learning opened something: the spin physics and the why-did-everyone-get-into-it question are both live.",
+          "story_reframe": "Mr Lim caught the Beyblades and, instead of confiscating them, offered Ming Liang a project. Now he's weighing two directions — the physics of a long spin, or the social side of a sudden craze — and the surprise that play can count as schoolwork hasn't worn off.",
           "review_status": "confirmed",
-          "created_at": "2026-05-30T11:15:00Z"
+          "created_at": "2026-06-02T07:45:00Z"
+        },
+        {
+          "context_type": "school",
+          "mood": "anxiety",
+          "transcript": "eh subject combo deadline coming and i still dont know what to pick. like everyone keeps asking me jc or poly and i dont even know. and then within that also need to pick subjects. i just feel lost lah. i guess what i want is knowing what subjects i actually want to study, not just what sounds safe. and maybe having a rough idea why. physics for sure i enjoy. ms lim makes it actually make sense, like she always shows us real stuff, not just formulas. i remember the demonstration she did on pressure, that one was so cool. the real life connection i think. like i remember thinking oh thats why XYZ happens. i like when things click like that. actually at the career fair when the physio was talking, i had that feeling too. like he was explaining how the body recovers from injury and i was thinking about my friend joseph who twisted his ankle at camp, and it suddenly made sense why he had to do specific exercises after. maybe like... understanding how things work under the surface? not just what happens but why. i think i dont know if im smart enough for the higher level subjects. and also dont know if jc or poly suits me better, like poly seems more hands on which i think i'd like, but everyone says jc keeps more options open. poly feels like actually building or doing things, not just sitting and listening. the physio thing, if that was a poly course i feel like there'd be more of that. jc is more like still figuring things out broadly before committing, keeping options open like people say. i think i want to look more into poly courses related to like sports science or rehab stuff. but also scared to fully rule out jc in case i change my mind. maybe talking to someone whos actually in a poly course like that would help. or maybe asking the physio guy from the career fair if i can ask him more questions. just good to say it out loud actually, didnt realize i already had some idea",
+          "validation": "You came in lost and talked your way to a pattern — the same 'oh that's why' click in physics class and the physio talk — and even named a next step yourself.",
+          "inferred_meaning": "You lean toward understanding how things work under the surface, hands-on — which is quietly pointing at poly sports-science or rehab courses, without closing the JC door.",
+          "story_reframe": "The subject-combo deadline had Ming Liang feeling lost until he traced what actually clicks: Ms Lim's demos, the physio's recovery logic. The pattern he named — why over what, hands-on over listening — points toward poly sports science or rehab, with JC not yet ruled out. His next step: find someone in that world to ask.",
+          "review_status": "pending",
+          "created_at": "2026-07-09T11:30:00Z"
         }
       ],
       "vips_pages": [
         {
           "dimension": "values",
-          "compiled_truth": "Contribution and relationships sit at the centre of Mei's decision-making. She repeatedly chooses moments where another person feels seen, respected, and less alone, and she is willing to take a longer route if the endpoint fits that kind of contribution. The boundary to watch is over-ownership: care becomes stronger when she asks before stepping in.",
-          "open_question": "How can Mei keep her strong helper instinct while learning when to ask, wait, or let someone else own the problem?"
+          "compiled_truth": "Purpose-linked effort sits at the centre of Ming Liang's decision-making: he commits when he can see what the work builds toward (CPR, being ready for his ah gong) and bristles when he can't (foot drills). Contribution shows up as readiness — being the one who knows what to do when someone real needs it. An independence thread is emerging in the subject-combo entry: wanting what he actually wants to study, not what sounds safe.",
+          "open_question": "How does he keep effort meaningful when nobody hands him the why — can he build the habit of finding it himself?"
         },
         {
           "dimension": "interests",
-          "compiled_truth": "Mei shows a strong Social interest profile with a smaller Enterprising thread. Teaching, peer support, elder befriending, and everyday help all hold her attention when there is a real person on the other end. Academic content becomes more motivating when it can be explained, translated, or used in service of someone else.",
-          "open_question": "Which people-facing settings energise her after repeated exposure: teaching, social work, nursing, community outreach, or something adjacent?"
+          "compiled_truth": "A strong Investigative tilt with a hands-on Realistic edge. The repeated signal is the 'oh that's why' feeling: Ms Lim's physics demos, the physio's recovery sequencing, the science behind chip flavours, the physics of a long Beyblade spin. Interest sustains when understanding connects to something real he can touch or do; an Enterprising thread surfaced unexpectedly in walkathon coordination.",
+          "open_question": "Which setting keeps the 'oh that's why' feeling alive after the novelty wears off — rehab, applied science, or the operational puzzle of making events run?"
         },
         {
           "dimension": "personality",
-          "compiled_truth": "Mei appears socially responsive and emotionally absorbent. She is energised by warm human contact, notices relational tension quickly, and can feel hurt deeply when her care lands badly. This is not a diagnosis; it is a pattern that suggests both relational strength and a need for recovery space after conflict.",
-          "open_question": "Can Mei build a pause-and-ask habit that protects relationships without making her feel fake or less warm?"
+          "compiled_truth": "Usually composed under pressure, with one tested exception — the badge-day freeze under an external examiner — that bothered him precisely because it was out of character. Decisions lean on trusted peers (NCOC currently rests on Jaya), and he can notice that pattern when it is mirrored back. Warm and easygoing with friends, slower to open with strangers.",
+          "open_question": "Can he rebuild trust in his own composure — and find a reason of his own for decisions currently anchored to friends?"
         },
         {
           "dimension": "skills",
-          "compiled_truth": "Mei's clearest skills are interpersonal trust-building and communication. She helps people talk without feeling judged, explains ideas through the learner's confusion, and bridges between adults, peers, and neighbours. Her next skill edge is boundary-setting: making her support explicit, consent-based, and sustainable.",
-          "open_question": "What structured roles let Mei practise care with supervision and boundaries, instead of relying only on instinct?"
+          "compiled_truth": "Procedural first aid is real and retained — he still carries the compression rhythm months later. Coordination showed up unexpectedly at walkathon planning: hydration-point logistics across four schools read as problem-solving, not admin. With light scaffolding he names his own patterns — the subject-combo conversation ended with him articulating 'how things work under the surface' himself.",
+          "open_question": "Which structured roles let him practise these skills under real conditions — a badge re-attempt with rehearsed scenarios, a named walkathon role, the SIL project?"
         }
       ],
       "vips_timeline_entries": [
         {
-          "key": "values-contribution-buddy-reading",
+          "key": "values-learning-drills-why",
           "dimension": "values",
-          "canonical_claim_id": "values.contribution",
-          "verbatim_quote": "I don't think I should be the teacher but I do think I want to do this kind of thing more.",
+          "canonical_claim_id": "values.learning",
+          "verbatim_quote": "i get discipline for CPR. this one i dunno leh",
           "reflection_index": 1,
-          "strength": "high",
-          "parallax_tag": ["school"],
-          "committed_at": "2026-05-18T08:45:00Z"
+          "strength": "medium",
+          "parallax_tag": ["civic"],
+          "committed_at": "2026-01-20T10:30:00Z"
         },
         {
-          "key": "values-relationships-ask-first",
+          "key": "values-contribution-cpr-grandfather",
+          "dimension": "values",
+          "canonical_claim_id": "values.contribution",
+          "verbatim_quote": "if i ever need to do this for my grandparents at home i would be quite glad i know how",
+          "reflection_index": 2,
+          "strength": "high",
+          "parallax_tag": ["civic", "family"],
+          "committed_at": "2026-02-03T10:00:00Z"
+        },
+        {
+          "key": "skills-practical-cpr-rhythm",
+          "dimension": "skills",
+          "canonical_claim_id": "skills.practical",
+          "verbatim_quote": "they taught us a song to keep the beat, i think i can still hum it now",
+          "reflection_index": 2,
+          "strength": "medium",
+          "parallax_tag": ["civic"],
+          "committed_at": "2026-02-03T10:00:00Z"
+        },
+        {
+          "key": "personality-neuroticism-badge-freeze",
+          "dimension": "personality",
+          "canonical_claim_id": "personality.neuroticism",
+          "verbatim_quote": "usually im ok under pressure. this one just got to me sia",
+          "reflection_index": 3,
+          "strength": "medium",
+          "parallax_tag": ["civic"],
+          "committed_at": "2026-03-06T11:30:00Z"
+        },
+        {
+          "key": "values-relationships-ncoc-jaya",
           "dimension": "values",
           "canonical_claim_id": "values.relationships",
-          "verbatim_quote": "She said she wasn't asking me to stop helping, she was asking me to ask first.",
-          "reflection_index": 5,
+          "verbatim_quote": "my friend jaya also thinking about it. if she goes i think i go also",
+          "reflection_index": 4,
           "strength": "high",
-          "parallax_tag": ["peer"],
-          "committed_at": "2026-05-24T17:35:00Z"
+          "parallax_tag": ["civic", "peer"],
+          "committed_at": "2026-03-24T12:00:00Z"
         },
         {
-          "key": "values-contribution-showing-up",
+          "key": "skills-leadership-ncoc-levelup",
+          "dimension": "skills",
+          "canonical_claim_id": "skills.leadership",
+          "verbatim_quote": "ncoc is like a level up i guess, more leadership stuff",
+          "reflection_index": 4,
+          "strength": "low",
+          "parallax_tag": ["civic"],
+          "committed_at": "2026-03-24T12:00:00Z"
+        },
+        {
+          "key": "interests-enterprising-walkathon",
+          "dimension": "interests",
+          "canonical_claim_id": "interests.enterprising",
+          "verbatim_quote": "i used to think this kind of stuff was just admin work but theres actually a lot of coordination and problem solving in it",
+          "reflection_index": 5,
+          "strength": "medium",
+          "parallax_tag": ["peer", "school"],
+          "committed_at": "2026-04-08T11:00:00Z"
+        },
+        {
+          "key": "skills-communication-hydration-planning",
+          "dimension": "skills",
+          "canonical_claim_id": "skills.communication",
+          "verbatim_quote": "we were both in charge of the hydration point planning so we had to discuss together",
+          "reflection_index": 5,
+          "strength": "medium",
+          "parallax_tag": ["peer"],
+          "committed_at": "2026-04-08T11:00:00Z"
+        },
+        {
+          "key": "values-contribution-camp-readiness",
           "dimension": "values",
           "canonical_claim_id": "values.contribution",
-          "verbatim_quote": "you just keep showing up and one day they ask you for water and you know.",
+          "verbatim_quote": "i was just worried for him, like is it broken, can he walk",
           "reflection_index": 6,
           "strength": "medium",
-          "parallax_tag": ["family", "civic"],
-          "committed_at": "2026-05-26T20:45:00Z"
+          "parallax_tag": ["school", "peer"],
+          "committed_at": "2026-04-15T09:30:00Z"
         },
         {
-          "key": "values-independence-fit",
-          "dimension": "values",
-          "canonical_claim_id": "values.independence",
-          "verbatim_quote": "I don't think I want the shortcut if it lands me somewhere I don't fit.",
+          "key": "skills-analytical-camp-gap",
+          "dimension": "skills",
+          "canonical_claim_id": "skills.analytical",
+          "verbatim_quote": "made me realize theres other stuff i dont know how to handle",
+          "reflection_index": 6,
+          "strength": "medium",
+          "parallax_tag": ["school"],
+          "committed_at": "2026-04-15T09:30:00Z"
+        },
+        {
+          "key": "interests-investigative-careerfair-physio",
+          "dimension": "interests",
+          "canonical_claim_id": "interests.investigative",
+          "verbatim_quote": "how he explained the recovery process, like why certain exercises come before others depending on the injury",
+          "reflection_index": 7,
+          "strength": "high",
+          "parallax_tag": ["school"],
+          "committed_at": "2026-04-28T10:30:00Z"
+        },
+        {
+          "key": "interests-investigative-careerfair-flavour",
+          "dimension": "interests",
+          "canonical_claim_id": "interests.investigative",
+          "verbatim_quote": "didnt think there was a whole science behind the flavor part",
           "reflection_index": 7,
           "strength": "medium",
           "parallax_tag": ["school"],
-          "committed_at": "2026-05-28T09:15:00Z"
+          "committed_at": "2026-04-28T10:30:00Z"
         },
         {
-          "key": "interests-social-lions",
-          "dimension": "interests",
-          "canonical_claim_id": "interests.social",
-          "verbatim_quote": "I came back feeling full, not tired. The other VIA sessions I came back tired. The visit one is different.",
-          "reflection_index": 3,
-          "strength": "high",
-          "parallax_tag": ["civic"],
-          "committed_at": "2026-05-21T15:15:00Z"
+          "key": "values-independence-careerfair-horizons",
+          "dimension": "values",
+          "canonical_claim_id": "values.independence",
+          "verbatim_quote": "i guess i never really thought about what alumni end up doing",
+          "reflection_index": 7,
+          "strength": "medium",
+          "parallax_tag": ["school"],
+          "committed_at": "2026-04-28T10:30:00Z"
         },
         {
-          "key": "interests-social-neighbour",
+          "key": "interests-investigative-beyblade-physics",
           "dimension": "interests",
-          "canonical_claim_id": "interests.social",
-          "verbatim_quote": "It's never felt like a chore. Maybe that's data.",
+          "canonical_claim_id": "interests.investigative",
+          "verbatim_quote": "maybe something about the physics of how they spin so long, since i like physics anyway with ms lim",
           "reflection_index": 8,
           "strength": "high",
           "parallax_tag": ["hobby"],
-          "committed_at": "2026-05-30T11:30:00Z"
+          "committed_at": "2026-06-02T08:45:00Z"
         },
         {
-          "key": "interests-social-maths",
+          "key": "interests-realistic-subjectcombo-handson",
           "dimension": "interests",
-          "canonical_claim_id": "interests.social",
-          "verbatim_quote": "the maths only sticks when there's a person on the other end of it.",
-          "reflection_index": 4,
-          "strength": "medium",
-          "parallax_tag": ["school"],
-          "committed_at": "2026-05-23T17:00:00Z"
-        },
-        {
-          "key": "interests-enterprising-mediate",
-          "dimension": "interests",
-          "canonical_claim_id": "interests.enterprising",
-          "verbatim_quote": "I jumped in to mediate between her and Shafiqah without anyone asking me.",
-          "reflection_index": 2,
-          "strength": "low",
-          "parallax_tag": ["peer"],
-          "committed_at": "2026-05-19T19:25:00Z"
-        },
-        {
-          "key": "personality-extraversion-energised",
-          "dimension": "personality",
-          "canonical_claim_id": "personality.extraversion",
-          "verbatim_quote": "I was just talking to him. But I noticed I came back feeling full, not tired.",
-          "reflection_index": 3,
-          "strength": "medium",
-          "parallax_tag": ["civic"],
-          "committed_at": "2026-05-21T15:15:00Z"
-        },
-        {
-          "key": "personality-neuroticism-conflict",
-          "dimension": "personality",
-          "canonical_claim_id": "personality.neuroticism",
-          "verbatim_quote": "I went home and cried in the bus.",
-          "reflection_index": 2,
-          "strength": "medium",
-          "parallax_tag": ["peer"],
-          "committed_at": "2026-05-19T19:25:00Z"
-        },
-        {
-          "key": "personality-neuroticism-repair",
-          "dimension": "personality",
-          "canonical_claim_id": "personality.neuroticism",
-          "verbatim_quote": "I left feeling lighter than yesterday but not light.",
-          "reflection_index": 5,
-          "strength": "low",
-          "parallax_tag": ["peer"],
-          "committed_at": "2026-05-24T17:35:00Z"
-        },
-        {
-          "key": "skills-interpersonal-daryl",
-          "dimension": "skills",
-          "canonical_claim_id": "skills.interpersonal",
-          "verbatim_quote": "He talked for 20 minutes straight, sia. I didn't say much.",
-          "reflection_index": 1,
+          "canonical_claim_id": "interests.realistic",
+          "verbatim_quote": "poly seems more hands on which i think i'd like",
+          "reflection_index": 9,
           "strength": "high",
           "parallax_tag": ["school"],
-          "committed_at": "2026-05-18T08:45:00Z"
+          "committed_at": "2026-07-09T12:30:00Z"
         },
         {
-          "key": "skills-communication-aisyah",
+          "key": "values-independence-subjectcombo-authentic",
+          "dimension": "values",
+          "canonical_claim_id": "values.independence",
+          "verbatim_quote": "knowing what subjects i actually want to study, not just what sounds safe",
+          "reflection_index": 9,
+          "strength": "high",
+          "parallax_tag": ["school"],
+          "committed_at": "2026-07-09T12:30:00Z"
+        },
+        {
+          "key": "skills-analytical-subjectcombo-pattern",
           "dimension": "skills",
-          "canonical_claim_id": "skills.communication",
-          "verbatim_quote": "Explaining it to her, I suddenly understood it better than when I was doing it myself.",
-          "reflection_index": 4,
+          "canonical_claim_id": "skills.analytical",
+          "verbatim_quote": "maybe like... understanding how things work under the surface? not just what happens but why",
+          "reflection_index": 9,
           "strength": "medium",
           "parallax_tag": ["school"],
-          "committed_at": "2026-05-23T17:00:00Z"
-        },
-        {
-          "key": "skills-interpersonal-mum",
-          "dimension": "skills",
-          "canonical_claim_id": "skills.interpersonal",
-          "verbatim_quote": "I made her teh-o and asked her to sit.",
-          "reflection_index": 6,
-          "strength": "medium",
-          "parallax_tag": ["family"],
-          "committed_at": "2026-05-26T20:45:00Z"
-        },
-        {
-          "key": "skills-communication-neighbour",
-          "dimension": "skills",
-          "canonical_claim_id": "skills.communication",
-          "verbatim_quote": "Took me 5 minutes. She gave me kuih lapis and we talked about her son in Australia for half an hour.",
-          "reflection_index": 8,
-          "strength": "medium",
-          "parallax_tag": ["hobby"],
-          "committed_at": "2026-05-30T11:30:00Z"
+          "committed_at": "2026-07-09T12:30:00Z"
         }
       ],
       "trajectory": {
-        "trajectory_text": "Mei's current through-line is not simply 'helping people'; it is helping in ways that preserve dignity, build trust, and turn confusion into connection. The strongest evidence points toward supervised people-facing pathways where she can practise care with boundaries: education, counselling-adjacent support, community services, or healthcare/social-service routes. The main developmental task is to keep the warmth while building consent, pacing, and recovery habits.",
+        "trajectory_text": "Ming Liang's current through-line is not simply 'likes physics' or 'likes helping'; it is wanting to understand how things work beneath the surface — and wanting to be ready when it matters for someone real. The strongest evidence points toward hands-on, applied pathways where knowing why translates into doing: healthcare and rehabilitation, applied science, and the operational work of making events happen. The main developmental task is to test which of these keeps giving him the 'oh, that's why' feeling when the novelty wears off — and to rebuild trust in his own composure after one bad assessment day.",
         "pathways": [
           {
-            "label": "Peer support and counselling foundations",
+            "label": "Sports rehabilitation, nursing and healthcare foundations",
             "trait_combination": [
               {
                 "claim_id": "values.contribution",
                 "dimension": "values",
-                "timeline_key": "values-contribution-buddy-reading"
+                "timeline_key": "values-contribution-cpr-grandfather"
               },
               {
-                "claim_id": "interests.social",
+                "claim_id": "interests.investigative",
                 "dimension": "interests",
-                "timeline_key": "interests-social-lions"
+                "timeline_key": "interests-investigative-careerfair-physio"
               },
               {
-                "claim_id": "skills.interpersonal",
+                "claim_id": "skills.practical",
                 "dimension": "skills",
-                "timeline_key": "skills-interpersonal-daryl"
+                "timeline_key": "skills-practical-cpr-rhythm"
               },
               {
                 "claim_id": "personality.neuroticism",
                 "dimension": "personality",
-                "timeline_key": "personality-neuroticism-conflict"
+                "timeline_key": "personality-neuroticism-badge-freeze"
               }
             ],
-            "ecg_region_tags": ["cluster.public-service", "cluster.healthcare"],
-            "risks_tradeoffs": "This route fits Mei's relational strengths, but it can also reward over-responsibility. She would need adult supervision, clear role boundaries, and practice noticing when empathy turns into taking over.",
-            "exploration_prompt": "Try one structured helping role with supervision, such as peer support training, a counselling-related VIA placement, or a shadowing conversation with a school counsellor or social worker. Track whether she feels grounded after the interaction, not only useful during it."
+            "ecg_region_tags": ["cluster.healthcare", "cluster.public-service"],
+            "risks_tradeoffs": "This route fits his readiness-to-help values and his existing first-aid base, but healthcare pathways are assessment-heavy, and his confidence took a real knock from one external exam. He would need to check that he is drawn to the slow work of recovery — the exercises, the sequences, the repetition — and not only the rescue moment. One failed badge is a data point, not a verdict.",
+            "exploration_prompt": "Set up a conversation with the physiotherapist from the career fair — he already named this as his own next step — and prepare three questions about what the daily work actually involves beyond the cool moments. Treat the badge re-attempt next year as a second experiment: practise the distressed-casualty scenario with a friend playing the casualty, and track whether the freeze was a one-off or something that needs a routine."
           },
           {
-            "label": "Teaching, tutoring, and community learning",
+            "label": "Applied physical sciences: how things work beneath the surface",
+            "trait_combination": [
+              {
+                "claim_id": "interests.investigative",
+                "dimension": "interests",
+                "timeline_key": "interests-investigative-beyblade-physics"
+              },
+              {
+                "claim_id": "skills.analytical",
+                "dimension": "skills",
+                "timeline_key": "skills-analytical-subjectcombo-pattern"
+              },
+              {
+                "claim_id": "values.learning",
+                "dimension": "values",
+                "timeline_key": "values-learning-drills-why"
+              }
+            ],
+            "ecg_region_tags": ["cluster.applied-sciences", "cluster.engineering"],
+            "risks_tradeoffs": "His physics enjoyment is currently teacher-shaped — Ms Lim's real-world demonstrations do a lot of the work. Applied science routes at poly keep the hands-on flavour he wants, but the theory load is real, and his 'am I smart enough' doubt needs testing against evidence, not assumption. The SIL project is a low-stakes way to find out before subject combination locks anything in.",
+            "exploration_prompt": "Take the physics angle on the Beyblade SIL project: build a simple test rig, change one variable at a time (weight distribution, launch speed, tip shape), and measure spin duration. Track whether the enjoyment survives the measuring and the maths — that is the honest test of whether 'oh, that's why' extends from watching demonstrations to doing the investigation."
+          },
+          {
+            "label": "Event operations, coordination and enterprise",
             "trait_combination": [
               {
                 "claim_id": "skills.communication",
                 "dimension": "skills",
-                "timeline_key": "skills-communication-aisyah"
-              },
-              {
-                "claim_id": "interests.social",
-                "dimension": "interests",
-                "timeline_key": "interests-social-maths"
-              },
-              {
-                "claim_id": "values.relationships",
-                "dimension": "values",
-                "timeline_key": "values-relationships-ask-first"
-              }
-            ],
-            "ecg_region_tags": ["cluster.education"],
-            "risks_tradeoffs": "Education routes may give Mei the person-on-the-other-end motivation she needs, but classroom systems can be slow, assessment-heavy, and emotionally tiring. The fit depends on whether she enjoys sustained instruction, not just rescue moments.",
-            "exploration_prompt": "Run a small recurring tutoring experiment for four weeks. After each session, note what energised her, what drained her, and whether asking before helping changed the quality of the support."
-          },
-          {
-            "label": "Social-service operations and community outreach",
-            "trait_combination": [
-              {
-                "claim_id": "values.independence",
-                "dimension": "values",
-                "timeline_key": "values-independence-fit"
+                "timeline_key": "skills-communication-hydration-planning"
               },
               {
                 "claim_id": "interests.enterprising",
                 "dimension": "interests",
-                "timeline_key": "interests-enterprising-mediate"
+                "timeline_key": "interests-enterprising-walkathon"
               },
               {
-                "claim_id": "skills.interpersonal",
-                "dimension": "skills",
-                "timeline_key": "skills-interpersonal-mum"
-              },
-              {
-                "claim_id": "skills.communication",
-                "dimension": "skills",
-                "timeline_key": "skills-communication-neighbour"
+                "claim_id": "values.relationships",
+                "dimension": "values",
+                "timeline_key": "values-relationships-ncoc-jaya"
               }
             ],
-            "ecg_region_tags": ["cluster.public-service", "cluster.business-finance"],
-            "risks_tradeoffs": "Operations and outreach roles could use Mei's bridge-building without putting every emotional outcome on her shoulders. The risk is that admin-heavy work may feel too far from direct human contact unless the mission is visible.",
-            "exploration_prompt": "Interview someone who coordinates volunteers, community programmes, or social-service operations. Ask what proportion of the work is direct people contact, coordination, paperwork, and crisis response."
+            "ecg_region_tags": ["cluster.business-finance", "cluster.public-service"],
+            "risks_tradeoffs": "He discovered the organising work was 'genuinely interesting' at the same meeting he developed a crush — the two discoveries are entangled, and the next walkthrough will partly be a test of which one was doing the lifting. Operations and enterprise routes reward his coordination instincts, but sustained admin without a visible mission may drain him the way foot drills do: he needs to see what the effort builds toward.",
+            "exploration_prompt": "Take a named role in next month's walkathon route walkthrough — own one deliverable end to end, not just help. Then run the class Beyblade interest as a small organised tournament: brackets, rules, a borrowed timer, maybe a five-dollar budget. Afterwards, note which part energised him: the planning, the people, or the problem-solving when something went wrong."
+          },
+          {
+            "label": "Uniformed leadership: the NCOC track",
+            "trait_combination": [
+              {
+                "claim_id": "values.relationships",
+                "dimension": "values",
+                "timeline_key": "values-relationships-ncoc-jaya"
+              },
+              {
+                "claim_id": "skills.leadership",
+                "dimension": "skills",
+                "timeline_key": "skills-leadership-ncoc-levelup"
+              },
+              {
+                "claim_id": "values.learning",
+                "dimension": "values",
+                "timeline_key": "values-learning-drills-why"
+              }
+            ],
+            "ecg_region_tags": ["cluster.public-service"],
+            "risks_tradeoffs": "The evidence genuinely cuts both ways. The leadership side appeals ('a level up'), and he has stayed committed through a failed badge — but his strongest recorded frustration is with exactly the discipline-heavy culture NCOC contains more of, and his current deciding rule is 'if she goes i think i go also.' This pathway is included not as a recommendation but as a decision he is already inside of; the experiment is designed to give him a reason of his own either way.",
+            "exploration_prompt": "Before the sign-up decision, talk to one current NCOC senior and ask directly: how much of the course is drills and regimentation, and how much is the leadership and real-responsibility work? Then decide with a reason that would still stand if Jaya said no — the decision can include her, but it shouldn't rest on her."
+          },
+          {
+            "label": "Flavour, fragrance and the chemistry of everyday sensations",
+            "trait_combination": [
+              {
+                "claim_id": "interests.investigative",
+                "dimension": "interests",
+                "timeline_key": "interests-investigative-careerfair-flavour"
+              },
+              {
+                "claim_id": "values.independence",
+                "dimension": "values",
+                "timeline_key": "values-independence-careerfair-horizons"
+              }
+            ],
+            "ecg_region_tags": ["cluster.applied-sciences"],
+            "risks_tradeoffs": "One moment of surprise is the thinnest evidence base of the five — that is what makes it divergent rather than aligned. The pathway is chemistry-heavy, which he has no recorded signal on yet, positive or negative. Its value in the demo is precisely this: the app doesn't only confirm who a student already is; it keeps genuinely new doors visibly open, anchored to a real recorded moment rather than invented from nothing.",
+            "exploration_prompt": "Visit a polytechnic food science or chemical technology lab during open house, and try one kitchen-table experiment: blind-taste two brands of the same chip flavour and try to name what differs. If the why behind taste and smell hooks him the way spin physics does, this is a live thread; if not, it cost one afternoon."
           }
         ],
         "open_questions": [
-          "Does Mei want to support people one-to-one, teach groups, or coordinate systems that help many people at once?",
-          "Which environments help her keep boundaries: school, healthcare, social-service agencies, or community organisations?",
-          "When she helps, what warning signs tell her she is carrying more than her role actually requires?"
+          "Which of these directions keeps giving him the 'oh, that's why' feeling once the novelty wears off — the honest test for all five?",
+          "Was the badge-day freeze a one-off under an external examiner, or does performing under assessment need a rehearsed routine?",
+          "What reason of his own for (or against) NCOC would still stand if Jaya said no?"
         ],
-        "disclaimer": "This trajectory is a working hypothesis from Mei's reflections, not a placement decision. It should be tested through small supervised experiences and revised when new evidence appears."
+        "disclaimer": "This trajectory is a working hypothesis from Ming Liang's reflections, not a placement decision. It should open conversations with his teachers and family, not close them."
       }
     },
     {
