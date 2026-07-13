@@ -3,8 +3,9 @@
  * seeded; the only mutation a student performs is `markRead`. Persists
  * through the same Persistence adapter as everything else.
  *
- * v1.2 will add a "letter response → ask capture" path; that lives off this
- * store, not in it, so the read-only posture stays the same.
+ * The "letter response → ask capture" path lives off this store, not in it
+ * (`LettersSheet` opens an `ask` capture from a letter's `prompt`), so the
+ * read-only posture here stays the same.
  */
 
 import Persistence from './Persistence.js'
