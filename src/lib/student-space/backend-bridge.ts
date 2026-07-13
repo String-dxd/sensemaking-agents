@@ -256,8 +256,20 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
     forgetEvidence: async (input) =>
       forgetTimelineEntry({ data: { entryId: input.timelineEntryId } }),
     loadTrajectory: async () => {
-      const result = await loadTrajectory({ data: {} })
-      return mapTrajectoryResultToStudentSpaceCapture(result)
+      // The VIPS timeline rides along so trait chips can resolve their
+      // evidencing mirror entry (`traitRefs`). A rejection is non-fatal —
+      // the trajectory still loads, just without evidence links.
+      const [result, vips] = await Promise.all([
+        loadTrajectory({ data: {} }),
+        loadVipsPages({ data: {} }).catch((err) => {
+          console.warn(
+            '[backend-bridge] loadTrajectory loadVipsPages failed; trait evidence links unavailable',
+            err,
+          )
+          return null
+        }),
+      ])
+      return mapTrajectoryResultToStudentSpaceCapture(result, vips?.timeline_by_dimension)
     },
     runTrajectory: async () => {
       const result = await runCartographer({ data: {} })

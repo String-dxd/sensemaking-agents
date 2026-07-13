@@ -239,12 +239,12 @@ const CAPTURE_DIMENSIONS = new Set(['values', 'interests', 'personality', 'skill
 const REVIEW_STATES = new Set(['pending', 'confirmed', 'forgotten'])
 const SYNC_STATES   = new Set(['local', 'syncing', 'synced', 'failed'])
 
-const TRAJECTORY_BEARING_KEYS = new Set(['id', 'title', 'prompt', 'traitTags', 'ecgTags', 'risk', 'msfUrl'])
+const TRAJECTORY_BEARING_KEYS = new Set(['id', 'title', 'prompt', 'traitTags', 'traitRefs', 'ecgTags', 'risk', 'msfUrl'])
 
 function mergeTrajectoryBearing(raw, ctx)
 {
     if(!raw || typeof raw !== 'object') return null
-    const out = { id: '', title: '', prompt: '', traitTags: [], ecgTags: [], risk: '' }
+    const out = { id: '', title: '', prompt: '', traitTags: [], traitRefs: [], ecgTags: [], risk: '' }
     for(const k of Object.keys(raw))
     {
         if(!TRAJECTORY_BEARING_KEYS.has(k)) { warn(`${ctx}: dropping unknown key "${k}"`); continue }
@@ -253,6 +253,20 @@ function mergeTrajectoryBearing(raw, ctx)
         {
             if(!Array.isArray(v)) { warn(`${ctx}.${k} not array`); continue }
             out[k] = v.filter((x) => typeof x === 'string')
+            continue
+        }
+        if(k === 'traitRefs')
+        {
+            if(!Array.isArray(v)) { warn(`${ctx}.traitRefs not array`); continue }
+            out.traitRefs = v
+                .map((ref, i) =>
+                {
+                    if(!ref || typeof ref !== 'object' || typeof ref.claimId !== 'string') { warn(`${ctx}.traitRefs[${i}] malformed`); return null }
+                    if(Number.isInteger(ref.mirrorEntryId) && ref.mirrorEntryId > 0) return { claimId: ref.claimId, mirrorEntryId: ref.mirrorEntryId }
+                    if(ref.mirrorEntryId !== undefined && ref.mirrorEntryId !== null) warn(`${ctx}.traitRefs[${i}].mirrorEntryId not a positive integer`)
+                    return { claimId: ref.claimId }
+                })
+                .filter(Boolean)
             continue
         }
         if(k === 'msfUrl' && v !== null && typeof v !== 'string') { warn(`${ctx}.msfUrl not string`); continue }

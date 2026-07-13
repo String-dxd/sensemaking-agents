@@ -58,6 +58,14 @@ export interface StudentSpaceReflectionCaptureSnapshot {
   contextType: MirrorEntryRow['context_type']
 }
 
+export interface StudentSpaceTrajectoryTraitRef {
+  claimId: string
+  /** Mirror entry evidencing this trait, resolved via the VIPS timeline.
+   *  Absent when the trait has no `timeline_entry_id` or the timeline entry
+   *  has no (non-forgotten) reflection behind it. */
+  mirrorEntryId?: number
+}
+
 export interface StudentSpaceTrajectoryCaptureSnapshot {
   id: string
   createdAt: string
@@ -72,6 +80,7 @@ export interface StudentSpaceTrajectoryCaptureSnapshot {
       title: string
       prompt: string
       traitTags: string[]
+      traitRefs: StudentSpaceTrajectoryTraitRef[]
       ecgTags: string[]
       risk: string
     }>
@@ -165,7 +174,7 @@ export function createStudentSpaceBackendSnapshot({
   return {
     profile: mapVipsPagesToStudentSpaceProfile(vips, authMenu),
     reflections: mapWikiSnapshotToStudentSpaceReflections(wiki),
-    trajectory: mapTrajectoryResultToStudentSpaceCapture(trajectory),
+    trajectory: mapTrajectoryResultToStudentSpaceCapture(trajectory, vips.timeline_by_dimension),
     recentMoods: mapRecentMoodsToStudentSpacePins(vips),
     calendarEvents: mapShellCalendarEvents(vips),
     teacherLetters: mapShellTeacherLetters(vips),
@@ -301,16 +310,21 @@ export function mapMirrorEntryToReflectionCapture(
   }
 }
 
+type TimelineByDimension = LoadVipsPagesResult['timeline_by_dimension']
+
 export function mapTrajectoryResultToStudentSpaceCapture(
   result: LoadTrajectoryResult,
+  timelineByDimension?: TimelineByDimension,
 ): StudentSpaceTrajectoryCaptureSnapshot | null {
   if (!result.trajectory) return null
-  return mapCartographerOutputToTrajectoryCapture(result.trajectory)
+  return mapCartographerOutputToTrajectoryCapture(result.trajectory, timelineByDimension)
 }
 
 export function mapCartographerOutputToTrajectoryCapture(
   row: CartographerOutputRow,
+  timelineByDimension?: TimelineByDimension,
 ): StudentSpaceTrajectoryCaptureSnapshot {
+  const timelineToMirror = timelineEntryToMirrorMap(timelineByDimension)
   return {
     id: `cartographer:${row.id}`,
     createdAt: row.created_at,
@@ -325,11 +339,36 @@ export function mapCartographerOutputToTrajectoryCapture(
         title: pathway.label,
         prompt: pathway.exploration_prompt,
         traitTags: pathway.trait_combination.map((trait) => trait.claim_id),
+        traitRefs: pathway.trait_combination.map((trait) => {
+          const mirrorEntryId =
+            trait.timeline_entry_id != null
+              ? timelineToMirror.get(trait.timeline_entry_id)
+              : undefined
+          return mirrorEntryId != null
+            ? { claimId: trait.claim_id, mirrorEntryId }
+            : { claimId: trait.claim_id }
+        }),
         ecgTags: pathway.ecg_region_tags,
         risk: pathway.risks_tradeoffs,
       })),
     },
   }
+}
+
+/** Flattens the (non-forgotten) VIPS timeline into `timeline entry id → mirror
+ *  entry id`, so pathway traits can deep-link to the moment that evidences
+ *  them. Entries without a `reflection_id` are skipped. */
+function timelineEntryToMirrorMap(
+  timelineByDimension: TimelineByDimension | undefined,
+): Map<number, number> {
+  const map = new Map<number, number>()
+  if (!timelineByDimension) return map
+  for (const entries of Object.values(timelineByDimension)) {
+    for (const entry of entries) {
+      if (entry.reflection_id != null) map.set(entry.id, entry.reflection_id)
+    }
+  }
+  return map
 }
 
 export function mapRecentMoodsToStudentSpacePins(

@@ -1,4 +1,4 @@
-import { useNavigate } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { ChevronDown, ExternalLink } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -56,12 +56,18 @@ interface TrajectoryAudit {
   inferredStatus?: StatusKey
 }
 
+interface TraitRef {
+  claimId: string
+  mirrorEntryId?: number
+}
+
 interface Bearing {
   title?: string
   prompt?: string
   clusterId?: string
   msfUrl?: string
   traitTags?: string[]
+  traitRefs?: TraitRef[]
   ecgTags?: string[]
   risk?: string
 }
@@ -691,7 +697,13 @@ function SearchingBody({ capture }: { capture: TrajectoryCapture }) {
 }
 
 function EvidenceDisclosure({ bearing }: { bearing: Bearing }) {
-  const traits = bearing.traitTags ?? []
+  // Prefer traitRefs (may carry a mirror-entry evidence link per trait);
+  // fall back to the legacy traitTags shape for local-preview trajectories
+  // and captures persisted before refs existed.
+  const traits: TraitRef[] =
+    bearing.traitRefs && bearing.traitRefs.length > 0
+      ? bearing.traitRefs
+      : (bearing.traitTags ?? []).map((id) => ({ claimId: id }))
   const ecg = bearing.ecgTags ?? []
   const hasEvidence = traits.length > 0 || ecg.length > 0 || Boolean(bearing.risk)
   if (!hasEvidence) return null
@@ -702,8 +714,11 @@ function EvidenceDisclosure({ bearing }: { bearing: Bearing }) {
         <div className="space-y-4 rounded-xl bg-white/45 p-4 shadow-[inset_0_0_0_1px_rgba(43,38,32,0.045)]">
           {traits.length > 0 ? (
             <ChipGroup label="Trait combination">
-              {traits.map((id) => (
-                <TraitChip key={id} id={id} />
+              {traits.map((ref) => (
+                <TraitEvidenceChip
+                  key={`${ref.claimId}:${ref.mirrorEntryId ?? 'none'}`}
+                  traitRef={ref}
+                />
               ))}
             </ChipGroup>
           ) : null}
@@ -736,6 +751,25 @@ function ChipGroup({ label, children }: { label: string; children: ReactNode }) 
       <p className="text-xs font-semibold text-(--color-sheet-ink-soft)">{label}</p>
       <div className="mt-2 flex flex-wrap gap-1.5">{children}</div>
     </div>
+  )
+}
+
+/** Trait chip that deep-links to the mirror entry evidencing it, when the
+ *  ref resolved one. Guard mirrors `DayDetailCard`: only positive-integer
+ *  backend ids become links; everything else stays a static chip. */
+function TraitEvidenceChip({ traitRef }: { traitRef: TraitRef }) {
+  const entryId = Number(traitRef.mirrorEntryId)
+  const hasEvidenceLink = Number.isInteger(entryId) && entryId > 0
+  if (!hasEvidenceLink) return <TraitChip id={traitRef.claimId} />
+  return (
+    <Link
+      to="/mirror/$id"
+      params={{ id: String(entryId) }}
+      data-testid={`trait-evidence-${entryId}`}
+      className="inline-flex cursor-pointer rounded-full transition-[background-color,box-shadow] duration-150 ease-(--ease-sheet) hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <TraitChip id={traitRef.claimId} />
+    </Link>
   )
 }
 
