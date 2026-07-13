@@ -343,7 +343,10 @@ describe('OnboardingFlow (React)', () => {
       expect(onboarding.eggColorId).toBe('satin')
       expect(onboarding.stage).toBe('egg-name')
 
-      await userEvent.type(await screen.findByLabelText('Name your companion.'), 'Pip')
+      const nameInput = await screen.findByLabelText('Name your companion.')
+      expect(nameInput).toHaveValue('Mei')
+      await userEvent.clear(nameInput)
+      await userEvent.type(nameInput, 'Pip')
       await userEvent.click(await screen.findByRole('button', { name: 'Hatch the egg' }))
       expect(onboarding.companionName).toBe('Pip')
       expect(game.state.profile.setIdentity).toHaveBeenCalledWith({
@@ -371,7 +374,10 @@ describe('OnboardingFlow (React)', () => {
       // kiraNarrator.speak, with the "Tell me more" CTA wired to advance.
       await waitFor(() =>
         expect(game.view.kiraNarrator.speak).toHaveBeenCalledWith(
-          expect.objectContaining({ text: "Hi. I'm Pip.", cta: 'Tell me more' }),
+          expect.objectContaining({
+            text: "Hey, I'm Pip. Thanks for bringing me into your world.",
+            cta: 'Tell me more',
+          }),
         ),
       )
       expect(game.view.kira.flyTo).toHaveBeenCalledWith(
