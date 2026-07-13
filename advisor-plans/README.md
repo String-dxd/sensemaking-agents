@@ -33,10 +33,10 @@ Recommended order: **001 → 003 → 005**, then 002; 004 needs a rewrite first.
 | Plan | Title | Priority | Effort | Risk | Depends on | Status |
 |------|-------|----------|--------|------|------------|--------|
 | 000 | Spec alignment brief (reference) | — | — | — | — | N/A (revised 2026-07-13) |
-| 001 | Refactor demo corpus — `demo-a` becomes Ming Liang (mirrors + moods + VIPS + trajectory) | P1 | M | LOW–MED | — | TODO (v3 — all content pre-authored in Appendix A) |
-| 003 | Onboarding script — bird speaks the spec's 3 screens; "Mei" default name | P1 | S–M | MED | 001 (soft) | TODO (v3 — exact strings + line targets inlined) |
-| 005 | Surface pathway → mirror evidence links in Trajectory UI | P2 | M | MED | 001 (demo check) | TODO (v2 — client-side approach, engine schema boundary) |
-| 002 | Teacher-initiated prompt letters (career fair) | P2 | S | LOW | 001 (soft) | TODO |
+| 001 | Refactor demo corpus — `demo-a` becomes Ming Liang (mirrors + moods + VIPS + trajectory) | P1 | M | LOW–MED | — | DONE (2026-07-13, executed + reviewed; commit "feat(seed): demo-a becomes Ming Liang") |
+| 003 | Onboarding script — bird speaks the spec's 3 screens; "Mei" default name | P1 | S–M | MED | 001 (soft) | DONE (2026-07-13, executed + reviewed; commit "feat(onboarding): bird speaks the spec's 3-screen script") |
+| 005 | Surface pathway → mirror evidence links in Trajectory UI | P2 | M | MED | 001 (demo check) | DONE (2026-07-13, executed + reviewed; commit "feat(trajectory): trait chips link to their evidencing mirror") |
+| 002 | Teacher-initiated prompt letters (career fair) | P2 | S | LOW | 001 (soft) | DONE (2026-07-13, executed + reviewed, incl. optional steps 2–3; commit "feat(letters): add ECG career-fair teacher prompt") |
 | 004 | Align the live voice prompt | P3 | M | MED | — | **STALE — rewrite against Prompt Design v2 before executing** |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (reason) | REJECTED (reason)
