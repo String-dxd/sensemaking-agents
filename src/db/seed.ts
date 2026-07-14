@@ -365,7 +365,11 @@ async function attachMirrorTag(
   entryId: number,
   label: string,
 ): Promise<void> {
-  const existing = await db.select({ id: tags.id }).from(tags).where(sql`${tags.label} = ${label}`)
+  // The seed role has BYPASSRLS, so the lookup must scope by student
+  // explicitly — `tags` labels are unique per student, and reusing another
+  // student's tag row would link this entry to a tag its reader can't see.
+  const byStudentAndLabel = sql`${tags.studentId} = ${studentId} and ${tags.label} = ${label}`
+  const existing = await db.select({ id: tags.id }).from(tags).where(byStudentAndLabel)
   let tagId = existing[0]?.id
   if (tagId === undefined) {
     const inserted = await db
@@ -375,7 +379,7 @@ async function attachMirrorTag(
       .returning({ id: tags.id })
     tagId =
       inserted[0]?.id ??
-      (await db.select({ id: tags.id }).from(tags).where(sql`${tags.label} = ${label}`))[0]?.id
+      (await db.select({ id: tags.id }).from(tags).where(byStudentAndLabel))[0]?.id
   }
   if (tagId === undefined) throw new Error(`seed: could not upsert tag ${label}`)
 

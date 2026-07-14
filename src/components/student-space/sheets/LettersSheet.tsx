@@ -119,8 +119,13 @@ export function LettersSheet() {
     // reads correctly from the world route, so route home first and let the
     // overlay mount inside StudentSpaceHost. The AskSheet's camera-zoom
     // useEffect fires once it sees `open` flip true on the world canvas.
-    navigate({ to: '/' })
-    overlay?.open('ask', { prompt, dismissOnBack: true, letterId: selectedId })
+    //
+    // The open must wait for the transition to commit: route-sync calls
+    // `game.closeActiveSurface()` when the URL lands on `/`, and an overlay
+    // opened before that point is closed again, dropping this prompt.
+    void navigate({ to: '/' }).then(() => {
+      overlay?.open('ask', { prompt, dismissOnBack: true, letterId: selectedId })
+    })
   }
 
   const dismissToHome = useCallback(() => navigate({ to: '/' }), [navigate])

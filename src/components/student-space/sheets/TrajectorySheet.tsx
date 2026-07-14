@@ -704,6 +704,14 @@ function EvidenceDisclosure({ bearing }: { bearing: Bearing }) {
     bearing.traitRefs && bearing.traitRefs.length > 0
       ? bearing.traitRefs
       : (bearing.traitTags ?? []).map((id) => ({ claimId: id }))
+  // Repeated claim ids are legal (e.g. two linkless refs to the same trait),
+  // so keys carry an occurrence counter to stay unique.
+  const seenClaims = new Map<string, number>()
+  const keyedTraits = traits.map((ref) => {
+    const n = seenClaims.get(ref.claimId) ?? 0
+    seenClaims.set(ref.claimId, n + 1)
+    return { ref, key: `${ref.claimId}:${n}` }
+  })
   const ecg = bearing.ecgTags ?? []
   const hasEvidence = traits.length > 0 || ecg.length > 0 || Boolean(bearing.risk)
   if (!hasEvidence) return null
@@ -714,11 +722,8 @@ function EvidenceDisclosure({ bearing }: { bearing: Bearing }) {
         <div className="space-y-4 rounded-xl bg-white/45 p-4 shadow-[inset_0_0_0_1px_rgba(43,38,32,0.045)]">
           {traits.length > 0 ? (
             <ChipGroup label="Trait combination">
-              {traits.map((ref) => (
-                <TraitEvidenceChip
-                  key={`${ref.claimId}:${ref.mirrorEntryId ?? 'none'}`}
-                  traitRef={ref}
-                />
+              {keyedTraits.map(({ ref, key }) => (
+                <TraitEvidenceChip key={key} traitRef={ref} />
               ))}
             </ChipGroup>
           ) : null}
