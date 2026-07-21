@@ -74,7 +74,7 @@ export function EggHatcher({
 }) {
   const initialColor = onboarding?.eggColorId ?? EGG_COLORS[0]?.id ?? 'flame'
   const [selectedColor, setSelectedColor] = useState<string>(initialColor)
-  const [name, setName] = useState(onboarding?.companionName ?? '')
+  const [name, setName] = useState(onboarding?.companionName ?? 'Mei')
   const [visible, setVisible] = useState(reducedMotion)
   const [replayKey, setReplayKey] = useState(0)
 

@@ -324,6 +324,64 @@ describe('TrajectorySheet (React)', () => {
     await waitFor(() => expect(runTrajectory).toHaveBeenCalled())
   })
 
+  it('trait chips with resolved evidence link to the mirror detail page', async () => {
+    vi.mocked(statusFor).mockReturnValueOnce(statusAudit('searching'))
+    const capture = {
+      kind: 'trajectory',
+      createdAt: '2026-05-21T08:00:00.000Z',
+      backendCartographerOutputId: 9,
+      trajectory: {
+        throughLine: 'Evidence-backed through-line',
+        bearings: [
+          {
+            title: 'Community design',
+            prompt: 'prompt A',
+            traitTags: ['values.contribution', 'skills.communication'],
+            traitRefs: [
+              { claimId: 'values.contribution', mirrorEntryId: 42 },
+              { claimId: 'skills.communication' },
+            ],
+          },
+        ],
+      },
+    }
+    renderTrajectory(makeEngine({ capture, backendActive: true }))
+
+    await userEvent.click(await screen.findByRole('button', { name: /See evidence/i }))
+
+    const link = screen.getByTestId('trait-evidence-42')
+    expect(link).toHaveAttribute('href', expect.stringContaining('/mirror/42'))
+    expect(link).toHaveTextContent('values.contribution')
+
+    // Ref without a mirrorEntryId stays a static chip (no link).
+    expect(screen.getByText('skills.communication').closest('a')).toBeNull()
+  })
+
+  it('legacy bearings with only traitTags render static chips', async () => {
+    vi.mocked(statusFor).mockReturnValueOnce(statusAudit('searching'))
+    const capture = {
+      kind: 'trajectory',
+      createdAt: '2026-05-21T08:00:00.000Z',
+      trajectory: {
+        throughLine: 'Legacy through-line',
+        bearings: [
+          {
+            title: 'Legacy path',
+            prompt: 'legacy prompt',
+            traitTags: ['values.contribution'],
+          },
+        ],
+      },
+    }
+    renderTrajectory(makeEngine({ capture }))
+
+    await userEvent.click(await screen.findByRole('button', { name: /See evidence/i }))
+
+    const chip = screen.getByText('values.contribution')
+    expect(chip).toBeInTheDocument()
+    expect(chip.closest('a')).toBeNull()
+  })
+
   it('adds body.has-overlay while mounted', async () => {
     vi.mocked(statusFor).mockReturnValueOnce(statusAudit('searching'))
     const { unmount } = renderTrajectory(makeEngine())

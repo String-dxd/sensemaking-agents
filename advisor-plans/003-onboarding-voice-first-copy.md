@@ -1,109 +1,135 @@
-# Plan 003: Align onboarding copy with the PDF's voice-first 3-beat framing
+# Plan 003 (v3): Onboarding script — the bird talks through the spec's 3 screens
 
 > **Executor instructions**: Follow step by step; verify each step. Honor STOP
 > conditions. Update this plan's row in `advisor-plans/README.md` when done.
 >
-> **Read `advisor-plans/000-kira-spec-alignment-brief.md` first** — especially
-> Decision 1 (naming) and the voice rules.
+> **Read first**: `advisor-plans/000-kira-spec-alignment-brief.md` (Decision 1 —
+> naming) and the canonical spec's `# Onboarding dialogue` section in
+> `advisor-plans/context/myworld-demo-transcripts.md`.
 >
 > **Drift check (run first)**:
-> `git diff --stat 4a01fcae..HEAD -- src/engine/student-space/Game/View/Onboarding/copy.js src/engine/student-space/Game/View/Onboarding/copy.d.ts test/components/student-space/onboarding/OnboardingFlow.test.tsx`
+> `git diff --stat 0e4122b6..HEAD -- src/engine/student-space/Game/View/Onboarding/copy.js src/engine/student-space/Game/View/Onboarding/copy.d.ts src/components/student-space/onboarding/EggHatcher.tsx test/components/student-space/onboarding/OnboardingFlow.test.tsx`
 > If any changed, reconcile "Current state" against live code before proceeding.
 
 ## Status
 
-- **Priority**: P2
+- **Priority**: P1
 - **Effort**: S–M
-- **Risk**: MED (copy strings are asserted by a test; wording is product-visible)
-- **Depends on**: none
+- **Risk**: MED (copy strings are asserted by tests; wording is product-visible)
+- **Depends on**: none (001 recommended first so the demo student is Ming Liang)
 - **Category**: direction / content
-- **Planned at**: commit `4a01fcae`, 2026-07-07
+- **Planned at**: commit `0e4122b6`, 2026-07-13 (v3 — deepened after cold-read review)
 
 ## Why this matters
 
-The PDF specifies a deliberately tight, **voice-first** onboarding built to teach
-the mechanic and the emotional safety net in three beats:
+After "Use a demo account", onboarding runs: login → greeting → egg
+(color/name/hatch) → **first-chat** (the bird speaks through the narrator
+panel, one beat per CTA tap) → first-capture → bloom → termly reveal →
+closing. The spec scripts exactly what the bird should say, in three screens:
 
-1. *"Hey. I'm Mei. Tap the mic and tell me what's on your mind — no typing, no
-   right answer, no grading. Just talk."* (who + how + permission to be messy)
-2. *"Every time you share, a sprout grows in your world. Share three things that
-   connect — three things you care about, three choices, three people who matter
-   — and that sprout opens into a tree, a flower, wings."* (growth + the unlock
-   condition, made concrete)
-3. *"Keep talking to me. Over time your world starts to look like you: what you
-   care about, how you think, what you're like."* (the payoff — a self-portrait
-   from spoken fragments)
+1. *"Hey I'm Mei, thank you for bringing me into your world! Tap the mic and
+   tell me what's on your mind. There's no right answer, no grades, or
+   expectations. Let's chat."*
+2. *"Every time you share something with me, you help your world grow. Share
+   things that connect with you. It could be things you care about, choices
+   you made, people who matter; and trees, flowers, plants will come to
+   life."*
+3. *"Over time your world will start to look like you: reflecting what you
+   care about, how you think, what you're like. I hope you enjoy your time
+   here! I'll let you get started :)"*
 
-The current onboarding copy (`copy.js`) delivers a similar arc but in a different
-register: it leads with an **egg/bird-hatching ceremony** (*"Let's hatch your
-companion"*) and its explainer is functional rather than voice-first. This plan
-brings the **copy** into the PDF's register — voice-first, concrete unlock
-condition, self-portrait payoff — **without** ripping out the hatching ceremony
-choreography (see "Decision" below).
+This plan maps those screens onto the existing narrator beats (ceremony
+choreography kept; **copy values** + one default changed), respecting the
+copy registry's constraints (`copy.js` header): observation-first, **no
+exclamation marks, no emoji, ≤ ~80 chars per Kira line** (hard gate 90). The
+spec's `!` and `:)` are therefore dropped; content and order are preserved.
 
-## Decision: revise copy, keep the ceremony flow (recommended)
+### Naming (000 Decision 1, revised 2026-07-13)
 
-There are two ways to hit the PDF:
+Maintainer decision: **"Mei" is the bird's default name — editable.** The
+spec's "Kira" (transcripts) and "Mei" (onboarding) both stand in for the
+companion the student names. Implementation: pre-fill the egg-name input with
+`Mei`; the student can overwrite it; all copy keeps `{companionName}`. Never
+hardcode "Mei" into a copy string.
 
-- **(A) Collapse to literally three screens.** Throw away the egg-color /
-  egg-name / hatch / bloom / termly-reveal stages. High churn: deletes built
-  camera choreography, the companion-identity ritual, and multiple tested React
-  components. Not recommended without explicit product sign-off — the bird
-  companion is core to the world's identity, and "three things that connect →
-  tree/flower/wings" is exactly what the existing sprout/bloom system does.
-- **(B) Keep the flow, revise the copy** *(this plan)*. Update the string values
-  in `copy.js` so the greeting and the first-chat explainer speak in the PDF's
-  voice-first register and name the unlock condition concretely. Low risk,
-  reversible, preserves choreography and tests' structure.
+## Current state (verified at `0e4122b6`)
 
-**This plan implements (B).** If the product owner explicitly wants (A), STOP and
-raise it as a separate, larger plan — do not partially delete the ceremony.
+### Copy registry — `src/engine/student-space/Game/View/Onboarding/copy.js`
 
-### Naming (from 000 Decision 1)
-
-Do **not** hardcode "Mei" as the narrator name — "Mei" is already an offline demo
-*student* (`OFFLINE_DEMO_STUDENTS` in `copy.js`), and the companion is
-user-named. Keep pre-naming narration name-neutral; use `{companionName}` after
-the companion is named (the existing `firstChatIntro` already does this).
-
-## Current state
-
-`src/engine/student-space/Game/View/Onboarding/copy.js` — the frozen copy
-registry. Relevant current values:
+Values this plan changes (others omitted here; the file also has
+`firstChatInvite`/`firstChatChatPrompt`/`firstChatChatMore` between intro and
+explainer, and `bloomCelebrate`/`termlyReveal` before closing — all untouched):
 
 ```js
-greeting: {
-  hello: 'Hi, {name}.',
-  sub:   "Let's hatch your companion.",
-  hint:  'A bird who lives on your island.',
-  cta:   "Let's begin.",
-},
 kira: {
-  firstChatIntro: "Hi. I'm {companionName}.",
-  firstChatExplainer: [
-    "Each share starts a sprout. I'll ask what it was — a value, interest, a part of you, or a skill.",
-    'Three of the same opens it — a tree, a flower, a butterfly, or berries.',
-    "I watch what keeps showing up — and tell you. By then this place will look like you.",
-  ],
-  firstCaptureInvite: "Share something. Words, a voice note, a photo — anything.",
-  closing: 'The more you share, the more this island becomes yours.',
-  // …other keys unchanged…
+    firstChatIntro:   "Hi. I'm {companionName}.",               // line 59
+    firstChatExplainer: [                                        // lines 68-72
+        "Each share starts a sprout. I'll ask what it was — a value, interest, a part of you, or a skill.",
+        'Three of the same opens it — a tree, a flower, a butterfly, or berries.',
+        "I watch what keeps showing up — and tell you. By then this place will look like you.",
+    ],
+    closing:            'The more you share, the more this island becomes yours.',  // line 78
 },
 ```
 
-Voice constraints (from the `copy.js` file header): **observation-first, no
-exclamation marks, no "Great job!", no unprompted advice, no emoji, ≤ ~80 chars
-per Kira line.** These are stricter than the PDF's raw copy — respect the repo's
-constraints (e.g. keep lines ≤ ~80 chars; drop the PDF's exclamation in "Hey.").
+`copy.js` is standalone ESM (no imports) — importable by plain node.
+`copy.d.ts` mirrors the object **shape**; changing string values is safe;
+never add/remove/rename keys.
 
-- `copy.d.ts` — ambient types that must mirror the object **shape exactly**.
-  Changing string **values** is safe; **do not add, remove, or rename keys** or
-  you must update `copy.d.ts` in lockstep (and that widens scope).
-- `test/components/student-space/onboarding/OnboardingFlow.test.tsx` — asserts
-  onboarding behavior and may assert specific copy substrings. Run it after edits
-  (Step 3); if it asserts a string you changed, update the assertion to the new
-  copy **only if** the test is checking presence of that beat, not a
-  behavior — see STOP conditions.
+### Flow mechanics (do not change)
+
+`FirstChat.tsx:215-218` substitutes `{companionName}` via
+`.replace('{companionName}', …)` on **`firstChatIntro` only** — explainer
+beats are spread raw (line 228), so never put `{companionName}` in an
+explainer line. Beats advance by CTA tap through
+`engine.view.kiraNarrator.speak(...)`: intro (CTA "Tell me more") → each
+explainer beat (CTA "Continue"; final beat CTA = `firstChatActions.feel`
+"Start first capture"). `TermlyReveal.tsx` ends with `kira.closing` (CTA
+`closing.cta` "Begin").
+
+### Egg-name input — `src/components/student-space/onboarding/EggHatcher.tsx`
+
+```ts
+// EggHatcher.tsx:77
+const [name, setName] = useState(onboarding?.companionName ?? '')
+```
+
+The change target is the `?? ''` fallback (NOT a bare `useState('')` — don't
+grep for that). Submit path: `commitName` (lines 110–117) trims and calls
+`setCompanionName`/`setIdentity`; empty guard = early return at :111 +
+`disabled={!trimmedName}` on the Hatch button (:238); input `maxLength={16}`
+(:206), placeholder (:210) only shows when empty. A pre-filled `'Mei'` flows
+through unchanged if the student just taps Hatch.
+
+### Tests
+
+`test/components/student-space/onboarding/OnboardingFlow.test.tsx`:
+- `:374` asserts the substituted intro `"Hi. I'm Pip."` — must be updated to
+  the new intro text.
+- Explainer beats are asserted by iterating
+  `ONBOARDING_COPY.kira.firstChatExplainer` — no test change needed for beat
+  text.
+- `:346` types the name with `userEvent.type(input, 'Pip')`. **`userEvent.type`
+  APPENDS** — with a `'Mei'` default the value becomes `'MeiPip'` and the
+  assertions at `:348–352` (`companionName: 'Pip'`) fail. The test MUST be
+  updated to clear first (`await userEvent.clear(input)` before typing).
+- No other test or component asserts `firstChatIntro`/`closing` strings
+  (verified by grep).
+
+## Target copy (exact strings — use these; all ≤90 chars, no `!`, no emoji)
+
+- `kira.firstChatIntro` →
+  `"Hey, I'm {companionName}. Thanks for bringing me into your world."`
+  (rendered length varies with the chosen name, `maxLength={16}` keeps it sane)
+- `kira.firstChatExplainer` (keep exactly 3 elements):
+  1. `"Tap the mic and tell me what's on your mind. No right answer, no grades."`
+  2. `"Every share grows your world — what you care about, choices you made, people who matter."`
+     (88 chars — fits as-is)
+  3. `"Trees and flowers come to life — and this place starts to look like you."`
+- `kira.closing` →
+  `"I hope you enjoy your time here. I'll let you get started."`
+- `greeting`, `eggName.placeholder`, `firstCaptureInvite`, `bloomCelebrate`,
+  `termlyReveal` — unchanged.
 
 ## Commands you will need
 
@@ -116,112 +142,94 @@ constraints (e.g. keep lines ≤ ~80 chars; drop the PDF's exclamation in "Hey."
 ## Scope
 
 **In scope:**
-- `src/engine/student-space/Game/View/Onboarding/copy.js` — string **values**
-  only (greeting + `kira.firstChatIntro` / `firstChatExplainer` /
-  `firstCaptureInvite` / `closing`).
-- `test/components/student-space/onboarding/OnboardingFlow.test.tsx` — only if an
-  assertion checks a copy substring you changed (update to match, don't weaken
-  behavior assertions).
+- `src/engine/student-space/Game/View/Onboarding/copy.js` — the three `kira.*`
+  string values above only.
+- `src/components/student-space/onboarding/EggHatcher.tsx` — line 77 fallback
+  `?? ''` → `?? 'Mei'`.
+- `test/components/student-space/onboarding/OnboardingFlow.test.tsx` — intro
+  assertion + `userEvent.clear` before the naming `type`.
 
 **Out of scope (do NOT touch):**
-- Any **key** in the copy object (would desync `copy.d.ts`).
-- `copy.d.ts` (no shape change).
-- The onboarding React components / stages / camera choreography
-  (`OnboardingFlow.tsx`, `FirstChat.tsx`, `EggHatcher.tsx`, etc.) — this is a
-  copy-only plan.
-- `OFFLINE_DEMO_STUDENTS`, `EGG_COLORS`.
+- Any copy **key** (no `copy.d.ts` changes); `OFFLINE_DEMO_STUDENTS`,
+  `EGG_COLORS`; stage order / camera choreography / narrator mechanics
+  (`OnboardingFlow.tsx`, `FirstChat.tsx`, `WorldInteractions.tsx`); all other
+  copy strings.
 
 ## Git workflow
 
-- Branch: `advisor/003-onboarding-copy`
-- Commit style: conventional commits, e.g.
-  `feat(onboarding): voice-first copy aligned to Kira spec`.
-- Do NOT push or open a PR unless instructed.
+Branch `advisor/003-onboarding-script`; commit e.g.
+`feat(onboarding): bird speaks the spec's 3-screen script; Mei as editable default name`.
+Do NOT push or open a PR unless instructed.
 
 ## Steps
 
-### Step 1: Revise the greeting + first-chat explainer copy
+### Step 1: Update the three copy values
 
-Edit **values only** in `copy.js`. Target register: voice-first, concrete unlock
-condition, self-portrait payoff. Keep every line ≤ ~80 chars, no exclamation
-marks, no emoji. Suggested rewrites (tune wording, keep intent + the three
-distinct beats):
+Edit `copy.js` per "Target copy".
+**Verify** (run AFTER the edit — it fails on the pre-edit copy because the old
+explainer beat 1 is 97 chars):
+`node --input-type=module -e "import('./src/engine/student-space/Game/View/Onboarding/copy.js').then(({ONBOARDING_COPY:c})=>{const lines=[c.kira.firstChatIntro,...c.kira.firstChatExplainer,c.kira.closing]; const bad=lines.filter(l=>l.length>90||/[!]|\p{Emoji_Presentation}/u.test(l)); if(bad.length) throw new Error('bad: '+JSON.stringify(bad)); console.log('ok',lines.length,'lines')})"`
+→ `ok 5 lines`.
 
-- `greeting.sub` → lead with the *invitation to talk*, not the egg. e.g.
-  `'Tap the mic and just talk. No typing, no right answer.'`
-  (Keep `greeting.hint` for the companion cue, or fold the bird cue into the egg
-  step — but do not delete the key.)
-- `kira.firstChatExplainer` — keep it a 3-element array (the component iterates
-  it), mapped to the PDF's three beats:
-  - beat 1 (share → sprout): keep the "each share starts a sprout, I'll ask what
-    it was" mechanic.
-  - beat 2 (unlock, concrete): name the *"three things that connect"* condition
-    with concrete examples — three things you care about, three choices, three
-    people — opening into *a tree, a flower, wings*. Align the payoff shapes with
-    what the app actually blooms (tree / flower / butterfly / berries): prefer the
-    app's real shapes over the PDF's "wings" if they differ.
-  - beat 3 (payoff): *"over time this place starts to look like you — what you
-    care about, how you think, what you're like."*
-- `kira.closing` → keep the self-portrait payoff line.
+### Step 2: Default companion name "Mei"
 
-**Constraint check**: for every string you touch in `kira.*`, confirm length:
-`node -e "const {ONBOARDING_COPY}=require('./src/engine/student-space/Game/View/Onboarding/copy.js'); const lines=[ONBOARDING_COPY.kira.firstChatIntro, ...ONBOARDING_COPY.kira.firstChatExplainer, ONBOARDING_COPY.kira.firstCaptureInvite, ONBOARDING_COPY.kira.closing]; const long=lines.filter(l=>l.length>90); if(long.length) throw 'too long: '+JSON.stringify(long); console.log('ok', lines.length,'lines')"`
-→ prints `ok …` (uses 90 as a hard ceiling; aim for ~80). If `require` fails
-because the module is ESM-only, load it with a tiny dynamic-import script or
-inspect lengths by eye against the file — do not skip the length check.
+`EggHatcher.tsx:77`: change `useState(onboarding?.companionName ?? '')` →
+`useState(onboarding?.companionName ?? 'Mei')`. Nothing else in the component
+changes (the input stays editable/clearable; the empty guard stays).
 
-### Step 2: Confirm no keys changed
+### Step 3: Update the test
 
-**Verify**:
-`node -e "const {ONBOARDING_COPY}=require('./src/engine/student-space/Game/View/Onboarding/copy.js'); const k=Object.keys(ONBOARDING_COPY.kira).sort().join(','); console.log(k)"`
-Compare the key list to the pre-edit list (`git show 4a01fcae:src/engine/student-space/Game/View/Onboarding/copy.js`
-→ the `kira:` keys). They must be identical. If a key changed, revert — keys are
-out of scope.
+In `OnboardingFlow.test.tsx`:
+- Intro assertion (`:374`): `"Hi. I'm Pip."` →
+  `"Hey, I'm Pip. Thanks for bringing me into your world."`
+- Naming flow (`:346`): insert `await userEvent.clear(<the name input>)`
+  immediately before `userEvent.type(..., 'Pip')` so the `'Mei'` default is
+  removed; the `companionName: 'Pip'` expectations at `:348–352` then stand.
+  Optionally add one assertion that the input's initial value is `'Mei'`.
 
-### Step 3: Run gates
+**Verify**: `pnpm test -- OnboardingFlow` → pass.
 
-**Verify**:
-- `pnpm check` → exit 0 (proves `copy.d.ts` still matches — shape unchanged).
-- `pnpm test -- OnboardingFlow` → pass. If it fails on a changed copy substring,
-  read the assertion: if it's checking that a *beat is present*, update the
-  expected string to your new copy; if it's asserting *behavior* (a stage
-  advances, a CTA fires), do NOT weaken it — STOP and report.
+### Step 4: Shape + full gates
+
+- Key-shape check:
+  `node --input-type=module -e "import('./src/engine/student-space/Game/View/Onboarding/copy.js').then(({ONBOARDING_COPY:c})=>console.log(Object.keys(c.kira).sort().join(',')))"`
+  → must equal
+  `bloomCelebrate,closing,firstCaptureInvite,firstChatChatMore,firstChatChatPrompt,firstChatExplainer,firstChatIntro,firstChatInvite,firstMoodAck,firstMoodPatience,termlyReveal`.
+- `pnpm check` → exit 0 (proves `copy.d.ts` shape still matches).
 - `pnpm test` → all pass.
 
 ## Test plan
 
-- No new test file. The existing `OnboardingFlow.test.tsx` is the guard.
-- If it references none of the strings you changed, that's fine — the `pnpm check`
-  shape gate plus the length check are your verification.
+No new test file. Guards: the updated `OnboardingFlow.test.tsx` (intro string,
+explainer iteration, clear-then-type naming), the Step 1 length/`!`/emoji
+check, and the Step 4 key-shape check.
 
 ## Done criteria
 
-ALL must hold:
-- [ ] `greeting` + `kira.firstChatExplainer`/`closing` read voice-first and name
-      the "three things that connect → tree/flower/…" unlock concretely.
-- [ ] No copy **keys** added/removed/renamed (Step 2 key list identical).
-- [ ] Every changed `kira.*` line ≤ 90 chars, no `!`, no emoji.
-- [ ] `pnpm check` exits 0.
-- [ ] `pnpm test` exits 0.
-- [ ] Only in-scope files modified.
-- [ ] `advisor-plans/README.md` status row updated.
+- [ ] First-chat beats read as the spec's 3 screens in order; intro thanks the
+      student for "bringing me into your world".
+- [ ] Egg-name input pre-filled "Mei" and editable (test clears + types 'Pip'
+      and passes).
+- [ ] Step 1 prints `ok 5 lines`; Step 4 key list matches exactly.
+- [ ] `pnpm check` and `pnpm test` exit 0.
+- [ ] Only in-scope files modified; README status row updated.
 
 ## STOP conditions
 
-Stop and report if:
-- Matching the PDF appears to require adding/removing a copy **key** or changing a
-  stage (that's option (A) — needs sign-off, out of scope here).
-- `OnboardingFlow.test.tsx` asserts a *behavior* that your copy change breaks.
-- The payoff shapes the app actually blooms can't be determined — do not invent
-  shapes; grep the bloom/sprout code (`BloomCelebrate.tsx`, `IslandReveal.tsx`)
-  for the real set and use those words, or leave beat 2's shapes generic.
+- Matching the spec appears to require adding/removing a copy key or a stage —
+  that's the "collapse to literal 3 screens" option; needs explicit sign-off.
+- `EggHatcher.tsx:77` no longer matches the excerpt (drift) — reconcile first.
+- A test asserts *behavior* (stage advance, CTA firing) that the copy change
+  breaks — report, don't weaken.
 
 ## Maintenance notes
 
-- If the product later collapses onboarding to the literal 3 screens (option A),
-  this copy is the content to carry over — the flow change is separable from the
-  wording.
-- Keep `copy.js` and `copy.d.ts` in lockstep on **shape**; this plan deliberately
-  avoids shape changes so `copy.d.ts` needs no edit.
-- The PDF's "no grading, no right answer" permission line is the emotional core —
-  if any future copy edit drops it, that's a regression in the spec's intent.
+- The spec's exclamation marks / ":)" were dropped deliberately per the copy
+  registry's voice constraints — if the product owner wants the spec's
+  punctuation verbatim, change the constraint in `copy.js`'s header comment
+  and re-review all strings; don't make a silent exception.
+- `{companionName}` substitution only works in `firstChatIntro`
+  (`FirstChat.tsx:215-218`) — adding it to any other string renders the
+  placeholder literally.
+- If onboarding is ever collapsed to literally 3 screens, this copy carries
+  over; the flow change is separable.

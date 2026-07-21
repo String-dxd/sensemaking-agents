@@ -56,7 +56,7 @@ export const ONBOARDING_COPY = Object.freeze({
     },
 
     kira: {
-        firstChatIntro:   "Hi. I'm {companionName}.",
+        firstChatIntro:   "Hey, I'm {companionName}. Thanks for bringing me into your world.",
         firstChatInvite:  'How does it feel, starting this?',
         firstChatChatPrompt: 'Anything else on your mind?',
         firstChatChatMore:   "Take your time. I'm listening.",
@@ -66,16 +66,16 @@ export const ONBOARDING_COPY = Object.freeze({
         // surfacing + payoff. Lines run sequentially with the same gap
         // as firstChatChatMore → firstChatChatPrompt.
         firstChatExplainer: [
-            "Each share starts a sprout. I'll ask what it was — a value, interest, a part of you, or a skill.",
-            'Three of the same opens it — a tree, a flower, a butterfly, or berries.',
-            "I watch what keeps showing up — and tell you. By then this place will look like you.",
+            "Tap the mic and tell me what's on your mind. No right answer, no grades.",
+            'Every share grows your world — what you care about, choices you made, people who matter.',
+            'Trees and flowers come to life — and this place starts to look like you.',
         ],
         // One-shot onboarding beats. Each line shows alone in the narrator
         // panel; the user advances with the CTA. No bubbles overlap.
         firstCaptureInvite: "Share something. Words, a voice note, a photo — anything.",
         bloomCelebrate:     'You bloomed the first flower just now.',
         termlyReveal:       "And there's more — we already captured a few things through your Termly Check-in.",
-        closing:            'The more you share, the more this island becomes yours.',
+        closing:            "I hope you enjoy your time here. I'll let you get started.",
         firstMoodAck:     "Noticed. I'll hold that one.",
         firstMoodPatience:"No rush. I'll wait.",
     },

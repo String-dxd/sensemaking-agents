@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { MirrorEntryRow, VipsPageRow, VipsTimelineEntryRow } from '~/db/queries'
+// @ts-expect-error internal JS engine modules are intentionally untyped.
+import { mergeCapture } from '~/engine/student-space/Game/State/schema.js'
 import {
   createStudentSpaceBackendSnapshot,
   mapTrajectoryResultToStudentSpaceCapture,
@@ -81,29 +83,43 @@ describe('Student Space backend snapshot mappers', () => {
   })
 
   it('maps latest Cartographer output into a trajectory capture', () => {
-    const capture = mapTrajectoryResultToStudentSpaceCapture({
-      pending_diff_present: false,
-      trajectory: {
-        id: 9,
-        student_id: 'demo',
-        trajectory_text: 'A through-line about useful creative work.',
-        pathways: [
-          {
-            label: 'Community design',
-            trait_combination: [
-              { claim_id: 'values.contribution', dimension: 'values', timeline_entry_id: 7 },
-            ],
-            ecg_region_tags: ['cluster.social'],
-            risks_tradeoffs: 'May need structure to stay sustainable.',
-            exploration_prompt: 'Try a service-design project.',
-          },
-        ],
-        open_questions: [],
-        disclaimer: 'Draft, not destiny.',
-        raw_output_json: '{}',
-        created_at: '2026-05-16T08:00:00.000Z',
+    const capture = mapTrajectoryResultToStudentSpaceCapture(
+      {
+        pending_diff_present: false,
+        trajectory: {
+          id: 9,
+          student_id: 'demo',
+          trajectory_text: 'A through-line about useful creative work.',
+          pathways: [
+            {
+              label: 'Community design',
+              trait_combination: [
+                { claim_id: 'values.contribution', dimension: 'values', timeline_entry_id: 7 },
+                { claim_id: 'skills.communication', dimension: 'skills', timeline_entry_id: 99 },
+                { claim_id: 'interests.artistic', dimension: 'interests' },
+              ],
+              ecg_region_tags: ['cluster.social'],
+              risks_tradeoffs: 'May need structure to stay sustainable.',
+              exploration_prompt: 'Try a service-design project.',
+            },
+          ],
+          open_questions: [],
+          disclaimer: 'Draft, not destiny.',
+          raw_output_json: '{}',
+          created_at: '2026-05-16T08:00:00.000Z',
+        },
       },
-    })
+      {
+        values: [
+          timelineEntry(7, { canonical_claim_id: 'values.contribution', reflection_id: 42 }),
+          // No reflection behind this entry — must not produce a link.
+          timelineEntry(8, { reflection_id: null }),
+        ],
+        interests: [],
+        personality: [],
+        skills: [],
+      },
+    )
 
     expect(capture).toEqual(
       expect.objectContaining({
@@ -117,7 +133,15 @@ describe('Student Space backend snapshot mappers', () => {
               id: 'cartographer:9:path:1',
               title: 'Community design',
               prompt: 'Try a service-design project.',
-              traitTags: ['values.contribution'],
+              traitTags: ['values.contribution', 'skills.communication', 'interests.artistic'],
+              traitRefs: [
+                // timeline_entry_id 7 resolves to reflection 42.
+                { claimId: 'values.contribution', mirrorEntryId: 42 },
+                // timeline_entry_id 99 is not in the timeline — no link.
+                { claimId: 'skills.communication' },
+                // No timeline_entry_id at all — no link.
+                { claimId: 'interests.artistic' },
+              ],
               ecgTags: ['cluster.social'],
               risk: 'May need structure to stay sustainable.',
             },
@@ -125,6 +149,74 @@ describe('Student Space backend snapshot mappers', () => {
         },
       }),
     )
+  })
+
+  it('emits linkless traitRefs when no timeline is supplied (legacy call sites)', () => {
+    const capture = mapTrajectoryResultToStudentSpaceCapture({
+      pending_diff_present: false,
+      trajectory: {
+        id: 9,
+        student_id: 'demo',
+        trajectory_text: 'A through-line.',
+        pathways: [
+          {
+            label: 'Community design',
+            trait_combination: [
+              { claim_id: 'values.contribution', dimension: 'values', timeline_entry_id: 7 },
+            ],
+            ecg_region_tags: [],
+            risks_tradeoffs: '',
+            exploration_prompt: '',
+          },
+        ],
+        open_questions: [],
+        disclaimer: '',
+        raw_output_json: '{}',
+        created_at: '2026-05-16T08:00:00.000Z',
+      },
+    })
+
+    expect(capture?.trajectory.bearings[0]?.traitRefs).toEqual([{ claimId: 'values.contribution' }])
+    expect(capture?.trajectory.bearings[0]?.traitTags).toEqual(['values.contribution'])
+  })
+
+  it('traitRefs survive the engine capture merge (schema.js allowlist)', () => {
+    const merged = mergeCapture({
+      id: 'cartographer:9',
+      kind: 'trajectory',
+      createdAt: '2026-05-16T08:00:00.000Z',
+      trajectory: {
+        throughLine: 'A through-line.',
+        bearings: [
+          {
+            id: 'cartographer:9:path:1',
+            title: 'Community design',
+            prompt: 'Try a service-design project.',
+            traitTags: ['values.contribution'],
+            traitRefs: [
+              { claimId: 'values.contribution', mirrorEntryId: 42 },
+              { claimId: 'skills.communication' },
+              // Malformed entries are dropped / stripped by the sanitizer.
+              { claimId: 'interests.artistic', mirrorEntryId: -3 },
+              { mirrorEntryId: 7 },
+              'not-an-object',
+            ],
+            ecgTags: [],
+            risk: '',
+          },
+        ],
+      },
+    }) as {
+      trajectory: {
+        bearings: Array<{ traitRefs: Array<{ claimId: string; mirrorEntryId?: number }> }>
+      }
+    } | null
+
+    expect(merged?.trajectory.bearings[0]?.traitRefs).toEqual([
+      { claimId: 'values.contribution', mirrorEntryId: 42 },
+      { claimId: 'skills.communication' },
+      { claimId: 'interests.artistic' },
+    ])
   })
 
   it('combines profile, reflection, trajectory, and recent mood snapshots', () => {

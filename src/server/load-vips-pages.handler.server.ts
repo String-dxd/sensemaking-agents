@@ -110,7 +110,7 @@ export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<Lo
       total += entries.length
     }
 
-    const recentEntries = await listMirrorEntries(studentId, { ctx, limit: 7 })
+    const recentEntries = await listMirrorEntries(studentId, { ctx, limit: 12 })
     const worldMailbox = await loadCounsellorBriefStatusForStudent(studentId, { ctx })
     const shellData = loadStudentSpaceShellData(studentId)
 

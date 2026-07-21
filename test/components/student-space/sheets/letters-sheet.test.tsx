@@ -161,11 +161,15 @@ describe('LettersSheet (React)', () => {
     renderLetters(engine)
     const btn = await screen.findByRole('button', { name: /capture/i })
     await userEvent.click(btn)
-    expect(engine.view.overlayController.open).toHaveBeenCalledWith('ask', {
-      prompt: 'What are three moments?',
-      dismissOnBack: true,
-      letterId: 'lt-3',
-    })
+    // The open is deferred until the `/` navigation commits (route-sync
+    // would otherwise close the fresh overlay and drop the prompt).
+    await waitFor(() =>
+      expect(engine.view.overlayController.open).toHaveBeenCalledWith('ask', {
+        prompt: 'What are three moments?',
+        dismissOnBack: true,
+        letterId: 'lt-3',
+      }),
+    )
   })
 
   it('adds body.has-overlay while mounted and removes it on unmount', async () => {
