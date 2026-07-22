@@ -2,6 +2,7 @@ import * as THREE from 'three'
 
 import View from './View.js'
 import State from '../State/State.js'
+import { buildPlaceholderBlock } from './placeholderBlock.ts'
 
 /**
  * Mailbox — the on-island entry into LettersSheet. A classic American-style
@@ -22,11 +23,7 @@ import State from '../State/State.js'
  */
 
 const COLORS = {
-    base:    0x1A1A1A,   // matte black base plate
-    bracket: 0x2A2520,   // dark mounting bracket where post meets body
-    red:     0xC8202A,   // classic mailbox red — gloss vermillion
-    redDark: 0x9F161E,   // door panel — slightly darker for inset depth
-    knob:    0x707070,   // brushed-metal latch
+    red: 0xC8202A,   // classic mailbox red — the unread-letters flag signal
 }
 
 const FLAG_DOWN_RAD = -Math.PI * 0.45   // pole tilted back, flag tucked low
@@ -74,124 +71,27 @@ export default class Mailbox
 
     _build()
     {
-        const matBase    = new THREE.MeshLambertMaterial({ color: COLORS.base,    flatShading: true })
-        const matBracket = new THREE.MeshLambertMaterial({ color: COLORS.bracket, flatShading: true })
-        const matRed     = new THREE.MeshLambertMaterial({ color: COLORS.red,     flatShading: true })
-        const matDoor    = new THREE.MeshLambertMaterial({ color: COLORS.redDark, flatShading: true })
-        const matKnob    = new THREE.MeshLambertMaterial({ color: COLORS.knob,    flatShading: true })
-        const matFlag    = new THREE.MeshLambertMaterial({ color: COLORS.red,     flatShading: true, side: THREE.DoubleSide })
+        // GREY PLACEHOLDER (world-port U7, R7): the mailbox has no editor
+        // asset yet, so it renders as a deliberately conspicuous grey block
+        // sized so the peek anchor lift (~1.35) still points sensibly. The
+        // raycast group, letters-flag subscription (the small red block on
+        // the flagAnchor still tilts up/down + sways), move() API, and the
+        // onboarding hide all survive — only the model is interim.
+        const block = buildPlaceholderBlock({ width: 0.35, height: 1.1, depth: 0.35 })
+        this.group.add(block.group)
+        this.body = block.body
 
-        // BASE PLATE — flat black square at ground level so the post reads
-        // as bolted down rather than driven into the soil.
-        const base = new THREE.Mesh(
-            new THREE.BoxGeometry(0.24, 0.02, 0.24),
-            matBase,
-        )
-        base.position.y = 0.01
-        this.group.add(base)
-
-        // POST — square red column, the classic painted-steel stand.
-        const post = new THREE.Mesh(
-            new THREE.BoxGeometry(0.07, 0.93, 0.07),
-            matRed,
-        )
-        post.position.y = 0.02 + 0.465
-        this.group.add(post)
-
-        // BRACKET — small dark mounting plate atop the post that the box
-        // sits on. Wider than the post to read as a saddle.
-        const bracket = new THREE.Mesh(
-            new THREE.BoxGeometry(0.34, 0.018, 0.18),
-            matBracket,
-        )
-        bracket.position.y = 0.96
-        this.group.add(bracket)
-
-        // BODY — tombstone cross-section extruded along Z. Flat bottom,
-        // short straight sides, then a half-circle dome on top. This is the
-        // canonical US mailbox silhouette.
-        const halfW = 0.17
-        const flatH = 0.05
-        const length = 0.48
-
-        const shape = new THREE.Shape()
-        shape.moveTo(-halfW, 0)
-        shape.lineTo(halfW, 0)
-        shape.lineTo(halfW, flatH)
-        shape.absarc(0, flatH, halfW, 0, Math.PI, false)
-        shape.lineTo(-halfW, 0)
-
-        const bodyGeo = new THREE.ExtrudeGeometry(shape, {
-            depth: length,
-            bevelEnabled: false,
-            curveSegments: 18,
-        })
-        const body = new THREE.Mesh(bodyGeo, matRed)
-        // Bottom of body sits flush on the bracket; cross-section centered
-        // on Z so the door faces +Z (toward the camera after the group's
-        // 0.92π yaw).
-        body.position.set(0, 0.97, -length / 2)
-        this.group.add(body)
-        this.body = body
-
-        // DOOR — slightly darker tombstone plate floating a hair in front
-        // of the body's front cap so it reads as an inset hinged panel.
-        const dInset = 0.014
-        const dHalfW = halfW - dInset
-        const dArcR  = halfW - dInset
-        const doorShape = new THREE.Shape()
-        doorShape.moveTo(-dHalfW, 0)
-        doorShape.lineTo(dHalfW, 0)
-        doorShape.lineTo(dHalfW, flatH)
-        doorShape.absarc(0, flatH, dArcR, 0, Math.PI, false)
-        doorShape.lineTo(-dHalfW, 0)
-
-        const doorGeo = new THREE.ExtrudeGeometry(doorShape, {
-            depth: 0.006,
-            bevelEnabled: false,
-            curveSegments: 18,
-        })
-        const door = new THREE.Mesh(doorGeo, matDoor)
-        door.position.set(0, 0.97 + 0.008, length / 2 + 0.0005)
-        this.group.add(door)
-
-        // LATCH KNOB — small steel button at the lower-centre of the door,
-        // matching the catch on a real curbside mailbox.
-        const knob = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.013, 0.013, 0.012, 12),
-            matKnob,
-        )
-        knob.rotation.x = Math.PI / 2
-        knob.position.set(0, 0.97 + 0.05, length / 2 + 0.012)
-        this.group.add(knob)
-
-        // FLAG ASSEMBLY — vertical red pole anchored at the side of the
-        // box near the front, with a rectangular red flag at the top. The
-        // whole anchor rotates about X so the pole tilts back along the
-        // body when "down" (no mail) and stands straight up when "up"
-        // (unread letters waiting).
+        // FLAG — the unread-letters signal keeps its motion coupling: a red
+        // block on a pivot that _setFlagAngle tilts and update() sways.
         const flagAnchor = new THREE.Group()
-        flagAnchor.position.set(halfW + 0.006, 0.97 + flatH + 0.02, length / 2 - 0.07)
+        flagAnchor.position.set(0.19, 1.02, 0.1)
         this.group.add(flagAnchor)
         this.flagAnchor = flagAnchor
 
-        // Pole
-        const pole = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.008, 0.008, 0.22, 8),
-            matRed,
-        )
-        pole.position.y = 0.11
-        flagAnchor.add(pole)
-
-        // Flag plate — small red rectangle at the top of the pole,
-        // projecting outward (along +X in anchor space) so the broadside
-        // faces forward when the pole is upright.
-        const flagGeo = new THREE.PlaneGeometry(0.11, 0.08)
-        // Pivot at inner edge so the flag attaches to the pole rather than
-        // floating with its centre offset.
-        flagGeo.translate(0.055, 0, 0)
-        const flag = new THREE.Mesh(flagGeo, matFlag)
-        flag.position.set(0, 0.20, 0)
+        const matFlag = new THREE.MeshStandardMaterial({ color: COLORS.red, roughness: 1, metalness: 0 })
+        const flag = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.05), matFlag)
+        flag.position.y = 0.11
+        flag.castShadow = true
         flagAnchor.add(flag)
         this.flag = flag
 

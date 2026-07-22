@@ -2,17 +2,16 @@ import * as THREE from 'three'
 
 import View from './View.js'
 import State from '../State/State.js'
+import { buildPlaceholderBlock, PLACEHOLDER_GREY } from './placeholderBlock.ts'
 
 /**
  * Fruits — Skills' on-island metaphor.
  *
- * v1.3: fruits-on-trees disabled (the tree canopy reads better as pure
- * foliage). All Skill fruits live on **fruit bushes** scattered around the
- * plateau. Each bush is a cluster of Bruno-style billboard leaf-blobs
- * (same shader as the tree foliage) topped with a small berry cluster per
- * fruit slot — five-ish small spheres on a short brown peduncle, coloured
- * by species. That gives an AC-quality "ripe berries on a shrub" silhouette
- * without modelling per-species fruit geometry (apple, plum, citrus, …).
+ * World-port U7: fruit bushes render as deliberately conspicuous GREY
+ * PLACEHOLDER BLOCKS (no editor asset yet — R7) with a species-tinted accent
+ * cap. Every coupling survives: IslandLayout placement, heightAt snap,
+ * moveEntry (sprout bloom targets), hideAll, ensureFromLayout reconciler,
+ * and the SpeciesPalette subscription (it recolors the accent caps).
  *
  * `entries` is the public shape FacetView + HoverProbe consume — each
  * carries `{ kind: 'fruit', group, species, x, z, host: 'bush' }`. The leaf
@@ -40,15 +39,6 @@ const BUSH_PLACEMENTS = [
     { species: 'berry',  x: -1.0, z: -2.4 },
 ]
 
-const FRUITS_PER_BUSH = 4
-
-// Berry cluster geometry knobs. Each "fruit" is a 5–7 sphere clump on a tiny
-// brown stem, ~6–8 cm across — reads as a ripe cluster against the leaves.
-const BERRY_RADIUS = 0.022          // each berry's radius (world m)
-const BERRY_SCATTER = 0.030         // clump-shell radius for berry centres
-const BERRIES_MIN = 5
-const BERRIES_MAX = 7
-const PEDUNCLE_COLOR = 0x5A4327
 
 export default class Fruits
 {
@@ -61,20 +51,19 @@ export default class Fruits
 
         this.entries = []   // public: { kind, group, species, x, z, index, host }
 
-        // Shared berry geometry — one icosphere, instanced visually through
-        // many small meshes per cluster. Per-species materials so colour reads
-        // consistently. Peduncle (stem) material is shared across all clusters.
-        this._berryGeo = new THREE.IcosahedronGeometry(BERRY_RADIUS, 0)
+        // GREY PLACEHOLDER (world-port U7, R7): fruit bushes have no editor
+        // asset yet — each renders as a conspicuous grey block with a
+        // species-tinted accent cap. Per-species SHARED accent materials so
+        // the SpeciesPalette subscription keeps recoloring live entries.
         this._berryMats = {}
         for(const [id, cfg] of Object.entries(FRUIT_SPECIES))
         {
-            this._berryMats[id] = new THREE.MeshLambertMaterial({
+            this._berryMats[id] = new THREE.MeshStandardMaterial({
                 color: cfg.color,
-                flatShading: true,
+                roughness: 1,
+                metalness: 0,
             })
         }
-        this._peduncleGeo = new THREE.CylinderGeometry(0.005, 0.006, 0.03, 5)
-        this._peduncleMat = new THREE.MeshLambertMaterial({ color: PEDUNCLE_COLOR, flatShading: true })
 
         // Apply palette colors from SpeciesPalette if diverged from defaults.
         const palette = this.state.speciesPalette
@@ -108,147 +97,53 @@ export default class Fruits
 
     _placeBushes()
     {
-        const tree = this.view.tree
-        if(!tree?.ready) return
-
-        const leafGeo = tree.leafCloudGeo
-        const leafMat = tree.templates.oak.leavesMat   // shared shader — wind + sun sync for free
-
         for(const placement of this.state.islandLayout.listByKind('fruit'))
         {
             const { id: layoutId, species, x, z } = placement
-            const cfg = FRUIT_SPECIES[species]
-            if(!cfg) continue
-
-            const groundY = this.island.heightAt(x, z)
-            const rnd = mulberry32(hashSeed(x, z, species))
-
-            const group = new THREE.Group()
-            group.position.set(x, groundY, z)
-            group.userData.fruitBush = true
-            this.scene.add(group)
-
-            // 2 leaf blobs per bush — one main, one smaller offset blob, so
-            // the silhouette is irregular and reads as a clump of foliage
-            // rather than a perfect sphere. Bumped from v1.2 sizes so the
-            // bush sits closer to a small shrub than a pillow.
-            const blobs = [
-                {
-                    dx: 0,
-                    dz: 0,
-                    r:  0.32 + rnd() * 0.04,
-                },
-                {
-                    dx: (rnd() - 0.5) * 0.42,
-                    dz: (rnd() - 0.5) * 0.42,
-                    r:  0.20 + rnd() * 0.05,
-                },
-            ]
-
-            // Build a small InstancedMesh of leaf-cloud instances *inside* the
-            // bush group. Instance matrices are local to the group; this lets
-            // HoverProbe pick the bush by raycasting against group children.
-            const matrices = blobs.map((b) =>
-            {
-                return new THREE.Matrix4().compose(
-                    new THREE.Vector3(b.dx, b.r * 0.88, b.dz),
-                    new THREE.Quaternion(),
-                    new THREE.Vector3(b.r, b.r, b.r),
-                )
-            })
-
-            const inst = new THREE.InstancedMesh(leafGeo, leafMat, matrices.length)
-            inst.frustumCulled = false
-            for(let i = 0; i < matrices.length; i++) inst.setMatrixAt(i, matrices[i])
-            inst.instanceMatrix.needsUpdate = true
-            group.add(inst)
-
-            // Berry clusters scattered across the bush canopy.
-            const canopy = blobs.map((b) => ({
-                cx: b.dx,
-                cy: b.r * 0.88,
-                cz: b.dz,
-                r:  b.r,
-            }))
-
-            for(let i = 0; i < FRUITS_PER_BUSH; i++)
-            {
-                const blob = i < canopy.length
-                    ? canopy[i]
-                    : canopy[Math.floor(rnd() * canopy.length)]
-
-                const theta = rnd() * Math.PI * 2
-                const phi   = Math.acos(2 * rnd() - 1)
-                const r     = blob.r * (0.94 + rnd() * 0.12)
-                const dx = r * Math.sin(phi) * Math.cos(theta)
-                const dy = r * Math.cos(phi) - blob.r * 0.05
-                const dz = r * Math.sin(phi) * Math.sin(theta)
-
-                const cluster = this._buildBerryCluster(species, rnd)
-                cluster.position.set(blob.cx + dx, blob.cy + dy, blob.cz + dz)
-                group.add(cluster)
-            }
-
-            this.entries.push({
-                kind:    'fruit',
-                group,
-                species,
-                x, z,
-                host:    'bush',
-                index:   this.entries.length,
-                layoutId,
-            })
+            if(!FRUIT_SPECIES[species]) continue
+            this._buildBush(layoutId, species, x, z)
         }
     }
 
-    /**
-     * Berry cluster: 5–7 small spheres tightly packed on a short peduncle.
-     * The orientation faces "up" by default; the parent group rotates with
-     * the bush so the cluster sits naturally on the canopy.
-     */
-    _buildBerryCluster(species, rnd)
+    /** One grey-block bush at (x, z): grey body + species-accent cap that
+     *  shares the per-species material (palette recolors propagate). */
+    _buildBush(layoutId, species, x, z)
     {
-        const grp = new THREE.Group()
+        const groundY = this.island.heightAt(x, z)
+        const group = new THREE.Group()
+        group.position.set(x, groundY, z)
+        group.userData.fruitBush = true
+        this.scene.add(group)
 
-        // Peduncle — a tiny brown stem stub anchoring the cluster.
-        const stem = new THREE.Mesh(this._peduncleGeo, this._peduncleMat)
-        stem.position.y = 0.018
-        stem.rotation.z = (rnd() - 0.5) * 0.4
-        grp.add(stem)
+        const block = buildPlaceholderBlock({ width: 0.5, height: 0.4, depth: 0.5 })
+        group.add(block.group)
+        // Swap the accent onto the SHARED species material so the palette
+        // subscription recolors every bush of this species live.
+        const capMat = this._berryMats[species]
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.08, 0.3), capMat)
+        cap.position.y = 0.44
+        cap.castShadow = true
+        group.add(cap)
 
-        const mat = this._berryMats[species]
-        const count = BERRIES_MIN + Math.floor(rnd() * (BERRIES_MAX - BERRIES_MIN + 1))
-
-        for(let i = 0; i < count; i++)
-        {
-            const berry = new THREE.Mesh(this._berryGeo, mat)
-            // Pack berries in a flattened hemisphere below the stem tip so the
-            // cluster looks like a bunch hanging just under its attachment.
-            const theta = rnd() * Math.PI * 2
-            const phi   = Math.acos(rnd())                  // upper hemisphere
-            const r     = BERRY_SCATTER * (0.55 + rnd() * 0.5)
-            berry.position.set(
-                Math.sin(phi) * Math.cos(theta) * r,
-                -BERRY_RADIUS * 0.4 - r * Math.cos(phi) * 0.6,
-                Math.sin(phi) * Math.sin(theta) * r,
-            )
-            // Tiny size jitter so the cluster doesn't read as identical balls.
-            berry.scale.setScalar(0.88 + rnd() * 0.28)
-            berry.castShadow = true
-            grp.add(berry)
-        }
-
-        return grp
+        this.entries.push({
+            kind:    'fruit',
+            group,
+            species,
+            x, z,
+            host:    'bush',
+            index:   this.entries.length,
+            layoutId,
+        })
+        return group
     }
 
     update()
     {
-        if(!this._placed && this.view.tree?.ready)
+        if(!this._placed)
         {
             this._placeBushes()
             this._placed = true
-            // If hideAll was requested while we were waiting for tree.ready,
-            // apply it now that the bushes exist.
+            // If hideAll was requested before first placement, apply it now.
             if(this._hidePending) this.hideAll()
             // If ensureFromLayout was called before placement, run it now.
             if(this._pendingEnsure)
@@ -265,8 +160,7 @@ export default class Fruits
      * layout list. Adds groups for new layout ids; disposes and removes
      * groups for ids no longer in the layout.
      *
-     * Requires tree.ready (bushes use the leaf shader), so it defers if
-     * not yet placed.
+     * Defers if not yet placed.
      *
      * @param {readonly import('../State/IslandLayout.js').PlacedObject[]} objs
      */
@@ -303,69 +197,12 @@ export default class Fruits
         this.entries = kept
 
         // Build bushes for new ids.
-        const tree = this.view.tree
-        if(!tree?.ready) return
-        const leafGeo = tree.leafCloudGeo
-        const leafMat = tree.templates.oak.leavesMat
-
         for(const obj of objs)
         {
             if(existing.has(obj.id)) continue
-            const cfg = FRUIT_SPECIES[obj.species]
-            if(!cfg) continue
-
-            const { x, z } = obj
-            const groundY = this.island.heightAt(x, z)
-            const rnd = mulberry32(hashSeed(x, z, obj.species))
-
-            const group = new THREE.Group()
-            group.position.set(x, groundY, z)
-            group.userData.fruitBush = true
-            this.scene.add(group)
-
-            const blobs = [
-                { dx: 0, dz: 0, r: 0.32 + rnd() * 0.04 },
-                { dx: (rnd() - 0.5) * 0.42, dz: (rnd() - 0.5) * 0.42, r: 0.20 + rnd() * 0.05 },
-            ]
-            const matrices = blobs.map((b) =>
-                new THREE.Matrix4().compose(
-                    new THREE.Vector3(b.dx, b.r * 0.88, b.dz),
-                    new THREE.Quaternion(),
-                    new THREE.Vector3(b.r, b.r, b.r),
-                )
-            )
-            const inst = new THREE.InstancedMesh(leafGeo, leafMat, matrices.length)
-            inst.frustumCulled = false
-            for(let i = 0; i < matrices.length; i++) inst.setMatrixAt(i, matrices[i])
-            inst.instanceMatrix.needsUpdate = true
-            group.add(inst)
-
-            const canopy = blobs.map((b) => ({ cx: b.dx, cy: b.r * 0.88, cz: b.dz, r: b.r }))
-            for(let i = 0; i < FRUITS_PER_BUSH; i++)
-            {
-                const blob = canopy[Math.min(i, canopy.length - 1)]
-                const thetaF = rnd() * Math.PI * 2
-                const phi    = Math.acos(2 * rnd() - 1)
-                const r      = blob.r * (0.94 + rnd() * 0.12)
-                const cluster = this._buildBerryCluster(obj.species, rnd)
-                cluster.position.set(
-                    blob.cx + r * Math.sin(phi) * Math.cos(thetaF),
-                    blob.cy + r * Math.cos(phi) - blob.r * 0.05,
-                    blob.cz + r * Math.sin(phi) * Math.sin(thetaF),
-                )
-                group.add(cluster)
-            }
-
+            if(!FRUIT_SPECIES[obj.species]) continue
+            const group = this._buildBush(obj.id, obj.species, obj.x, obj.z)
             group.visible = true
-            this.entries.push({
-                kind: 'fruit',
-                group,
-                species: obj.species,
-                x, z,
-                host: 'bush',
-                index: this.entries.length,
-                layoutId: obj.id,
-            })
         }
     }
 
@@ -403,26 +240,4 @@ export default class Fruits
             entry.z = z
         }
     }
-}
-
-// Tiny deterministic RNG — same seed → same sequence — so a bush's berries
-// stay in the same spots across reloads without us storing them.
-function mulberry32(seed)
-{
-    let t = seed >>> 0
-    return function()
-    {
-        t = (t + 0x6D2B79F5) >>> 0
-        let x = t
-        x = Math.imul(x ^ (x >>> 15), x | 1)
-        x ^= x + Math.imul(x ^ (x >>> 7), x | 61)
-        return (((x ^ (x >>> 14)) >>> 0) / 0xFFFFFFFF)
-    }
-}
-function hashSeed(x, z, key)
-{
-    let s = Math.floor(x * 7919) ^ Math.floor(z * 6173)
-    if(typeof key === 'string')
-        for(let i = 0; i < key.length; i++) s = (s * 31 + key.charCodeAt(i)) >>> 0
-    return s >>> 0
 }

@@ -19,6 +19,11 @@ export function configureColorPipeline(renderer)
     renderer.outputEncoding = THREE.sRGBEncoding
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.1
+    // Soft shadow maps (KTD-4) — the editor renders with `shadows="soft"`.
+    // Shadows stay ON at every quality tier; the shadow-casting directional
+    // light in View/Island.js scales its map SIZE by tier instead.
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
 }
 
 export default class Renderer
