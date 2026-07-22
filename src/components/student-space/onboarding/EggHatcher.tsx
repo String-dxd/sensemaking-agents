@@ -4,13 +4,18 @@ import type * as THREEType from 'three'
 import { Button } from '~/components/ui/button'
 import { RadioGroup } from '~/components/ui/radio-group'
 import {
+  CHARACTER_SOURCE_HEIGHT,
+  SPECIES_BY_ID,
+} from '~/engine/student-space/Game/State/characterAsset.ts'
+import {
   clamp01,
   easeInCubic,
   easeOutCubic,
   smootherstep,
   smoothstep,
 } from '~/engine/student-space/Game/util/easing.js'
-import { loadMaskedScene, SPECIES_BY_ID } from '~/engine/student-space/Game/View/Kira.js'
+import { loadGlb, MODEL_URLS } from '~/engine/student-space/Game/View/assetLoader.ts'
+import { applyToonMaterials } from '~/engine/student-space/Game/View/Materials/toonMaterial.ts'
 import {
   EGG_COLOR_BY_ID,
   EGG_COLORS,
@@ -432,17 +437,15 @@ export function EggCanvas({
       const cracks = new THREE.LineSegments(crackGeo, crackMat)
       mesh.add(cracks)
 
-      // --- Bird: real world-route Kira GLB clone, scaled to peek out of
-      // the bottom shell. The retired procedural bird is not used here, so
-      // the hatchling matches the character that flies in one screen later.
-      // `birdGroup` parents the clone and gives us a single scale/position
-      // handle.
+      // --- Bird: real world-route character.glb clone (world-port U9),
+      // scaled to peek out of the bottom shell — the hatchling IS the
+      // character that arrives one screen later. `birdGroup` parents the
+      // clone and gives us a single scale/position handle.
       const birdGroup = new THREE.Group()
-      // Sink + face camera. The bird's beak runs along local +X, so a
-      // -90° yaw rotates it toward +Z (the camera). The y-offset drops
-      // the body into the shell so only the head + crest read.
+      // Sink + face camera. The character faces local +Z at yaw 0, which is
+      // already toward the egg-scene camera. The y-offset drops the body
+      // into the shell so only the head reads.
       birdGroup.position.set(0, BIRD_START_Y, 0)
-      birdGroup.rotation.y = -Math.PI / 2
       birdGroup.scale.setScalar(0)
       scene.add(birdGroup)
 
@@ -479,62 +482,34 @@ export function EggCanvas({
         }
         birdParts = null
       }
-      const buildBird = (id: string) => {
+      const buildBird = (_id: string) => {
         const token = ++buildToken
-        // All species hatch as the MaskedBower GLB, tinted from the
-        // chosen species's palette — same routing as Kira.setSpecies in
-        // the world canvas, so the egg preview matches the post-hatch
-        // bird across every egg-color pick. The old procedural builder is
-        // archived in Kira.js and intentionally not used as a fallback, so
-        // a failed GLB load cannot show the retired bird.
-        // SkeletonUtils.clone gives the clone its own skeleton, so
-        // animating the world Kira's bones doesn't twitch the egg bird.
+        // All egg colors hatch the SAME character for now (world-port R10):
+        // the species id is still recorded and persisted; per-species visuals
+        // arrive with future assets. SkeletonUtils.clone gives the clone its
+        // own skeleton, so animating the world character's bones doesn't
+        // twitch the egg bird.
         void (async () => {
           try {
-            const [{ scene: source }, SkeletonUtils] = await Promise.all([
-              loadMaskedScene(),
+            const [gltf, SkeletonUtils] = await Promise.all([
+              loadGlb(MODEL_URLS.character),
               import('three/examples/jsm/utils/SkeletonUtils.js'),
             ])
-            if (token !== buildToken || cancelled) return
-            const clone = SkeletonUtils.clone(source) as THREEType.Object3D
-            // Scale comes from the hatch tuner. Default 0.38 — the
-            // source GLB ships at MASKED_SCALE 0.30; the dev HUD can
-            // dial this between ~0.2 and ~0.8 to fit the canvas.
-            clone.scale.setScalar(tuner.birdScale)
-            // Tint cloned materials per the picked species's palette.
-            // Body + head share the same tint; tie uses the accent.
-            // NOTE: SkeletonUtils.clone shares materials by reference,
-            // so this mutates the cached scene's materials too. That's
-            // fine — the world Kira re-applies its own tints on the
-            // same materials when setSpecies runs after onboarding.
-            const spec = SPECIES_BY_ID[id] ?? SPECIES_BY_ID.masked
-            const bodyTint = spec?.palette?.body || spec?.palette?.back
-            const tieTint = spec?.palette?.tie || spec?.palette?.accent
-            const tints: Record<string, string | undefined> = {
-              MB_BodyYellow: bodyTint,
-              MB_HeadOrange: bodyTint,
-              Uniform_TieStriped: tieTint,
-            }
+            if (token !== buildToken || cancelled || !gltf) return
+            applyToonMaterials(gltf.scene)
+            const clone = SkeletonUtils.clone(gltf.scene) as THREEType.Object3D
+            // Height-normalized: at the default tuner (0.38) the hatchling
+            // stands ~0.9 egg-scene units — head-and-shoulders out of the
+            // shell. The GLB ships at source scale (~1.62 tall).
+            clone.scale.setScalar((0.9 / CHARACTER_SOURCE_HEIGHT) * (tuner.birdScale / 0.38))
             clone.traverse((o) => {
-              const mesh = o as THREEType.Mesh
-              if (!mesh.isMesh) return
-              const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
-              for (const mat of mats) {
-                if (!mat) continue
-                const m = mat as THREEType.MeshStandardMaterial
-                const hex = tints[m.name]
-                if (hex) {
-                  m.color?.set(hex)
-                  m.needsUpdate = true
-                }
-              }
+              if ((o as THREEType.SkinnedMesh).isSkinnedMesh) o.frustumCulled = false
             })
-            // Re-find the head in the cloned tree (SkeletonUtils.clone
-            // creates new node instances). MB_Head is the visible head
-            // mesh, sibling to the armature inside MB_Rig.
+            // Head handle for the phase-5 wave: the rig's head bone (any
+            // node named like a head), falling back to the whole clone.
             let cloneHead: THREEType.Object3D | null = null
             clone.traverse((o) => {
-              if (!cloneHead && /MB_Head/i.test(o.name)) cloneHead = o
+              if (!cloneHead && /head/i.test(o.name)) cloneHead = o
             })
             birdParts = { root: clone, head: cloneHead ?? clone, kind: 'glb-clone' }
             birdGroup.add(clone)

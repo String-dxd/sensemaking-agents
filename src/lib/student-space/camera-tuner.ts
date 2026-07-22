@@ -95,18 +95,22 @@ export type PresetMap = {
  */
 export const DEFAULT_PRESETS: Readonly<PresetMap> = Object.freeze({
   'world-default': {
+    // Retuned for the editor's 24-unit world (world-port U10): the landmass
+    // is ~18 × 16 and off-center (land centroid ≈ (1.0, 0.7)).
     fov: 41,
-    distance: 18,
+    distance: 20,
     pitchDeg: 24,
-    lookAtX: 0,
-    lookAtY: 1.9,
-    lookAtZ: 0,
+    lookAtX: 1.0,
+    lookAtY: 1.6,
+    lookAtZ: 0.7,
   },
   'first-chat': {
-    distance: 6.4,
+    // Retuned for the 0.6-unit editor character (world-port U9/U10): tighter
+    // and lower than the old bird portrait.
+    distance: 4.6,
     yawOffsetDeg: 1.7,
-    camYAboveLookAt: 2.2,
-    lookAtYAbovePerch: 0.9,
+    camYAboveLookAt: 1.5,
+    lookAtYAbovePerch: 0.45,
     durationMs: 1450,
     zoomLeadMs: 1500,
   },
