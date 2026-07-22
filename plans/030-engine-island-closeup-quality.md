@@ -159,6 +159,12 @@ This asserts exactly the behavior being fixed — it must flip to `'high'`.
 - `src/engine/student-space/Game/State/Performance.js` (heuristic branch only)
 - `src/engine/student-space/Game/View/islandGeometry.ts` (SEGMENTS + comment)
 - `test/engine/performance-quality.test.ts` (heuristic expectations)
+- `test/engine/islandGeometry.test.ts` (**timeout-only amendment, rev 1**: the
+  two vertex-loop tests iterate every vertex with several `expect()` calls
+  each — runtime scales with SEGMENTS², and at 512 they exceed Vitest's
+  default 5 s per-test timeout under full-suite worker contention. Add an
+  explicit per-test timeout of 30 000 ms to those two tests, with a comment
+  citing this scaling. NO expectation, loop, or invariant changes.)
 
 **Out of scope** (do NOT touch, even though they look related):
 
@@ -272,9 +278,10 @@ Machine-checkable. ALL must hold:
       boundary expectations
 - [ ] `grep -n "SEGMENTS = 512" src/engine/student-space/Game/View/islandGeometry.ts` → hit
 - [ ] `grep -n "dpr >= 2 ||" src/engine/student-space/Game/State/Performance.js` → no hit
-- [ ] `test/engine/islandGeometry.test.ts` and
-      `test/engine/islandSpecCore.test.ts` unmodified (`git status`)
-- [ ] `git status` shows only the three in-scope files changed (plus the
+- [ ] `test/engine/islandSpecCore.test.ts` unmodified (`git status`);
+      `test/engine/islandGeometry.test.ts` diff contains ONLY added per-test
+      timeouts + comment (rev 1 amendment — no expectation changes)
+- [ ] `git status` shows only the four in-scope files changed (plus the
       pre-existing `IslandSnapshotBridge.js` modification, untouched)
 
 ## STOP conditions
@@ -286,8 +293,10 @@ Stop and report back (do not improvise) if:
 - Any test OTHER than the line-29-37 heuristic case fails after Step 1 — the
   heuristic change leaked wider than intended.
 - Any `islandGeometry` / `islandSpecCore` / `Island.spec-api` test fails
-  after Step 3 — the tessellation bump was supposed to be invariant-free; do
-  not edit those expectations.
+  after Step 3 for any reason OTHER than the known Vitest per-test timeout in
+  `islandGeometry.test.ts` (rev 1: fixed by the in-scope 30 s timeout
+  amendment) — an assertion/invariant failure means the tessellation bump was
+  not invariant-free; do not edit those expectations.
 - The islandGeometry test file's runtime grows past ~10× its baseline after
   Step 3 — the once-per-boot build may be slower than modeled; report the
   numbers instead of optimizing.
