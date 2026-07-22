@@ -10,6 +10,11 @@
  * status (the underlying exploration / commitment audit is still computed
  * so callers can show "this is a preview" honestly).
  *
+ * Default preview: `'searching'`. Path Finder opens on the Searching view
+ * for a fresh space rather than whatever status the evidence infers, so the
+ * exploration narrative is the default frame. An explicit later choice
+ * (including clearing to Auto, which persists `null`) still wins on reload.
+ *
  * Persistence key: `ss:v1:identityStatusOverride`. Survives reload.
  *
  * Follows the singleton + subscribe + persist template per
@@ -31,7 +36,10 @@ export default class IdentityStatusOverride
         if(IdentityStatusOverride.instance) return IdentityStatusOverride.instance
         IdentityStatusOverride.instance = this
 
-        this.overrideId  = null
+        // Default to the Searching preview so Path Finder opens on the
+        // exploration frame. Persisted state (including an explicit Auto ⇒
+        // null) overrides this via hydrate() on reload.
+        this.overrideId  = 'searching'
         this.subscribers = new Set()
     }
 

@@ -24,11 +24,11 @@ afterEach(() => {
 })
 
 describe('IdentityStatusOverride', () => {
-  it('starts with no override set', () => {
+  it('defaults to the Searching preview', () => {
     freshPersistence()
     const slice = new IdentityStatusOverride()
-    expect(slice.current).toBeNull()
-    expect(slice.isActive).toBe(false)
+    expect(slice.current).toBe('searching')
+    expect(slice.isActive).toBe(true)
   })
 
   it('accepts valid Marcia status ids and reports as active', () => {
@@ -97,12 +97,15 @@ describe('IdentityStatusOverride', () => {
   it('ignores garbage hydrate payloads', () => {
     freshPersistence()
     const slice = new IdentityStatusOverride()
+    // Seed a known value so the assertions test "garbage leaves state
+    // untouched" independent of the constructor default.
+    slice.setOverride('foreclosed')
     slice.hydrate('not-a-status' as never)
-    expect(slice.current).toBeNull()
+    expect(slice.current).toBe('foreclosed')
     slice.hydrate(42 as never)
-    expect(slice.current).toBeNull()
+    expect(slice.current).toBe('foreclosed')
     slice.hydrate(undefined)
-    expect(slice.current).toBeNull()
+    expect(slice.current).toBe('foreclosed')
   })
 
   it('isolates subscriber crashes from the fan-out', () => {
