@@ -12,7 +12,9 @@ describe('islandSpec loader', () => {
     const spec = loadIslandSpec()
     expect(spec.version).toBe(5)
     expect(spec.worldSize).toBe(24)
-    expect(spec.grid.cols).toBe(64)
+    // plan 031: island resampled 64×64 → 128×128
+    expect(spec.grid.cols).toBe(128)
+    expect(spec.grid.rows).toBe(128)
     expect(spec.objects.length).toBeGreaterThan(0)
   })
 

@@ -95,15 +95,18 @@ describe('golden parity — committed spec vs editor implementation', () => {
     }
   })
 
-  it('the character spawn (cell 20,33) lands at ≈ (−4.31, y, 0.56) — coordinate convention anchor', () => {
+  it('the character spawn (cell 40,66) lands at ≈ (−4.41, y, 0.47) — coordinate convention anchor', () => {
+    // plan 031: island resampled 64×64 → 128×128 — the character's cell
+    // remapped (20,33) → (40,66), shifting the cell-center world position by
+    // −cellSize/2 = −0.09375 per axis (cellSize 24/128 = 0.1875).
     const character = committedSpec.objects.find((o) => o.kind === 'character')
     expect(character).toBeDefined()
     if (!character) return
-    expect(character.c).toBe(20)
-    expect(character.r).toBe(33)
+    expect(character.c).toBe(40)
+    expect(character.r).toBe(66)
     const p = worldPositionOfObject(committedSpec, character)
-    expect(p.x).toBeCloseTo(-4.3125, 4)
-    expect(p.z).toBeCloseTo(0.5625, 4)
+    expect(p.x).toBeCloseTo(-4.40625, 4)
+    expect(p.z).toBeCloseTo(0.46875, 4)
   })
 
   it('grass scatter matches the editor: count and the first blades', () => {

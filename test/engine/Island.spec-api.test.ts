@@ -12,8 +12,11 @@ import golden from './fixtures/islandSpecGolden.json'
 const island = new Island()
 const spec: IslandSpec = island.spec
 
-/** Find a cell whose full (2k+1)² neighborhood sits at exactly `tier`. */
-function findFlatCell(tier: number, k = 1): { c: number; r: number } {
+/** Find a cell whose full (2k+1)² neighborhood sits at exactly `tier`. Default
+ *  k=2 (5×5) — plan 031: island resampled 64×64 → 128×128, so k doubled from
+ *  the original k=1 (3×3) to cover the same WORLD-space flatness radius at
+ *  the finer grid. */
+function findFlatCell(tier: number, k = 2): { c: number; r: number } {
   const { grid } = spec
   for (let r = k; r < grid.rows - k; r++) {
     outer: for (let c = k; c < grid.cols - k; c++) {

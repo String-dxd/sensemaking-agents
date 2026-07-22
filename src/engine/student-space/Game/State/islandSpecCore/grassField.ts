@@ -30,9 +30,12 @@ export interface GrassBlade {
   phase: number
 }
 
-// Density knob; ~262k blades worst-case full grid. The engine's Grass view
-// derives its buffer capacity from this constant (scaled by quality tier).
-export const BLADES_PER_CELL = 64
+// Density is per-CELL, not per-world-area: the saved island moved 64×64 →
+// 128×128 cells (plan 031's coastline resample), so 16 blades per 0.1875²-unit
+// cell keeps the same blades-per-world-area as the old 64 per 0.375²-unit
+// cell. ~262k blades worst-case full grid. The engine's Grass view derives
+// its buffer capacity from this constant (scaled by quality tier).
+export const BLADES_PER_CELL = 16
 
 /** Plateau interiors are flat (terraced terrain: smoothstep is 0 or 1 away
  *  from walls), so any per-blade height deviating from the CELL CENTER's
