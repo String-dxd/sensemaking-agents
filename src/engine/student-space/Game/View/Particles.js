@@ -15,7 +15,6 @@ import State from '../State/State.js'
  */
 const COUNT     = 36           // intentionally small — ambient, not a snow scene
 const SPRITE_R  = 32           // canvas size for the soft radial sprite
-const RADIUS    = 4.4          // sample radius on the plateau
 const Y_MIN     = 0.35
 const Y_MAX     = 2.6
 const DRIFT_R   = 0.55         // horizontal Lissajous radius
@@ -57,10 +56,12 @@ export default class Particles
 
         for(let i = 0; i < COUNT; i++)
         {
-            const theta  = Math.random() * Math.PI * 2
-            const radial = Math.sqrt(Math.random()) * RADIUS
-            const x = Math.cos(theta) * radial
-            const z = Math.sin(theta) * radial
+            // Land-cell scatter (world-port U10): motes drift over the spec
+            // terrain's placeable cells instead of the old polar plateau.
+            const cells = this.island.placeableCells()
+            const cell = cells[Math.floor(Math.random() * cells.length)]
+            const x = (cell?.x ?? 0) + (Math.random() - 0.5) * 0.35
+            const z = (cell?.z ?? 0) + (Math.random() - 0.5) * 0.35
             const ground = this.island.heightAt(x, z)
             const y = ground + Y_MIN + Math.random() * (Y_MAX - Y_MIN)
 

@@ -83,7 +83,19 @@ export default class Sprouts {
 
   subscribe(cb: (event: SproutsEvent, sprouts: readonly Sprout[]) => void): () => void
 
-  hydrate(snapshot: { cycleIndex?: number; sprouts?: unknown[]; bloomedTrees?: unknown[] } | null | undefined): void
+  hydrate(
+    snapshot:
+      | {
+          cycleIndex?: number
+          sprouts?: unknown[]
+          bloomedTrees?: unknown[]
+          decorOffsets?: Record<string, unknown>
+        }
+      | null
+      | undefined,
+    island?: import('./Island.js').default,
+  ): void
+  getDecorOffset(kind: string, index: number): { x: number; z: number } | null
   serialize(): { cycleIndex: number; sprouts: Sprout[]; bloomedTrees: BloomedTree[] }
 }
 

@@ -27,19 +27,6 @@ export default class Island {
   isWalkable(x: number, z: number): boolean
   isPlaceable(x: number, z: number, inset?: number): boolean
   landCells(): LandCell[]
+  placeableCells(): LandCell[]
 
-  // ── TEMPORARY SHIMS (removed in U12; consumers migrate in U4/U5/U10) ──
-  radius: number
-  sandOuterRadius: number
-  plateauTopY: number
-  sandTopY: number
-  cliffHeight: number
-  chunkSize: number
-  noiseAmp: number
-  noiseFreq: number
-  detailAmp: number
-  silhouetteAt(theta: number): number
-  radiusAtTheta(theta: number, baseRadius?: number): number
-  radiusAt(x: number, z: number, baseRadius?: number): number
-  isOnPlateau(x: number, z: number): boolean
 }

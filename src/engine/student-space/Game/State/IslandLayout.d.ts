@@ -47,6 +47,13 @@ export default class IslandLayout {
 
   subscribe(cb: (event: IslandLayoutEvent) => void): () => void
 
-  hydrate(snapshot: unknown): void
+  hydrate(snapshot: unknown, island?: import('./Island.js').default): void
   serialize(): { v: 1; objects: PlacedObject[] }
 }
+
+/** U11: snap a hydrated layout's invalid positions to the nearest flat land
+ *  cell (occupancy pre-seeded from the spec's decorative objects). */
+export function snapLayoutPositions(
+  objects: Array<{ x: number; z: number }>,
+  island: import('./Island.js').default,
+): void

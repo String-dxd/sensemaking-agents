@@ -26,6 +26,7 @@ Package manager is **pnpm only**. No npm / yarn lockfiles.
 ## Repo conventions
 
 - **Engine is canonical.** `src/engine/student-space/` is the source of truth — edit in place; no upstream sync from `wondopamine/student-space`.
+- **Island source is the committed editor spec.** The world renders from `src/engine/student-space/Game/Data/defaultIslandSpec.json` (IslandSpec v5, authored in `island-editor/`); regenerate it — plus the frozen fallback and the golden parity fixture — with `pnpm sync:island` after re-saving the island in the editor. The ported pure core lives in `Game/State/islandSpecCore/` (TS, linted); `test/engine/colorspace-guard.test.ts` blocks r152+ color APIs (runtime three is r149).
 - **No `src/components/world/`.** Deleted 2026-05-21; the world lives in the engine.
 - **Base UI for behavior, hand-rolled shadcn-style visuals.** `@base-ui-components/react` for dialogs, drawers, radio groups, focus traps. Visual primitives in `src/components/ui/*` are local. Do **not** install the `shadcn/ui` package.
 - **Tenancy via `withStudent`.** Every DB read/write goes through the envelope (`src/db/*`, server handlers). Bypassing it is a tenancy bug.

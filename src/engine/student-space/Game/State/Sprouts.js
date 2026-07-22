@@ -24,6 +24,7 @@
  */
 
 import Persistence from './Persistence.js'
+import { claimCellAt, occupiedCellsFromSpec, snapPositionToLand } from './islandSpecCore/snapToLand.ts'
 import { coercePosition, mergeArray, mergeSprout } from './schema.js'
 
 // Bloom threshold — number of captures required before a sprout is
@@ -421,7 +422,7 @@ export default class Sprouts
 
     // ── Persistence ────────────────────────────────────────────────────
 
-    hydrate(snapshot)
+    hydrate(snapshot, island)
     {
         if(!snapshot || typeof snapshot !== 'object') return
         if(typeof snapshot.cycleIndex === 'number' && snapshot.cycleIndex >= 0)
@@ -480,11 +481,55 @@ export default class Sprouts
                 telescope: merge(snapshot.decorOffsets.telescope),
             }
         }
+        // Terrain-aware snap (world-port U11, KTD-7): all three position
+        // stores — sprouts[].position, bloomedTrees[].position, and the
+        // decorOffsets buckets (absolute coords) — snap in place at hydrate
+        // time. `position` objects are MUTATED (never replaced) so id-keyed
+        // captureRefs / bloom lookups never detach; `position: null` passes
+        // through (seed-derived placement stays seed-derived). No fan, no
+        // _persist, no snapshot POST — snapped values persist lazily on the
+        // first ordinary mutation.
+        if(island) this._snapHydratedPositions(island)
         this._invalidateCache()
         // Bulk load is not a `spawned`/`grew` event. View subscribers
         // are written against post-add semantics; firing them on hydrate
         // would trigger toast/particle cascades on every reload. The
         // view reads `sprouts.recent()` directly on construction.
+    }
+
+    /** U11: snap every hydrated position store to placeable land (in place). */
+    _snapHydratedPositions(island)
+    {
+        const env = {
+            worldSize: island.worldSize,
+            cols: island.spec.grid.cols,
+            rows: island.spec.grid.rows,
+            isValid: (x, z) => island.isPlaceable(x, z),
+        }
+        const occupied = occupiedCellsFromSpec(island.spec)
+        const stores = []
+        for(const sprout of this.sprouts) if(sprout.position) stores.push(sprout.position)
+        for(const tree of this.bloomedTrees) if(tree.position) stores.push(tree.position)
+        for(const bucket of Object.values(this.decorOffsets))
+        {
+            for(const pos of Object.values(bucket)) if(pos) stores.push(pos)
+        }
+        const invalid = []
+        for(const pos of stores)
+        {
+            if(env.isValid(pos.x, pos.z)) claimCellAt(env, occupied, pos.x, pos.z)
+            else invalid.push(pos)
+        }
+        for(const pos of invalid)
+        {
+            const snapped = snapPositionToLand(env, occupied, pos.x, pos.z)
+            if(snapped)
+            {
+                // Mutate in place — identity survives for captureRefs/lookups.
+                pos.x = snapped.x
+                pos.z = snapped.z
+            }
+        }
     }
 
     serialize()

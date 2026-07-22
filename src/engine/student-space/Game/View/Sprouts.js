@@ -2,6 +2,7 @@ import * as THREE from 'three'
 
 import View from './View.js'
 import State from '../State/State.js'
+import { snapPositionToLand } from '../State/islandSpecCore/snapToLand.ts'
 
 /**
  * Sprouts view — renders the engine's Sprouts state slice as small 3D
@@ -87,7 +88,8 @@ const BOB_PERIOD_S  = 2.5    // seconds per bob cycle
 const PULSE_PERIOD_S = 2.5   // seconds per pulse cycle
 const DISSOLVE_MS = 700      // bloomed sprout dissolve duration
 
-const PLATEAU_RADIUS = 2.6   // safe placement radius on the central plateau
+// Seeded placements land on random PLACEABLE land cells of the spec terrain
+// (world-port U10) — the old polar plateau formula is gone.
 
 // Camera flow timings — total ≈1.5s for a normal grow, ≈2.7s for a bloom.
 const CAM_ZOOM_IN_MS    = 500
@@ -97,14 +99,18 @@ const CAM_ZOOM_OUT_MS   = 500
 const BLOOM_GROW_MS     = 1000    // bloomed-object grow-in duration (was 1200)
 
 /** Stable PRNG from a seed integer. Deterministic + fast. */
-function seededAngleAndRadius(seed)
+export function seededPlacement(seed, island)
 {
-    // Two independent hashes derived from the same seed.
+    // Two independent hashes derived from the same seed (deterministic:
+    // the same sprout re-derives the same cell on every boot).
     const a = Math.sin(seed * 12.9898) * 43758.5453
     const b = Math.sin(seed * 78.233) * 12345.6789
     const theta = (a - Math.floor(a)) * Math.PI * 2
-    const radius = ((b - Math.floor(b)) * 0.55 + 0.35) * PLATEAU_RADIUS
-    return { theta, radius }
+    const u = b - Math.floor(b)
+    const cells = island.placeableCells()
+    if(cells.length === 0) return { theta, x: 0, z: 0 }
+    const cell = cells[Math.min(cells.length - 1, Math.floor(u * cells.length))]
+    return { theta, x: cell.x, z: cell.z }
 }
 
 /**
@@ -118,19 +124,43 @@ function seededAngleAndRadius(seed)
  * position overrides the seed we still derive a deterministic yaw
  * from the seed so the visual orientation stays stable across moves.
  */
-function resolveWorldPlacement(descriptor, island)
+export function resolveWorldPlacement(descriptor, island)
 {
     const seed = typeof descriptor.placementSeed === 'number' ? descriptor.placementSeed : 0
-    const { theta, radius } = seededAngleAndRadius(seed)
+    const placement = seededPlacement(seed, island)
+    const theta = placement.theta
     const pos = descriptor.position
     if(pos && typeof pos.x === 'number' && typeof pos.z === 'number' &&
        Number.isFinite(pos.x) && Number.isFinite(pos.z))
     {
-        return { x: pos.x, y: island.heightAt(pos.x, pos.z), z: pos.z, theta }
+        // Render-time clamp (world-port U11): a historical/replayed position
+        // that falls in the sea or on a terrace wall under the new terrain
+        // renders at the nearest placeable cell — WITHOUT mutating the data
+        // (live views and snapshot replays share this one code path; the
+        // hydrate-time snap owns durable positions).
+        let { x, z } = pos
+        if(!island.isPlaceable(x, z))
+        {
+            const snapped = snapPositionToLand(
+                {
+                    worldSize: island.worldSize,
+                    cols: island.spec.grid.cols,
+                    rows: island.spec.grid.rows,
+                    isValid: (sx, sz) => island.isPlaceable(sx, sz),
+                },
+                new Set(),
+                x,
+                z,
+            )
+            if(snapped)
+            {
+                x = snapped.x
+                z = snapped.z
+            }
+        }
+        return { x, y: island.heightAt(x, z), z, theta }
     }
-    const x = Math.cos(theta) * radius
-    const z = Math.sin(theta) * radius
-    return { x, y: island.heightAt(x, z), z, theta }
+    return { x: placement.x, y: island.heightAt(placement.x, placement.z), z: placement.z, theta }
 }
 
 function reduceMotion()

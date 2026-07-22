@@ -2,7 +2,6 @@ import * as THREE from 'three'
 
 import Camera from './Camera.js'
 import Renderer from './Renderer.js'
-import Noises from './Noises.js'
 import Sky from './Sky.js'
 import CssSky from './CssSky.js'
 import Island from './Island.js'
@@ -48,13 +47,11 @@ export default class View
         this.state = State.getInstance()
         this.scene = new THREE.Scene()
 
-        // Order matters: Camera before Renderer (Renderer reads it), Renderer
-        // before Noises (Noises renders to a target via the renderer instance),
+        // Order matters: Camera before Renderer (Renderer reads it),
         // Sky before Island/Grass (uses cloned camera and renderer).
         this.camera   = new Camera()
         this.renderer = new Renderer()
         this.camera.bindControls(this.renderer.instance.domElement)
-        this.noises   = new Noises()
         this.sky      = new Sky()
         this.cssSky   = new CssSky()
         this.island   = new Island()

@@ -15,8 +15,10 @@ import { useEffect, useRef } from 'react'
  * canvas freezes on the last frame.
  */
 interface EngineForPreview {
-  state?: { sprouts?: { setTimelapseSubset?: (trees: unknown) => void } }
-  view?: { scene?: object }
+  view?: {
+    scene?: object
+    sprouts?: { setTimelapseSubset?: (trees: unknown) => void }
+  }
 }
 
 export function GrowthIslandPreview({ year, engine }: { year: number; engine: unknown }) {
@@ -99,7 +101,7 @@ export function GrowthIslandPreview({ year, engine }: { year: number; engine: un
           renderer.dispose()
           renderer.forceContextLoss()
           // Restore live island.
-          eng?.state?.sprouts?.setTimelapseSubset?.(null)
+          eng?.view?.sprouts?.setTimelapseSubset?.(null)
         },
       }
     })()
@@ -122,7 +124,10 @@ export function GrowthIslandPreview({ year, engine }: { year: number; engine: un
         if (!res.ok) throw new Error('island-state-at fetch failed')
         const data = (await res.json()) as { bloomedTrees?: unknown }
         if (cancelled) return
-        eng?.state?.sprouts?.setTimelapseSubset?.(data.bloomedTrees ?? null)
+        // World-port U11 fix: setTimelapseSubset lives on the VIEW's Sprouts —
+        // the old state-path optional chain silently no-op'd, so the timelapse
+        // never filtered the live island.
+        eng?.view?.sprouts?.setTimelapseSubset?.(data.bloomedTrees ?? null)
         // Schedule a render on the next frame so any subscriber-driven scene
         // updates (sprout layering, etc.) land before we capture.
         if (typeof requestAnimationFrame === 'function') {
