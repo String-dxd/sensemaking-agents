@@ -16,7 +16,7 @@ export type HatchPreset = {
   birdStartY: number
   /** Bird group Y at scale 1 — final standing pose inside the cup. */
   birdRevealY: number
-  /** Clone scale applied to the cached MaskedBower GLB. */
+  /** Clone scale knob for the hatchling (height-normalized character.glb clone). */
   birdScale: number
   /** Perspective camera vertical FOV (degrees). */
   cameraFov: number

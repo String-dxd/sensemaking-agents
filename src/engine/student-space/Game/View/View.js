@@ -15,7 +15,7 @@ import Sprouts from './Sprouts.js'
 import Butterflies from './Butterflies.js'
 import Fireflies from './Fireflies.js'
 import Particles from './Particles.js'
-import Kira from './Kira.js'
+import Character from './Character.js'
 import Aurora from './Aurora.js'
 import Rainbow from './Rainbow.js'
 import Rain from './Rain.js'
@@ -69,11 +69,11 @@ export default class View
         this.butterflies = new Butterflies()
         this.fireflies   = new Fireflies()
         this.particles   = new Particles()
-        this.kira        = new Kira()
-        // Restore the chosen companion species on every boot. Kira's
-        // constructor defaults to the MaskedBower GLB; this applies any
-        // persisted palette without ever flashing the archived procedural
-        // bird.
+        // The editor's character behind Kira's contract (world-port U8) —
+        // the slot keeps the name `view.kira` for the React seam.
+        this.kira        = new Character()
+        // Restore the chosen companion species on every boot (uniform look
+        // for now — the persisted id survives, visuals come with assets).
         const persistedSpecies = this.state.profile?.identity?.companionSpecies
         if(persistedSpecies) this.kira.setSpecies(persistedSpecies)
         // Mailbox is a small static prop that sits on the plateau and acts

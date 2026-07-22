@@ -16,9 +16,12 @@ import { cn } from '~/lib/utils'
  * against the live engine and the user can copy results back into source.
  */
 const ENTER_MS = 320
-const FLY_DURATION_S = 2.4
-const FLY_START = { x: -14, y: 12, z: 8 }
-const FLY_MID_OFFSET = { x: 0, y: 4, z: 0 }
+// Arrival beat (world-port U9): the character no longer flies in — it wakes
+// on the west beach and walks (swims if the route crosses water) to its home
+// perch. The start sits just off the landmass's west shore.
+const FLY_DURATION_S = 8
+const FLY_START = { x: -7.6, y: 0, z: 0.9 }
+const FLY_MID_OFFSET = { x: 0, y: 0, z: 0 }
 
 type VectorLike = {
   x: number

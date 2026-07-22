@@ -22,9 +22,9 @@ export default class Camera
         // Distance widened to 18 / fov 41 frame the whole island silhouette
         // by default — matches the camera-tuner 'world-default' preset.
         this.fov = 41
-        this.distance = 18
+        this.distance = 20
         this.pitchDeg = 24
-        this.target = new THREE.Vector3(0, 1.9, 0)
+        this.target = new THREE.Vector3(1.0, 1.6, 0.7)
 
         this.instance = new THREE.PerspectiveCamera(this.fov, this.viewport.width / this.viewport.height, 0.1, 2000)
         this.instance.rotation.reorder('YXZ')
@@ -63,7 +63,7 @@ export default class Camera
         this.controls.dampingFactor = 0.08
         this.controls.target.copy(this.target)
         this.controls.minDistance = 6
-        this.controls.maxDistance = 30
+        this.controls.maxDistance = 36
         this.controls.maxPolarAngle = Math.PI * 0.495
         this.controls.update()
     }
