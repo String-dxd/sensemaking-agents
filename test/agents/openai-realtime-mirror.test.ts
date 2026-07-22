@@ -85,17 +85,18 @@ describe('OpenAI Realtime Mirror runner', () => {
     ).toEqual({ validation: 'v', inferred_meaning: 'm', story_reframe: 's' })
   })
 
-  it('frames the live Companion as a two-mode reflective journaling listener', () => {
+  it('frames the live Companion (Kira) as a two-mode reflective journaling listener', () => {
     const instructions = buildRealtimeMirrorLiveInstructions()
 
-    expect(instructions).toContain('reflective journaling companion')
+    expect(instructions).toContain('You are Kira')
+    expect(instructions).toContain('journaling companion')
     expect(instructions).toContain('Gathering mode')
     expect(instructions).toContain('Reflecting mode')
-    expect(instructions).toContain('If the student is checking whether the mic works')
+    expect(instructions).toContain('checking the mic')
     expect(instructions).toContain('very short or vague')
-    expect(instructions).toContain('Anything interesting happen during school or after school')
+    expect(instructions).toContain('Anything interesting happen in school or after school')
     expect(instructions).toContain('Never speak JSON')
-    expect(instructions).toContain('Always respond in English')
+    expect(instructions).toContain('respond in natural English')
     expect(buildRealtimeMirrorResponseInstructions()).toContain('Write every field in English')
   })
 })
