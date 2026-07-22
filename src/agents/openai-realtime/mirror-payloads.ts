@@ -30,7 +30,7 @@ export function buildRealtimeMirrorLiveAudioInputConfig() {
       interrupt_response: true,
       threshold: 0.5,
       prefix_padding_ms: 700,
-      silence_duration_ms: 800,
+      silence_duration_ms: 500,
     },
   } as const
 }

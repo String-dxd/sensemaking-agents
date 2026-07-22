@@ -96,18 +96,18 @@ export function buildRealtimeMirrorSessionConfig({
   }
 }
 
+// Full live-audio config at call creation so transcription, VAD, and
+// instructions are active the moment the WebRTC connection comes up —
+// not only after the data channel opens and the client sends
+// `session.update`. The client update stays as an idempotent re-assert.
 export function buildRealtimeMirrorCallSessionConfig({
   model = OPENAI_REALTIME_MIRROR_DEFAULT_MODEL,
   voice = OPENAI_REALTIME_MIRROR_VOICE,
+  safetyIdentifier,
 }: {
   model?: string
   voice?: string
+  safetyIdentifier?: string
 } = {}): RealtimeSessionCreateRequest {
-  return {
-    type: 'realtime',
-    model,
-    audio: {
-      output: { voice },
-    },
-  }
+  return buildRealtimeMirrorSessionConfig({ model, mode: 'live_audio', voice, safetyIdentifier })
 }

@@ -39,21 +39,34 @@ describe('openAIRealtimeMirrorSessionHandler', () => {
     const session = JSON.parse(String(forwardedBody?.get('session'))) as {
       type: string
       model: string
+      instructions: string
+      output_modalities: string[]
       audio: {
+        input: { transcription: { model: string }; turn_detection: Record<string, unknown> }
         output: { voice: string }
       }
     }
+    // The live session is fully configured at call creation so transcription
+    // and VAD are active before the data channel opens.
     expect(session).toMatchObject({
       type: 'realtime',
       model: 'gpt-realtime',
+      output_modalities: ['audio'],
       audio: {
+        input: {
+          transcription: { model: 'gpt-4o-mini-transcribe', language: 'en' },
+          turn_detection: {
+            type: 'server_vad',
+            create_response: false,
+            silence_duration_ms: 500,
+          },
+        },
         output: {
           voice: 'marin',
         },
       },
     })
-    expect(session).not.toHaveProperty('instructions')
-    expect(session).not.toHaveProperty('output_modalities')
+    expect(session.instructions).toContain('respond in natural English')
   })
 
   it('authenticates before calling OpenAI', async () => {

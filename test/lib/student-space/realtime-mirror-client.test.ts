@@ -78,12 +78,12 @@ describe('realtime-mirror-client', () => {
             interrupt_response: true,
             threshold: 0.5,
             prefix_padding_ms: 700,
-            silence_duration_ms: 800,
+            silence_duration_ms: 500,
           },
         },
       },
     })
-    expect(sessionUpdate.instructions).toContain('Always respond in English')
+    expect(sessionUpdate.instructions).toContain('respond in natural English')
     channel.message({
       type: 'input_audio_buffer.speech_started',
       item_id: 'student-1',
@@ -93,15 +93,20 @@ describe('realtime-mirror-client', () => {
       item_id: 'student-1',
     })
     channel.message({
-      type: 'conversation.item.input_audio_transcription.completed',
+      type: 'input_audio_buffer.committed',
       item_id: 'student-1',
-      transcript: 'I said this live.',
     })
     await Promise.resolve()
     expect(channel.sent.map((payload) => JSON.parse(payload).type).slice(0, 2)).toEqual([
       'session.update',
       'response.create',
     ])
+    channel.message({
+      type: 'conversation.item.input_audio_transcription.completed',
+      item_id: 'student-1',
+      transcript: 'I said this live.',
+    })
+    await Promise.resolve()
     const liveResponseCreate = JSON.parse(channel.sent[1] ?? '{}').response
     expect(liveResponseCreate.metadata.purpose).toBe('live_companion_reply')
     expect(liveResponseCreate.instructions).toContain('Reply in English only')

@@ -456,7 +456,7 @@ export function AskSheet() {
         : {
             id: 'student-listening-placeholder',
             role: 'student',
-            text: 'Listening...',
+            text: useRealtimeVoice ? 'Connecting...' : 'Listening...',
             status: 'streaming',
           },
     ])
@@ -498,6 +498,13 @@ export function AskSheet() {
           return
         }
         setRealtimeCaptureHandle(session ?? null)
+        setLiveDialogue((items) =>
+          items.map((item) =>
+            item.id === 'student-listening-placeholder' && item.text === 'Connecting...'
+              ? { ...item, text: 'Listening...' }
+              : item,
+          ),
+        )
         return
       }
 

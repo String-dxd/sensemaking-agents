@@ -60,6 +60,7 @@ interface RealtimeMirrorAccumulatorOptions {
   onRepairNeeded?: (previousText: string, transcript: string) => void
   onConversationUpdate?: (update: StudentSpaceRealtimeConversationUpdate) => void
   onAcceptedStudentTurn?: (transcript: string) => void
+  onStudentTurnCommitted?: () => void
 }
 
 type MinimalDataChannel = Pick<
@@ -119,7 +120,10 @@ export async function createRealtimeMirrorCapture(
   const accumulator = createRealtimeMirrorAccumulator(input, {
     timeoutMs: deps.resultTimeoutMs,
     onConversationUpdate: input.onConversationUpdate,
-    onAcceptedStudentTurn: () => {
+    // Reply as soon as the VAD commits the audio turn — the realtime model
+    // hears the audio natively, so there is no need to wait the extra 1-3s
+    // for the side-channel transcription model to finish.
+    onStudentTurnCommitted: () => {
       sendRealtimeMirrorLiveCompanionResponse(dataChannel)
     },
     onRepairNeeded: (previousText) => {
@@ -221,6 +225,7 @@ export function createRealtimeMirrorAccumulator(
     onRepairNeeded,
     onConversationUpdate,
     onAcceptedStudentTurn,
+    onStudentTurnCommitted,
   } = normalizeAccumulatorOptions(options)
   const transcriptParts = new Map<string, string>()
   const transcriptOrder: string[] = []
@@ -426,6 +431,9 @@ export function createRealtimeMirrorAccumulator(
         status: 'streaming',
       })
     }
+    if (event.type === 'input_audio_buffer.committed') {
+      onStudentTurnCommitted?.()
+    }
     if (event.type === 'conversation.item.input_audio_transcription.completed') {
       recordTranscript(event, typeof event.transcript === 'string' ? event.transcript : '', {
         append: false,
@@ -533,7 +541,7 @@ function normalizeAccumulatorOptions(
 ): Required<Pick<RealtimeMirrorAccumulatorOptions, 'timeoutMs' | 'maxRepairAttempts'>> &
   Pick<
     RealtimeMirrorAccumulatorOptions,
-    'onRepairNeeded' | 'onConversationUpdate' | 'onAcceptedStudentTurn'
+    'onRepairNeeded' | 'onConversationUpdate' | 'onAcceptedStudentTurn' | 'onStudentTurnCommitted'
   > {
   if (typeof options === 'number') {
     return {
@@ -542,6 +550,7 @@ function normalizeAccumulatorOptions(
       onRepairNeeded: undefined,
       onConversationUpdate: undefined,
       onAcceptedStudentTurn: undefined,
+      onStudentTurnCommitted: undefined,
     }
   }
   return {
@@ -550,6 +559,7 @@ function normalizeAccumulatorOptions(
     onRepairNeeded: options.onRepairNeeded,
     onConversationUpdate: options.onConversationUpdate,
     onAcceptedStudentTurn: options.onAcceptedStudentTurn,
+    onStudentTurnCommitted: options.onStudentTurnCommitted,
   }
 }
 
