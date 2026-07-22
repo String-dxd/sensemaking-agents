@@ -73,8 +73,17 @@ describe('Relationships state slice', () => {
     expect(rel.listPerspectives()).toHaveLength(1)
   })
 
-  it('hydrate(null) leaves slice empty and does not throw', () => {
+  it('hydrate(null) applies the demo seed corpus and does not throw', () => {
+    // Fresh boot (Persistence.load() returns relationships: null) falls back to
+    // the seed corpus so the demo Relationships tab is populated.
     expect(() => rel.hydrate(null)).not.toThrow()
+    expect(rel.listMap().length).toBeGreaterThan(0)
+    expect(rel.listBelonging().length).toBeGreaterThan(0)
+    expect(rel.listPerspectives().length).toBeGreaterThan(0)
+  })
+
+  it('hydrate(explicit empty) leaves slice empty — a cleared state does not resurrect the seed', () => {
+    rel.hydrate({ map: [], belonging: [], perspectives: [] })
     expect(rel.listMap()).toHaveLength(0)
     expect(rel.listBelonging()).toHaveLength(0)
     expect(rel.listPerspectives()).toHaveLength(0)

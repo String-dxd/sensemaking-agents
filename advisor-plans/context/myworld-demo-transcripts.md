@@ -4,7 +4,7 @@
 
   This is the canonical source of truth the advisor-plans/ suite (000–004) is
   derived from:
-    • 9 demo transcripts + student profile → 001 (Ming Liang demo corpus)
+    • 9 demo transcripts + student profile → 001 (Alice demo corpus)
     • ECG career-fair teacher prompt        → 002 (teacher-initiated letters)
     • Onboarding dialogue (3 screens)        → 003 (onboarding voice-first copy)
     • Kira System Prompt Design v2           → 004 (align the live voice prompt)
@@ -16,7 +16,7 @@
 
 # 9 Entries for Diary
 
-# MyWorld Demo Transcripts: Ming Liang (Sec 2\)
+# MyWorld Demo Transcripts: Alice (Sec 2\)
 
 9 conversations total, mixing self-initiated and teacher-initiated entries, with deliberate variation in length, fluency, topic, and emotional tone.
 
@@ -24,13 +24,13 @@
 
 ## Who is this student? 
 
-Ming Liang is a bubbly, curious Sec 2 student who's slow to open up to people he doesn't know well but warm and easygoing with friends. He's not particularly motivated by school in general, but physics genuinely clicks for him because his teacher Ms Lim ties it to real-world demonstrations, and that "oh that's why" feeling is something he's drawn to elsewhere too, like at the career fair. 
+Alice is a bubbly, curious Sec 2 student who's slow to open up to people she doesn't know well but warm and easygoing with friends. She's not particularly motivated by school in general, but physics genuinely clicks for her because her teacher Ms Lim ties it to real-world demonstrations, and that "oh that's why" feeling is something she's drawn to elsewhere too, like at the career fair. 
 
-He joined St John's Brigade somewhat reluctantly at his parents' suggestion, and while he resents the discipline-heavy parts like foot drills, the first aid and CPR training has given him real pride and purpose, partly because he thinks about being able to help his grandparents if needed. He's coming off a failed first aid badge assessment, which knocked his confidence since he doesn't usually freeze under pressure. 
+She joined St John's Brigade somewhat reluctantly at her parents' suggestion, and while she resents the discipline-heavy parts like foot drills, the first aid and CPR training has given her real pride and purpose, partly because she thinks about being able to help her grandparents if needed. She's coming off a failed first aid badge assessment, which knocked her confidence since she doesn't usually freeze under pressure. 
 
-He's working class, with a dad who drives Grab and a mum who does catering work, and the career fair opened his eyes to job paths beyond the usual doctor/lawyer/engineer track his family knows. He's currently navigating a few open threads at once: deciding whether to pursue NCOC partly based on what his friend Jaya does, getting unexpectedly encouraged by his form teacher to turn his Beyblade obsession into a proper school project, developing a crush on a girl from another school he met through walkathon planning, and wrestling with the JC vs poly decision as subject combination decision approaches. 
+She's working class, with a dad who drives Grab and a mum who does catering work, and the career fair opened her eyes to job paths beyond the usual doctor/lawyer/engineer track her family knows. She's currently navigating a few open threads at once: deciding whether to pursue NCOC partly based on what her friend Jaya does, getting unexpectedly encouraged by her form teacher to turn her Beyblade obsession into a proper school project, developing a crush on a girl from another school she met through walkathon planning, and wrestling with the JC vs poly decision as subject combination decision approaches. 
 
-Across all of this, a clear pattern is forming: he's drawn to hands-on learning and to understanding how things work underneath the surface, even if he hasn't fully named that about himself yet.
+Across all of this, a clear pattern is forming: she's drawn to hands-on learning and to understanding how things work underneath the surface, even if she hasn't fully named that about herself yet.
 
 ---
 
@@ -56,7 +56,7 @@ Student: ya thats it lah
 
 ---
 
-## 2\. CPR training and his grandfather
+## 2\. CPR training and her grandfather
 
 **Reflective / proud — self-initiated**
 
@@ -385,7 +385,7 @@ Student: ya that's actually a really good summary. thanks
 # Onboarding dialogue
 
 Screen 1  
-**"Hey I'm Mei, thank you for bringing me into your world\! Tap the mic and tell me what's on your mind. There’s no right answer, no grades, or expectations. Let’s chat."**
+**"Hey I'm Alice, thank you for bringing me into your world\! Tap the mic and tell me what's on your mind. There’s no right answer, no grades, or expectations. Let’s chat."**
 
 Screen 2  
 **"Every time you share something with me, you help your world grow. Share things that connect with you. It could be things you care about, choices you made, people who matter; and trees, flowers, plants will come to life."**
@@ -395,7 +395,7 @@ Screen 3
 
 ~~Why this works in 3:~~
 
-~~Screen 1 fuses the old lines 1-3: who Mei is, how sharing works (voice, mic), and the permission to be messy (no right answer, no grading), all in one breath so a viewer gets the mechanic and the emotional safety net at once.~~
+~~Screen 1 fuses the old lines 1-3: who Alice is, how sharing works (voice, mic), and the permission to be messy (no right answer, no grading), all in one breath so a viewer gets the mechanic and the emotional safety net at once.~~
 
 ~~Screen 2 fuses growth and unlock: states the cause (sharing grows a sprout), then immediately defines the unlock condition with concrete examples instead of leaving "three of the same" abstract, then names the payoff shapes so it reads as a reveal worth wanting.~~
 
@@ -405,7 +405,7 @@ Screen 3
 
 # **Kira System Prompt Design**
 
-Derived from the behavioral patterns demonstrated across the Ming Liang demo transcripts. This is meant to be the system prompt fed to the model powering Kira's live conversation turns, not the demo content itself.
+Derived from the behavioral patterns demonstrated across the Alice demo transcripts. This is meant to be the system prompt fed to the model powering Kira's live conversation turns, not the demo content itself.
 
 ---
 
@@ -500,7 +500,7 @@ All responses must be brief, punchy, and conversational—maximum 1-2 short sent
    * Student: ya that’s it lah    
    * Kira: Anything else about today bother you, or just that?  
        
-2. CPR training and his grandfather   
+2. CPR training and her grandfather   
    * Student: today we learned cpr compressions properly. like the proper depth and rate and everything    
    * Kira: Was it hard to learn?    
    * Student: Actually quite fun? Like everyone was eww you have to do mouth to mouth on the mannequin lah disgusting like that. but i was thinking actually if i ever need to do this for my grandparents at home i would be quite glad i know how    
@@ -536,7 +536,7 @@ Real examples may go longer, but every Kira response is \*super\* concise and al
 
 # **Kira System Prompt Design**
 
-Derived from the behavioral patterns demonstrated across the Ming Liang demo transcripts. This is meant to be the system prompt fed to the model powering Kira's live conversation turns, not the demo content itself.
+Derived from the behavioral patterns demonstrated across the Alice demo transcripts. This is meant to be the system prompt fed to the model powering Kira's live conversation turns, not the demo content itself.
 
 ---
 
@@ -617,9 +617,9 @@ Some entries (e.g. decisions about subject choices, CCA pathways) call for sligh
 
 ---
 
-## Part A — Through-line (app copy, mirrors the Mei format)
+## Part A — Through-line (app copy, mirrors the Alice format)
 
-Ming Liang's current through-line is not simply 'likes physics' or 'likes helping'; it is **wanting to understand how things work beneath the surface — and wanting to be ready when it matters for someone real**. The strongest evidence points toward hands-on, applied pathways where knowing *why* translates into doing: healthcare and rehabilitation, applied science, and the operational work of making events happen. The main developmental task is to test which of these keeps giving him the "oh, that's why" feeling when the novelty wears off — and to rebuild trust in his own composure after one bad assessment day.
+Alice's current through-line is not simply 'likes physics' or 'likes helping'; it is **wanting to understand how things work beneath the surface — and wanting to be ready when it matters for someone real**. The strongest evidence points toward hands-on, applied pathways where knowing *why* translates into doing: healthcare and rehabilitation, applied science, and the operational work of making events happen. The main developmental task is to test which of these keeps giving her the "oh, that's why" feeling when the novelty wears off — and to rebuild trust in her own composure after one bad assessment day.
 
 ---
 
@@ -627,9 +627,9 @@ Ming Liang's current through-line is not simply 'likes physics' or 'likes helpin
 
 ### 1 — Sports rehabilitation, nursing and healthcare foundations  *(aligned)*
 
-Set up a conversation with the physiotherapist from the career fair — he already named this as his own next step — and prepare three questions about what the daily work actually involves beyond the cool moments. Treat the badge re-attempt next year as a second experiment: practise the distressed-casualty scenario with a friend playing the casualty, and track whether the freeze was a one-off or something that needs a routine.
+Set up a conversation with the physiotherapist from the career fair — she already named this as her own next step — and prepare three questions about what the daily work actually involves beyond the cool moments. Treat the badge re-attempt next year as a second experiment: practise the distressed-casualty scenario with a friend playing the casualty, and track whether the freeze was a one-off or something that needs a routine.
 
-**Trait combination:** `Values → Contribution` · `Values → Readiness (family)` · `Interests → Investigative (how the body recovers)` · `Skills → First aid / procedural` · `Personality → Composure under pressure (rebuilding)` **ECG region tags:** `Healthcare and care work` · `Public service` **CCA anchor:** St John Ambulance Brigade → PSEI routes: polytechnic Sports Science & Rehabilitation-type diplomas, Nursing, allied health (physiotherapy support, emergency care) **Risks and tradeoffs:** This route fits his readiness-to-help values and his existing first-aid base, but healthcare pathways are assessment-heavy, and his confidence took a real knock from one external exam. He would need to check that he is drawn to the slow work of recovery — the exercises, the sequences, the repetition — and not only the rescue moment. One failed badge is a data point, not a verdict.
+**Trait combination:** `Values → Contribution` · `Values → Readiness (family)` · `Interests → Investigative (how the body recovers)` · `Skills → First aid / procedural` · `Personality → Composure under pressure (rebuilding)` **ECG region tags:** `Healthcare and care work` · `Public service` **CCA anchor:** St John Ambulance Brigade → PSEI routes: polytechnic Sports Science & Rehabilitation-type diplomas, Nursing, allied health (physiotherapy support, emergency care) **Risks and tradeoffs:** This route fits her readiness-to-help values and her existing first-aid base, but healthcare pathways are assessment-heavy, and her confidence took a real knock from one external exam. She would need to check that she is drawn to the slow work of recovery — the exercises, the sequences, the repetition — and not only the rescue moment. One failed badge is a data point, not a verdict.
 
 ---
 
@@ -637,15 +637,15 @@ Set up a conversation with the physiotherapist from the career fair — he alrea
 
 Take the physics angle on the Beyblade SIL project: build a simple test rig, change one variable at a time (weight distribution, launch speed, tip shape), and measure spin duration. Track whether the enjoyment survives the measuring and the maths — that is the honest test of whether "oh, that's why" extends from watching demonstrations to doing the investigation.
 
-**Trait combination:** `Interests → Investigative (physics of everyday things)` · `Skills → Analysis (emerging)` · `Values → Understanding over memorising` · `Personality → Playful curiosity` **ECG region tags:** `Sciences` · `Engineering` **CCA anchor:** none directly — anchored instead in Ms Lim's physics demonstrations and the SIL project, which shows school experiences outside CCA also feed direction **Risks and tradeoffs:** His physics enjoyment is currently teacher-shaped — Ms Lim's real-world demonstrations do a lot of the work. Applied science routes at poly keep the hands-on flavour he wants, but the theory load is real, and his "am I smart enough" doubt needs testing against evidence, not assumption. The SIL project is a low-stakes way to find out before subject combination locks anything in.
+**Trait combination:** `Interests → Investigative (physics of everyday things)` · `Skills → Analysis (emerging)` · `Values → Understanding over memorising` · `Personality → Playful curiosity` **ECG region tags:** `Sciences` · `Engineering` **CCA anchor:** none directly — anchored instead in Ms Lim's physics demonstrations and the SIL project, which shows school experiences outside CCA also feed direction **Risks and tradeoffs:** Her physics enjoyment is currently teacher-shaped — Ms Lim's real-world demonstrations do a lot of the work. Applied science routes at poly keep the hands-on flavour she wants, but the theory load is real, and her "am I smart enough" doubt needs testing against evidence, not assumption. The SIL project is a low-stakes way to find out before subject combination locks anything in.
 
 ---
 
 ### 3 — Event operations, coordination and enterprise  *(aligned)*
 
-Take a named role in next month's walkathon route walkthrough — own one deliverable end to end, not just help. Then run the class Beyblade interest as a small organised tournament: brackets, rules, a borrowed timer, maybe a five-dollar budget. Afterwards, note which part energised him: the planning, the people, or the problem-solving when something went wrong.
+Take a named role in next month's walkathon route walkthrough — own one deliverable end to end, not just help. Then run the class Beyblade interest as a small organised tournament: brackets, rules, a borrowed timer, maybe a five-dollar budget. Afterwards, note which part energised her: the planning, the people, or the problem-solving when something went wrong.
 
-**Trait combination:** `Skills → Coordination / logistics` · `Interests → Enterprising (emerging)` · `Values → Relationships` · `Personality → Openness to revising first impressions` **ECG region tags:** `cluster.business-finance` · `Public service (community programmes)` **CCA anchor:** partial — walkathon organising came through St John's; the tournament instinct is self-initiated, which is itself the signal **Risks and tradeoffs:** He discovered the organising work was "genuinely interesting" at the same meeting he developed a crush — the two discoveries are entangled, and the next walkthrough will partly be a test of which one was doing the lifting. Operations and enterprise routes reward his coordination instincts, but sustained admin without a visible mission may drain him the way foot drills do: he needs to see what the effort builds toward.
+**Trait combination:** `Skills → Coordination / logistics` · `Interests → Enterprising (emerging)` · `Values → Relationships` · `Personality → Openness to revising first impressions` **ECG region tags:** `cluster.business-finance` · `Public service (community programmes)` **CCA anchor:** partial — walkathon organising came through St John's; the tournament instinct is self-initiated, which is itself the signal **Risks and tradeoffs:** She discovered the organising work was "genuinely interesting" at the same meeting she developed a crush — the two discoveries are entangled, and the next walkthrough will partly be a test of which one was doing the lifting. Operations and enterprise routes reward her coordination instincts, but sustained admin without a visible mission may drain her the way foot drills do: she needs to see what the effort builds toward.
 
 ---
 
@@ -653,15 +653,15 @@ Take a named role in next month's walkathon route walkthrough — own one delive
 
 Before the sign-up decision, talk to one current NCOC senior and ask directly: how much of the course is drills and regimentation, and how much is the leadership and real-responsibility work? Then decide with a reason that would still stand if Jaya said no — the decision can include her, but it shouldn't rest on her.
 
-**Trait combination:** `Values → Belonging` · `Interests → Leadership (tentative)` · `Personality → Peer-anchored deciding (named, not judged)` · `Values → Purpose-linked effort (in tension)` **ECG region tags:** `Public service` · `Security and uniformed services` **CCA anchor:** St John Ambulance Brigade — the natural progression route within the CCA itself **Risks and tradeoffs:** The evidence genuinely cuts both ways. The leadership side appeals ("a level up"), and he has stayed committed through a failed badge — but his strongest recorded frustration is with exactly the discipline-heavy culture NCOC contains more of, and his current deciding rule is "if she goes i think i go also." This profile is included not as a recommendation but as a decision he is already inside of; the experiment is designed to give him a reason of his own either way.
+**Trait combination:** `Values → Belonging` · `Interests → Leadership (tentative)` · `Personality → Peer-anchored deciding (named, not judged)` · `Values → Purpose-linked effort (in tension)` **ECG region tags:** `Public service` · `Security and uniformed services` **CCA anchor:** St John Ambulance Brigade — the natural progression route within the CCA itself **Risks and tradeoffs:** The evidence genuinely cuts both ways. The leadership side appeals ("a level up"), and she has stayed committed through a failed badge — but her strongest recorded frustration is with exactly the discipline-heavy culture NCOC contains more of, and her current deciding rule is "if she goes i think i go also." This profile is included not as a recommendation but as a decision she is already inside of; the experiment is designed to give her a reason of her own either way.
 
 ---
 
 ### 5 — Flavour, fragrance and the chemistry of everyday sensations  *(divergent — creative stretch, contradicts nothing)*
 
-His single most surprised moment at the career fair was discovering that flavour and fragrance is a real scientific profession — the same "there's a whole science behind ordinary things" pull as the Beyblade physics, pointed at a domain nobody in his world would have named. Visit a polytechnic food science or chemical technology lab during open house, and try one kitchen-table experiment: blind-taste two brands of the same chip flavour and try to name what differs. If the *why* behind taste and smell hooks him the way spin physics does, this is a live thread; if not, it cost one afternoon.
+Her single most surprised moment at the career fair was discovering that flavour and fragrance is a real scientific profession — the same "there's a whole science behind ordinary things" pull as the Beyblade physics, pointed at a domain nobody in her world would have named. Visit a polytechnic food science or chemical technology lab during open house, and try one kitchen-table experiment: blind-taste two brands of the same chip flavour and try to name what differs. If the *why* behind taste and smell hooks her the way spin physics does, this is a live thread; if not, it cost one afternoon.
 
-**Trait combination:** `Interests → Investigative (science behind the ordinary)` · `Values → Widened horizons (beyond the doctor/lawyer/engineer track)` · `Personality → Delight in discovering hidden systems` **ECG region tags:** `Sciences` · `Food and beverages` · `Energy and chemicals` **CCA anchor:** none — sourced from a teacher-initiated career fair reflection, showing guided school experiences seed directions CCAs never would **Risks and tradeoffs:** One moment of surprise is the thinnest evidence base of the five — that is what makes it divergent rather than aligned. The pathway is chemistry-heavy, which he has no recorded signal on yet, positive or negative. Its value in the demo is precisely this: MyWorld doesn't only confirm who a student already is; it keeps genuinely new doors visibly open, anchored to a real recorded moment rather than invented from nothing.
+**Trait combination:** `Interests → Investigative (science behind the ordinary)` · `Values → Widened horizons (beyond the doctor/lawyer/engineer track)` · `Personality → Delight in discovering hidden systems` **ECG region tags:** `Sciences` · `Food and beverages` · `Energy and chemicals` **CCA anchor:** none — sourced from a teacher-initiated career fair reflection, showing guided school experiences seed directions CCAs never would **Risks and tradeoffs:** One moment of surprise is the thinnest evidence base of the five — that is what makes it divergent rather than aligned. The pathway is chemistry-heavy, which she has no recorded signal on yet, positive or negative. Its value in the demo is precisely this: MyWorld doesn't only confirm who a student already is; it keeps genuinely new doors visibly open, anchored to a real recorded moment rather than invented from nothing.
 
 ---
 
@@ -675,21 +675,21 @@ His single most surprised moment at the career fair was discovering that flavour
 | Career fair — flavour & fragrance | Curiosity about hidden systems | Food science, chemical technology diplomas |
 | NCOC consideration | Belonging, tentative leadership | Uniformed/public service progression (within-CCA, not PSEI-specific) |
 
-The demo line this table supports: **five directions, every one traceable to a moment he actually recorded — three confirmed by converging evidence, one held honestly as mixed, one kept open as a door he didn't know existed.**
+The demo line this table supports: **five directions, every one traceable to a moment she actually recorded — three confirmed by converging evidence, one held honestly as mixed, one kept open as a door she didn't know existed.**
 
 ## Part D — The nine moments mapped to VIPS
 
 | \# | Moment | Values | Interests | Personality | Skills |
 | :---- | :---- | :---- | :---- | :---- | :---- |
 | 1 | Foot-drill frustration | **Purpose-linked effort** — "i get discipline for CPR. this one i dunno leh" — effort must visibly build toward something | — | Needs the *why* before complying; questions rules that don't explain themselves | — |
-| 2 | CPR & his grandfather | **Contribution / family readiness** — "if i ever need to do this for my grandparents… i would be quite glad i know how" | Practical mastery — learning for real use, "not just pass the test and forget" | Takes training seriously when stakes are personal | **Procedural / first aid** — retains the compression rhythm ("i can still hum it now") |
-| 3 | Failing the first aid badge | **Mastery over credentials** — the freeze bothered him more than the fail | — | **Composure under pressure — usually.** "usually im ok under pressure. this one just got to me" — a tested trait, not a broken one | Performance under external assessment (growth edge) |
+| 2 | CPR & her grandfather | **Contribution / family readiness** — "if i ever need to do this for my grandparents… i would be quite glad i know how" | Practical mastery — learning for real use, "not just pass the test and forget" | Takes training seriously when stakes are personal | **Procedural / first aid** — retains the compression rhythm ("i can still hum it now") |
+| 3 | Failing the first aid badge | **Mastery over credentials** — the freeze bothered her more than the fail | — | **Composure under pressure — usually.** "usually im ok under pressure. this one just got to me" — a tested trait, not a broken one | Performance under external assessment (growth edge) |
 | 4 | NCOC decision | **Belonging** — "if she goes i think i go also" | Leadership (tentative — "a level up i guess") | Peer-anchored deciding; can notice it when mirrored ("didnt think of it like that") | — |
-| 5 | Walkathon & the crush | **Relationships** | **Enterprising (emerging)** — "i used to think this kind of stuff was just admin work but theres actually a lot of coordination and problem solving in it" | Openness to being wrong about what he enjoys | **Coordination / logistics** — hydration-point planning across four schools |
-| 6 | Sec 2 camp — Joseph's ankle | **Readiness / care** — "is it broken, can he walk" | Gap-noticing — "theres other stuff i dont know how to handle" | Reflects on incidents after the moment passes | Identifies the limits of his own first-aid competence (meta-skill) |
+| 5 | Walkathon & the crush | **Relationships** | **Enterprising (emerging)** — "i used to think this kind of stuff was just admin work but theres actually a lot of coordination and problem solving in it" | Openness to being wrong about what she enjoys | **Coordination / logistics** — hydration-point planning across four schools |
+| 6 | Sec 2 camp — Joseph's ankle | **Readiness / care** — "is it broken, can he walk" | Gap-noticing — "theres other stuff i dont know how to handle" | Reflects on incidents after the moment passes | Identifies the limits of her own first-aid competence (meta-skill) |
 | 7 | ECG career fair | Widened definition of a good future — beyond the "doctor/lawyer/engineer track" | **Investigative** — flavour & fragrance ("a whole science behind the flavor part"); the physio's recovery logic | Connects across entries when prompted ("the camp thing and the career fair thing are actually connected") | — |
 | 8 | Beyblade & the SIL project | Play can be legitimate learning | **Investigative — physics of everyday things** — "the physics of how they spin so long"; also the social side ("why so many of us got into it") | Playful curiosity; initiative once permission is felt | Self-initiated project scoping |
-| 9 | Subject combination | **Independence / authenticity** — "what subjects i actually want to study, not just what sounds safe" | **Investigative \+ hands-on (Realistic)** — "understanding how things work under the surface"; "poly seems more hands on which i think i'd like" | Self-doubt on academic ability ("dont know if im smart enough") coexisting with clear self-knowledge | Pattern-naming with scaffolding; arrives at his own next step |
+| 9 | Subject combination | **Independence / authenticity** — "what subjects i actually want to study, not just what sounds safe" | **Investigative \+ hands-on (Realistic)** — "understanding how things work under the surface"; "poly seems more hands on which i think i'd like" | Self-doubt on academic ability ("dont know if im smart enough") coexisting with clear self-knowledge | Pattern-naming with scaffolding; arrives at her own next step |
 
 # Scratchpad
 
@@ -697,15 +697,15 @@ The demo line this table supports: **five directions, every one traceable to a m
 
 Student profile 
 
-Ming Liang is a bubbly, curious and impressionable secondary 2 student, who takes time to open up to strangers, but is warm with his friends. School isn’t exactly his favorite thing. He likes physics because his teacher Ms Lim likes to do a lot of demonstrations that show him how physics is relevant in real life. Most of his other teachers are quite boring though. When he joined this school, he didn’t really know what he wanted to do, and his parents encouraged him to try out St John’s Brigade. He definitely didn’t like the marching and the foot drills (too much arbitrary discipline, and he didn’t see the point), he did quite enjoy picking up first aid and life support training. Especially so when he was learning how to apply CPR. It was funny because all the boys were like eww you have to kiss the patient, but he was thinking also of his grandparents at home, and if he ever needed to do it for them, he felt quite glad that he had picked up this skill. However, that’s not to say that that comes easy. He was trying out for the Standard First Aid badge, which is externally assessed by an outside examiner. However, during the CPR section, he fumbled a CPR compression rate, forgetting a step in the recovery position sequence, freezing during a simulated scenario when the "casualty" starts acting distressed, missing a check (like scene safety) under time pressure.That resulted in him failing it, which he was pretty sad about, because now he has to try it again next year. In February, his teacher asked him if he wanted to help organize the school’s participation in the upcoming Annual Walkathon that is on the national level. While initially reluctant, he found a lot of joy in getting to meet students from other schools, especially this girl whom now he had a crush on. Yet it is not a smooth journey all the way. He’s now thinking whether he wanted to be considered for the Zone Non-Commissioned Officer Course (NCOC), but doesn’t quite know how to decide. He supposes he will do it if his friend Jaya who is also in the same CCA will also do it. His friends have recently been quite into Beyblade, so he has too. Sometimes they play it in class, bringing out a whole set, and his form teacher has taken notice. Initially he thought that Mr Lim would try to shut it down, but instead he’s encouraging them to see if they wanted to do something related to it for their student-initiated learning project. But how? What? He has no idea yet. He’s intrigued though. In April his teachers organized a career fair where they brought in different booths from different industries to share more about their work and to see what’s out there. As someone whose parents are both working class (his dad is a grab driver, and his mother sometimes is a server for catered events in hotels), he hasn’t really gotten the chance to see what’s out there. Surely there must be more beyond being a doctor, or lawyer, or engineer, or fast food joint worker. At the career fair, it was quite an interesting experience, because he saw some of the possibilities in between. Did you know that you could work in fragrances and flavors and create the artificial flavors that power our potato chips, shampoo etc.? Nor did he know that one of the writers on Mothership was an alumnus of his current secondary school. He also enjoyed the talk given by the physiotherapist, who focused on rehabilitating sports injury. How does one even get to do that? He was particularly inspired by the last one, because recently during the school Sec 2 camp, one of his friends Joseph twisted his ankle while playing tchoukball. Plus the physiotherapist just seemed so cool, like he had his hair gelled back, and he studied overseas in Australia, and he’s always wondered what Australia would be like.  
+Alice is a bubbly, curious and impressionable secondary 2 student, who takes time to open up to strangers, but is warm with her friends. School isn’t exactly her favorite thing. She likes physics because her teacher Ms Lim likes to do a lot of demonstrations that show her how physics is relevant in real life. Most of her other teachers are quite boring though. When she joined this school, she didn’t really know what she wanted to do, and her parents encouraged her to try out St John’s Brigade. She definitely didn’t like the marching and the foot drills (too much arbitrary discipline, and she didn’t see the point), she did quite enjoy picking up first aid and life support training. Especially so when she was learning how to apply CPR. It was funny because all the boys were like eww you have to kiss the patient, but she was thinking also of her grandparents at home, and if she ever needed to do it for them, she felt quite glad that she had picked up this skill. However, that’s not to say that that comes easy. She was trying out for the Standard First Aid badge, which is externally assessed by an outside examiner. However, during the CPR section, she fumbled a CPR compression rate, forgetting a step in the recovery position sequence, freezing during a simulated scenario when the "casualty" starts acting distressed, missing a check (like scene safety) under time pressure.That resulted in her failing it, which she was pretty sad about, because now she has to try it again next year. In February, her teacher asked her if she wanted to help organize the school’s participation in the upcoming Annual Walkathon that is on the national level. While initially reluctant, she found a lot of joy in getting to meet students from other schools, especially this girl whom now she had a crush on. Yet it is not a smooth journey all the way. She’s now thinking whether she wanted to be considered for the Zone Non-Commissioned Officer Course (NCOC), but doesn’t quite know how to decide. She supposes she will do it if her friend Jaya who is also in the same CCA will also do it. Her friends have recently been quite into Beyblade, so she has too. Sometimes they play it in class, bringing out a whole set, and her form teacher has taken notice. Initially she thought that Mr Lim would try to shut it down, but instead he’s encouraging them to see if they wanted to do something related to it for their student-initiated learning project. But how? What? She has no idea yet. She’s intrigued though. In April her teachers organized a career fair where they brought in different booths from different industries to share more about their work and to see what’s out there. As someone whose parents are both working class (her dad is a grab driver, and her mother sometimes is a server for catered events in hotels), she hasn’t really gotten the chance to see what’s out there. Surely there must be more beyond being a doctor, or lawyer, or engineer, or fast food joint worker. At the career fair, it was quite an interesting experience, because she saw some of the possibilities in between. Did you know that you could work in fragrances and flavors and create the artificial flavors that power our potato chips, shampoo etc.? Nor did she know that one of the writers on Mothership was an alumnus of her current secondary school. She also enjoyed the talk given by the physiotherapist, who focused on rehabilitating sports injury. How does one even get to do that? She was particularly inspired by the last one, because recently during the school Sec 2 camp, one of her friends Joseph twisted his ankle while playing tchoukball. Plus the physiotherapist just seemed so cool, like he had his hair gelled back, and he studied overseas in Australia, and she’s always wondered what Australia would be like.  
 
 Some key milestones to generate 
 
 * St John’s Brigade (3-4 entries about different aspects above \- student initiated)  
-* Sec 2 camp (teacher initiated prompt, something that got him to reflect on what stood out and was particularly memorable, in which case he remembered his friend getting injured)  
-* ECG career fair (teacher initiated prompt, to reflect on what stood out and why, in which case he shares the 3 examples placed above. He wouldn’t have made the connection so quickly and naturally between the physiotherapist and his friend’s injury, but the companion would have guided him to do so through some open-ended prompting. But all he knows was that that moment was very exciting for him when he saw the physio speak on stage)   
-* Beyblade tournament / Student initiated learning (student initiated, short one, something about how he thought he was going to get scolded by his teacher, but in the end he actually was encouraged to pursue further, and what it meant to him)  
-* Subject combo (student initiated around Sep, its around the subject combo period, and he’s been thinking about it and doesn’t really know what to choose. Doesn’t even know if he wants to go JC or Poly. the dialogue should take on a slight coaching tone, where it is helping him unpack what he doesn’t know and why, and help him seek clarity. Can use GROW framework, and draw on his real life experiences e.g. what subjects he enjoys and why, make patterns connecting the dots in his past entries, but never prescribe a direction) 
+* Sec 2 camp (teacher initiated prompt, something that got her to reflect on what stood out and was particularly memorable, in which case she remembered her friend getting injured)  
+* ECG career fair (teacher initiated prompt, to reflect on what stood out and why, in which case she shares the 3 examples placed above. She wouldn’t have made the connection so quickly and naturally between the physiotherapist and her friend’s injury, but the companion would have guided her to do so through some open-ended prompting. But all she knows was that that moment was very exciting for her when she saw the physio speak on stage)   
+* Beyblade tournament / Student initiated learning (student initiated, short one, something about how she thought she was going to get scolded by her teacher, but in the end she actually was encouraged to pursue further, and what it meant to her)  
+* Subject combo (student initiated around Sep, its around the subject combo period, and she’s been thinking about it and doesn’t really know what to choose. Doesn’t even know if she wants to go JC or Poly. the dialogue should take on a slight coaching tone, where it is helping her unpack what she doesn’t know and why, and help her seek clarity. Can use GROW framework, and draw on her real life experiences e.g. what subjects she enjoys and why, make patterns connecting the dots in her past entries, but never prescribe a direction) 
 
 - [x] ~~Seeded journal entries~~  
 - [x] ~~Teacher initiated guidance points~~   

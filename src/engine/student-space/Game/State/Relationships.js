@@ -12,6 +12,7 @@
 
 import Persistence from './Persistence.js'
 import { mergeRelationships } from './schema.js'
+import { RELATIONSHIPS_SEED } from '../Data/relationshipsSeed.js'
 
 let counter = 0
 const uuid = (prefix) => `${prefix}_${Date.now().toString(36)}-${(counter++).toString(36)}`
@@ -184,7 +185,10 @@ export default class Relationships
 
     hydrate(snapshot)
     {
-        const merged = mergeRelationships(snapshot)
+        // Fresh demo (no persisted snapshot) falls back to the seed corpus;
+        // once the student has edited, their persisted list (even if empty)
+        // wins so cleared entries don't resurrect.
+        const merged = mergeRelationships(snapshot ?? RELATIONSHIPS_SEED)
         this.map          = merged.map
         this.belonging    = merged.belonging
         this.perspectives = merged.perspectives

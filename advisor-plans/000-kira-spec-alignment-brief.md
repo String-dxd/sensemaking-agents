@@ -13,7 +13,7 @@
 The *"MyWorld Demo Transcripts"* design spec now lives **in-repo, verbatim**:
 `advisor-plans/context/myworld-demo-transcripts.md`. Cite it directly — do not
 work from this brief's summaries when the spec has the actual text. It
-contains, worked through one example student, **Ming Liang (Sec 2)**:
+contains, worked through one example student, **Alice (Sec 2)**:
 
 - **9 demo transcripts** (`## 1.`–`## 9.`) — Singlish journal conversations,
   each with an emotional label, a `[readback]` close, and `[feeds: …]` tags.
@@ -41,18 +41,18 @@ The repo implements most of the *machinery*; the work is **alignment**.
 
 ## Decision 1 — Naming (REVISED 2026-07-13; affects 003, 004)
 
-Maintainer decision: **the student is Ming Liang; "Mei" is the bird's default
+Maintainer decision: **the student is Alice; "Alice" is the bird's default
 name — kept editable; "Kira" in the spec's transcripts is likewise a stand-in
 for the companion name.**
 
 - Keep **Mirror** as the internal agent id (engineering vocabulary, unseen).
 - The companion stays **user-named** via the egg-name step; the input is
-  **pre-filled with "Mei"** (Plan 003) so the demo matches the spec's script
+  **pre-filled with "Alice"** (Plan 003) so the demo matches the spec's script
   without hardcoding.
-- All student-facing copy keeps `{companionName}` — never a literal "Mei" or
+- All student-facing copy keeps `{companionName}` — never a literal "Alice" or
   "Kira".
-- The old collision concern (demo student named "Mei") dissolves with Plan
-  001: `demo-a` becomes Ming Liang.
+- The old collision concern (demo student named "Alice") dissolves with Plan
+  001: `demo-a` becomes Alice.
 
 ## Decision 2 — `[feeds]` tags vs the VIPS taxonomy (unchanged; affects 001, 002)
 
@@ -73,7 +73,7 @@ identity, interests, choices. The runtime taxonomy
 Do **not** extend the taxonomy. `[feeds]` is an authoring vocabulary; seed
 fixtures use canonical ids + the `context_type` enum only.
 
-## Decision 3 — The demo student IS Ming Liang (new; affects 001)
+## Decision 3 — The demo student IS Alice (new; affects 001)
 
 Keep the student id **`demo-a`** and replace its content (profile, 9 mirrors,
 VIPS pages, timeline, trajectory). No auth changes; existing demo cookies keep

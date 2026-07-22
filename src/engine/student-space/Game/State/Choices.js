@@ -13,6 +13,7 @@
 
 import Persistence from './Persistence.js'
 import { mergeChoices } from './schema.js'
+import { CHOICES_SEED } from '../Data/choicesSeed.js'
 
 let counter = 0
 const uuid = (prefix) => `${prefix}_${Date.now().toString(36)}-${(counter++).toString(36)}`
@@ -181,7 +182,10 @@ export default class Choices
 
     hydrate(snapshot)
     {
-        const merged = mergeChoices(snapshot)
+        // Fresh demo (no persisted snapshot) falls back to the seed corpus;
+        // once the student has edited, their persisted list (even if empty)
+        // wins so cleared entries don't resurrect.
+        const merged = mergeChoices(snapshot ?? CHOICES_SEED)
         this.decisions  = merged.decisions
         this.intentions = merged.intentions
         this._notify({ kind: 'hydrate' })

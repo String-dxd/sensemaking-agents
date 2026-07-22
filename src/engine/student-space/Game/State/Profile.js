@@ -35,15 +35,15 @@ export default class Profile
         // student's initial-on-circle (cream/coral palette) until they
         // refine it. Persisted through the same snapshot path as facets.
         // Default identity used when no persisted profile exists yet — the
-        // seed reads "Mei" so the screenshot-parity copy in the Trajectory
-        // compass / Path Finder reads naturally ("Mei's current through-line").
+        // seed reads "Alice" so the screenshot-parity copy in the Trajectory
+        // compass / Path Finder reads naturally ("Alice's current through-line").
         // setIdentity({ name }) can still override this from the UI later.
         // companionSpecies + companionName are written by the first-run
         // ceremony (React EggHatcher). Until then, Kira falls back to the
         // MaskedBower GLB default; older procedural species are archived
         // and are no longer rendered on boot.
         this.identity = {
-            name:             'Mei',
+            name:             'Alice',
             className:        'Sec 3B',
             avatarDataUrl:    null,
             companionSpecies: 'masked',

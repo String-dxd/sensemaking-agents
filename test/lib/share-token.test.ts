@@ -54,25 +54,25 @@ describe('sanitizeNameSnapshot', () => {
   })
 
   it('preserves UTF-8 letters and trims whitespace', () => {
-    expect(sanitizeNameSnapshot('  Mei Lin  ')).toBe('Mei Lin')
+    expect(sanitizeNameSnapshot('  Alice Lin  ')).toBe('Alice Lin')
     expect(sanitizeNameSnapshot('林美')).toBe('林美')
     expect(sanitizeNameSnapshot('Aishah Tan')).toBe('Aishah Tan')
   })
 
   it('collapses runs of whitespace into single spaces', () => {
-    expect(sanitizeNameSnapshot('Mei   Lin\t Tan')).toBe('Mei Lin Tan')
+    expect(sanitizeNameSnapshot('Alice   Lin\t Tan')).toBe('Alice Lin Tan')
   })
 
   it('strips ASCII control characters', () => {
-    expect(sanitizeNameSnapshot('MeiLin')).toBe('MeiLin')
-    expect(sanitizeNameSnapshot('MeiLin')).toBe('MeiLin')
+    expect(sanitizeNameSnapshot('AliceLin')).toBe('AliceLin')
+    expect(sanitizeNameSnapshot('AliceLin')).toBe('AliceLin')
   })
 
   it('strips zero-width spoof characters', () => {
-    expect(sanitizeNameSnapshot('Mei​Lin')).toBe('MeiLin')
-    expect(sanitizeNameSnapshot('Mei‌Lin')).toBe('MeiLin')
-    expect(sanitizeNameSnapshot('Mei‍Lin')).toBe('MeiLin')
-    expect(sanitizeNameSnapshot('Mei﻿Lin')).toBe('MeiLin')
+    expect(sanitizeNameSnapshot('Alice​Lin')).toBe('AliceLin')
+    expect(sanitizeNameSnapshot('Alice‌Lin')).toBe('AliceLin')
+    expect(sanitizeNameSnapshot('Alice‍Lin')).toBe('AliceLin')
+    expect(sanitizeNameSnapshot('Alice﻿Lin')).toBe('AliceLin')
   })
 
   it('caps the result at 80 characters', () => {
@@ -90,7 +90,7 @@ describe('asciiSlugForFilename', () => {
   })
 
   it('produces lowercase hyphenated ASCII', () => {
-    expect(asciiSlugForFilename('Mei Lin Tan')).toBe('mei-lin-tan')
+    expect(asciiSlugForFilename('Alice Lin Tan')).toBe('alice-lin-tan')
   })
 
   it('strips accented diacritics via NFKD normalization', () => {

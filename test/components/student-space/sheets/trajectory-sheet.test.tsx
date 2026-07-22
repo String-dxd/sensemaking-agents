@@ -127,7 +127,7 @@ function makeEngine(
         subscribe: () => () => {},
       },
       profile: {
-        displayCompanionName: () => 'Mei',
+        displayCompanionName: () => 'Alice',
         identity: { name: 'Maya' },
         facets: {},
         subscribe: () => () => {},

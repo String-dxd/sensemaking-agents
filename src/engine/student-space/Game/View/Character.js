@@ -418,6 +418,14 @@ export default class Character
             {
                 // Wake finished → resolve and hand control back.
                 s.yaw = script.endYaw
+                if(this.onboardingMode)
+                {
+                    // Parked again after a scripted reveal: pin the idle pose
+                    // so the frozen mixer doesn't loop the last locomotion
+                    // clip (walk/wake reads as sleeping-on-repeat) in place.
+                    s.phase = 'idle'
+                    s.remaining = 3600
+                }
                 this._resolveScript()
             }
             else if(!script.settled && s.phase !== 'goto' && s.phase !== 'wake')

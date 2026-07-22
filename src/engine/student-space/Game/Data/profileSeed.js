@@ -77,7 +77,7 @@ export const PROFILE_SEED = {
         // aspect scores (0–20) appear only inside the per-trait disclosure.
         // `tag` is the hand-authored identity headline shown on each
         // Recognition card — identity language, never performance language.
-        // Copy is anchored to Mei's existing personality paragraph above:
+        // Copy is anchored to Alice's existing personality paragraph above:
         // socially responsive, emotionally absorbent, warm, curious.
         bigFive: {
             tldr: {

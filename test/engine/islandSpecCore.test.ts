@@ -136,7 +136,7 @@ describe('terrainGrid — terrace evaluation', () => {
     }
   })
 
-  it('an isolated tier-2 cell keeps its height (within 0.1) at its center, ocean far away, monotonic wall between', () => {
+  it('an isolated tier-2 cell stays clearly above sea level at its center, ocean far away, monotonic wall between', () => {
     const grid = createOceanGrid()
     grid.tiers[32 * GRID_COLS + 32] = 2
     const spec = specFrom(grid)
@@ -144,8 +144,10 @@ describe('terrainGrid — terrace evaluation', () => {
 
     const center = cellCenter(WORLD, grid, 32, 32)
     const atCenter = evaluateHeight(spec, center.x, center.z, blurred)
-    // thin-feature regression guard: must not collapse below sea level
-    expect(Math.abs(atCenter - (DEFAULT_TIER_HEIGHTS[2] ?? Number.NaN))).toBeLessThan(0.1)
+    // thin-feature regression guard: with BLUR_PASSES = 2 and BLUR_MIX = 0.4
+    // the cell no longer keeps full tier-2 height, but it must stay visible —
+    // at least tier-1's flat top (well above sea level).
+    expect(atCenter).toBeGreaterThanOrEqual(DEFAULT_TIER_HEIGHTS[1] ?? Number.NaN)
 
     // far away → ocean floor
     const far = cellCenter(WORLD, grid, 5, 5)

@@ -16,12 +16,12 @@ import { cn } from '~/lib/utils'
  * against the live engine and the user can copy results back into source.
  */
 const ENTER_MS = 320
-// Arrival beat (world-port U9): the character no longer flies in — it wakes
-// on the west beach and walks (swims if the route crosses water) to its home
-// perch. The start sits just off the landmass's west shore.
-const FLY_DURATION_S = 8
-const FLY_START = { x: -7.6, y: 0, z: 0.9 }
-const FLY_MID_OFFSET = { x: 0, y: 0, z: 0 }
+// Arrival beat: the character is already parked at its home perch (onboarding
+// mode snaps it there); the intro reveals it in place and plays the wake
+// flourish once while the camera zooms in. The long west-beach walk was cut —
+// it made the ceremony drag and replayed the sleep/wake loop on re-renders.
+const SETTLE_DURATION_S = 2
+const SETTLE_HOLD_MS = 300
 
 type VectorLike = {
   x: number
@@ -37,9 +37,7 @@ type Kira = {
   perchZ?: number
   perchYaw?: number
   flyTo?: (opts: {
-    startPos: typeof FLY_START
     endPos: { x: number; y: number; z: number }
-    midOffset: typeof FLY_MID_OFFSET
     duration: number
     endYaw?: number
     reducedMotion: boolean
@@ -116,22 +114,43 @@ export function FirstChat({
   const [visible, setVisible] = useState(reducedMotion)
   const zoomedRef = useRef(false)
   const abortRef = useRef<AbortController | null>(null)
-  const zoomLeadTimerRef = useRef<number | null>(null)
   // Progression now lives entirely in the bottom NarratorPanel — its single
   // CTA fires the next beat. These refs track where we are in the sequence
   // so callbacks captured by `speak()` can read the latest index.
   const beatsRef = useRef<string[]>([])
   const beatIndexRef = useRef(0)
-  // Cached so the unmount path can hand the camera anchor back if a late
-  // zoomLead fire-and-forget already started the dolly.
-  const cameraRef = useRef<Camera | null | undefined>(camera)
+  // Prop refs so the run-once effect reads the LATEST props without listing
+  // them as deps (same pattern as BloomCelebrate/TermlyReveal). Re-firing the
+  // effect on a parent render replayed the whole arrival — the bird teleported
+  // off-perch and looped its sleep/wake clip on every chat beat.
+  const kiraRef = useRef(kira)
+  kiraRef.current = kira
+  const cameraRef = useRef(camera)
   cameraRef.current = camera
+  const kiraNarratorRef = useRef(kiraNarrator)
+  kiraNarratorRef.current = kiraNarrator
+  const soundRef = useRef(sound)
+  soundRef.current = sound
+  const profileRef = useRef(profile)
+  profileRef.current = profile
+  const onboardingRef = useRef(onboarding)
+  onboardingRef.current = onboarding
+  const onAdvanceRef = useRef(onAdvance)
+  onAdvanceRef.current = onAdvance
+  const reducedMotionRef = useRef(reducedMotion)
+  reducedMotionRef.current = reducedMotion
+  const startedRef = useRef(false)
 
   useEffect(() => {
+    if (startedRef.current) return
+    startedRef.current = true
     const abort = new AbortController()
     abortRef.current = abort
 
     async function runIntro() {
+      const reducedMotion = reducedMotionRef.current
+      const kira = kiraRef.current
+      const camera = cameraRef.current
       if (!reducedMotion) {
         const frame = requestAnimationFrame(() => setVisible(true))
         await wait(ENTER_MS, abort.signal)
@@ -141,88 +160,68 @@ export function FirstChat({
       }
       if (abort.signal.aborted) return
 
-      // Wing-pass whoosh as the bird crosses the frame — anchors the
-      // off-canvas arrival to an audible cue.
-      if (!reducedMotion) {
-        try {
-          sound?.playOneShot?.('whoosh')
-        } catch {
-          // SFX is best-effort; never break the ceremony on a missing sample.
-        }
-      }
-
-      // Fly the bird in from off-canvas onto its perch and dolly the
-      // camera toward the perch in parallel so the two motions resolve
-      // together rather than reading as bird-lands → camera-zooms.
-      const flyPromise =
+      // Reveal the bird at its home perch (onboarding mode parked it there)
+      // and let the settle/wake flourish play through once. No cross-island
+      // walk — the intro is a single zoom-in on the bird.
+      const settlePromise =
         kira?.flyTo?.({
-          startPos: FLY_START,
           endPos: {
             x: kira.perchX ?? 0,
             y: kira.perchY ?? 0,
             z: kira.perchZ ?? 0,
           },
-          midOffset: FLY_MID_OFFSET,
-          duration: FLY_DURATION_S,
+          duration: SETTLE_DURATION_S,
           endYaw: kira.perchYaw,
           reducedMotion,
         }) ?? Promise.resolve()
 
-      // Camera 3/4 portrait on Kira. The silhouette is built facing local
-      // +X, so rotated by yaw around Y the world face direction is
-      // (cos yaw, 0, -sin yaw). Yaw offset, distance, and vertical
-      // tilt live in the camera-tuner preset.
+      // Camera 3/4 portrait on Kira, started immediately so the dolly and
+      // the wake flourish resolve together. The silhouette is built facing
+      // local +X, so rotated by yaw around Y the world face direction is
+      // (cos yaw, 0, -sin yaw). Yaw offset, distance, and vertical tilt
+      // live in the camera-tuner preset.
       const preset = getPreset('first-chat')
-      const { zoomLeadMs, durationMs, yawOffsetDeg, distance, camYAboveLookAt, lookAtYAbovePerch } =
-        preset
+      const { durationMs, yawOffsetDeg, distance, camYAboveLookAt, lookAtYAbovePerch } = preset
       if (camera && kira && !reducedMotion) {
-        // Kick the camera move off after the bird is past the apex of its
-        // arc so the dolly lands a beat after the bird settles.
-        zoomLeadTimerRef.current = window.setTimeout(() => {
-          zoomLeadTimerRef.current = null
-          if (abort.signal.aborted) return
-          const lookAt = makeVector(
-            camera,
-            kira.perchX ?? 0,
-            (kira.perchY ?? 0) + lookAtYAbovePerch,
-            kira.perchZ ?? 0,
-          )
-          const yaw = (kira.perchYaw ?? 0) + (yawOffsetDeg * Math.PI) / 180
-          const fx = Math.cos(yaw)
-          const fz = -Math.sin(yaw)
-          const camPos = makeVector(
-            camera,
-            (kira.perchX ?? 0) + fx * distance,
-            (kira.perchY ?? 0) + lookAtYAbovePerch + camYAboveLookAt,
-            (kira.perchZ ?? 0) + fz * distance,
-          )
-          if (lookAt && camPos) {
-            camera.zoomTo?.(camPos, lookAt, durationMs)
-            zoomedRef.current = true
-          }
-        }, zoomLeadMs)
+        const lookAt = makeVector(
+          camera,
+          kira.perchX ?? 0,
+          (kira.perchY ?? 0) + lookAtYAbovePerch,
+          kira.perchZ ?? 0,
+        )
+        const yaw = (kira.perchYaw ?? 0) + (yawOffsetDeg * Math.PI) / 180
+        const fx = Math.cos(yaw)
+        const fz = -Math.sin(yaw)
+        const camPos = makeVector(
+          camera,
+          (kira.perchX ?? 0) + fx * distance,
+          (kira.perchY ?? 0) + lookAtYAbovePerch + camYAboveLookAt,
+          (kira.perchZ ?? 0) + fz * distance,
+        )
+        if (lookAt && camPos) {
+          camera.zoomTo?.(camPos, lookAt, durationMs)
+          zoomedRef.current = true
+        }
       }
 
-      await flyPromise
+      await settlePromise
       if (abort.signal.aborted) return
 
-      // Wait out whatever portion of the camera move is still in flight
-      // once the bird has landed, so the intro line lands after the camera
-      // has settled (or close to it).
-      const remaining = Math.max(0, zoomLeadMs + durationMs - FLY_DURATION_S * 1000)
-      if (remaining > 0 && !reducedMotion) {
-        await wait(remaining, abort.signal)
+      // Small beat so the intro line lands after the flourish + dolly have
+      // settled rather than mid-motion.
+      if (!reducedMotion) {
+        await wait(SETTLE_HOLD_MS, abort.signal)
         if (abort.signal.aborted) return
       }
 
       const line = ONBOARDING_COPY.kira.firstChatIntro.replace(
         '{companionName}',
-        companionNameFrom(profile, onboarding),
+        companionNameFrom(profileRef.current, onboardingRef.current),
       )
       try {
-        sound?.playOneShot?.('chime')
+        soundRef.current?.playOneShot?.('chime')
       } catch {
-        // SFX best-effort; same rationale as above.
+        // SFX is best-effort; never break the ceremony on a missing sample.
       }
       // The explainer beats make up the sequence the user walks through
       // one CTA tap at a time. Built once on intro so showNextBeat() can
@@ -230,7 +229,7 @@ export function FirstChat({
       // first-capture stage; its CTA reads "Start first capture".
       beatsRef.current = [...ONBOARDING_COPY.kira.firstChatExplainer]
       beatIndexRef.current = 0
-      kiraNarrator?.speak?.({
+      kiraNarratorRef.current?.speak?.({
         text: line,
         cta: 'Tell me more',
         onConfirm: showNextBeat,
@@ -248,7 +247,7 @@ export function FirstChat({
       }
       const isLast = i === beats.length - 1
       beatIndexRef.current = i + 1
-      kiraNarrator?.speak?.({
+      kiraNarratorRef.current?.speak?.({
         text: beats[i] ?? '',
         cta: isLast ? ONBOARDING_COPY.firstChatActions.feel : 'Continue',
         onConfirm: isLast ? feelNow : showNextBeat,
@@ -256,26 +255,21 @@ export function FirstChat({
     }
 
     function feelNow() {
-      kiraNarrator?.close?.()
+      kiraNarratorRef.current?.close?.()
       if (zoomedRef.current) {
-        camera?.restoreZoom?.(700)
+        cameraRef.current?.restoreZoom?.(700)
         zoomedRef.current = false
       }
-      onAdvance()
+      onAdvanceRef.current()
     }
 
+    // Cleanup runs on true unmount only (empty dep array): drop the panel
+    // cleanly if FirstChat unmounts mid-flow (e.g. the user navigates away)
+    // and hand the camera anchor back if the dolly already started, so a
+    // follow-on cinematic doesn't restore to the wrong pose.
     return () => {
       abort.abort()
-      if (zoomLeadTimerRef.current != null) {
-        window.clearTimeout(zoomLeadTimerRef.current)
-        zoomLeadTimerRef.current = null
-      }
-      // Drop the panel cleanly if FirstChat unmounts mid-flow (e.g. the user
-      // navigates away). The narrator's own close handles camera restore.
-      kiraNarrator?.close?.()
-      // If the camera dolly already started, hand its save-stack entry
-      // back to the camera so a follow-on cinematic doesn't restore to
-      // the wrong pose (FirstChat would be the orphaned anchor).
+      kiraNarratorRef.current?.close?.()
       if (zoomedRef.current) {
         try {
           cameraRef.current?.restoreZoom?.(0)
@@ -285,7 +279,7 @@ export function FirstChat({
         zoomedRef.current = false
       }
     }
-  }, [camera, kira, kiraNarrator, onAdvance, onboarding, profile, reducedMotion, sound])
+  }, [])
 
   return (
     <div

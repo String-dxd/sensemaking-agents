@@ -106,7 +106,7 @@ export const ONBOARDING_COPY = Object.freeze({
 // Offline-only students for the dummy Edupass login. When the backend bridge
 // is present, identity comes from the server snapshot instead.
 export const OFFLINE_DEMO_STUDENTS = [
-    { name: 'Mei Tan',       className: 'Sec 3B' },
+    { name: 'Alice Tan',       className: 'Sec 3B' },
     { name: 'Aisyah Rahim',  className: 'Sec 2A' },
     { name: 'Jia Hao',       className: 'Sec 3C' },
     { name: 'Priya Devi',    className: 'Sec 4B' },

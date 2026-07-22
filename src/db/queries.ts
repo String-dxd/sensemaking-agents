@@ -57,6 +57,8 @@ export interface MirrorEntryRow {
   id: number
   student_id: string
   transcript: string
+  /** Optional short display title (e.g. demo corpus section headings). */
+  title?: string | null
   validation: string
   inferred_meaning: string
   story_reframe: string
@@ -138,6 +140,7 @@ interface MirrorEntryDbRow {
   id: number
   student_id: string
   transcript: string
+  title: string | null
   validation: string
   inferred_meaning: string
   story_reframe: string
@@ -214,6 +217,7 @@ function rowToMirrorEntry(row: MirrorEntryDbRow, entryTags: string[]): MirrorEnt
     id: row.id,
     student_id: row.student_id,
     transcript: row.transcript,
+    title: row.title,
     validation: row.validation,
     inferred_meaning: row.inferred_meaning,
     story_reframe: row.story_reframe,
@@ -1713,6 +1717,7 @@ type DrizzleMirrorRow = {
   id: number
   studentId: string
   transcript: string
+  title?: string | null
   validation: string
   inferredMeaning: string
   storyReframe: string
@@ -1727,6 +1732,7 @@ function drizzleMirrorRow(r: DrizzleMirrorRow): MirrorEntryDbRow {
     id: r.id,
     student_id: r.studentId,
     transcript: r.transcript,
+    title: r.title ?? null,
     validation: r.validation,
     inferred_meaning: r.inferredMeaning,
     story_reframe: r.storyReframe,

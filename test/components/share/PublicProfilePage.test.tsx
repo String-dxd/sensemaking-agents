@@ -7,7 +7,7 @@ import type { PublicProfileBody } from '~/server/load-public-profile.handler.ser
 
 function makeProfile(overrides: Partial<PublicProfileBody> = {}): PublicProfileBody {
   return {
-    nameSnapshot: 'Mei Lin',
+    nameSnapshot: 'Alice Lin',
     showQuotes: false,
     lastSyncedAt: '2026-05-18T08:00:00Z',
     dimensions: [
@@ -59,7 +59,7 @@ function makeProfile(overrides: Partial<PublicProfileBody> = {}): PublicProfileB
 describe('PublicProfilePage', () => {
   it('renders the name snapshot, dimensions, and last-synced timestamp', () => {
     render(<PublicProfilePage profile={makeProfile()} isOwner={false} />)
-    expect(screen.getByText('Mei Lin')).toBeInTheDocument()
+    expect(screen.getByText('Alice Lin')).toBeInTheDocument()
     expect(screen.getByText(/last synced 18 May 2026/)).toBeInTheDocument()
     expect(screen.getByText('You keep coming back to learning out loud.')).toBeInTheDocument()
   })
@@ -70,7 +70,7 @@ describe('PublicProfilePage', () => {
     expect(empty.length).toBeGreaterThan(0)
     const first = empty[0]
     // Empty copy addresses the viewer ("{name} hasn't surfaced..."), not the student.
-    expect(first?.textContent).toMatch(/Mei Lin hasn['’]t surfaced any/)
+    expect(first?.textContent).toMatch(/Alice Lin hasn['’]t surfaced any/)
   })
 
   it('hides verbatim quotes when showQuotes is false', () => {

@@ -28,6 +28,7 @@ interface DayDetailCapture {
   entryDate: string
   kind: string
   text?: string
+  title?: string
   validation?: string
   createdAt?: string
   prompt?: string | null
@@ -44,14 +45,6 @@ interface DayDetailCapture {
     needs?: string[]
     moods?: string[]
   }
-}
-
-const CONTEXT_LABEL: Record<string, string> = {
-  school: 'School',
-  peer: 'Peer',
-  civic: 'Civic',
-  family: 'Family',
-  hobby: 'Hobby',
 }
 
 function formatTime(iso: string | undefined): string {
@@ -212,39 +205,32 @@ export function DayDetailCard({
                       </li>
                     )
                   }
+                  const title = cap.title?.trim() ?? ''
                   const headline = cap.reframe?.headline?.trim() ?? ''
-                  const highlight = cap.reframe?.highlightPhrase?.trim() ?? ''
                   const time = formatTime(cap.createdAt)
-                  const contextLabel = cap.contextType
-                    ? (CONTEXT_LABEL[cap.contextType] ?? cap.contextType)
-                    : null
                   const entryId = Number(cap.backendMirrorEntryId)
                   const hasBackendId = Number.isInteger(entryId) && entryId > 0
                   const cardClasses =
                     'block rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink) transition-colors'
+                  // Simplified card: highlighted title, time, one-line summary.
+                  // The full transcript lives in the mirror detail sheet.
                   const body = (
                     <>
-                      <div className="flex items-center gap-2 text-xs text-(--color-sheet-ink-soft)">
-                        {contextLabel ? (
-                          <span className="inline-flex items-center rounded-full bg-(--color-onb-bg-cream) px-2 py-0.5 font-semibold uppercase tracking-[0.04em] text-(--color-sheet-ink)">
-                            {contextLabel}
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="font-semibold leading-snug text-(--color-sheet-ink)">
+                          <mark className="rounded-sm bg-(--color-onb-bg-cream) box-decoration-clone px-1 py-0.5 text-(--color-sheet-ink)">
+                            {title || headline || 'Reflection'}
+                          </mark>
+                        </p>
+                        {time ? (
+                          <span className="shrink-0 text-xs tabular-nums text-(--color-sheet-ink-soft)">
+                            {time}
                           </span>
                         ) : null}
-                        {time ? <span className="tabular-nums">{time}</span> : null}
                       </div>
-                      {headline ? (
-                        <p className="mt-1.5 font-medium leading-snug text-(--color-sheet-ink)">
-                          {headline}
-                        </p>
-                      ) : null}
-                      {highlight ? (
-                        <p className="mt-1 text-[13px] italic leading-snug text-(--color-sheet-ink-soft)">
-                          “{highlight}”
-                        </p>
-                      ) : null}
-                      {cap.text ? (
+                      {title && headline ? (
                         <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-(--color-sheet-ink-soft)">
-                          {cap.text.slice(0, 180)}
+                          {headline}
                         </p>
                       ) : null}
                     </>

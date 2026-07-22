@@ -45,6 +45,9 @@ const hexToRgb = (hex) =>
     return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]
 }
 
+/** Boot default for `manualHour` — noon, the editor-daylight keyframe. */
+const DEFAULT_MANUAL_HOUR = 12
+
 export default class DayCycle
 {
     constructor()
@@ -55,7 +58,13 @@ export default class DayCycle
 
         // null = follow wall-clock; any number 0–24 pins the cycle to that hour.
         // HourHud writes here; Phase 2d's mood input may also bump it.
-        this.manualHour = null
+        //
+        // Default is PINNED to noon (world-port follow-up): the world boots in
+        // fixed editor daylight instead of the visitor's wall-clock hour, so
+        // sky/sea/ambient match the island-editor look by default. The hour
+        // HUD's scrubber + "use real time" (clearManualHour) and scripted
+        // beats (onboarding 11.5, TermlyReveal twilight) still move it.
+        this.manualHour = DEFAULT_MANUAL_HOUR
         this.hour = 0
         // Bruno's SkySphere shader expects: noon → 0/1, midnight → 0.5
         // (it computes `dayIntensity = abs(progress - 0.5) * 2`). Kept distinct
@@ -198,9 +207,19 @@ export default class DayCycle
         this.manualHour = hour
     }
 
+    /** Explicit wall-clock mode — the hour HUD's "use real time" button. */
     clearManualHour()
     {
         this.manualHour = null
+    }
+
+    /** Back to the boot default (pinned noon). Scripted beats that scrub the
+     *  hour (onboarding, TermlyReveal) restore through here, NOT through
+     *  clearManualHour — clearing would drop the world to wall-clock and
+     *  undo the fixed editor-daylight default. */
+    resetHourToDefault()
+    {
+        this.manualHour = DEFAULT_MANUAL_HOUR
     }
 
     setDebug()

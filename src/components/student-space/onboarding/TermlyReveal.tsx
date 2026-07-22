@@ -63,7 +63,14 @@ export function TermlyReveal({
       }
     | null
     | undefined
-  day: { setManualHour?: (hour: number) => void; clearManualHour?: () => void } | null | undefined
+  day:
+    | {
+        setManualHour?: (hour: number) => void
+        clearManualHour?: () => void
+        resetHourToDefault?: () => void
+      }
+    | null
+    | undefined
   view: TermlyRevealView | null | undefined
 }) {
   const [beginVisible, setBeginVisible] = useState(false)
@@ -151,7 +158,8 @@ export function TermlyReveal({
         skyTimerRef.current = window.setTimeout(
           () => {
             skyTimerRef.current = null
-            dayRef.current?.clearManualHour?.()
+            // Back to the pinned-noon boot default, not wall-clock.
+            dayRef.current?.resetHourToDefault?.()
           },
           reducedMotionRef.current ? 40 : SKY_LEAD_MS,
         )

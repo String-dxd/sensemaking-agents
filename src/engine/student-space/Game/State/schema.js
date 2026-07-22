@@ -215,6 +215,8 @@ const defaultCapture = () => ({
 
 const KNOWN_CAPTURE_KEYS = new Set([
     'id', 'createdAt', 'entryDate', 'kind', 'text', 'prompt',
+    // Optional short display title (demo corpus section heading).
+    'title',
     'dataUrl', 'caption',
     // Backend bridge metadata. These fields identify durable rows while
     // keeping local `ss:v1:*` persistence separate from server truth.

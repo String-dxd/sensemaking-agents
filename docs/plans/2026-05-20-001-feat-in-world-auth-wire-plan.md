@@ -32,7 +32,7 @@ real or demo data:
    consumed by `ProfileSheetView` / `ProfileSheetChrome` (the React surfaces
    that only mount inside the engine's Relationships/Choices tabs). The
    live engine `ProfileSheet.js` shows a hardcoded `Profile.identity` (name
-   "Mei", className "Sec 3B") and has no sign-in/sign-out affordance.
+   "Alice", className "Sec 3B") and has no sign-in/sign-out affordance.
 
 3. **Identity hydration falls back to "Me" for real WorkOS users.**
    `mapVipsPagesToStudentSpaceProfile()` (`src/lib/student-space/backend-snapshot.ts:208-213`)
@@ -59,7 +59,7 @@ existing onboarding ceremony and the engine's own first-run rules.
   signed-in students must skip the login stage entirely on first cold boot.
 - R2. **Auth-aware engine identity.** When a WorkOS or demo cookie session is
   active, `state.profile.identity` should reflect the authenticated label
-  (from `loadAuthMenu()`) rather than the engine's hardcoded `'Mei'`. A
+  (from `loadAuthMenu()`) rather than the engine's hardcoded `'Alice'`. A
   user-set identity (set later via `Profile.setIdentity`) still wins because
   it is what the student deliberately wrote.
 - R3. **Sign-out reachable from inside the world.** Engine `ProfileSheet.js`
@@ -80,7 +80,7 @@ existing onboarding ceremony and the engine's own first-run rules.
   argument; when `student_profile` is `null` and the menu is signed-in,
   the snapshot identity name is taken from `authMenu.label` and detail
   from `authMenu.detail`. The seed-resolved `student_profile` still wins
-  when present so demo students keep their seed name (e.g. "Mei (Sec 4, NA)").
+  when present so demo students keep their seed name (e.g. "Alice (Sec 4, NA)").
 - R7. **No regression to the existing flow.** The engine still boots and is
   fully playable in `DEV_BYPASS_AUTH=demo-a` (current dev mode), in cookie
   demo mode, in WorkOS auth mode, and signed-out (where backend calls fail
@@ -530,7 +530,7 @@ verify the four auth modes end-to-end against a running dev server.
   now depends on.
 - Live agent-browser pass (operator runs after `pnpm dev`):
   1. `DEV_BYPASS_AUTH=demo-a` (current dev mode) → engine boots straight
-     to greeting; ProfileSheet shows seed-identity "Mei (Sec 4, NA)" with
+     to greeting; ProfileSheet shows seed-identity "Alice (Sec 4, NA)" with
      a Sign out button (note: under DEV_BYPASS_AUTH, sign-out only clears
      the demo cookie; restart is still required to flip identity).
   2. Cookie demo path: open `/` signed-out → click "Use a demo account"

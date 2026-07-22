@@ -1,0 +1,1 @@
+ALTER TABLE "mirror_entries" ADD COLUMN "title" text;

@@ -200,8 +200,8 @@ describe('statusLabelOf', () => {
 
 describe('statusCopyOf', () => {
   it('personalises the starter title when an identity name is provided', () => {
-    const copy = statusCopyOf('starter', { name: 'Mei' })
-    expect(copy.title).toMatch(/Mei/)
+    const copy = statusCopyOf('starter', { name: 'Alice' })
+    expect(copy.title).toMatch(/Alice/)
   })
 
   it('falls back gracefully without a name', () => {

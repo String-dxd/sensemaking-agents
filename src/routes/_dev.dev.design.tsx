@@ -1813,7 +1813,7 @@ function AvatarsSection() {
                     spec.text,
                   )}
                   role="img"
-                  aria-label="Mei avatar"
+                  aria-label="Alice avatar"
                 >
                   M
                 </div>

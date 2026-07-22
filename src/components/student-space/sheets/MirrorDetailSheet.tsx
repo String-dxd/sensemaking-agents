@@ -32,6 +32,7 @@ interface MirrorCapture {
   entryDate?: string
   kind: string
   text?: string
+  title?: string
   validation?: string
   createdAt?: string
   backendMirrorEntryId?: number | string
@@ -145,7 +146,8 @@ export function MirrorDetailSheet() {
             <SheetPageHeader>
               <SheetEyebrow>Story reframe</SheetEyebrow>
               <SheetTitle>
-                {capture.reframe?.headline?.trim() ||
+                {capture.title?.trim() ||
+                  capture.reframe?.headline?.trim() ||
                   capture.reframe?.highlightPhrase?.trim() ||
                   'Untitled mirror'}
               </SheetTitle>

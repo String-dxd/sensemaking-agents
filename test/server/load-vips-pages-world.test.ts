@@ -70,12 +70,10 @@ describe('loadVipsPages world data helpers', () => {
     const demoA = loadStudentSpaceShellData('demo-a')
     const demoB = loadStudentSpaceShellData('demo-b')
 
-    expect(demoA?.identity).toMatchObject({ name: 'Ming Liang', className: 'Sec 2' })
-    expect(demoA?.calendarEvents.map((event) => event.date)).toContain('2026-01-20')
-    expect(demoA?.teacherLetters[0]).toMatchObject({
-      from: 'Ms Tan',
-      read: false,
-    })
+    expect(demoA?.identity).toMatchObject({ name: 'Alice', className: 'Sec 4' })
+    expect(demoA?.calendarEvents.map((event) => event.date)).toContain('2026-07-19')
+    // Letters now come from the engine seed only; the shell contributes none.
+    expect(demoA?.teacherLetters).toEqual([])
     expect(demoB?.identity.name).not.toBe(demoA?.identity.name)
     expect(loadStudentSpaceShellData('private-student')).toBeNull()
   })

@@ -16,7 +16,7 @@
 - **Priority**: P1
 - **Effort**: S–M
 - **Risk**: MED (copy strings are asserted by tests; wording is product-visible)
-- **Depends on**: none (001 recommended first so the demo student is Ming Liang)
+- **Depends on**: none (001 recommended first so the demo student is Alice)
 - **Category**: direction / content
 - **Planned at**: commit `0e4122b6`, 2026-07-13 (v3 — deepened after cold-read review)
 
@@ -27,7 +27,7 @@ After "Use a demo account", onboarding runs: login → greeting → egg
 panel, one beat per CTA tap) → first-capture → bloom → termly reveal →
 closing. The spec scripts exactly what the bird should say, in three screens:
 
-1. *"Hey I'm Mei, thank you for bringing me into your world! Tap the mic and
+1. *"Hey I'm Alice, thank you for bringing me into your world! Tap the mic and
    tell me what's on your mind. There's no right answer, no grades, or
    expectations. Let's chat."*
 2. *"Every time you share something with me, you help your world grow. Share
@@ -46,11 +46,11 @@ spec's `!` and `:)` are therefore dropped; content and order are preserved.
 
 ### Naming (000 Decision 1, revised 2026-07-13)
 
-Maintainer decision: **"Mei" is the bird's default name — editable.** The
-spec's "Kira" (transcripts) and "Mei" (onboarding) both stand in for the
+Maintainer decision: **"Alice" is the bird's default name — editable.** The
+spec's "Kira" (transcripts) and "Alice" (onboarding) both stand in for the
 companion the student names. Implementation: pre-fill the egg-name input with
-`Mei`; the student can overwrite it; all copy keeps `{companionName}`. Never
-hardcode "Mei" into a copy string.
+`Alice`; the student can overwrite it; all copy keeps `{companionName}`. Never
+hardcode "Alice" into a copy string.
 
 ## Current state (verified at `0e4122b6`)
 
@@ -98,7 +98,7 @@ The change target is the `?? ''` fallback (NOT a bare `useState('')` — don't
 grep for that). Submit path: `commitName` (lines 110–117) trims and calls
 `setCompanionName`/`setIdentity`; empty guard = early return at :111 +
 `disabled={!trimmedName}` on the Hatch button (:238); input `maxLength={16}`
-(:206), placeholder (:210) only shows when empty. A pre-filled `'Mei'` flows
+(:206), placeholder (:210) only shows when empty. A pre-filled `'Alice'` flows
 through unchanged if the student just taps Hatch.
 
 ### Tests
@@ -110,7 +110,7 @@ through unchanged if the student just taps Hatch.
   `ONBOARDING_COPY.kira.firstChatExplainer` — no test change needed for beat
   text.
 - `:346` types the name with `userEvent.type(input, 'Pip')`. **`userEvent.type`
-  APPENDS** — with a `'Mei'` default the value becomes `'MeiPip'` and the
+  APPENDS** — with a `'Alice'` default the value becomes `'AlicePip'` and the
   assertions at `:348–352` (`companionName: 'Pip'`) fail. The test MUST be
   updated to clear first (`await userEvent.clear(input)` before typing).
 - No other test or component asserts `firstChatIntro`/`closing` strings
@@ -145,7 +145,7 @@ through unchanged if the student just taps Hatch.
 - `src/engine/student-space/Game/View/Onboarding/copy.js` — the three `kira.*`
   string values above only.
 - `src/components/student-space/onboarding/EggHatcher.tsx` — line 77 fallback
-  `?? ''` → `?? 'Mei'`.
+  `?? ''` → `?? 'Alice'`.
 - `test/components/student-space/onboarding/OnboardingFlow.test.tsx` — intro
   assertion + `userEvent.clear` before the naming `type`.
 
@@ -158,7 +158,7 @@ through unchanged if the student just taps Hatch.
 ## Git workflow
 
 Branch `advisor/003-onboarding-script`; commit e.g.
-`feat(onboarding): bird speaks the spec's 3-screen script; Mei as editable default name`.
+`feat(onboarding): bird speaks the spec's 3-screen script; Alice as editable default name`.
 Do NOT push or open a PR unless instructed.
 
 ## Steps
@@ -171,10 +171,10 @@ explainer beat 1 is 97 chars):
 `node --input-type=module -e "import('./src/engine/student-space/Game/View/Onboarding/copy.js').then(({ONBOARDING_COPY:c})=>{const lines=[c.kira.firstChatIntro,...c.kira.firstChatExplainer,c.kira.closing]; const bad=lines.filter(l=>l.length>90||/[!]|\p{Emoji_Presentation}/u.test(l)); if(bad.length) throw new Error('bad: '+JSON.stringify(bad)); console.log('ok',lines.length,'lines')})"`
 → `ok 5 lines`.
 
-### Step 2: Default companion name "Mei"
+### Step 2: Default companion name "Alice"
 
 `EggHatcher.tsx:77`: change `useState(onboarding?.companionName ?? '')` →
-`useState(onboarding?.companionName ?? 'Mei')`. Nothing else in the component
+`useState(onboarding?.companionName ?? 'Alice')`. Nothing else in the component
 changes (the input stays editable/clearable; the empty guard stays).
 
 ### Step 3: Update the test
@@ -183,9 +183,9 @@ In `OnboardingFlow.test.tsx`:
 - Intro assertion (`:374`): `"Hi. I'm Pip."` →
   `"Hey, I'm Pip. Thanks for bringing me into your world."`
 - Naming flow (`:346`): insert `await userEvent.clear(<the name input>)`
-  immediately before `userEvent.type(..., 'Pip')` so the `'Mei'` default is
+  immediately before `userEvent.type(..., 'Pip')` so the `'Alice'` default is
   removed; the `companionName: 'Pip'` expectations at `:348–352` then stand.
-  Optionally add one assertion that the input's initial value is `'Mei'`.
+  Optionally add one assertion that the input's initial value is `'Alice'`.
 
 **Verify**: `pnpm test -- OnboardingFlow` → pass.
 
@@ -208,7 +208,7 @@ check, and the Step 4 key-shape check.
 
 - [ ] First-chat beats read as the spec's 3 screens in order; intro thanks the
       student for "bringing me into your world".
-- [ ] Egg-name input pre-filled "Mei" and editable (test clears + types 'Pip'
+- [ ] Egg-name input pre-filled "Alice" and editable (test clears + types 'Pip'
       and passes).
 - [ ] Step 1 prints `ok 5 lines`; Step 4 key list matches exactly.
 - [ ] `pnpm check` and `pnpm test` exit 0.

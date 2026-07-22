@@ -69,6 +69,7 @@ type EngineRich = Game & {
     day?: {
       setManualHour?: (hour: number) => void
       clearManualHour?: () => void
+      resetHourToDefault?: () => void
       setMood?: (emotion: string) => void
     }
     weather?: { setAmbient?: (active: boolean) => void; setIntensity?: (n: number) => void }
@@ -93,9 +94,7 @@ type EngineRich = Game & {
       perchZ?: number
       perchYaw?: number
       flyTo?: (opts: {
-        startPos: { x: number; y: number; z: number }
         endPos: { x: number; y: number; z: number }
-        midOffset: { x: number; y: number; z: number }
         duration: number
         endYaw?: number
         reducedMotion: boolean
@@ -222,7 +221,9 @@ export function OnboardingFlow() {
 
     return () => {
       try {
-        engine.state?.day?.clearManualHour?.()
+        // Restore the boot default (pinned noon), NOT wall-clock — clearing
+        // would undo the fixed editor-daylight default.
+        engine.state?.day?.resetHourToDefault?.()
         engine.state?.weather?.setAmbient?.(true)
       } catch {
         // same

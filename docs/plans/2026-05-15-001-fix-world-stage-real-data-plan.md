@@ -77,7 +77,7 @@ their data. That breaks the contract the rest of the app depends on (the
 island as a faithful mirror of what Connector has actually committed).
 
 The student also never sees their own identity on the home screen, even
-though the demo seed pre-supplies a name like "Mei (S4)". That makes the
+though the demo seed pre-supplies a name like "Alice (S4)". That makes the
 home stage feel anonymous and detached from the rest of the app, where
 profile/identity is otherwise consistent.
 
@@ -470,7 +470,7 @@ Space Three.js behaviors all still fire.
   interest descriptors only.
 - Verify: butterflies count and color reflect recent reflections (pending
   vs confirmed).
-- Verify: identity chip renders the seeded name (e.g. "Mei").
+- Verify: identity chip renders the seeded name (e.g. "Alice").
 - Verify: prompt bird prompt is stable across page reloads on the same
   day.
 - Visually confirm the Student Space behaviors are still alive: ocean
@@ -538,7 +538,7 @@ Space Three.js behaviors all still fire.
 - `createFlowers` iterates the real descriptor list and produces zero
   flowers when the list is empty.
 - `pnpm check`, `pnpm test`, `pnpm build` all pass.
-- Identity chip appears for demo-a as "Mei" and is absent when no profile
+- Identity chip appears for demo-a as "Alice" and is absent when no profile
   is available.
 - Browser verification confirms each Student Space behavior still fires
   (ocean caustics, grass/leaf wind, fruit bushes, Kira-style bird, aurora,

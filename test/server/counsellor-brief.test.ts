@@ -36,7 +36,7 @@ function seedDemoAWiki(): void {
     dimension: 'values',
     compiled_truth:
       'You orient toward helping others one-to-one and notice when that work feels different from group work.',
-    open_question: 'When does helping become "doing the Mei thing" — and how do you tell?',
+    open_question: 'When does helping become "doing the Alice thing" — and how do you tell?',
   })
   upsertVipsPage('demo-a', {
     dimension: 'interests',

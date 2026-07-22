@@ -69,7 +69,7 @@ describe('buildIslandGeometry', () => {
     expect(found).toBe(true) // SEGMENTS = 2× grid → cell centers are lattice vertices
   })
 
-  it('aWallness exceeds 0.5 between an isolated tier-2 cell and its tier-0 neighbor', () => {
+  it('aWallness exceeds 0.3 between an isolated tier-2 cell and its tier-0 neighbor', () => {
     const grid = createOceanGrid()
     grid.tiers[32 * GRID_COLS + 32] = 2
     const geo = composeGeometry(field, specFrom(grid))
@@ -85,7 +85,9 @@ describe('buildIslandGeometry', () => {
         best = Math.max(best, wall.getX(v))
       }
     }
-    expect(best).toBeGreaterThan(0.5)
+    // wall shading must still register on the single-cell island's flank;
+    // the wider terrace blur (BLUR_PASSES = 2) softens the peak below 0.5.
+    expect(best).toBeGreaterThan(0.3)
   })
 
   it('aSurface carries the containing cell surface code', () => {

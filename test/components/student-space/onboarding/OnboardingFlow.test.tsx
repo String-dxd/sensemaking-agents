@@ -288,10 +288,10 @@ describe('OnboardingFlow (React)', () => {
   describe('Greeting surface', () => {
     it("renders 'Hi, {firstName}.' from the profile identity", async () => {
       const onboarding = makeOnboarding({ stage: 'greeting' })
-      const game = makeGame({ onboarding, studentName: 'Mei Tan' })
+      const game = makeGame({ onboarding, studentName: 'Alice Tan' })
       renderFlow(game)
       // The hello string uses the first whitespace-delimited token.
-      expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Hi, Mei.')
+      expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Hi, Alice.')
     })
 
     it('keeps the live world visible behind the first greeting screen', async () => {
@@ -344,7 +344,7 @@ describe('OnboardingFlow (React)', () => {
       expect(onboarding.stage).toBe('egg-name')
 
       const nameInput = await screen.findByLabelText('Name your companion.')
-      expect(nameInput).toHaveValue('Mei')
+      expect(nameInput).toHaveValue('Alice')
       await userEvent.clear(nameInput)
       await userEvent.type(nameInput, 'Pip')
       await userEvent.click(await screen.findByRole('button', { name: 'Hatch the egg' }))

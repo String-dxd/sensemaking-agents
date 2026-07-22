@@ -42,6 +42,8 @@ const MIRROR_FORGOTTEN_TAG = 'system:mirror-forgotten'
 export interface SeedReflectionFixture {
   context_type: VipsContextType
   transcript: string
+  /** Short display title (demo corpus section heading). */
+  title?: string
   validation?: string
   inferred_meaning?: string
   story_reframe?: string
@@ -190,6 +192,7 @@ export async function seed(): Promise<SeedResult> {
           .values({
             studentId: student.student_id,
             transcript: r.transcript,
+            title: r.title ?? null,
             validation,
             inferredMeaning,
             storyReframe,

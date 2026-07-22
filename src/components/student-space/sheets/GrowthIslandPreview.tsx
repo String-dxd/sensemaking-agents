@@ -34,9 +34,10 @@ export function GrowthIslandPreview({ year, engine }: { year: number; engine: un
 
     let cancelled = false
     void (async () => {
-      const [THREE, orbitMod] = await Promise.all([
+      const [THREE, orbitMod, rendererMod] = await Promise.all([
         import('three'),
         import('three/examples/jsm/controls/OrbitControls.js'),
+        import('~/engine/student-space/Game/View/Renderer.js'),
       ])
       if (cancelled) return
       const renderer = new THREE.WebGLRenderer({
@@ -45,6 +46,13 @@ export function GrowthIslandPreview({ year, engine }: { year: number; engine: un
         antialias: true,
         premultipliedAlpha: false,
       })
+      // Same color pipeline as the main world renderer (sRGB output + ACES
+      // tone mapping + soft shadows) — this preview draws the SAME scene, so
+      // without it the shared materials render linear: oversaturated foliage,
+      // crushed-black terrace shadows.
+      rendererMod.configureColorPipeline(
+        renderer as unknown as Parameters<typeof rendererMod.configureColorPipeline>[0],
+      )
       renderer.setClearAlpha(0)
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
 

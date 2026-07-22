@@ -190,7 +190,7 @@ function TimelinePane({
     )
   }, [filter, hash, selectedDate, targetDate])
 
-  const [viewMode, setViewMode] = useState<'week' | 'month'>('week')
+  const [viewMode, setViewMode] = useState<'week' | 'month'>('month')
   return (
     <div className="space-y-6">
       <PaneHeader

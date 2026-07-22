@@ -5,7 +5,6 @@ import State from '../State/State.js'
 import { buildIslandField, composeGeometry } from './islandGeometry.ts'
 import {
     createIslandGroundMaterial,
-    GROUND_SKY_COLOR,
     GROUND_SUN_COLOR,
 } from './Materials/IslandGroundMaterial.ts'
 import { createSeaMaterial, createShoreDataTexture } from './Materials/SeaMaterial.ts'
@@ -22,10 +21,11 @@ import { createSeaMaterial, createShoreDataTexture } from './Materials/SeaMateri
  *   aurora ring (r 22), rain sampling, and the landing orbit still frame
  *   against water (KTD-8). Gains a day-cycle tint the editor doesn't have.
  * - Light rig: the editor Backdrop's hemisphere + warm shadow-casting
- *   directional, modulated by the day cycle (noon matches the editor's fixed
- *   rig). Shadows stay ON at every quality tier; only the map size scales
- *   (KTD-4 — if low-tier frame times collapse, the lever is map size/filter
- *   quality, never disabling shadows).
+ *   directional, FIXED at the editor's daylight (the day-cycle modulation was
+ *   removed by request — DayCycle still drives sky/ambient systems, but the
+ *   island lighting no longer follows it). Shadows stay ON at every quality
+ *   tier; only the map size scales (KTD-4 — if low-tier frame times collapse,
+ *   the lever is map size/filter quality, never disabling shadows).
  */
 
 // Asset paths mirror Tree/Kira: derive from Vite's BASE_URL for subpath
@@ -38,11 +38,8 @@ const BASE_URL = (typeof import.meta !== 'undefined'
 const ASSET_BASE = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`
 const TEXTURE_BASE = `${ASSET_BASE}student-space/textures`
 
-// Editor Backdrop rig (island-editor/src/scene/Backdrop.tsx). The day-cycle
-// palette's noon keyframe (sunInt 0.78, ambInt 0.46) maps onto these values so
-// noon in the engine matches the editor's fixed daylight.
-const NOON_SUN_INT = 0.78
-const NOON_AMB_INT = 0.46
+// Editor Backdrop rig (island-editor/src/scene/Backdrop.tsx), applied as-is:
+// the island renders in the editor's fixed daylight at every hour.
 const SUN_INTENSITY = 1.55
 const HEMI_INTENSITY = 0.65
 const HEMI_SKY = 0xCFE5FF
@@ -204,40 +201,15 @@ export default class Island
         this._oceanTime += dt * (0.45 + rain * 0.55)
         this.seaMat.uniforms.uTime.value = this._oceanTime
 
-        const day = this.state.day.currentState
-        if(day)
-        {
-            // Sea day tint (KTD-8) — sky-bottom keyframe color, like the
-            // retired ocean's sky-reactive wash.
-            this.seaMat.uniforms.uSkyTint.value.setRGB(
-                day.skyBottom[0] / 255,
-                day.skyBottom[1] / 255,
-                day.skyBottom[2] / 255,
-            )
-
-            // Scene lights: day palette scaled so noon equals the editor rig.
-            const sunScale = day.sunInt / NOON_SUN_INT
-            this.sun.color.setRGB(day.sunColor[0] / 255, day.sunColor[1] / 255, day.sunColor[2] / 255)
-            this.sun.intensity = SUN_INTENSITY * sunScale
-            this.hemi.intensity = HEMI_INTENSITY * Math.min(1, 0.35 + (day.ambInt / NOON_AMB_INT) * 0.65)
-
-            // Ground material daylight: warm key scaled with the sun, cool
-            // ambient scaled with the day's ambient floor.
-            const u = this.groundMat.uniforms
-            u.uSunColor.value.setHex(GROUND_SUN_COLOR).multiplyScalar(Math.max(0.12, sunScale))
-            u.uSkyColor.value.setHex(GROUND_SKY_COLOR).multiplyScalar(Math.max(0.25, day.ambInt / NOON_AMB_INT))
-        }
-
-        // Ground sun DIRECTION tracks the live sun so terrain shading follows
-        // the day cycle (the scene light stays at the editor's shadow angle —
-        // moving the shadow camera every frame would churn the shadow map).
-        const s = this.state.sun
-        if(s && (s.position.x || s.position.y || s.position.z))
-        {
-            const uDir = this.groundMat.uniforms.uSunDirection.value
-            // Below the horizon the shader's max(dot,0) already kills the key.
-            uDir.set(s.position.x, Math.max(s.position.y, -0.2), s.position.z)
-            if(uDir.lengthSq() > 0) uDir.normalize()
-        }
+        // Lighting is FIXED at the editor rig: no day-cycle modulation of the
+        // sun, hemisphere, ground uniforms, sea tint, or sun direction. The
+        // constructor values (and the materials' white-tint defaults) are the
+        // editor's daylight and never move.
+        //
+        // TODO(weather): dynamic lighting — during rain the scene keeps the
+        // static editor daylight rig, so a downpour looks fully sunlit.
+        // Planned follow-up: modulate sun/hemisphere intensity + sea tint
+        // with the rain amount (and eventually the day cycle), and revisit
+        // the Rain.js overlay to match.
     }
 }

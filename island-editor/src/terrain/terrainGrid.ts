@@ -13,7 +13,7 @@ export const SURFACE_GRASS = 1 // painted grass tufts (v5; was dirt path in ≤v
 
 /** Corner-rounding strength for the terrace field (knob, 0..0.4). See the WHY
  *  comment in `sampleTierField`. */
-export const BLUR_MIX = 0.25
+export const BLUR_MIX = 0.4
 
 /** Wall width fraction between tiers (tuning knob). */
 export const DEFAULT_WALL_WIDTH = 0.35
@@ -136,29 +136,43 @@ export function createOceanGrid(cols = GRID_COLS, rows = GRID_ROWS): TerrainGrid
 
 // ── Terrace field ────────────────────────────────────────────────────────────
 
-/** 3×3 tent blur of the tier field as floats. Out-of-bounds neighbors count as
- *  tier 0 (ocean surrounds the island). Kernel (1 2 1 / 2 4 2 / 1 2 1)/16. */
+/** Blur passes for the terrace field. Two chained 3×3 tent blurs ≈ a 5×5
+ *  Gaussian: one pass only rounds silhouette corners by ~half a cell, which
+ *  still reads as a pixelated staircase coastline at 64×64. Widening the blur
+ *  (not raising BLUR_MIX alone) is what smooths the plan-view outline. */
+export const BLUR_PASSES = 2
+
+/** 3×3 tent blur of the tier field as floats, applied `BLUR_PASSES` times.
+ *  Out-of-bounds neighbors count as tier 0 (ocean surrounds the island).
+ *  Kernel (1 2 1 / 2 4 2 / 1 2 1)/16 per pass. */
 export function blurTiers(grid: TerrainGrid): Float32Array {
   const { cols, rows, tiers } = grid
-  const out = new Float32Array(cols * rows)
   const weights = [1, 2, 1, 2, 4, 2, 1, 2, 1]
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      let sum = 0
-      let k = 0
-      for (let dr = -1; dr <= 1; dr++) {
-        for (let dc = -1; dc <= 1; dc++) {
-          const nc = c + dc
-          const nr = r + dr
-          // out-of-bounds = tier 0 → contributes nothing to the weighted sum,
-          // but the fixed /16 divisor still counts it, pulling edges down.
-          if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) {
-            sum += tiers[nr * cols + nc] * weights[k]
+  let src: ArrayLike<number> = tiers
+  let out = new Float32Array(cols * rows)
+  for (let pass = 0; pass < BLUR_PASSES; pass++) {
+    if (pass > 0) {
+      src = out
+      out = new Float32Array(cols * rows)
+    }
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        let sum = 0
+        let k = 0
+        for (let dr = -1; dr <= 1; dr++) {
+          for (let dc = -1; dc <= 1; dc++) {
+            const nc = c + dc
+            const nr = r + dr
+            // out-of-bounds = tier 0 → contributes nothing to the weighted sum,
+            // but the fixed /16 divisor still counts it, pulling edges down.
+            if (nc >= 0 && nc < cols && nr >= 0 && nr < rows) {
+              sum += src[nr * cols + nc] * weights[k]
+            }
+            k++
           }
-          k++
         }
+        out[r * cols + c] = sum / 16
       }
-      out[r * cols + c] = sum / 16
     }
   }
   return out
@@ -203,8 +217,9 @@ function bilinear(field: ArrayLike<number>, cols: number, u: number, v: number):
  * thin features — an isolated tier-2 cell tent-blurs to 0.5, which would terrace
  * to BELOW sea level, i.e. stamping one cell of land would be invisible.
  * Terracing the raw bilinear field preserves single-cell amplitude exactly; the
- * bounded blur mix only rounds plan-view corners. At BLUR_MIX = 0.25 an isolated
- * tier-2 cell keeps ≈ 95% of its height.
+ * bounded blur mix only rounds plan-view corners. At BLUR_MIX = 0.4 with two
+ * blur passes an isolated tier-2 cell samples ≈ 1.31 at its center — it drops
+ * to a tier-1-height bump but stays clearly above sea level.
  */
 export function sampleTierField(
   grid: TerrainGrid,

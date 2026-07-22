@@ -102,8 +102,16 @@ describe('Choices state slice', () => {
     expect(choices.listDecisions()).toHaveLength(0)
   })
 
-  it('hydrate(null) leaves slice empty and does not throw', () => {
+  it('hydrate(null) applies the demo seed corpus and does not throw', () => {
+    // Fresh boot (Persistence.load() returns choices: null) falls back to the
+    // seed corpus so the demo Choices tab is populated.
     expect(() => choices.hydrate(null)).not.toThrow()
+    expect(choices.listDecisions().length).toBeGreaterThan(0)
+    expect(choices.listIntentions().length).toBeGreaterThan(0)
+  })
+
+  it('hydrate(explicit empty) leaves slice empty — a cleared state does not resurrect the seed', () => {
+    choices.hydrate({ decisions: [], intentions: [] })
     expect(choices.listDecisions()).toHaveLength(0)
     expect(choices.listIntentions()).toHaveLength(0)
   })

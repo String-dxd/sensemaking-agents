@@ -60,7 +60,10 @@ export function loadStudentSpaceShellData(studentId: string): StudentSpaceShellD
   return {
     identity,
     calendarEvents: buildCalendarEvents(studentId, reflections),
-    teacherLetters: buildTeacherLetters(studentId, student, identity),
+    // Letters come from the engine seed (LETTERS_SEED) only — the two
+    // teacher-prompt letters (camp, career fair). The shell no longer
+    // generates extra pattern/first-thread letters.
+    teacherLetters: [],
   }
 }
 
@@ -119,50 +122,6 @@ function buildCalendarEvents(
         }
       : null,
   ].filter(Boolean) as StudentSpaceShellCalendarEvent[]
-}
-
-function buildTeacherLetters(
-  studentId: string,
-  student: SeedStudent,
-  identity: StudentSpaceShellIdentity,
-): StudentSpaceShellTeacherLetter[] {
-  const reflections = (student.reflections ?? []).filter(hasCreatedAt)
-  const latestReflection = reflections.at(-1)
-  const firstReflection = reflections[0]
-  const notes = student.profile?.notes_for_review?.trim()
-  const name = identity.name
-
-  return [
-    latestReflection
-      ? {
-          id: `demo-shell:${studentId}:letter-pattern`,
-          from: 'Ms Tan',
-          subject: 'A pattern worth keeping',
-          body: [
-            `I read back through the moments you have been saving, ${name}.`,
-            notes
-              ? `The pattern I am noticing is this: ${notes}`
-              : 'The pattern I am noticing is not one big event, but several ordinary moments pointing in the same direction.',
-            'Keep treating those moments as evidence. They are small, but they are not random.',
-          ].join('\n\n'),
-          sentAt: latestReflection.created_at,
-          read: false,
-        }
-      : null,
-    firstReflection
-      ? {
-          id: `demo-shell:${studentId}:letter-first-thread`,
-          from: 'Ms Tan',
-          subject: 'About the first thread you logged',
-          body: [
-            'I wanted to name something quietly.',
-            'The first reflection you saved already shows a usable thread. Do not rush to turn it into a final answer; just keep noticing when the same kind of energy returns.',
-          ].join('\n\n'),
-          sentAt: firstReflection.created_at,
-          read: true,
-        }
-      : null,
-  ].filter(Boolean) as StudentSpaceShellTeacherLetter[]
 }
 
 function parseNameHandle(value: string): { name: string; detail: string | null } {

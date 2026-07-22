@@ -59,7 +59,7 @@ function makeProfile() {
 
   return {
     subscribers,
-    identity: { name: 'Mei', className: 'Sec 3B', avatarDataUrl: null },
+    identity: { name: 'Alice', className: 'Sec 3B', avatarDataUrl: null },
     getFacet: vi.fn((facet: keyof typeof facets) => facets[facet] ?? null),
     countByClaim: vi.fn((facet: keyof typeof facets) => {
       const counts: Record<string, number> = {}
@@ -135,7 +135,7 @@ describe('ProfileSheet (React)', () => {
   it('renders identity, TLDR, collection, and timeline for a VIPS tab', async () => {
     renderProfile()
 
-    expect(await screen.findByRole('heading', { name: 'Mei' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Alice' })).toBeInTheDocument()
     expect(
       screen.getByText('Contribution and learning keep surfacing in your reflections.'),
     ).toBeInTheDocument()
@@ -175,7 +175,7 @@ describe('ProfileSheet (React)', () => {
     const profile = makeProfile()
     renderProfile(makeEngine(profile))
 
-    expect(await screen.findByRole('heading', { name: 'Mei' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Alice' })).toBeInTheDocument()
     expect(profile.subscribe).toHaveBeenCalled()
     expect(profile.subscribers.size).toBeGreaterThan(0)
   })

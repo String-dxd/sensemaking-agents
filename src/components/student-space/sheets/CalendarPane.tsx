@@ -1,16 +1,17 @@
 import { Button as BaseButton } from '@base-ui-components/react/button'
 import { Toggle } from '@base-ui-components/react/toggle'
 import { ToggleGroup } from '@base-ui-components/react/toggle-group'
-import { CalendarDays, Camera, ChevronLeft, ChevronRight, NotebookPen, Smile } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { EMOTION_BY_ID, shapeDataUri } from '~/lib/student-space/mood-shapes'
+import { EMOTION_BY_ID } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
 
 /**
  * CalendarPane — React rewrite of the engine CalendarSheet's month grid.
- * Renders a 6×7 cell grid for the visible month with mood dots (small
- * colored dots) and capture markers (square = ask, filled = photo) layered
- * on each day cell. Clicking a day calls `onSelectDate(ymd)`.
+ * Renders a 6×7 cell grid for the visible month. Each day stacks event
+ * chips: reflections show their title on a "paper" chip with a mood-coloured
+ * spine, teacher events show a quieter borderless chip, and overflow past
+ * `MAX_CHIPS` collapses to "+N more". Clicking a day calls `onSelectDate(ymd)`.
  *
  * Keyboard focus stays on the clicked cell — selection swaps `data-selected`
  * Tailwind variant only, not a full re-render of the calendar (PR #33
@@ -95,9 +96,36 @@ function formatWeekRange(cells: Date[]): string {
 
 export interface CalendarPaneEngineState {
   moodPins?: { pins?: Array<{ entryDate: string; emotion?: string }> }
-  captures?: { entries?: Array<{ entryDate: string; kind: string }> }
-  calendar?: { events?: Array<{ entryDate?: string; date?: string; kind?: string }> }
+  captures?: {
+    entries?: Array<{
+      entryDate: string
+      kind: string
+      title?: string
+      contextType?: string
+      reframe?: { headline?: string; moods?: string[] }
+    }>
+  }
+  calendar?: {
+    events?: Array<{
+      entryDate?: string
+      date?: string
+      kind?: string
+      label?: string
+      title?: string
+    }>
+  }
 }
+
+/** A reflection or teacher event rendered as an in-cell chip. */
+interface DayChipItem {
+  type: 'reflection' | 'event'
+  label: string
+  /** Mood accent (spine) colour for reflections. */
+  accent?: string
+}
+
+/** How many chips fit before collapsing to "+N more", by view. */
+const MAX_CHIPS = { week: 4, month: 3 } as const
 
 export type CalendarViewMode = 'week' | 'month'
 
@@ -130,28 +158,29 @@ export function CalendarPane({
         : buildMonthCells(anchorDate.getFullYear(), anchorDate.getMonth()),
     [viewMode, anchorDate],
   )
-  const moods = engineState?.moodPins?.pins ?? []
   const captures = engineState?.captures?.entries ?? []
   const events = engineState?.calendar?.events ?? []
 
-  const moodsByDay = new Map<string, Array<{ emotion?: string }>>()
-  for (const pin of moods) {
-    const list = moodsByDay.get(pin.entryDate) ?? []
-    list.push(pin)
-    moodsByDay.set(pin.entryDate, list)
+  // One chip list per day: reflections first (they are the content), teacher
+  // events after (they are context). Reflections carry a mood-coloured spine.
+  const chipsByDay = new Map<string, DayChipItem[]>()
+  const pushChip = (date: string, chip: DayChipItem) => {
+    const list = chipsByDay.get(date) ?? []
+    list.push(chip)
+    chipsByDay.set(date, list)
   }
-
-  const capturesByDay = new Map<string, Array<{ kind: string }>>()
   for (const cap of captures) {
-    const list = capturesByDay.get(cap.entryDate) ?? []
-    list.push(cap)
-    capturesByDay.set(cap.entryDate, list)
+    const mood = cap.reframe?.moods?.[0]
+    pushChip(cap.entryDate, {
+      type: 'reflection',
+      label: cap.title?.trim() || cap.reframe?.headline?.trim() || 'Reflection',
+      accent: mood ? EMOTION_BY_ID[mood]?.color : undefined,
+    })
   }
-
-  const eventsByDay = new Map<string, number>()
   for (const ev of events) {
     const date = eventDate(ev)
-    if (date) eventsByDay.set(date, (eventsByDay.get(date) ?? 0) + 1)
+    if (!date) continue
+    pushChip(date, { type: 'event', label: ev.label ?? ev.title ?? 'Event' })
   }
 
   const todayYmd = ymd(now)
@@ -234,9 +263,11 @@ export function CalendarPane({
             const isOutside = viewMode === 'month' && cell.getMonth() !== viewMonth
             const isSelected = selectedDate === cellYmd
             const isToday = cellYmd === todayYmd
-            const cellMoods = moodsByDay.get(cellYmd) ?? []
-            const cellCaps = capturesByDay.get(cellYmd) ?? []
-            const cellEvents = eventsByDay.get(cellYmd) ?? 0
+            const cellChips = chipsByDay.get(cellYmd) ?? []
+            const maxChips = MAX_CHIPS[viewMode]
+            const visibleChips =
+              cellChips.length > maxChips ? cellChips.slice(0, maxChips - 1) : cellChips
+            const hiddenCount = cellChips.length - visibleChips.length
 
             return (
               <Toggle
@@ -249,8 +280,8 @@ export function CalendarPane({
                 data-today={isToday || undefined}
                 data-outside={isOutside || undefined}
                 className={cn(
-                  'group relative flex cursor-pointer flex-col rounded-lg border border-transparent p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
-                  viewMode === 'week' ? 'min-h-14' : 'aspect-square min-h-10',
+                  'group relative flex cursor-pointer flex-col gap-1 overflow-hidden rounded-lg border border-transparent p-1.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                  viewMode === 'week' ? 'min-h-28' : 'min-h-24',
                   isOutside && !isSelected && 'opacity-35',
                   isToday && !isSelected && 'border-[rgba(43,38,32,0.24)] bg-white/45',
                   isSelected
@@ -258,48 +289,36 @@ export function CalendarPane({
                     : 'text-(--color-sheet-ink) hover:bg-black/5',
                 )}
               >
-                <span className="text-xs font-medium tabular-nums">{cell.getDate()}</span>
-                <div className="mt-auto flex min-h-2 flex-wrap items-center gap-0.5">
-                  {cellMoods.slice(0, 3).map((mood, i) => {
-                    const emotion = EMOTION_BY_ID[mood.emotion ?? '']
-                    if (!emotion) return null
-                    return (
-                      <img
-                        // biome-ignore lint/suspicious/noArrayIndexKey: mood badges are positional within a day
+                <span
+                  className={cn(
+                    'shrink-0 px-0.5 text-xs font-semibold tabular-nums',
+                    isSelected ? 'text-white' : 'text-(--color-sheet-ink)',
+                  )}
+                >
+                  {cell.getDate()}
+                </span>
+                {visibleChips.length > 0 ? (
+                  <div className="flex min-h-0 flex-col gap-0.5">
+                    {visibleChips.map((chip, i) => (
+                      <DayChip
+                        // biome-ignore lint/suspicious/noArrayIndexKey: chips are positional within a day
                         key={i}
-                        src={shapeDataUri(emotion)}
-                        alt=""
-                        aria-hidden
-                        className="size-3.5"
-                        draggable={false}
+                        chip={chip}
+                        selected={isSelected}
                       />
-                    )
-                  })}
-                  {cellCaps.length > 0
-                    ? (() => {
-                        const hasPhoto = cellCaps.some((c) => c.kind === 'photo')
-                        const Icon = hasPhoto ? Camera : NotebookPen
-                        return (
-                          <Icon
-                            aria-hidden
-                            className={cn(
-                              'size-3',
-                              isSelected ? 'text-white' : 'text-(--color-sheet-ink)',
-                            )}
-                          />
-                        )
-                      })()
-                    : null}
-                  {cellEvents > 0 ? (
-                    <CalendarDays
-                      aria-hidden
-                      className={cn(
-                        'size-3',
-                        isSelected ? 'text-white' : 'text-(--color-sheet-ink)',
-                      )}
-                    />
-                  ) : null}
-                </div>
+                    ))}
+                    {hiddenCount > 0 ? (
+                      <span
+                        className={cn(
+                          'px-1 text-[10px] font-medium leading-tight',
+                          isSelected ? 'text-white/80' : 'text-(--color-sheet-ink-soft)',
+                        )}
+                      >
+                        +{hiddenCount} more
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
               </Toggle>
             )
           })}
@@ -310,26 +329,66 @@ export function CalendarPane({
   )
 }
 
+/**
+ * A single in-cell chip. Reflections are filled "paper" chips with a
+ * mood-coloured spine and the entry title; teacher events are quieter,
+ * borderless chips with a hollow marker so content outranks context.
+ */
+function DayChip({ chip, selected }: { chip: DayChipItem; selected: boolean }) {
+  if (chip.type === 'event') {
+    return (
+      <span
+        className={cn(
+          'flex items-center gap-1 overflow-hidden py-px pr-1 pl-1 text-[10px] leading-tight',
+          selected ? 'text-white/85' : 'text-(--color-sheet-ink-soft)',
+        )}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            'size-1.5 shrink-0 rounded-full border',
+            selected ? 'border-white/70' : 'border-(--color-sheet-ink-soft)',
+          )}
+        />
+        <span className="truncate">{chip.label}</span>
+      </span>
+    )
+  }
+  const spine = chip.accent ?? (selected ? 'rgba(255,255,255,0.7)' : 'var(--color-sheet-ink-soft)')
+  return (
+    <span
+      className={cn(
+        'flex items-center gap-1 overflow-hidden rounded-[5px] py-[3px] pr-1.5 pl-1 text-[10px] font-medium leading-tight',
+        selected
+          ? 'bg-white/20 text-white'
+          : 'bg-white/65 text-(--color-sheet-ink) shadow-[inset_0_0_0_1px_rgba(43,38,32,0.06)]',
+      )}
+    >
+      <span
+        aria-hidden
+        className="h-2.5 w-[3px] shrink-0 rounded-full"
+        style={{ background: spine }}
+      />
+      <span className="truncate">{chip.label}</span>
+    </span>
+  )
+}
+
 function CalendarLegend() {
   return (
     <ul
       aria-label="Calendar marker legend"
-      className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-(--color-sheet-divider)/70 pt-3 text-xs text-(--color-sheet-ink-soft)"
+      className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-(--color-sheet-divider)/70 pt-3 text-xs text-(--color-sheet-ink-soft)"
     >
       <li className="inline-flex items-center gap-1.5">
-        <Smile aria-hidden className="size-3.5 text-(--color-sheet-ink)" />
-        Mood
+        <span aria-hidden className="h-3 w-[3px] shrink-0 rounded-full bg-(--color-sheet-ink)" />
+        Reflection — colour shows the mood
       </li>
       <li className="inline-flex items-center gap-1.5">
-        <NotebookPen aria-hidden className="size-3.5 text-(--color-sheet-ink)" />
-        Reflection
-      </li>
-      <li className="inline-flex items-center gap-1.5">
-        <Camera aria-hidden className="size-3.5 text-(--color-sheet-ink)" />
-        Photo
-      </li>
-      <li className="inline-flex items-center gap-1.5">
-        <CalendarDays aria-hidden className="size-3.5 text-(--color-sheet-ink)" />
+        <span
+          aria-hidden
+          className="size-1.5 shrink-0 rounded-full border border-(--color-sheet-ink-soft)"
+        />
         Event
       </li>
     </ul>

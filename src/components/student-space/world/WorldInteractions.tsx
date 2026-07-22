@@ -1493,8 +1493,11 @@ export class HoverProbeController {
     this.pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1
     this.ray.setFromCamera(this.pointer, this.camera)
 
+    // Props hidden by the onboarding ceremony must not stay invisible
+    // hover/click targets — three's Raycaster ignores `visible`, so gate
+    // each pick on the group flag.
     const telescopeGroup = this.view.telescope?.group
-    if (telescopeGroup && this.ray.intersectObject(telescopeGroup, true)[0]) {
+    if (telescopeGroup?.visible && this.ray.intersectObject(telescopeGroup, true)[0]) {
       return {
         kind: 'telescope',
         group: telescopeGroup,
@@ -1503,7 +1506,7 @@ export class HoverProbeController {
       }
     }
     const mailboxGroup = this.view.mailbox?.group
-    if (mailboxGroup && this.ray.intersectObject(mailboxGroup, true)[0]) {
+    if (mailboxGroup?.visible && this.ray.intersectObject(mailboxGroup, true)[0]) {
       return {
         kind: 'mailbox',
         group: mailboxGroup,
@@ -1515,7 +1518,8 @@ export class HoverProbeController {
     if (this.ray.intersectObject(kiraGroup, true)[0]) {
       return { kind: 'kira', group: kiraGroup, x: kiraGroup.position.x, z: kiraGroup.position.z }
     }
-    for (const fruit of this.view.fruits?.entries ?? []) {
+    const fruitEntries = this.view.fruits?.group?.visible ? (this.view.fruits?.entries ?? []) : []
+    for (const fruit of fruitEntries) {
       if (this.ray.intersectObject(fruit.group, true)[0]) {
         return {
           kind: 'fruit',
@@ -1528,7 +1532,8 @@ export class HoverProbeController {
         }
       }
     }
-    for (const flower of this.view.flowers.flowers) {
+    const flowerEntries = this.view.flowers?.group?.visible ? this.view.flowers.flowers : []
+    for (const flower of flowerEntries) {
       if (this.ray.intersectObject(flower.group, true)[0]) {
         return {
           kind: 'flower',

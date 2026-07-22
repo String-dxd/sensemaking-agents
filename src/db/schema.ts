@@ -69,6 +69,8 @@ export const mirrorEntries = pgTable(
     // No default — RLS + withStudent envelope always supplies student_id; missing-studentId should fail loud, not silently land in 'demo'.
     studentId: text('student_id').notNull(),
     transcript: text('transcript').notNull(),
+    /** Optional short display title (e.g. demo corpus section headings). */
+    title: text('title'),
     validation: text('validation').notNull(),
     inferredMeaning: text('inferred_meaning').notNull(),
     storyReframe: text('story_reframe').notNull(),

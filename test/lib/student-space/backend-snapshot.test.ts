@@ -295,7 +295,7 @@ describe('Student Space backend snapshot mappers', () => {
   describe('identity hydration via authMenu fallback', () => {
     it('uses the seed student_profile name when present (auth label is ignored)', () => {
       const profile = mapVipsPagesToStudentSpaceProfile(
-        vipsSnapshot({ student_profile: { name: 'Mei Tan', detail: 'Sec 3B' } }),
+        vipsSnapshot({ student_profile: { name: 'Alice Tan', detail: 'Sec 3B' } }),
         {
           status: 'signed-in',
           label: 'Reza Ilmi',
@@ -304,7 +304,7 @@ describe('Student Space backend snapshot mappers', () => {
         },
       )
       expect(profile.identity).toEqual({
-        name: 'Mei Tan',
+        name: 'Alice Tan',
         className: 'Sec 3B',
         avatarDataUrl: null,
       })

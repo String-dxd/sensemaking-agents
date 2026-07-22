@@ -4,7 +4,7 @@
 > conditions. Update this plan's row in `advisor-plans/README.md` when done.
 >
 > **Read first**: `advisor-plans/000-kira-spec-alignment-brief.md`.
-> Requires Plan 001 executed (Ming Liang trajectory with `timeline_key`s seeded)
+> Requires Plan 001 executed (Alice trajectory with `timeline_key`s seeded)
 > for the end-to-end demo check; the code changes themselves don't depend on it.
 >
 > **Drift check (run first)**:
@@ -24,7 +24,7 @@
 ## Why this matters
 
 The spec's Pathway Explorer grounds every pathway in *recorded moments* —
-"five directions, every one traceable to a moment he actually recorded". The
+"five directions, every one traceable to a moment she actually recorded". The
 data chain already exists: seeded pathways carry
 `trait_combination[].timeline_entry_id` → `vips_timeline_entries.reflection_id`
 → `mirror_entries.id`. But the client mapping drops it: trait chips on the

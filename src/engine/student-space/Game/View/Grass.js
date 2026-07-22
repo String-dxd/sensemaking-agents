@@ -169,16 +169,7 @@ export default class Grass
             charPos.w = 0
         }
 
-        // Day-cycle tint (KTD-8): blades darken with the world at night and
-        // pick up the warm key at sunset. Normalized against the noon
-        // keyframe (sunInt 0.78), floored so night grass stays readable.
-        const day = this.state.day.currentState
-        if(day)
-        {
-            const s = Math.min(1.15, Math.max(0.3, 0.25 + 0.75 * (day.sunInt / 0.78)))
-            const tint = this.material.uniforms.uDayTint.value
-            tint.setRGB(day.sunColor[0] / 255, day.sunColor[1] / 255, day.sunColor[2] / 255)
-            tint.lerp(new THREE.Color(1, 1, 1), 0.6).multiplyScalar(s)
-        }
+        // uDayTint stays at its white default — island lighting is fixed at
+        // the editor rig (day-cycle modulation removed by request).
     }
 }

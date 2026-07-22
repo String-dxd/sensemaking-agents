@@ -34,28 +34,4 @@ export const LETTERS_SEED = [
         read:    false,
         prompt:  'At the career fair, what were three things that stood out to you, and why?',
     },
-    {
-        id:      'lt_01',
-        from:    'Ms. Tan',
-        subject: 'A small noticing during recess',
-        body:    'I saw you sit with Shafiqah at the corner bench on Tuesday — the one with the broken slat. You didn\'t do anything dramatic. You just stayed. I don\'t think she would have said it out loud, but it landed.\n\nThe thing I want you to know is that quiet company is also work. It costs you something to sit there. I see you doing it more than once a week now, and I want to ask you a question I usually keep for older students: how do you know when to leave? Not when to step away from her — when to step away from the role. We can talk about it whenever you want. No need to bring it up if it\'s not on your mind.\n\nTake care of your sleep. The maths waits.\n\n— Ms. Tan',
-        sentAt:  isoDaysAgo(2),
-        read:    false,
-    },
-    {
-        id:      'lt_02',
-        from:    'Ms. Tan',
-        subject: 'About your VIA reflection — the elder-befriending one',
-        body:    'I read what you wrote about going home feeling "full, not tired." I have been doing this job long enough to take that line seriously. Most students come back from VIA with a checklist energy. You came back with a different one.\n\nI am not going to tell you what it means. That\'s for you to keep watching. But I would gently ask: what would it look like if the next CCA-style choice you made was tested against that same word — full, not tired? You don\'t have to answer me. Write it in your own book somewhere where you\'ll see it again in two months.\n\n— Ms. Tan',
-        sentAt:  isoDaysAgo(9),
-        read:    true,
-    },
-    {
-        id:      'lt_03',
-        from:    'Ms. Tan',
-        subject: 'Re: the Tuesday assignment',
-        body:    'Thank you for asking for an extension instead of pretending. You handled it well. Three things, and then I will let you go:\n\n1. The extension is fine. New due date is Monday morning before form time.\n2. Your maths is improving. I can see it in your working, not just your final answers.\n3. The thing you said about your grandma — I will not bring it up if you don\'t. But I noted it.\n\n— Ms. Tan',
-        sentAt:  isoDaysAgo(16),
-        read:    true,
-    },
 ]
