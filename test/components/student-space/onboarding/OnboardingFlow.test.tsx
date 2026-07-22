@@ -361,7 +361,7 @@ describe('OnboardingFlow (React)', () => {
   })
 
   describe('FirstChat surface', () => {
-    it('flies Kira in, opens the intro panel, and advances to first-capture through the CTA chain', async () => {
+    it('wakes Kira, opens the intro screen, and completes onboarding through the CTA chain', async () => {
       vi.stubGlobal(
         'matchMedia',
         vi.fn(() => ({ matches: true })),
@@ -370,13 +370,13 @@ describe('OnboardingFlow (React)', () => {
       const game = makeGame({ onboarding })
       renderFlow(game)
 
-      // Bird flies in and the panel is asked to render the intro line via
-      // kiraNarrator.speak, with the "Tell me more" CTA wired to advance.
+      // Bird wakes at its perch and the panel renders the transcript's
+      // first onboarding screen via kiraNarrator.speak.
       await waitFor(() =>
         expect(game.view.kiraNarrator.speak).toHaveBeenCalledWith(
           expect.objectContaining({
-            text: "Hey, I'm Pip. Thanks for bringing me into your world.",
-            cta: 'Tell me more',
+            text: ONBOARDING_COPY.kira.firstChatIntro.replace('{companionName}', 'Pip'),
+            cta: ONBOARDING_COPY.firstChatActions.chatMore,
           }),
         ),
       )
@@ -384,8 +384,8 @@ describe('OnboardingFlow (React)', () => {
         expect.objectContaining({ reducedMotion: true }),
       )
 
-      // Walk through the explainer beats. The final onConfirm is feelNow,
-      // which closes the panel and advances onboarding to first-capture.
+      // Walk through the remaining screens. The final onConfirm ends the
+      // ceremony — no capture/bloom stages follow the transcript's screens.
       const beatCount = ONBOARDING_COPY.kira.firstChatExplainer.length
       for (let i = 0; i < beatCount + 1; i += 1) {
         const calls = game.view.kiraNarrator.speak.mock.calls
@@ -393,11 +393,11 @@ describe('OnboardingFlow (React)', () => {
         last?.onConfirm?.()
       }
 
-      expect(onboarding.stage).toBe('first-capture')
+      expect(onboarding.stage).toBe('done')
       expect(game.view.kiraNarrator.close).toHaveBeenCalled()
     })
 
-    it('sequences explainer beats through the panel CTA, ending with the "Start first capture" cta', async () => {
+    it('sequences the transcript screens through the panel CTA, ending with the closing cta', async () => {
       vi.stubGlobal(
         'matchMedia',
         vi.fn(() => ({ matches: true })),
@@ -408,11 +408,11 @@ describe('OnboardingFlow (React)', () => {
 
       await waitFor(() =>
         expect(game.view.kiraNarrator.speak).toHaveBeenCalledWith(
-          expect.objectContaining({ cta: 'Tell me more' }),
+          expect.objectContaining({ cta: ONBOARDING_COPY.firstChatActions.chatMore }),
         ),
       )
 
-      // First CTA tap kicks off the explainer chain.
+      // First CTA tap advances to screen 2.
       const introCall = game.view.kiraNarrator.speak.mock.calls.at(-1)?.[0]
       introCall?.onConfirm?.()
 
@@ -420,11 +420,11 @@ describe('OnboardingFlow (React)', () => {
       for (let i = 0; i < beats.length - 1; i += 1) {
         const call = game.view.kiraNarrator.speak.mock.calls.at(-1)?.[0]
         expect(call?.text).toBe(beats[i])
-        expect(call?.cta).toBe('Continue')
+        expect(call?.cta).toBe(ONBOARDING_COPY.firstChatActions.chatMore)
         call?.onConfirm?.()
       }
 
-      // Last explainer beat shows with the hand-off CTA into first-capture.
+      // Last screen shows with the ceremony-ending CTA.
       const lastBeatCall = game.view.kiraNarrator.speak.mock.calls.at(-1)?.[0]
       expect(lastBeatCall?.text).toBe(beats[beats.length - 1])
       expect(lastBeatCall?.cta).toBe(ONBOARDING_COPY.firstChatActions.feel)

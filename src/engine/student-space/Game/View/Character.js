@@ -374,8 +374,14 @@ export default class Character
 
         if(this.onboardingMode && !script)
         {
-            // Parked: the orchestrator owns position/pose. Keep the mixer
-            // breathing so a revealed character isn't frozen mid-clip.
+            // Parked: the orchestrator owns position/pose. While the narrator
+            // panel is open the dialogue should read as speech, so play the
+            // talk clip; otherwise hold the idle pose. Keep the mixer ticking
+            // so a revealed character isn't frozen mid-clip.
+            if(this.group.visible)
+            {
+                this._playClip(narrating ? 'Talk_Passionately' : behaviorClip(s), !narrating)
+            }
             if(this._mixer) this._mixer.update(dt)
             return
         }

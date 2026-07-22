@@ -56,19 +56,18 @@ export const ONBOARDING_COPY = Object.freeze({
     },
 
     kira: {
-        firstChatIntro:   "Hey, I'm {companionName}. Thanks for bringing me into your world.",
+        // Onboarding dialogue (MyWorld demo transcripts, "Onboarding
+        // dialogue" screens 1-3). Screen 1 is the intro line; screens 2-3
+        // follow one CTA tap at a time, spoken by the companion in the
+        // narrator panel while the talk clip plays. The final screen ends
+        // the ceremony ("I'll let you get started").
+        firstChatIntro:   "Hey, I'm {companionName}, thank you for bringing me into your world! Tap the mic and tell me what's on your mind. There's no right answer, no grades, or expectations. Let's chat.",
         firstChatInvite:  'How does it feel, starting this?',
         firstChatChatPrompt: 'Anything else on your mind?',
         firstChatChatMore:   "Take your time. I'm listening.",
-        // Three-beat explainer played when "Tell me more" is tapped. Each
-        // line names a real mechanic: beat 1 = capture → sprout + V/I/P/S
-        // picker, beat 2 = threshold → species bloom, beat 3 = pattern
-        // surfacing + payoff. Lines run sequentially with the same gap
-        // as firstChatChatMore → firstChatChatPrompt.
         firstChatExplainer: [
-            "Tap the mic and tell me what's on your mind. No right answer, no grades.",
-            'Every share grows your world — what you care about, choices you made, people who matter.',
-            'Trees and flowers come to life — and this place starts to look like you.',
+            'Every time you share something with me, you help your world grow. Share things that connect with you. It could be things you care about, choices you made, people who matter; and trees, flowers, plants will come to life.',
+            "Over time your world will start to look like you: reflecting what you care about, how you think, what you're like. I hope you enjoy your time here! I'll let you get started :)",
         ],
         // One-shot onboarding beats. Each line shows alone in the narrator
         // panel; the user advances with the CTA. No bubbles overlap.
@@ -81,8 +80,8 @@ export const ONBOARDING_COPY = Object.freeze({
     },
 
     firstChatActions: {
-        chatMore: 'Tell me more',
-        feel:     'Start first capture',
+        chatMore: 'Next',
+        feel:     "Let's go",
     },
 
     firstCapture: {

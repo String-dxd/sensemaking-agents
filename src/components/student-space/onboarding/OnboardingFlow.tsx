@@ -286,7 +286,12 @@ export function OnboardingFlow() {
         camera={engine.view?.camera}
         kiraNarrator={engine.view?.kiraNarrator}
         sound={engine.view?.sound}
-        onAdvance={() => advance('first-capture')}
+        onComplete={() => {
+          // The transcript's final screen ends the ceremony ("I'll let you
+          // get started") — no capture/bloom stages follow it.
+          onboarding.complete?.()
+          engine.state?.persistence?.flush?.()
+        }}
       />
     ) : stage === 'first-capture' ? (
       <FirstCapture onAdvance={() => advance('bloom-celebrate')} />
