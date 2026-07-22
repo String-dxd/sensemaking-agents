@@ -142,11 +142,12 @@ export default class Flowers
         }
         else
         {
-            const radiusMax = this.island.radius - 0.6
-            const theta  = hash(seed, 1000 + i) * Math.PI * 2
-            const radial = Math.sqrt(hash(seed, 2000 + i)) * radiusMax
-            x   = Math.cos(theta) * radial
-            z   = Math.sin(theta) * radial
+            // Seeded land-cell fallback (world-port U10) — only reached when
+            // the IslandLayout slice is empty; layout placements are the norm.
+            const cells = this.island.placeableCells()
+            const cell = cells[Math.min(cells.length - 1, Math.floor(hash(seed, 1000 + i) * cells.length))]
+            x   = cell?.x ?? 0
+            z   = cell?.z ?? 0
             yaw = hash(seed, 3000 + i) * Math.PI * 2
         }
         const y = this.island.heightAt(x, z)

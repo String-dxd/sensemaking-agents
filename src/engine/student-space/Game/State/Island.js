@@ -41,19 +41,6 @@ export default class Island
         /** Square world bounds: X and Z each span [-worldSize/2, worldSize/2]. */
         this.worldSize = this.spec.worldSize
 
-        // ── TEMPORARY SHIMS (removed in U12) ──────────────────────────────
-        // Plateau-era constants still read by the legacy views that U4 (View/
-        // Island.js), U5 (Grass.js) and U10 (Fireflies/Flowers) replace or
-        // migrate. Nothing new may consume these.
-        this.radius          = 5.0
-        this.sandOuterRadius = 8.2
-        this.plateauTopY     = 1.0
-        this.sandTopY        = 0.18
-        this.cliffHeight     = 0.55
-        this.chunkSize       = 16
-        this.noiseAmp        = 0.22
-        this.noiseFreq       = 0.6
-        this.detailAmp       = 0.035
     }
 
     /**
@@ -167,33 +154,14 @@ export default class Island
         return cells
     }
 
-    // ── TEMPORARY SHIMS (removed in U12) ──────────────────────────────────
-    // Polar-era predicates still called by the legacy views replaced in U4
-    // (View/Island.js), U5 (Grass.js) and migrated in U10 (Fireflies).
-    // Nothing new may call these; grep must come back clean by phase 4 end.
-
-    silhouetteAt(theta)
+    /**
+     * Land cells whose centers pass `isPlaceable` — the scatter/placement
+     * pool for sprout seeding and ambient systems. Cached.
+     */
+    placeableCells()
     {
-        return 1.0
-            + Math.sin(theta * 2.0 + 0.7) * 0.13
-            + Math.sin(theta * 3.0 - 1.3) * 0.07
-            + Math.sin(theta * 5.0 + 2.1) * 0.04
-            + Math.sin(theta * 7.0 - 0.4) * 0.018
-            + Math.sin(theta * 9.0 + 1.8) * 0.012
-    }
-
-    radiusAtTheta(theta, baseRadius = this.radius)
-    {
-        return baseRadius * this.silhouetteAt(theta)
-    }
-
-    radiusAt(x, z, baseRadius = this.radius)
-    {
-        return this.radiusAtTheta(Math.atan2(z, x), baseRadius)
-    }
-
-    isOnPlateau(x, z)
-    {
-        return this.isWalkable(x, z)
+        if(this._placeableCells) return this._placeableCells
+        this._placeableCells = this.landCells().filter((cell) => this.isPlaceable(cell.x, cell.z))
+        return this._placeableCells
     }
 }

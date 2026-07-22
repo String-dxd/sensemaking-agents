@@ -25,8 +25,8 @@
       "id": "tree-2",
       "kind": "tree",
       "species": "cherry",
-      "x": 2.4,
-      "z": -1.1,
+      "x": 2.8125,
+      "z": -1.3125,
       "yaw": 1.6,
       "scale": 0.5,
       "locked": false
@@ -65,8 +65,8 @@
       "id": "tree-6",
       "kind": "tree",
       "species": "cherry",
-      "x": 3,
-      "z": 0.9,
+      "x": 3.5625,
+      "z": 0.5625,
       "yaw": 2.2,
       "scale": 0.48,
       "locked": false
@@ -75,8 +75,8 @@
       "id": "flower-0",
       "kind": "flower",
       "species": "daisy",
-      "x": -1.4,
-      "z": 1,
+      "x": -0.9375,
+      "z": 1.3125,
       "yaw": 2.1092653076201873,
       "scale": 1,
       "locked": false
@@ -95,8 +95,8 @@
       "id": "flower-2",
       "kind": "flower",
       "species": "rose",
-      "x": -1.2056196542577522,
-      "z": 1.7223150842013257,
+      "x": -1.6875,
+      "z": 1.6875,
       "yaw": 5.444380068671112,
       "scale": 1,
       "locked": false
@@ -135,8 +135,8 @@
       "id": "flower-6",
       "kind": "flower",
       "species": "daisy",
-      "x": 1.961298691314374,
-      "z": 0.2452660666470689,
+      "x": 1.6875,
+      "z": 0.1875,
       "yaw": 4.734380128959818,
       "scale": 1,
       "locked": false
@@ -145,8 +145,8 @@
       "id": "flower-7",
       "kind": "flower",
       "species": "tulip",
-      "x": 1.6276786315074756,
-      "z": -3.915639190800648,
+      "x": 2.0625,
+      "z": -4.3125,
       "yaw": 1.9647520455550564,
       "scale": 1,
       "locked": false
@@ -165,8 +165,8 @@
       "id": "flower-9",
       "kind": "flower",
       "species": "lily",
-      "x": 1.41890598685407,
-      "z": -1.4278493619670383,
+      "x": 0.5625,
+      "z": -2.0625,
       "yaw": 5.718326948064141,
       "scale": 1,
       "locked": false
@@ -185,8 +185,8 @@
       "id": "flower-11",
       "kind": "flower",
       "species": "hyacinth",
-      "x": 2.4013968979038176,
-      "z": -0.9753014604407813,
+      "x": 2.0625,
+      "z": -1.6875,
       "yaw": 1.9088316963211585,
       "scale": 1,
       "locked": false
@@ -195,8 +195,8 @@
       "id": "flower-12",
       "kind": "flower",
       "species": "daisy",
-      "x": -1.2835937934485506,
-      "z": 0.6858359668465628,
+      "x": -2.0625,
+      "z": -0.1875,
       "yaw": 1.411831738523253,
       "scale": 1,
       "locked": false
@@ -235,8 +235,8 @@
       "id": "flower-16",
       "kind": "flower",
       "species": "pansy",
-      "x": 1.7245655918113776,
-      "z": -1.167267544113291,
+      "x": 0.9375,
+      "z": -2.0625,
       "yaw": 0.3820176666765188,
       "scale": 1,
       "locked": false
@@ -245,8 +245,8 @@
       "id": "flower-17",
       "kind": "flower",
       "species": "hyacinth",
-      "x": -0.5925352299312808,
-      "z": 1.970024873266905,
+      "x": -0.5625,
+      "z": 1.6875,
       "yaw": 0.1564513141487717,
       "scale": 1,
       "locked": false
@@ -294,8 +294,8 @@
     {
       "id": "mailbox-0",
       "kind": "mailbox",
-      "x": -0.6,
-      "z": 2.5,
+      "x": -0.9375,
+      "z": 2.4375,
       "yaw": 0,
       "scale": 1,
       "locked": true
@@ -303,8 +303,8 @@
     {
       "id": "telescope-0",
       "kind": "telescope",
-      "x": 1.2973693188292486,
-      "z": 4.673257199273386,
+      "x": 1.6875,
+      "z": 4.3125,
       "yaw": 0,
       "scale": 1,
       "locked": true

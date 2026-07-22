@@ -19,9 +19,46 @@
 import Persistence from './Persistence.js'
 import { coercePosition, mergeIslandLayout, mergePlacedObject } from './schema.js'
 import { defaultIslandLayout } from '../Data/islandLayout.js'
+import { claimCellAt, occupiedCellsFromSpec, snapPositionToLand } from './islandSpecCore/snapToLand.ts'
 
 let counter = 0
 const uuid = () => `${Date.now().toString(36)}-${(counter++).toString(36)}`
+
+
+/**
+ * Snap a hydrated layout's invalid positions to the nearest flat land cell
+ * (pure U1 core helper; terrain predicate injected). Occupancy is pre-seeded
+ * with the committed spec's decorative-object cells and the character spawn
+ * so a snapped functional object never lands inside an editor tree; valid
+ * positions are byte-identical and their cells claimed first so clustered
+ * invalid objects fan out to distinct cells.
+ */
+export function snapLayoutPositions(objects, island)
+{
+    const env = {
+        worldSize: island.worldSize,
+        cols: island.spec.grid.cols,
+        rows: island.spec.grid.rows,
+        isValid: (x, z) => island.isPlaceable(x, z),
+    }
+    const occupied = occupiedCellsFromSpec(island.spec)
+    const invalid = []
+    for(const o of objects)
+    {
+        if(typeof o.x !== 'number' || typeof o.z !== 'number') continue
+        if(env.isValid(o.x, o.z)) claimCellAt(env, occupied, o.x, o.z)
+        else invalid.push(o)
+    }
+    for(const o of invalid)
+    {
+        const snapped = snapPositionToLand(env, occupied, o.x, o.z)
+        if(snapped)
+        {
+            o.x = snapped.x
+            o.z = snapped.z
+        }
+    }
+}
 
 export default class IslandLayout
 {
@@ -249,12 +286,18 @@ export default class IslandLayout
      * slice keeps the base.
      * @param {unknown} snapshot
      */
-    hydrate(snapshot)
+    hydrate(snapshot, island)
     {
         if(!snapshot || typeof snapshot !== 'object') return
         const merged = mergeIslandLayout(snapshot)
         if(!merged) return
         this.objects = merged.objects
+        // Terrain-aware snap (world-port U11, KTD-7): persisted positions that
+        // fall in the sea or on terrace walls under the new terrain snap to
+        // the nearest flat land cell — hydrate-time only, no subscriber fan,
+        // no _persist, no snapshot POST. `schema.js` stays terrain-blind; the
+        // snapped values persist lazily on the first ordinary mutation.
+        if(island) snapLayoutPositions(this.objects, island)
         this._invalidateCache()
         // Bulk hydrate does NOT fan events (same rationale as Sprouts.hydrate).
     }

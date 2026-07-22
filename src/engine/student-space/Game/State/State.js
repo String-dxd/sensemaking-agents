@@ -107,11 +107,11 @@ export default class State
         this.profile.hydrate(snapshot.profile)
         this.letters.hydrate(snapshot.letters)
         this.calendar.hydrate(snapshot.calendar)
-        this.sprouts.hydrate(snapshot.sprouts)
+        this.sprouts.hydrate(snapshot.sprouts, this.island)
         this.relationships.hydrate(snapshot.relationships)
         this.choices.hydrate(snapshot.choices)
         this.identityStatusOverride.hydrate(snapshot.identityStatusOverride)
-        this.islandLayout.hydrate(snapshot.islandLayout)
+        this.islandLayout.hydrate(snapshot.islandLayout, this.island)
         this.speciesPalette.hydrate(snapshot.speciesPalette)
 
         // Cross-slice wiring — Sprouts subscribes to Captures and MoodPins so

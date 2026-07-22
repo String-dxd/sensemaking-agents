@@ -52,11 +52,12 @@ export default class Fireflies
 
     _buildOne(seed, i)
     {
-        const theta = hash(seed, i * 11 + 1) * Math.PI * 2
-        const maxR = this.island.radiusAtTheta(theta) * 0.78
-        const r = (0.18 + hash(seed, i * 11 + 2) * 0.82) * maxR
-        const x = Math.cos(theta) * r
-        const z = Math.sin(theta) * r
+        // Seeded land-cell scatter (world-port U10): pick a placeable cell
+        // of the spec terrain, with a small in-cell jitter.
+        const cells = this.island.placeableCells()
+        const cell = cells[Math.min(cells.length - 1, Math.floor(hash(seed, i * 11 + 1) * cells.length))]
+        const x = (cell?.x ?? 0) + (hash(seed, i * 11 + 2) - 0.5) * 0.3
+        const z = (cell?.z ?? 0) + (hash(seed, i * 11 + 4) - 0.5) * 0.3
         const ground = this.island.heightAt(x, z)
         const baseY = ground + 0.75 + hash(seed, i * 11 + 3) * 1.15
 
