@@ -26,6 +26,7 @@ describe('Student Space performance quality state', () => {
       }),
     ).toBe('high')
 
+    // plan 030: retina alone no longer demotes — medium's 1.5 dprCap read as pixelation
     expect(
       selectInitialPerformanceTier({
         devicePixelRatio: 2,
@@ -34,7 +35,7 @@ describe('Student Space performance quality state', () => {
         width: 1440,
         height: 900,
       }),
-    ).toBe('medium')
+    ).toBe('high')
 
     expect(
       selectInitialPerformanceTier({
@@ -45,6 +46,28 @@ describe('Student Space performance quality state', () => {
         height: 844,
       }),
     ).toBe('low')
+
+    // weak cores still demote even off a high-dpr display
+    expect(
+      selectInitialPerformanceTier({
+        devicePixelRatio: 2,
+        hardwareConcurrency: 4,
+        deviceMemory: 8,
+        width: 1440,
+        height: 900,
+      }),
+    ).toBe('medium')
+
+    // high-dpr small screen (phone/tablet that dodged the low branches)
+    expect(
+      selectInitialPerformanceTier({
+        devicePixelRatio: 2,
+        hardwareConcurrency: 8,
+        deviceMemory: 8,
+        width: 900,
+        height: 590,
+      }),
+    ).toBe('medium')
   })
 
   it('demotes after sustained slow frames', () => {

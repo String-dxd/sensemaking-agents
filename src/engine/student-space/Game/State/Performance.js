@@ -81,7 +81,12 @@ export function selectInitialPerformanceTier(hints = {})
         return 'low'
     if(dpr >= 3 && ((cores > 0 && cores <= 4) || (memory > 0 && memory <= 4) || smallestSide <= 600))
         return 'low'
-    if(dpr >= 2 || (cores > 0 && cores <= 4) || (memory > 0 && memory <= 4))
+    // dpr >= 2 alone is not a weakness signal: every retina Mac reports it,
+    // and tier medium's 1.5 dprCap upscales the canvas (reads as pixelation).
+    // Demote high-dpr devices only when cores/memory/viewport also look weak;
+    // the runtime demote path still catches anything the heuristic misses.
+    const weak = (cores > 0 && cores <= 4) || (memory > 0 && memory <= 4)
+    if(weak || (dpr >= 2 && smallestSide > 0 && smallestSide <= 600))
         return 'medium'
     return 'high'
 }

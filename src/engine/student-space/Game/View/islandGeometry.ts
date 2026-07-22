@@ -21,14 +21,23 @@ import {
   worldToCell,
 } from '../State/islandSpecCore/terrainGrid.ts'
 
-// 4 segments per grid cell (256 / GRID_COLS 64). Kept an EVEN multiple of the
+// 8 segments per grid cell (512 / GRID_COLS 64). Kept an EVEN multiple of the
 // grid so cell centers land exactly on lattice vertices. WHY 4 and not 2: the
 // terrace wall's rounded lip/base (terraceBlend's smoothstep, ~0.35 cell ≈
 // 0.13 world wide) is finer than a 2-seg/cell step — at 128 the rounding fell
 // *between* vertices and corners collapsed to a single hard vertex. At 256 the
 // wall spans ~1.4 segments, so the intended lip/base/corner rounding actually
-// tessellates. ~66k vertices, built once per boot.
-export const SEGMENTS = 256
+// tessellates.
+//
+// WHY 8 in the engine (512, not 256): the app camera zooms close to the
+// character; at 256 the ~0.094-unit vertex step spans ~25–30 screen px,
+// polygonizing the smooth tier-field contours into sawtooth terrace lips and
+// stair-stepped shorelines (maintainer screenshot, plan 030). At 512 the
+// smooth-bilinear corner rounding (~0.1–0.19 world units) spans 2–4 vertices
+// and reads as a curve. ~263k vertices, built ONCE per boot (KTD-10) — this
+// is why the engine can afford it while the editor (per-edit rebuilds)
+// deliberately stays at 256.
+export const SEGMENTS = 512
 
 /** Static per-resolution lattice: world XZ per vertex + triangle indices. */
 export interface IslandField {

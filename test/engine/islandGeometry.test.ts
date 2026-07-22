@@ -18,6 +18,8 @@ describe('islandGeometry — composeGeometry on the committed spec', () => {
   const field = buildIslandField(spec.worldSize)
   const geo = composeGeometry(field, spec)
 
+  // These loops assert per-vertex over SEGMENTS² lattice points (~263k at 512) —
+  // well past Vitest's 5s default under full-suite worker contention (plan 030 rev 1).
   it('yields finite positions and normals for every vertex', () => {
     const pos = geo.getAttribute('position')
     const nor = geo.getAttribute('normal')
@@ -29,7 +31,7 @@ describe('islandGeometry — composeGeometry on the committed spec', () => {
       expect(Number.isFinite(pos.getZ(i))).toBe(true)
       expect(Number.isFinite(nor.getY(i))).toBe(true)
     }
-  })
+  }, 30_000)
 
   it('carries the three custom material attributes with sane ranges', () => {
     for (const name of ['aTierFlat', 'aWallness', 'aSurface'] as const) {
@@ -47,7 +49,7 @@ describe('islandGeometry — composeGeometry on the committed spec', () => {
       expect(wallness.getX(i)).toBeLessThanOrEqual(1.0001)
       expect([0, 1]).toContain(surface.getX(i))
     }
-  })
+  }, 30_000)
 
   it('vertex heights agree with evaluateHeight at cell centers (lattice invariant)', () => {
     // SEGMENTS is an even multiple of the grid, so cell centers land exactly
