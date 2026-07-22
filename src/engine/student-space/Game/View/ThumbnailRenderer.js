@@ -73,7 +73,9 @@ export default class ThumbnailRenderer
         })
         this.renderer.setClearColor(SKY_TINT, 0)
         this.renderer.setSize(CANVAS_SIZE, CANVAS_SIZE, false)
-        this.renderer.outputColorSpace = THREE.SRGBColorSpace
+        // r149 API — the r152 rename silently no-ops on the runtime three
+        // (see test/engine/colorspace-guard.test.ts).
+        this.renderer.outputEncoding = THREE.sRGBEncoding
 
         this.scene = new THREE.Scene()
 

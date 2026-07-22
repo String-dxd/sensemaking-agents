@@ -7,6 +7,20 @@ import State from '../State/State.js'
 import { selectPixelRatio } from '../State/Performance.js'
 import { applyRendererSize } from './renderQuality.js'
 
+/**
+ * Color pipeline (KTD-4): sRGB output + ACES filmic tone mapping at exposure
+ * 1.1, matching the island editor's r3f defaults (island-editor/src/App.tsx).
+ * Runtime three is r149 — use the pre-r152 `outputEncoding` API; the renamed
+ * r152+ color-management APIs typecheck against @types/three@0.184 but
+ * silently no-op at runtime (guarded by test/engine/colorspace-guard.test.ts).
+ */
+export function configureColorPipeline(renderer)
+{
+    renderer.outputEncoding = THREE.sRGBEncoding
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.1
+}
+
 export default class Renderer
 {
     constructor(_options = {})
@@ -72,14 +86,7 @@ export default class Renderer
         this._appliedPixelRatio = null
         this._applyQuality(true)
 
-        // this.instance.physicallyCorrectLights = true
-        // this.instance.gammaOutPut = true
-        // this.instance.outputEncoding = THREE.sRGBEncoding
-        // this.instance.shadowMap.type = THREE.PCFSoftShadowMap
-        // this.instance.shadowMap.enabled = false
-        // this.instance.toneMapping = THREE.ReinhardToneMapping
-        // this.instance.toneMapping = THREE.ReinhardToneMapping
-        // this.instance.toneMappingExposure = 1.3
+        configureColorPipeline(this.instance)
 
         this.context = this.instance.getContext()
 

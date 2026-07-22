@@ -417,7 +417,7 @@ export default class Tree
 
         if(bodyTex)
         {
-            bodyTex.colorSpace = THREE.SRGBColorSpace
+            bodyTex.encoding  = THREE.sRGBEncoding
             bodyTex.magFilter  = THREE.NearestFilter
             bodyTex.minFilter  = THREE.NearestFilter
             bodyTex.generateMipmaps = false

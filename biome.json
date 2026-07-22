@@ -7,10 +7,12 @@
       "scripts/**/*.{ts,tsx}",
       "trigger/**/*.{ts,tsx}",
       "!**/routeTree.gen.ts",
+      "!test/engine/fixtures/**",
       "!**/.output/**",
       "!**/dist/**",
       "!**/node_modules/**",
-      "!src/engine/student-space/**"
+      "!src/engine/student-space/**",
+      "src/engine/student-space/**/*.ts"
     ]
   },
   "css": {
