@@ -25,6 +25,8 @@ import type { TranscribeMirrorResult } from '~/server/transcribe-mirror.handler.
 import { updateMirrorReview } from '~/server/update-mirror-review.functions'
 import {
   createRealtimeMirrorCapture,
+  disposePrewarmedRealtimeMirrorCapture,
+  prewarmRealtimeMirrorCapture,
   type StudentSpaceRealtimeConversationUpdate,
   type StudentSpaceRealtimeMirrorCapture,
 } from './realtime-mirror-client'
@@ -137,6 +139,14 @@ export interface StudentSpaceBackendBridge {
   createRealtimeMirrorCapture?: (
     input: StudentSpaceReflectionInput,
   ) => Promise<StudentSpaceRealtimeMirrorCapture>
+  /**
+   * Pre-connect the realtime voice transport (mic muted) so a following
+   * `createRealtimeMirrorCapture` starts instantly. Safe to call repeatedly;
+   * pair with `disposePrewarmedRealtimeMirrorCapture` when the capture
+   * surface closes without recording.
+   */
+  prewarmRealtimeMirrorCapture?: () => void
+  disposePrewarmedRealtimeMirrorCapture?: () => void
   transcribeReflectionAudio?: (
     input: StudentSpaceTranscriptionInput,
   ) => Promise<TranscribeMirrorResult>
@@ -184,6 +194,8 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
       return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory, authMenu })
     },
     loadAuthMenu: async () => loadAuthMenu(),
+    prewarmRealtimeMirrorCapture: () => prewarmRealtimeMirrorCapture(),
+    disposePrewarmedRealtimeMirrorCapture: () => disposePrewarmedRealtimeMirrorCapture(),
     createRealtimeMirrorCapture: async (input) =>
       createRealtimeMirrorCapture({
         localCaptureId: input.localCaptureId,

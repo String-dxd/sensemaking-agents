@@ -106,6 +106,8 @@ type GameWithAsk = {
     }
     backend?: {
       createRealtimeMirrorCapture?: (input: Record<string, unknown>) => Promise<RealtimeCapture>
+      prewarmRealtimeMirrorCapture?: () => void
+      disposePrewarmedRealtimeMirrorCapture?: () => void
       prepareReflection?: (input: Record<string, unknown>) => Promise<PreparedReflection>
       transcribeReflectionAudio?: (
         input: Record<string, unknown>,
@@ -287,6 +289,18 @@ export function AskSheet() {
       setLogInFlight(false)
     }
   }, [abortRecording, open])
+
+  // Pre-connect the realtime voice transport while the sheet is open so the
+  // mic tap starts listening instantly instead of paying for getUserMedia +
+  // WebRTC + SDP + channel-open after the click. The warmed connection keeps
+  // its mic muted until a capture consumes it; unused warmth is dropped when
+  // the sheet closes.
+  useEffect(() => {
+    if (!open || readOnly) return
+    if (!backend?.createRealtimeMirrorCapture || !canCreateRealtimeMirrorCapture()) return
+    backend.prewarmRealtimeMirrorCapture?.()
+    return () => backend.disposePrewarmedRealtimeMirrorCapture?.()
+  }, [open, readOnly, backend])
 
   const letter = useMemo(() => {
     if (!letterId) return null

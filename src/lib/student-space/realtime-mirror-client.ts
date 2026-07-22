@@ -96,10 +96,25 @@ export function canCreateRealtimeMirrorCapture(): boolean {
   )
 }
 
-export async function createRealtimeMirrorCapture(
-  input: StudentSpaceRealtimeMirrorInput,
+interface RealtimeMirrorConnection {
+  stream: MediaStream
+  peer: MinimalPeerConnection
+  dataChannel: MinimalDataChannel
+  remoteAudio: { attach: (event: RTCTrackEvent) => void; close: () => void }
+  sessionReady: Promise<void>
+  dispose: () => void
+}
+
+/**
+ * Open the transport half of a Realtime Mirror session: mic stream, WebRTC
+ * peer + SDP exchange through the server broker, data channel, and the
+ * `session.update` handshake (sent once the channel opens). No capture
+ * semantics attach yet — the mic tracks stay MUTED so a prewarmed connection
+ * never streams audible audio before the user taps the mic.
+ */
+async function openRealtimeMirrorConnection(
   deps: RealtimeMirrorClientDeps = {},
-): Promise<StudentSpaceRealtimeMirrorCapture> {
+): Promise<RealtimeMirrorConnection> {
   const mediaDevices = deps.mediaDevices ?? navigator.mediaDevices
   const PeerConnection =
     deps.RTCPeerConnection ??
@@ -110,6 +125,7 @@ export async function createRealtimeMirrorCapture(
   }
 
   const stream = await mediaDevices.getUserMedia({ audio: REALTIME_AUDIO_CONSTRAINTS })
+  setMicEnabled(stream, false)
   const peer = new PeerConnection() as MinimalPeerConnection
   const remoteAudio = createRemoteAudioOutput(deps.createAudioElement)
   peer.ontrack = (event) => remoteAudio.attach(event)
@@ -117,6 +133,118 @@ export async function createRealtimeMirrorCapture(
     peer.addTrack(track, stream)
   }
   const dataChannel = peer.createDataChannel('oai-events') as MinimalDataChannel
+  const dispose = () => teardownRealtimeCapture(peer, dataChannel, stream, remoteAudio)
+
+  try {
+    const offer = await peer.createOffer()
+    await peer.setLocalDescription(offer)
+    const offerSdp = offer.sdp
+    if (!offerSdp) throw new Error('Could not create a Realtime voice offer.')
+    const response = await (deps.fetch ?? fetch)(deps.endpoint ?? DEFAULT_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/sdp' },
+      body: offerSdp,
+    })
+    if (!response.ok) {
+      throw new Error(await displaySafeRealtimeSetupError(response))
+    }
+    await peer.setRemoteDescription({
+      type: 'answer',
+      sdp: await response.text(),
+    })
+    const sessionReady = sendRealtimeMirrorLiveSessionUpdateWhenOpen(dataChannel)
+    return { stream, peer, dataChannel, remoteAudio, sessionReady, dispose }
+  } catch (err) {
+    dispose()
+    throw err
+  }
+}
+
+let prewarmedConnection: Promise<RealtimeMirrorConnection> | null = null
+
+/**
+ * Pre-connect the Realtime Mirror transport so a later
+ * `createRealtimeMirrorCapture` starts listening instantly instead of paying
+ * for getUserMedia + WebRTC + SDP + channel-open after the mic tap. The
+ * warmed connection keeps its mic muted; a failed prewarm silently clears the
+ * slot so the mic tap falls back to the normal connect path (and its error
+ * surface). Idempotent while a warm connection is pending or ready.
+ */
+export function prewarmRealtimeMirrorCapture(deps: RealtimeMirrorClientDeps = {}): void {
+  if (prewarmedConnection) return
+  const hasInjectedTransport = Boolean(deps.mediaDevices?.getUserMedia && deps.RTCPeerConnection)
+  if (!hasInjectedTransport && !canCreateRealtimeMirrorCapture()) return
+  const pending = openRealtimeMirrorConnection(deps)
+  prewarmedConnection = pending
+  pending.then(
+    (connection) => {
+      // Park the handshake rejection until a capture consumes it — an
+      // unconsumed warm connection must not raise unhandled rejections.
+      connection.sessionReady.catch(() => {})
+    },
+    () => {
+      if (prewarmedConnection === pending) prewarmedConnection = null
+    },
+  )
+}
+
+/** Drop an unconsumed prewarmed connection (sheet closed, mic never tapped). */
+export function disposePrewarmedRealtimeMirrorCapture(): void {
+  const pending = prewarmedConnection
+  prewarmedConnection = null
+  pending?.then((connection) => connection.dispose()).catch(() => {})
+}
+
+function takePrewarmedRealtimeMirrorConnection(): Promise<RealtimeMirrorConnection> | null {
+  const pending = prewarmedConnection
+  prewarmedConnection = null
+  return pending
+}
+
+function isRealtimeMirrorConnectionUsable(connection: RealtimeMirrorConnection): boolean {
+  const state = connection.dataChannel.readyState
+  if (state === 'closed' || state === 'closing') return false
+  const tracks = connection.stream.getAudioTracks()
+  return tracks.length === 0 || tracks.some((track) => track.readyState !== 'ended')
+}
+
+async function obtainRealtimeMirrorConnection(
+  deps: RealtimeMirrorClientDeps,
+): Promise<RealtimeMirrorConnection> {
+  const warm = takePrewarmedRealtimeMirrorConnection()
+  if (warm) {
+    try {
+      const connection = await warm
+      if (isRealtimeMirrorConnectionUsable(connection)) return connection
+      connection.dispose()
+    } catch {
+      // A failed prewarm falls through to a fresh connection attempt so the
+      // caller sees the live error, not the stale one.
+    }
+  }
+  return openRealtimeMirrorConnection(deps)
+}
+
+function setMicEnabled(stream: MediaStream, enabled: boolean) {
+  for (const track of stream.getAudioTracks()) {
+    try {
+      track.enabled = enabled
+    } catch {
+      // Fake tracks in tests may not be writable; the live path always is.
+    }
+  }
+}
+
+export async function createRealtimeMirrorCapture(
+  input: StudentSpaceRealtimeMirrorInput,
+  deps: RealtimeMirrorClientDeps = {},
+): Promise<StudentSpaceRealtimeMirrorCapture> {
+  // Consume the prewarmed transport when one is ready (mic tap after the
+  // sheet pre-connected) — otherwise connect from scratch as before.
+  const connection = await obtainRealtimeMirrorConnection(deps)
+  const { stream, dataChannel } = connection
+  setMicEnabled(stream, true)
+
   const accumulator = createRealtimeMirrorAccumulator(input, {
     timeoutMs: deps.resultTimeoutMs,
     onConversationUpdate: input.onConversationUpdate,
@@ -146,33 +274,11 @@ export async function createRealtimeMirrorCapture(
   dataChannel.addEventListener('message', onMessage)
   dataChannel.addEventListener('error', onChannelError)
 
-  let sessionReady: Promise<void> = Promise.resolve()
-  try {
-    const offer = await peer.createOffer()
-    await peer.setLocalDescription(offer)
-    const offerSdp = offer.sdp
-    if (!offerSdp) throw new Error('Could not create a Realtime voice offer.')
-    const response = await (deps.fetch ?? fetch)(deps.endpoint ?? DEFAULT_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/sdp' },
-      body: offerSdp,
-    })
-    if (!response.ok) {
-      throw new Error(await displaySafeRealtimeSetupError(response))
-    }
-    await peer.setRemoteDescription({
-      type: 'answer',
-      sdp: await response.text(),
-    })
-    sessionReady = sendRealtimeMirrorLiveSessionUpdateWhenOpen(dataChannel).catch((err) => {
-      const error = err instanceof Error ? err : new Error(String(err))
-      accumulator.fail(error)
-      throw error
-    })
-  } catch (err) {
-    teardownRealtimeCapture(peer, dataChannel, stream, remoteAudio)
-    throw err
-  }
+  const sessionReady = connection.sessionReady.catch((err) => {
+    const error = err instanceof Error ? err : new Error(String(err))
+    accumulator.fail(error)
+    throw error
+  })
 
   let stopStarted = false
   return {
@@ -198,12 +304,16 @@ export async function createRealtimeMirrorCapture(
         accumulator.fail(err instanceof Error ? err : new Error(String(err)))
         throw err
       } finally {
-        teardownRealtimeCapture(peer, dataChannel, stream, remoteAudio)
+        connection.dispose()
       }
     },
     abort: () => {
+      // Abort is fire-and-forget: nobody awaits the result after cancelling,
+      // so mark the accumulator promises handled before rejecting them.
+      accumulator.result.catch(() => {})
+      accumulator.transcript.catch(() => {})
       accumulator.fail(new Error('Realtime voice capture was cancelled.'))
-      teardownRealtimeCapture(peer, dataChannel, stream, remoteAudio)
+      connection.dispose()
     },
   }
 }

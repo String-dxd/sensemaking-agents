@@ -1,8 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   createRealtimeMirrorAccumulator,
   createRealtimeMirrorCapture,
+  disposePrewarmedRealtimeMirrorCapture,
+  prewarmRealtimeMirrorCapture,
 } from '~/lib/student-space/realtime-mirror-client'
+
+afterEach(() => {
+  // The prewarm pool is module-scoped; never leak a warm connection between tests.
+  disposePrewarmedRealtimeMirrorCapture()
+})
 
 describe('realtime-mirror-client', () => {
   it('opens a live WebRTC session, plays remote audio, and requests final Mirror JSON on stop', async () => {
@@ -204,6 +211,86 @@ describe('realtime-mirror-client', () => {
     expect(audio.removed).toBe(true)
     expect(channel.closed).toBe(true)
     expect(peer.closed).toBe(true)
+  })
+
+  it('consumes a prewarmed connection: mic stays muted while warm, no second setup on capture', async () => {
+    const track = { stop: vi.fn(), kind: 'audio', enabled: true } as unknown as MediaStreamTrack
+    const stream = {
+      getAudioTracks: () => [track],
+      getTracks: () => [track],
+    } as unknown as MediaStream
+    const getUserMedia = vi.fn(async () => stream)
+    const channel = new FakeDataChannel()
+    const peer = new FakePeerConnection(channel)
+    const PeerCtor = vi.fn(() => peer)
+    const audio = new FakeAudioElement()
+    const fetchImpl = vi.fn(async () => new Response('answer-sdp', { status: 200 }))
+    const deps = {
+      fetch: fetchImpl as typeof fetch,
+      mediaDevices: { getUserMedia },
+      RTCPeerConnection: PeerCtor as unknown as typeof RTCPeerConnection,
+      createAudioElement: () => audio as unknown as HTMLAudioElement,
+    }
+
+    prewarmRealtimeMirrorCapture(deps)
+    await vi.waitFor(() => expect(peer.remoteDescription).not.toBeNull())
+    // Warm transport is fully set up with the mic muted.
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    expect(track.enabled).toBe(false)
+    // Idempotent while warm.
+    prewarmRealtimeMirrorCapture(deps)
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+
+    const capture = await createRealtimeMirrorCapture({ localCaptureId: 'ask-warm' }, deps)
+    // The capture reuses the warm transport instead of connecting again.
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    expect(PeerCtor).toHaveBeenCalledTimes(1)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(track.enabled).toBe(true)
+
+    capture.abort()
+    expect(channel.closed).toBe(true)
+    expect(peer.closed).toBe(true)
+    expect(track.stop).toHaveBeenCalled()
+  })
+
+  it('disposes an unconsumed prewarmed connection', async () => {
+    const track = { stop: vi.fn(), kind: 'audio', enabled: true } as unknown as MediaStreamTrack
+    const stream = {
+      getAudioTracks: () => [track],
+      getTracks: () => [track],
+    } as unknown as MediaStream
+    const getUserMedia = vi.fn(async () => stream)
+    const channel = new FakeDataChannel()
+    const peer = new FakePeerConnection(channel)
+    const audio = new FakeAudioElement()
+    const deps = {
+      fetch: vi.fn(async () => new Response('answer-sdp', { status: 200 })) as typeof fetch,
+      mediaDevices: { getUserMedia },
+      RTCPeerConnection: vi.fn(() => peer) as unknown as typeof RTCPeerConnection,
+      createAudioElement: () => audio as unknown as HTMLAudioElement,
+    }
+
+    prewarmRealtimeMirrorCapture(deps)
+    await vi.waitFor(() => expect(peer.remoteDescription).not.toBeNull())
+    disposePrewarmedRealtimeMirrorCapture()
+    await vi.waitFor(() => expect(peer.closed).toBe(true))
+    expect(track.stop).toHaveBeenCalled()
+    expect(channel.closed).toBe(true)
+
+    // The next capture connects fresh (a second getUserMedia) rather than
+    // reusing the disposed transport.
+    const channel2 = new FakeDataChannel()
+    const peer2 = new FakePeerConnection(channel2)
+    await createRealtimeMirrorCapture(
+      { localCaptureId: 'ask-fresh' },
+      {
+        ...deps,
+        RTCPeerConnection: vi.fn(() => peer2) as unknown as typeof RTCPeerConnection,
+      },
+    )
+    expect(getUserMedia).toHaveBeenCalledTimes(2)
+    expect(peer2.remoteDescription).not.toBeNull()
   })
 
   it('parses fenced Mirror JSON from Realtime events', async () => {
