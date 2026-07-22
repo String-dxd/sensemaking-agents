@@ -49,13 +49,19 @@ describe('shoreDistanceField', () => {
   })
 
   it('a carved pond inside land is positive (water) at the pond center', () => {
-    // A single carved cell is filled by the blur-mix (the symmetric cost of the
-    // design's thin-feature preservation), so use a 3×3 pond, which reliably
-    // carves below the land mask.
+    // plan 032: the feature-preservation floor is SYMMETRIC — shoreField reads
+    // the same sampleTierField as the terrain mesh, so a carved water pocket
+    // below ~5×5 cells (~0.9 world units) dissolves back into land exactly
+    // like an isolated raised cell dissolves into the sea (see the
+    // sampleTierField comment in terrainGrid.ts). A 3×3 pond (the pre-032
+    // size) now samples as land (-24, deeply interior); 7×7 is the smallest
+    // size this test pins as robustly water (observed center distance
+    // ≈0.268, comfortably positive — 5×5 crosses to positive too, but only by
+    // ≈0.047, too thin a margin to pin reliably).
     const grid = createOceanGrid()
     grid.tiers.fill(3)
-    for (let r = 31; r <= 33; r++) {
-      for (let c = 31; c <= 33; c++) grid.tiers[r * GRID_COLS + c] = 0
+    for (let r = 29; r <= 35; r++) {
+      for (let c = 29; c <= 35; c++) grid.tiers[r * GRID_COLS + c] = 0
     }
     const f = shoreDistanceField(grid, WORLD, 2)
     const cx = -WORLD / 2 + (32 + 0.5) * (WORLD / GRID_COLS)

@@ -43,7 +43,10 @@ const TREE_PLACEMENTS = [
 
 // Fruits.js BUSH_PLACEMENTS (lines 36-41)
 const FRUIT_PLACEMENTS = [
-    { species: 'plum',   x:  2.6, z:  0.1 },
+    // plan 032: the tier-field sampler retune (BLUR_MIX 0.85, BLUR_PASSES 4)
+    // shifted a wall band under the old (2.6, 0.1) spot, making fruit-0
+    // unplaceable; nudged z 0.1 → 0.2, the nearest placeable point.
+    { species: 'plum',   x:  2.6, z:  0.2 },
     { species: 'fig',    x: -2.4, z:  0.9 },
     { species: 'citrus', x:  0.8, z: -2.6 },
     { species: 'berry',  x: -1.0, z: -2.4 },

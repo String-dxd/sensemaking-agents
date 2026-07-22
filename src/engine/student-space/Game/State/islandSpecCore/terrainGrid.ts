@@ -14,9 +14,13 @@ export const GRID_ROWS = 64
 export const SURFACE_AUTO = 0 // grass/sand derived from tier
 export const SURFACE_GRASS = 1 // painted grass tufts (v5; was dirt path in ≤v4)
 
-/** Corner-rounding strength for the terrace field (knob, 0..0.4). See the WHY
- *  comment in `sampleTierField`. */
-export const BLUR_MIX = 0.4
+/** Corner-rounding strength for the terrace field (knob, 0..1). Plan 032:
+ *  raised 0.4 → 0.85 for the 128×128 grid (plan 031's resample) — a binary
+ *  grid's iso-contours stay hard-edged until the raw weight drops below
+ *  roughly 0.2, so smoothing a 128-cell coastline needs the mix this high.
+ *  See the WHY comment in `sampleTierField` for the redefined
+ *  feature-preservation floor this trades against. */
+export const BLUR_MIX = 0.85
 
 /** Wall width fraction between tiers (tuning knob). */
 export const DEFAULT_WALL_WIDTH = 0.35
@@ -118,11 +122,13 @@ export function isLandTier(tier: number, tierHeights: number[], seaLevel: number
 
 // ── Terrace field ────────────────────────────────────────────────────────────
 
-/** Blur passes for the terrace field. Two chained 3×3 tent blurs ≈ a 5×5
- *  Gaussian: one pass only rounds silhouette corners by ~half a cell, which
- *  still reads as a pixelated staircase coastline at 64×64. Widening the blur
- *  (not raising BLUR_MIX alone) is what smooths the plan-view outline. */
-export const BLUR_PASSES = 2
+/** Blur passes for the terrace field. Plan 032: 2 → 4 chained 3×3 tent blurs
+ *  (a wider effective Gaussian) for the 128×128 grid (plan 031's resample) —
+ *  at BLUR_MIX = 0.85 the wider kernel is what makes the coastline read as
+ *  gentle scalloped curves instead of a rounded-but-still-blocky outline;
+ *  raising BLUR_MIX alone without widening the blur just softens the steps,
+ *  it doesn't erase them. */
+export const BLUR_PASSES = 4
 
 /** 3×3 tent blur of the tier field as floats, applied `BLUR_PASSES` times.
  *  Out-of-bounds neighbors count as tier 0 (ocean surrounds the island).
@@ -195,13 +201,39 @@ function bilinear(field: ArrayLike<number>, cols: number, u: number, v: number):
  * Continuous tier field at world (x, z): bilinear of the raw grid mixed with the
  * bilinear of the blurred grid by `BLUR_MIX`.
  *
- * WHY the mix (do not "simplify" to blur-only): a fully-blurred field destroys
- * thin features — an isolated tier-2 cell tent-blurs to 0.5, which would terrace
- * to BELOW sea level, i.e. stamping one cell of land would be invisible.
- * Terracing the raw bilinear field preserves single-cell amplitude exactly; the
- * bounded blur mix only rounds plan-view corners. At BLUR_MIX = 0.4 with two
- * blur passes an isolated tier-2 cell samples ≈ 1.31 at its center — it drops
- * to a tier-1-height bump but stays clearly above sea level.
+ * WHY the mix (do not "simplify" to blur-only): a fully-blurred field would
+ * destroy ALL thin features uniformly, with no floor at any size. Keeping
+ * SOME raw weight instead gives features a SIZE-DEPENDENT floor: big enough
+ * features stay visible land (or visible water, for a carved pocket); small
+ * enough ones dissolve into their surroundings. Below is that floor, as
+ * verified at the current constants.
+ *
+ * THE FEATURE-PRESERVATION FLOOR WAS REDEFINED IN PLAN 032 for the 128×128
+ * grid (plan 031's resample), and CORRECTED in plan 032's second revision
+ * (the first restatement below undercounted how much a lone cell sinks).
+ * Verified numbers at BLUR_MIX = 0.85 / BLUR_PASSES = 4 (needed for the
+ * coastline to actually read as curves — see the BLUR_MIX/BLUR_PASSES
+ * comments), measured at a stamped block's anchor-cell center:
+ *   - a LONE tier-2 cell samples ≈ 0.427 → terraces to ≈ −0.943, BELOW sea
+ *     level. This is now DELIBERATE, not a bug: the maintainer's island art
+ *     direction is "few big smooth scalloped masses" — sub-2×2 detail is
+ *     intentionally not authorable at this blur strength.
+ *   - a 2×2 tier-2 block (≈ the OLD single 64-grid cell's world footprint,
+ *     0.375 units — the pre-031 floor) samples ≈ 0.712 → terraces to exactly
+ *     tierHeights[1] (0.05): the preserved "stays visible land" floor.
+ *   - a 5×5 tier-2 block (~0.94 world units) samples ≈ 1.769 → terraces to
+ *     exactly tierHeights[2] (1.0): a full raised bump, the new practical
+ *     minimum for a plateau-height feature.
+ * The floor is SYMMETRIC for carved WATER pockets inside land — shoreField.ts
+ * classifies land as `sampleTierField(...) >= 0.5`, the same function, so a
+ * carved pocket smaller than ~5×5–7×7 cells (~0.9–1.3 world units) dissolves
+ * back into land exactly like a lone raised cell dissolves into the sea (a
+ * 3×3 pond now samples as land; 7×7 is confirmed water). This symmetry is
+ * consistent between the terrain mesh and the shore field because both read
+ * this same sampler — the capability lost is authoring sub-~5×5 ponds, which
+ * matches the same approved trade. All four floors (lone cell, 2×2, 5×5,
+ * pond) are pinned by numeric expectations in test/engine/islandSpecCore.test.ts
+ * and island-editor/test/terrainGrid.test.ts / shoreField.test.ts / grassField.test.ts.
  */
 export function sampleTierField(
   grid: TerrainGrid,

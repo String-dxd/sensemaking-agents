@@ -67,6 +67,22 @@ function uniformGrid(tier: number): TerrainGrid {
   return grid
 }
 
+/** Stamp a `size`×`size` block of `tier` centered on cell (32,32), anchored so
+ *  (32,32) is always included (half = floor(size/2), matching the plan-032
+ *  invariant probe). size=1 stamps only (32,32); size=2 stamps the 2×2 block
+ *  with (32,32) at its lower-right corner; size=5 stamps a true 5×5 square
+ *  centered on (32,32). */
+function stampSquare(tier: number, size: number): TerrainGrid {
+  const grid = createOceanGrid()
+  const half = Math.floor(size / 2)
+  for (let dr = -half; dr <= size - 1 - half; dr++) {
+    for (let dc = -half; dc <= size - 1 - half; dc++) {
+      grid.tiers[(32 + dr) * GRID_COLS + (32 + dc)] = tier
+    }
+  }
+  return grid
+}
+
 const committedSpec = validateSpecObject(committedSpecJson)
 
 // ── Golden parity with the editor implementation (KTD-2) ─────────────────────
@@ -139,34 +155,54 @@ describe('terrainGrid — terrace evaluation', () => {
     }
   })
 
-  it('an isolated tier-2 cell stays clearly above sea level at its center, ocean far away, monotonic wall between', () => {
-    const grid = createOceanGrid()
-    grid.tiers[32 * GRID_COLS + 32] = 2
-    const spec = specFrom(grid)
-    const blurred = blurTiers(grid)
+  it('plan 032 feature-preservation floor: a lone cell sinks, a 2×2 block stays visible land, a 5×5 block is a raised bump', () => {
+    // At BLUR_PASSES = 4 / BLUR_MIX = 0.85 (plan 032, retuned for the 128×128
+    // grid's coastline curves — plan 031), the old "isolated single cell stays
+    // a raised bump" floor no longer holds, and that's DELIBERATE: the
+    // maintainer's island art direction is "few big smooth scalloped masses" —
+    // sub-2×2 detail is intentionally not authorable at this blur strength.
+    // The redefined, verified floor:
+    //   - a lone tier-2 cell samples ≈0.427 → terraces to ≈−0.943, BELOW sea
+    //     level (sinks; asserted as expected, not a regression).
+    //   - a 2×2 tier-2 block (≈ the old single 64-grid cell's world footprint,
+    //     0.375 units) samples ≈0.712 → terraces to exactly tierHeights[1]
+    //     (0.05) — the preserved "stays visible land" floor.
+    //   - a 5×5 tier-2 block (~0.94 world units) samples ≈1.769 → terraces to
+    //     tierHeights[2] (1.0) — a full raised bump, the new practical minimum
+    //     for a plateau-height feature.
 
-    const center = cellCenter(WORLD, grid, 32, 32)
-    const atCenter = evaluateHeight(spec, center.x, center.z, blurred)
-    // thin-feature regression guard: with BLUR_PASSES = 2 and BLUR_MIX = 0.4
-    // the cell no longer keeps full tier-2 height, but it must stay visible —
-    // at least tier-1's flat top (well above sea level).
-    expect(atCenter).toBeGreaterThanOrEqual(DEFAULT_TIER_HEIGHTS[1] ?? Number.NaN)
-
-    // far away → ocean floor
-    const far = cellCenter(WORLD, grid, 5, 5)
-    expect(evaluateHeight(spec, far.x, far.z, blurred)).toBeCloseTo(
-      DEFAULT_TIER_HEIGHTS[0] ?? Number.NaN,
-      6,
-    )
-
-    // walk along +x from the cell center outward: heights are (weakly) monotonic down
-    let prev = atCenter
-    for (let step = 1; step <= 6; step++) {
-      const h = evaluateHeight(spec, center.x + step * 0.2, center.z, blurred)
-      expect(h).toBeLessThanOrEqual(prev + 1e-9)
-      prev = h
+    // (a) lone cell — intentionally sinks below sea level.
+    {
+      const grid = stampSquare(2, 1)
+      const spec = specFrom(grid)
+      const blurred = blurTiers(grid)
+      const center = cellCenter(WORLD, grid, 32, 32)
+      const h = evaluateHeight(spec, center.x, center.z, blurred)
+      expect(h).toBeLessThan(spec.seaLevel)
+      expect(h).toBeCloseTo(-0.9429203040213103, 6) // observed; plan 032
     }
-    expect(prev).toBeLessThan(atCenter)
+
+    // (b) 2×2 block — preserved "visible land" floor.
+    {
+      const grid = stampSquare(2, 2)
+      const spec = specFrom(grid)
+      const blurred = blurTiers(grid)
+      const center = cellCenter(WORLD, grid, 32, 32)
+      const h = evaluateHeight(spec, center.x, center.z, blurred)
+      expect(h).toBeGreaterThanOrEqual(DEFAULT_TIER_HEIGHTS[1] ?? Number.NaN)
+      expect(h).toBeCloseTo(0.05, 6) // observed; plan 032 — exactly tierHeights[1]
+    }
+
+    // (c) 5×5 block — a raised bump, the new practical minimum.
+    {
+      const grid = stampSquare(2, 5)
+      const spec = specFrom(grid)
+      const blurred = blurTiers(grid)
+      const center = cellCenter(WORLD, grid, 32, 32)
+      const h = evaluateHeight(spec, center.x, center.z, blurred)
+      expect(h).toBeGreaterThan(DEFAULT_TIER_HEIGHTS[1] ?? Number.NaN)
+      expect(h).toBeCloseTo(1, 6) // observed; plan 032 — exactly tierHeights[2]
+    }
   })
 
   it('terraceHeight at an integer tier returns exactly that tier top', () => {
@@ -482,10 +518,19 @@ describe('shoreDistanceField', () => {
   })
 
   it('a carved pond inside land is positive (water) at the pond center', () => {
+    // plan 032: the feature-preservation floor is SYMMETRIC — shoreField reads
+    // the same sampleTierField as the terrain mesh, so a carved water pocket
+    // below ~5×5 cells (~0.9 world units) dissolves back into land exactly
+    // like an isolated raised cell dissolves into the sea (see the
+    // sampleTierField comment in terrainGrid.ts). A 3×3 pond (the pre-032
+    // size) now samples as land (-24, deeply interior); 7×7 is the smallest
+    // size this test pins as robustly water (observed center distance
+    // ≈0.268, comfortably positive — 5×5 crosses to positive too, but only by
+    // ≈0.047, too thin a margin to pin reliably).
     const grid = createOceanGrid()
     grid.tiers.fill(3)
-    for (let r = 31; r <= 33; r++) {
-      for (let c = 31; c <= 33; c++) grid.tiers[r * GRID_COLS + c] = 0
+    for (let r = 29; r <= 35; r++) {
+      for (let c = 29; c <= 35; c++) grid.tiers[r * GRID_COLS + c] = 0
     }
     const f = shoreDistanceField(grid, WORLD, 2)
     const cx = -WORLD / 2 + (32 + 0.5) * (WORLD / GRID_COLS)
@@ -540,12 +585,19 @@ describe('grassField — grassBlades', () => {
   })
 
   it('clips blades that spill onto a terrace wall', () => {
+    // plan 032: the wider 4-pass blur reaches ~4 cells, so a 3×3 plateau (the
+    // pre-032 size) no longer produces a representative wall within the
+    // blade's ±0.575-cell jitter radius — every blade stayed on the plateau
+    // (observed 16/16, no clipping). Enlarged to a 5×5 plateau (same tiers:
+    // wall one column east, plateau elsewhere) so the wall is far enough from
+    // the ocean-diluted interior to read as a real cliff again (observed
+    // 9/16 survive — some spill onto the wall and get clipped, as intended).
     const grid = createOceanGrid()
     const c = 32
     const r = 32
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        grid.tiers[cellIndex(grid, c + dc, r + dr)] = dc === 1 ? 1 : 2
+    for (let dr = -2; dr <= 2; dr++) {
+      for (let dc = -2; dc <= 2; dc++) {
+        grid.tiers[cellIndex(grid, c + dc, r + dr)] = dc === 2 ? 1 : 2
       }
     }
     grid.surface[cellIndex(grid, c, r)] = SURFACE_GRASS

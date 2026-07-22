@@ -50,16 +50,19 @@ describe('grassField — grassBlades', () => {
   })
 
   it('clips blades that spill onto a terrace wall', () => {
+    // plan 032: the wider 4-pass blur reaches ~4 cells, so a 3×3 plateau (the
+    // pre-032 size) no longer produces a representative wall within the
+    // blade's ±0.575-cell jitter radius — every blade stayed on the plateau
+    // (observed 16/16, no clipping). Enlarged to a 5×5 plateau (same tiers:
+    // wall two columns east, plateau elsewhere) so the wall is far enough from
+    // the ocean-diluted interior to read as a real cliff again (observed
+    // 9/16 survive — some spill onto the wall and get clipped, as intended).
     const grid = createOceanGrid()
     const c = 32
     const r = 32
-    // 3×3 tier-2 neighborhood EXCEPT the entire c+1 column, which stays a
-    // tier LOWER (1, still land) — the painted center cell now borders a
-    // terrace wall, so scatter spilling east lands on the cliff face (above
-    // sea level, so the sea clip alone would keep it) and must be clipped.
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        grid.tiers[cellIndex(grid, c + dc, r + dr)] = dc === 1 ? 1 : 2
+    for (let dr = -2; dr <= 2; dr++) {
+      for (let dc = -2; dc <= 2; dc++) {
+        grid.tiers[cellIndex(grid, c + dc, r + dr)] = dc === 2 ? 1 : 2
       }
     }
     grid.surface[cellIndex(grid, c, r)] = SURFACE_GRASS
@@ -122,11 +125,21 @@ describe('grassField — grassBlades', () => {
   })
 
   it('yaw/height/shade/phase stay within their documented ranges across many cells', () => {
+    // plan 032: an ISOLATED single tier-2 cell now sinks below sea level (the
+    // approved sub-2×2 trade — see the sampleTierField comment in
+    // terrainGrid.ts), so every one of this test's single-cell stamps used to
+    // emit zero blades (observed 0/many). Stamped 2×2 blocks instead — the
+    // preserved "stays visible land" floor — so the scatter has real land to
+    // paint again.
     const grid = createOceanGrid()
     for (let r = 0; r < grid.rows; r += 5) {
       for (let c = 0; c < grid.cols; c += 5) {
-        grid.tiers[cellIndex(grid, c, r)] = 2
-        grid.surface[cellIndex(grid, c, r)] = SURFACE_GRASS
+        for (let dr = 0; dr < 2 && r + dr < grid.rows; dr++) {
+          for (let dc = 0; dc < 2 && c + dc < grid.cols; dc++) {
+            grid.tiers[cellIndex(grid, c + dc, r + dr)] = 2
+            grid.surface[cellIndex(grid, c + dc, r + dr)] = SURFACE_GRASS
+          }
+        }
       }
     }
     const blades = grassBlades(specFrom(grid))
