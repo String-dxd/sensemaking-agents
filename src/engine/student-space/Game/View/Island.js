@@ -274,7 +274,7 @@ export default class Island
             SAND_TEXTURE_URL,
             (tex) =>
             {
-                tex.colorSpace = THREE.SRGBColorSpace
+                tex.encoding = THREE.sRGBEncoding
                 tex.wrapS = THREE.RepeatWrapping
                 tex.wrapT = THREE.RepeatWrapping
                 tex.magFilter = THREE.LinearFilter
@@ -297,7 +297,7 @@ export default class Island
             CLIFF_TEXTURE_URL,
             (tex) =>
             {
-                tex.colorSpace = THREE.SRGBColorSpace
+                tex.encoding = THREE.sRGBEncoding
                 tex.wrapS = THREE.RepeatWrapping
                 tex.wrapT = THREE.RepeatWrapping
                 tex.magFilter = THREE.LinearFilter
