@@ -51,7 +51,13 @@ export default class IslandSnapshotBridge
         IslandSnapshotBridge.instance = this
 
         this._sproutsSlice = null
-        this._fetch = opts.fetch || (typeof globalThis !== 'undefined' ? globalThis.fetch : null)
+        // Bind to globalThis: native fetch throws "Illegal invocation" when
+        // called as a method (this._fetch(...)) with a non-window `this`.
+        const globalFetch =
+            typeof globalThis !== 'undefined' && typeof globalThis.fetch === 'function'
+                ? globalThis.fetch.bind(globalThis)
+                : null
+        this._fetch = opts.fetch || globalFetch
         this._now = opts.now || (() => Date.now())
 
         this.subscribers   = new Set()
