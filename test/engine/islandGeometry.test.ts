@@ -18,19 +18,30 @@ describe('islandGeometry — composeGeometry on the committed spec', () => {
   const field = buildIslandField(spec.worldSize)
   const geo = composeGeometry(field, spec)
 
-  // These loops assert per-vertex over SEGMENTS² lattice points (~263k at 512) —
-  // well past Vitest's 5s default under full-suite worker contention (plan 030 rev 1).
+  // These loops scan per-vertex over SEGMENTS² lattice points (~263k at 512).
+  // Plan 030 rev 1 gave them a 30s timeout for that reason, but plan 031 rev 2
+  // found the REAL cost was ~1M expect() calls (263k vertices × ~4 checks each)
+  // — vitest's per-call overhead (tens of µs) dominates runtime, so worker
+  // contention could still push a file past 30s. Both loops now aggregate
+  // violations into plain counters and assert once per condition after the
+  // loop — same assertion strength, without the expect()-call tax.
   it('yields finite positions and normals for every vertex', () => {
     const pos = geo.getAttribute('position')
     const nor = geo.getAttribute('normal')
     expect(pos.count).toBe(field.n * field.n)
     expect(nor.count).toBe(pos.count)
+    let nonFiniteCount = 0
     for (let i = 0; i < pos.count; i++) {
-      expect(Number.isFinite(pos.getX(i))).toBe(true)
-      expect(Number.isFinite(pos.getY(i))).toBe(true)
-      expect(Number.isFinite(pos.getZ(i))).toBe(true)
-      expect(Number.isFinite(nor.getY(i))).toBe(true)
+      if (
+        !Number.isFinite(pos.getX(i)) ||
+        !Number.isFinite(pos.getY(i)) ||
+        !Number.isFinite(pos.getZ(i)) ||
+        !Number.isFinite(nor.getY(i))
+      ) {
+        nonFiniteCount++
+      }
     }
+    expect(nonFiniteCount).toBe(0)
   }, 30_000)
 
   it('carries the three custom material attributes with sane ranges', () => {
@@ -42,13 +53,20 @@ describe('islandGeometry — composeGeometry on the committed spec', () => {
     const tierFlat = geo.getAttribute('aTierFlat')
     const wallness = geo.getAttribute('aWallness')
     const surface = geo.getAttribute('aSurface')
+    let tierFlatOutOfRange = 0
+    let wallnessOutOfRange = 0
+    let surfaceInvalid = 0
     for (let i = 0; i < tierFlat.count; i++) {
-      expect(tierFlat.getX(i)).toBeGreaterThanOrEqual(0)
-      expect(tierFlat.getX(i)).toBeLessThanOrEqual(4)
-      expect(wallness.getX(i)).toBeGreaterThanOrEqual(0)
-      expect(wallness.getX(i)).toBeLessThanOrEqual(1.0001)
-      expect([0, 1]).toContain(surface.getX(i))
+      const t = tierFlat.getX(i)
+      const w = wallness.getX(i)
+      const s = surface.getX(i)
+      if (t < 0 || t > 4) tierFlatOutOfRange++
+      if (w < 0 || w > 1.0001) wallnessOutOfRange++
+      if (s !== 0 && s !== 1) surfaceInvalid++
     }
+    expect(tierFlatOutOfRange).toBe(0)
+    expect(wallnessOutOfRange).toBe(0)
+    expect(surfaceInvalid).toBe(0)
   }, 30_000)
 
   it('vertex heights agree with evaluateHeight at cell centers (lattice invariant)', () => {
