@@ -89,7 +89,8 @@ function makeVector(camera: Camera | null | undefined, x: number, y: number, z: 
 
 function companionNameFrom(profile: unknown, onboarding: { companionName?: string | null }) {
   const identity = (profile as { identity?: { companionName?: string | null } } | null)?.identity
-  return identity?.companionName?.trim() || onboarding.companionName?.trim() || 'your bird'
+  // Default companion name is Kira (matches Profile.displayCompanionName()).
+  return identity?.companionName?.trim() || onboarding.companionName?.trim() || 'Kira'
 }
 
 export function FirstChat({

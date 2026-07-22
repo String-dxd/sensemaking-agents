@@ -344,7 +344,7 @@ describe('OnboardingFlow (React)', () => {
       expect(onboarding.stage).toBe('egg-name')
 
       const nameInput = await screen.findByLabelText('Name your companion.')
-      expect(nameInput).toHaveValue('Alice')
+      expect(nameInput).toHaveValue('Kira')
       await userEvent.clear(nameInput)
       await userEvent.type(nameInput, 'Pip')
       await userEvent.click(await screen.findByRole('button', { name: 'Hatch the egg' }))
