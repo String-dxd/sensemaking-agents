@@ -2,31 +2,31 @@ import * as THREE from 'three'
 
 import View from './View.js'
 import State from '../State/State.js'
+import { buildIslandField, composeGeometry } from './islandGeometry.ts'
+import {
+    createIslandGroundMaterial,
+    GROUND_SKY_COLOR,
+    GROUND_SUN_COLOR,
+} from './Materials/IslandGroundMaterial.ts'
+import { createSeaMaterial, createShoreDataTexture } from './Materials/SeaMaterial.ts'
 
 /**
- * Island geometry + the fake-chunk terrain texture that lets Bruno's Grass
- * shader work unchanged. The texture stores (normal.x, normal.y, normal.z,
- * height) per texel over a square area `chunkSize × chunkSize` centred at
- * world origin.
+ * Island view — the editor's authored tile-grid world rendered in the engine
+ * (world-port U4). Replaces the retired polar disc/sand-ring/cliff builders,
+ * the curved-earth ocean, and the 256² terrain DataTexture.
  *
- * Phase 2c adds the Tiny Skies miniature-planet feel: the four ground
- * materials (plateau, sand, cliff, water) share a parabolic radial drop-off
- * `y -= (r * CURVE_K)² * uCurveStrength` so the horizon falls away
- * uniformly. The placeholder water disc is replaced by a port of the
- * legacy buildWater shader — three layered sines, a foam strip at the
- * island edge, sky-bottom tint at every hour.
+ * - Terrain: ported buildIslandGeometry over the committed spec (built once,
+ *   KTD-10) + IslandGroundMaterial (BOTW-style painterly ground).
+ * - Sea: ported SeaMaterial plane fed by the cached shore distance field,
+ *   extended far past the 24-unit world with a haze/alpha horizon fade so the
+ *   aurora ring (r 22), rain sampling, and the landing orbit still frame
+ *   against water (KTD-8). Gains a day-cycle tint the editor doesn't have.
+ * - Light rig: the editor Backdrop's hemisphere + warm shadow-casting
+ *   directional, modulated by the day cycle (noon matches the editor's fixed
+ *   rig). Shadows stay ON at every quality tier; only the map size scales
+ *   (KTD-4 — if low-tier frame times collapse, the lever is map size/filter
+ *   quality, never disabling shadows).
  */
-
-// Shared planet-curve constants (legacy P.post.curvedEarth + CURVE_K).
-// k=0.13 + strength=0.65 → effective planet radius ~30u; sea drop at r=40 is
-// ~17.6u (well below frame), plateau drop at r=5 is ~0.27u (a soft bow).
-const CURVE_K        = 0.13
-const CURVE_STRENGTH = 0.65
-
-// Sea palette pulled toward tinyskies' stronger shallow/deep ocean contrast.
-const SEA      = new THREE.Color(0x2A8CA0)
-const SEA_DEEP = new THREE.Color(0x1560A0)
-const FOAM     = new THREE.Color(0xB3FFFF)
 
 // Asset paths mirror Tree/Kira: derive from Vite's BASE_URL for subpath
 // deploys, with "/" as the unit-test/SSR fallback.
@@ -36,200 +36,20 @@ const BASE_URL = (typeof import.meta !== 'undefined'
     ? import.meta.env.BASE_URL
     : '/'
 const ASSET_BASE = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`
-const SAND_TEXTURE_URL = `${ASSET_BASE}student-space/textures/sand-soft-ripples.png`
-const CLIFF_TEXTURE_URL = `${ASSET_BASE}student-space/textures/cliff-soft-strata.png`
-const WATER_FOAM_CELLS_TEXTURE_URL = `${ASSET_BASE}student-space/textures/water-foam-cells.png`
-const WATER_SHORT_BUBBLES_TEXTURE_URL = `${ASSET_BASE}student-space/textures/water-short-bubbles.png`
+const TEXTURE_BASE = `${ASSET_BASE}student-space/textures`
 
-function smoothstep(edge0, edge1, value)
-{
-    const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)))
-    return t * t * (3 - 2 * t)
-}
+// Editor Backdrop rig (island-editor/src/scene/Backdrop.tsx). The day-cycle
+// palette's noon keyframe (sunInt 0.78, ambInt 0.46) maps onto these values so
+// noon in the engine matches the editor's fixed daylight.
+const NOON_SUN_INT = 0.78
+const NOON_AMB_INT = 0.46
+const SUN_INTENSITY = 1.55
+const HEMI_INTENSITY = 0.65
+const HEMI_SKY = 0xCFE5FF
+const HEMI_GROUND = 0xC8BB94
+const SUN_POSITION = new THREE.Vector3(18, 20, 10)
 
-function sandRippleAt(theta, t)
-{
-    const innerFade = smoothstep(0.06, 0.24, t)
-    const outerFade = 1 - smoothstep(0.78, 1.0, t)
-    const bands = Math.sin(t * 18 + theta * 2.5) * 0.012
-    const cross = Math.sin(theta * 5.0 + t * 7.0) * 0.006
-    const scallop = Math.sin(theta * 7.0) * 0.004 * (1 - t)
-    return (bands + cross + scallop) * innerFade * outerFade
-}
-
-// Flat radial disc in the XZ plane, centred at origin. Use this for the
-// sea so the curved-earth shader produces a circular planet limb: a square
-// PlaneGeometry puts corners at √2 × radius, and the r² drop-off pulls
-// those corners much further down than the edge midpoints, scalloping the
-// horizon as the camera pans. With a true disc every rim vertex shares the
-// same r and the silhouette is a clean circle in every direction.
-function buildWaterDiscGeometry(radius, radialSegments, angularSegments)
-{
-    const vertices = [0, 0, 0]
-    const indices = []
-
-    for(let ring = 1; ring <= radialSegments; ring++)
-    {
-        const r = radius * (ring / radialSegments)
-        for(let seg = 0; seg < angularSegments; seg++)
-        {
-            const theta = (seg / angularSegments) * Math.PI * 2
-            vertices.push(Math.cos(theta) * r, 0, Math.sin(theta) * r)
-        }
-    }
-
-    for(let seg = 0; seg < angularSegments; seg++)
-    {
-        const a = 1 + seg
-        const b = 1 + ((seg + 1) % angularSegments)
-        indices.push(0, b, a)
-    }
-
-    for(let ring = 2; ring <= radialSegments; ring++)
-    {
-        const prev = 1 + (ring - 2) * angularSegments
-        const curr = 1 + (ring - 1) * angularSegments
-        for(let seg = 0; seg < angularSegments; seg++)
-        {
-            const next = (seg + 1) % angularSegments
-            indices.push(
-                prev + seg, curr + next, curr + seg,
-                prev + seg, prev + next, curr + next,
-            )
-        }
-    }
-
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-    geo.setIndex(indices)
-    return geo
-}
-
-function buildDiscGeometry(island, radius, radialSegments, angularSegments)
-{
-    const vertices = [0, island.heightAt(0, 0), 0]
-    const indices = []
-
-    for(let ring = 1; ring <= radialSegments; ring++)
-    {
-        const t = ring / radialSegments
-        for(let seg = 0; seg < angularSegments; seg++)
-        {
-            const theta = (seg / angularSegments) * Math.PI * 2
-            const r = island.radiusAtTheta(theta, radius) * t
-            const x = Math.cos(theta) * r
-            const z = Math.sin(theta) * r
-            vertices.push(x, island.heightAt(x, z), z)
-        }
-    }
-
-    for(let seg = 0; seg < angularSegments; seg++)
-    {
-        const a = 1 + seg
-        const b = 1 + ((seg + 1) % angularSegments)
-        indices.push(0, b, a)
-    }
-
-    for(let ring = 2; ring <= radialSegments; ring++)
-    {
-        const prev = 1 + (ring - 2) * angularSegments
-        const curr = 1 + (ring - 1) * angularSegments
-        for(let seg = 0; seg < angularSegments; seg++)
-        {
-            const next = (seg + 1) % angularSegments
-            indices.push(
-                prev + seg, curr + next, curr + seg,
-                prev + seg, prev + next, curr + next,
-            )
-        }
-    }
-
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-    geo.setIndex(indices)
-    geo.computeVertexNormals()
-    return geo
-}
-
-function buildSandRingGeometry(island, radialSegments, angularSegments)
-{
-    const vertices = []
-    const indices = []
-    const slope = -0.85
-
-    for(let ring = 0; ring <= radialSegments; ring++)
-    {
-        const t = ring / radialSegments
-        for(let seg = 0; seg < angularSegments; seg++)
-        {
-            const theta = (seg / angularSegments) * Math.PI * 2
-            const inner = island.radiusAtTheta(theta)
-            const outer = island.radiusAtTheta(theta, island.sandOuterRadius)
-            const r = inner + (outer - inner) * t
-            const ripple = sandRippleAt(theta, t)
-            vertices.push(
-                Math.cos(theta) * r,
-                island.sandTopY + slope * t + ripple,
-                Math.sin(theta) * r,
-            )
-        }
-    }
-
-    for(let ring = 0; ring < radialSegments; ring++)
-    {
-        const curr = ring * angularSegments
-        const nextRing = (ring + 1) * angularSegments
-        for(let seg = 0; seg < angularSegments; seg++)
-        {
-            const next = (seg + 1) % angularSegments
-            indices.push(
-                curr + seg, nextRing + next, nextRing + seg,
-                curr + seg, curr + next, nextRing + next,
-            )
-        }
-    }
-
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-    geo.setIndex(indices)
-    geo.computeVertexNormals()
-    return geo
-}
-
-function buildCliffGeometry(island, angularSegments)
-{
-    const vertices = []
-    const indices = []
-    const yBottom = island.sandTopY
-    const yTop = island.sandTopY + island.cliffHeight
-
-    for(let seg = 0; seg < angularSegments; seg++)
-    {
-        const theta = (seg / angularSegments) * Math.PI * 2
-        const topR = island.radiusAtTheta(theta) * 0.99
-        const bottomR = island.radiusAtTheta(theta) * 1.04
-        vertices.push(
-            Math.cos(theta) * bottomR, yBottom, Math.sin(theta) * bottomR,
-            Math.cos(theta) * topR,    yTop,    Math.sin(theta) * topR,
-        )
-    }
-
-    for(let seg = 0; seg < angularSegments; seg++)
-    {
-        const next = (seg + 1) % angularSegments
-        const b0 = seg * 2
-        const t0 = b0 + 1
-        const b1 = next * 2
-        const t1 = b1 + 1
-        indices.push(b0, t1, b1, b0, t0, t1)
-    }
-
-    const geo = new THREE.BufferGeometry()
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-    geo.setIndex(indices)
-    geo.computeVertexNormals()
-    return geo
-}
+const SHADOW_MAP_SIZE_BY_TIER = { high: 2048, medium: 1024, low: 512 }
 
 export default class Island
 {
@@ -239,648 +59,185 @@ export default class Island
         this.state = State.getInstance()
         this.scene = this.view.scene
         this.island = this.state.island
+        this.spec = this.island.spec
 
-        this.chunkSize = this.island.chunkSize
-        this.textureSize = 256
+        this.group = new THREE.Group()
+        this.group.name = 'island'
+        this.scene.add(this.group)
 
-        // Shared curve uniforms — every ground material reads the same
-        // reference so a future studio slider can update them in one place.
-        this._curveUniforms = {
-            uCurveK:        { value: CURVE_K },
-            uCurveStrength: { value: CURVE_STRENGTH },
-        }
-        this._shoreUniforms = {
-            uShoreTime: { value: 0 },
-        }
+        this._loadTextures()
+        this._buildTerrain()
+        this._buildSea()
+        this._buildLights()
 
-        // Onbeforecompile shaders captured here for legacy MeshLambert paths
-        // (sand + cliff) — kept so a future studio control can update them.
-        this._curvedShaders = []
-        this.assetsFailed = false
-
-        this._buildTerrainTexture()
-        this._loadSandTexture()
-        this._loadCliffTexture()
-        this._loadWaterTextures()
-        this._buildPlateau()
-        this._buildSand()
-        this._buildCliff()
-        this._buildWater()
+        // Ocean clock: advances at 0.45× real time when calm (the pace the
+        // ported shore layers were tuned at), sped up by rain.
+        this._oceanTime = 0
+        this._appliedShadowTier = null
+        this._applyShadowQuality()
     }
 
-    _loadSandTexture()
+    _loadTextures()
     {
-        this.sandTexture = new THREE.TextureLoader().load(
-            SAND_TEXTURE_URL,
-            (tex) =>
-            {
-                tex.encoding = THREE.sRGBEncoding
-                tex.wrapS = THREE.RepeatWrapping
-                tex.wrapT = THREE.RepeatWrapping
-                tex.magFilter = THREE.LinearFilter
-                tex.minFilter = THREE.LinearMipmapLinearFilter
-                tex.generateMipmaps = true
-                tex.needsUpdate = true
-            },
-            undefined,
-            (err) =>
-            {
-                this.assetsFailed = true
-                console.error('[engine] island assets failed to load (sand texture)', err)
-            },
-        )
-    }
-
-    _loadCliffTexture()
-    {
-        this.cliffTexture = new THREE.TextureLoader().load(
-            CLIFF_TEXTURE_URL,
-            (tex) =>
-            {
-                tex.encoding = THREE.sRGBEncoding
-                tex.wrapS = THREE.RepeatWrapping
-                tex.wrapT = THREE.RepeatWrapping
-                tex.magFilter = THREE.LinearFilter
-                tex.minFilter = THREE.LinearMipmapLinearFilter
-                tex.generateMipmaps = true
-                tex.needsUpdate = true
-            },
-            undefined,
-            (err) =>
-            {
-                this.assetsFailed = true
-                console.error('[engine] island assets failed to load (cliff texture)', err)
-            },
-        )
-    }
-
-    _loadWaterTextures()
-    {
-        const configureMask = (tex) =>
+        const loader = new THREE.TextureLoader()
+        const loadColor = (name) =>
         {
+            const tex = loader.load(`${TEXTURE_BASE}/${name}.png`)
+            tex.encoding = THREE.sRGBEncoding
             tex.wrapS = THREE.RepeatWrapping
             tex.wrapT = THREE.RepeatWrapping
             tex.magFilter = THREE.LinearFilter
             tex.minFilter = THREE.LinearMipmapLinearFilter
             tex.generateMipmaps = true
-            tex.needsUpdate = true
+            return tex
         }
-
-        this.waterFoamCellsTexture = new THREE.TextureLoader().load(
-            WATER_FOAM_CELLS_TEXTURE_URL,
-            configureMask,
-            undefined,
-            (err) =>
-            {
-                this.assetsFailed = true
-                console.error('[engine] island assets failed to load (water foam cells)', err)
-            },
-        )
-
-        this.waterShortBubblesTexture = new THREE.TextureLoader().load(
-            WATER_SHORT_BUBBLES_TEXTURE_URL,
-            configureMask,
-            undefined,
-            (err) =>
-            {
-                this.assetsFailed = true
-                console.error('[engine] island assets failed to load (water short bubbles)', err)
-            },
-        )
-    }
-
-    _buildTerrainTexture()
-    {
-        const size = this.textureSize
-        const data = new Float32Array(size * size * 4)
-
-        for(let iz = 0; iz < size; iz++)
+        // Foam masks are data, not color — loaded linear.
+        const loadMask = (name) =>
         {
-            const z = (iz / (size - 1) - 0.5) * this.chunkSize
-            for(let ix = 0; ix < size; ix++)
-            {
-                const x = (ix / (size - 1) - 0.5) * this.chunkSize
-                const [nx, ny, nz] = this.island.normalAt(x, z)
-                const h = this.island.heightAt(x, z)
-                const o = (iz * size + ix) * 4
-                data[o]     = nx
-                data[o + 1] = ny
-                data[o + 2] = nz
-                data[o + 3] = h
-            }
+            const tex = loader.load(`${TEXTURE_BASE}/${name}.png`)
+            tex.wrapS = THREE.RepeatWrapping
+            tex.wrapT = THREE.RepeatWrapping
+            tex.magFilter = THREE.LinearFilter
+            tex.minFilter = THREE.LinearMipmapLinearFilter
+            tex.generateMipmaps = true
+            return tex
         }
-
-        this.terrainTexture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType)
-        this.terrainTexture.minFilter = THREE.LinearFilter
-        this.terrainTexture.magFilter = THREE.LinearFilter
-        this.terrainTexture.wrapS = THREE.ClampToEdgeWrapping
-        this.terrainTexture.wrapT = THREE.ClampToEdgeWrapping
-        this.terrainTexture.needsUpdate = true
+        this.sandTexture = loadColor('sand-soft-ripples')
+        this.cliffTexture = loadColor('cliff-soft-strata')
+        this.waterFoamCellsTexture = loadMask('water-foam-cells')
+        this.waterShortBubblesTexture = loadMask('water-short-bubbles')
     }
 
-    /**
-     * Inject the shared `y -= (r * uCurveK)² * uCurveStrength` displacement
-     * into a built-in material's vertex shader. Three's onBeforeCompile lets
-     * us splice into the standard pipeline without writing a full shader.
-     */
-    _applyCurvedEarth(material, detailKind = null)
+    _buildTerrain()
     {
-        material.onBeforeCompile = (shader) => {
-            shader.uniforms.uCurveK        = this._curveUniforms.uCurveK
-            shader.uniforms.uCurveStrength = this._curveUniforms.uCurveStrength
-            shader.vertexShader = shader.vertexShader
-                .replace(
-                    '#include <common>',
-                    '#include <common>\nuniform float uCurveK;\nuniform float uCurveStrength;\nvarying vec3 vIslandWorld;',
-                )
-                .replace(
-                    '#include <begin_vertex>',
-                    `#include <begin_vertex>
-                     vec4 _wp = modelMatrix * vec4(transformed, 1.0);
-                     vIslandWorld = _wp.xyz;
-                     float _r = length(_wp.xz);
-                     transformed.y -= (_r * _r) * (uCurveK * uCurveK) * uCurveStrength;`,
-                )
+        const spec = this.spec
+        // Geometry is built once per boot in the constructor slot (KTD-10),
+        // reusing the state facade's cached blur.
+        const field = buildIslandField(spec.worldSize)
+        const geometry = composeGeometry(field, spec, this.island._blurred)
 
-            if(detailKind)
+        this.groundMat = createIslandGroundMaterial(
+            { sand: this.sandTexture, cliff: this.cliffTexture },
             {
-                if(detailKind === 'sand')
-                    shader.uniforms.uSandTexture = { value: this.sandTexture }
-                if(detailKind === 'cliff')
-                    shader.uniforms.uCliffTexture = { value: this.cliffTexture }
+                sunDirection: SUN_POSITION,
+                seaLevel: spec.seaLevel,
+                beachTop: spec.tierHeights[1],
+            },
+        )
 
-                shader.fragmentShader = shader.fragmentShader
-                    .replace(
-                        '#include <common>',
-                        `#include <common>
-                         varying vec3 vIslandWorld;
-                         ${detailKind === 'sand' ? 'uniform sampler2D uSandTexture;' : ''}
-                         ${detailKind === 'cliff' ? 'uniform sampler2D uCliffTexture;' : ''}
-                         float islandHash(vec2 p) {
-                             return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-                         }
-                         float islandNoise(vec2 p) {
-                             vec2 i = floor(p);
-                             vec2 f = fract(p);
-                             f = f * f * (3.0 - 2.0 * f);
-                             float a = islandHash(i);
-                             float b = islandHash(i + vec2(1.0, 0.0));
-                             float c = islandHash(i + vec2(0.0, 1.0));
-                             float d = islandHash(i + vec2(1.0, 1.0));
-                             return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-                         }`,
-                    )
-                    .replace(
-                        'vec4 diffuseColor = vec4( diffuse, opacity );',
-                        detailKind === 'sand'
-                            ? `vec2 sandUv = vIslandWorld.xz * 0.36 + vec2(0.03, -0.02);
-                               vec3 detailDiffuse = texture2D(uSandTexture, sandUv).rgb;
-                               float sandR = length(vIslandWorld.xz);
-                               float broad = islandNoise(vIslandWorld.xz * 2.2);
-                               float shell = smoothstep(5.0, 7.25, sandR);
-                               float wet = smoothstep(-0.205, -0.175, vIslandWorld.y)
-                                         * (1.0 - smoothstep(-0.130, -0.095, vIslandWorld.y));
-                               float wetSand = smoothstep(-0.192, -0.168, vIslandWorld.y)
-                                             * (1.0 - smoothstep(-0.135, -0.112, vIslandWorld.y));
-                               float softRings = sin(sandR * 5.4 + islandNoise(vIslandWorld.xz * 1.8) * 2.0) * 0.5 + 0.5;
-                               detailDiffuse = mix(detailDiffuse * 0.94, detailDiffuse * 1.04, broad);
-                               detailDiffuse = mix(detailDiffuse, vec3(0.96, 0.82, 0.50), softRings * 0.08 * (1.0 - wet));
-                               detailDiffuse = mix(detailDiffuse, vec3(0.72, 0.58, 0.36), wet * 0.28);
-                               detailDiffuse = mix(detailDiffuse, vec3(0.56, 0.43, 0.26), wetSand * 0.46);
-                               detailDiffuse *= 1.0 - shell * 0.045;
-                               vec4 diffuseColor = vec4( detailDiffuse, opacity );`
-                            : `float cliffTheta = atan(vIslandWorld.z, vIslandWorld.x) / 6.28318530718 + 0.5;
-                               vec2 cliffUv = vec2(cliffTheta * 7.0 + vIslandWorld.y * 0.32, vIslandWorld.y * 2.4 + 0.08);
-                               vec3 detailDiffuse = texture2D(uCliffTexture, cliffUv).rgb;
-                               float verticalShade = islandNoise(vec2(cliffTheta * 12.0, 0.0)) * 0.5 + 0.5;
-                               float foot = 1.0 - smoothstep(0.18, 0.34, vIslandWorld.y);
-                               detailDiffuse = mix(detailDiffuse, vec3(0.56, 0.34, 0.18), 0.10);
-                               detailDiffuse = mix(detailDiffuse * 0.94, detailDiffuse * 1.05, verticalShade * 0.18);
-                               detailDiffuse = mix(detailDiffuse, vec3(0.78, 0.47, 0.24), foot * 0.18);
-                               vec4 diffuseColor = vec4( detailDiffuse, opacity );`,
-                    )
-            }
+        this.terrain = new THREE.Mesh(geometry, this.groundMat)
+        this.terrain.name = 'island-terrain'
+        this.terrain.castShadow = true
+        this.terrain.receiveShadow = true
+        this.group.add(this.terrain)
+    }
 
-            this._curvedShaders.push(shader)
+    _buildSea()
+    {
+        const spec = this.spec
+        this.shoreTexture = createShoreDataTexture(this.island._shore)
+        this.seaMat = createSeaMaterial(
+            {
+                foamCells: this.waterFoamCellsTexture,
+                shortBubbles: this.waterShortBubblesTexture,
+            },
+            this.shoreTexture,
+            { worldSize: spec.worldSize },
+        )
+        // Large enough that the shader's horizon fade (out to worldSize*7)
+        // fully completes before the plane's edge — the rim dissolves into the
+        // sky instead of showing a hard square. Covers the old ~40-unit
+        // horizon reach (aurora ring, rain sampling, landing orbit).
+        const geo = new THREE.PlaneGeometry(spec.worldSize * 16, spec.worldSize * 16)
+        this.sea = new THREE.Mesh(geo, this.seaMat)
+        this.sea.name = 'island-sea'
+        this.sea.rotation.x = -Math.PI / 2
+        this.sea.position.y = spec.seaLevel
+        this.sea.frustumCulled = false
+        this.group.add(this.sea)
+    }
+
+    _buildLights()
+    {
+        // Editor Backdrop rig: cool hemisphere fill + warm low-angle sun.
+        this.hemi = new THREE.HemisphereLight(HEMI_SKY, HEMI_GROUND, HEMI_INTENSITY)
+
+        this.sun = new THREE.DirectionalLight(GROUND_SUN_COLOR, SUN_INTENSITY)
+        this.sun.position.copy(SUN_POSITION)
+        this.sun.castShadow = true
+        const cam = this.sun.shadow.camera
+        cam.left = -22
+        cam.right = 22
+        cam.top = 22
+        cam.bottom = -22
+        cam.near = 1
+        cam.far = 80
+        this.sun.shadow.bias = -0.0002
+        this.sun.shadow.normalBias = 0.05
+
+        this.scene.add(this.hemi, this.sun, this.sun.target)
+    }
+
+    /** Shadow map size follows the quality tier (KTD-4): shadows never turn
+     *  off; only resolution scales. */
+    _applyShadowQuality()
+    {
+        const tier = this.state.performance?.tier || 'high'
+        if(tier === this._appliedShadowTier) return
+        this._appliedShadowTier = tier
+        const size = SHADOW_MAP_SIZE_BY_TIER[tier] || SHADOW_MAP_SIZE_BY_TIER.high
+        this.sun.shadow.mapSize.set(size, size)
+        if(this.sun.shadow.map)
+        {
+            this.sun.shadow.map.dispose()
+            this.sun.shadow.map = null
         }
-        material.needsUpdate = true
-    }
-
-    _buildPlateau()
-    {
-        const geo = buildDiscGeometry(this.island, this.island.radius, 56, 192)
-
-        // Custom shader so the plateau picks up Bruno's exact grass-base tone
-        // + his sun-shading recipe. The "ground colour between blades" then
-        // matches the blade root colour exactly — no green-on-olive gap.
-        this.plateauMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uColor:         { value: new THREE.Color(0x4A8F3F) },
-                uSunPosition:   { value: new THREE.Vector3(-0.5, -0.5, -0.5) },
-                uCurveK:        this._curveUniforms.uCurveK,
-                uCurveStrength: this._curveUniforms.uCurveStrength,
-            },
-            vertexShader: `
-                uniform float uCurveK;
-                uniform float uCurveStrength;
-                varying vec3 vNormal;
-                varying vec3 vWorldPosition;
-                void main() {
-                    vec3 p = position;
-                    vec4 wp = modelMatrix * vec4(p, 1.0);
-                    float r = length(wp.xz);
-                    p.y -= (r * r) * (uCurveK * uCurveK) * uCurveStrength;
-                    vNormal = normalize(normalMatrix * normal);
-                    vWorldPosition = wp.xyz;
-                    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(p, 1.0);
-                }
-            `,
-            fragmentShader: `
-                uniform vec3 uColor;
-                uniform vec3 uSunPosition;
-                varying vec3 vNormal;
-                varying vec3 vWorldPosition;
-                float islandHash(vec2 p) {
-                    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
-                }
-                float islandNoise(vec2 p) {
-                    vec2 i = floor(p);
-                    vec2 f = fract(p);
-                    f = f * f * (3.0 - 2.0 * f);
-                    float a = islandHash(i);
-                    float b = islandHash(i + vec2(1.0, 0.0));
-                    float c = islandHash(i + vec2(0.0, 1.0));
-                    float d = islandHash(i + vec2(1.0, 1.0));
-                    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
-                }
-                void main() {
-                    // Bruno's getSunShade + getSunShadeColor.
-                    float sunShade = dot(vNormal, -uSunPosition) * 0.5 + 0.5;
-                    vec3 shadeColor = uColor * vec3(0.0, 0.5, 0.7);
-                    float broad = islandNoise(vWorldPosition.xz * 2.0);
-                    float grain = islandNoise(vWorldPosition.xz * 8.0);
-                    float rim = smoothstep(3.8, 5.25, length(vWorldPosition.xz));
-                    vec3 base = mix(uColor * 0.88, uColor * 1.08, broad);
-                    base += vec3((grain - 0.5) * 0.045);
-                    base = mix(base, base * vec3(0.78, 0.9, 0.72), rim * 0.28);
-                    vec3 col = mix(base, shadeColor, sunShade);
-                    gl_FragColor = vec4(col, 1.0);
-                }
-            `,
-        })
-        this.plateau = new THREE.Mesh(geo, this.plateauMat)
-        this.plateau.position.y = 0
-        this.scene.add(this.plateau)
-
-        // Scene lighting for the Lambert-shaded materials (trunk, sand, cliff,
-        // tree canopy). Ambient + directional are kept as instance refs so
-        // Island.update() can sync them to the day-cycle palette every frame —
-        // without this the static lights make the sand glow white at h=22
-        // against an otherwise night-dark scene.
-        //
-        // `hemiFloor` is a constant HemisphereLight that does NOT modulate
-        // with the day cycle. The day-cycle ambient drops to ~0.20 at night,
-        // which collapses warm/dark actors (Kira's plumage, mailbox, tree
-        // trunk) to near-black against the still-readable grass. A steady
-        // hemi fill keeps subjects perceptible at night without flattening
-        // the atmospheric darkness of the world itself — a cool top tone
-        // (sky-bounce) + warm bottom (ground-bounce) reads as moonlight
-        // rather than washed-out fill.
-        this.ambient = new THREE.AmbientLight(0xffffff, 0.55)
-        this.directional = new THREE.DirectionalLight(0xffffff, 0.85)
-        this.directional.position.set(8, 12, 6)
-        this.hemiFloor = new THREE.HemisphereLight(0xC8DDFF, 0xA0907A, 0.32)
-        this.scene.add(this.ambient, this.directional, this.hemiFloor)
-    }
-
-    _buildSand()
-    {
-        // Beach ring, sloped from cliff-foot down past the water
-        // surface so the outer edge submerges instead of leaving a 0.33m step
-        // between sand and water.
-        const ring = buildSandRingGeometry(this.island, 18, 192)
-
-        // Slope: outer edge drops below the inner edge. With sandTopY=0.18
-        // and water at y=-0.15, the sand surface crosses the water line at
-        // t = 0.33 / 0.85 roughly 0.39, so part of the ring is visible dry beach
-        // and the rest disappears underwater, occluded by the water mesh.
-        const mat = new THREE.MeshLambertMaterial({ color: 0xffffff })
-        this._applyCurvedEarth(mat, 'sand')
-        this.sand = new THREE.Mesh(ring, mat)
-        this.scene.add(this.sand)
-    }
-
-    _buildCliff()
-    {
-        const geo = buildCliffGeometry(this.island, 192)
-        const mat = new THREE.MeshLambertMaterial({ color: 0xffffff })
-        this._applyCurvedEarth(mat, 'cliff')
-        this.cliff = new THREE.Mesh(geo, mat)
-        this.scene.add(this.cliff)
-    }
-
-    _buildWater()
-    {
-        // Port of legacy buildWater. Radial disc (radius 60) so the curved-
-        // earth drop-off bends every rim point by the same amount — the
-        // horizon reads as a clean planet limb. 96 radial × 320 angular keeps
-        // the silhouette smooth and the wave displacement well-sampled.
-        const waterRadius = 60
-        // Visible water-meets-sand line. The sand ring slopes from sandTopY
-        // (0.18) down past the water plane (y = -0.15); the OUTER sand
-        // vertex is well below the waterline. Centering the foam halo and
-        // depth gradient at the actual visible shoreline (where the sand
-        // mesh crosses y=waterY) makes the bright band hug the island
-        // instead of floating ~1.3u out into the water. Slope (0.85) and
-        // water y must stay in sync with buildDiscGeometry + water.position
-        // assignment below.
-        const SAND_SLOPE = 0.85
-        const WATER_Y    = -0.15
-        const sandToWaterT = (this.island.sandTopY - WATER_Y) / SAND_SLOPE
-        const islandR = this.island.radius
-                      + (this.island.sandOuterRadius - this.island.radius) * sandToWaterT
-        const geo = buildWaterDiscGeometry(waterRadius, 96, 320)
-
-        // uOceanTime is a CPU-integrated clock that advances at a base
-        // slow rate, scaled up by current rain intensity (see update()).
-        // Using it instead of state.time.elapsed lets the wave rhythm
-        // speed/slow continuously without phase jumps when weather flips.
-        this._oceanTime = 0
-        this.waterMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime:          { value: 0 },
-                uSea:           { value: SEA.clone() },
-                uDeep:          { value: SEA_DEEP.clone() },
-                uFoam:          { value: FOAM.clone() },
-                uSkyTint:       { value: new THREE.Color(0xffffff) },
-                uFoamCells:     { value: this.waterFoamCellsTexture },
-                uShortBubbles:  { value: this.waterShortBubblesTexture },
-                uIslandR:       { value: islandR },
-                uWaveAmp:       { value: 0.18 },
-                // 0 = calm, 1 = downpour. Modulates wave amplitude in
-                // the vertex shader so the surface chops up with rain.
-                uRain:          { value: 0 },
-                // Spherical planet radius for the water drop-off. Picked so
-                // the near-origin curvature matches the legacy parabolic
-                // (1/(2R) ≈ K²·S → R ≈ 45.5), so the island sits unchanged
-                // and only the far-field silhouette switches to a true
-                // circle. Other materials still use the shared parabolic
-                // curve — the island fits well inside the regime where
-                // parabolic ≈ sphere, so the discontinuity is invisible.
-                uSphereR:       { value: 45.5 },
-            },
-            vertexShader: `
-                varying vec2 vXZ;
-                varying float vWave;
-                uniform float uTime;
-                uniform float uWaveAmp;
-                uniform float uRain;
-                uniform float uSphereR;
-                void main() {
-                    vec3 p = position;
-                    vXZ = p.xz;
-                    // Layered sines + small ripple. Wave amplitude dampens
-                    // toward the island so swell doesn't slap the sand ring,
-                    // and also fades off before the silhouette so the limb
-                    // arc reads as a clean circle — wave crests at the rim
-                    // would otherwise nick the silhouette and look warpy.
-                    float r = length(p.xz);
-                    float damp = smoothstep(${islandR.toFixed(2)} - 0.5, ${islandR.toFixed(2)} + 6.0, r);
-                    float rimFade = 1.0 - smoothstep(20.0, 28.0, r);
-                    float w1 = sin(p.x * 0.45 + uTime * 0.9) * 0.6;
-                    float w2 = sin(p.z * 0.38 - uTime * 0.7) * 0.5;
-                    float w3 = sin((p.x + p.z) * 0.85 + uTime * 1.6) * 0.18;
-                    // Amplitude grows ~70% from calm to downpour so the
-                    // chop scales with the weather — calm surface stays
-                    // glassy, stormy surface visibly heaves.
-                    float ampScale = 0.85 + uRain * 0.75;
-                    float wave = (w1 + w2 + w3) * uWaveAmp * ampScale * damp * rimFade;
-                    p.y += wave;
-                    // True spherical drop-off — surface is a cap of a sphere
-                    // of radius uSphereR centred at (0, -uSphereR, 0). The
-                    // 3D silhouette is the great circle where viewing rays
-                    // graze the sphere; under perspective it projects to a
-                    // near-perfect circular limb from any camera pose. The
-                    // legacy r² parabolic is only second-order accurate so
-                    // tilted cameras saw a warped, peaked horizon instead.
-                    float chord2 = max(uSphereR * uSphereR - r * r, 0.0);
-                    p.y -= uSphereR - sqrt(chord2);
-                    vWave = wave;
-                    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(p, 1.0);
-                }
-            `,
-            fragmentShader: `
-                varying vec2 vXZ;
-                varying float vWave;
-                uniform vec3  uSea;
-                uniform vec3  uDeep;
-                uniform vec3  uFoam;
-                uniform vec3  uSkyTint;
-                uniform sampler2D uFoamCells;
-                uniform sampler2D uShortBubbles;
-                uniform float uIslandR;
-                uniform float uTime;
-
-                // Mirror of Island.silhouetteAt() in State/Island.js. Returns
-                // a multiplier so the effective shore radius at this azimuth
-                // is uIslandR * silhouette(theta) — same peanut/leaf shape as
-                // the actual sand outline. Keep in sync with the JS version.
-                float silhouette(float theta) {
-                    return 1.0
-                        + sin(theta * 2.0 + 0.7) * 0.13
-                        + sin(theta * 3.0 - 1.3) * 0.07
-                        + sin(theta * 5.0 + 2.1) * 0.04
-                        + sin(theta * 7.0 - 0.4) * 0.018
-                        + sin(theta * 9.0 + 1.8) * 0.012;
-                }
-
-                void main() {
-                    float r = length(vXZ);
-                    float theta = atan(vXZ.y, vXZ.x);
-                    // Per-azimuth shore radius — foam + depth gradient track
-                    // the actual island silhouette instead of a perfect circle.
-                    float shoreR = uIslandR * silhouette(theta);
-                    // Depth gradient — shallow at island, deep at outer edge.
-                    float depthT = smoothstep(shoreR, shoreR + 14.0, r);
-                    vec3 col = mix(uSea, uDeep, depthT);
-                    // Sky-reactive tint (sunset/twilight/night washes the surface).
-                    col = mix(col, col * uSkyTint, 0.35);
-
-                    // Reusable y-coord for the 3D-style wave formulas
-                    // ported from TinySkies. Original used wp.y on a globe;
-                    // our ocean is flat so we use vWave (current crest
-                    // height) for a tiny vertical signal that breaks the
-                    // pattern up.
-                    float y = vWave * 4.0;
-                    // Pull the ocean clock onto a smaller spatial scale so
-                    // the pattern emerges at the right size for our world.
-                    // (TinySkies authored on a r≈50 globe with high
-                    // frequencies; we scale freqs down by ~10×.)
-                    float ox = vXZ.x;
-                    float oy = vXZ.y;
-                    float t  = uTime;
-
-                    float shallowness = 1.0 - depthT;
-
-                    /* ----- ORGANIC FOAM PATTERN —————————————————————————————
-                     * Subtle texture-authored lacy foam, backed by the older
-                     * sine mask so the water still animates gently. */
-                    float w1 = sin(ox * 2.15 + oy * 1.35 + y * 0.55 + t * 3.6) * 0.5 + 0.5;
-                    float w2 = sin(oy * 1.85 + y  * 2.65 + ox * 0.35 - t * 2.7) * 0.5 + 0.5;
-                    float w3 = sin(y  * 1.55 + ox * 0.95 + oy * 2.35 + t * 2.1) * 0.5 + 0.5;
-                    float w4 = sin(ox * 0.85 + y  * 1.45 - oy * 0.65 + t * 1.5) * 0.5 + 0.5;
-                    float w5 = sin(oy * 0.55 + ox * 2.95 + y  * 1.15 - t * 1.2) * 0.5 + 0.5;
-                    float w6 = sin(y  * 2.05 - oy * 0.35 + ox * 1.65 + t * 1.8) * 0.5 + 0.5;
-                    float w7 = sin(ox * 3.35 - y  * 2.15 + oy * 0.15 - t * 0.9) * 0.5 + 0.5;
-                    float blobs = w1 * w2 * w4 * w6 + w3 * w5 * w7 * 0.3;
-                    blobs = 1.0 - smoothstep(0.002, 0.012, blobs);
-                    float openWaterTexture = blobs * smoothstep(shoreR + 1.0, shoreR + 3.2, r)
-                                           * (1.0 - smoothstep(shoreR + 22.0, shoreR + 32.0, r));
-                    col += vec3(0.62, 0.94, 1.0) * openWaterTexture * mix(0.010, 0.045, shallowness);
-
-                    // Keep generated foam assets tight to the shore so they
-                    // read as bubbles on the line, not a tiled ocean pattern.
-                    vec2 foamCellUv = vXZ * 0.18 + vec2(uTime * 0.010, -uTime * 0.006);
-                    float foamCells = texture2D(uFoamCells, foamCellUv).r;
-                    foamCells = smoothstep(0.56, 0.84, foamCells);
-                    float foamCellShoreT = clamp((r - shoreR) / 2.2, 0.0, 1.0);
-                    float foamCellsBand = smoothstep(0.02, 0.08, foamCellShoreT)
-                                        * (1.0 - smoothstep(0.20, 0.34, foamCellShoreT));
-                    float organicFoam = max(blobs * 0.08, foamCells * foamCellsBand * 0.26);
-                    col = mix(col, uFoam, organicFoam * mix(0.04, 0.16, shallowness));
-
-                    /* ----- SPARKLES —————————————————————————————————————————
-                     * Sparse pinpoint highlights gated by a slow macro mask
-                     * so they appear in quiet patches. Intensity is ~½ what
-                     * it used to be — twinkle that doesn't compete. ----- */
-                    float sp1 = sin(ox * 2.00 + oy * 1.15 + y * 0.45 + t * 3.5);
-                    float sp2 = sin(oy * 1.75 + y  * 1.45 + ox * 0.65 - t * 2.8);
-                    float sp3 = sin(y  * 1.35 + ox * 1.85 - oy * 0.85 + t * 4.1);
-                    float sp4 = sin(ox * 3.55 - y  * 2.35 + oy * 0.25 + t * 1.9);
-                    float sp5 = sin(oy * 2.95 + ox * 0.55 - y  * 1.55 - t * 2.3);
-                    float spMask = sin(ox * 0.155 + y * 0.235 + t * 0.25)
-                                 * sin(oy * 0.265 - ox * 0.145 - t * 0.18);
-                    spMask *= sin(y * 0.115 + oy * 0.195 + t * 0.35);
-                    spMask = smoothstep(0.20, 0.55, spMask);
-                    float sparkle = sp1 * sp2 * sp3 * sp4 + sp2 * sp3 * sp5 * 0.5;
-                    float sparkleThresh = mix(0.78, 0.45, shallowness);
-                    sparkle = smoothstep(sparkleThresh, 0.97, sparkle) * spMask;
-                    sparkle *= smoothstep(shoreR + 0.6, shoreR + 4.0, r);
-                    col += vec3(1.0) * sparkle * mix(0.08, 0.16, shallowness);
-
-                    /* ----- SHORE FOAM ——————————————————————————————————————
-                     * Two layers, both silhouette-aware:
-                     *
-                     *  1. A crisp primary band right at the waterline — the
-                     *     bright halo around the island. Picks up warm
-                     *     sunset tints via uFoam × uSkyTint.
-                     *  2. TinySkies-style scrolling concentric contour
-                     *     ripples in the shallow band, riding the same
-                     *     silhouette-aware shoreR so they hug the peanut
-                     *     shape. Kept subtle so they whisper outward from
-                     *     the shore instead of competing with the halo. */
-                    float rawShoreDist = r - shoreR;
-                    float shoreT = clamp(rawShoreDist / 6.0, 0.0, 1.0);
-                    float noiseOff = sin(ox * 1.2 + oy * 0.8) * 0.05;
-                    float shoreWave = sin(theta * 7.0)
-                                    + sin(theta * 13.0 + 1.7) * 0.45
-                                    + noiseOff * 4.0;
-                    float shoreOffset = shoreWave * 0.035;
-                    float shoreDist = rawShoreDist + shoreOffset;
-                    float wetTint = (1.0 - smoothstep(0.02, 0.36, shoreDist))
-                                  * smoothstep(-0.18, 0.02, shoreDist);
-                    float paleWash = smoothstep(0.10, 0.55, shoreDist)
-                                   * (1.0 - smoothstep(1.05, 1.85, shoreDist));
-                    float contactLip = smoothstep(-0.08, 0.02, rawShoreDist)
-                                     * (1.0 - smoothstep(0.16, 0.34, rawShoreDist));
-                    float foamLip = smoothstep(-0.02, 0.10, shoreDist)
-                                  * (1.0 - smoothstep(0.22, 0.42, shoreDist));
-                    col = mix(col, vec3(0.10, 0.55, 0.58), wetTint * 0.32);
-                    col = mix(col, vec3(0.62, 0.90, 0.82), max(paleWash * 0.50, contactLip * 0.32));
-
-                    float movingWashPhase = sin(shoreDist * 2.4 + t * 1.05 + theta * 1.6 + noiseOff * 6.0) * 0.5 + 0.5;
-                    float movingWash = smoothstep(0.36, 0.84, movingWashPhase)
-                                     * smoothstep(0.22, 0.60, shoreDist)
-                                     * (1.0 - smoothstep(2.0, 3.4, shoreDist));
-                    col = mix(col, vec3(0.70, 0.98, 0.88), movingWash * 0.12);
-
-                    float contour = fract((shoreT + noiseOff) * 4.0 + t * 0.16);
-                    float ringMask = smoothstep(0.82, 0.95, contour)
-                                   * (1.0 - smoothstep(0.95, 1.00, contour));
-                    float ringFade = (1.0 - smoothstep(0.05, 0.55, shoreT))
-                                   * smoothstep(0.04, 0.10, shoreT);
-                    float ripples = ringMask * ringFade;
-
-                    vec2 bubbleUv = vXZ * 0.16;
-                    float shortBubbles = texture2D(uShortBubbles, bubbleUv).r;
-                    shortBubbles = smoothstep(0.42, 0.74, shortBubbles);
-                    float shortBubbleBand = (1.0 - smoothstep(0.01, 0.38, shoreT))
-                                          * smoothstep(0.00, 0.045, shoreT);
-                    shortBubbles *= shortBubbleBand;
-
-                    /* ----- SHORELINE FLOW —————————————————————————————————
-                     * Modulate the halo's brightness along the shoreline. It
-                     * remains time-free so the white lip stays locked while
-                     * the aqua ripple layers above continue to move. */
-                    float flowA = 0.5 + 0.5 * sin(theta * 3.0);
-                    float flowB = 0.5 + 0.5 * sin(theta * 5.0 + 1.7);
-                    float foamFlow = mix(flowA, flowB, 0.5);
-                    vec3 shoreWhite = vec3(0.96, 1.0, 0.92);
-                    col = mix(col, shoreWhite, max(contactLip * 0.46, foamLip * (0.52 + foamFlow * 0.20)));
-                    col = mix(col, shoreWhite, ripples * 0.20);
-                    col = mix(col, shoreWhite, shortBubbles * 0.62);
-
-                    // Wave-crest highlight — much softer now (water is calm).
-                    col += vec3(0.10) * max(0.0, vWave) * 3.0;
-                    col -= vec3(0.05) * max(0.0, -vWave) * 2.0;
-                    // Far edge fades to sky tint (atmospheric blend).
-                    float farFade = smoothstep(shoreR + 12.0, shoreR + 22.0, r);
-                    col = mix(col, uSkyTint, farFade * 0.45);
-                    gl_FragColor = vec4(col, 1.0);
-                }
-            `,
-        })
-        this.water = new THREE.Mesh(geo, this.waterMat)
-        this.water.position.y = -0.15
-        this.water.frustumCulled = false
-        this.scene.add(this.water)
     }
 
     update()
     {
-        // Push the live sun position into the plateau material so its
-        // shading tracks the day cycle in lockstep with Bruno's Grass shader.
-        const s = this.state.sun
-        this.plateauMat.uniforms.uSunPosition.value.set(s.position.x, s.position.y, s.position.z)
+        this._applyShadowQuality()
 
-        // Water: integrate the ocean clock at a rain-aware rate so the
-        // ripples drift slowly by default and speed up gently when it
-        // rains. uRain itself scales wave amplitude in the vertex shader.
-        // Speed factor: 0.45× clear → 1.0× downpour.
+        // Ocean clock — rain-aware rate (0.45× clear → 1.0× downpour).
         const rain = this.state.weather ? this.state.weather.rain : 0
         const dt = this.state.time.delta || 0
         this._oceanTime += dt * (0.45 + rain * 0.55)
-        this._shoreUniforms.uShoreTime.value = this._oceanTime
-        this.waterMat.uniforms.uTime.value = this._oceanTime
-        this.waterMat.uniforms.uRain.value = rain
+        this.seaMat.uniforms.uTime.value = this._oceanTime
+
         const day = this.state.day.currentState
         if(day)
         {
-            this.waterMat.uniforms.uSkyTint.value.setRGB(
+            // Sea day tint (KTD-8) — sky-bottom keyframe color, like the
+            // retired ocean's sky-reactive wash.
+            this.seaMat.uniforms.uSkyTint.value.setRGB(
                 day.skyBottom[0] / 255,
                 day.skyBottom[1] / 255,
                 day.skyBottom[2] / 255,
             )
 
-            // Day-cycle lights — drive the scene-wide ambient + sun-direction
-            // lights from the keyframe palette so the Lambert-shaded materials
-            // (sand, cliff, tree trunk + canopy) darken at night and warm at
-            // dusk. Intensities tuned so a bright noon stays ≈ the prior fixed
-            // values and night collapses to a quiet 0.10/0.05 floor.
-            this.ambient.color.setRGB(day.ambColor[0] / 255, day.ambColor[1] / 255, day.ambColor[2] / 255)
-            this.ambient.intensity = day.ambInt
-            this.directional.color.setRGB(day.sunColor[0] / 255, day.sunColor[1] / 255, day.sunColor[2] / 255)
-            this.directional.intensity = 0.95 * day.sunInt
+            // Scene lights: day palette scaled so noon equals the editor rig.
+            const sunScale = day.sunInt / NOON_SUN_INT
+            this.sun.color.setRGB(day.sunColor[0] / 255, day.sunColor[1] / 255, day.sunColor[2] / 255)
+            this.sun.intensity = SUN_INTENSITY * sunScale
+            this.hemi.intensity = HEMI_INTENSITY * Math.min(1, 0.35 + (day.ambInt / NOON_AMB_INT) * 0.65)
+
+            // Ground material daylight: warm key scaled with the sun, cool
+            // ambient scaled with the day's ambient floor.
+            const u = this.groundMat.uniforms
+            u.uSunColor.value.setHex(GROUND_SUN_COLOR).multiplyScalar(Math.max(0.12, sunScale))
+            u.uSkyColor.value.setHex(GROUND_SKY_COLOR).multiplyScalar(Math.max(0.25, day.ambInt / NOON_AMB_INT))
+        }
+
+        // Ground sun DIRECTION tracks the live sun so terrain shading follows
+        // the day cycle (the scene light stays at the editor's shadow angle —
+        // moving the shadow camera every frame would churn the shadow map).
+        const s = this.state.sun
+        if(s && (s.position.x || s.position.y || s.position.z))
+        {
+            const uDir = this.groundMat.uniforms.uSunDirection.value
+            // Below the horizon the shader's max(dot,0) already kills the key.
+            uDir.set(s.position.x, Math.max(s.position.y, -0.2), s.position.z)
+            if(uDir.lengthSq() > 0) uDir.normalize()
         }
     }
 }

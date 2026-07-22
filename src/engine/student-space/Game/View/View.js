@@ -7,6 +7,7 @@ import Sky from './Sky.js'
 import CssSky from './CssSky.js'
 import Island from './Island.js'
 import Grass from './Grass.js'
+import PlacedObjects from './PlacedObjects.js'
 import Tree from './Tree.js'
 import Flowers from './Flowers.js'
 import Fruits from './Fruits.js'
@@ -58,6 +59,9 @@ export default class View
         this.cssSky   = new CssSky()
         this.island   = new Island()
         this.grass    = new Grass()
+        // Decorative editor objects (spec trees/bushes/rocks) — raycast-
+        // excluded by construction (never registered with any pick list).
+        this.placedObjects = new PlacedObjects()
         this.tree        = new Tree()
         this.flowers     = new Flowers()
         this.fruits      = new Fruits()
@@ -134,6 +138,7 @@ export default class View
         this.cssSky.update()
         this.island.update()
         this.grass.update()
+        this.placedObjects.update()
         this.tree.update()
         this.flowers.update()
         this.fruits.update()
@@ -202,6 +207,7 @@ export default class View
             // onboardingFlow is owned by React (EngineHost) and disposed there.
             this.camera,
             this.sound,
+            this.placedObjects,
             this.mailbox,
             this.telescope,
             this.sprouts,

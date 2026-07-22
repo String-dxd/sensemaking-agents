@@ -3,19 +3,47 @@ import * as THREE from 'three'
 import View from './View.js'
 import State from '../State/State.js'
 import Debug from '../Debug/Debug.js'
-import GrassMaterial from './Materials/GrassMaterial.js'
-
-const CURVE_K        = 0.13
-const CURVE_STRENGTH = 0.65
+import { BLADES_PER_CELL, fillGrassBlades } from '../State/islandSpecCore/grassField.ts'
+import { createGrassBladeMaterial } from './Materials/GrassBladeMaterial.ts'
 
 /**
- * Bruno's Grass — only changes from his original:
- *   - `this.size` no longer reads `state.chunks.minSize` (we don't have Chunks).
- *     We default to 16 m and let Game.bindTerrain() override.
- *   - `update()` doesn't query Chunks every frame. We bind one terrain texture
- *     once at boot and tick only uTime / uSunPosition.
- * Geometry and shader are byte-for-byte his.
+ * Grass view — the editor's painted-cell BOTW meadow (world-port U5).
+ * Replaces Bruno's plateau-wide grass and its 256² terrain DataTexture: blades
+ * render EXACTLY the spec's painted grass cells (WYSIWYG with the editor, no
+ * auto-painting), in one instanced draw call.
+ *
+ * Blade transforms come from the pure `fillGrassBlades` scatter (jittered past
+ * cell borders so painted regions interlock, terrain-height-following,
+ * water- and cliff-clipped), written straight into the instanced attributes.
+ * Wind is entirely vertex-shader-side. Blade density and wind cadence key off
+ * the Performance quality tiers (KTD-10/R13).
  */
+
+// Blades per painted cell by quality tier (editor authors at 64).
+const BLADES_BY_TIER = { high: BLADES_PER_CELL, medium: 32, low: 16 }
+
+// One tapered blade card: 5 vertices / 3 triangles, base at y=0, unit height.
+// uv.y = height fraction (0 base → 1 tip; the shader bends by uv.y);
+// uv.x = 0..1 across the blade (the fragment's soft-edge feather reads it).
+const BLADE_W = 0.018
+
+function bladeCard()
+{
+    const geo = new THREE.BufferGeometry()
+    const positions = new Float32Array([
+        -BLADE_W / 2, 0, 0,
+        BLADE_W / 2, 0, 0,
+        -BLADE_W / 4, 0.6, 0,
+        BLADE_W / 4, 0.6, 0,
+        0, 1, 0,
+    ])
+    const uvs = new Float32Array([0, 0, 1, 0, 0.25, 0.6, 0.75, 0.6, 0.5, 1])
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+    geo.setIndex([0, 1, 2, 1, 3, 2, 2, 3, 4])
+    return geo
+}
+
 export default class Grass
 {
     constructor()
@@ -26,170 +54,86 @@ export default class Grass
 
         this.time = this.state.time
         this.scene = this.view.scene
-        this.noises = this.view.noises
         this.island = this.state.island
+        this.spec = this.island.spec
 
-        // Knobs (debug-tweakable). windSpeed multiplies the uTime feed —
-        // higher = blades flicker faster. windAmp scales the wind gust
-        // input before the shader uses it for displacement.
+        // Debug knobs.
         this.windSpeed = 1.0
-        this.windAmp   = 1.0
 
-        this.details = 200
-        this.size = 16
-        this.count = this.details * this.details
-        this.fragmentSize = this.size / this.details
-        this.bladeWidthRatio = 1.5
-        this.bladeHeightRatio = 4
-        this.bladeHeightRandomness = 0.5
-        this.positionRandomness = 0.5
-        this.noiseTexture = this.noises.create(128, 128)
-
-        // Camera-distance fade — blades collapse to base between these world-units.
-        // Tuned for our OrbitControls (default distance 14, max 30).
-        this.cameraFadeNear = 18
-        this.cameraFadeFar  = 32
-
-        // Bruno's grass shader shrinks blades by `distance(player, blade) /
-        // uGrassDistance` (see getGrassAttenuation). His infinite world wants
-        // blades to fade with distance from the player; our static island has
-        // a fixed plateau radius 5, so any value tied to `chunkSize=16` makes
-        // blades half-height at the cliff edge and leaves a visibly "bare"
-        // ring on the plateau outer rim. Bumped to 50 so smoothstep(0.3, 1.0)
-        // input at the cliff lip (r=5) is 2*5/50 = 0.2 < 0.3 — fade hasn't
-        // started, blades stay at full height all the way to the rim.
-        this.grassDistance = 50
+        this._appliedTier = null
+        this._frame = 0
 
         this.setGeometry()
         this.setMaterial()
         this.setMesh()
         this.setDebug()
+        this._fill()
     }
 
     setGeometry()
     {
-        // Pass 1: walk the full 200×200 grid, but keep only cells that
-        // fall inside the plateau silhouette. This costs ~70 % of cells on
-        // our 5 m island disc inside a 16 m chunk — exactly the sand/water
-        // regions we don't want grass on. Reduces blade count from 40 000
-        // to ~12 000, no per-cell shader cost for empty cells.
-        const placements = []
-        for(let iX = 0; iX < this.details; iX++)
-        {
-            const fragmentX = (iX / this.details - 0.5) * this.size + this.fragmentSize * 0.5
-            for(let iZ = 0; iZ < this.details; iZ++)
-            {
-                const fragmentZ = (iZ / this.details - 0.5) * this.size + this.fragmentSize * 0.5
-                const centerX = fragmentX + (Math.random() - 0.5) * this.fragmentSize * this.positionRandomness
-                const centerZ = fragmentZ + (Math.random() - 0.5) * this.fragmentSize * this.positionRandomness
-                if(this.island.isOnPlateau(centerX, centerZ))
-                    placements.push(centerX, centerZ)
-            }
-        }
-        const actualCount = placements.length / 2
-        this.count = actualCount
+        const spec = this.spec
+        // Capacity = the committed spec's painted-cell worst case at full
+        // density; the spec never changes at runtime.
+        const capacity = spec.grid.cols * spec.grid.rows * BLADES_PER_CELL
 
-        // Pass 2: build the vertex buffers from the filtered placements.
-        const centers = new Float32Array(actualCount * 3 * 2)
-        const positions = new Float32Array(actualCount * 3 * 3)
-        for(let i = 0; i < actualCount; i++)
-        {
-            const centerX = placements[i * 2]
-            const centerZ = placements[i * 2 + 1]
-            const iStride6 = i * 6
-            const iStride9 = i * 9
-            centers[iStride6    ] = centerX
-            centers[iStride6 + 1] = centerZ
-            centers[iStride6 + 2] = centerX
-            centers[iStride6 + 3] = centerZ
-            centers[iStride6 + 4] = centerX
-            centers[iStride6 + 5] = centerZ
-
-            const bladeWidth = this.fragmentSize * this.bladeWidthRatio
-            const bladeHalfWidth = bladeWidth * 0.5
-            const bladeHeight = this.fragmentSize * this.bladeHeightRatio * (1 - this.bladeHeightRandomness + Math.random() * this.bladeHeightRandomness)
-
-            positions[iStride9    ] = - bladeHalfWidth
-            positions[iStride9 + 1] = 0
-            positions[iStride9 + 2] = 0
-            positions[iStride9 + 3] = 0
-            positions[iStride9 + 4] = bladeHeight
-            positions[iStride9 + 5] = 0
-            positions[iStride9 + 6] = bladeHalfWidth
-            positions[iStride9 + 7] = 0
-            positions[iStride9 + 8] = 0
-        }
-
-        this.geometry = new THREE.BufferGeometry()
-        this.geometry.setAttribute('center', new THREE.Float32BufferAttribute(centers, 2))
-        this.geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+        this.geometry = new THREE.InstancedBufferGeometry()
+        this.geometry.copy(bladeCard())
+        this.geometry.setAttribute('aOffset', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 3), 3))
+        this.geometry.setAttribute('aYawScale', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2))
+        this.geometry.setAttribute('aShadePhase', new THREE.InstancedBufferAttribute(new Float32Array(capacity * 2), 2))
+        this.geometry.instanceCount = 0
     }
 
     setMaterial()
     {
-        this.material = new GrassMaterial()
-        this.material.uniforms.uTime.value = 0
-        this.material.uniforms.uGrassDistance.value = this.grassDistance
-        this.material.uniforms.uPlayerPosition.value = new THREE.Vector3()
-        this.material.uniforms.uTerrainSize.value = this.size
-        // Texture resolution — must match the DataTexture our Island produces.
-        this.material.uniforms.uTerrainTextureSize.value = 256
-        this.material.uniforms.uTerrainATexture.value = null
-        this.material.uniforms.uTerrainAOffset.value = new THREE.Vector2()
-        this.material.uniforms.uTerrainBTexture.value = null
-        this.material.uniforms.uTerrainBOffset.value = new THREE.Vector2()
-        this.material.uniforms.uTerrainCTexture.value = null
-        this.material.uniforms.uTerrainCOffset.value = new THREE.Vector2()
-        this.material.uniforms.uTerrainDTexture.value = null
-        this.material.uniforms.uTerrainDOffset.value = new THREE.Vector2()
-        this.material.uniforms.uNoiseTexture.value = this.noiseTexture
-        this.material.uniforms.uFresnelOffset.value = 0
-        this.material.uniforms.uFresnelScale.value = 0.5
-        this.material.uniforms.uFresnelPower.value = 2
-        this.material.uniforms.uSunPosition.value = new THREE.Vector3(-0.5, -0.5, -0.5)
-        this.material.uniforms.uCameraFadeNear.value = this.cameraFadeNear
-        this.material.uniforms.uCameraFadeFar.value  = this.cameraFadeFar
-        this.material.uniforms.uCurveK.value = CURVE_K
-        this.material.uniforms.uCurveStrength.value = CURVE_STRENGTH
+        this.material = createGrassBladeMaterial()
     }
 
     setMesh()
     {
         this.mesh = new THREE.Mesh(this.geometry, this.material)
+        this.mesh.name = 'grass'
+        // Per-blade shadows are noise at this scale; the ground's painted
+        // under-tint plays the grounding role instead.
+        this.mesh.castShadow = false
+        this.mesh.receiveShadow = false
+        // Instance bounds aren't tracked; the island is always in frame.
         this.mesh.frustumCulled = false
-        // Static at world origin — no player tracking.
-        this.mesh.position.set(0, 0, 0)
         this.scene.add(this.mesh)
     }
 
-    /**
-     * Game wires up our island's pre-rendered terrain texture once. Bruno's
-     * shader sums four neighbour chunks via `step(0, uv) * step(uv, 1)` masks,
-     * so we MUST keep three of them outside the UV range or every texel gets
-     * counted 4× and blades inflate to ~5 m tall (the legacy A/B/C/D split is
-     * for seamless multi-chunk worlds we don't have).
-     *
-     * Implementation: bind the same texture to all four slots so samplers stay
-     * valid, but push B/C/D offsets far away so their step() products are 0.
-     */
-    bindTerrain(terrainTexture, chunkSize)
+    /** Blades per painted cell for the current quality tier. */
+    _perCell()
     {
-        this.size = chunkSize
-        // uGrassDistance stays tied to grassDistance (attenuation radius),
-        // not chunkSize (terrain-texture footprint). Decoupling these lets a
-        // small chunkSize sample the heightfield while a large grassDistance
-        // keeps blades full-height across the plateau.
-        this.material.uniforms.uTerrainSize.value = chunkSize
+        const tier = this.state.performance?.tier || 'high'
+        return BLADES_BY_TIER[tier] || BLADES_PER_CELL
+    }
 
-        this.material.uniforms.uTerrainATexture.value = terrainTexture
-        this.material.uniforms.uTerrainAOffset.value.set(-chunkSize * 0.5, -chunkSize * 0.5)
-
-        // Park B/C/D well outside the chunk — UVs fall outside [0,1] so step() = 0.
-        const farAway = chunkSize * 100
-        for(const k of ['uTerrainBTexture', 'uTerrainCTexture', 'uTerrainDTexture'])
-            this.material.uniforms[k].value = terrainTexture
-        for(const k of ['uTerrainBOffset', 'uTerrainCOffset', 'uTerrainDOffset'])
-            this.material.uniforms[k].value.set(farAway, farAway)
+    /** (Re)fill the instanced attributes from the spec at the current tier's
+     *  density — the arrays are exactly the scatter's SoA layout, no per-blade
+     *  objects. */
+    _fill()
+    {
+        const perCell = this._perCell()
+        const offset = this.geometry.getAttribute('aOffset')
+        const yawScale = this.geometry.getAttribute('aYawScale')
+        const shadePhase = this.geometry.getAttribute('aShadePhase')
+        const count = fillGrassBlades(
+            this.spec,
+            {
+                offsets: offset.array,
+                yawScales: yawScale.array,
+                shadePhases: shadePhase.array,
+            },
+            perCell,
+            this.island._blurred,
+        )
+        this.geometry.instanceCount = count
+        offset.needsUpdate = true
+        yawScale.needsUpdate = true
+        shadePhase.needsUpdate = true
+        this._appliedTier = this.state.performance?.tier || 'high'
     }
 
     setDebug()
@@ -197,19 +141,44 @@ export default class Grass
         if(!this.debug || !this.debug.active) return
         const folder = this.debug.ui.getFolder('view/grass')
         folder.add(this, 'windSpeed', 0, 3, 0.05).name('wind speed')
-        folder.add(this, 'windAmp',   0, 3, 0.05).name('wind amp')
     }
 
     update()
     {
-        const sunState = this.state.sun
-        // windSpeed multiplies the uTime feed so the debug slider can dial
-        // blade-flutter rate without affecting the rest of the day cycle.
-        this.material.uniforms.uTime.value = this.time.elapsed * this.windSpeed
-        this.material.uniforms.uSunPosition.value.set(sunState.position.x, sunState.position.y, sunState.position.z)
-        // Drive the wind envelope shared with flowers / trees / particles.
-        // windAmp scales the gust before the shader applies displacement so
-        // the same control reaches the visible amplitude of the sway.
-        if(this.state.wind) this.material.uniforms.uWindGust.value = this.state.wind.gust * this.windAmp
+        // Density follows the quality tier (refill only on tier change).
+        const tier = this.state.performance?.tier || 'high'
+        if(tier !== this._appliedTier) this._fill()
+
+        // Wind clock — cadence keys off the tier's ambient frame modulo so
+        // low tier updates the sway every Nth frame.
+        this._frame++
+        const modulo = Math.max(1, this.state.performance?.settings?.ambientFrameModulo || 1)
+        if(this._frame % modulo === 0)
+            this.material.uniforms.uTime.value = this.time.elapsed * this.windSpeed
+
+        // Character bend/fade disc follows the live character.
+        const kira = this.view.kira
+        const charPos = this.material.uniforms.uCharPos.value
+        if(kira && kira.group)
+        {
+            const p = kira.group.position
+            charPos.set(p.x, p.y, p.z, 1)
+        }
+        else
+        {
+            charPos.w = 0
+        }
+
+        // Day-cycle tint (KTD-8): blades darken with the world at night and
+        // pick up the warm key at sunset. Normalized against the noon
+        // keyframe (sunInt 0.78), floored so night grass stays readable.
+        const day = this.state.day.currentState
+        if(day)
+        {
+            const s = Math.min(1.15, Math.max(0.3, 0.25 + 0.75 * (day.sunInt / 0.78)))
+            const tint = this.material.uniforms.uDayTint.value
+            tint.setRGB(day.sunColor[0] / 255, day.sunColor[1] / 255, day.sunColor[2] / 255)
+            tint.lerp(new THREE.Color(1, 1, 1), 0.6).multiplyScalar(s)
+        }
     }
 }

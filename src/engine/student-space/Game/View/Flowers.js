@@ -2,6 +2,7 @@ import * as THREE from 'three'
 
 import View from './View.js'
 import State from '../State/State.js'
+import { buildPlaceholderBlock } from './placeholderBlock.ts'
 
 /**
  * Plateau flowers — six rng-seeded species per island (3 picked per island
@@ -56,289 +57,9 @@ const hash = (seed, n) =>
 
 const INSTANCES   = 18
 const STEM_HEIGHT = 0.22
-const STEM_R      = 0.014
-const BLOOM_SIZE  = 0.10
-const CENTRE_SIZE = 0.07
-const STEM_COLOR  = 0x6F8A4A
-const LEAF_COLOR  = 0x5E823C   // base-leaf green — slightly darker than the stem
 
-const lambert = (color, opts = {}) =>
-    new THREE.MeshLambertMaterial({ color, flatShading: true, ...opts })
-
-// AC flower silhouettes always show a fan of long blade-like base leaves
-// poking up around the stem. Without them the flower reads as a pin on a
-// stick; with them the plant feels rooted and the bloom sits in context.
-function buildStem()
-{
-    const grp = new THREE.Group()
-    const stemMat = lambert(STEM_COLOR)
-    const leafMat = lambert(LEAF_COLOR)
-
-    const stem = new THREE.Mesh(
-        new THREE.CylinderGeometry(STEM_R * 0.85, STEM_R, STEM_HEIGHT, 6, 1),
-        stemMat,
-    )
-    stem.position.y = STEM_HEIGHT * 0.5
-    grp.add(stem)
-
-    // 4–5 elongated cones around the base, lifted at the tip — reads as a
-    // grass-blade rosette. Cones are flattened on Z so each blade is a
-    // strap, not a spike.
-    const bladeCount = 5
-    for(let b = 0; b < bladeCount; b++)
-    {
-        const a    = (b / bladeCount) * Math.PI * 2 + 0.6
-        const tilt = 0.55 + (b % 2) * 0.12       // alternate lean for variety
-        const blade = new THREE.Mesh(
-            new THREE.ConeGeometry(0.022, 0.20 + (b % 2) * 0.04, 4),
-            leafMat,
-        )
-        blade.position.set(Math.cos(a) * 0.025, 0.07, Math.sin(a) * 0.025)
-        blade.scale.set(1.0, 1.0, 0.32)          // flatten Z → blade strap
-        blade.rotation.y = a
-        // Lean blade outward and slightly forward; tilt around its own X so
-        // the tip rises away from the stem.
-        blade.rotation.z = Math.cos(a) * tilt
-        blade.rotation.x = Math.sin(a) * tilt
-        grp.add(blade)
-    }
-    return grp
-}
-
-// === Per-species bloom builders ============================================
-// Each returns a Group anchored at y=0; the caller lifts it to stem-top and
-// attaches it to a `petalGroup` that the sway uses as a pivot.
-
-function buildDaisy(species)
-{
-    const grp = new THREE.Group()
-    const petalMat = lambert(species.petal)
-    const centreMat = lambert(species.centre)
-
-    const centre = new THREE.Mesh(new THREE.SphereGeometry(CENTRE_SIZE, 10, 8), centreMat)
-    centre.position.y = 0.04
-    grp.add(centre)
-
-    const petalCount = 6
-    for(let p = 0; p < petalCount; p++)
-    {
-        const a = (p / petalCount) * Math.PI * 2
-        const petal = new THREE.Mesh(new THREE.SphereGeometry(BLOOM_SIZE, 10, 8), petalMat)
-        petal.position.set(Math.cos(a) * 0.13, 0.03, Math.sin(a) * 0.13)
-        petal.scale.set(1.1, 0.42, 1.1)
-        grp.add(petal)
-    }
-    return grp
-}
-
-function buildTulip(species)
-{
-    const grp = new THREE.Group()
-    const petalMat = lambert(species.petal)
-
-    // AC tulips read as a closed teardrop cup — three tall petals meeting at
-    // the top, slight gap between them. We use half-spheres (sphere with
-    // phiLength = π) so each petal's flat side faces in toward the cup axis,
-    // and tilt them inward at the top.
-    const petalCount = 3
-    for(let p = 0; p < petalCount; p++)
-    {
-        const a = (p / petalCount) * Math.PI * 2
-        const petal = new THREE.Mesh(
-            new THREE.SphereGeometry(BLOOM_SIZE * 0.95, 10, 8, 0, Math.PI),
-            petalMat,
-        )
-        petal.position.set(Math.cos(a) * 0.045, 0.10, Math.sin(a) * 0.045)
-        petal.scale.set(0.78, 1.7, 0.95)
-        petal.rotation.y = -a + Math.PI / 2
-        petal.rotation.x = -0.18                       // bow tips inward
-        grp.add(petal)
-    }
-
-    // A small cap closes the top of the cup so the bloom doesn't look
-    // hollow from above.
-    const cap = new THREE.Mesh(
-        new THREE.SphereGeometry(BLOOM_SIZE * 0.55, 10, 8),
-        petalMat,
-    )
-    cap.position.y = 0.20
-    cap.scale.set(0.85, 0.45, 0.85)
-    grp.add(cap)
-
-    return grp
-}
-
-function buildRose(species)
-{
-    const grp = new THREE.Group()
-    const petalMat = lambert(species.petal)
-
-    const core = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(BLOOM_SIZE * 0.6, 0),
-        petalMat,
-    )
-    core.position.y = 0.08
-    grp.add(core)
-
-    for(let layer = 0; layer < 2; layer++)
-    {
-        const count  = layer === 0 ? 6 : 4
-        const radius = layer === 0 ? 0.11 : 0.07
-        const y      = layer === 0 ? 0.06 : 0.10
-        for(let p = 0; p < count; p++)
-        {
-            const a = (p / count) * Math.PI * 2 + layer * 0.4
-            const petal = new THREE.Mesh(
-                new THREE.SphereGeometry(BLOOM_SIZE * 0.85, 10, 8),
-                petalMat,
-            )
-            petal.position.set(Math.cos(a) * radius, y, Math.sin(a) * radius)
-            petal.scale.set(0.95, 0.62, 0.95)
-            grp.add(petal)
-        }
-    }
-    return grp
-}
-
-function buildLily(species)
-{
-    const grp = new THREE.Group()
-    const petalMat = lambert(species.petal)
-    const centreMat = lambert(species.centre)
-    const stamenMat = lambert(0xC58A36)   // amber anthers — AC lily detail
-
-    const centre = new THREE.Mesh(
-        new THREE.SphereGeometry(CENTRE_SIZE * 0.55, 8, 6),
-        centreMat,
-    )
-    centre.position.y = 0.10
-    grp.add(centre)
-
-    // 6 petals splayed almost horizontally — AC lilies open into a flat-ish
-    // trumpet, not the upright funnel the previous build read as.
-    const petalCount = 6
-    for(let p = 0; p < petalCount; p++)
-    {
-        const a = (p / petalCount) * Math.PI * 2
-        const petal = new THREE.Mesh(
-            new THREE.ConeGeometry(BLOOM_SIZE * 0.5, BLOOM_SIZE * 2.0, 6),
-            petalMat,
-        )
-        petal.position.set(Math.cos(a) * 0.12, 0.085, Math.sin(a) * 0.12)
-        petal.rotation.z = -Math.PI / 2.0          // almost horizontal
-        petal.rotation.y = -a
-        petal.scale.set(1.0, 1.0, 0.65)            // flatten cone → petal blade
-        grp.add(petal)
-    }
-
-    // Stamens — short amber filaments rising from the centre. Five thin
-    // sticks topped with tiny anther beads.
-    for(let s = 0; s < 5; s++)
-    {
-        const ang = (s / 5) * Math.PI * 2 + 0.3
-        const filament = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.004, 0.004, 0.07, 4),
-            stamenMat,
-        )
-        filament.position.set(Math.cos(ang) * 0.02, 0.135, Math.sin(ang) * 0.02)
-        filament.rotation.z = Math.cos(ang) * 0.45
-        filament.rotation.x = Math.sin(ang) * 0.45
-        grp.add(filament)
-
-        const anther = new THREE.Mesh(
-            new THREE.IcosahedronGeometry(0.012, 0),
-            stamenMat,
-        )
-        anther.position.set(Math.cos(ang) * 0.045, 0.175, Math.sin(ang) * 0.045)
-        grp.add(anther)
-    }
-    return grp
-}
-
-function buildPansy(species)
-{
-    const grp = new THREE.Group()
-    const petalMat = lambert(species.petal)
-    const faceMat = lambert(species.face)
-    const eyeMat  = lambert(0xFFD45A)         // saturated yellow eye
-
-    // AC pansy layout — two upper petals + two side + one prominent bottom
-    // petal. Each is a flattened disc-like sphere; the bottom petal is wider
-    // because AC pansies always show one big lobe pointing down.
-    const layout = [
-        { x: -0.5,  z:  0.7,  s: 1.05 },   // upper left
-        { x:  0.5,  z:  0.7,  s: 1.05 },   // upper right
-        { x: -0.95, z: -0.10, s: 1.05 },   // left
-        { x:  0.95, z: -0.10, s: 1.05 },   // right
-        { x:  0,    z: -0.85, s: 1.25 },   // bottom — the big lobe
-    ]
-    for(const { x, z, s } of layout)
-    {
-        const petal = new THREE.Mesh(
-            new THREE.SphereGeometry(BLOOM_SIZE * 1.05, 12, 8),
-            petalMat,
-        )
-        petal.position.set(x * 0.12, 0.05, z * 0.12)
-        // Very flat petals so the bloom reads as a face-on disc, not a
-        // hemisphere. Slight upward tilt at the rim through scale on y.
-        petal.scale.set(s, 0.26, s)
-        grp.add(petal)
-    }
-
-    // Darker "face" mask near the centre — AC pansies have a dark blotch
-    // covering the inner halves of all five petals.
-    const face = new THREE.Mesh(
-        new THREE.SphereGeometry(CENTRE_SIZE * 0.65, 12, 8),
-        faceMat,
-    )
-    face.position.set(0, 0.072, 0.005)
-    face.scale.set(0.95, 0.22, 0.95)
-    grp.add(face)
-
-    // Tiny yellow eye dead-centre. Reads as the floral pip in AC art.
-    const eye = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.015, 0),
-        eyeMat,
-    )
-    eye.position.set(0, 0.10, 0)
-    grp.add(eye)
-
-    return grp
-}
-
-function buildHyacinth(species)
-{
-    const grp = new THREE.Group()
-    const petalMat = lambert(species.petal)
-
-    // Vertical spike — 5 levels × 4 small blobs tightening toward the tip.
-    const levels = 5
-    for(let lv = 0; lv < levels; lv++)
-    {
-        const y = 0.04 + lv * 0.075
-        const r = 0.08 - lv * 0.012
-        for(let p = 0; p < 4; p++)
-        {
-            const a = (p / 4) * Math.PI * 2 + lv * 0.35
-            const blob = new THREE.Mesh(
-                new THREE.IcosahedronGeometry(BLOOM_SIZE * 0.55, 0),
-                petalMat,
-            )
-            blob.position.set(Math.cos(a) * r, y, Math.sin(a) * r)
-            grp.add(blob)
-        }
-    }
-    return grp
-}
-
-const SHAPE_BUILDERS = {
-    daisy:    buildDaisy,
-    tulip:    buildTulip,
-    rose:     buildRose,
-    lily:     buildLily,
-    pansy:    buildPansy,
-    hyacinth: buildHyacinth,
-}
+// (The v1 procedural stem/bloom builders were removed in the world-port U7
+// grey-block interim — authored flower assets arrive in follow-up work.)
 
 export default class Flowers
 {
@@ -434,12 +155,22 @@ export default class Flowers
         flower.position.set(x, y, z)
         flower.rotation.y = yaw
 
-        flower.add(buildStem())
+        // GREY PLACEHOLDER (world-port U7, R7): flowers have no editor asset
+        // yet — a small conspicuous grey block with a species-tinted cap.
+        // The petalGroup survives so bloomInstance/hideAll keep scaling the
+        // bloom exactly as before; only the model is interim.
+        const base = buildPlaceholderBlock({ width: 0.07, height: STEM_HEIGHT * 0.5, depth: 0.07 })
+        flower.add(base.group)
 
         const petalGroup = new THREE.Group()
-        petalGroup.position.y = STEM_HEIGHT
-        const bloom = SHAPE_BUILDERS[speciesObj.id](speciesObj)
-        petalGroup.add(bloom)
+        petalGroup.position.y = STEM_HEIGHT * 0.5
+        const bloom = buildPlaceholderBlock({
+            width: 0.14,
+            height: 0.14,
+            depth: 0.14,
+            accent: speciesObj.petal,
+        })
+        petalGroup.add(bloom.group)
         flower.add(petalGroup)
 
         this.group.add(flower)
@@ -487,8 +218,15 @@ export default class Flowers
             })
         }
 
-        const bloom = SHAPE_BUILDERS[speciesId](tinted)
-        f.petalGroup.add(bloom)
+        // Placeholder-era reskin (U7): the bloom stays a grey block; the
+        // emotion tint lands on its accent cap so the mood pick still reads.
+        const bloom = buildPlaceholderBlock({
+            width: 0.14,
+            height: 0.14,
+            depth: 0.14,
+            accent: tinted.petal,
+        })
+        f.petalGroup.add(bloom.group)
         f.species = tinted
         return true
     }

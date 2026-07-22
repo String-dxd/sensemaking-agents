@@ -1,267 +1,40 @@
 import * as THREE from 'three'
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js'
-import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
 import View from './View.js'
 import State from '../State/State.js'
 import Debug from '../Debug/Debug.js'
+import { loadGlb, MODEL_URLS } from './assetLoader.ts'
+import { applyToonMaterials } from './Materials/toonMaterial.ts'
+import { CanopySpring } from './wind.ts'
+import { hashString, mulberry32 } from '../State/islandSpecCore/rand.ts'
 
 /**
- * Tree manager — direct port of Bruno Simon's folio-2025 tree system to
- * plain WebGL (three 0.149, no TSL).
+ * Tree manager — layout trees (the VALUES meaning layer) rendered with the
+ * island editor's authored `tree.glb` (world-port U7). Replaces Bruno's
+ * oak/cherry GLB + billboard-leaf-cloud system.
  *
- * Each tree comes from his Blender GLB (treeBody trunk + 6 treeLeaves
- * icosphere references) shipped in public/trees/. The icospheres themselves
- * are NOT rendered — they're placement envelopes. Inside each one we drop
- * 80 alpha-tested billboards textured with Bruno's foliageSDF atlas (a
- * little soft-leaf mask), all merged into one geometry and drawn as an
- * InstancedMesh across every leaf-ref of every tree.
+ * Every coupling survives: IslandLayout placement + reconciler
+ * (ensureFromLayout), heightAt snap, the onboarding reveal choreography
+ * (hideAll/showIndex/showAll/growIn), pick-and-plant (moveEntry /
+ * getEntryWorldXZ), the HoverProbe pick shape (`entries[].group`), and the
+ * SpeciesPalette subscription — species tint lands on per-species foliage
+ * materials cloned from the GLB's toon-converted set.
  *
- * The leaves get the painterly wind look by rotating each billboard's UV
- * around its centre by a world-position-driven sin/cos field — same trick
- * Bruno uses, just spelled in glsl instead of TSL. Two-tone color mixes
- * colorA → colorB via dot(worldNormal, sunDir); the sun direction syncs
- * to the live day-cycle so the lit/shadow split tracks sunrise → noon →
- * sunset.
- *
- * Trunks stay static — the wind illusion lives entirely in the leaf mask.
+ * Wind: the editor's spring-damper canopy sway (wind.ts) replaces the leaf
+ * UV-rotation shader — each clone's 'canopy' node rocks in the traveling
+ * gust front.
  */
-// DRACO decoder is self-hosted under public/draco/ (copied from
-// three/examples/jsm/libs/draco/gltf/). Avoids gstatic.com, which is
-// whitelist-blocked on Singapore MOE school networks where this app runs.
-//
-// Asset paths are derived from `import.meta.env.BASE_URL` so a subpath
-// deployment (e.g. `/student-space/`) still resolves /draco/ and trees/
-// relative to the app root, not the document origin. Falls back to '/'
-// for environments where Vite's BASE_URL isn't injected (SSR, unit tests).
-const BASE_URL = (typeof import.meta !== 'undefined'
-    && import.meta.env
-    && typeof import.meta.env.BASE_URL === 'string')
-    ? import.meta.env.BASE_URL
-    : '/'
-const ASSET_BASE = BASE_URL.endsWith('/') ? BASE_URL : `${BASE_URL}/`
 
-const dracoLoader = new DRACOLoader()
-dracoLoader.setDecoderPath(`${ASSET_BASE}draco/`)
-const gltfLoader = new GLTFLoader()
-gltfLoader.setDRACOLoader(dracoLoader)
+// The GLB carries its color in baked vertex colors; the species tint
+// multiplies on top. A full-strength multiply by a saturated palette color
+// would crush the bake, so the tint is applied as a partial lerp from white.
+const TINT_STRENGTH = 0.35
 
-const OAK_COLOR_A    = 0x3A7D2A
-const OAK_COLOR_B    = 0x8AAA35
-const CHERRY_COLOR_A = 0xFF66A3
-const CHERRY_COLOR_B = 0xFFCC66
-
-// Billboard cloud knobs. 80 planes per icosphere matches Bruno; plane size
-// is local to the unit-radius icosphere — so the final visible leaf size is
-// PLANE_SIZE × icoRefScale × treeScale, ~0.18m at our defaults.
-const LEAVES_PER_BLOB = 80
-const PLANE_SIZE      = 0.50
-const ALPHA_THRESHOLD = 0.32
-
-// The first entry is the centre-tree anchor — IslandReveal grows it
-// during beat K and the rest of the island grouping reads as
-// satellites. Scale is bumped above the other entries so it carries
-// the wide-shot silhouette.
-const PLACEMENTS = [
-    { species: 'oak',    x:  0.0, z:  0.0, scale: 0.78, yaw:  0.00 },
-    { species: 'oak',    x: -2.1, z: -1.6, scale: 0.52, yaw:  0.85 },
-    { species: 'cherry', x:  2.4, z: -1.1, scale: 0.50, yaw:  1.60 },
-    { species: 'cherry', x: -1.8, z:  2.1, scale: 0.56, yaw: -0.70 },
-    { species: 'oak',    x:  1.6, z:  2.4, scale: 0.54, yaw:  2.35 },
-    { species: 'oak',    x: -3.2, z:  0.3, scale: 0.60, yaw: -1.30 },
-    { species: 'cherry', x:  3.0, z:  0.9, scale: 0.48, yaw:  2.20 },
-]
-
-// Tiny seeded RNG — keeps the leaf cloud deterministic so HMR doesn't shuffle.
-function mulberry32(seed)
-{
-    let a = seed >>> 0
-    return () =>
-    {
-        a |= 0
-        a = (a + 0x6D2B79F5) | 0
-        let t = a
-        t = Math.imul(t ^ (t >>> 15), t | 1)
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-    }
-}
-
-// Build a unit-sphere cloud of leaf billboards. Each plane lives at its
-// own position inside the unit sphere (radius-biased toward the shell);
-// we DO NOT pre-translate or pre-orient the plane — instead the plane's
-// centre is recorded in a custom `aPlaneCenter` attribute, and the vertex
-// shader billboards each plane around that centre so it always faces the
-// camera. That's the trick that makes Bruno's foliage cloud look dense
-// from any angle (every plane shows face-on, leaves stack visually) rather
-// than balloon-thin (planes facing away or edge-on go invisible).
-//
-// We also store an `aRadial` attribute (the cloud-local outward direction)
-// per vertex so the fragment shader can shade each leaf as if its normal
-// pointed radially out of its blob — sun-side leaves bright, shadow-side
-// dim — without depending on the billboard's camera-facing normal.
-function buildLeafCloudGeometry()
-{
-    const rng = mulberry32(42)
-    const planes = []
-
-    const centers = []
-    const radials = []
-
-    for(let i = 0; i < LEAVES_PER_BLOB; i++)
-    {
-        // Plane centred at origin; just give it a random in-plane spin so
-        // each leaf's uv samples a different region of the SDF atlas after
-        // wind rotation.
-        const plane = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE)
-        plane.rotateZ(rng() * Math.PI * 2)
-
-        // Position inside the unit sphere — Bruno's recipe: uniform direction
-        // × shell-biased radius (1 - rng^3 puts most planes near r=1).
-        const theta = Math.PI * 2 * rng()
-        const phi   = Math.acos(2 * rng() - 1)
-        const r     = 1 - Math.pow(rng(), 3)
-        const px    = r * Math.sin(phi) * Math.cos(theta)
-        const py    = r * Math.cos(phi)
-        const pz    = r * Math.sin(phi) * Math.sin(theta)
-
-        let rx = px, ry = py, rz = pz
-        const rl = Math.hypot(rx, ry, rz) || 1
-        rx /= rl; ry /= rl; rz /= rl
-
-        // PlaneGeometry has 4 verts — write the per-plane centre + radial
-        // direction once per vertex so the shader can read them.
-        for(let v = 0; v < 4; v++)
-        {
-            centers.push(px, py, pz)
-            radials.push(rx, ry, rz)
-        }
-
-        planes.push(plane)
-    }
-
-    const geo = mergeBufferGeometries(planes)
-    geo.setAttribute('aPlaneCenter', new THREE.Float32BufferAttribute(centers, 3))
-    geo.setAttribute('aRadial',      new THREE.Float32BufferAttribute(radials, 3))
-    return geo
-}
-
-function loadGLB(path)
-{
-    return new Promise((resolve, reject) =>
-    {
-        gltfLoader.load(path, resolve, undefined, reject)
-    })
-}
-
-const LEAVES_VERTEX = `
-attribute vec3 aPlaneCenter;
-attribute vec3 aRadial;
-
-varying vec2 vUv;
-varying vec3 vWorldPos;
-varying vec3 vShadingN;
-
-void main()
-{
-    vUv = uv;
-
-    mat4 instModel = modelMatrix * instanceMatrix;
-
-    // Plane centre in world space (the blob's instance transform scales,
-    // rotates and translates the cloud-local centre into the world).
-    vec3 centerWorld = (instModel * vec4(aPlaneCenter, 1.0)).xyz;
-
-    // Camera-facing billboard frame at that centre. We rebuild it per-plane
-    // so each leaf in the cloud independently faces the camera, regardless
-    // of how the user has orbited.
-    vec3 toCam   = normalize(cameraPosition - centerWorld);
-    vec3 worldUp = vec3(0.0, 1.0, 0.0);
-    vec3 right   = normalize(cross(worldUp, toCam));
-    vec3 up      = cross(toCam, right);
-
-    // The plane's local geometry is at the origin (size PLANE_SIZE around 0);
-    // we pick up the instance's uniform scale so the leaf size also scales
-    // with the icosphere reference's own scale (smaller refs → smaller leaves).
-    float instScale = length(vec3(instModel[0].xyz));
-
-    vec3 worldPos = centerWorld + (position.x * right + position.y * up) * instScale;
-
-    // Shading normal: radial direction in world space. This is independent
-    // of the camera-facing billboard frame — it gives each leaf a stable
-    // sun/shadow tone based on where it sits in the canopy, not where the
-    // camera is looking from.
-    vShadingN = normalize(mat3(instModel) * aRadial);
-    vWorldPos = worldPos;
-
-    gl_Position = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
-}
-`
-
-const LEAVES_FRAGMENT = `
-uniform sampler2D uFoliage;
-uniform vec3      uColorA;
-uniform vec3      uColorB;
-uniform vec3      uSunDir;
-uniform float     uTime;
-uniform float     uThreshold;
-uniform float     uWindGust;
-uniform float     uWindRotation;
-
-varying vec2 vUv;
-varying vec3 vWorldPos;
-varying vec3 vShadingN;
-
-void main()
-{
-    // Wind: a bounded sin/cos field over world xz + time. Rotates each
-    // leaf's uv around its centre, so the leaf silhouette flutters in place
-    // without the billboard ever moving — Bruno's exact recipe.
-    float a = sin(uTime * 0.70 + vWorldPos.x * 0.35 + vWorldPos.z * 0.22);
-    float b = cos(uTime * 0.55 + vWorldPos.x * 0.30 + vWorldPos.z * 0.48);
-    // Same uWindGust the grass / flowers / particles read — leaf flutter
-    // rides the global wind envelope so the canopy lulls and gusts in step
-    // with the rest of the island. uWindRotation scales the flutter amount
-    // so the debug knob can dial it from still (0) to exaggerated (>1).
-    float rot = (a + b) * 0.40 * uWindGust * uWindRotation;
-    float c = cos(rot);
-    float s = sin(rot);
-    vec2 uv = vUv - 0.5;
-    uv = vec2(c * uv.x - s * uv.y, s * uv.x + c * uv.y) + 0.5;
-
-    float alpha = texture2D(uFoliage, uv).r;
-    if(alpha < uThreshold) discard;
-
-    // Two-tone leaf colour — shadow side picks up colorA, lit side colorB.
-    // Uses the radial shading normal so the sun/shadow split sits across
-    // the canopy itself, not across the camera-facing billboard.
-    float lit = smoothstep(0.0, 1.0, dot(vShadingN, uSunDir));
-    vec3 col = mix(uColorA, uColorB, lit);
-
-    gl_FragColor = vec4(col, 1.0);
-}
-`
-
-function makeLeavesMaterial(foliageTex, colorA, colorB)
-{
-    return new THREE.ShaderMaterial({
-        uniforms:
-        {
-            uFoliage:   { value: foliageTex },
-            uColorA:    { value: new THREE.Color(colorA) },
-            uColorB:    { value: new THREE.Color(colorB) },
-            uSunDir:    { value: new THREE.Vector3(0.4, 0.85, 0.3).normalize() },
-            uTime:         { value: 0 },
-            uThreshold:    { value: ALPHA_THRESHOLD },
-            uWindGust:     { value: 0.7 },
-            uWindRotation: { value: 1.0 },
-        },
-        vertexShader:   LEAVES_VERTEX,
-        fragmentShader: LEAVES_FRAGMENT,
-        side: THREE.DoubleSide,
-        transparent: false,
-    })
+// Default species tints (matched to the legacy oak/cherry palette identity —
+// the SpeciesPalette slice overrides these when diverged).
+const DEFAULT_TINTS = {
+    oak:    0x3A7D2A,
+    cherry: 0xFF66A3,
 }
 
 export default class Tree
@@ -275,45 +48,28 @@ export default class Tree
         this.island = this.state.island
 
         this.windSpeed = 1.0
-        this.windRotation = 1.0
 
-        this.materials = []        // leaf shader mats (for per-frame uniform updates)
-        // Per-tree records — { group } per placement. Public shape kept so
-        // FacetView's raycast pickers and tree counter keep working.
+        // Per-tree records — { group, species, x, z, index, authoredScale,
+        // layoutId }. Public shape kept: HoverProbe raycasts entries[].group,
+        // Sprouts routes drags through moveEntry, TermlyReveal calls growIn.
         this.entries = []
         this.ready = false
-
-        this._sunV = new THREE.Vector3(0.4, 0.85, 0.3).normalize()
-        this._tmpM = new THREE.Matrix4()
-
-        // Foliage SDF texture — Bruno's exact atlas. Surfaces load failures
-        // through console.error so a subpath misconfig or a 404 (CDN swap,
-        // typo'd public/) is visible instead of silently rendering as a
-        // texture-less canopy. The host can read `this.assetsFailed` for a
-        // future EngineLoadFailure integration.
         this.assetsFailed = false
-        this.foliageTex = new THREE.TextureLoader().load(
-            `${ASSET_BASE}trees/foliageSDF.png`,
-            (tex) =>
-            {
-                tex.magFilter = THREE.LinearFilter
-                tex.minFilter = THREE.LinearFilter
-                tex.generateMipmaps = false
-                tex.wrapS = THREE.RepeatWrapping
-                tex.wrapT = THREE.RepeatWrapping
-            },
-            undefined,
-            (err) =>
-            {
-                this.assetsFailed = true
-                console.error('[engine] tree assets failed to load (foliageSDF)', err)
-            },
-        )
+
+        this._disposed = false
+        this._springs = []
+        this._growIns = []
+        this._pendingShow = null
+        this._hidden = false
+
+        // Per-species tinted material sets, cloned once from the GLB's
+        // toon-converted materials so palette changes recolor in one place.
+        this._speciesMaterials = {}
 
         this._loadAndBuild()
         this.setDebug()
 
-        // Subscribe to live palette changes (plan 005).
+        // Subscribe to live palette changes.
         const palette = this.state.speciesPalette
         if(palette)
         {
@@ -321,238 +77,176 @@ export default class Tree
             {
                 if((event.type === 'paletteChanged' && event.kind === 'tree') || event.type === 'paletteReplaced')
                 {
-                    const species = event.type === 'paletteReplaced' ? ['oak', 'cherry'] : [event.species]
+                    const species = event.type === 'paletteReplaced' ? Object.keys(DEFAULT_TINTS) : [event.species]
                     for(const s of species) this._applyTreeColors(s)
                 }
             })
         }
     }
 
-    _applyTreeColors(species)
+    _tintFor(species)
     {
         const palette = this.state.speciesPalette
-        if(!palette || !this.templates) return
-        const c = palette.get('tree', species)
-        if(!c) return
-        const tpl = this.templates[species]
-        if(!tpl?.leavesMat?.uniforms) return
-        if(c.colorA) tpl.leavesMat.uniforms.uColorA.value.set(c.colorA)
-        if(c.colorB) tpl.leavesMat.uniforms.uColorB.value.set(c.colorB)
+        const c = palette?.get('tree', species)
+        return c?.colorA ?? DEFAULT_TINTS[species] ?? 0xffffff
+    }
+
+    _applyTreeColors(species)
+    {
+        const mats = this._speciesMaterials[species]
+        if(!mats) return
+        const tint = new THREE.Color(this._tintFor(species))
+        for(const m of mats)
+        {
+            m.color.set(0xffffff).lerp(tint, TINT_STRENGTH)
+        }
+    }
+
+    /** Point a clone's meshes at the per-species tinted material set,
+     *  cloning it from the GLB's toon-converted materials on first use
+     *  (mesh traversal order is stable across clones of the same scene). */
+    _materializeSpecies(species, model)
+    {
+        const existing = this._speciesMaterials[species]
+        if(!existing)
+        {
+            const set = []
+            model.traverse((n) =>
+            {
+                if(!n.isMesh) return
+                if(Array.isArray(n.material))
+                {
+                    n.material = n.material.map((m) =>
+                    {
+                        const cloned = m.clone()
+                        set.push(cloned)
+                        return cloned
+                    })
+                }
+                else
+                {
+                    const cloned = n.material.clone()
+                    set.push(cloned)
+                    n.material = cloned
+                }
+            })
+            this._speciesMaterials[species] = set
+            this._applyTreeColors(species)
+            return
+        }
+        let cursor = 0
+        model.traverse((n) =>
+        {
+            if(!n.isMesh) return
+            if(Array.isArray(n.material)) n.material = n.material.map(() => existing[cursor++])
+            else n.material = existing[cursor++] ?? n.material
+        })
     }
 
     async _loadAndBuild()
     {
-        try
-        {
-            const [oakGltf, cherryGltf] = await Promise.all([
-                loadGLB(`${ASSET_BASE}trees/oakTreesVisual.glb`),
-                loadGLB(`${ASSET_BASE}trees/cherryTreesVisual.glb`),
-            ])
-
-            this.templates = {
-                oak:    this._extractTemplate(oakGltf,    OAK_COLOR_A,    OAK_COLOR_B),
-                cherry: this._extractTemplate(cherryGltf, CHERRY_COLOR_A, CHERRY_COLOR_B),
-            }
-
-            // Apply any persisted palette overrides now that templates exist.
-            this._applyTreeColors('oak')
-            this._applyTreeColors('cherry')
-
-            // Shared billboard-cloud geometry (unit sphere local) — one mesh,
-            // every instance reuses it.
-            this.leafCloudGeo = buildLeafCloudGeometry()
-
-            // For each species, collect the world matrix of every leaf-icosphere
-            // across every placement of that species, then drop a single
-            // InstancedMesh into the scene.
-            this._placeAll()
-
-            this.ready = true
-
-            // Sparse-by-default: every static tree starts hidden, leaves
-            // zeroed out. The onboarding ceremony reveals entries[0] via
-            // showIndex / growIn; the dev "mature island" preview reveals
-            // the rest via showAll. Any showIndex queued during async boot
-            // is replayed here so the order of hide/show calls during boot
-            // doesn't matter to callers.
-            this.hideAll()
-            if(this._pendingShow)
-            {
-                const indices = Array.from(this._pendingShow)
-                this._pendingShow = null
-                for(const i of indices) this.showIndex(i)
-            }
-        }
-        catch(err)
+        const gltf = await loadGlb(MODEL_URLS.tree)
+        if(this._disposed) return
+        if(!gltf)
         {
             this.assetsFailed = true
-            console.error('[engine] tree assets failed to load (GLB/DRACO)', err)
-        }
-    }
-
-    _extractTemplate(gltf, leafA, leafB)
-    {
-        let bodyGeo = null
-        let bodyTex = null
-        const leafRefs = []
-
-        gltf.scene.updateMatrixWorld(true)
-        gltf.scene.traverse((child) =>
-        {
-            if(!child.isMesh) return
-            if(child.name.startsWith('treeBody'))
-            {
-                bodyGeo = child.geometry
-                if(child.material && child.material.map) bodyTex = child.material.map
-            }
-            else if(child.name.startsWith('treeLeaves'))
-            {
-                leafRefs.push({
-                    position:   child.position.clone(),
-                    quaternion: child.quaternion.clone(),
-                    scale:      child.scale.clone(),
-                })
-            }
-        })
-
-        if(bodyTex)
-        {
-            bodyTex.encoding  = THREE.sRGBEncoding
-            bodyTex.magFilter  = THREE.NearestFilter
-            bodyTex.minFilter  = THREE.NearestFilter
-            bodyTex.generateMipmaps = false
-            bodyTex.needsUpdate = true
+            // ready still flips true so dependents (reveal beats) never hang.
+            this.ready = true
+            return
         }
 
-        const bodyMat = new THREE.MeshLambertMaterial({
-            map: bodyTex,
-            flatShading: true,
-            side: THREE.DoubleSide,
-        })
-        const leavesMat = makeLeavesMaterial(this.foliageTex, leafA, leafB)
-        this.materials.push(leavesMat)
+        // Toon-convert the cached scene in place (idempotent, shared clones).
+        applyToonMaterials(gltf.scene)
+        this._template = gltf.scene
 
-        // Each leaf-ico ref's local size = (1.4 / 1.0) × node.scale because the
-        // GLB icospheres are r≈1.4 in their own object frame. We bake that 1.4
-        // here so the unit-radius leaf cloud expands to fill the same volume
-        // Bruno's blobs occupied.
-        const ICO_RADIUS = 1.40
-        for(const ref of leafRefs) ref.scale.multiplyScalar(ICO_RADIUS)
+        this._placeAll()
+        this.ready = true
 
-        return { bodyGeo, bodyMat, leafRefs, leavesMat }
+        // Sparse-by-default: every static tree starts hidden; the onboarding
+        // ceremony reveals entries[0] via showIndex/growIn. Any showIndex
+        // queued during async boot is replayed here.
+        this.hideAll()
+        if(this._pendingShow)
+        {
+            const indices = Array.from(this._pendingShow)
+            this._pendingShow = null
+            for(const i of indices) this.showIndex(i)
+        }
     }
 
     _placeAll()
     {
-        // Bucket placements by species so we get one InstancedMesh per species.
-        const buckets = { oak: [], cherry: [] }
-        // Per-species cursor into the InstancedMesh that's about to be built.
-        // Each placement contributes `leafRefs.length` matrices in placement
-        // order, so we can record the index range per tree for hideAll/growIn.
-        const cursors = { oak: 0, cherry: 0 }
-        // Per-species InstancedMesh, retained so the onboarding ceremony can
-        // hide leaves at boot and re-project them during growIn.
-        this._leafMeshBySpecies = {}
-        this._leafMeshes = []
-
         for(const placement of this.state.islandLayout.listByKind('tree'))
         {
             const { id: layoutId, species, x, z, scale, yaw } = placement
-            const tpl = this.templates[species]
             const groundY = this.island.heightAt(x, z)
 
-            // Per-tree group anchors the trunk; the leaves render through the
-            // species-wide InstancedMesh (added below).
             const group = new THREE.Group()
             group.position.set(x, groundY, z)
             group.scale.setScalar(scale)
             group.rotation.y = yaw
 
-            const trunk = new THREE.Mesh(tpl.bodyGeo, tpl.bodyMat)
-            trunk.castShadow    = true
-            trunk.receiveShadow = true
-            group.add(trunk)
+            const model = this._template.clone(true)
+            model.userData.sharedAssets = true
+            // Seeded per-instance variety on the safe 'canopy' handle
+            // (meshopt quantization compensation lives on the mesh node).
+            const canopy = model.getObjectByName('canopy')
+            const rand = mulberry32(hashString(layoutId || `tree-${this.entries.length}`))
+            if(canopy)
+            {
+                canopy.rotation.y = rand() * Math.PI * 2
+                const girth = 0.92 + rand() * 0.16
+                canopy.scale.x = girth
+                canopy.scale.z = girth
+            }
+            this._materializeSpecies(species, model)
+            model.traverse((n) =>
+            {
+                if(n.isMesh)
+                {
+                    n.castShadow = true
+                    n.receiveShadow = true
+                }
+            })
+            group.add(model)
             this.scene.add(group)
 
-            // World matrix of the tree group itself.
-            group.updateMatrixWorld(true)
-            const treeWorld = group.matrixWorld.clone()
-
-            // For each leaf-icosphere ref of this species, compute its world
-            // matrix and queue it for the InstancedMesh — and record the
-            // blob's world centre + shell radius so Fruits.js can hang fruit
-            // across the actual canopy envelope instead of around the trunk.
-            // We also keep the per-tree local matrices so growIn() can re-
-            // project the leaves from the trunk's current world transform
-            // (sync leaves to the trunk's tweening scale).
-            const canopy = []
-            const leafLocals = []
-            for(const ref of tpl.leafRefs)
+            if(canopy)
             {
-                const local = new THREE.Matrix4().compose(ref.position, ref.quaternion, ref.scale)
-                const world = new THREE.Matrix4().multiplyMatrices(treeWorld, local)
-                buckets[species].push(world)
-                leafLocals.push(local)
-
-                const center = new THREE.Vector3().setFromMatrixPosition(world)
-                const radius = scale * Math.abs(ref.scale.x)
-                canopy.push({ center, radius })
+                this._springs.push({
+                    spring: new CanopySpring(((hashString(layoutId || String(this.entries.length)) % 1000) / 1000) * Math.PI * 2),
+                    canopy,
+                    entry: this.entries.length,
+                    amp: canopy.userData.windAmp ?? 0.55,
+                })
             }
-
-            const leafStart = cursors[species]
-            const leafEnd   = leafStart + leafLocals.length
-            cursors[species] = leafEnd
 
             this.entries.push({
                 group,
                 species,
                 x, z,
-                canopy,
-                index:      this.entries.length,
+                index:         this.entries.length,
                 authoredScale: scale,
                 layoutId,
-                leafLocals,
-                leafStart,
-                leafEnd,
             })
-        }
-
-        for(const species of Object.keys(buckets))
-        {
-            const matrices = buckets[species]
-            if(matrices.length === 0) continue
-            const tpl = this.templates[species]
-            const inst = new THREE.InstancedMesh(this.leafCloudGeo, tpl.leavesMat, matrices.length)
-            inst.frustumCulled = false
-            for(let i = 0; i < matrices.length; i++) inst.setMatrixAt(i, matrices[i])
-            inst.instanceMatrix.needsUpdate = true
-            this.scene.add(inst)
-            this._leafMeshBySpecies[species] = inst
-            this._leafMeshes.push(inst)
         }
     }
 
     /**
-     * Island editor (plan 003): reconcile placed trees with a new layout list.
-     * Tears down all existing InstancedMeshes and entry groups, then calls
-     * _placeAll() which reads from the (already-mutated) IslandLayout slice.
-     * A brief flash is accepted — incremental InstancedMesh surgery is
-     * explicitly out of scope per the locked decision.
-     *
-     * No-op until assets are ready (guards against a pre-boot call).
+     * Island editor reconcile: tears down all entry groups, then rebuilds
+     * from the (already-mutated) IslandLayout slice. No-op until assets are
+     * ready (guards against a pre-boot call).
      *
      * @param {readonly import('../State/IslandLayout.js').PlacedObject[]} _objs — provided by the
-     *   caller for symmetry with Flowers/Fruits, but Tree reads its layout from the slice directly.
+     *   caller for symmetry with Flowers/Fruits; Tree reads the slice directly.
      */
     ensureFromLayout(_objs)
     {
-        if(!this.ready) return
+        if(!this.ready || !this._template) return
         try
         {
             this._teardownPlacements()
             this._placeAll()
-            // Re-apply visibility state. If the editor was in "preview" mode,
-            // showAll is called by the panel; otherwise hide as normal.
             if(!this._hidden) this.showAll()
         }
         catch(err)
@@ -561,67 +255,37 @@ export default class Tree
         }
     }
 
-    /**
-     * Tear down all authored-placement meshes and leaf InstancedMeshes so
-     * _placeAll() can rebuild cleanly. Does NOT dispose the shared
-     * leafCloudGeo or the species templates — those survive rebuilds.
-     */
+    /** Tear down all placement groups (clones share the GLB cache — geometry
+     *  and the per-species materials survive rebuilds). */
     _teardownPlacements()
     {
         for(const entry of (this.entries || []))
         {
-            if(entry.group)
-            {
-                this.scene.remove(entry.group)
-                entry.group.traverse((child) =>
-                {
-                    if(child.geometry) try { child.geometry.dispose() } catch(_) {}
-                    if(child.material) try { child.material.dispose() } catch(_) {}
-                })
-            }
-        }
-        for(const inst of (this._leafMeshes || []))
-        {
-            this.scene.remove(inst)
-            try { inst.dispose() } catch(_) {}
+            if(entry.group) this.scene.remove(entry.group)
         }
         this.entries = []
-        this._leafMeshBySpecies = {}
-        this._leafMeshes = []
+        this._springs = []
         this._hidden = false
     }
 
     /**
-     * First-run ceremony helper. Zero every leaf instance matrix and hide
-     * every trunk so the world reads as a bare island until growIn() reveals
-     * the directed tree. Idempotent and safe to call before async assets
-     * have loaded (the loops are no-ops on empty arrays).
+     * First-run ceremony helper. Hide every tree so the world reads as a
+     * bare island until growIn() reveals the directed tree. Idempotent and
+     * safe pre-ready (loops no-op on empty arrays).
      */
     hideAll()
     {
-        const zero = new THREE.Matrix4().compose(
-            new THREE.Vector3(0, -1e3, 0),
-            new THREE.Quaternion(),
-            new THREE.Vector3(1e-6, 1e-6, 1e-6),
-        )
         for(const entry of this.entries)
         {
             entry.group.visible = false
             entry.group.scale.setScalar(0)
         }
-        for(const inst of (this._leafMeshes || []))
-        {
-            for(let i = 0; i < inst.count; i++) inst.setMatrixAt(i, zero)
-            inst.instanceMatrix.needsUpdate = true
-        }
         this._hidden = true
     }
 
     /**
-     * Reveal a single tree without animation — sets the group visible,
-     * snaps it to authored scale, and re-projects this entry's leaf
-     * instance matrices from the trunk's world transform. Queued if
-     * assets are still loading.
+     * Reveal a single tree without animation. Queued if assets are still
+     * loading.
      */
     showIndex(index)
     {
@@ -635,18 +299,9 @@ export default class Tree
         if(!entry) return
         entry.group.visible = true
         entry.group.scale.setScalar(entry.authoredScale)
-        entry.group.updateMatrixWorld(true)
-        const mesh = this._leafMeshBySpecies[entry.species]
-        if(!mesh) return
-        for(let i = 0; i < entry.leafLocals.length; i++)
-        {
-            this._tmpM.multiplyMatrices(entry.group.matrixWorld, entry.leafLocals[i])
-            mesh.setMatrixAt(entry.leafStart + i, this._tmpM)
-        }
-        mesh.instanceMatrix.needsUpdate = true
     }
 
-    /** Dev / "mature island" preview helper — reveal every tree at authored scale. */
+    /** Dev / "mature island" preview helper — reveal every tree. */
     showAll()
     {
         if(!this.ready)
@@ -659,11 +314,9 @@ export default class Tree
     }
 
     /**
-     * Reveal one tree by index and tween its trunk scale from 0 to the
-     * authored placement scale, re-projecting its leaf instance matrices
-     * from the trunk's current world transform each frame so the canopy
-     * grows with the trunk. Returns a Promise that resolves when the tween
-     * completes (or after the reduced-motion 80ms cap).
+     * Reveal one tree by index and tween its scale from 0 to the authored
+     * placement scale. Returns a Promise resolving when the tween completes
+     * (or after the reduced-motion 80ms cap).
      */
     growIn(index, opts = {})
     {
@@ -675,7 +328,6 @@ export default class Tree
         const delay    = opts.delay ?? 0
         entry.group.visible = true
         entry.group.scale.setScalar(0)
-        if(!this._growIns) this._growIns = []
         return new Promise((resolve) =>
         {
             this._growIns.push({
@@ -692,17 +344,13 @@ export default class Tree
     {
         if(!this.debug.active) return
         const folder = this.debug.ui.getFolder('view/trees')
-        folder.add(this, 'windSpeed',    0, 3, 0.05).name('wind speed')
-        folder.add(this, 'windRotation', 0, 3, 0.05).name('leaf flutter')
+        folder.add(this, 'windSpeed', 0, 3, 0.05).name('wind speed')
     }
 
     /**
-     * Pick-and-plant: relocate a placement to (x, z), snap y to terrain,
-     * and re-project this entry's leaf instances so the canopy follows
-     * the trunk. Used by the Sprouts view to honor student-set decor
-     * offsets at boot and after a commit.
-     *
-     * Idempotent. Silent no-op on bad index or before this.ready.
+     * Pick-and-plant: relocate a placement to (x, z), snapping y to terrain
+     * (`opts.y` holds the drag lift plane). Idempotent; silent no-op on bad
+     * index or before this.ready.
      */
     moveEntry(index, x, z, opts = {})
     {
@@ -710,24 +358,10 @@ export default class Tree
         if(typeof x !== 'number' || typeof z !== 'number') return
         const entry = this.entries[index]
         if(!entry) return
-        // `opts.y` lets the drag handler keep a lifted y while the
-        // student is holding the tree; bare calls (commit, hydrate-
-        // apply) fall back to terrain snap.
         const y = typeof opts.y === 'number' ? opts.y : this.island.heightAt(x, z)
         entry.group.position.set(x, y, z)
         entry.x = x
         entry.z = z
-        entry.group.updateMatrixWorld(true)
-        const mesh = this._leafMeshBySpecies[entry.species]
-        if(mesh)
-        {
-            for(let i = 0; i < entry.leafLocals.length; i++)
-            {
-                this._tmpM.multiplyMatrices(entry.group.matrixWorld, entry.leafLocals[i])
-                mesh.setMatrixAt(entry.leafStart + i, this._tmpM)
-            }
-            mesh.instanceMatrix.needsUpdate = true
-        }
     }
 
     /** Read the live world XZ of a placement, or null if unavailable. */
@@ -738,26 +372,36 @@ export default class Tree
         return { x: entry.group.position.x, z: entry.group.position.z }
     }
 
+    dispose()
+    {
+        this._disposed = true
+        if(this._unsubPalette)
+        {
+            try { this._unsubPalette() } catch(_) {}
+            this._unsubPalette = null
+        }
+    }
+
     update()
     {
         if(!this.ready) return
 
-        // Sync the leaves' shader sun direction to the live day-cycle sun.
-        const s = this.state.sun.position
-        this._sunV.set(s.x, s.y, s.z)
+        // Spring-damper canopy sway (visible trees only — hidden groups
+        // integrate anyway; cost is negligible at layout-tree counts).
         const t = this.state.time.elapsed * this.windSpeed
-        const gust = this.state.wind ? this.state.wind.gust : 0.7
-        for(const mat of this.materials)
+        const dt = this.state.time.delta || 0
+        for(const s of this._springs)
         {
-            mat.uniforms.uSunDir.value.copy(this._sunV)
-            mat.uniforms.uTime.value = t
-            mat.uniforms.uWindGust.value = gust
-            mat.uniforms.uWindRotation.value = this.windRotation
+            const entry = this.entries[s.entry]
+            if(!entry || !entry.group.visible) continue
+            s.spring.step(t, dt, entry.group.position.x, entry.group.position.z, s.amp)
+            s.canopy.rotation.x = s.spring.rotX
+            s.canopy.rotation.z = s.spring.rotZ
+            s.canopy.scale.y = s.spring.scaleY
         }
 
-        // Process onboarding growIns: tween trunk scale, re-project leaf
-        // instances each frame so the canopy follows the trunk.
-        if(this._growIns && this._growIns.length > 0)
+        // Onboarding growIns: tween group scale.
+        if(this._growIns.length > 0)
         {
             const now = performance.now()
             const remaining = []
@@ -765,24 +409,10 @@ export default class Tree
             {
                 if(now < g.startTime) { remaining.push(g); continue }
                 const elapsed = now - g.startTime
-                const t = Math.min(1, elapsed / g.duration)
-                const eased = t * t * t * (t * (t * 6 - 15) + 10)
-                const scale = g.target * eased
-                g.entry.group.scale.setScalar(Math.max(scale, 1e-6))
-                g.entry.group.updateMatrixWorld(true)
-
-                const mesh = this._leafMeshBySpecies[g.entry.species]
-                if(mesh)
-                {
-                    for(let i = 0; i < g.entry.leafLocals.length; i++)
-                    {
-                        this._tmpM.multiplyMatrices(g.entry.group.matrixWorld, g.entry.leafLocals[i])
-                        mesh.setMatrixAt(g.entry.leafStart + i, this._tmpM)
-                    }
-                    mesh.instanceMatrix.needsUpdate = true
-                }
-
-                if(t < 1) remaining.push(g)
+                const p = Math.min(1, elapsed / g.duration)
+                const eased = p * p * p * (p * (p * 6 - 15) + 10)
+                g.entry.group.scale.setScalar(Math.max(g.target * eased, 1e-6))
+                if(p < 1) remaining.push(g)
                 else g.resolve?.()
             }
             this._growIns = remaining

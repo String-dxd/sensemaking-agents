@@ -61,11 +61,18 @@ describe('color-space guard — no r152+ APIs in engine code (runtime three is r
     expect(findForbiddenColorApis('#include <encodings_fragment>')).toHaveLength(0)
   })
 
-  it('configureColorPipeline sets sRGB output + ACES filmic at exposure 1.1', () => {
-    const stub = { outputEncoding: 0, toneMapping: 0, toneMappingExposure: 0 }
+  it('configureColorPipeline sets sRGB output + ACES filmic at exposure 1.1 + soft shadows', () => {
+    const stub = {
+      outputEncoding: 0,
+      toneMapping: 0,
+      toneMappingExposure: 0,
+      shadowMap: { enabled: false, type: 0 },
+    }
     configureColorPipeline(stub)
     expect(stub.outputEncoding).toBe(3001) // THREE.sRGBEncoding (r149 constant)
     expect(stub.toneMapping).toBe(4) // THREE.ACESFilmicToneMapping
     expect(stub.toneMappingExposure).toBe(1.1)
+    expect(stub.shadowMap.enabled).toBe(true)
+    expect(stub.shadowMap.type).toBe(2) // THREE.PCFSoftShadowMap
   })
 })

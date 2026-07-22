@@ -101,11 +101,6 @@ export default class Game
             throw err
         }
 
-        // Hand Bruno's Grass material a fake terrain texture sourced from our
-        // static island heightmap, so it can sample heights + normals without
-        // going through his Chunks/Terrain pipeline.
-        this.view.grass.bindTerrain(this.view.island.terrainTexture, this.view.island.chunkSize)
-
         window.addEventListener('resize', this._onResize)
         if(typeof document !== 'undefined')
             document.addEventListener('visibilitychange', this._onVisibilityChange)
