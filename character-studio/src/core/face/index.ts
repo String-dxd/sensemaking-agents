@@ -1,5 +1,0 @@
-export * from './atlas'
-export * from './atlasRegistry'
-export * from './faceComposite'
-export * from './facePlane'
-export * from './faceRig'
