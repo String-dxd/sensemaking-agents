@@ -4,12 +4,12 @@ SenseMake is a student reflection app for turning lived school experiences into 
 
 Current product shape:
 
-- `/` is the recording surface: audio-only reflection in the island world, one primary voice action, then Mirror saves the raw thought into Library.
+- `/` is the recording surface: audio-only reflection in the island world, one primary voice action, then Mirror saves the raw thought as a History entry.
 - Mirror uses OpenAI Realtime to listen, transcribe, and reflect the thought, then saves the raw thought without waiting on Connector.
-- Connector runs from the Library `Run Connector` action or the scheduled evening pass, verifies proposed VIPS links, and applies verifier-passing links directly into the VIPS pages and timeline.
-- `/library` is the main review surface. By default it shows all recorded thoughts and VIPS pages; the `Need review` filter shows raw mirror thoughts that still need confirm/forget.
-- Cartographer runs manually from `/library` and generates the Trajectory page.
-- `/reflect` redirects to `/`; `/reflect/review` redirects into `/library?filter=need-review`.
+- `/history` is the main review surface: reflections land there immediately, and clicking a reflection card opens the right-hand detail pane to confirm or forget it.
+- Connector links recent reflections into the VIPS pages. It has no product-surface button — it runs from the dev-only `/dev/pipeline` page (`ENABLE_DEV_PIPELINE=1` in production) or the scheduled evening pass — verifies proposed VIPS links, and applies verifier-passing links directly into the VIPS pages and timeline.
+- `/trajectory` shows the Cartographer synthesis; its "Run sense-making" button triggers Cartographer once there are enough verified VIPS links.
+- `/profile`, `/letters`, and `/settings` round out the routed sheets — the world, history, profile, trajectory, letters, and settings routes above are the complete set.
 
 For the latest planning and merge status, see `plans/CURRENT_STATE.md`.
 
@@ -43,14 +43,14 @@ Realtime Mirror defaults live in `src/agents/openai-realtime/config.ts`. Claude 
 4. Mirror receives the live audio/typed transcript and returns `validation`, `inferred_meaning`, and `story_reframe`.
 5. `self_critique` reviews the Mirror draft for evidence grounding, safety, student agency, and specificity. This review is returned as `eval_review`; it does not block persistence.
 6. `persistMirror` writes the raw thought to `mirror_entries` in `pending` review state.
-7. Connector later runs from Library or the scheduled pass over recent unconnected reflections.
+7. Connector later runs from `/dev/pipeline` (dev-only, or production with `ENABLE_DEV_PIPELINE=1`) or the scheduled pass over recent unconnected reflections.
 8. Connector proposes VIPS timeline links and page rewrites across Values, Interests, Personality, and Skills.
 9. `self_critique` reviews the Connector draft for evidence grounding, taxonomy fit, safety, specificity, and sycophancy.
 10. The deterministic verifier gates every proposed timeline link before anything enters `vips_timeline_entries`.
 11. Verifier-passing `admitted` and `downgraded` entries become connected VIPS links. Dropped entries stay only in the audit payload in `vips_proposed_diffs`.
 12. Cartographer reads verified VIPS pages and timeline entries when the user clicks `Run sense-making`.
 13. `self_critique` reviews the Cartographer draft for evidence grounding, safety, student agency, specificity, sycophancy, and actionability.
-14. Cartographer writes `/library/trajectory` with a trajectory paragraph, 2-5 pathways, open questions, and a disclaimer.
+14. Cartographer writes `/trajectory` with a trajectory paragraph, 2-5 pathways, open questions, and a disclaimer.
 
 ### Agent Boundaries
 
@@ -102,29 +102,13 @@ In development builds, the header includes an `agent debug` drawer that shows th
 
 Requires Node 22+, pnpm, Postgres/Neon connection details, Anthropic Managed Agent bindings for Connector/Cartographer/self-critique, and an OpenAI API key for Mirror Realtime.
 
-Create `.env` with the environment variables your flow needs:
-
-```bash
-DATABASE_URL=...
-OPENAI_API_KEY=...
-OPENAI_REALTIME_MIRROR_MODEL=gpt-realtime-2
-
-MANAGED_AGENT_ENV_ID=...
-MANAGED_AGENT_CONNECTOR_ID=...
-MANAGED_AGENT_CARTOGRAPHER_ID=...
-MANAGED_AGENT_SELF_CRITIQUE_ID=...
-
-WORKOS_CLIENT_ID=...
-WORKOS_API_KEY=...
-WORKOS_REDIRECT_URI=http://localhost:3000/api/auth/callback
-WORKOS_COOKIE_PASSWORD=...
-
-CRON_SECRET=...
-```
+Copy `.env.example` to `.env` and fill in the variables your flow needs — the
+demo-bypass flow only needs the "Demo minimum" group; Managed Agents and
+WorkOS groups are optional unless you're exercising those paths.
 
 For local browser development without WorkOS, start the app and choose
-`profile` -> `use demo account`. That creates a same-origin demo session cookie
-for the seeded `demo-a` student.
+"Use a demo account" on the login screen. That creates a same-origin demo
+session cookie for the seeded `demo-a` student — no WorkOS variables needed.
 
 For non-browser server checks that cannot set the demo cookie, you can use the
 dev-only bypass instead:
@@ -137,12 +121,16 @@ Then run:
 
 ```bash
 pnpm install
-pnpm db:migrate
-pnpm seed
+pnpm demo:bootstrap
 pnpm dev
 ```
 
-The dev server runs at `http://localhost:3000`.
+The dev server runs at `http://localhost:3000` by default. If port 3000 is
+already taken by another local app, override it with `PORT=3100 pnpm dev` (any
+free port works). If you're using real WorkOS sign-in rather than the demo
+bypass, `WORKOS_REDIRECT_URI` must match whatever origin you actually run on —
+the demo-bypass flow does not need WorkOS at all, so this only matters when
+testing real sign-in.
 
 After changing managed-agent prompts or model defaults, update existing hosted agent versions with:
 
@@ -154,13 +142,35 @@ Connector now defaults to `claude-sonnet-4-6`; adaptive Haiku/Sonnet routing is 
 
 ## Demo Flow
 
-1. Open `/`.
-2. Use the voice button.
-3. Allow microphone access. No camera or video element is used.
-4. Talk for a short reflection, then stop.
-5. Realtime Mirror prepares Kira's reading; choose `Log` to save it or `Forget` to discard it.
-6. Review raw thoughts at `/library?filter=need-review`.
-7. Open `/library` to run Connector, inspect VIPS pages, and run Cartographer for Trajectory.
+1. `pnpm demo:bootstrap` (first run) then `pnpm dev`.
+2. On the login screen, choose "Use a demo account" — this signs you in as the
+   seeded `demo-a` student (Alice) without touching WorkOS.
+3. Open `/`, use the voice button, and allow microphone access. No camera or
+   video element is used.
+4. Talk for a short reflection, then stop. Realtime Mirror prepares Kira's
+   reading; choose `Log` to save it or `Forget` to discard it. Logged
+   reflections land in `/history` immediately.
+5. Open `/history` and click the new reflection card to open the detail pane;
+   confirm or forget it there.
+6. Connector (VIPS linking) has no in-product button: run it from
+   `/dev/pipeline` (requires `ENABLE_DEV_PIPELINE=1` outside development) or
+   wait for the 18:00 Singapore scheduled pass. Either way, once links are
+   verified the VIPS pages update.
+7. Open `/trajectory` and click "Run sense-making" to trigger Cartographer —
+   the button only appears once there are enough verified VIPS links to
+   synthesize a trajectory.
+
+### Resetting between demos
+
+- `pnpm demo:reset` re-runs migrations and re-seeds every demo student,
+  replacing whatever the previous demo captured (normal `pnpm seed` skips
+  students that already have data — `demo:reset` forces the replace). Seed
+  dates are anchored relative to "today", so re-seeding periodically also
+  keeps the demo corpus dated as if it happened yesterday rather than drifting
+  further into the past — worth doing before any demo, not just after data
+  gets messy.
+- To reset only the in-world onboarding state for the active student without
+  touching the database, use Settings → "Restart onboarding".
 
 ## Quality Gates
 
@@ -186,7 +196,7 @@ pnpm ablate:sensemake
 src/
   agents/       Realtime Mirror/Managed Agent prompts, schemas, runner, context builders
   auth/         WorkOS, demo auth, identity helpers
-  components/   World Studio, review, library, and UI primitives
+  components/   World Studio, routed sheets (History, Profile, Trajectory, Letters, Settings), and UI primitives
   data/         VIPS and ECG taxonomy fixtures
   db/           Drizzle schema, migrations, queries, seed
   routes/       TanStack Router file routes and API routes
