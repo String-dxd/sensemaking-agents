@@ -161,6 +161,16 @@ async function openRealtimeMirrorConnection(
 }
 
 let prewarmedConnection: Promise<RealtimeMirrorConnection> | null = null
+let prewarmTtlTimer: ReturnType<typeof setTimeout> | null = null
+
+/** How long an unconsumed warm connection may hold the (muted) mic open. */
+const PREWARM_TTL_MS = 60_000
+
+function clearPrewarmTtl() {
+  if (prewarmTtlTimer === null) return
+  clearTimeout(prewarmTtlTimer)
+  prewarmTtlTimer = null
+}
 
 /**
  * Pre-connect the Realtime Mirror transport so a later
@@ -176,6 +186,12 @@ export function prewarmRealtimeMirrorCapture(deps: RealtimeMirrorClientDeps = {}
   if (!hasInjectedTransport && !canCreateRealtimeMirrorCapture()) return
   const pending = openRealtimeMirrorConnection(deps)
   prewarmedConnection = pending
+  // Expire unconsumed warmth so a hover-triggered prewarm can't hold the
+  // (muted) mic open indefinitely when the user never records.
+  clearPrewarmTtl()
+  prewarmTtlTimer = setTimeout(() => {
+    if (prewarmedConnection === pending) disposePrewarmedRealtimeMirrorCapture()
+  }, PREWARM_TTL_MS)
   pending.then(
     (connection) => {
       // Park the handshake rejection until a capture consumes it — an
@@ -183,7 +199,10 @@ export function prewarmRealtimeMirrorCapture(deps: RealtimeMirrorClientDeps = {}
       connection.sessionReady.catch(() => {})
     },
     () => {
-      if (prewarmedConnection === pending) prewarmedConnection = null
+      if (prewarmedConnection === pending) {
+        prewarmedConnection = null
+        clearPrewarmTtl()
+      }
     },
   )
 }
@@ -192,12 +211,14 @@ export function prewarmRealtimeMirrorCapture(deps: RealtimeMirrorClientDeps = {}
 export function disposePrewarmedRealtimeMirrorCapture(): void {
   const pending = prewarmedConnection
   prewarmedConnection = null
+  clearPrewarmTtl()
   pending?.then((connection) => connection.dispose()).catch(() => {})
 }
 
 function takePrewarmedRealtimeMirrorConnection(): Promise<RealtimeMirrorConnection> | null {
   const pending = prewarmedConnection
   prewarmedConnection = null
+  clearPrewarmTtl()
   return pending
 }
 
