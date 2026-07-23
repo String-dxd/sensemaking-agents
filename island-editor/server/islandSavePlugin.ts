@@ -11,8 +11,9 @@
 // derives the write path from the request. Dev-only by construction:
 // `configureServer` does not exist in static/preview deployments.
 
+import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import type { Plugin } from 'vite'
 
 /** Repo-relative path of the tracked save file (see saves/README.md). */
@@ -43,6 +44,7 @@ export function handleIslandRoute(
   res: IslandRouteResponse,
   next: () => void,
   root: string,
+  onSaved?: () => void,
 ): void {
   const pathname = (req.url ?? '').split('?')[0]
   const savePath = join(root, SAVE_FILE)
@@ -88,6 +90,7 @@ export function handleIslandRoute(
       writeFileSync(savePath, text, 'utf8')
       res.statusCode = 204
       res.end()
+      onSaved?.()
     })
     return
   }
@@ -107,11 +110,54 @@ export function handleIslandRoute(
   next()
 }
 
+/**
+ * After a successful save, push the spec into the product app: run the root
+ * repo's `pnpm sync:island` (rewrites the engine's committed spec + fallback
+ * + golden fixture), which makes a running app dev server hot-reload with the
+ * updated island. Single-flight with one queued re-run so rapid saves settle
+ * on the latest spec; failures log to the editor dev-server console only.
+ */
+export function createSyncOnSave(root: string) {
+  const repoRoot = resolve(root, '..')
+  const syncScript = join(repoRoot, 'scripts', 'sync-island-spec.ts')
+  let running = false
+  let rerunQueued = false
+
+  const run = () => {
+    if (!existsSync(syncScript)) {
+      console.warn('[island-save] sync skipped — no scripts/sync-island-spec.ts above', root)
+      return
+    }
+    if (running) {
+      rerunQueued = true
+      return
+    }
+    running = true
+    console.log('[island-save] running pnpm sync:island …')
+    const child = spawn('pnpm', ['sync:island'], { cwd: repoRoot, stdio: 'inherit' })
+    child.on('error', (err) => {
+      running = false
+      console.warn('[island-save] sync:island failed to start', err)
+    })
+    child.on('exit', (code) => {
+      running = false
+      if (code === 0) console.log('[island-save] sync:island done — app island updated')
+      else console.warn(`[island-save] sync:island exited with ${code}`)
+      if (rerunQueued) {
+        rerunQueued = false
+        run()
+      }
+    })
+  }
+  return run
+}
+
 export function islandSavePlugin(root = process.cwd()): Plugin {
+  const syncOnSave = createSyncOnSave(root)
   return {
     name: 'island-save',
     configureServer(server) {
-      server.middlewares.use((req, res, next) => handleIslandRoute(req, res, next, root))
+      server.middlewares.use((req, res, next) => handleIslandRoute(req, res, next, root, syncOnSave))
     },
   }
 }

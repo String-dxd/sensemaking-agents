@@ -38,6 +38,18 @@ function getSproutsSlice(game: Game) {
 
 const FIRST_ARRANGE_TOAST_KEY = 'ss:arrange:firstEntry:v1'
 
+/**
+ * Where the standalone island editor lives (`pnpm dev:editor`, port 5180).
+ * When a URL is known — the dev default or an explicit
+ * `VITE_ISLAND_EDITOR_URL` — the frame's pencil opens the editor in a new
+ * tab; saving there runs `pnpm sync:island`, which rewrites the engine spec
+ * and hot-reloads this app with the updated island. Without a URL (plain
+ * production build) the pencil falls back to the in-world arrange mode.
+ */
+const ISLAND_EDITOR_URL: string | null =
+  (import.meta.env.VITE_ISLAND_EDITOR_URL as string | undefined) ??
+  (import.meta.env.DEV ? 'http://localhost:5180' : null)
+
 function showProgressionToast(text: string, duration = Infinity) {
   sonnerToast.custom(
     (id) => (
@@ -168,19 +180,30 @@ export function IslandProgressionOverlay({ game }: { game: Game }) {
         </div>
       ) : null}
 
-      <WorldIconButton
-        onClick={toggleEditMode}
-        pressed={editMode}
-        label={editMode ? 'Finish arranging' : 'Arrange island'}
-        className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+18px)] left-[18px] pointer-events-auto"
-        data-arrange-toggle
-      >
-        {editMode ? (
-          <Check aria-hidden="true" className="size-4" />
-        ) : (
+      {ISLAND_EDITOR_URL ? (
+        <WorldIconButton
+          onClick={() => window.open(ISLAND_EDITOR_URL, '_blank', 'noopener,noreferrer')}
+          label="Edit island"
+          className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+18px)] left-[18px] pointer-events-auto"
+          data-island-editor-link
+        >
           <Pencil aria-hidden="true" className="size-4" />
-        )}
-      </WorldIconButton>
+        </WorldIconButton>
+      ) : (
+        <WorldIconButton
+          onClick={toggleEditMode}
+          pressed={editMode}
+          label={editMode ? 'Finish arranging' : 'Arrange island'}
+          className="absolute bottom-[calc(env(safe-area-inset-bottom,0px)+18px)] left-[18px] pointer-events-auto"
+          data-arrange-toggle
+        >
+          {editMode ? (
+            <Check aria-hidden="true" className="size-4" />
+          ) : (
+            <Pencil aria-hidden="true" className="size-4" />
+          )}
+        </WorldIconButton>
+      )}
     </div>
   )
 }
