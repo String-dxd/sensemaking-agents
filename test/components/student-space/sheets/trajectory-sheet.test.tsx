@@ -239,7 +239,7 @@ describe('TrajectorySheet (React)', () => {
     ).toBeInTheDocument()
   })
 
-  it('searching tabs render bearings; clicking a tab switches the panel', async () => {
+  it('searching pathways render all bearings as a list', async () => {
     vi.mocked(statusFor).mockReturnValueOnce(statusAudit('searching'))
     const capture = {
       kind: 'trajectory',
@@ -254,8 +254,8 @@ describe('TrajectorySheet (React)', () => {
     }
     renderTrajectory(makeEngine({ capture }))
     expect(await screen.findByText('A through-line')).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'Pathway options' })).toBeInTheDocument()
     expect(screen.getByText('prompt A')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('tab', { name: /Path B/ }))
     expect(screen.getByText('prompt B')).toBeInTheDocument()
   })
 
