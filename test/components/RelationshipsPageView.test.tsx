@@ -68,7 +68,7 @@ describe('RelationshipsPageView', () => {
         {
           id: 'rel_a',
           createdAt: new Date('2026-05-10').toISOString(),
-          name: 'Ms Tan',
+          name: 'Mr. Tan',
           category: 'teacher',
           quality: 'rely-on',
           note: null,
@@ -76,7 +76,7 @@ describe('RelationshipsPageView', () => {
       ],
     })
     const row = screen.getByTestId('relationships-map-entry-rel_a')
-    expect(within(row).getByText('Ms Tan')).toBeInTheDocument()
+    expect(within(row).getByText('Mr. Tan')).toBeInTheDocument()
     expect(within(row).getByText('Teacher')).toBeInTheDocument()
     expect(within(row).getByText('I rely on them')).toBeInTheDocument()
   })

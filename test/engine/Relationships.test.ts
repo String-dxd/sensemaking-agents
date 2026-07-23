@@ -34,9 +34,9 @@ describe('Relationships state slice', () => {
   it('addPerson creates entry with id and createdAt, fires subscriber', () => {
     const events: unknown[] = []
     rel.subscribe((e) => events.push(e))
-    const entry = rel.addPerson({ name: 'Ms Tan', category: 'teacher', quality: 'rely-on' })
+    const entry = rel.addPerson({ name: 'Mr. Tan', category: 'teacher', quality: 'rely-on' })
     expect(entry).toBeTruthy()
-    expect(entry?.name).toBe('Ms Tan')
+    expect(entry?.name).toBe('Mr. Tan')
     expect(entry?.category).toBe('teacher')
     expect(entry?.quality).toBe('rely-on')
     expect(entry?.id).toMatch(/^rel_/)

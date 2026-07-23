@@ -86,7 +86,7 @@ describe('schema — letterId / prompt key admission', () => {
     const out = mergeTeacherLetter(
       {
         id: 'lt_camp_reflect',
-        from: 'Ms. Tan',
+        from: 'Mr. Tan',
         subject: 'After Sec 2 camp',
         body: 'body',
         sentAt: '2026-05-21T09:00:00.000Z',
@@ -114,7 +114,7 @@ describe('TeacherLetters.hydrateBackend — union-merge semantics', () => {
     letters.hydrateBackend([
       {
         id: 'demo-shell:s1:letter-pattern',
-        from: 'Ms Tan',
+        from: 'Mr. Tan',
         subject: 'A pattern',
         body: 'body',
         sentAt: '2026-05-20T08:00:00.000Z',
@@ -135,7 +135,7 @@ describe('TeacherLetters.hydrateBackend — union-merge semantics', () => {
     letters.hydrateBackend([
       {
         id: seedId,
-        from: 'Ms. Tan',
+        from: 'Mr. Tan',
         subject: 'Overridden by backend',
         body: 'b',
         sentAt: '2026-05-21T09:00:00.000Z',

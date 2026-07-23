@@ -46,7 +46,7 @@ mechanic is still unbuilt.
   ```js
   {
     id: 'lt_camp_reflect',
-    from: 'Ms. Tan',
+    from: 'Mr. Tan',
     subject: 'After Sec 2 camp — three moments',
     body: '…Tap Capture below when you have one…',
     sentAt: isoDaysAgo(0),
@@ -104,8 +104,8 @@ In `LETTERS_SEED` (`lettersSeed.js`), add one object modeled exactly on
 `lt_camp_reflect`. Requirements:
 
 - `id`: `'lt_careerfair_reflect'`
-- `from`: `'Ms. Tan'` (keep the single-teacher voice consistent with the file)
-- `subject`: something short in Ms. Tan's register, e.g.
+- `from`: `'Mr. Tan'` (keep the single-teacher voice consistent with the file)
+- `subject`: something short in Mr. Tan's register, e.g.
   `'After the career fair — what stood out'`
 - `body`: 2–3 short paragraphs in the file's established voice. It must
   (a) reference the annual career fair, (b) invite three specific things that
@@ -163,7 +163,7 @@ returns nothing (comment updated).
 
 ALL must hold:
 - [ ] `lt_careerfair_reflect` exists in `LETTERS_SEED` with a non-empty `prompt`.
-- [ ] The career-fair letter follows the Ms. Tan voice (short, no advice, no "!").
+- [ ] The career-fair letter follows the Mr. Tan voice (short, no advice, no "!").
 - [ ] `pnpm check` exits 0.
 - [ ] `pnpm test` exits 0.
 - [ ] Only in-scope files modified (`git status`).
@@ -184,6 +184,6 @@ Stop and report if:
   more, append to `LETTERS_SEED`; no code change needed.
 - The link between a capture and the letter that prompted it is carried as
   `letterId` in the `ask` overlay open call — if analytics or the Library ever
-  needs to show "answered from Ms. Tan's letter", that id is the hook.
+  needs to show "answered from Mr. Tan's letter", that id is the hook.
 - If teacher prompts should eventually be authored by real teachers (not seeded),
   that's a backend feature well beyond this plan — flag as a separate direction.

@@ -90,7 +90,7 @@ afterEach(() => {
 const seed: FakeLetter[] = [
   {
     id: 'lt-1',
-    from: 'Ms. Tan',
+    from: 'Mr. Tan',
     subject: 'After camp',
     body: 'You showed up for your team.\n\nThat matters.',
     sentAt: '2026-05-20T08:00:00.000Z',
@@ -98,7 +98,7 @@ const seed: FakeLetter[] = [
   },
   {
     id: 'lt-2',
-    from: 'Ms. Tan',
+    from: 'Mr. Tan',
     subject: 'About the maths test',
     body: 'You can be hard on yourself.',
     sentAt: '2026-05-10T08:00:00.000Z',
@@ -106,7 +106,7 @@ const seed: FakeLetter[] = [
   },
   {
     id: 'lt-3',
-    from: 'Ms. Tan',
+    from: 'Mr. Tan',
     subject: 'A pattern',
     body: 'Three weeks running.',
     sentAt: '2026-05-22T08:00:00.000Z',

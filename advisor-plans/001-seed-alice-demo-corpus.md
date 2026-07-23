@@ -129,7 +129,7 @@ reach History.
   `buildCalendarEvents`, lines 85–121). **These assertions MUST be updated in
   Step 5** — with the new content, identity becomes
   `{ name: 'Alice', className: 'Sec 2' }` and event dates come from the
-  new reflection dates. (`teacherLetters[0].from: 'Ms Tan'` is hardcoded in
+  new reflection dates. (`teacherLetters[0].from: 'Mr. Tan'` is hardcoded in
   `demo-shell-data.server.ts:139` and does not break.)
 - `test/db.test.ts` (`seed loader` describe, skipped without `DATABASE_URL`):
   student count between 3 and 5 — unchanged by this plan (still 4 students);

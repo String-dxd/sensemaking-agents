@@ -80,7 +80,7 @@ describe('Relationships round-trip (view ↔ engine slice ↔ persistence)', () 
 
   it('serialized snapshot survives a hydrate() into a fresh slice', () => {
     const a = new Relationships()
-    a.addPerson({ name: 'Ms Tan', category: 'teacher', quality: 'rely-on' })
+    a.addPerson({ name: 'Mr. Tan', category: 'teacher', quality: 'rely-on' })
     const snapshot = a.serialize()
 
     ;(Relationships as unknown as { instance: unknown }).instance = null
@@ -88,6 +88,6 @@ describe('Relationships round-trip (view ↔ engine slice ↔ persistence)', () 
     b.hydrate(snapshot)
     const list = b.listMap()
     expect(list).toHaveLength(1)
-    expect(list[0]?.name).toBe('Ms Tan')
+    expect(list[0]?.name).toBe('Mr. Tan')
   })
 })

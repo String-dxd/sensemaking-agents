@@ -266,7 +266,7 @@ describe('Student Space backend snapshot mappers', () => {
           teacherLetters: [
             {
               id: 'demo-shell:demo-a:letter-pattern',
-              from: 'Ms Tan',
+              from: 'Mr. Tan',
               subject: 'A pattern worth keeping',
               body: 'Keep noticing the pattern.',
               sentAt: '2025-11-23T17:15:00Z',
@@ -288,7 +288,7 @@ describe('Student Space backend snapshot mappers', () => {
       expect.objectContaining({ label: 'Form teacher check-in', date: '2025-10-14' }),
     ])
     expect(snapshot.teacherLetters).toEqual([
-      expect.objectContaining({ from: 'Ms Tan', subject: 'A pattern worth keeping' }),
+      expect.objectContaining({ from: 'Mr. Tan', subject: 'A pattern worth keeping' }),
     ])
   })
 
