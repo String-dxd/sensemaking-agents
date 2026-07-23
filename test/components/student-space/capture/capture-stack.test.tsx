@@ -281,6 +281,63 @@ describe('React capture stack', () => {
     })
   })
 
+  it('keeps live dialogue in spoken order when a student transcript finalises late', async () => {
+    class MockRTCPeerConnection {}
+    // @ts-expect-error happy-dom does not provide RTCPeerConnection.
+    globalThis.RTCPeerConnection = MockRTCPeerConnection
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn() },
+    })
+
+    const createRealtimeMirrorCapture = vi.fn(async (input: Record<string, unknown>) => {
+      const onConversationUpdate = input.onConversationUpdate as
+        | ((message: Record<string, unknown>) => void)
+        | undefined
+      // Student bubble appears first (speech started, transcript streaming)…
+      onConversationUpdate?.({
+        id: 'student-1',
+        role: 'student',
+        text: 'Hello,',
+        status: 'streaming',
+      })
+      // …Kira starts replying…
+      onConversationUpdate?.({
+        id: 'kira-1',
+        role: 'kira',
+        text: 'Hey, I',
+        status: 'streaming',
+      })
+      // …then the student's Whisper transcript finalises late. The bubble
+      // must stay above Kira's reply, not re-append to the bottom.
+      onConversationUpdate?.({
+        id: 'student-1',
+        role: 'student',
+        text: 'Hello, please.',
+        status: 'final',
+      })
+      return { stop: vi.fn(), abort: vi.fn() }
+    })
+    const game = makeGame({
+      state: {
+        profile: { displayCompanionName: () => 'Pip' },
+        backend: { createRealtimeMirrorCapture },
+      },
+    })
+    renderDirectAsk(game)
+
+    await userEvent.click(screen.getByText('open ask directly'))
+    await userEvent.click(screen.getByRole('button', { name: 'Start voice recording' }))
+    await waitFor(() => expect(screen.getByText('Hello, please.')).toBeInTheDocument())
+
+    const student = screen.getByText('Hello, please.')
+    const kira = screen.getByText('Hey, I')
+    expect(
+      // biome-ignore lint/style/noNonNullAssertion: both bubbles asserted present above
+      student.compareDocumentPosition(kira) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
   it('keeps realtime Log disabled until prepared reflection is ready', async () => {
     class MockRTCPeerConnection {}
     // @ts-expect-error happy-dom does not provide RTCPeerConnection.

@@ -518,12 +518,18 @@ export function AskSheet() {
                     : message.role
               if (message.status === 'discarded') return items.filter((item) => item.id !== id)
               const next = items.filter((item) => {
-                if (item.id === id) return false
                 if (role === 'student' && item.id === 'student-listening-placeholder') return false
                 if (role === 'kira' && item.id === 'kira-opening') return false
                 return true
               })
-              next.push({ ...message, id, role })
+              // Update in place so late events (e.g. the student's Whisper
+              // transcript finalising after Kira has started replying) keep
+              // the bubble at its spoken position instead of re-appending it
+              // to the bottom — that reordering is how dialogue showed out
+              // of order. Only genuinely new items append.
+              const existingIndex = next.findIndex((item) => item.id === id)
+              if (existingIndex >= 0) next[existingIndex] = { ...message, id, role }
+              else next.push({ ...message, id, role })
               return next
             })
             if (message.role === 'student' && message.status === 'final' && message.text) {

@@ -101,9 +101,12 @@ interface DayDetailEngineState {
 export function DayDetailCard({
   date,
   engineState,
+  openEntryId,
 }: {
   date: string | null
   engineState: DayDetailEngineState | undefined
+  /** Entry currently open in the History right column — highlights its card. */
+  openEntryId?: number | null
 }) {
   const moods = date ? (engineState?.moodPins?.pins ?? []).filter((p) => p.entryDate === date) : []
   const captures = date
@@ -210,6 +213,7 @@ export function DayDetailCard({
                   const time = formatTime(cap.createdAt)
                   const entryId = Number(cap.backendMirrorEntryId)
                   const hasBackendId = Number.isInteger(entryId) && entryId > 0
+                  const isOpen = hasBackendId && openEntryId === entryId
                   const cardClasses =
                     'block rounded-lg bg-white/40 px-3 py-2 text-sm text-(--color-sheet-ink) transition-colors'
                   // Simplified card: highlighted title, time, one-line summary.
@@ -242,9 +246,12 @@ export function DayDetailCard({
                           to="/history"
                           search={(prev: Record<string, unknown>) => ({ ...prev, entry: entryId })}
                           data-testid={`mirror-card-${entryId}`}
+                          aria-current={isOpen || undefined}
                           className={cn(
                             cardClasses,
                             'cursor-pointer hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent',
+                            isOpen &&
+                              'bg-white/85 shadow-[inset_0_0_0_1.5px_var(--color-status-searching)]',
                           )}
                         >
                           {body}

@@ -1,17 +1,14 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { MirrorDetailSheet } from '~/components/student-space/sheets/MirrorDetailSheet'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-// `/mirror/$id` — full details page for a single mirror reflection, opened
-// from the History day-detail card's "Show more" link.
-//
-// Lives at `/mirror/$id` (not `/history/mirror/$id`) because TanStack's
-// matcher picks `/history/$tab` (with $tab='mirror') over the more specific
-// `/history/mirror/$id` when both are siblings under `_app/history` —
-// hoisting one level avoids the conflict.
+// `/mirror/$id` — legacy deep link to a single mirror reflection. The detail
+// view now lives inside the History sheet as a right column
+// (`/history?entry=<id>`), so this route just forwards old links there.
 export const Route = createFileRoute('/_app/mirror/$id')({
-  component: MirrorDetailPage,
+  beforeLoad: ({ params }) => {
+    const entry = Number(params.id)
+    throw redirect({
+      to: '/history',
+      search: Number.isInteger(entry) && entry > 0 ? { entry } : {},
+    })
+  },
 })
-
-function MirrorDetailPage() {
-  return <MirrorDetailSheet />
-}

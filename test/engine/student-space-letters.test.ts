@@ -48,6 +48,22 @@ describe('schema — letterId / prompt key admission', () => {
     expect(out.letterId).toBe('lt_camp_reflect')
   })
 
+  it('mergeCapture preserves the Mirror validation line', () => {
+    const out = mergeCapture(
+      {
+        id: 'cap_v',
+        createdAt: '2026-05-21T09:00:00.000Z',
+        entryDate: '2026-05-21',
+        kind: 'ask',
+        text: 'three moments',
+        validation: 'That sounds like it mattered.',
+      },
+      'capture',
+    )
+    expect(out).not.toBeNull()
+    expect(out.validation).toBe('That sounds like it mattered.')
+  })
+
   it('mergeCapture rejects non-string letterId and drops the key', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const out = mergeCapture(

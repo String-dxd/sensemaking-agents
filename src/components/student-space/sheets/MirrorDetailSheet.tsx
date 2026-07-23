@@ -1,30 +1,16 @@
-import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import {
-  PageSurface,
-  SheetBody,
-  SheetContent,
-  SheetDescription,
-  SheetEyebrow,
-  SheetIdentityHeader,
-  SheetPageHeader,
-  SheetSidebar,
-  SheetTitle,
-  usePageEscape,
-} from '~/components/ui/sheet'
+import { X } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
+import { SheetEyebrow } from '~/components/ui/sheet'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 
 /**
- * MirrorDetailSheet — full details view for a single mirror reflection.
- *
- * Opens at `/mirror/$id` from the History day-detail card's "Show more"
- * link. Reads the capture out of the engine's `captures` slice by
- * `backendMirrorEntryId`. Sidebar carries context (date, time, status);
- * the right pane shows the story reframe, validation, inferred meaning,
- * and the full transcript, plus Confirm / Forget actions for pending
- * reflections.
+ * Mirror reflection detail — rendered as a right column inside the History
+ * sheet (`/history?entry=<id>`, Slack-style). Reads the capture out of the
+ * engine's `captures` slice by `backendMirrorEntryId` and shows the story
+ * reframe, validation, inferred meaning, and the full transcript, plus
+ * Confirm / Forget actions for pending reflections. The legacy `/mirror/$id`
+ * route redirects here.
  */
 
 interface MirrorCapture {
@@ -79,112 +65,9 @@ const CONTEXT_LABEL: Record<string, string> = {
 
 type Subscribable = { subscribe: (cb: () => void) => () => void }
 
-export function MirrorDetailSheet() {
-  const engine = useEngine()
-  const navigate = useNavigate()
-  const params = useParams({ strict: false }) as { id?: string }
-  const entryId = Number(params.id)
-  const entryIdValid = Number.isInteger(entryId) && entryId > 0
-
-  const state = (
-    engine as unknown as { state?: MirrorEngineState & { captures?: Subscribable } } | null
-  )?.state
-  useEngineSliceVersion(state?.captures ?? null)
-
-  const entries = state?.captures?.entries
-  const hydrated = Array.isArray(entries)
-
-  const capture = useMemo<MirrorCapture | null>(() => {
-    if (!entryIdValid) return null
-    return (
-      entries?.find(
-        (entry) => Number(entry.backendMirrorEntryId) === entryId && entry.kind === 'ask',
-      ) ?? null
-    )
-  }, [entries, entryId, entryIdValid])
-
-  useEffect(() => {
-    document.body.classList.add('has-overlay')
-    return () => document.body.classList.remove('has-overlay')
-  }, [])
-
-  const dismissToHistory = useCallback(() => navigate({ to: '/history' }), [navigate])
-  usePageEscape(dismissToHistory)
-
-  const notFoundCopy =
-    !hydrated && entryIdValid
-      ? 'Loading…'
-      : 'We couldn’t find that mirror. It may have been let go.'
-
-  return (
-    <PageSurface>
-      <SheetSidebar>
-        <SheetIdentityHeader>
-          <Link
-            to="/history"
-            className="-mx-2 inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold text-(--color-sheet-ink-soft) transition-colors hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-          >
-            <ArrowLeft aria-hidden className="size-3.5" />
-            Back to history
-          </Link>
-          <SheetTitle>Mirror</SheetTitle>
-          <SheetDescription>
-            {capture
-              ? formatLongDate(capture.entryDate ?? toEntryDate(capture.createdAt))
-              : 'Reflection details'}
-          </SheetDescription>
-        </SheetIdentityHeader>
-        {capture ? (
-          <div className="space-y-4 px-7 pb-6">
-            <SidebarMeta capture={capture} />
-          </div>
-        ) : null}
-      </SheetSidebar>
-      <SheetContent>
-        {capture ? (
-          <>
-            <SheetPageHeader>
-              <SheetEyebrow>Story reframe</SheetEyebrow>
-              <SheetTitle>
-                {capture.title?.trim() ||
-                  capture.reframe?.headline?.trim() ||
-                  capture.reframe?.highlightPhrase?.trim() ||
-                  'Untitled mirror'}
-              </SheetTitle>
-              {capture.reframe?.highlightPhrase?.trim() ? (
-                <p className="mt-1 text-base italic leading-relaxed text-(--color-sheet-ink-soft)">
-                  “{capture.reframe.highlightPhrase.trim()}”
-                </p>
-              ) : null}
-            </SheetPageHeader>
-            <SheetBody>
-              <MirrorBody capture={capture} engineState={state} />
-            </SheetBody>
-          </>
-        ) : (
-          <SheetBody>
-            <p className="text-base leading-relaxed text-(--color-sheet-ink-soft)">
-              {notFoundCopy}
-            </p>
-            <Link
-              to="/history"
-              className="mt-4 inline-flex min-h-10 items-center gap-1.5 rounded-full bg-(--color-sheet-ink) px-4 text-sm font-semibold text-white transition-colors hover:bg-(--color-sheet-ink)/90"
-            >
-              <ArrowLeft aria-hidden className="size-4" />
-              Back to history
-            </Link>
-          </SheetBody>
-        )}
-      </SheetContent>
-    </PageSurface>
-  )
-}
-
 /**
- * MirrorDetailPane — Slack-style right-column variant of the mirror detail
- * view, rendered inline inside the History sheet (`/history?entry=<id>`).
- * Same content as MirrorDetailSheet, compacted into a single scroll column
- * with its own close affordance.
+ * MirrorDetailPane — the mirror detail view as a single scroll column with
+ * its own close affordance, rendered inside the History sheet's right pane.
  */
 export function MirrorDetailPane({ entryId, onClose }: { entryId: number; onClose: () => void }) {
   const engine = useEngine()

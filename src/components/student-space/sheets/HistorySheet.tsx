@@ -169,6 +169,7 @@ export function HistorySheet() {
                 hash={location.hash ?? ''}
                 filter={search?.filter === 'need-review' ? 'need-review' : undefined}
                 onOpenEntry={openEntry}
+                openEntryId={openEntryId}
               />
             ) : (
               <GrowthPane engine={engine} />
@@ -193,15 +194,25 @@ function TimelinePane({
   hash,
   filter,
   onOpenEntry,
+  openEntryId,
 }: {
   engineState: Parameters<typeof CalendarPane>[0]['engineState']
   hash: string
   filter?: 'need-review'
   onOpenEntry?: (entryId: number | null) => void
+  openEntryId?: number | null
 }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const lastAppliedHashRef = useRef('')
   const lastAppliedFilterTargetRef = useRef<string | null>(null)
+  const lastAppliedEntryRef = useRef<number | null>(null)
+  const openEntryDate = openEntryId
+    ? (engineState?.captures?.entries ?? []).find(
+        (cap) =>
+          Number((cap as { backendMirrorEntryId?: number | string }).backendMirrorEntryId) ===
+          openEntryId,
+      )?.entryDate
+    : undefined
   const targetDate = resolveTargetDate({
     captures: engineState?.captures?.entries ?? [],
     hash,
@@ -228,12 +239,23 @@ function TimelinePane({
     }
     if (filter !== 'need-review') lastAppliedFilterTargetRef.current = null
 
+    // Open entry column (deep link or card click): select that entry's day
+    // so the calendar + day-detail list match the column. Waits for capture
+    // hydration (openEntryDate stays undefined until entries arrive) and
+    // applies once per entry id.
+    if (openEntryId && openEntryDate && lastAppliedEntryRef.current !== openEntryId) {
+      setSelectedDate(openEntryDate)
+      lastAppliedEntryRef.current = openEntryId
+      return
+    }
+    if (!openEntryId) lastAppliedEntryRef.current = null
+
     if (selectedDate) return
     const now = new Date()
     setSelectedDate(
       `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
     )
-  }, [filter, hash, selectedDate, targetDate])
+  }, [filter, hash, selectedDate, targetDate, openEntryId, openEntryDate])
 
   const [viewMode, setViewMode] = useState<'week' | 'month'>('month')
 
@@ -281,7 +303,11 @@ function TimelinePane({
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />
-        <DayDetailCard date={selectedDate} engineState={engineState as never} />
+        <DayDetailCard
+          date={selectedDate}
+          engineState={engineState as never}
+          openEntryId={openEntryId}
+        />
       </div>
     </div>
   )

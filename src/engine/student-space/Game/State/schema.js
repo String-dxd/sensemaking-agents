@@ -217,6 +217,9 @@ const KNOWN_CAPTURE_KEYS = new Set([
     'id', 'createdAt', 'entryDate', 'kind', 'text', 'prompt',
     // Optional short display title (demo corpus section heading).
     'title',
+    // Mirror's validation line ("What Mirror noticed") — shown in the
+    // History reflection detail column.
+    'validation',
     'dataUrl', 'caption',
     // Backend bridge metadata. These fields identify durable rows while
     // keeping local `ss:v1:*` persistence separate from server truth.
@@ -349,6 +352,7 @@ export function mergeCapture(raw, ctx = 'capture')
         if(k === 'syncStatus' && !SYNC_STATES.has(v)) { warn(`${ctx}.syncStatus invalid`); continue }
         if(k === 'syncError' && typeof v !== 'string') { warn(`${ctx}.syncError not string`); continue }
         if(k === 'contextType' && typeof v !== 'string') { warn(`${ctx}.contextType not string`); continue }
+        if(k === 'validation' && typeof v !== 'string') { warn(`${ctx}.validation not string`); continue }
         if(k === 'letterId' && typeof v !== 'string') { warn(`${ctx}.letterId not string`); continue }
         if(k === 'dimension' && v !== null && !CAPTURE_DIMENSIONS.has(v)) { warn(`${ctx}.dimension invalid: "${v}"`); continue }
         if(k === 'subClaimId' && v !== null && !isCanonicalClaim(v)) { warn(`${ctx}.subClaimId not in taxonomy: "${v}"`); continue }
