@@ -108,7 +108,7 @@ describe('/dev/pipeline PipelinePageView', () => {
     render(<PipelinePageView data={makeData()} />)
 
     expect(screen.getByRole('button', { name: 'Start Realtime transcript' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Stop Realtime transcript' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run full backend flow' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run initial chat' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run Connector' })).toBeInTheDocument()
@@ -167,7 +167,7 @@ describe('/dev/pipeline PipelinePageView', () => {
     )
     expect(screen.getByTestId('realtime-transcript-log')).toHaveTextContent('I can hear you.')
 
-    await user.click(screen.getByRole('button', { name: 'Stop Realtime transcript' }))
+    await user.click(screen.getByRole('button', { name: 'Stop' }))
     await waitFor(() => expect(stop).toHaveBeenCalledTimes(1))
     await waitFor(() =>
       expect(screen.getByLabelText('Initial chat transcript')).toHaveValue(

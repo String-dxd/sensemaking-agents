@@ -15,6 +15,15 @@ import { EngineOverlayProvider } from '~/lib/student-space/use-engine-overlay'
 vi.mock('~/components/IslandProgressionOverlay', () => ({
   IslandProgressionOverlay: () => <div data-testid="island-overlay" />,
 }))
+vi.mock('~/components/student-space/world/WorldInteractions', () => ({
+  WorldInteractions: () => <div data-testid="world-interactions" />,
+}))
+vi.mock('~/components/student-space/hud/StudentSpaceHud', () => ({
+  StudentSpaceHud: () => <div data-testid="student-space-hud" />,
+}))
+vi.mock('~/components/student-space/capture/CaptureFab', () => ({
+  CaptureFab: () => <div data-testid="capture-fab" />,
+}))
 
 describe('StudentSpaceHost', () => {
   it('renders nothing while the engine is still booting (useEngine() === null)', () => {
@@ -29,7 +38,10 @@ describe('StudentSpaceHost', () => {
   })
 
   it('mounts the world-route composition once the engine is ready', () => {
-    const fakeGame = { dispose: vi.fn() }
+    const fakeGame = {
+      dispose: vi.fn(),
+      state: { onboarding: { isDone: true, subscribe: () => () => {} } },
+    }
     const { getByTestId } = render(
       <EngineContext.Provider value={fakeGame as never}>
         <EngineOverlayProvider>
@@ -37,6 +49,27 @@ describe('StudentSpaceHost', () => {
         </EngineOverlayProvider>
       </EngineContext.Provider>,
     )
+    expect(getByTestId('world-interactions')).toBeInTheDocument()
     expect(getByTestId('island-overlay')).toBeInTheDocument()
+    expect(getByTestId('student-space-hud')).toBeInTheDocument()
+    expect(getByTestId('capture-fab')).toBeInTheDocument()
+  })
+
+  it('renders WorldInteractions but not chrome while the onboarding ceremony is unfinished', () => {
+    const fakeGame = {
+      dispose: vi.fn(),
+      state: { onboarding: { isDone: false, subscribe: () => () => {} } },
+    }
+    const { getByTestId, queryByTestId } = render(
+      <EngineContext.Provider value={fakeGame as never}>
+        <EngineOverlayProvider>
+          <StudentSpaceHost />
+        </EngineOverlayProvider>
+      </EngineContext.Provider>,
+    )
+    expect(getByTestId('world-interactions')).toBeInTheDocument()
+    expect(queryByTestId('island-overlay')).toBeNull()
+    expect(queryByTestId('student-space-hud')).toBeNull()
+    expect(queryByTestId('capture-fab')).toBeNull()
   })
 })
