@@ -1,5 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Sparkles } from 'lucide-react'
+import { useState } from 'react'
 import { EMOTION_BY_ID, shapeDataUri } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
 
@@ -257,7 +258,10 @@ export function DayDetailCard({
                           {body}
                         </Link>
                       ) : (
-                        <div className={cardClasses}>{body}</div>
+                        <div className={cardClasses}>
+                          {body}
+                          <RetrySyncNotice cap={cap} engineState={engineState} />
+                        </div>
                       )}
                     </li>
                   )
@@ -281,6 +285,72 @@ export function DayDetailCard({
         </div>
       )}
     </section>
+  )
+}
+
+/**
+ * Failed-sync affordance for a capture card that never reached the backend
+ * (network blip, transient 5xx). Renders an error line + "Retry sync"
+ * button; swaps to a non-interactive "Syncing…" label while a retry is in
+ * flight so a double-submit isn't possible.
+ */
+function RetrySyncNotice({
+  cap,
+  engineState,
+}: {
+  cap: DayDetailCapture
+  engineState: DayDetailEngineState | undefined
+}) {
+  const [busy, setBusy] = useState(false)
+
+  async function retry() {
+    const patch = engineState?.captures?.patch
+    const submitReflection = engineState?.backend?.submitReflection
+    if (!patch || !submitReflection) return
+    setBusy(true)
+    patch(cap.id, { syncStatus: 'syncing', syncError: '' })
+    try {
+      const result = await submitReflection({
+        localCaptureId: cap.id,
+        ...(cap.text ? { transcript: cap.text } : {}),
+        ...(cap.contextType ? { contextType: cap.contextType } : {}),
+      })
+      const mirror = result?.mirrorEntry
+      if (mirror) {
+        patch(cap.id, {
+          backendMirrorEntryId: mirror.id,
+          text: mirror.transcript || cap.text || '',
+          reviewStatus: mirror.reviewStatus || 'pending',
+          syncStatus: 'synced',
+          syncError: '',
+        })
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      patch(cap.id, { syncStatus: 'failed', syncError: message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (busy || cap.syncStatus === 'syncing') {
+    return <p className="mt-1.5 text-xs text-(--color-sheet-ink-soft)">Syncing…</p>
+  }
+  if (cap.syncStatus !== 'failed') return null
+
+  return (
+    <div className="mt-1.5 space-y-1.5">
+      <p role="alert" className="text-xs text-(--color-sheet-ink-soft)">
+        Couldn&apos;t save this reflection.{cap.syncError ? ` ${cap.syncError}` : ''}
+      </p>
+      <button
+        type="button"
+        onClick={() => void retry()}
+        className="inline-flex min-h-7 cursor-pointer items-center rounded-full border border-(--color-sheet-divider) bg-white/70 px-3 text-xs font-semibold text-(--color-sheet-ink) transition-colors hover:bg-white"
+      >
+        Retry sync
+      </button>
+    </div>
   )
 }
 

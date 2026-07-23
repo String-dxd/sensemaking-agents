@@ -57,6 +57,12 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
 
 const TODAY = '2026-05-22'
 
+// Real-clock day key, matching DayDetailCard's private ymd()
+function realToday(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
 type TestCapture = {
   id: string
   entryDate: string
@@ -331,8 +337,8 @@ describe('HistorySheet (React)', () => {
       captures: [
         {
           id: 'local-ask-1',
-          entryDate: TODAY,
-          createdAt: '2026-05-22T08:00:00.000Z',
+          entryDate: realToday(),
+          createdAt: new Date().toISOString(),
           kind: 'ask',
           text: 'Needs sync',
           syncStatus: 'failed',
@@ -364,6 +370,48 @@ describe('HistorySheet (React)', () => {
         syncStatus: 'synced',
       }),
     )
+  })
+
+  it('shows retry again when a retry sync fails', async () => {
+    const submitReflection = vi.fn(async () => {
+      throw new Error('still offline')
+    })
+    const engine = makeEngine({
+      backend: { submitReflection },
+      captures: [
+        {
+          id: 'local-ask-2',
+          entryDate: realToday(),
+          createdAt: new Date().toISOString(),
+          kind: 'ask',
+          text: 'Needs sync again',
+          syncStatus: 'failed',
+          syncError: 'offline',
+          contextType: 'home',
+        },
+      ],
+    })
+    renderHistory(engine)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry sync' }))
+    await waitFor(() =>
+      expect(submitReflection).toHaveBeenCalledWith({
+        localCaptureId: 'local-ask-2',
+        transcript: 'Needs sync again',
+        contextType: 'home',
+      }),
+    )
+    expect(engine.state.captures.patch).toHaveBeenCalledWith('local-ask-2', {
+      syncStatus: 'syncing',
+      syncError: '',
+    })
+    await waitFor(() =>
+      expect(engine.state.captures.patch).toHaveBeenCalledWith('local-ask-2', {
+        syncStatus: 'failed',
+        syncError: 'still offline',
+      }),
+    )
+    expect(await screen.findByRole('button', { name: 'Retry sync' })).toBeInTheDocument()
   })
 
   it('switches to Growth tab and loads /api/growth/summary', async () => {
