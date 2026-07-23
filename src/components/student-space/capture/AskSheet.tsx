@@ -85,12 +85,18 @@ type Vec3Like = {
   constructor: new (x: number, y: number, z: number) => Vec3Like
 }
 type CameraInstance = {
-  zoomTo?: (pos: Vec3Like, look: Vec3Like, duration?: number, opts?: { owner?: string }) => void
+  zoomTo?: (
+    pos: Vec3Like,
+    look: Vec3Like,
+    duration?: number,
+    opts?: { owner?: string; adoptAnchorOf?: string },
+  ) => void
   restoreZoom?: (duration?: number, opts?: { owner?: string }) => void
 }
 type KiraActor = {
   group?: { position?: Vec3Like; rotation?: { y: number } }
   facing?: number
+  setFacing?: (yaw: number) => void
 }
 type KiraCameraView = {
   camera?: CameraInstance & { instance?: { position?: Vec3Like } }
@@ -361,7 +367,10 @@ export function AskSheet() {
     const flat = Math.hypot(dx, dz) || 1
     const unitX = dx / flat
     const unitZ = dz / flat
-    const targetYaw = Math.atan2(-unitZ, unitX)
+    // The character GLB's face reads toward rotation.y - 90deg (same offset
+    // as the onboarding first-chat preset and the kira-narrator turn), so
+    // add the quarter turn to point the face at the camera.
+    const targetYaw = Math.atan2(-unitZ, unitX) + Math.PI / 2
     const camPos: Vec3Like = new Vec(kira.x + unitX * 4.2, kira.y + 1.05, kira.z + unitZ * 4.2)
     const camLook: Vec3Like = new Vec(kira.x, kira.y + 0.72, kira.z)
     const rotation = kiraActor?.group?.rotation
@@ -370,6 +379,13 @@ export function AskSheet() {
     let cancelled = false
     const setKiraYaw = (yaw: number) => {
       if (!rotation) return
+      // Commit through the actor when possible — Character.update() re-applies
+      // the behavior yaw every frame, so a bare rotation write gets snapped
+      // back on the next engine tick.
+      if (kiraActor?.setFacing) {
+        kiraActor.setFacing(yaw)
+        return
+      }
       rotation.y = yaw
       if (kiraActor) kiraActor.facing = yaw
     }
@@ -388,7 +404,11 @@ export function AskSheet() {
       }
       yawFrame = window.requestAnimationFrame(tick)
     }
-    camera.zoomTo(camPos, camLook, 700, { owner: 'capture' })
+    // When the sheet opens from the kira-narrator's "Talk to me", adopt the
+    // narrator's camera anchor so this dolly continues from the close-up
+    // (no zoom-out-and-back yank) and the eventual restore returns to the
+    // true pre-sequence pose. No-op when opened from the FAB.
+    camera.zoomTo(camPos, camLook, 700, { owner: 'capture', adoptAnchorOf: 'kira-narrator' })
     animateKiraYaw(targetYaw, 700)
     if (view) view.captureFocus = true
     return () => {
@@ -468,9 +488,13 @@ export function AskSheet() {
       seed
         ? { id: 'typed-preface', role: 'student', text: seed, status: 'final' }
         : {
+            // Optimistic: the transport is usually prewarmed (FAB press +
+            // sheet open), so show Listening immediately instead of parking
+            // the user on a Connecting beat; failures fall back to compose
+            // with the mic error hint.
             id: 'student-listening-placeholder',
             role: 'student',
-            text: useRealtimeVoice ? 'Connecting...' : 'Listening...',
+            text: 'Listening...',
             status: 'streaming',
           },
     ])
@@ -512,13 +536,6 @@ export function AskSheet() {
           return
         }
         setRealtimeCaptureHandle(session ?? null)
-        setLiveDialogue((items) =>
-          items.map((item) =>
-            item.id === 'student-listening-placeholder' && item.text === 'Connecting...'
-              ? { ...item, text: 'Listening...' }
-              : item,
-          ),
-        )
         return
       }
 

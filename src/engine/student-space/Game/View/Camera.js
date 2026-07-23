@@ -262,7 +262,16 @@ export default class Camera
         if(!this._saveStack) this._saveStack = new Map()
         if(!this._saveStack.has(owner))
         {
-            this._saveStack.set(owner, {
+            // Anchor hand-off: a consumer taking over framing mid-sequence
+            // (the capture sheet continuing from the kira-narrator close-up)
+            // adopts the named owner's restore anchor instead of capturing
+            // the current — already zoomed — pose, so its own restore
+            // returns to the true pre-sequence pose.
+            const adopted = options.adoptAnchorOf
+                ? this._saveStack.get(options.adoptAnchorOf)
+                : null
+            if(adopted) this._saveStack.delete(options.adoptAnchorOf)
+            this._saveStack.set(owner, adopted ?? {
                 pos:    this.instance.position.clone(),
                 target: this.controls ? this.controls.target.clone() : this.target.clone(),
             })

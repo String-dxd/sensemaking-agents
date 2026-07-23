@@ -11,6 +11,7 @@ import {
   resolveElementEvidence,
 } from '~/engine/student-space/Game/View/elementEvidence.js'
 import { FACET_HEADERS, FACET_THEMES } from '~/engine/student-space/Game/View/facets.js'
+import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
 
 const GREETINGS = {
@@ -558,8 +559,15 @@ class KiraNarratorController {
     const flatLen = Math.hypot(fromKiraDx, fromKiraDz) || 1
     const unitX = fromKiraDx / flatLen
     const unitZ = fromKiraDz / flatLen
-    const camPos = new THREE.Vector3(perch.x + unitX * 2.6, perch.y + 1.05, perch.z + unitZ * 2.6)
-    const camLook = new THREE.Vector3(perch.x, perch.y + 0.85, perch.z)
+    // Same close-up as the onboarding dialogue beat (first-chat preset):
+    // tight head-on portrait, approached from the camera's current azimuth.
+    const { distance, camYAboveLookAt, lookAtYAbovePerch } = getPreset('first-chat')
+    const camPos = new THREE.Vector3(
+      perch.x + unitX * distance,
+      perch.y + lookAtYAbovePerch + camYAboveLookAt,
+      perch.z + unitZ * distance,
+    )
+    const camLook = new THREE.Vector3(perch.x, perch.y + lookAtYAbovePerch, perch.z)
     this.view.camera.zoomTo(camPos, camLook, ZOOM_DURATION, { owner: 'kira-narrator' })
 
     if (this._kiraRestYaw === null) this._kiraRestYaw = kira.group.rotation.y
@@ -567,7 +575,10 @@ class KiraNarratorController {
       mode: 'in',
       startTime: performance.now(),
       from: kira.group.rotation.y,
-      to: Math.atan2(-unitZ, unitX),
+      // The character GLB's face reads toward rotation.y - 90deg (same
+      // offset as the onboarding preset), so add the quarter turn to point
+      // the face at the camera instead of leaving it in profile.
+      to: Math.atan2(-unitZ, unitX) + Math.PI / 2,
       duration: ZOOM_DURATION,
     }
 
@@ -660,7 +671,10 @@ class KiraNarratorController {
       return
     }
     const target = this.target
-    this.close()
+    // Handing off into the capture sheet keeps the close-up framing: the
+    // capture dolly adopts the narrator's camera anchor (no zoom-out-and-
+    // back-in yank) and the bird keeps facing the student.
+    this.close({ keepFraming: target?.kind === 'kira' })
     if (!target) return
     if (target.kind === 'kira') {
       this._schedule(() => {
@@ -670,13 +684,26 @@ class KiraNarratorController {
     }
   }
 
-  close() {
+  close({ keepFraming = false }: { keepFraming?: boolean } = {}) {
     if (!this.isActive) return
     this.isActive = false
     this.typerId += 1
     this._speakConfirm = null
     this._clearTimers()
     this.setNarrator((prev) => ({ ...prev, open: false }))
+    if (keepFraming) {
+      // Commit the held facing into the behavior state (so Character.update
+      // doesn't snap back to the wander yaw) and drop the hold — the capture
+      // flow owns the bird from here. The camera anchor stays in the stack
+      // for the capture dolly to adopt (adoptAnchorOf: 'kira-narrator').
+      this.view.kira.setFacing?.(this.view.kira.group.rotation.y)
+      this._kiraTurn = null
+      this._kiraRestYaw = null
+      this._schedule(() => {
+        if (!this.disposed) this.view.hoverProbe?.setEnabled?.(true)
+      }, ZOOM_DURATION + 80)
+      return
+    }
     this.view.camera.restoreZoom(ZOOM_DURATION, { owner: 'kira-narrator' })
 
     if (this._kiraRestYaw !== null) {
@@ -701,9 +728,13 @@ class KiraNarratorController {
     let delta = turn.to - turn.from
     delta = ((delta + Math.PI * 3) % (Math.PI * 2)) - Math.PI
     this.view.kira.group.rotation.y = turn.from + delta * eased
-    if (t >= 1) {
+    if (t >= 1 && turn.mode === 'out') {
+      // 'in' turns are deliberately NOT cleared: Character.update() re-applies
+      // the behavior yaw every frame, so the narrator must keep writing the
+      // facing (this runs after kira.update) while the panel stays open, or
+      // the bird snaps back to its wander yaw the moment the tween ends.
       this._kiraTurn = null
-      if (turn.mode === 'out') this._kiraRestYaw = null
+      this._kiraRestYaw = null
     }
   }
 

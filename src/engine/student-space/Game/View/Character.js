@@ -325,6 +325,18 @@ export default class Character
         return out
     }
 
+    /**
+     * Commit a facing into the behavior state (not just the group), so the
+     * next update tick doesn't snap the body back to the wander yaw. Used by
+     * dialogue/capture surfaces that turn the bird toward the camera.
+     */
+    setFacing(yaw)
+    {
+        this._s.yaw = yaw
+        this.group.rotation.y = yaw
+        this.facing = yaw
+    }
+
     /** True while the companion is "talking" (narrator panel open, or an
      *  object peek advanced to its lore/pickup panel). */
     isTalking()
@@ -386,7 +398,10 @@ export default class Character
             return
         }
 
-        if(narrating && !script)
+        // The capture sheet parks the bird too (view.captureFocus): the
+        // student is mid-conversation, so hold the talk pose instead of
+        // letting the wander walk the bird out of the dolly's framing.
+        if((narrating || this.view.captureFocus === true) && !script)
         {
             // Freeze wander + face the reader: hold the talk clip while the
             // narrator panel is open.

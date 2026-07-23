@@ -444,8 +444,10 @@ describe('React capture stack', () => {
     const [camPos, camLook] = zoomTo.mock.calls[0] ?? []
     expect(camPos).toMatchObject({ x: 0, y: 1.05, z: 4.2 })
     expect(camLook).toMatchObject({ x: 0, y: 0.72, z: 0 })
-    await waitFor(() => expect(rotation.y).toBeCloseTo(-Math.PI / 2))
-    expect(kira.facing).toBeCloseTo(-Math.PI / 2)
+    // Camera sits on +Z of the bird; the GLB's face reads toward
+    // rotation.y - 90deg, so facing the camera means atan2 + 90deg = 0 here.
+    await waitFor(() => expect(rotation.y).toBeCloseTo(0))
+    expect(kira.facing).toBeCloseTo(0)
     expect(screen.queryByTestId('drawer-overlay')).not.toBeInTheDocument()
   })
 })
