@@ -6,7 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 import glsl from 'vite-plugin-glsl'
 
 export default defineConfig({
-  server: { port: 3000 },
+  server: { port: Number(process.env.PORT) || 3000 },
   plugins: [
     tsconfigPaths({ projects: ['./tsconfig.json'] }),
     tailwindcss(),
