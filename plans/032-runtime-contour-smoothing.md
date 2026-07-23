@@ -28,15 +28,25 @@ at four parameter combos (offline, read-only): (2, 0.4) and (3, 0.6) and
 gentle scalloped curves**. The nonlinearity is real: steps stay visually hard
 until the raw weight drops below roughly 0.2.
 
-**The invariant is redefined, not broken.** The old comment guarantees an
-isolated single cell stays clearly-visible land — calibrated when a cell was
-0.375 units. At 128, a cell is 0.1875 units; the honest world-space
-restatement is: *the old minimum feature (≈ a 2×2–3×3 block of 128-cells)
-must stay visible land*. At (4, 0.85): an isolated single cell renders as a
-beach-height land patch (visible sand, no longer a raised bump); a 3×3
-tier-2 block still renders as a raised bump. That preserves the old
-world-space editing floor. This is a deliberate trade approved by the plan
-author — record it in the comment, don't soften it.
+**The invariant is redefined, not broken** (rev 1 — corrected with verified
+numbers after the executor's STOP; the original statement of the floor was
+wrong). At (4, 0.85), measured against the actual sampler math:
+
+- an isolated SINGLE cell samples ≈ 0.43 → terraces to ≈ −0.94, **below sea
+  level — it disappears**. This is now EXPECTED and asserted, not guarded
+  against.
+- a **2×2 tier-2 block** (= the old 64-grid single cell, 0.375 world units)
+  samples ≈ 0.71 → terraces to tierHeights[1] (0.05) — **visible land at
+  beach height**. This is the preserved world-space floor for visibility.
+- a **5×5 tier-2 block** (~0.94 world units) samples ≈ 1.77 → terraces to
+  tier 2 (1.0) — the new minimum for a **raised bump**.
+
+The trade: sub-0.4-unit raised detail is no longer authorable. The reviewer
+verified the visual payoff on the running app (smooth curved coastline,
+scalloped terraces — screenshot in the session scratchpad) and it matches
+the recorded island art direction ("few big SMOOTH scalloped masses").
+Deliberate trade approved by the plan author — record it in the comments,
+don't soften it.
 
 ## Current state (verified at `7b65a381`)
 
@@ -74,12 +84,14 @@ updates (values only, never structure). The golden fixture regenerates via
   world-space invariant above. Keep the copies textually identical in the
   shared lines.
 - `island-editor/test/terrainGrid.test.ts` + `test/engine/islandSpecCore.test.ts`:
-  update ONLY numeric expectations that pin sampler outputs. Method: run the
-  test, read the observed value, CHECK it satisfies the redefined invariant
-  (single isolated tier-2 cell → land at ≥ beach height, i.e. terraced height
-  ≥ tierHeights[1]; a 3×3 tier-2 block → terraced height > tierHeights[1],
-  i.e. a raised bump), then pin the observed value with a plan-032 comment.
-  If an observed value VIOLATES the redefined invariant, STOP.
+  (rev 1) REWRITE the isolated-cell invariant test in both copies to assert
+  the corrected floor: single cell → terraced height BELOW seaLevel
+  (intentional, commented); 2×2 tier-2 block → terraced height ≥
+  tierHeights[1] (visible land); 5×5 tier-2 block → terraced height >
+  tierHeights[1] (raised bump; observe the exact value and pin it). Keep the
+  two copies' tests structurally parallel. For all OTHER numeric expectations
+  pinning sampler outputs: observe → check against the corrected floor →
+  pin with a plan-032 comment. STOP only if the 2×2 or 5×5 checks fail.
 - Regenerated: `test/engine/fixtures/islandSpecGolden.json`,
   `src/engine/student-space/Game/Data/defaultIslandSpec.json`,
   `fallbackIslandSpec.ts` (via `pnpm sync:island` — the spec data itself
