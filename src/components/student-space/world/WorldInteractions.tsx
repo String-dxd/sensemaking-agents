@@ -1,5 +1,5 @@
-import type { CSSProperties, Dispatch, SetStateAction } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import type { CSSProperties, Dispatch, RefCallback, SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { meaningForSpecies } from '~/engine/student-space/Game/Data/flowerMeanings.js'
 import { VIPS_TAXONOMY } from '~/engine/student-space/Game/Data/vipsTaxonomy.js'
@@ -143,8 +143,6 @@ type NarratorState = {
 
 type HoverCtaState = {
   open: boolean
-  x: number
-  y: number
   eyebrow: string
   badge: string
   title: string
@@ -175,8 +173,6 @@ const INITIAL_BUBBLE: KiraBubbleState = { visible: false, text: '', x: 0, y: 0, 
 const INITIAL_NARRATOR: NarratorState = { open: false, name: 'Kira', text: '', cta: 'Open' }
 const INITIAL_HOVER_CTA: HoverCtaState = {
   open: false,
-  x: 0,
-  y: 0,
   eyebrow: '',
   badge: '',
   title: '',
@@ -214,6 +210,7 @@ export function WorldInteractions({
   const [objectPeek, setObjectPeek] = useState(INITIAL_OBJECT_PEEK)
   const [objectPickup, setObjectPickup] = useState(INITIAL_OBJECT_PICKUP)
   const onboardingModeRef = useRef(onboardingMode)
+  const hoverCtaNodeRef = useRef<HTMLDivElement | null>(null)
   const controllersRef = useRef<{
     kiraDialogue?: KiraDialogueController
     kiraNarrator?: KiraNarratorController
@@ -221,6 +218,10 @@ export function WorldInteractions({
     hoverCta?: HoverCtaController
     hoverProbe?: HoverProbeController
   }>({})
+  const hoverCtaAnchorRef = useCallback((node: HTMLDivElement | null) => {
+    hoverCtaNodeRef.current = node
+    controllersRef.current.hoverCta?.setAnchorElement(node)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -249,6 +250,7 @@ export function WorldInteractions({
       const kiraNarrator = new KiraNarratorController(deps, setNarrator)
       const objectPeekController = new ObjectPeekController(deps, setObjectPeek, setObjectPickup)
       const hoverCtaController = new HoverCtaController(deps, setHoverCta)
+      hoverCtaController.setAnchorElement(hoverCtaNodeRef.current)
       view.kiraDialogue = kiraDialogue
       view.kiraNarrator = kiraNarrator
       view.objectPeek = objectPeekController
@@ -275,6 +277,11 @@ export function WorldInteractions({
 
     return () => {
       cancelled = true
+      try {
+        controllersRef.current.hoverCta?.setAnchorElement(null)
+      } catch {
+        // Match the engine's defensive disposal posture.
+      }
       for (const controller of controllers) {
         try {
           controller.dispose?.()
@@ -302,7 +309,7 @@ export function WorldInteractions({
   return (
     <>
       <KiraBubble state={bubble} onDismiss={() => controllersRef.current.kiraDialogue?.hide()} />
-      <HoverCtaChip state={hoverCta} />
+      <HoverCtaChip state={hoverCta} anchorRef={hoverCtaAnchorRef} />
       <ObjectPeekPopover
         state={objectPeek}
         onAdvance={() => controllersRef.current.objectPeek?._goPickup()}
@@ -753,16 +760,27 @@ class KiraNarratorController {
   }
 }
 
-class HoverCtaController {
+export class HoverCtaController {
   view: AnyEngine
   target: Target | null = null
   _thumbs: AnyEngine = null
+  _anchorEl: HTMLElement | null = null
+  _lastX = Number.NaN
+  _lastY = Number.NaN
 
   constructor(
     private deps: EngineDeps,
     private setHoverCta: Dispatch<SetStateAction<HoverCtaState>>,
   ) {
     this.view = deps.View.getInstance()
+  }
+
+  setAnchorElement(el: HTMLElement | null) {
+    this._anchorEl = el
+    if (el && Number.isFinite(this._lastX) && Number.isFinite(this._lastY)) {
+      el.style.left = `${this._lastX}px`
+      el.style.top = `${this._lastY}px`
+    }
   }
 
   showFor(target: Target, screenX: number, screenY: number) {
@@ -828,7 +846,7 @@ class HoverCtaController {
     })
   }
 
-  _setContent(next: Omit<HoverCtaState, 'open' | 'x' | 'y'>) {
+  _setContent(next: Omit<HoverCtaState, 'open'>) {
     this.setHoverCta((prev) => ({ ...prev, ...next }))
   }
 
@@ -846,7 +864,17 @@ class HoverCtaController {
   }
 
   setAnchor(screenX: number, screenY: number) {
-    this.setHoverCta((prev) => ({ ...prev, x: screenX + 16, y: screenY - 12 }))
+    const x = screenX + 16
+    const y = screenY - 12
+    if (x === this._lastX && y === this._lastY) return
+    this._lastX = x
+    this._lastY = y
+    const el = this._anchorEl
+    if (!el) return
+    // left/top, NOT transform: the chip's open/close animation transitions
+    // `transform`, so positioning must stay off that property.
+    el.style.left = `${x}px`
+    el.style.top = `${y}px`
   }
 
   hide() {
@@ -860,6 +888,9 @@ class HoverCtaController {
     } catch {}
     this._thumbs = null
     this.target = null
+    this._anchorEl = null
+    this._lastX = Number.NaN
+    this._lastY = Number.NaN
     this.setHoverCta(INITIAL_HOVER_CTA)
   }
 
@@ -1704,16 +1735,21 @@ function KiraBubble({ state, onDismiss }: { state: KiraBubbleState; onDismiss: (
   )
 }
 
-function HoverCtaChip({ state }: { state: HoverCtaState }) {
+function HoverCtaChip({
+  state,
+  anchorRef,
+}: {
+  state: HoverCtaState
+  anchorRef: RefCallback<HTMLDivElement>
+}) {
   return (
     <div
+      ref={anchorRef}
       role="tooltip"
       aria-hidden={!state.open}
       data-world-hover-cta
       style={
         {
-          left: state.x,
-          top: state.y,
           '--cta-accent': state.theme?.accent,
           '--cta-soft': state.theme?.soft,
           '--cta-ink': state.theme?.ink,
