@@ -7,6 +7,8 @@
  *  - Restart Onboarding calls state.onboarding.reset, flushes persistence,
  *    and navigates to `/onboarding`
  *  - body.has-overlay add/remove lifecycle
+ *  - the Demo student switcher: renders only for demo/dev-bypass sessions,
+ *    marks the active persona, and submits a body-scoped form on click
  */
 import {
   createMemoryHistory,
@@ -17,9 +19,15 @@ import {
 } from '@tanstack/react-router'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsSheet } from '~/components/student-space/sheets/SettingsSheet'
 import { EngineContext } from '~/lib/student-space/use-engine'
+
+const loadAuthMenuMock = vi.hoisted(() => vi.fn())
+
+vi.mock('~/server/auth-menu.functions', () => ({
+  loadAuthMenu: loadAuthMenuMock,
+}))
 
 function renderSettings(engine: object | null = makeFakeEngine()) {
   const rootRoute = createRootRoute({
@@ -82,6 +90,11 @@ function makeFakeEngine() {
 
 afterEach(() => {
   document.body.classList.remove('has-overlay')
+  loadAuthMenuMock.mockReset()
+})
+
+beforeEach(() => {
+  loadAuthMenuMock.mockResolvedValue({ status: 'signed-out' })
 })
 
 describe('SettingsSheet (React)', () => {
@@ -139,5 +152,59 @@ describe('SettingsSheet (React)', () => {
     await waitFor(() => expect(document.body.classList.contains('has-overlay')).toBe(true))
     unmount()
     expect(document.body.classList.contains('has-overlay')).toBe(false)
+  })
+
+  describe('Demo student switcher', () => {
+    it('renders a button per demo persona and marks the active one for a demo session', async () => {
+      loadAuthMenuMock.mockResolvedValue({
+        status: 'signed-in',
+        label: 'Demo account',
+        detail: 'demo-a',
+        kind: 'demo',
+      })
+      renderSettings()
+
+      expect(await screen.findByRole('heading', { name: 'Demo student' })).toBeInTheDocument()
+      const active = screen.getByTestId('settings-demo-student-demo-a')
+      expect(active).toHaveAttribute('aria-current', 'true')
+      expect(screen.getByTestId('settings-demo-student-demo-b')).not.toHaveAttribute('aria-current')
+      expect(screen.getByTestId('settings-demo-student-demo-c')).toBeInTheDocument()
+      expect(screen.getByTestId('settings-demo-student-demo-d')).toBeInTheDocument()
+    })
+
+    it('does not render the Demo student group for a workos session', async () => {
+      loadAuthMenuMock.mockResolvedValue({
+        status: 'signed-in',
+        label: 'Reza Ilmi',
+        detail: 'reza@example.com',
+        kind: 'workos',
+      })
+      renderSettings()
+
+      await screen.findByRole('heading', { name: 'World & weather' })
+      expect(screen.queryByRole('heading', { name: 'Demo student' })).not.toBeInTheDocument()
+    })
+
+    it('clicking a non-active persona submits a body-scoped form to the switch endpoint', async () => {
+      loadAuthMenuMock.mockResolvedValue({
+        status: 'signed-in',
+        label: 'Demo account',
+        detail: 'demo-a',
+        kind: 'demo',
+      })
+      const submitSpy = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
+      renderSettings()
+
+      const demoB = await screen.findByTestId('settings-demo-student-demo-b')
+      await userEvent.click(demoB)
+
+      expect(submitSpy).toHaveBeenCalledTimes(1)
+      const submitted = submitSpy.mock.instances[0] as unknown as HTMLFormElement
+      expect(submitted.method.toLowerCase()).toBe('post')
+      expect(submitted.action).toContain('/api/auth/sign-in?')
+      expect(submitted.action).toContain('demo=1')
+      expect(submitted.action).toContain('student=demo-b')
+      expect(submitted.parentElement).toBe(document.body)
+    })
   })
 })

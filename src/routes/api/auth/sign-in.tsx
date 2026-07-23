@@ -4,7 +4,7 @@
 // the SDK's PKCE/CSRF enforcement.
 
 import { createFileRoute } from '@tanstack/react-router'
-import { DEFAULT_DEMO_STUDENT_ID, safeReturnPathname } from '~/auth/demo'
+import { DEFAULT_DEMO_STUDENT_ID, normalizeDemoStudentId, safeReturnPathname } from '~/auth/demo'
 import { isSameOriginRequest } from '~/auth/same-origin'
 
 export const Route = createFileRoute('/api/auth/sign-in')({
@@ -52,16 +52,20 @@ export async function handleSignInPost({ request }: { request: Request }): Promi
   const returnPathname = safeReturnPathname(urlParts.searchParams.get('returnPathname'))
   if (urlParts.searchParams.get('demo') !== '1') return redirectTo(returnPathname)
 
-  const [{ demoCookieHeader, getDemoBypassAuthFromCookie }, { normalizeDemoStudentId }] =
-    await Promise.all([import('~/auth/demo-session.server'), import('~/auth/demo')])
+  const { demoCookieHeader, getDemoBypassAuthFromCookie } = await import(
+    '~/auth/demo-session.server'
+  )
 
-  // Preserve an existing valid demo selection so a second click on
-  // "Use a demo account" (or any flow that POSTs here) does not silently
-  // reset the active student to demo-a and orphan whatever data was
-  // captured against another demo id. If the cookie is missing or carries
-  // an unrecognised value, fall back to the default.
+  // An explicit `student` param (from the in-app persona switcher) wins when
+  // it names a known demo student. Otherwise, preserve an existing valid demo
+  // selection so a second click on "Use a demo account" (or any flow that
+  // POSTs here) does not silently reset the active student to demo-a and
+  // orphan whatever data was captured against another demo id. If neither is
+  // present or valid, fall back to the default.
+  const requested = normalizeDemoStudentId(urlParts.searchParams.get('student'))
   const existing = getDemoBypassAuthFromCookie()
-  const studentId = normalizeDemoStudentId(existing?.activeStudentId) ?? DEFAULT_DEMO_STUDENT_ID
+  const studentId =
+    requested ?? normalizeDemoStudentId(existing?.activeStudentId) ?? DEFAULT_DEMO_STUDENT_ID
   return redirectTo(returnPathname, 303, {
     'Set-Cookie': demoCookieHeader(studentId),
   })
