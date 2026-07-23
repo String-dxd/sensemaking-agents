@@ -3,6 +3,7 @@ import { Toggle } from '@base-ui-components/react/toggle'
 import { ToggleGroup } from '@base-ui-components/react/toggle-group'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { sgDateKey, sgToday } from '~/lib/entry-date'
 import { EMOTION_BY_ID } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
 
@@ -32,9 +33,6 @@ const MONTH_NAMES = [
   'November',
   'December',
 ]
-
-const ymd = (d: Date): string =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
 const dayLabel = (d: Date): string =>
   d.toLocaleDateString(undefined, {
@@ -191,7 +189,7 @@ export function CalendarPane({
     pushChip(date, { type: 'event', label: ev.label ?? ev.title ?? 'Event' })
   }
 
-  const todayYmd = ymd(now)
+  const todayYmd = sgToday()
   const viewYear = anchorDate.getFullYear()
   const viewMonth = anchorDate.getMonth()
 
@@ -207,7 +205,7 @@ export function CalendarPane({
 
   const isCurrentView =
     viewMode === 'week'
-      ? cells.some((c) => ymd(c) === todayYmd)
+      ? cells.some((c) => sgDateKey(c) === todayYmd)
       : viewYear === now.getFullYear() && viewMonth === now.getMonth()
 
   return (
@@ -268,7 +266,7 @@ export function CalendarPane({
           }}
         >
           {cells.map((cell) => {
-            const cellYmd = ymd(cell)
+            const cellYmd = sgDateKey(cell) ?? ''
             const isOutside = viewMode === 'month' && cell.getMonth() !== viewMonth
             const isSelected = selectedDate === cellYmd
             const isToday = cellYmd === todayYmd

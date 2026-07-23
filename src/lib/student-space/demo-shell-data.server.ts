@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { VipsContextType } from '~/agents/tools/schemas'
+import { sgDateKey } from '~/lib/entry-date'
 
 export interface StudentSpaceShellIdentity {
   name: string
@@ -153,7 +154,5 @@ function hasCreatedAt(reflection: {
 }
 
 function toEntryDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '1970-01-01'
-  return date.toISOString().slice(0, 10)
+  return sgDateKey(value) ?? '1970-01-01'
 }

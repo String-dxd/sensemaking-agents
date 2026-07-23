@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { SheetEyebrow } from '~/components/ui/sheet'
+import { sgDateKey } from '~/lib/entry-date'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 
@@ -370,8 +371,5 @@ function formatLongDate(ymd: string | undefined): string {
 }
 
 function toEntryDate(iso: string | undefined): string {
-  if (!iso) return ''
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return ''
-  return date.toISOString().slice(0, 10)
+  return sgDateKey(iso) ?? ''
 }

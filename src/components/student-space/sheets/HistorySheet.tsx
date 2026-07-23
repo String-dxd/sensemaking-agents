@@ -13,6 +13,7 @@ import {
   SheetTitle,
   usePageEscape,
 } from '~/components/ui/sheet'
+import { sgToday } from '~/lib/entry-date'
 import { useEngine, useEngineHydrated } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 import { cn } from '~/lib/utils'
@@ -259,10 +260,7 @@ function TimelinePane({
     if (!openEntryId) lastAppliedEntryRef.current = null
 
     if (selectedDate) return
-    const now = new Date()
-    setSelectedDate(
-      `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`,
-    )
+    setSelectedDate(sgToday())
   }, [filter, hash, selectedDate, targetDate, openEntryId, openEntryDate])
 
   const [viewMode, setViewMode] = useState<'week' | 'month'>('month')
