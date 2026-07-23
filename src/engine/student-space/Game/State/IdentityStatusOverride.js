@@ -12,8 +12,9 @@
  *
  * Default preview: `'searching'`. Path Finder opens on the Searching view
  * for a fresh space rather than whatever status the evidence infers, so the
- * exploration narrative is the default frame. An explicit later choice
- * (including clearing to Auto, which persists `null`) still wins on reload.
+ * exploration narrative is the default frame. An explicit status choice
+ * wins on reload; clearing to Auto is session-only — every load starts back
+ * on the Searching preview.
  *
  * Persistence key: `ss:v1:identityStatusOverride`. Survives reload.
  *
@@ -85,7 +86,10 @@ export default class IdentityStatusOverride
         // future addition (e.g. a `setAt` timestamp for telemetry) can
         // land without breaking older persisted blobs.
         const raw = typeof snapshot === 'string' ? snapshot : snapshot?.overrideId
-        if(raw === null) { this.overrideId = null; return }
+        // A persisted Auto (null) is session-only: Path Finder always reopens
+        // on the Searching preview, so the exploration frame is the default
+        // on every load. Choosing Auto still works within the session.
+        if(raw === null) return
         if(typeof raw !== 'string' || !VALID_IDS.has(raw)) return
         this.overrideId = raw
     }

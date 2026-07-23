@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   PageSurface,
@@ -177,6 +177,81 @@ export function MirrorDetailSheet() {
         )}
       </SheetContent>
     </PageSurface>
+  )
+}
+
+/**
+ * MirrorDetailPane — Slack-style right-column variant of the mirror detail
+ * view, rendered inline inside the History sheet (`/history?entry=<id>`).
+ * Same content as MirrorDetailSheet, compacted into a single scroll column
+ * with its own close affordance.
+ */
+export function MirrorDetailPane({ entryId, onClose }: { entryId: number; onClose: () => void }) {
+  const engine = useEngine()
+  const state = (
+    engine as unknown as { state?: MirrorEngineState & { captures?: Subscribable } } | null
+  )?.state
+  useEngineSliceVersion(state?.captures ?? null)
+
+  const entries = state?.captures?.entries
+  const hydrated = Array.isArray(entries)
+  const capture = useMemo<MirrorCapture | null>(
+    () =>
+      entries?.find(
+        (entry) => Number(entry.backendMirrorEntryId) === entryId && entry.kind === 'ask',
+      ) ?? null,
+    [entries, entryId],
+  )
+
+  return (
+    <div data-testid="mirror-detail-pane" className="flex h-full min-h-0 flex-col">
+      <div className="flex items-start justify-between gap-3 border-b border-(--color-sheet-divider) px-7 pt-8 pb-5 max-[640px]:px-5 max-[640px]:pt-5">
+        <div className="min-w-0">
+          <SheetEyebrow>Story reframe</SheetEyebrow>
+          <h2 className="mt-1 text-xl font-semibold leading-snug tracking-[-0.01em] text-(--color-sheet-ink)">
+            {capture
+              ? capture.title?.trim() ||
+                capture.reframe?.headline?.trim() ||
+                capture.reframe?.highlightPhrase?.trim() ||
+                'Untitled mirror'
+              : hydrated
+                ? 'Mirror not found'
+                : 'Loading…'}
+          </h2>
+          {capture ? (
+            <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">
+              {formatLongDate(capture.entryDate ?? toEntryDate(capture.createdAt))}
+            </p>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          aria-label="Close reflection"
+          data-testid="mirror-pane-close"
+          onClick={onClose}
+          className="inline-flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-(--color-sheet-ink-soft) transition-[background-color,color,transform] hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.96]"
+        >
+          <X aria-hidden className="size-4" />
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6 max-[640px]:px-5">
+        {capture ? (
+          <div className="space-y-6">
+            {capture.reframe?.highlightPhrase?.trim() ? (
+              <p className="text-base italic leading-relaxed text-(--color-sheet-ink-soft)">
+                “{capture.reframe.highlightPhrase.trim()}”
+              </p>
+            ) : null}
+            <SidebarMeta capture={capture} />
+            <MirrorBody capture={capture} engineState={state} />
+          </div>
+        ) : (
+          <p className="text-base leading-relaxed text-(--color-sheet-ink-soft)">
+            {hydrated ? 'We couldn’t find that mirror. It may have been let go.' : 'Loading…'}
+          </p>
+        )}
+      </div>
+    </div>
   )
 }
 

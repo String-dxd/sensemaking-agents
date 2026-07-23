@@ -265,6 +265,18 @@ body,
 /* Shared popover-enter animation. Used by routed sheets' popovers,
    dropdowns, and dialogs — opacity fade + tiny translate + scale.
    Pair with `var(--ease-sheet)` for consistency. */
+/* Right-column detail pane enter (Slack-style entry column in History). */
+@keyframes sheet-pane-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 @keyframes sheet-popover-in {
   from {
     opacity: 0;

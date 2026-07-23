@@ -19,6 +19,7 @@ import { cn } from '~/lib/utils'
 import { CalendarPane } from './CalendarPane'
 import { DayDetailCard } from './DayDetailCard'
 import { GrowthIslandPreview } from './GrowthIslandPreview'
+import { MirrorDetailPane } from './MirrorDetailSheet'
 
 /**
  * History sheet — combined Timeline + Growth surface (U6 React rewrite of
@@ -103,12 +104,49 @@ export function HistorySheet() {
     [navigate],
   )
 
+  // `?entry=<id>` opens the reflection detail as a right column (Slack-style):
+  // the left sidebar collapses to make room, and closing restores it.
+  const search = location.search as { filter?: unknown; entry?: unknown } | undefined
+  const entryRaw = Number(search?.entry)
+  const openEntryId = Number.isInteger(entryRaw) && entryRaw > 0 ? entryRaw : null
+
+  const closeEntry = useCallback(() => {
+    navigate({
+      to: '/history',
+      search: (prev: Record<string, unknown>) => ({ ...prev, entry: undefined }),
+    })
+  }, [navigate])
+
+  // Calendar day click → open that day's latest reflection in the right
+  // column (or close the column when the day has none).
+  const openEntry = useCallback(
+    (entryId: number | null) => {
+      navigate({
+        to: '/history',
+        search: (prev: Record<string, unknown>) => ({ ...prev, entry: entryId ?? undefined }),
+      })
+    },
+    [navigate],
+  )
+
   const dismissToHome = useCallback(() => navigate({ to: '/' }), [navigate])
-  usePageEscape(dismissToHome)
+  const onEscape = useCallback(() => {
+    if (openEntryId) closeEntry()
+    else dismissToHome()
+  }, [openEntryId, closeEntry, dismissToHome])
+  usePageEscape(onEscape)
 
   return (
     <PageSurface>
-      <SheetSidebar data-stagger-slot="1">
+      <SheetSidebar
+        data-stagger-slot="1"
+        aria-hidden={openEntryId ? true : undefined}
+        className={cn(
+          'transition-[width,opacity] duration-(--duration-sheet) ease-(--ease-sheet)',
+          openEntryId &&
+            'w-0 min-w-0 overflow-hidden border-r-0 opacity-0 max-[640px]:max-h-0 max-[640px]:border-b-0',
+        )}
+      >
         <SheetIdentityHeader>
           <SheetTitle>History</SheetTitle>
           <SheetDescription>Your moments, moods, and reflections over time.</SheetDescription>
@@ -122,18 +160,15 @@ export function HistorySheet() {
           </SheetNavButton>
         </SheetSidenav>
       </SheetSidebar>
-      <SheetContent>
+      <SheetContent className={cn(openEntryId && 'max-[640px]:hidden')}>
         <SheetBody data-stagger-slot="2">
           <div key={activeTab} data-tab-content>
             {activeTab === 'timeline' ? (
               <TimelinePane
                 engineState={state}
                 hash={location.hash ?? ''}
-                filter={
-                  (location.search as { filter?: unknown } | undefined)?.filter === 'need-review'
-                    ? 'need-review'
-                    : undefined
-                }
+                filter={search?.filter === 'need-review' ? 'need-review' : undefined}
+                onOpenEntry={openEntry}
               />
             ) : (
               <GrowthPane engine={engine} />
@@ -141,6 +176,14 @@ export function HistorySheet() {
           </div>
         </SheetBody>
       </SheetContent>
+      {openEntryId ? (
+        <aside
+          data-testid="history-entry-column"
+          className="w-[460px] shrink-0 animate-[sheet-pane-in_var(--duration-sheet)_var(--ease-sheet)_both] border-l border-(--color-sheet-divider) bg-(--color-sheet-pane-left) max-[900px]:w-[380px] max-[640px]:w-full max-[640px]:border-l-0"
+        >
+          <MirrorDetailPane entryId={openEntryId} onClose={closeEntry} />
+        </aside>
+      ) : null}
     </PageSurface>
   )
 }
@@ -149,10 +192,12 @@ function TimelinePane({
   engineState,
   hash,
   filter,
+  onOpenEntry,
 }: {
   engineState: Parameters<typeof CalendarPane>[0]['engineState']
   hash: string
   filter?: 'need-review'
+  onOpenEntry?: (entryId: number | null) => void
 }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const lastAppliedHashRef = useRef('')
@@ -191,6 +236,33 @@ function TimelinePane({
   }, [filter, hash, selectedDate, targetDate])
 
   const [viewMode, setViewMode] = useState<'week' | 'month'>('month')
+
+  // Selecting a day also drives the right entry column: open the day's
+  // latest linked reflection, or close the column when the day has none.
+  const handleSelectDate = useCallback(
+    (date: string) => {
+      setSelectedDate(date)
+      if (!onOpenEntry) return
+      type Cap = {
+        entryDate: string
+        kind: string
+        createdAt?: string
+        backendMirrorEntryId?: number | string
+      }
+      const latest = ((engineState?.captures?.entries ?? []) as Cap[])
+        .filter(
+          (cap) =>
+            cap.entryDate === date &&
+            cap.kind === 'ask' &&
+            Number.isInteger(Number(cap.backendMirrorEntryId)) &&
+            Number(cap.backendMirrorEntryId) > 0,
+        )
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))[0]
+      onOpenEntry(latest ? Number(latest.backendMirrorEntryId) : null)
+    },
+    [engineState, onOpenEntry],
+  )
+
   return (
     <div className="space-y-6">
       <PaneHeader
@@ -205,7 +277,7 @@ function TimelinePane({
         <CalendarPane
           engineState={engineState}
           selectedDate={selectedDate}
-          onSelectDate={setSelectedDate}
+          onSelectDate={handleSelectDate}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
         />

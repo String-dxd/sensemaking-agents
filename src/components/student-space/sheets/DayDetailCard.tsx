@@ -239,8 +239,8 @@ export function DayDetailCard({
                     <li key={cap.id}>
                       {hasBackendId ? (
                         <Link
-                          to="/mirror/$id"
-                          params={{ id: String(entryId) }}
+                          to="/history"
+                          search={(prev: Record<string, unknown>) => ({ ...prev, entry: entryId })}
                           data-testid={`mirror-card-${entryId}`}
                           className={cn(
                             cardClasses,

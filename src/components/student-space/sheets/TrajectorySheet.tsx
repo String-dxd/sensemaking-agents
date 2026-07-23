@@ -387,62 +387,69 @@ function StatusPreviewSelector({
   const activeLabel = current ? statusLabelOf(audit.status) : 'Auto'
 
   return (
-    <div data-trajectory-status-root className="relative space-y-2">
+    <div data-trajectory-status-root className="space-y-2">
       <span className="block text-xs font-semibold text-(--color-sheet-ink-faint)">
         Previewing as
       </span>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-haspopup="menu"
-        data-testid="trajectory-status-pill"
-        onClick={() => setOpen((next) => !next)}
-        className="inline-flex min-h-10 max-w-full cursor-pointer items-center gap-2 rounded-full bg-white/76 py-1.5 pl-3 pr-2.5 text-sm font-semibold text-(--color-sheet-ink) shadow-[inset_0_0_0_1px_rgba(43,38,32,0.08)] transition-[transform,background-color] duration-150 ease-(--ease-sheet) hover:bg-white active:scale-[0.96]"
-      >
-        <span
-          aria-hidden
-          className={cn('size-2.5 shrink-0 rounded-full', statusDotColor[audit.status])}
-        />
-        <span className="min-w-0 truncate">{activeLabel}</span>
-        <ChevronDown
-          aria-hidden
-          className={cn(
-            'size-4 shrink-0 text-(--color-sheet-ink-soft) transition-transform duration-150 ease-(--ease-sheet)',
-            open && 'rotate-180',
-          )}
-        />
-      </button>
-      {open ? (
-        <div className="absolute left-0 top-full z-10 mt-2 w-56 origin-top-left animate-[sheet-popover-in_140ms_var(--ease-sheet)_both] overflow-hidden rounded-2xl border border-(--color-sheet-divider) bg-white p-1 shadow-(--shadow-sheet-popover)">
-          {[null, ...STATUS_IDS].map((status) => {
-            const key = status ?? 'auto'
-            const selected = current === status
-            return (
-              <button
-                key={key}
-                type="button"
-                aria-pressed={selected}
-                data-selected={selected || undefined}
-                onClick={() => {
-                  onSelect?.()
-                  override?.setOverride?.(status as StatusKey | null)
-                  setOpen(false)
-                }}
-                className="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-(--color-sheet-ink-soft) transition-colors duration-100 hover:bg-black/5 hover:text-(--color-sheet-ink) data-[selected]:bg-(--color-sheet-tab-active) data-[selected]:text-(--color-sheet-ink)"
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    'size-2.5 shrink-0 rounded-full',
-                    status ? statusDotColor[status] : 'bg-(--color-sheet-ink-faint)',
-                  )}
-                />
-                <span className="min-w-0 truncate">{status ? statusLabelOf(status) : 'Auto'}</span>
-              </button>
-            )
-          })}
-        </div>
-      ) : null}
+      {/* The popover anchors to this wrapper (just the pill) rather than the
+          whole block — otherwise the override reason paragraph below pushes
+          the menu way down the sidebar. */}
+      <div className="relative">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-haspopup="menu"
+          data-testid="trajectory-status-pill"
+          onClick={() => setOpen((next) => !next)}
+          className="inline-flex min-h-10 max-w-full cursor-pointer items-center gap-2 rounded-full bg-white/76 py-1.5 pl-3 pr-2.5 text-sm font-semibold text-(--color-sheet-ink) shadow-[inset_0_0_0_1px_rgba(43,38,32,0.08)] transition-[transform,background-color] duration-150 ease-(--ease-sheet) hover:bg-white active:scale-[0.96]"
+        >
+          <span
+            aria-hidden
+            className={cn('size-2.5 shrink-0 rounded-full', statusDotColor[audit.status])}
+          />
+          <span className="min-w-0 truncate">{activeLabel}</span>
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              'size-4 shrink-0 text-(--color-sheet-ink-soft) transition-transform duration-150 ease-(--ease-sheet)',
+              open && 'rotate-180',
+            )}
+          />
+        </button>
+        {open ? (
+          <div className="absolute left-0 top-full z-10 mt-2 w-56 origin-top-left animate-[sheet-popover-in_140ms_var(--ease-sheet)_both] overflow-hidden rounded-2xl border border-(--color-sheet-divider) bg-white p-1 shadow-(--shadow-sheet-popover)">
+            {[null, ...STATUS_IDS].map((status) => {
+              const key = status ?? 'auto'
+              const selected = current === status
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={selected}
+                  data-selected={selected || undefined}
+                  onClick={() => {
+                    onSelect?.()
+                    override?.setOverride?.(status as StatusKey | null)
+                    setOpen(false)
+                  }}
+                  className="flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-(--color-sheet-ink-soft) transition-colors duration-100 hover:bg-black/5 hover:text-(--color-sheet-ink) data-[selected]:bg-(--color-sheet-tab-active) data-[selected]:text-(--color-sheet-ink)"
+                >
+                  <span
+                    aria-hidden
+                    className={cn(
+                      'size-2.5 shrink-0 rounded-full',
+                      status ? statusDotColor[status] : 'bg-(--color-sheet-ink-faint)',
+                    )}
+                  />
+                  <span className="min-w-0 truncate">
+                    {status ? statusLabelOf(status) : 'Auto'}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        ) : null}
+      </div>
       {audit.isOverride ? (
         <p className="max-w-[34ch] text-pretty text-xs leading-relaxed text-(--color-sheet-ink-soft)">
           {audit.reason}
