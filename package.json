@@ -17,6 +17,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "seed": "tsx src/db/seed.ts",
+    "demo:bootstrap": "pnpm db:migrate && pnpm seed",
+    "demo:reset": "pnpm db:migrate && SEED_REPLACE_EXISTING=1 pnpm seed",
     "sync:island": "tsx scripts/sync-island-spec.ts",
     "db:generate": "drizzle-kit generate --config=src/db/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=src/db/drizzle.config.ts",

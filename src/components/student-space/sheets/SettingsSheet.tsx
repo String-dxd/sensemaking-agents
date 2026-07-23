@@ -48,8 +48,11 @@ export function SettingsSheet() {
       )?.state
       state?.onboarding?.reset?.()
       state?.persistence?.flush?.()
-    } catch {
-      // best-effort wipe; reload still picks up the hash
+    } catch (err) {
+      console.warn(
+        '[SettingsSheet] onboarding reset failed; reload will still re-run bootstrap',
+        err,
+      )
     }
     if (typeof window !== 'undefined') {
       window.location.assign('/onboarding')
