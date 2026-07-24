@@ -25,13 +25,18 @@ describe('grassField — grassBlades', () => {
     const grid = createOceanGrid()
     const c = 32
     const r = 32
-    // Raise the whole 3×3 neighborhood to tier 2 so the blurred terrain stays
-    // above sea level across the painted cell's full scatter radius — an
-    // ISOLATED raised cell's edges blur down toward the surrounding ocean and
-    // would water-clip its outer blades (that clipping is the shore contract,
-    // tested below; here we want the no-clipping count).
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
+    // Raise a 7×7 neighborhood to tier 2 so the painted cell is genuinely
+    // INTERIOR: the blurred terrain stays above sea level and FLAT across the
+    // painted cell's full scatter radius — an ISOLATED raised cell's edges
+    // blur down toward the surrounding ocean and would water-clip its outer
+    // blades (that clipping is the shore contract, tested below; here we want
+    // the no-clipping count). Was 3×3 before the bicubic
+    // B-spline blurred-field kernel: the smoothstepped bilinear artificially
+    // flattened the field near the cell center, hiding a small bump's slope
+    // from the CLIFF_DROP check; the bicubic sampler reports that slope
+    // honestly and clips edge blades on it.
+    for (let dr = -3; dr <= 3; dr++) {
+      for (let dc = -3; dc <= 3; dc++) {
         grid.tiers[cellIndex(grid, c + dc, r + dr)] = 2
       }
     }
@@ -158,9 +163,9 @@ describe('grassField — grassBlades', () => {
 
   it('respects a custom perCell density', () => {
     const grid = createOceanGrid()
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
-        grid.tiers[cellIndex(grid, 32 + dc, 32 + dr)] = 2 // no water clipping (see above)
+    for (let dr = -3; dr <= 3; dr++) {
+      for (let dc = -3; dc <= 3; dc++) {
+        grid.tiers[cellIndex(grid, 32 + dc, 32 + dr)] = 2 // 7×7: interior/flat (see above)
       }
     }
     grid.surface[cellIndex(grid, 32, 32)] = SURFACE_GRASS

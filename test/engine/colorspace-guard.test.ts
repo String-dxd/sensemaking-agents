@@ -12,9 +12,13 @@ import { configureColorPipeline } from '~/engine/student-space/Game/View/Rendere
 
 const ENGINE_ROOT = join(__dirname, '../../src/engine/student-space')
 
-/** r152+ color-management API names that no-op on runtime three@0.149. */
+/** r152+ color-management API names that no-op on runtime three@0.149.
+ *  `ColorManagement.enabled` is the r152+ no-op form; the bare namespace is
+ *  NOT forbidden because r149's working switch is
+ *  `ColorManagement.legacyMode = false` (set at engine boot in Renderer.js to
+ *  match the editor's r171 linear-workflow default). */
 const FORBIDDEN =
-  /\b(outputColorSpace|SRGBColorSpace|LinearSRGBColorSpace|NoColorSpace|colorSpace|colorspace_fragment|ColorManagement)\b/
+  /\b(outputColorSpace|SRGBColorSpace|LinearSRGBColorSpace|NoColorSpace|colorSpace|colorspace_fragment|ColorManagement\.enabled)\b/
 
 /** Scan source text for forbidden r152+ names; returns offending lines. */
 function findForbiddenColorApis(source: string): { line: number; text: string }[] {
@@ -56,9 +60,11 @@ describe('color-space guard — no r152+ APIs in engine code (runtime three is r
     expect(findForbiddenColorApis('tex.colorSpace = THREE.SRGBColorSpace')).toHaveLength(1)
     expect(findForbiddenColorApis('renderer.outputColorSpace = "srgb"')).toHaveLength(1)
     expect(findForbiddenColorApis('#include <colorspace_fragment>')).toHaveLength(1)
+    expect(findForbiddenColorApis('THREE.ColorManagement.enabled = true')).toHaveLength(1)
     expect(findForbiddenColorApis('tex.encoding = THREE.sRGBEncoding')).toHaveLength(0)
     expect(findForbiddenColorApis('renderer.outputEncoding = THREE.sRGBEncoding')).toHaveLength(0)
     expect(findForbiddenColorApis('#include <encodings_fragment>')).toHaveLength(0)
+    expect(findForbiddenColorApis('THREE.ColorManagement.legacyMode = false')).toHaveLength(0)
   })
 
   it('configureColorPipeline sets sRGB output + ACES filmic at exposure 1.1 + soft shadows', () => {

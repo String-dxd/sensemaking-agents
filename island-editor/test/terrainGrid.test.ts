@@ -76,7 +76,7 @@ describe('terrainGrid — terrace evaluation', () => {
       const center = cellCenter(WORLD, grid, 32, 32)
       const h = evaluateHeight(spec, center.x, center.z, blurred)
       expect(h).toBeLessThan(spec.seaLevel)
-      expect(h).toBeCloseTo(-0.9429203040213103, 6) // observed; plan 032
+      expect(h).toBeCloseTo(-1.0117777846015792, 6) // observed; B-spline kernel (was -0.9429, plan 032)
     }
 
     // (b) 2×2 block — preserved "visible land" floor.
@@ -86,8 +86,8 @@ describe('terrainGrid — terrace evaluation', () => {
       const blurred = blurTiers(grid)
       const center = cellCenter(WORLD, grid, 32, 32)
       const h = evaluateHeight(spec, center.x, center.z, blurred)
-      expect(h).toBeGreaterThanOrEqual(DEFAULT_TIER_HEIGHTS[1])
-      expect(h).toBeCloseTo(0.05, 6) // observed; plan 032 — exactly tierHeights[1]
+      expect(h).toBeGreaterThan(spec.seaLevel) // the floor is "visible land", not the exact beach top
+      expect(h).toBeCloseTo(0.048227955350686136, 6) // observed; B-spline kernel (was exactly 0.05, plan 032)
     }
 
     // (c) 5×5 block — a raised bump, the new practical minimum.
@@ -98,7 +98,7 @@ describe('terrainGrid — terrace evaluation', () => {
       const center = cellCenter(WORLD, grid, 32, 32)
       const h = evaluateHeight(spec, center.x, center.z, blurred)
       expect(h).toBeGreaterThan(DEFAULT_TIER_HEIGHTS[1])
-      expect(h).toBeCloseTo(1, 6) // observed; plan 032 — exactly tierHeights[2]
+      expect(h).toBeCloseTo(1, 6) // observed; B-spline kernel — still exactly tierHeights[2]
     }
   })
 

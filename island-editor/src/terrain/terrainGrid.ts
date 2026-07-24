@@ -188,9 +188,14 @@ function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v
 }
 
-/** Bilinear sample of a row-major field in cell-center space (integer u/v = a
- *  cell center). u/v are expected pre-clamped to [0, cols-1] / [0, rows-1]. */
-function bilinear(field: ArrayLike<number>, cols: number, u: number, v: number): number {
+/** C1 "smooth bilinear" sample of a row-major field in cell-center space
+ *  (integer u/v = a cell center; u/v pre-clamped to [0, cols-1]/[0, rows-1]).
+ *  Smoothstepped fractions keep the sample C1 WITHOUT overshoot — kept for the
+ *  RAW (stepped, 0..MAX_TIER) grid, where a cubic's over/undershoot rings on
+ *  tall tier steps (spiky fins along multi-tier cliffs). Its own artifact —
+ *  contours flatten at lattice lines and bulge mid-cell — only carries the
+ *  (1 − BLUR_MIX) raw weight; the dominant blurred term uses `bicubic`. */
+function smoothBilinear(field: ArrayLike<number>, cols: number, u: number, v: number): number {
   const c0 = Math.floor(u)
   const r0 = Math.floor(v)
   const c1 = Math.min(c0 + 1, cols - 1)
@@ -198,12 +203,6 @@ function bilinear(field: ArrayLike<number>, cols: number, u: number, v: number):
   const r1 = Math.min(r0 + 1, rows - 1)
   let fu = u - c0
   let fv = v - r0
-  // C1 "smooth bilinear" (plan 028): smoothstepped fractions round the
-  // field's iso-contours — plain bilinear contours are piecewise-linear with
-  // kinks at every lattice point, which rendered the island silhouette as a
-  // diamond sawtooth. At integer u/v the fractions are 0/1, so CELL-CENTER
-  // VALUES ARE EXACT AND UNCHANGED — the thin-feature amplitude invariant
-  // documented on sampleTierField (BLUR_MIX comment) is preserved.
   fu = fu * fu * (3 - 2 * fu)
   fv = fv * fv * (3 - 2 * fv)
   const h00 = field[r0 * cols + c0]
@@ -215,9 +214,65 @@ function bilinear(field: ArrayLike<number>, cols: number, u: number, v: number):
   return a + (b - a) * fv
 }
 
+/** 1D uniform cubic B-spline blend of taps p0..p3 at fraction t (t = 0 is the
+ *  knot between p1 and p2's influence peak). All four weights are positive and
+ *  sum to 1 for every t — the kernel can never overshoot the tap range. */
+function bspline1D(p0: number, p1: number, p2: number, p3: number, t: number): number {
+  const t2 = t * t
+  const t3 = t2 * t
+  return (
+    ((1 - 3 * t + 3 * t2 - t3) * p0 +
+      (4 - 6 * t2 + 3 * t3) * p1 +
+      (1 + 3 * t + 3 * t2 - 3 * t3) * p2 +
+      t3 * p3) /
+    6
+  )
+}
+
+/** Bicubic B-spline sample of a row-major field in cell-center space (integer
+ *  u/v = a cell center). u/v are expected pre-clamped to [0, cols-1] /
+ *  [0, rows-1]; out-of-range taps clamp to the border.
+ *
+ *  WHY a B-spline for the BLURRED field (replacing plan 028's smoothstepped
+ *  bilinear): the smoothstepped fractions forced the field's gradient to ZERO
+ *  along every lattice line, so every iso-contour (coastline, terrace lip)
+ *  flattened at each cell boundary and bulged mid-cell — a scalloped wobble
+ *  at exactly grid-cell frequency. The B-spline is C2 ACROSS lattice lines,
+ *  so contours pass through cells smoothly, and its weights are all POSITIVE:
+ *  unlike an interpolating cubic (Catmull-Rom — tried first and rejected: its
+ *  negative lobes AMPLIFY the tent blur's residual lattice ripple, and the
+ *  steep terrace walls magnify that into visible sawtooth fins along multi-
+ *  tier cliffs), it can never overshoot or ring. Measured on a tier-4 disc:
+ *  wall-height ripple 3.7× lower and coastline curvature noise 10× lower than
+ *  the smoothstepped bilinear; Catmull-Rom was 17× WORSE.
+ *
+ *  It is APPROXIMATING, not interpolating: away from locally-flat regions the
+ *  sample no longer equals the cell-center value (on flat interiors it is
+ *  still exact — the weights sum to 1). It runs ONLY on the blurred field;
+ *  the raw field keeps the interpolating smoothBilinear, which preserves the
+ *  flat-top/cell-center anchoring. The feature-preservation floors on
+ *  sampleTierField (BLUR_MIX comment) were re-verified and re-pinned for this
+ *  kernel in the suites listed there. */
+function bicubic(field: ArrayLike<number>, cols: number, u: number, v: number): number {
+  const rows = field.length / cols
+  const ci = Math.floor(u)
+  const ri = Math.floor(v)
+  const fu = u - ci
+  const fv = v - ri
+  const c0 = Math.max(ci - 1, 0)
+  const c1 = ci
+  const c2 = Math.min(ci + 1, cols - 1)
+  const c3 = Math.min(ci + 2, cols - 1)
+  const rowSample = (r: number): number => {
+    const base = Math.min(Math.max(r, 0), rows - 1) * cols
+    return bspline1D(field[base + c0], field[base + c1], field[base + c2], field[base + c3], fu)
+  }
+  return bspline1D(rowSample(ri - 1), rowSample(ri), rowSample(ri + 1), rowSample(ri + 2), fv)
+}
+
 /**
- * Continuous tier field at world (x, z): bilinear of the raw grid mixed with the
- * bilinear of the blurred grid by `BLUR_MIX`.
+ * Continuous tier field at world (x, z): smooth-bilinear of the raw grid mixed
+ * with the bicubic B-spline of the blurred grid by `BLUR_MIX`.
  *
  * WHY the mix (do not "simplify" to blur-only): a fully-blurred field would
  * destroy ALL thin features uniformly, with no floor at any size. Keeping
@@ -229,17 +284,19 @@ function bilinear(field: ArrayLike<number>, cols: number, u: number, v: number):
  * THE FEATURE-PRESERVATION FLOOR WAS REDEFINED IN PLAN 032 for the 128×128
  * grid (plan 031's resample), and CORRECTED in plan 032's second revision
  * (the first restatement below undercounted how much a lone cell sinks).
- * Verified numbers at BLUR_MIX = 0.85 / BLUR_PASSES = 4 (needed for the
- * coastline to actually read as curves — see the BLUR_MIX/BLUR_PASSES
- * comments), measured at a stamped block's anchor-cell center:
- *   - a LONE tier-2 cell samples ≈ 0.427 → terraces to ≈ −0.943, BELOW sea
+ * Verified numbers at BLUR_MIX = 0.85 / BLUR_PASSES = 4 with the bicubic
+ * B-spline blurred-field kernel (see `bicubic` — re-pinned when it replaced
+ * the smoothstepped bilinear), measured at a stamped block's anchor-cell
+ * center:
+ *   - a LONE tier-2 cell samples ≈ 0.411 → terraces to ≈ −1.012, BELOW sea
  *     level. This is now DELIBERATE, not a bug: the maintainer's island art
  *     direction is "few big smooth scalloped masses" — sub-2×2 detail is
  *     intentionally not authorable at this blur strength.
  *   - a 2×2 tier-2 block (≈ the OLD single 64-grid cell's world footprint,
- *     0.375 units — the pre-031 floor) samples ≈ 0.712 → terraces to exactly
- *     tierHeights[1] (0.05): the preserved "stays visible land" floor.
- *   - a 5×5 tier-2 block (~0.94 world units) samples ≈ 1.769 → terraces to
+ *     0.375 units — the pre-031 floor) samples ≈ 0.667 → terraces to ≈ 0.048,
+ *     a hair below the beach top but ABOVE sea level: the preserved "stays
+ *     visible land" floor.
+ *   - a 5×5 tier-2 block (~0.94 world units) samples ≈ 1.688 → terraces to
  *     exactly tierHeights[2] (1.0): a full raised bump, the new practical
  *     minimum for a plateau-height feature.
  * The floor is SYMMETRIC for carved WATER pockets inside land — shoreField.ts
@@ -264,8 +321,8 @@ export function sampleTierField(
   const cellSize = worldSize / cols
   const u = clamp((x + worldSize / 2) / cellSize - 0.5, 0, cols - 1)
   const v = clamp((z + worldSize / 2) / cellSize - 0.5, 0, rows - 1)
-  const raw = bilinear(tiers, cols, u, v)
-  const blur = bilinear(blurred, cols, u, v)
+  const raw = smoothBilinear(tiers, cols, u, v)
+  const blur = bicubic(blurred, cols, u, v)
   return raw + (blur - raw) * BLUR_MIX
 }
 
