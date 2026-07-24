@@ -13,7 +13,7 @@ import {
   SheetTitle,
   usePageEscape,
 } from '~/components/ui/sheet'
-import { useEngine } from '~/lib/student-space/use-engine'
+import { useEngine, useEngineHydrated } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 import { cn } from '~/lib/utils'
 import { CalendarPane } from './CalendarPane'
@@ -203,6 +203,14 @@ function TimelinePane({
   openEntryId?: number | null
 }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  // Cold load: the backend snapshot hasn't settled AND we have no cached
+  // reflections to show. Drives the calendar skeleton so a still-fetching load
+  // doesn't render as an empty (but complete-looking) grid. Once hydration
+  // settles — or any cached/local capture exists — this is false and the real
+  // grid renders.
+  const hydrated = useEngineHydrated()
+  const captureCount = engineState?.captures?.entries?.length ?? 0
+  const isColdLoad = !hydrated && captureCount === 0
   const lastAppliedHashRef = useRef('')
   const lastAppliedFilterTargetRef = useRef<string | null>(null)
   const lastAppliedEntryRef = useRef<number | null>(null)
@@ -302,6 +310,7 @@ function TimelinePane({
           onSelectDate={handleSelectDate}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          loading={isColdLoad}
         />
         <DayDetailCard
           date={selectedDate}

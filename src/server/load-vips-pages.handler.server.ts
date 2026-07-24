@@ -19,7 +19,7 @@ import { withStudent } from '~/db/client'
 import {
   listMirrorEntries,
   listVipsPages,
-  listVipsTimelineEntries,
+  listVipsTimelineEntriesAllDimensions,
   type MirrorEntryRow,
   type VipsPageRow,
   type VipsTimelineEntryRow,
@@ -96,19 +96,27 @@ export async function loadVipsPagesHandler(data: LoadVipsPagesInput): Promise<Lo
         },
     )
 
+    // One query for all four dimensions (was four serial round-trips). The
+    // all-dimensions query excludes forgotten rows by default — the R19
+    // "forgotten entries excluded from sense-making context" boundary on the
+    // read side. It returns rows newest-first globally, which preserves the
+    // per-dimension `committed_at DESC` order once bucketed below. An admin
+    // view would pass `{includeForgotten: true}`; we never do that here.
     const timeline_by_dimension = {} as Record<VipsDimension, VipsTimelineEntryRow[]>
     const claim_count_by_dimension = {} as Record<VipsDimension, number>
-    let total = 0
     for (const dim of VIPS_DIMENSIONS) {
-      // `listVipsTimelineEntries` excludes forgotten rows by default — this
-      // is the R19 "forgotten entries excluded from sense-making context"
-      // boundary on the read side. The compatible call site for an admin
-      // view would pass `{includeForgotten: true}`; we never do that here.
-      const entries = await listVipsTimelineEntries(studentId, dim, { ctx })
-      timeline_by_dimension[dim] = entries
-      claim_count_by_dimension[dim] = entries.length
-      total += entries.length
+      timeline_by_dimension[dim] = []
+      claim_count_by_dimension[dim] = 0
     }
+    const allTimelineEntries = await listVipsTimelineEntriesAllDimensions(studentId, { ctx })
+    for (const entry of allTimelineEntries) {
+      const dim = entry.dimension as VipsDimension
+      const bucket = timeline_by_dimension[dim]
+      if (!bucket) continue // Guard against a dimension outside the canonical four.
+      bucket.push(entry)
+      claim_count_by_dimension[dim] += 1
+    }
+    const total = VIPS_DIMENSIONS.reduce((sum, dim) => sum + claim_count_by_dimension[dim], 0)
 
     const recentEntries = await listMirrorEntries(studentId, { ctx, limit: 12 })
     const worldMailbox = await loadCounsellorBriefStatusForStudent(studentId, { ctx })

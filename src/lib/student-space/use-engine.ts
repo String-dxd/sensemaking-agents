@@ -20,3 +20,21 @@ export const EngineContext = createContext<Game | null>(null)
 export function useEngine(): Game | null {
   return useContext(EngineContext)
 }
+
+/**
+ * Whether the first backend snapshot has settled (resolved OR failed). `false`
+ * from engine boot until `refreshSnapshot()` completes; flips `true` once —
+ * subsequent in-app navigations stay `true`.
+ *
+ * Surfaces that render from backend-backed engine slices (e.g. the History
+ * Timeline calendar) read this to distinguish a *still-fetching* cold load
+ * from a *genuinely empty* account: show a skeleton only while `false` AND the
+ * slice is empty. Provided by `<EngineHost>`; defaults to `false` for any
+ * consumer mounted outside it.
+ */
+export const EngineHydrationContext = createContext<boolean>(false)
+
+/** True once the first backend snapshot has settled (resolved or failed). */
+export function useEngineHydrated(): boolean {
+  return useContext(EngineHydrationContext)
+}
