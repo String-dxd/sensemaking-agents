@@ -354,8 +354,9 @@ describe('IslandLayout dispose', () => {
 
     ;(IslandLayout as unknown as { instance: unknown }).instance = null
     const second = new IslandLayout()
-    // Fresh instance defaults — tree-0 should be back at 0, 0
-    expect(second.get('tree-0')?.x).toBe(0)
+    // Fresh instance defaults — tree-0 back at its committed default (0.05, 0;
+    // 2026-07-23 re-authoring snapped the base layout onto the new island).
+    expect(second.get('tree-0')?.x).toBe(0.05)
     expect(second).not.toBe(first)
   })
 })

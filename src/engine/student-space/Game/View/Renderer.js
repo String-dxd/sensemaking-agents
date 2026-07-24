@@ -14,11 +14,34 @@ import { applyRendererSize } from './renderQuality.js'
  * r152+ color-management APIs typecheck against @types/three@0.184 but
  * silently no-op at runtime (guarded by test/engine/colorspace-guard.test.ts).
  */
+
+// Linear-workflow color management, matching the editor's three r171 where
+// it is on by default (r152 flipped the default). r149's default is legacy
+// mode: `new THREE.Color(hex)` keeps raw sRGB component values, so every
+// authored tint (ground grass/sun/sky, sea, light colors) was fed to shaders
+// as-if-linear and then sRGB-ENCODED AGAIN on output — the whole world
+// rendered brighter and washed-out relative to the editor. legacyMode = false
+// (the r149 spelling of the switch; the r152+ `.enabled` property is the
+// no-op form the colorspace-guard test forbids) makes setHex/setStyle convert
+// sRGB → linear exactly like r171, so identical hex constants shade
+// identically in both runtimes. Module scope (not inside
+// configureColorPipeline) so it is set before ANY boot-time
+// `new THREE.Color(...)` runs.
+THREE.ColorManagement.legacyMode = false
 export function configureColorPipeline(renderer)
 {
     renderer.outputEncoding = THREE.sRGBEncoding
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.1
+    // Physical light units, matching the editor's three r171 (which has no
+    // legacy mode at all). r149's DEFAULT is legacy lighting: every light's
+    // intensity is silently multiplied by π (WebGLLights.js scaleFactor), so
+    // the same Backdrop rig numbers (sun 1.55 / hemi 0.65) rendered the scene
+    // ~3.14× overlit here — ACES then compressed the overshoot into the
+    // washed-out pastel look. With this flag the two runtimes light the same
+    // rig identically. (Scene has no point/spot lights, so the flag's other
+    // effect — physical distance decay — changes nothing.)
+    renderer.physicallyCorrectLights = true
     // Soft shadow maps (KTD-4) — the editor renders with `shadows="soft"`.
     // Shadows stay ON at every quality tier; the shadow-casting directional
     // light in View/Island.js scales its map SIZE by tier instead.

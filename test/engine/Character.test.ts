@@ -96,15 +96,15 @@ afterEach(() => {
 })
 
 describe('Character — Kira contract', () => {
-  it('spawns at the spec character home (cell 40,66 anchor)', () => {
-    // plan 031: island resampled 64×64 → 128×128 — the character's cell
-    // remapped (20,33) → (40,66), shifting the anchor by −cellSize/2 =
-    // −0.09375 per axis (cellSize 24/128 = 0.1875).
+  it('spawns at the spec character home (cell 68,106 anchor)', () => {
+    // 2026-07-23 re-authoring: the maintainer saved a new island from the
+    // editor (character at 64-grid cell (34,53)); the plan-031 resample bake
+    // doubled it to (68,106). Anchor = cellCenter(24, 128, 68, 106).
     const { character } = setup()
-    expect(character.perchX).toBeCloseTo(-4.40625, 3)
-    expect(character.perchZ).toBeCloseTo(0.46875, 3)
+    expect(character.perchX).toBeCloseTo(0.84375, 3)
+    expect(character.perchZ).toBeCloseTo(7.96875, 3)
     expect(Number.isFinite(character.perchY)).toBe(true)
-    expect(character.group.position.x).toBeCloseTo(-4.40625, 3)
+    expect(character.group.position.x).toBeCloseTo(0.84375, 3)
   })
 
   it('getHeadWorldPosition returns a finite Vector3 before the GLB resolves and tracks the head bone after', async () => {

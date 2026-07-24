@@ -109,6 +109,11 @@ export default class Island
         const center = cellCenter(this.worldSize, grid, c, r)
         const yCell = evaluateHeight(this.spec, center.x, center.z, this._blurred)
         const y = this.heightAt(x, z)
+        // A grid-land cell can still RENDER underwater: thin/isolated land
+        // dissolves below the sea under the blurred tier field (the
+        // feature-preservation floor on sampleTierField). Such a spot must
+        // not count as walkable — the character would wade into open water.
+        if(y <= this.seaLevel) return false
         return Math.abs(y - yCell) <= WALL_DROP
     }
 

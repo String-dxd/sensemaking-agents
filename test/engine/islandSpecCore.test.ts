@@ -111,18 +111,18 @@ describe('golden parity — committed spec vs editor implementation', () => {
     }
   })
 
-  it('the character spawn (cell 40,66) lands at ≈ (−4.41, y, 0.47) — coordinate convention anchor', () => {
-    // plan 031: island resampled 64×64 → 128×128 — the character's cell
-    // remapped (20,33) → (40,66), shifting the cell-center world position by
-    // −cellSize/2 = −0.09375 per axis (cellSize 24/128 = 0.1875).
+  it('the character spawn (cell 68,106) lands at ≈ (0.84, y, 7.97) — coordinate convention anchor', () => {
+    // 2026-07-23 re-authoring: the maintainer saved a new island (character
+    // at 64-grid cell (34,53)); the plan-031 resample bake doubled it to
+    // (68,106). Anchor = cellCenter(24, 128-grid, 68, 106).
     const character = committedSpec.objects.find((o) => o.kind === 'character')
     expect(character).toBeDefined()
     if (!character) return
-    expect(character.c).toBe(40)
-    expect(character.r).toBe(66)
+    expect(character.c).toBe(68)
+    expect(character.r).toBe(106)
     const p = worldPositionOfObject(committedSpec, character)
-    expect(p.x).toBeCloseTo(-4.40625, 4)
-    expect(p.z).toBeCloseTo(0.46875, 4)
+    expect(p.x).toBeCloseTo(0.84375, 4)
+    expect(p.z).toBeCloseTo(7.96875, 4)
   })
 
   it('grass scatter matches the editor: count and the first blades', () => {
@@ -179,7 +179,7 @@ describe('terrainGrid — terrace evaluation', () => {
       const center = cellCenter(WORLD, grid, 32, 32)
       const h = evaluateHeight(spec, center.x, center.z, blurred)
       expect(h).toBeLessThan(spec.seaLevel)
-      expect(h).toBeCloseTo(-0.9429203040213103, 6) // observed; plan 032
+      expect(h).toBeCloseTo(-1.0117777846015792, 6) // observed; B-spline kernel (was -0.9429, plan 032)
     }
 
     // (b) 2×2 block — preserved "visible land" floor.
@@ -189,8 +189,8 @@ describe('terrainGrid — terrace evaluation', () => {
       const blurred = blurTiers(grid)
       const center = cellCenter(WORLD, grid, 32, 32)
       const h = evaluateHeight(spec, center.x, center.z, blurred)
-      expect(h).toBeGreaterThanOrEqual(DEFAULT_TIER_HEIGHTS[1] ?? Number.NaN)
-      expect(h).toBeCloseTo(0.05, 6) // observed; plan 032 — exactly tierHeights[1]
+      expect(h).toBeGreaterThan(spec.seaLevel) // the floor is "visible land", not the exact beach top
+      expect(h).toBeCloseTo(0.048227955350686136, 6) // observed; B-spline kernel (was exactly 0.05, plan 032)
     }
 
     // (c) 5×5 block — a raised bump, the new practical minimum.
@@ -201,7 +201,7 @@ describe('terrainGrid — terrace evaluation', () => {
       const center = cellCenter(WORLD, grid, 32, 32)
       const h = evaluateHeight(spec, center.x, center.z, blurred)
       expect(h).toBeGreaterThan(DEFAULT_TIER_HEIGHTS[1] ?? Number.NaN)
-      expect(h).toBeCloseTo(1, 6) // observed; plan 032 — exactly tierHeights[2]
+      expect(h).toBeCloseTo(1, 6) // observed; B-spline kernel — still exactly tierHeights[2]
     }
   })
 
@@ -564,10 +564,15 @@ describe('grassField — grassBlades', () => {
     const grid = createOceanGrid()
     const c = 32
     const r = 32
-    // Raise the whole 3×3 neighborhood so the blurred terrain stays above sea
-    // level across the painted cell's full scatter radius.
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
+    // Raise a 7×7 neighborhood so the painted cell is genuinely INTERIOR:
+    // the blurred terrain stays above sea level and FLAT across the painted
+    // cell's full scatter radius. (Was 3×3 before the bicubic
+    // B-spline blurred-field kernel: the smoothstepped bilinear artificially
+    // flattened the field near the cell center, so a small bump's slope was
+    // invisible to the CLIFF_DROP check; the bicubic sampler reports that
+    // slope honestly and clips edge blades on it.)
+    for (let dr = -3; dr <= 3; dr++) {
+      for (let dc = -3; dc <= 3; dc++) {
         grid.tiers[cellIndex(grid, c + dc, r + dr)] = 2
       }
     }
@@ -655,8 +660,9 @@ describe('grassField — grassBlades', () => {
 
   it('respects a custom perCell density', () => {
     const grid = createOceanGrid()
-    for (let dr = -1; dr <= 1; dr++) {
-      for (let dc = -1; dc <= 1; dc++) {
+    // 7×7 block: keeps the painted cell interior/flat (see the scatter test).
+    for (let dr = -3; dr <= 3; dr++) {
+      for (let dc = -3; dc <= 3; dc++) {
         grid.tiers[cellIndex(grid, 32 + dc, 32 + dr)] = 2
       }
     }

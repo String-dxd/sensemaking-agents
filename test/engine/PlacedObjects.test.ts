@@ -109,14 +109,15 @@ describe('assetLoader', () => {
 })
 
 describe('PlacedObjects', () => {
-  it('renders 16 trees + 0 bushes + 0 rocks from the committed spec and skips the character', async () => {
+  it('renders 19 trees + 0 bushes + 0 rocks from the committed spec and skips the character', async () => {
+    // 2026-07-23 re-authoring: the committed island now carries 19 trees.
     setupWorld()
     __setLoaderForTests(async () => ({ loadAsync: async () => stubGltf() as never }))
     const po = new PlacedObjects()
     await po.ready
-    expect(po.group.children).toHaveLength(16)
+    expect(po.group.children).toHaveLength(19)
     // wind springs registered for every tree canopy
-    expect(po._springs).toHaveLength(16)
+    expect(po._springs).toHaveLength(19)
   })
 
   it('dispose during an in-flight load never adds to the scene', async () => {
