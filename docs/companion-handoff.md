@@ -1,5 +1,11 @@
 # Companion handoff — the `.companion.glb` contract
 
+> **Archived 2026-07-23.** The Character Studio was removed from main
+> (operator decision: park it for now). The complete final source lives at
+> git tag `archive/character-studio-2026-07-23` (and in main's history via
+> `git log -- character-studio/`). This document remains as the export-contract
+> reference for the `.companion.glb` format should the studio be revived.
+
 How a character authored in **Character Studio** survives into the product web
 app and moves exactly as authored. Audience: product-app engineers wiring
 companions into `src/engine/` (three@0.149). Written against plan 011; the

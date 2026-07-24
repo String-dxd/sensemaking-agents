@@ -120,9 +120,57 @@ export interface MultiStudentSeedCorpus {
 
 const SEED_PATH = resolve(process.cwd(), 'test/ablation/fixtures/seed-multistudent.json')
 
-export function loadSeedCorpus(): MultiStudentSeedCorpus {
+const MS_PER_DAY = 86_400_000
+
+/**
+ * Uniformly shift every date in the corpus by a whole number of days so the
+ * NEWEST demo-a reflection lands on "yesterday" relative to `now`. A single
+ * shared day-delta preserves intra-corpus ordering and all relative gaps —
+ * required by the v0.2 ablation harness, which sorts by created_at and
+ * expects the curated timeline (see the seed() doc comment).
+ */
+export function shiftCorpusDates(
+  corpus: MultiStudentSeedCorpus,
+  now: Date = new Date(),
+): MultiStudentSeedCorpus {
+  const demoA = corpus.students.find((student) => student.student_id === 'demo-a')
+  const referenceStudents = demoA ? [demoA] : corpus.students
+  const maxCreatedAtMs = Math.max(
+    ...referenceStudents.flatMap((student) =>
+      student.reflections.map((r) => new Date(r.created_at).getTime()),
+    ),
+  )
+
+  const anchorUtcMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  const yesterdayUtcMidnight = anchorUtcMidnight - MS_PER_DAY
+  const maxUtcMidnight = Date.UTC(
+    new Date(maxCreatedAtMs).getUTCFullYear(),
+    new Date(maxCreatedAtMs).getUTCMonth(),
+    new Date(maxCreatedAtMs).getUTCDate(),
+  )
+  const deltaDays = Math.round((yesterdayUtcMidnight - maxUtcMidnight) / MS_PER_DAY)
+  const deltaMs = deltaDays * MS_PER_DAY
+
+  const shiftIso = (iso: string): string =>
+    new Date(new Date(iso).getTime() + deltaMs).toISOString()
+
+  return {
+    ...corpus,
+    students: corpus.students.map((student) => ({
+      ...student,
+      reflections: student.reflections.map((r) => ({ ...r, created_at: shiftIso(r.created_at) })),
+      vips_timeline_entries: student.vips_timeline_entries?.map((entry) => ({
+        ...entry,
+        committed_at: entry.committed_at ? shiftIso(entry.committed_at) : entry.committed_at,
+      })),
+    })),
+  }
+}
+
+export function loadSeedCorpus(options?: { shiftDates?: boolean }): MultiStudentSeedCorpus {
   const raw = readFileSync(SEED_PATH, 'utf8')
-  return JSON.parse(raw) as MultiStudentSeedCorpus
+  const corpus = JSON.parse(raw) as MultiStudentSeedCorpus
+  return options?.shiftDates === false ? corpus : shiftCorpusDates(corpus)
 }
 
 export interface SeedResult {

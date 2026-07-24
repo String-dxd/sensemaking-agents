@@ -6,6 +6,24 @@ const submitStudentSpaceReflectionMock = vi.hoisted(() => vi.fn())
 const prepareStudentSpaceReflectionMock = vi.hoisted(() => vi.fn())
 const persistMirrorMock = vi.hoisted(() => vi.fn())
 const transcribeMirrorMock = vi.hoisted(() => vi.fn())
+const loadVipsPagesMock = vi.hoisted(() => vi.fn())
+const loadWikiMock = vi.hoisted(() => vi.fn())
+const loadTrajectoryMock = vi.hoisted(() => vi.fn())
+const loadAuthMenuMock = vi.hoisted(() => vi.fn())
+
+// Minimal-but-valid default resolutions so `loadBackendSnapshot()` (invoked
+// by the demo-connector helper's snapshot refresh) can run its real mapper
+// code without throwing on missing shape. Individual tests override via
+// `mockResolvedValueOnce` where they need to.
+loadVipsPagesMock.mockResolvedValue({
+  pages: [],
+  timeline_by_dimension: {},
+  student_profile: null,
+  recent_moods: [],
+})
+loadWikiMock.mockResolvedValue({ entries: [] })
+loadTrajectoryMock.mockResolvedValue({ trajectory: null })
+loadAuthMenuMock.mockResolvedValue(null)
 
 vi.mock('~/server/run-connector.functions', () => ({
   runConnector: (args: unknown) => runConnectorMock(args),
@@ -16,15 +34,19 @@ vi.mock('~/server/forget-timeline-entry.functions', () => ({
 }))
 
 vi.mock('~/server/load-trajectory.functions', () => ({
-  loadTrajectory: vi.fn(),
+  loadTrajectory: () => loadTrajectoryMock(),
 }))
 
 vi.mock('~/server/load-vips-pages.functions', () => ({
-  loadVipsPages: vi.fn(),
+  loadVipsPages: () => loadVipsPagesMock(),
 }))
 
 vi.mock('~/server/load-wiki.functions', () => ({
-  loadWiki: vi.fn(),
+  loadWiki: () => loadWikiMock(),
+}))
+
+vi.mock('~/server/auth-menu.functions', () => ({
+  loadAuthMenu: () => loadAuthMenuMock(),
 }))
 
 vi.mock('~/server/run-cartographer.functions', () => ({
@@ -57,7 +79,24 @@ afterEach(() => {
   prepareStudentSpaceReflectionMock.mockReset()
   persistMirrorMock.mockReset()
   transcribeMirrorMock.mockReset()
+  // Clear (not reset) the snapshot-refresh mocks so their module-level
+  // default resolved values (set above) survive between tests; only their
+  // per-test `mockResolvedValueOnce` overrides and call history are wiped.
+  loadVipsPagesMock.mockClear()
+  loadWikiMock.mockClear()
+  loadTrajectoryMock.mockClear()
+  loadAuthMenuMock.mockClear()
+  vi.unstubAllEnvs()
 })
+
+/** Waits a couple microtask turns so a fire-and-forget helper's internal
+ * promise chain (runConnector → refreshSnapshot → console.info) has a
+ * chance to settle before assertions run. */
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve()
+  await Promise.resolve()
+  await Promise.resolve()
+}
 
 describe('createStudentSpaceBackendBridge', () => {
   it('returns partial Connector batches so the shell can show failed counts', async () => {
@@ -288,6 +327,96 @@ describe('createStudentSpaceBackendBridge', () => {
     expect(result?.mirrorEntry).toMatchObject({
       id: 43,
       reviewStatus: 'forgotten',
+    })
+  })
+
+  describe('demo-flagged capture-time Connector run (plan 041)', () => {
+    const confirmedInput = {
+      localCaptureId: 'local-demo',
+      transcript: 'open ai transcript',
+      validation: 'valid',
+      inferredMeaning: 'meaning',
+      storyReframe: 'story',
+      contextType: 'school' as const,
+    }
+
+    function mockPersistMirrorOnce(reviewStatus: 'confirmed' | 'forgotten') {
+      persistMirrorMock.mockResolvedValueOnce({
+        mirror_entry: {
+          id: 99,
+          transcript: 'open ai transcript',
+          validation: 'valid',
+          inferred_meaning: 'meaning',
+          story_reframe: 'story',
+          context_type: 'school',
+          review_status: reviewStatus,
+          created_at: '2026-07-23T08:00:00.000Z',
+        },
+      })
+    }
+
+    it('does not run the Connector after a confirmed capture with the flag unset (default)', async () => {
+      mockPersistMirrorOnce('confirmed')
+
+      const result = await createStudentSpaceBackendBridge().logPreparedReflection?.(confirmedInput)
+
+      await flushMicrotasks()
+      expect(result?.mirrorEntry.reviewStatus).toBe('confirmed')
+      expect(runConnectorMock).not.toHaveBeenCalled()
+    })
+
+    it('runs the Connector then refreshes the snapshot after a confirmed capture with the flag on', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      mockPersistMirrorOnce('confirmed')
+      runConnectorMock.mockResolvedValueOnce({
+        status: 'ok',
+        processed: 1,
+        succeeded: 1,
+        failed: 0,
+        remaining: 0,
+        entries: [],
+      })
+
+      const persistPromise =
+        createStudentSpaceBackendBridge().logPreparedReflection?.(confirmedInput)
+      // The persist promise must resolve without waiting on the Connector
+      // run: at this point runConnector has not even been invoked yet
+      // (it is scheduled fire-and-forget inside a `void (async () => ...)`).
+      const result = await persistPromise
+      expect(result?.mirrorEntry.reviewStatus).toBe('confirmed')
+
+      await flushMicrotasks()
+      expect(runConnectorMock).toHaveBeenCalledWith({ data: { limit: 3 } })
+      expect(loadVipsPagesMock).toHaveBeenCalled()
+      expect(loadWikiMock).toHaveBeenCalled()
+      expect(loadTrajectoryMock).toHaveBeenCalled()
+    })
+
+    it('resolves the persist result even when the flagged Connector run rejects', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      mockPersistMirrorOnce('confirmed')
+      runConnectorMock.mockRejectedValueOnce(new Error('connector down'))
+
+      const result = await createStudentSpaceBackendBridge().logPreparedReflection?.(confirmedInput)
+      expect(result?.mirrorEntry.reviewStatus).toBe('confirmed')
+
+      // Give the swallowed rejection a turn to surface as an unhandled
+      // rejection if the helper failed to catch it — vitest fails the test
+      // run on an unhandled rejection by default, so reaching here green is
+      // itself the assertion.
+      await flushMicrotasks()
+    })
+
+    it('does not run the Connector when a forgotten reflection is persisted, even with the flag on', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      mockPersistMirrorOnce('forgotten')
+
+      const result =
+        await createStudentSpaceBackendBridge().forgetPreparedReflection?.(confirmedInput)
+
+      await flushMicrotasks()
+      expect(result?.mirrorEntry.reviewStatus).toBe('forgotten')
+      expect(runConnectorMock).not.toHaveBeenCalled()
     })
   })
 })

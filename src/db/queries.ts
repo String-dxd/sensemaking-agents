@@ -15,7 +15,7 @@
 // local/dev databases whose connection role may own the tables and therefore
 // bypass non-FORCE RLS.
 
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
 import { getDbForMemoryModule, type TenantContext, withStudent } from './client'
 import {
@@ -290,6 +290,35 @@ async function loadTagsInner(ctx: TenantContext, entryId: number): Promise<strin
   return rows.map((r: { label: string }) => r.label)
 }
 
+/**
+ * Batched sibling of `loadTagsInner`: fetch every entry's tags in one query
+ * and group them by `entry_id`. Callers that list N mirror entries used to
+ * `await loadTagsInner` inside a loop (one query per row — an N+1 that
+ * serialised dozens of round-trips on a single pooled connection and was the
+ * dominant cost of the Student Space boot snapshot). This collapses that to a
+ * single `entry_id IN (…)` scan. Labels stay `ORDER BY label` so a given
+ * entry's tag order matches the per-entry query.
+ */
+async function loadTagsForEntriesInner(
+  ctx: TenantContext,
+  entryIds: number[],
+): Promise<Map<number, string[]>> {
+  const byEntry = new Map<number, string[]>()
+  if (entryIds.length === 0) return byEntry
+  const rows = await ctx.db
+    .select({ entryId: mirrorEntryTags.entryId, label: tags.label })
+    .from(tags)
+    .innerJoin(mirrorEntryTags, eq(mirrorEntryTags.tagId, tags.id))
+    .where(and(eq(tags.studentId, ctx.studentId), inArray(mirrorEntryTags.entryId, entryIds)))
+    .orderBy(tags.label)
+  for (const r of rows as Array<{ entryId: number; label: string }>) {
+    const list = byEntry.get(r.entryId)
+    if (list) list.push(r.label)
+    else byEntry.set(r.entryId, [r.label])
+  }
+  return byEntry
+}
+
 async function upsertTagInner(
   ctx: TenantContext,
   studentId: string,
@@ -348,17 +377,17 @@ async function searchMirrorsInner(
     )
     .limit(limit)
 
-  const out: MirrorSearchResult[] = []
-  for (const r of rows) {
-    out.push({
-      id: r.id,
-      story_reframe: r.story_reframe,
-      created_at: r.created_at,
-      score: r.score,
-      tags: await loadTagsInner(ctx, r.id),
-    })
-  }
-  return out
+  const tagsByEntry = await loadTagsForEntriesInner(
+    ctx,
+    rows.map((r) => r.id),
+  )
+  return rows.map((r) => ({
+    id: r.id,
+    story_reframe: r.story_reframe,
+    created_at: r.created_at,
+    score: r.score,
+    tags: tagsByEntry.get(r.id) ?? [],
+  }))
 }
 
 export interface InsertMirrorEntryInput {
@@ -451,10 +480,15 @@ async function listMirrorEntriesInner(
     .where(eq(mirrorEntries.studentId, ctx.studentId))
     .orderBy(desc(mirrorEntries.createdAt))
   const rows = limit === undefined ? await baseQuery : await baseQuery.limit(limit)
+  const mirrorRows = rows.map(drizzleMirrorRow)
+  // One tag query for the whole page instead of one per row (was an N+1).
+  const tagsByEntry = await loadTagsForEntriesInner(
+    ctx,
+    mirrorRows.map((row) => row.id),
+  )
   const out: MirrorEntryRow[] = []
-  for (const r of rows) {
-    const row = drizzleMirrorRow(r)
-    const entry = rowToMirrorEntry(row, await loadTagsInner(ctx, row.id))
+  for (const row of mirrorRows) {
+    const entry = rowToMirrorEntry(row, tagsByEntry.get(row.id) ?? [])
     if (includeForgotten || entry.review_status !== 'forgotten') {
       out.push(entry)
     }
@@ -1178,6 +1212,39 @@ async function listVipsTimelineEntriesInner(
     .where(where)
     .orderBy(desc(vipsTimelineEntries.committedAt))
   const rows = limit != null ? await base.limit(limit) : await base
+  return rows.map((r: DrizzleVipsTimelineRow) => rowToVipsTimelineEntry(drizzleVipsTimelineRow(r)))
+}
+
+/**
+ * Every non-forgotten timeline entry for the student in one query, newest
+ * first. The Student Space boot snapshot needs all four dimensions at once;
+ * calling `listVipsTimelineEntries` per dimension issued four serial
+ * round-trips on the single pooled connection. Callers group the flat result
+ * by `dimension` in JS — the global `committed_at DESC` order is preserved
+ * within each dimension bucket.
+ */
+export async function listVipsTimelineEntriesAllDimensions(
+  studentId: string,
+  opts: { includeForgotten?: boolean; ctx?: TenantContext } = {},
+): Promise<VipsTimelineEntryRow[]> {
+  if (opts.ctx) return listVipsTimelineEntriesAllDimensionsInner(opts.ctx, !!opts.includeForgotten)
+  return withStudent(studentId, (ctx) =>
+    listVipsTimelineEntriesAllDimensionsInner(ctx, !!opts.includeForgotten),
+  )
+}
+
+async function listVipsTimelineEntriesAllDimensionsInner(
+  ctx: TenantContext,
+  includeForgotten: boolean,
+): Promise<VipsTimelineEntryRow[]> {
+  const where = includeForgotten
+    ? eq(vipsTimelineEntries.studentId, ctx.studentId)
+    : and(eq(vipsTimelineEntries.studentId, ctx.studentId), isNull(vipsTimelineEntries.forgottenAt))
+  const rows = await ctx.db
+    .select()
+    .from(vipsTimelineEntries)
+    .where(where)
+    .orderBy(desc(vipsTimelineEntries.committedAt))
   return rows.map((r: DrizzleVipsTimelineRow) => rowToVipsTimelineEntry(drizzleVipsTimelineRow(r)))
 }
 

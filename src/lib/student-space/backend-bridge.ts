@@ -1,5 +1,6 @@
 import type { Mood, VipsContextType } from '~/agents/tools/schemas'
 import {
+  applyStudentSpaceBackendSnapshot,
   createStudentSpaceBackendSnapshot,
   mapMirrorEntryToReflectionCapture,
   mapTrajectoryResultToStudentSpaceCapture,
@@ -173,26 +174,7 @@ export interface StudentSpaceBackendBridge {
 export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
   return {
     version: 1,
-    refreshSnapshot: async () => {
-      // Auth menu is fetched alongside the snapshot data so identity
-      // hydration can use the WorkOS label when the seed-resolved
-      // `student_profile` is null. A rejection is non-fatal — the snapshot
-      // mapper falls back to the seed name or "Me". We log the swallow so
-      // ops can correlate identity flicker with an upstream auth-menu fault.
-      const [vips, wiki, trajectory, authMenu] = await Promise.all([
-        loadVipsPages({ data: {} }),
-        loadWiki({ data: {} }),
-        loadTrajectory({ data: {} }),
-        loadAuthMenu().catch((err) => {
-          console.warn(
-            '[backend-bridge] refreshSnapshot loadAuthMenu failed; identity may flicker to placeholder',
-            err,
-          )
-          return null
-        }),
-      ])
-      return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory, authMenu })
-    },
+    refreshSnapshot: async () => loadBackendSnapshot(),
     loadAuthMenu: async () => loadAuthMenu(),
     prewarmRealtimeMirrorCapture: () => prewarmRealtimeMirrorCapture(),
     disposePrewarmedRealtimeMirrorCapture: () => disposePrewarmedRealtimeMirrorCapture(),
@@ -237,6 +219,7 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
           ...(input.mood ? { mood: input.mood } : {}),
         },
       })) as SubmitStudentSpaceReflectionResult
+      maybeRunDemoConnectorAfterCapture()
       return {
         localCaptureId: result.local_capture_id,
         mirrorEntry: mapMirrorEntryRowToSummary(result.mirror_entry),
@@ -293,6 +276,65 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
   }
 }
 
+/**
+ * Loads a fresh backend snapshot (VIPS pages + wiki + trajectory + auth
+ * menu) in parallel. Shared by the bridge's `refreshSnapshot` and the
+ * demo-flagged capture-time Connector helper below so there is exactly one
+ * place that assembles a snapshot.
+ */
+async function loadBackendSnapshot(): Promise<StudentSpaceBackendSnapshot> {
+  // Auth menu is fetched alongside the snapshot data so identity
+  // hydration can use the WorkOS label when the seed-resolved
+  // `student_profile` is null. A rejection is non-fatal — the snapshot
+  // mapper falls back to the seed name or "Me". We log the swallow so
+  // ops can correlate identity flicker with an upstream auth-menu fault.
+  const [vips, wiki, trajectory, authMenu] = await Promise.all([
+    loadVipsPages({ data: {} }),
+    loadWiki({ data: {} }),
+    loadTrajectory({ data: {} }),
+    loadAuthMenu().catch((err) => {
+      console.warn(
+        '[backend-bridge] refreshSnapshot loadAuthMenu failed; identity may flicker to placeholder',
+        err,
+      )
+      return null
+    }),
+  ])
+  return createStudentSpaceBackendSnapshot({ vips, wiki, trajectory, authMenu })
+}
+
+/**
+ * SPIKE (plan 041): when `VITE_DEMO_CONNECTOR_AT_CAPTURE=1`, run the
+ * Connector (capped small, `limit: 3`) right after a confirmed capture
+ * persists, then push a fresh snapshot into the live engine so the
+ * Profile/Trajectory sheets visibly update within seconds of speaking.
+ *
+ * Fire-and-forget by design: callers must never `await` this. It is a
+ * demo-only prototype — see docs/solutions/2026-07-23-connector-at-capture-spike.md
+ * for latency/cost findings and the productionization notes before promoting
+ * this off the flag.
+ */
+function maybeRunDemoConnectorAfterCapture(): void {
+  if (import.meta.env.VITE_DEMO_CONNECTOR_AT_CAPTURE !== '1') return
+  void (async () => {
+    const startedAt = performance.now()
+    try {
+      const run = await runConnector({ data: { limit: 3 } })
+      const snapshot = await loadBackendSnapshot()
+      const game = typeof window !== 'undefined' ? window.__studentSpaceGame : null
+      if (game) applyStudentSpaceBackendSnapshot(game as never, snapshot)
+      console.info(
+        `[demo-connector] status=${run.status} processed=${run.processed} in ${Math.round(performance.now() - startedAt)}ms`,
+      )
+    } catch (err) {
+      // Demo must not break: degrade silently. A failed capture-time run is
+      // picked up by the evening cron pass (see queries.ts idempotency note
+      // in plan 041) — never surface an error to the capture UX.
+      console.warn('[demo-connector] capture-time connector run failed', err)
+    }
+  })()
+}
+
 async function persistPreparedReflection(
   input: StudentSpacePreparedReflection,
   reviewStatus: 'confirmed' | 'forgotten',
@@ -323,6 +365,7 @@ async function persistPreparedReflection(
       },
     },
   })) as PersistMirrorResult
+  if (reviewStatus === 'confirmed') maybeRunDemoConnectorAfterCapture()
   return {
     localCaptureId: input.localCaptureId,
     mirrorEntry: mapMirrorEntryRowToSummary(result.mirror_entry),

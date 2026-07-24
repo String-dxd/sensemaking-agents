@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EdupassLogin } from '~/components/student-space/onboarding/EdupassLogin'
+import { getPreset } from '~/lib/student-space/camera-tuner'
 
 function renderLogin(
   props: Partial<Parameters<typeof EdupassLogin>[0]> = {},
@@ -125,11 +126,7 @@ describe('EdupassLogin (React)', () => {
     const camera = { startLandingOrbit: vi.fn(), stopLandingOrbit: vi.fn() }
     const { unmount } = renderLogin({ reducedMotion: false, camera })
     await waitFor(() => expect(document.body.classList.contains('is-onb-landing')).toBe(true))
-    expect(camera.startLandingOrbit).toHaveBeenCalledWith({
-      azimuthDegPerSec: 1,
-      distance: 33.9,
-      pitchDeg: 35,
-    })
+    expect(camera.startLandingOrbit).toHaveBeenCalledWith(getPreset('login-orbit'))
 
     unmount()
 

@@ -12,7 +12,7 @@ import {
   useStudentSpaceNavigate,
   useStudentSpaceRouteSync,
 } from '~/lib/student-space/route-sync'
-import { EngineContext } from '~/lib/student-space/use-engine'
+import { EngineContext, EngineHydrationContext } from '~/lib/student-space/use-engine'
 import { EngineOverlayProvider, useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
 import { useTrackPreviousPathnameForEnterState } from '~/lib/student-space/use-page-enter-state'
 import { cn } from '~/lib/utils'
@@ -286,8 +286,9 @@ export function EngineHost({
 
   return (
     <EngineContext.Provider value={game}>
-      <EngineOverlayProvider>
-        {/* Engine owns positioning via `.game` (frame inset + rounded corners).
+      <EngineHydrationContext.Provider value={hydrated}>
+        <EngineOverlayProvider>
+          {/* Engine owns positioning via `.game` (frame inset + rounded corners).
             Inline Tailwind `fixed inset-0` utilities would override the inset
             rules and the rounded frame would extend edge-to-edge.
 
@@ -295,31 +296,32 @@ export function EngineHost({
             CSS rule) so it survives the brief window during HMR where the
             engine stylesheet is unloaded — without this the .game rule
             briefly disappears and the body shows through as a white sky. */}
-        <div
-          ref={containerRef}
-          aria-hidden={!isWorldRoute}
-          className={cn(
-            'game transition-opacity duration-[280ms] ease-(--ease-out) motion-reduce:transition-none',
-            !isWorldRoute && 'pointer-events-none opacity-0',
-            className,
-          )}
-          style={{
-            background:
-              'linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--sky-bottom) 100%)',
-          }}
-        />
-        <RouteOverlayEffects isWorldRoute={isWorldRoute} />
-        {game ? <SideRail game={game} /> : null}
-        {game ? <MobileNav game={game} /> : null}
-        {game ? <CaptureOverlayBridge game={game} /> : null}
-        <CaptureChooser />
-        <AskSheet />
-        <MoodSheet />
-        {showOnboardingFlow ? <OnboardingFlow /> : null}
-        {import.meta.env.DEV && game ? <CameraTuneBridge game={game} /> : null}
-        {game ? <MatureIslandBridge game={game} /> : null}
-        {children}
-      </EngineOverlayProvider>
+          <div
+            ref={containerRef}
+            aria-hidden={!isWorldRoute}
+            className={cn(
+              'game transition-opacity duration-[280ms] ease-(--ease-out) motion-reduce:transition-none',
+              !isWorldRoute && 'pointer-events-none opacity-0',
+              className,
+            )}
+            style={{
+              background:
+                'linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--sky-bottom) 100%)',
+            }}
+          />
+          <RouteOverlayEffects isWorldRoute={isWorldRoute} />
+          {game ? <SideRail game={game} /> : null}
+          {game ? <MobileNav game={game} /> : null}
+          {game ? <CaptureOverlayBridge game={game} /> : null}
+          <CaptureChooser />
+          <AskSheet />
+          <MoodSheet />
+          {showOnboardingFlow ? <OnboardingFlow /> : null}
+          {import.meta.env.DEV && game ? <CameraTuneBridge game={game} /> : null}
+          {game ? <MatureIslandBridge game={game} /> : null}
+          {children}
+        </EngineOverlayProvider>
+      </EngineHydrationContext.Provider>
     </EngineContext.Provider>
   )
 }

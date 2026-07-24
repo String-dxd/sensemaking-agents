@@ -14,7 +14,7 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HistorySheet } from '~/components/student-space/sheets/HistorySheet'
@@ -57,11 +57,18 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
 
 const TODAY = '2026-05-22'
 
+// Real-clock day key, matching DayDetailCard's private ymd()
+function realToday(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
 type TestCapture = {
   id: string
   entryDate: string
   kind: string
   text?: string
+  title?: string
   createdAt?: string
   backendMirrorEntryId?: number
   reviewStatus?: string
@@ -218,6 +225,7 @@ describe('HistorySheet (React)', () => {
             createdAt: '2026-04-03T08:00:00.000Z',
             kind: 'ask',
             text: 'Linked reflection',
+            title: 'Linked reflection',
             backendMirrorEntryId: 24,
           },
         ],
@@ -225,12 +233,22 @@ describe('HistorySheet (React)', () => {
       '/history#reflection-24',
     )
 
-    expect(await screen.findByText(/Friday, April 3, 2026/)).toBeInTheDocument()
-    expect(screen.getByText('Linked reflection')).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Friday, 3 April 2026' })).toHaveAttribute(
+      'data-selected',
+      'true',
+    )
+    expect(
+      within(screen.getByTestId('day-detail-card')).getByText('Linked reflection'),
+    ).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /Wednesday, April 15, 2026/ }))
-    expect(await screen.findByText(/Wednesday, April 15, 2026/)).toBeInTheDocument()
-    expect(screen.queryByText('Linked reflection')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Wednesday, 15 April 2026' }))
+    expect(await screen.findByRole('button', { name: 'Wednesday, 15 April 2026' })).toHaveAttribute(
+      'data-selected',
+      'true',
+    )
+    expect(
+      within(screen.getByTestId('day-detail-card')).queryByText('Linked reflection'),
+    ).not.toBeInTheDocument()
   })
 
   it('selects the newest pending reflection from the need-review filter and advances after confirm', async () => {
@@ -248,6 +266,7 @@ describe('HistorySheet (React)', () => {
           createdAt: '2026-04-03T08:00:00.000Z',
           kind: 'ask',
           text: 'Older pending',
+          title: 'Older pending',
           backendMirrorEntryId: 23,
           reviewStatus: 'pending',
         },
@@ -257,6 +276,7 @@ describe('HistorySheet (React)', () => {
           createdAt: '2026-05-22T08:00:00.000Z',
           kind: 'ask',
           text: 'Newest pending',
+          title: 'Newest pending',
           backendMirrorEntryId: 24,
           reviewStatus: 'pending',
         },
@@ -265,20 +285,40 @@ describe('HistorySheet (React)', () => {
 
     renderHistory(engine, '/history?filter=need-review')
 
-    expect(await screen.findByText('Newest pending')).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
-    await waitFor(() => expect(screen.getByText('Older pending')).toBeInTheDocument())
-    expect(screen.queryByText('Newest pending')).not.toBeInTheDocument()
+    expect(await screen.findByTestId('mirror-card-24')).toBeInTheDocument()
+    expect(
+      within(screen.getByTestId('day-detail-card')).getByText('Newest pending'),
+    ).toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('mirror-card-24'))
+    await userEvent.click(
+      within(await screen.findByTestId('history-entry-column')).getByRole('button', {
+        name: 'Confirm',
+      }),
+    )
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId('day-detail-card')).getByText('Older pending'),
+      ).toBeInTheDocument(),
+    )
+    expect(
+      within(screen.getByTestId('day-detail-card')).queryByText('Newest pending'),
+    ).not.toBeInTheDocument()
   })
 
   it('renders school events from the engine date/label shape', async () => {
     renderHistory(
       makeEngine({
-        events: [{ id: 'event-1', date: TODAY, kind: 'class', label: 'Mathematics - Sec 3.4' }],
+        events: [
+          { id: 'event-1', date: realToday(), kind: 'class', label: 'Mathematics - Sec 3.4' },
+        ],
       }),
     )
 
-    expect(await screen.findByText('Mathematics - Sec 3.4')).toBeInTheDocument()
+    expect(
+      await within(await screen.findByTestId('day-detail-card')).findByText(
+        'Mathematics - Sec 3.4',
+      ),
+    ).toBeInTheDocument()
   })
 
   it('can confirm pending backend reflections from day detail', async () => {
@@ -292,10 +332,11 @@ describe('HistorySheet (React)', () => {
       captures: [
         {
           id: 'mirror:24',
-          entryDate: TODAY,
-          createdAt: '2026-05-22T08:00:00.000Z',
+          entryDate: realToday(),
+          createdAt: `${realToday()}T08:00:00.000Z`,
           kind: 'ask',
           text: 'Needs review',
+          title: 'Needs review',
           backendMirrorEntryId: 24,
           reviewStatus: 'pending',
         },
@@ -303,7 +344,12 @@ describe('HistorySheet (React)', () => {
     })
     renderHistory(engine)
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Confirm' }))
+    await userEvent.click(await screen.findByTestId('mirror-card-24'))
+    await userEvent.click(
+      within(await screen.findByTestId('history-entry-column')).getByRole('button', {
+        name: 'Confirm',
+      }),
+    )
     await waitFor(() =>
       expect(updateReflectionReview).toHaveBeenCalledWith({ entryId: 24, status: 'confirmed' }),
     )
@@ -331,8 +377,8 @@ describe('HistorySheet (React)', () => {
       captures: [
         {
           id: 'local-ask-1',
-          entryDate: TODAY,
-          createdAt: '2026-05-22T08:00:00.000Z',
+          entryDate: realToday(),
+          createdAt: new Date().toISOString(),
           kind: 'ask',
           text: 'Needs sync',
           syncStatus: 'failed',
@@ -364,6 +410,48 @@ describe('HistorySheet (React)', () => {
         syncStatus: 'synced',
       }),
     )
+  })
+
+  it('shows retry again when a retry sync fails', async () => {
+    const submitReflection = vi.fn(async () => {
+      throw new Error('still offline')
+    })
+    const engine = makeEngine({
+      backend: { submitReflection },
+      captures: [
+        {
+          id: 'local-ask-2',
+          entryDate: realToday(),
+          createdAt: new Date().toISOString(),
+          kind: 'ask',
+          text: 'Needs sync again',
+          syncStatus: 'failed',
+          syncError: 'offline',
+          contextType: 'home',
+        },
+      ],
+    })
+    renderHistory(engine)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry sync' }))
+    await waitFor(() =>
+      expect(submitReflection).toHaveBeenCalledWith({
+        localCaptureId: 'local-ask-2',
+        transcript: 'Needs sync again',
+        contextType: 'home',
+      }),
+    )
+    expect(engine.state.captures.patch).toHaveBeenCalledWith('local-ask-2', {
+      syncStatus: 'syncing',
+      syncError: '',
+    })
+    await waitFor(() =>
+      expect(engine.state.captures.patch).toHaveBeenCalledWith('local-ask-2', {
+        syncStatus: 'failed',
+        syncError: 'still offline',
+      }),
+    )
+    expect(await screen.findByRole('button', { name: 'Retry sync' })).toBeInTheDocument()
   })
 
   it('switches to Growth tab and loads /api/growth/summary', async () => {

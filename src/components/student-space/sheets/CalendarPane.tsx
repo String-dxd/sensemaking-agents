@@ -135,12 +135,20 @@ export function CalendarPane({
   onSelectDate,
   viewMode = 'week',
   onViewModeChange,
+  loading = false,
 }: {
   engineState: CalendarPaneEngineState | undefined
   selectedDate: string | null
   onSelectDate: (date: string) => void
   viewMode?: CalendarViewMode
   onViewModeChange?: (mode: CalendarViewMode) => void
+  /**
+   * Cold-load only: the backend snapshot hasn't settled yet and there is no
+   * cached data, so real chips can't be drawn. Renders placeholder chip bars
+   * (matching the real chip geometry, so there's no layout shift when data
+   * lands) instead of a bare empty grid that reads as "nothing here".
+   */
+  loading?: boolean
 }) {
   void onViewModeChange // Receiver wires the toggle; CalendarPane only reads viewMode now.
   const now = new Date()
@@ -205,6 +213,7 @@ export function CalendarPane({
   return (
     <div
       data-testid="calendar-pane"
+      aria-busy={loading || undefined}
       className="w-full self-start rounded-xl bg-(--color-sheet-pane-left) p-4 shadow-[inset_0_0_0_1px_var(--color-sheet-divider),0_1px_1px_rgba(43,38,32,0.04)]"
     >
       <header className="mb-3 flex items-center justify-between gap-3">
@@ -297,7 +306,14 @@ export function CalendarPane({
                 >
                   {cell.getDate()}
                 </span>
-                {visibleChips.length > 0 ? (
+                {loading && !isOutside ? (
+                  <div className="flex min-h-0 flex-col gap-0.5" aria-hidden>
+                    {Array.from({ length: skeletonChipCount(cell.getDate()) }).map((_, i) => (
+                      // biome-ignore lint/suspicious/noArrayIndexKey: positional skeleton bars
+                      <SkeletonChip key={i} />
+                    ))}
+                  </div>
+                ) : visibleChips.length > 0 ? (
                   <div className="flex min-h-0 flex-col gap-0.5">
                     {visibleChips.map((chip, i) => (
                       <DayChip
@@ -372,6 +388,30 @@ function DayChip({ chip, selected }: { chip: DayChipItem; selected: boolean }) {
       <span className="truncate">{chip.label}</span>
     </span>
   )
+}
+
+/**
+ * A pulsing placeholder shaped like a reflection chip (spine + title bar), so
+ * cold-load cells look "about to have content" and real chips drop in without
+ * shifting layout. Purely decorative — the cell carries `aria-hidden` on the
+ * wrapper and the calendar sets `aria-busy` while loading.
+ */
+function SkeletonChip() {
+  return (
+    <span className="flex items-center gap-1 overflow-hidden rounded-[5px] bg-black/[0.05] py-[3px] pr-1.5 pl-1">
+      <span className="h-2.5 w-[3px] shrink-0 rounded-full bg-black/10" />
+      <span className="h-1.5 flex-1 rounded-full bg-black/10 motion-safe:animate-pulse" />
+    </span>
+  )
+}
+
+/**
+ * Deterministic 0–2 skeleton bars per day so the loading grid reads like a
+ * real month (some days busy, some empty) rather than a uniform block. Keyed
+ * on day-of-month so it's stable across re-renders within a load.
+ */
+function skeletonChipCount(day: number): number {
+  return [1, 0, 2, 1, 0, 1, 2][day % 7] ?? 0
 }
 
 function CalendarLegend() {

@@ -1,5 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { DEMO_STUDENT_IDS, type DemoStudentId } from '~/auth/demo'
 import {
   BirdPicker,
   EnvironmentHud,
@@ -18,6 +19,8 @@ import {
   usePageEscape,
 } from '~/components/ui/sheet'
 import { useEngine } from '~/lib/student-space/use-engine'
+import { loadAuthMenu } from '~/server/auth-menu.functions'
+import type { AuthMenuState } from '~/server/auth-menu.handler.server'
 
 /**
  * Settings — bottom-of-rail catch-all. U4 React rewrite of
@@ -32,11 +35,26 @@ export function SettingsSheet() {
   const engine = useEngine()
   const navigate = useNavigate()
   const typedEngine = engine as GameLike | null
+  const [authMenu, setAuthMenu] = useState<AuthMenuState | null>(null)
 
   // body.has-overlay so engine CSS hides the world canvas behind the sheet.
   useEffect(() => {
     document.body.classList.add('has-overlay')
     return () => document.body.classList.remove('has-overlay')
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    loadAuthMenu()
+      .then((state) => {
+        if (!cancelled) setAuthMenu(state)
+      })
+      .catch((err) => {
+        console.warn('[SettingsSheet] loadAuthMenu failed', err)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const handleRestart = () => {
@@ -48,16 +66,35 @@ export function SettingsSheet() {
       )?.state
       state?.onboarding?.reset?.()
       state?.persistence?.flush?.()
-    } catch {
-      // best-effort wipe; reload still picks up the hash
+    } catch (err) {
+      console.warn(
+        '[SettingsSheet] onboarding reset failed; reload will still re-run bootstrap',
+        err,
+      )
     }
     if (typeof window !== 'undefined') {
       window.location.assign('/onboarding')
     }
   }
 
+  const switchDemoStudent = (id: DemoStudentId) => {
+    if (typeof document === 'undefined') return
+    const search = new URLSearchParams({ demo: '1', student: id, returnPathname: '/' })
+    const form = document.createElement('form')
+    form.method = 'post'
+    form.action = `/api/auth/sign-in?${search.toString()}`
+    form.style.display = 'none'
+    document.body.appendChild(form)
+    form.submit()
+  }
+
   const dismissToHome = useCallback(() => navigate({ to: '/' }), [navigate])
   usePageEscape(dismissToHome)
+
+  const activeDemoStudentId = authMenu?.status === 'signed-in' ? authMenu.detail : null
+  const showDemoSwitcher =
+    authMenu?.status === 'signed-in' && (authMenu.kind === 'demo' || authMenu.kind === 'dev-bypass')
+  const demoSwitcherDisabled = authMenu?.status === 'signed-in' && authMenu.kind === 'dev-bypass'
 
   return (
     <PageSurface>
@@ -104,6 +141,39 @@ export function SettingsSheet() {
               {typedEngine ? <StatusPreviewHud game={typedEngine} inline /> : null}
             </div>
           </SettingsGroup>
+          {showDemoSwitcher ? (
+            <SettingsGroup
+              title="Demo student"
+              help={
+                demoSwitcherDisabled
+                  ? 'Set by DEV_BYPASS_AUTH — switch students in .env'
+                  : 'Switch which seeded demo student this browser is signed in as. Demo sessions only.'
+              }
+            >
+              <div className="flex flex-wrap gap-2">
+                {DEMO_STUDENT_IDS.map((id) => {
+                  const isActive = id === activeDemoStudentId
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      data-testid={`settings-demo-student-${id}`}
+                      aria-current={isActive ? 'true' : undefined}
+                      disabled={demoSwitcherDisabled || isActive}
+                      onClick={() => switchDemoStudent(id)}
+                      className={`inline-flex items-center rounded-[10px] border px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--color-onb-accent) disabled:cursor-default ${
+                        isActive
+                          ? 'border-(--color-onb-accent) bg-(--color-onb-accent) text-white'
+                          : 'border-(--color-frame-border) bg-white text-(--color-sheet-ink) hover:bg-(--color-onb-bg-cream) disabled:opacity-60 disabled:hover:bg-white'
+                      }`}
+                    >
+                      {id}
+                    </button>
+                  )
+                })}
+              </div>
+            </SettingsGroup>
+          ) : null}
           <SettingsGroup
             title="Onboarding"
             help="Replay the first-run ceremony from the beginning."

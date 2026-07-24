@@ -71,6 +71,34 @@ describe('Rain performance quality', () => {
     expect(renderer.autoClear).toBe(true)
   })
 
+  it('draws drops every frame on medium quality but throttles the framebuffer copy (no strobe)', () => {
+    // Medium tier used to gate the WHOLE drops pass on `frame % cadence`, so
+    // the refraction was drawn on 1 frame in 3 over a scene that clears every
+    // frame — a visible ~20Hz strobe. The drops must now draw every frame;
+    // only the costly framebuffer copy stays throttled.
+    mocks.state.performance.settings = {
+      rainGlassCadence: 3,
+      rainStreakScale: 0.58,
+    }
+    const rain = new Rain()
+    const renderer = rendererStub()
+    rain._currentWeight = 1
+    rain.dropsMesh.visible = true
+
+    const FRAMES = 6
+    for (let i = 0; i < FRAMES; i++) rain.render(renderer)
+
+    // Drops drawn on EVERY frame — the anti-strobe invariant.
+    const dropsRenders = renderer.render.mock.calls.filter(
+      (call) => call[0] === rain.dropsScene,
+    ).length
+    expect(dropsRenders).toBe(FRAMES)
+
+    // Framebuffer copy still throttled to the cadence (far fewer than 1/frame).
+    expect(renderer.copyFramebufferToTexture).toHaveBeenCalled()
+    expect(renderer.copyFramebufferToTexture.mock.calls.length).toBeLessThan(FRAMES)
+  })
+
   it('skips the framebuffer copy and glass pass on low quality', () => {
     mocks.state.performance.settings = {
       rainGlassCadence: 0,

@@ -240,6 +240,13 @@ export default class Rain
         this._currentWeight = 0
         this._time = 0
         this._glassFrame = 0
+        // Whether `sceneTex` holds a usable copy of the framebuffer. The drops
+        // pass draws EVERY frame (so it never strobes) but the costly
+        // framebuffer copy is throttled to the quality cadence; this flag
+        // forces a fresh copy on the first rain frame and after any resize so
+        // the refraction shader never samples an uninitialised / wrong-sized
+        // texture.
+        this._sceneCopyValid = false
         this._renderErrLogged = false
     }
 
@@ -261,6 +268,9 @@ export default class Rain
         this.sceneTex.image.height = this._bufH
         this.sceneTex.needsUpdate = true
         this.dropsMat.uniforms.resolution.value.set(this._bufW, this._bufH)
+        // The texture was just re-dimensioned; its contents are stale. Force a
+        // fresh framebuffer copy before the next drops draw.
+        this._sceneCopyValid = false
     }
 
     _spawnStreak(idx, heavy)
@@ -290,6 +300,8 @@ export default class Rain
                 this.streakMeshes[i].visible = false
             }
             this.dropsMesh.visible = false
+            // Next shower must re-copy before refracting a now-stale scene.
+            this._sceneCopyValid = false
             return
         }
 
@@ -370,18 +382,30 @@ export default class Rain
         if(this._currentWeight <= 0.001) return
         const glassCadence = this._quality().rainGlassCadence ?? 1
         const glassFrame = this._glassFrame++
-        const shouldRenderGlass = this.dropsMesh.visible
-            && glassCadence > 0
-            && (glassCadence === 1 || glassFrame % glassCadence === 0)
+        // The main scene clears the framebuffer every frame, so anything not
+        // redrawn this frame vanishes. Previously the whole drops pass (copy +
+        // shader) was gated on `glassFrame % cadence`, so on the medium tier
+        // (cadence 3) the refractive beads were drawn on only 1 frame in 3 —
+        // an on/off strobe at ~20Hz. Fix: draw the drops EVERY frame so they
+        // never blink, and throttle only the expensive framebuffer COPY to the
+        // cadence. On copy-skip frames the beads refract a 1–2-frame-stale
+        // scene, which is imperceptible for tiny drops. `cadence === 0` (low
+        // tier) still disables drops via `dropsMesh.visible` (set in update()).
+        const wantGlass = this.dropsMesh.visible && glassCadence > 0
         try
         {
             this._ensureSize(renderer)
 
             renderer.autoClear = false
 
-            if(shouldRenderGlass)
+            if(wantGlass)
             {
-                renderer.copyFramebufferToTexture(this._copyOrigin, this.sceneTex)
+                const copyDue = glassCadence === 1 || glassFrame % glassCadence === 0
+                if(!this._sceneCopyValid || copyDue)
+                {
+                    renderer.copyFramebufferToTexture(this._copyOrigin, this.sceneTex)
+                    this._sceneCopyValid = true
+                }
                 renderer.render(this.dropsScene, this.orthoCam)
             }
 
