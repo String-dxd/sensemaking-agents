@@ -1,5 +1,6 @@
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import type { CartographerOutputRow, MirrorEntryRow, VipsTimelineEntryRow } from '~/db/queries'
+import { sgDateKey } from '~/lib/entry-date'
 import type { AuthMenuState } from '~/server/auth-menu.handler.server'
 import type { LoadTrajectoryResult } from '~/server/load-trajectory.handler.server'
 import type { LoadVipsPagesResult } from '~/server/load-vips-pages.handler.server'
@@ -436,9 +437,7 @@ function mirrorCaptureId(id: number): string {
 }
 
 function toEntryDate(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '1970-01-01'
-  return date.toISOString().slice(0, 10)
+  return sgDateKey(value) ?? '1970-01-01'
 }
 
 function moodTags(tags: readonly string[]): string[] {

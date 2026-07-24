@@ -1,6 +1,7 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Sparkles } from 'lucide-react'
 import { useState } from 'react'
+import { sgToday } from '~/lib/entry-date'
 import { EMOTION_BY_ID, shapeDataUri } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
 
@@ -356,7 +357,7 @@ function RetrySyncNotice({
 
 function EmptyDay({ date }: { date: string }) {
   const navigate = useNavigate()
-  const today = ymd(new Date())
+  const today = sgToday()
   const isFuture = date > today
   const isToday = date === today
   const headline = isFuture
@@ -384,10 +385,6 @@ function EmptyDay({ date }: { date: string }) {
       ) : null}
     </div>
   )
-}
-
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function eventDate(event: { entryDate?: string; date?: string }) {

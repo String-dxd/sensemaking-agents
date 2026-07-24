@@ -35,6 +35,7 @@
 import type { CartographerOutputDraft } from '~/agents/schemas'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import type { VipsPageRow, VipsTimelineEntryRow } from '~/db/queries'
+import { sgToday } from '~/lib/entry-date'
 import { checkPersonalityRewriteForDiagnosticLanguage } from '~/lib/safety'
 
 const DIMENSION_HEADING: Record<VipsDimension, string> = {
@@ -58,14 +59,14 @@ export interface RenderCounsellorBriefInput {
   trajectory: CartographerOutputDraft | null
   /**
    * Optional override for the header date (YYYY-MM-DD). Defaults to today
-   * (UTC date portion of `new Date().toISOString()`). Exposed so tests can
-   * pin a stable date without mocking `Date`.
+   * in Asia/Singapore. Exposed so tests can pin a stable date without
+   * mocking `Date`.
    */
   today?: string
 }
 
 export function renderCounsellorBrief(input: RenderCounsellorBriefInput): string {
-  const today = input.today ?? new Date().toISOString().slice(0, 10)
+  const today = input.today ?? sgToday()
   const pagesByDimension = indexPagesByDimension(input.pages)
   const sections: string[] = []
 
