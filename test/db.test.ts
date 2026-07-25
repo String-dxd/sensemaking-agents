@@ -1,14 +1,13 @@
-// @ts-nocheck — Step 2 (Drizzle/Postgres port): this test uses the
-// legacy `openInMemoryDb` / better-sqlite3 path. Skipped at runtime via
-// DATABASE_URL gate below; the test body is rewritten in Step 3 against
-// the Drizzle/Postgres surface (or mocked queries.ts).
-// TODO(reza-step2-followup): rewrite against new TenantContext + Drizzle.
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+// @ts-nocheck — this file is the last holdout of the v0.1 in-memory DB
+// surface: the four describes below still call the removed
+// `openInMemoryDb()` and treat the now-async `seed()` / query helpers as
+// synchronous. They stay behind the DATABASE_URL gate and are rewritten
+// against the async Drizzle/Postgres surface in plan 059 step 7b, which
+// needs a real local Postgres to re-derive its assertions from current
+// behaviour. Removing this pragma is that step's job.
+import { describe, expect, it } from 'vitest'
 import { ECG_TAXONOMY, lookupEcgTaxonomy } from '~/data/ecg-taxonomy'
-import { openDb, openInMemoryDb, resetDbForTests } from '~/db/client'
+import { openInMemoryDb } from '~/db/client'
 import {
   forgetVipsTimelineEntry,
   getVipsForgetCount,
@@ -558,43 +557,6 @@ describe.skipIf(!process.env.DATABASE_URL)('VIPS schema (U1)', () => {
     expect(listVipsProposedDiffs('other', { ctx: { db } }).length).toBe(0)
     expect(getVipsPage('other', 'interests', { ctx: { db } })).toBeNull()
     void tle
-  })
-})
-
-describe.skipIf(!process.env.DATABASE_URL)('SCHEMA_VERSION mismatch drop-and-reseed', () => {
-  let tmpDir: string
-  let dbPath: string
-
-  beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'sense-db-test-'))
-    dbPath = join(tmpDir, 'app.db')
-    resetDbForTests()
-  })
-
-  afterEach(() => {
-    resetDbForTests()
-    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true })
-  })
-
-  it('drops and recreates the db when the on-disk schema_version does not match', () => {
-    // Boot once with the current schema, write a marker row.
-    const db1 = openDb({ path: dbPath })
-    insertMirrorEntry('demo', baseEntry, { ctx: { db: db1 } })
-    expect(listMirrorEntries('demo', { ctx: { db: db1 } }).length).toBe(1)
-    resetDbForTests()
-
-    // Pretend a future schema version landed by stamping _meta with a bogus value.
-    // openDb caches handles, so we have to re-open to a fresh handle that
-    // bypasses the cache via path.
-    const Database = require('better-sqlite3')
-    const probe = new Database(dbPath)
-    probe.prepare(`UPDATE _meta SET value = '999' WHERE key = 'schema_version'`).run()
-    probe.close()
-
-    // Re-open via the cached client: it should detect the mismatch and
-    // drop+recreate the file. The previously-seeded row is gone.
-    const db2 = openDb({ path: dbPath })
-    expect(listMirrorEntries('demo', { ctx: { db: db2 } }).length).toBe(0)
   })
 })
 
