@@ -15,6 +15,7 @@ import { resolve } from 'node:path'
 import { eq, sql } from 'drizzle-orm'
 import type { Mood, VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
+import { sgDateKey } from '~/lib/entry-date'
 import { mirrorMoodTag } from '~/server/mood-tags'
 import { type TenantContext, withStudent } from './client'
 import { type CartographerPathway, insertCartographerOutput, upsertVipsPage } from './queries'
@@ -141,14 +142,16 @@ export function shiftCorpusDates(
     ),
   )
 
-  const anchorUtcMidnight = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  const yesterdayUtcMidnight = anchorUtcMidnight - MS_PER_DAY
-  const maxUtcMidnight = Date.UTC(
-    new Date(maxCreatedAtMs).getUTCFullYear(),
-    new Date(maxCreatedAtMs).getUTCMonth(),
-    new Date(maxCreatedAtMs).getUTCDate(),
-  )
-  const deltaDays = Math.round((yesterdayUtcMidnight - maxUtcMidnight) / MS_PER_DAY)
+  // SGT midnights, not UTC midnights: between 00:00 and 08:00 SGT the UTC date is
+  // still yesterday, so a UTC-anchored delta landed the newest demo entry two SGT
+  // days back and left yesterday's calendar cell empty — a morning-demo footgun.
+  // The calendar reads days in Asia/Singapore (src/lib/entry-date.ts), so the
+  // anchor must too.
+  const sgMidnightMs = (value: Date): number => Date.parse(`${sgDateKey(value)}T00:00:00+08:00`)
+  const anchorSgMidnight = sgMidnightMs(now)
+  const yesterdaySgMidnight = anchorSgMidnight - MS_PER_DAY
+  const maxSgMidnight = sgMidnightMs(new Date(maxCreatedAtMs))
+  const deltaDays = Math.round((yesterdaySgMidnight - maxSgMidnight) / MS_PER_DAY)
   const deltaMs = deltaDays * MS_PER_DAY
 
   const shiftIso = (iso: string): string =>
