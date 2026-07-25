@@ -61,6 +61,7 @@ import {
   type VipsProposedDiffRow,
   type VipsTimelineEntryRow,
 } from '~/db/queries'
+import { rejectionLogFacts, safetyLogFacts } from '~/lib/log-redaction'
 import {
   checkOutputForDiagnosticLanguage,
   checkPersonalityRewriteForDiagnosticLanguage,
@@ -263,13 +264,25 @@ export async function runAutoConnectorAfterMirror(
         )
       } catch (err) {
         if (err instanceof MemoryWriteError && err.code === 'DIAGNOSTIC_LANGUAGE') {
-          // Rejection summary echoing a label means the Connector's draft
+          // A rejection record echoing a label means the Connector's draft
           // already contained one — surface it so the verifier triage owner
           // can adjust prompts. Do not block diff staging.
+          //
+          // Log structural facts ONLY (counts + closed-enum reasons): the
+          // memory-bound rejection text embeds the student's verbatim
+          // quotes, and log output lands in Vercel function logs, outside
+          // the RLS/forget envelope. See `~/lib/log-redaction`.
           // eslint-disable-next-line no-console -- ops triage signal
           console.warn(
             '[auto-connector] rejected-diff memory append blocked by diagnostic-language gate; verifier dropped/downgraded contained a label',
-            { studentId, mirrorEntryId: mirror.id, summary },
+            {
+              studentId,
+              ...rejectionLogFacts({
+                mirrorEntryId: mirror.id,
+                dropped: verifierResult.dropped,
+                downgraded: verifierResult.downgraded,
+              }),
+            },
           )
         } else {
           // eslint-disable-next-line no-console -- ops triage signal
@@ -345,11 +358,13 @@ async function applyVerifiedConnectorDiff(
     const dimDiff = draft.diffs[dimension]
     const safety = checkCompiledTruthForDimension(dimension, dimDiff.compiled_truth_rewrite)
     if (!safety.ok) {
+      // Count only — the matched substrings are excerpts of the student's
+      // own identity prose. See `~/lib/log-redaction`.
       // eslint-disable-next-line no-console -- structural log for ops
       console.warn(
         '[auto-connector] compiled_truth_rewrite tripped diagnostic-language guard; ' +
           `skipping vips_pages upsert. student=${studentId} dimension=${dimension} ` +
-          `matches=${JSON.stringify(safety.matches)}`,
+          `matchCount=${safetyLogFacts(safety).matchCount}`,
       )
       continue
     }

@@ -20,6 +20,7 @@ import {
   upsertVipsPage,
   type VipsProposedDiffRow,
 } from '~/db/queries'
+import { safetyLogFacts } from '~/lib/log-redaction'
 import {
   checkOutputForDiagnosticLanguage,
   checkPersonalityRewriteForDiagnosticLanguage,
@@ -170,11 +171,16 @@ export async function confirmDiffHandler(
       // overwriting an earlier clean summary.
       const safety = checkCompiledTruthForDimension(dimension, dimDiff.compiled_truth_rewrite)
       if (!safety.ok) {
+        // Count only — the matched substrings are excerpts of the student's
+        // own identity prose. The full matches still travel back to the
+        // authenticated caller in `compiled_truth_safety_skip` below, which
+        // stays inside the tenancy envelope; log output does not. See
+        // `~/lib/log-redaction`.
         // eslint-disable-next-line no-console -- structural log for ops
         console.warn(
           '[confirm-diff] compiled_truth_rewrite tripped diagnostic-language guard; ' +
             `skipping vips_pages upsert. student=${studentId} dimension=${dimension} ` +
-            `matches=${JSON.stringify(safety.matches)}`,
+            `matchCount=${safetyLogFacts(safety).matchCount}`,
         )
         compiled_truth_safety_skip = { dimension, matches: safety.matches }
       } else {
