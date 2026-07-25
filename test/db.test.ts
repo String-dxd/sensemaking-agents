@@ -42,7 +42,7 @@ const baseEntry = {
   raw_output: { validation: 'v', inferred_meaning: 'i', story_reframe: 's' },
 }
 
-describe.skipIf(!process.env.DATABASE_URL)('schema + queries', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('schema + queries', () => {
   it('insertMirrorEntry then searchMirrors round-trips through FTS5', () => {
     const db = openInMemoryDb()
     insertMirrorEntry(
@@ -157,7 +157,7 @@ describe.skipIf(!process.env.DATABASE_URL)('schema + queries', () => {
   })
 })
 
-describe.skipIf(!process.env.DATABASE_URL)('seed loader', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('seed loader', () => {
   it('seeds the v0.2 multi-student fixture into an empty DB', () => {
     const db = openInMemoryDb()
     const result = seed({ db })
@@ -190,7 +190,7 @@ describe.skipIf(!process.env.DATABASE_URL)('seed loader', () => {
   })
 })
 
-describe.skipIf(!process.env.DATABASE_URL)('ECG taxonomy fixture', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('ECG taxonomy fixture', () => {
   it('contains at least 30 entries spanning all four categories', () => {
     expect(ECG_TAXONOMY.length).toBeGreaterThanOrEqual(30)
     const categories = new Set(ECG_TAXONOMY.map((e) => e.category))
@@ -255,7 +255,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ECG taxonomy fixture', () => {
   })
 })
 
-describe.skipIf(!process.env.DATABASE_URL)('VIPS schema (U1)', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('VIPS schema (U1)', () => {
   it('vips_pages round-trips and is keyed by (student_id, dimension)', () => {
     const db = openInMemoryDb()
     upsertVipsPage(
@@ -568,40 +568,43 @@ describe.skipIf(!process.env.DATABASE_URL)('VIPS schema (U1)', () => {
 // without inventing behaviour, so per plan 059 step 3 they move into Lane B
 // and stay behind the DATABASE_URL gate. Step 7b rewrites them against the
 // current async Drizzle surface along with the rest of this file.
-describe.skipIf(!process.env.DATABASE_URL)('forgetVipsTimelineEntry — R19 / R20 semantics', () => {
-  it('removes the row from FTS retrieval so hybrid search misses it (R19)', () => {
-    const entry = insertVipsTimelineEntry('demo', {
-      dimension: 'values',
-      canonical_claim_id: 'values.independence',
-      verbatim_quote: 'i love mentoring younger students',
-      reflection_id: null,
-      strength: 'medium',
-      parallax_tag: ['school'],
-      reinforces_id: null,
-    })
-    const before = searchVipsTimelineEntries('demo', 'mentoring')
-    expect(before.some((r) => r.id === entry.id)).toBe(true)
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  'forgetVipsTimelineEntry — R19 / R20 semantics',
+  () => {
+    it('removes the row from FTS retrieval so hybrid search misses it (R19)', () => {
+      const entry = insertVipsTimelineEntry('demo', {
+        dimension: 'values',
+        canonical_claim_id: 'values.independence',
+        verbatim_quote: 'i love mentoring younger students',
+        reflection_id: null,
+        strength: 'medium',
+        parallax_tag: ['school'],
+        reinforces_id: null,
+      })
+      const before = searchVipsTimelineEntries('demo', 'mentoring')
+      expect(before.some((r) => r.id === entry.id)).toBe(true)
 
-    forgetVipsTimelineEntry('demo', entry.id)
+      forgetVipsTimelineEntry('demo', entry.id)
 
-    const after = searchVipsTimelineEntries('demo', 'mentoring')
-    expect(after.some((r) => r.id === entry.id)).toBe(false)
-  })
-
-  it('increments vips_forget_count.count for the dimension (R20: recorded)', () => {
-    const before = getVipsForgetCount('demo', 'values')
-    const entry = insertVipsTimelineEntry('demo', {
-      dimension: 'values',
-      canonical_claim_id: 'values.independence',
-      verbatim_quote: 'practices self-direction in school',
-      reflection_id: null,
-      strength: 'medium',
-      parallax_tag: ['school'],
-      reinforces_id: null,
+      const after = searchVipsTimelineEntries('demo', 'mentoring')
+      expect(after.some((r) => r.id === entry.id)).toBe(false)
     })
 
-    forgetVipsTimelineEntry('demo', entry.id)
+    it('increments vips_forget_count.count for the dimension (R20: recorded)', () => {
+      const before = getVipsForgetCount('demo', 'values')
+      const entry = insertVipsTimelineEntry('demo', {
+        dimension: 'values',
+        canonical_claim_id: 'values.independence',
+        verbatim_quote: 'practices self-direction in school',
+        reflection_id: null,
+        strength: 'medium',
+        parallax_tag: ['school'],
+        reinforces_id: null,
+      })
 
-    expect(getVipsForgetCount('demo', 'values')).toBe(before + 1)
-  })
-})
+      forgetVipsTimelineEntry('demo', entry.id)
+
+      expect(getVipsForgetCount('demo', 'values')).toBe(before + 1)
+    })
+  },
+)

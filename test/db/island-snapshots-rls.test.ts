@@ -15,7 +15,7 @@ import { withStudent } from '~/db/client'
 const STUDENT_A = `island-snap-a-${process.pid}-${Date.now()}`
 const STUDENT_B = `island-snap-b-${process.pid}-${Date.now()}`
 
-describe.skipIf(!process.env.DATABASE_URL)('vips_island_snapshots RLS', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('vips_island_snapshots RLS', () => {
   it('same-tenant insert + select round-trips', async () => {
     const payload = JSON.stringify({ bloomedTrees: [{ id: 't1', species: 'tree' }] })
 

@@ -132,6 +132,30 @@ bypass, `WORKOS_REDIRECT_URI` must match whatever origin you actually run on —
 the demo-bypass flow does not need WorkOS at all, so this only matters when
 testing real sign-in.
 
+### Running the database-backed tests
+
+`pnpm test` never touches a database. The DB-backed integration suites
+(`test/db.test.ts`, the RLS suites in `test/db/`, and
+`test/agents/memory.test.ts`) are gated on a dedicated variable and skip
+unless you opt in:
+
+```bash
+TEST_DATABASE_URL=postgres://…  pnpm test:db
+```
+
+`TEST_DATABASE_URL` must point at a **disposable local** database — never a
+shared, staging, or production one. Those suites truncate and re-seed, and
+the RLS suites are only meaningful when the connecting role does **not** own
+the tables (see "FORCE ROW LEVEL SECURITY (deferred)" in
+`src/db/migrations/README.md`).
+
+The gate is deliberately *not* `DATABASE_URL`: that is the application's
+variable, it lives in most `.env` files, and keying off it would mean an
+ordinary local setup silently pointed `pnpm test` at a real database.
+`test/setup.ts` does not load `.env` and strips any ambient `DATABASE_URL`
+from the test process unless `TEST_DATABASE_URL` was set explicitly. Export
+`REQUIRE_DB_TESTS=1` to turn "the DB lane was skipped" into a hard failure.
+
 After changing managed-agent prompts or model defaults, update existing hosted agent versions with:
 
 ```bash

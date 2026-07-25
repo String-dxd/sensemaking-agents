@@ -17,7 +17,7 @@ import { insertMirrorEntry, listMirrorEntries } from '~/db/queries'
 const STUDENT_A = `rls-test-a-${process.pid}-${Date.now()}`
 const STUDENT_B = `rls-test-b-${process.pid}-${Date.now()}`
 
-describe.skipIf(!process.env.DATABASE_URL)('withStudent + RLS concurrency', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('withStudent + RLS concurrency', () => {
   it('parallel withStudent envelopes do not leak rows across tenants', async () => {
     // Race two inserts in parallel. If the GUC bleeds, one of these will see
     // the other tenant's row when it lists.

@@ -18,7 +18,7 @@
     "format": "biome format --write src test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:db": "vitest run test/db test/agents/memory.test.ts",
+    "test:db": "REQUIRE_DB_TESTS=1 vitest run test/db test/agents/memory.test.ts",
     "test:watch": "vitest",
     "seed": "tsx src/db/seed.ts",
     "demo:bootstrap": "pnpm db:migrate && pnpm seed",
