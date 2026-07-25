@@ -48,3 +48,21 @@ export function safeReturnPathname(value: string | null | undefined, fallback = 
   }
   return trimmed
 }
+
+/**
+ * True when the browser-controlled demo-persona flow may mint a session.
+ *
+ * The demo cookie is a real, server-resolved identity: requireCounselorContext
+ * accepts it and attachCounselorToDemoStudents grants it RLS access to the four
+ * seeded demo students. Minting it must be an explicit operator posture, never
+ * the default on a public deployment. Same idiom as ENABLE_DEV_PIPELINE in
+ * src/server/load-pipeline-trace.handler.server.ts.
+ *
+ * This module is also bundled for the browser (SettingsSheet imports
+ * DEMO_STUDENT_IDS), hence the guard; the helper is only called server-side.
+ */
+export function isDemoModeEnabled(): boolean {
+  if (typeof process === 'undefined' || !process.env) return false
+  if (process.env.ENABLE_DEMO_PERSONAS === '1') return true
+  return process.env.NODE_ENV !== 'production'
+}

@@ -4,7 +4,12 @@
 // the SDK's PKCE/CSRF enforcement.
 
 import { createFileRoute } from '@tanstack/react-router'
-import { DEFAULT_DEMO_STUDENT_ID, normalizeDemoStudentId, safeReturnPathname } from '~/auth/demo'
+import {
+  DEFAULT_DEMO_STUDENT_ID,
+  isDemoModeEnabled,
+  normalizeDemoStudentId,
+  safeReturnPathname,
+} from '~/auth/demo'
 import { isSameOriginRequest } from '~/auth/same-origin'
 
 export const Route = createFileRoute('/api/auth/sign-in')({
@@ -51,6 +56,12 @@ export async function handleSignInPost({ request }: { request: Request }): Promi
   const urlParts = new URL(request.url)
   const returnPathname = safeReturnPathname(urlParts.searchParams.get('returnPathname'))
   if (urlParts.searchParams.get('demo') !== '1') return redirectTo(returnPathname)
+
+  if (!isDemoModeEnabled()) {
+    // Demo personas are a real identity (see src/auth/demo.ts). 404 rather than
+    // 403 so a production deployment does not advertise that the flow exists.
+    return new Response('Not found', { status: 404 })
+  }
 
   const { demoCookieHeader, getDemoBypassAuthFromCookie } = await import(
     '~/auth/demo-session.server'

@@ -110,6 +110,11 @@ For local browser development without WorkOS, start the app and choose
 "Use a demo account" on the login screen. That creates a same-origin demo
 session cookie for the seeded `demo-a` student — no WorkOS variables needed.
 
+On a deployed build the demo-persona flow is off unless the deployment sets
+`ENABLE_DEMO_PERSONAS=1` — the demo cookie is a real identity with access to the
+four seeded demo students, so a public production build must not mint it. Local
+development needs no flag (`NODE_ENV` is not `production`).
+
 For non-browser server checks that cannot set the demo cookie, you can use the
 dev-only bypass instead:
 
