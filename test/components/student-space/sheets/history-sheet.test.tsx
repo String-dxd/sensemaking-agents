@@ -18,6 +18,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HistorySheet } from '~/components/student-space/sheets/HistorySheet'
+import { sgToday } from '~/lib/entry-date'
 import { EngineContext } from '~/lib/student-space/use-engine'
 
 // Stub three.js so the GrowthIslandPreview's dynamic import resolves in
@@ -56,12 +57,6 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
 }))
 
 const TODAY = '2026-05-22'
-
-// Real-clock day key, matching DayDetailCard's private ymd()
-function realToday(): string {
-  const now = new Date()
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-}
 
 type TestCapture = {
   id: string
@@ -308,9 +303,7 @@ describe('HistorySheet (React)', () => {
   it('renders school events from the engine date/label shape', async () => {
     renderHistory(
       makeEngine({
-        events: [
-          { id: 'event-1', date: realToday(), kind: 'class', label: 'Mathematics - Sec 3.4' },
-        ],
+        events: [{ id: 'event-1', date: sgToday(), kind: 'class', label: 'Mathematics - Sec 3.4' }],
       }),
     )
 
@@ -332,8 +325,8 @@ describe('HistorySheet (React)', () => {
       captures: [
         {
           id: 'mirror:24',
-          entryDate: realToday(),
-          createdAt: `${realToday()}T08:00:00.000Z`,
+          entryDate: sgToday(),
+          createdAt: `${sgToday()}T08:00:00.000Z`,
           kind: 'ask',
           text: 'Needs review',
           title: 'Needs review',
@@ -377,7 +370,7 @@ describe('HistorySheet (React)', () => {
       captures: [
         {
           id: 'local-ask-1',
-          entryDate: realToday(),
+          entryDate: sgToday(),
           createdAt: new Date().toISOString(),
           kind: 'ask',
           text: 'Needs sync',
@@ -421,7 +414,7 @@ describe('HistorySheet (React)', () => {
       captures: [
         {
           id: 'local-ask-2',
-          entryDate: realToday(),
+          entryDate: sgToday(),
           createdAt: new Date().toISOString(),
           kind: 'ask',
           text: 'Needs sync again',

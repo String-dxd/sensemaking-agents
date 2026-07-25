@@ -1,0 +1,43 @@
+name: CI — check + test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # LOAD-BEARING — do not remove this to "speed up CI".
+      # `src/routeTree.gen.ts` is gitignored and is generated only by the
+      # `tanstackStart()` plugin in vite.config.ts. Nothing else produces it:
+      # vitest.config.ts does not load that plugin, there is no router CLI in
+      # node_modules/.bin, and package.json has no prepare/postinstall hook.
+      # So on a fresh checkout the file does not exist and BOTH gates below
+      # fail: `pnpm check` dies with `TS2307: Cannot find module
+      # '~/routeTree.gen'` (plus ~12 route type errors), and `pnpm test` fails
+      # test/routes/legacy-sheet-redirect.test.ts and
+      # test/routes/onboarding-auth-redirect.test.ts.
+      # This build exists to generate that file, not to verify the bundle, and
+      # it costs ~5s. If you ever make the route tree a committed artifact,
+      # this step can go.
+      - run: pnpm build
+      - run: pnpm check
+      # NOTE: no DATABASE_URL on purpose. 128 DB-gated tests are skipped by
+      # design until plans/059 revives them; setting DATABASE_URL here would
+      # turn them into hard failures.
+      - run: pnpm test
