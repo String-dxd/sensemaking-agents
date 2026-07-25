@@ -11,7 +11,7 @@ Current product shape:
 - `/trajectory` shows the Cartographer synthesis; its "Run sense-making" button triggers Cartographer once there are enough verified VIPS links.
 - `/profile`, `/letters`, and `/settings` round out the routed sheets — the world, history, profile, trajectory, letters, and settings routes above are the complete set.
 
-For the latest planning and merge status, see `plans/CURRENT_STATE.md`.
+For the latest planning and merge status, see `plans/README.md`.
 
 ## Architecture
 
@@ -207,11 +207,11 @@ src/
   routes/       TanStack Router file routes and API routes
   server/       Server function wrappers and handlers
 test/           Vitest specs and ablation fixtures/reports
-plans/          Planning artifacts and current state snapshot
+plans/          Implementation plans; plans/README.md is the index and status board
 island-editor/  Standalone island shape designer — isolated pnpm root (r3f + drei)
 bird-builder/   Standalone bird dress-up studio — isolated pnpm root (r3f + drei)
 ```
 
 ## Historical Plans
 
-Older plans remain in `plans/` for context, but several are superseded. Use `plans/CURRENT_STATE.md` as the entry point before executing old plan units.
+Older plans remain in `plans/` for context, but several are superseded. Use `plans/README.md` as the entry point before executing old plan units.
