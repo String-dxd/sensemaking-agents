@@ -48,21 +48,24 @@ DOM surfaces are React + Tailwind v4 (TanStack Start + TanStack Router). Three.j
 - `/trajectory` → `TrajectorySheet.tsx`
 - `/settings` → `SettingsSheet.tsx`
 
-**Sheet primitive** — every routed sheet composes the same shape on `src/components/ui/sheet.tsx` (Base UI `Dialog.Root`, `modal={false}`):
+**Sheet primitive** — every routed sheet composes the same shape from
+`src/components/ui/sheet.tsx`. It is a plain framed div, **not** a Base UI
+Dialog: there is no `open`/`modal`/`onOpenChange` prop, and Escape is handled
+by the `usePageEscape` hook.
 
 ```tsx
-<Sheet open modal={false} onOpenChange={…}>
-  <SheetSurface>
-    <SheetSidebar>      {/* left pane, ~360px sidenav */}
-      <SheetIdentityHeader>…</SheetIdentityHeader>
-      <SheetSidenav>…</SheetSidenav>
-    </SheetSidebar>
-    <SheetContent>      {/* right pane */}
-      <SheetPageHeader>…</SheetPageHeader>
-      <SheetBody>…</SheetBody>
-    </SheetContent>
-  </SheetSurface>
-</Sheet>
+usePageEscape(dismissToHome)
+
+<PageSurface>
+  <SheetSidebar data-stagger-slot="1">   {/* left pane, ~360px sidenav */}
+    <SheetIdentityHeader>…</SheetIdentityHeader>
+    <SheetSidenav>…</SheetSidenav>
+  </SheetSidebar>
+  <SheetContent>                          {/* right pane */}
+    <SheetPageHeader>…</SheetPageHeader>
+    <SheetBody>…</SheetBody>
+  </SheetContent>
+</PageSurface>
 ```
 
 **Side rail** — `src/components/student-space/navigation/SideRail.tsx`. Two groups:
