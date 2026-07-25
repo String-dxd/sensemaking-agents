@@ -18,6 +18,8 @@ import {
   SheetTitle,
   usePageEscape,
 } from '~/components/ui/sheet'
+import { clearStudentSpaceLocalState } from '~/lib/clear-student-space-local-state'
+import { signOutEngine } from '~/lib/sign-out-engine'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { loadAuthMenu } from '~/server/auth-menu.functions'
 import type { AuthMenuState } from '~/server/auth-menu.handler.server'
@@ -79,6 +81,15 @@ export function SettingsSheet() {
 
   const switchDemoStudent = (id: DemoStudentId) => {
     if (typeof document === 'undefined') return
+    // A persona switch is an identity change, exactly like sign-out: the engine
+    // persists to unprefixed `ss:v1:*` keys, so without this wipe the next
+    // persona's world renders a blend of two students' captures, mood pins,
+    // sprouts and profile. Tear the engine down BEFORE wiping the keys —
+    // Persistence's debounced writes (250ms) would otherwise land after the
+    // clear and re-create them; dispose() drains them synchronously. Same
+    // sequence as DevPalette's sign-out command.
+    signOutEngine()
+    clearStudentSpaceLocalState()
     const search = new URLSearchParams({ demo: '1', student: id, returnPathname: '/' })
     const form = document.createElement('form')
     form.method = 'post'

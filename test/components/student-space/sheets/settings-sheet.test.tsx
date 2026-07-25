@@ -24,9 +24,16 @@ import { SettingsSheet } from '~/components/student-space/sheets/SettingsSheet'
 import { EngineContext } from '~/lib/student-space/use-engine'
 
 const loadAuthMenuMock = vi.hoisted(() => vi.fn())
+const signOutEngineMock = vi.hoisted(() => vi.fn())
+const clearLocalStateMock = vi.hoisted(() => vi.fn())
 
 vi.mock('~/server/auth-menu.functions', () => ({
   loadAuthMenu: loadAuthMenuMock,
+}))
+
+vi.mock('~/lib/sign-out-engine', () => ({ signOutEngine: signOutEngineMock }))
+vi.mock('~/lib/clear-student-space-local-state', () => ({
+  clearStudentSpaceLocalState: clearLocalStateMock,
 }))
 
 function renderSettings(engine: object | null = makeFakeEngine()) {
@@ -91,6 +98,8 @@ function makeFakeEngine() {
 afterEach(() => {
   document.body.classList.remove('has-overlay')
   loadAuthMenuMock.mockReset()
+  signOutEngineMock.mockReset()
+  clearLocalStateMock.mockReset()
 })
 
 beforeEach(() => {
@@ -205,6 +214,31 @@ describe('SettingsSheet (React)', () => {
       expect(submitted.action).toContain('demo=1')
       expect(submitted.action).toContain('student=demo-b')
       expect(submitted.parentElement).toBe(document.body)
+    })
+
+    it('tears down the engine and wipes ss:v1:* state before submitting the switch', async () => {
+      loadAuthMenuMock.mockResolvedValue({
+        status: 'signed-in',
+        label: 'Demo account',
+        detail: 'demo-a',
+        kind: 'demo',
+      })
+      const submitSpy = vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
+      renderSettings()
+
+      await userEvent.click(await screen.findByTestId('settings-demo-student-demo-b'))
+
+      expect(signOutEngineMock).toHaveBeenCalledTimes(1)
+      expect(clearLocalStateMock).toHaveBeenCalledTimes(1)
+      expect(submitSpy).toHaveBeenCalledTimes(1)
+      // Order is the bug: a debounced engine save landing after the clear would
+      // re-create the previous persona's keys, and a POST that beats the wipe
+      // would let the new persona boot on stale state.
+      const disposeOrder = signOutEngineMock.mock.invocationCallOrder[0] as number
+      const clearOrder = clearLocalStateMock.mock.invocationCallOrder[0] as number
+      const submitOrder = submitSpy.mock.invocationCallOrder[0] as number
+      expect(disposeOrder).toBeLessThan(clearOrder)
+      expect(clearOrder).toBeLessThan(submitOrder)
     })
   })
 })
