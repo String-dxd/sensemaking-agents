@@ -13,6 +13,10 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
+    // Pin a non-Singapore zone so any test that accidentally couples the
+    // device-local clock to the product's Asia/Singapore day-bucketing
+    // (src/lib/entry-date.ts) fails on every machine, not just on CI.
+    env: { TZ: 'America/New_York' },
     setupFiles: ['./test/setup.ts'],
     include: ['test/**/*.test.{ts,tsx}'],
     exclude: ['test/ablation/reports/**', 'node_modules/**'],
