@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { redirect } from '@tanstack/react-router'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   bootstrapDemoStudentsForCounselor: vi.fn(),
@@ -161,6 +161,76 @@ describe('/api/auth/sign-in', () => {
 
     expect(response.status).toBe(303)
     expect(response.headers.get('Location')).toBe('/')
+  })
+})
+
+describe('/api/auth/sign-in — demo mode disabled', () => {
+  const originalNodeEnv = process.env.NODE_ENV
+  const originalFlag = process.env.ENABLE_DEMO_PERSONAS
+
+  beforeEach(() => {
+    process.env.NODE_ENV = 'production'
+    delete process.env.ENABLE_DEMO_PERSONAS
+  })
+
+  afterEach(() => {
+    // A leaked NODE_ENV='production' would silently change unrelated suites.
+    process.env.NODE_ENV = originalNodeEnv
+    if (originalFlag === undefined) delete process.env.ENABLE_DEMO_PERSONAS
+    else process.env.ENABLE_DEMO_PERSONAS = originalFlag
+  })
+
+  it('404s the demo mint on an unflagged production build', async () => {
+    const response = await handleSignInPost({
+      request: request('/api/auth/sign-in?demo=1&student=demo-b', {
+        method: 'POST',
+        headers: { Origin: 'http://localhost', 'Sec-Fetch-Site': 'same-origin' },
+      }),
+    })
+
+    // 404, not 403: a 403 would tell a prober the endpoint is real, just off.
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Set-Cookie')).toBeNull()
+  })
+
+  it('stops resolving an already-issued demo cookie without even reading it', async () => {
+    mocks.getCookie.mockReturnValue('demo-c')
+
+    const { getDemoBypassAuthFromCookie } = await import('~/auth/demo-session.server')
+
+    expect(getDemoBypassAuthFromCookie()).toBeNull()
+    expect(mocks.getCookie).not.toHaveBeenCalled()
+  })
+
+  it('leaves non-demo POSTs untouched', async () => {
+    const response = await handleSignInPost({
+      request: request('/api/auth/sign-in?returnPathname=/reflect', {
+        method: 'POST',
+        headers: { Origin: 'http://localhost', 'Sec-Fetch-Site': 'same-origin' },
+      }),
+    })
+
+    expect(response.status).toBe(303)
+    expect(response.headers.get('Location')).toBe('/reflect')
+    expect(response.headers.get('Set-Cookie')).toBeNull()
+  })
+
+  it('restores the exact mint behaviour when the deployment sets the flag', async () => {
+    process.env.ENABLE_DEMO_PERSONAS = '1'
+
+    const response = await handleSignInPost({
+      request: request('/api/auth/sign-in?demo=1&student=demo-b', {
+        method: 'POST',
+        headers: { Origin: 'http://localhost', 'Sec-Fetch-Site': 'same-origin' },
+      }),
+    })
+
+    expect(response.status).toBe(303)
+    // `Secure` is present because demoCookieHeader keys off NODE_ENV, not the
+    // flag — the assertions above at NODE_ENV='test' expect it absent.
+    expect(response.headers.get('Set-Cookie')).toBe(
+      'sensemaking-demo-student=demo-b; Max-Age=604800; Path=/; HttpOnly; SameSite=Lax; Secure',
+    )
   })
 })
 

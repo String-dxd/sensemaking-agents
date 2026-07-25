@@ -4,11 +4,16 @@ import {
   DEMO_AUTH_COOKIE,
   DEMO_COOKIE_MAX_AGE_SECONDS,
   type DemoStudentId,
+  isDemoModeEnabled,
   makeBypassIdentity,
   normalizeDemoStudentId,
 } from './demo'
 
 export function getDemoBypassAuthFromCookie() {
+  // A demo cookie is only an identity while demo mode is enabled — otherwise a
+  // previously issued (or cross-deployment) cookie would keep granting access
+  // to the seeded demo students. See isDemoModeEnabled() in ./demo.
+  if (!isDemoModeEnabled()) return null
   let raw: string | undefined
   try {
     raw = getCookie(DEMO_AUTH_COOKIE)

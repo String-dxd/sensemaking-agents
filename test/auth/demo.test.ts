@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   demoSignInHref,
+  isDemoModeEnabled,
   normalizeDemoStudentId,
   safeReturnPathname,
   workosSignInHref,
@@ -41,5 +42,48 @@ describe('demo auth helpers', () => {
     expect(clearDemoCookieHeader(true)).toBe(
       'sensemaking-demo-student=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax; Secure',
     )
+  })
+})
+
+describe('isDemoModeEnabled', () => {
+  const originalNodeEnv = process.env.NODE_ENV
+  const originalFlag = process.env.ENABLE_DEMO_PERSONAS
+
+  afterEach(() => {
+    // A leaked NODE_ENV='production' would silently change unrelated suites.
+    process.env.NODE_ENV = originalNodeEnv
+    if (originalFlag === undefined) delete process.env.ENABLE_DEMO_PERSONAS
+    else process.env.ENABLE_DEMO_PERSONAS = originalFlag
+  })
+
+  it('enables demo personas outside production without any flag', () => {
+    delete process.env.ENABLE_DEMO_PERSONAS
+
+    process.env.NODE_ENV = 'development'
+    expect(isDemoModeEnabled()).toBe(true)
+
+    process.env.NODE_ENV = 'test'
+    expect(isDemoModeEnabled()).toBe(true)
+  })
+
+  it('disables demo personas on an unflagged production build', () => {
+    delete process.env.ENABLE_DEMO_PERSONAS
+    process.env.NODE_ENV = 'production'
+
+    expect(isDemoModeEnabled()).toBe(false)
+  })
+
+  it('re-enables demo personas in production when the deployment opts in', () => {
+    process.env.NODE_ENV = 'production'
+    process.env.ENABLE_DEMO_PERSONAS = '1'
+
+    expect(isDemoModeEnabled()).toBe(true)
+  })
+
+  it('opts in on the literal "1" only, matching the ENABLE_DEV_PIPELINE idiom', () => {
+    process.env.NODE_ENV = 'production'
+    process.env.ENABLE_DEMO_PERSONAS = 'true'
+
+    expect(isDemoModeEnabled()).toBe(false)
   })
 })
