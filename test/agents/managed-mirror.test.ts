@@ -55,6 +55,39 @@ function makeFakeTransport(
   }
 }
 
+/**
+ * Reproduces a genuinely hung upstream stream: `next()` never settles, and
+ * `return()` — like a real async generator's — queues behind that pending
+ * `next()`, so it never settles either. Before the runner owned an
+ * AbortController and bounded its cleanup, the `finally`'s unbounded
+ * `await iterator.return?.()` swallowed the TIMEOUT error and
+ * `runManagedAgent` hung forever.
+ */
+function makeHangingTransport(): ManagedAgentTransport {
+  return {
+    async createSession() {
+      return 'sesn_hang'
+    },
+    async sendUserMessage() {},
+    streamEvents() {
+      return {
+        [Symbol.asyncIterator]() {
+          return {
+            next(): Promise<IteratorResult<ManagedAgentRunnerEvent>> {
+              // Intentionally never resolves.
+              return new Promise(() => {})
+            },
+            return(): Promise<IteratorResult<ManagedAgentRunnerEvent>> {
+              // Queued behind the pending `next()`, so also never resolves.
+              return new Promise(() => {})
+            },
+          }
+        },
+      }
+    },
+  }
+}
+
 describe('U6 runManagedAgent — happy path', () => {
   it('streams agent.message text, sums span.model_request_end usage, parses JSON against schema', async () => {
     const capture: { lastPrompt?: string } = {}
@@ -310,6 +343,26 @@ describe('U6 runManagedAgent — failure modes', () => {
         transport,
       }),
     ).rejects.toBeInstanceOf(ManagedAgentError)
+  })
+})
+
+describe('U6 runManagedAgent — timeout is terminal', () => {
+  // The 3s per-test timeout is comfortably above `timeoutMs` + the runner's
+  // 1s cleanup bound, but well under Vitest's default — so a regression FAILS
+  // here rather than hanging the suite.
+  it('rejects with TIMEOUT even when the upstream stream never settles', {
+    timeout: 3_000,
+  }, async () => {
+    await expect(
+      runManagedAgent({
+        agentId: 'agt_mirror',
+        environmentId: 'env_x',
+        prompt: 'p',
+        outputSchema: MirrorOutputSchema,
+        transport: makeHangingTransport(),
+        timeoutMs: 50,
+      }),
+    ).rejects.toMatchObject({ code: 'TIMEOUT' })
   })
 })
 

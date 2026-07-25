@@ -22,6 +22,9 @@ import type { z } from 'zod'
 
 const DEFAULT_TIMEOUT_MS = 120_000
 
+/** Upper bound on stream cleanup. See the `finally` in `runManagedAgent`. */
+const CLEANUP_TIMEOUT_MS = 1_000
+
 /**
  * Normalized event shape consumed by `runManagedAgent`. Mirrors the subset of
  * `BetaManagedAgentsStreamSessionEvents` we actually act on. Adding new
@@ -375,10 +378,18 @@ export async function runManagedAgent<T>(
   // Open the event stream before sending input so we don't miss the first
   // `session.status_running` or `agent.message` event the server emits in
   // response to the user message.
-  const streamIterable = transport.streamEvents(
-    sessionId,
-    opts.signal ? { signal: opts.signal } : undefined,
-  )
+  //
+  // The runner owns its own abort signal so its `timeoutMs` can actually
+  // cancel the in-flight HTTP request. Chained to the caller's signal so an
+  // external abort still propagates.
+  const controller = new AbortController()
+  const forwardAbort = () => controller.abort(opts.signal?.reason)
+  if (opts.signal) {
+    if (opts.signal.aborted) controller.abort(opts.signal.reason)
+    else opts.signal.addEventListener('abort', forwardAbort, { once: true })
+  }
+
+  const streamIterable = transport.streamEvents(sessionId, { signal: controller.signal })
   await transport.sendUserMessage(sessionId, opts.prompt)
 
   const usage: ManagedAgentUsage = {
@@ -440,8 +451,23 @@ export async function runManagedAgent<T>(
       }
       // 'other' events (status_running, thinking, span.model_request_start, etc.) are no-ops here.
     }
+  } catch (err) {
+    // Cancel the in-flight request so the pending `iterator.next()` settles
+    // and the cleanup below cannot block on it.
+    controller.abort(err)
+    throw err
   } finally {
-    await iterator.return?.()
+    if (opts.signal) opts.signal.removeEventListener('abort', forwardAbort)
+    // Bounded cleanup: `mapSdkEventStream` is an async generator, so its
+    // `.return()` queues behind any still-pending `.next()`. On a genuinely
+    // hung upstream stream an unbounded `await` here swallows the TIMEOUT we
+    // are trying to surface. Race it and move on. Rejections from `return()`
+    // are swallowed on purpose — a failing cleanup must never replace the
+    // original error.
+    await Promise.race([
+      Promise.resolve(iterator.return?.()).catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, CLEANUP_TIMEOUT_MS)),
+    ])
   }
 
   if (collectedText.trim().length === 0) {
