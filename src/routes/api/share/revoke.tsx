@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 
 import { UnauthenticatedError } from '~/auth/identity'
+import { isSameOriginRequest } from '~/auth/same-origin'
 import {
   revokeShareTokenHandler,
   ShareDemoUnsupportedError,
@@ -45,14 +46,6 @@ async function handle(request: Request): Promise<Response> {
     console.error('[api/share/revoke] failed', err)
     return jsonError(500, 'internal_error', 'Failed to revoke share token.')
   }
-}
-
-function isSameOriginRequest(request: Request): boolean {
-  const requestUrl = new URL(request.url)
-  const origin = request.headers.get('Origin')
-  if (origin && origin !== requestUrl.origin) return false
-  const fetchSite = request.headers.get('Sec-Fetch-Site')
-  return fetchSite !== 'cross-site'
 }
 
 function isZodValidationError(err: unknown): boolean {

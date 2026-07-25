@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
 import { requireCounselorContext } from '~/auth/identity'
 import { listAttachedStudentIds, listUnconnectedMirrorEntries } from '~/db/queries'
 import {
@@ -185,5 +186,11 @@ function aggregateStatus(
 function isAuthorizedCronRequest(request: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return false
-  return request.headers.get('Authorization') === `Bearer ${secret}`
+  const presented = request.headers.get('Authorization')
+  if (!presented) return false
+  // Hash both sides to equal length so timingSafeEqual never throws on
+  // length mismatch and length itself leaks nothing.
+  const a = createHash('sha256').update(presented).digest()
+  const b = createHash('sha256').update(`Bearer ${secret}`).digest()
+  return timingSafeEqual(a, b)
 }
