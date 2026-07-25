@@ -597,3 +597,49 @@ describe.skipIf(!process.env.DATABASE_URL)('SCHEMA_VERSION mismatch drop-and-res
     expect(listMirrorEntries('demo', { ctx: { db: db2 } }).length).toBe(0)
   })
 })
+
+// ── moved here from test/server/forget-timeline-entry.test.ts (plans/059) ──
+//
+// These two cases assert `forgetVipsTimelineEntry`'s *SQL* — the FTS
+// exclusion predicate (R19) and the `vips_forget_count` increment (R20) —
+// not the handler's orchestration. They cannot be expressed against mocks
+// without inventing behaviour, so per plan 059 step 3 they move into Lane B
+// and stay behind the DATABASE_URL gate. Step 7b rewrites them against the
+// current async Drizzle surface along with the rest of this file.
+describe.skipIf(!process.env.DATABASE_URL)('forgetVipsTimelineEntry — R19 / R20 semantics', () => {
+  it('removes the row from FTS retrieval so hybrid search misses it (R19)', () => {
+    const entry = insertVipsTimelineEntry('demo', {
+      dimension: 'values',
+      canonical_claim_id: 'values.independence',
+      verbatim_quote: 'i love mentoring younger students',
+      reflection_id: null,
+      strength: 'medium',
+      parallax_tag: ['school'],
+      reinforces_id: null,
+    })
+    const before = searchVipsTimelineEntries('demo', 'mentoring')
+    expect(before.some((r) => r.id === entry.id)).toBe(true)
+
+    forgetVipsTimelineEntry('demo', entry.id)
+
+    const after = searchVipsTimelineEntries('demo', 'mentoring')
+    expect(after.some((r) => r.id === entry.id)).toBe(false)
+  })
+
+  it('increments vips_forget_count.count for the dimension (R20: recorded)', () => {
+    const before = getVipsForgetCount('demo', 'values')
+    const entry = insertVipsTimelineEntry('demo', {
+      dimension: 'values',
+      canonical_claim_id: 'values.independence',
+      verbatim_quote: 'practices self-direction in school',
+      reflection_id: null,
+      strength: 'medium',
+      parallax_tag: ['school'],
+      reinforces_id: null,
+    })
+
+    forgetVipsTimelineEntry('demo', entry.id)
+
+    expect(getVipsForgetCount('demo', 'values')).toBe(before + 1)
+  })
+})
