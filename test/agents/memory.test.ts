@@ -157,7 +157,7 @@ describe('appendIfNovel', () => {
 // pieces actually execute. Skipped unless DATABASE_URL is set.
 // ---------------------------------------------------------------------------
 
-describe.skipIf(!process.env.DATABASE_URL)('appendStudentMemory — integration', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('appendStudentMemory — integration', () => {
   const STUDENT = `memory-test-${process.pid}-${Date.now()}`
   let fake: ReturnType<typeof buildFakeTransport>
 

@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "vite dev",
     "dev:editor": "pnpm --filter island-editor dev",
@@ -15,6 +18,7 @@
     "format": "biome format --write src test",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:db": "REQUIRE_DB_TESTS=1 vitest run test/db test/agents/memory.test.ts",
     "test:watch": "vitest",
     "seed": "tsx src/db/seed.ts",
     "demo:bootstrap": "pnpm db:migrate && pnpm seed",
@@ -64,14 +68,12 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
-    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.11.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/three": "0.184.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "better-sqlite3": "^12.0.0",
     "drizzle-kit": "^0.30.0",
     "happy-dom": "^15.11.0",
     "tsx": "^4.19.0",

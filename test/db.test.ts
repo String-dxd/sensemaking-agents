@@ -1,14 +1,13 @@
-// @ts-nocheck — Step 2 (Drizzle/Postgres port): this test uses the
-// legacy `openInMemoryDb` / better-sqlite3 path. Skipped at runtime via
-// DATABASE_URL gate below; the test body is rewritten in Step 3 against
-// the Drizzle/Postgres surface (or mocked queries.ts).
-// TODO(reza-step2-followup): rewrite against new TenantContext + Drizzle.
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+// @ts-nocheck — this file is the last holdout of the v0.1 in-memory DB
+// surface: the four describes below still call the removed
+// `openInMemoryDb()` and treat the now-async `seed()` / query helpers as
+// synchronous. They stay behind the DATABASE_URL gate and are rewritten
+// against the async Drizzle/Postgres surface in plan 059 step 7b, which
+// needs a real local Postgres to re-derive its assertions from current
+// behaviour. Removing this pragma is that step's job.
+import { describe, expect, it } from 'vitest'
 import { ECG_TAXONOMY, lookupEcgTaxonomy } from '~/data/ecg-taxonomy'
-import { openDb, openInMemoryDb, resetDbForTests } from '~/db/client'
+import { openInMemoryDb } from '~/db/client'
 import {
   forgetVipsTimelineEntry,
   getVipsForgetCount,
@@ -43,7 +42,7 @@ const baseEntry = {
   raw_output: { validation: 'v', inferred_meaning: 'i', story_reframe: 's' },
 }
 
-describe.skipIf(!process.env.DATABASE_URL)('schema + queries', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('schema + queries', () => {
   it('insertMirrorEntry then searchMirrors round-trips through FTS5', () => {
     const db = openInMemoryDb()
     insertMirrorEntry(
@@ -158,7 +157,7 @@ describe.skipIf(!process.env.DATABASE_URL)('schema + queries', () => {
   })
 })
 
-describe.skipIf(!process.env.DATABASE_URL)('seed loader', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('seed loader', () => {
   it('seeds the v0.2 multi-student fixture into an empty DB', () => {
     const db = openInMemoryDb()
     const result = seed({ db })
@@ -191,7 +190,7 @@ describe.skipIf(!process.env.DATABASE_URL)('seed loader', () => {
   })
 })
 
-describe.skipIf(!process.env.DATABASE_URL)('ECG taxonomy fixture', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('ECG taxonomy fixture', () => {
   it('contains at least 30 entries spanning all four categories', () => {
     expect(ECG_TAXONOMY.length).toBeGreaterThanOrEqual(30)
     const categories = new Set(ECG_TAXONOMY.map((e) => e.category))
@@ -256,7 +255,7 @@ describe.skipIf(!process.env.DATABASE_URL)('ECG taxonomy fixture', () => {
   })
 })
 
-describe.skipIf(!process.env.DATABASE_URL)('VIPS schema (U1)', () => {
+describe.skipIf(!process.env.TEST_DATABASE_URL)('VIPS schema (U1)', () => {
   it('vips_pages round-trips and is keyed by (student_id, dimension)', () => {
     const db = openInMemoryDb()
     upsertVipsPage(
@@ -561,39 +560,51 @@ describe.skipIf(!process.env.DATABASE_URL)('VIPS schema (U1)', () => {
   })
 })
 
-describe.skipIf(!process.env.DATABASE_URL)('SCHEMA_VERSION mismatch drop-and-reseed', () => {
-  let tmpDir: string
-  let dbPath: string
+// ── moved here from test/server/forget-timeline-entry.test.ts (plans/059) ──
+//
+// These two cases assert `forgetVipsTimelineEntry`'s *SQL* — the FTS
+// exclusion predicate (R19) and the `vips_forget_count` increment (R20) —
+// not the handler's orchestration. They cannot be expressed against mocks
+// without inventing behaviour, so per plan 059 step 3 they move into Lane B
+// and stay behind the DATABASE_URL gate. Step 7b rewrites them against the
+// current async Drizzle surface along with the rest of this file.
+describe.skipIf(!process.env.TEST_DATABASE_URL)(
+  'forgetVipsTimelineEntry — R19 / R20 semantics',
+  () => {
+    it('removes the row from FTS retrieval so hybrid search misses it (R19)', () => {
+      const entry = insertVipsTimelineEntry('demo', {
+        dimension: 'values',
+        canonical_claim_id: 'values.independence',
+        verbatim_quote: 'i love mentoring younger students',
+        reflection_id: null,
+        strength: 'medium',
+        parallax_tag: ['school'],
+        reinforces_id: null,
+      })
+      const before = searchVipsTimelineEntries('demo', 'mentoring')
+      expect(before.some((r) => r.id === entry.id)).toBe(true)
 
-  beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), 'sense-db-test-'))
-    dbPath = join(tmpDir, 'app.db')
-    resetDbForTests()
-  })
+      forgetVipsTimelineEntry('demo', entry.id)
 
-  afterEach(() => {
-    resetDbForTests()
-    if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true })
-  })
+      const after = searchVipsTimelineEntries('demo', 'mentoring')
+      expect(after.some((r) => r.id === entry.id)).toBe(false)
+    })
 
-  it('drops and recreates the db when the on-disk schema_version does not match', () => {
-    // Boot once with the current schema, write a marker row.
-    const db1 = openDb({ path: dbPath })
-    insertMirrorEntry('demo', baseEntry, { ctx: { db: db1 } })
-    expect(listMirrorEntries('demo', { ctx: { db: db1 } }).length).toBe(1)
-    resetDbForTests()
+    it('increments vips_forget_count.count for the dimension (R20: recorded)', () => {
+      const before = getVipsForgetCount('demo', 'values')
+      const entry = insertVipsTimelineEntry('demo', {
+        dimension: 'values',
+        canonical_claim_id: 'values.independence',
+        verbatim_quote: 'practices self-direction in school',
+        reflection_id: null,
+        strength: 'medium',
+        parallax_tag: ['school'],
+        reinforces_id: null,
+      })
 
-    // Pretend a future schema version landed by stamping _meta with a bogus value.
-    // openDb caches handles, so we have to re-open to a fresh handle that
-    // bypasses the cache via path.
-    const Database = require('better-sqlite3')
-    const probe = new Database(dbPath)
-    probe.prepare(`UPDATE _meta SET value = '999' WHERE key = 'schema_version'`).run()
-    probe.close()
+      forgetVipsTimelineEntry('demo', entry.id)
 
-    // Re-open via the cached client: it should detect the mismatch and
-    // drop+recreate the file. The previously-seeded row is gone.
-    const db2 = openDb({ path: dbPath })
-    expect(listMirrorEntries('demo', { ctx: { db: db2 } }).length).toBe(0)
-  })
-})
+      expect(getVipsForgetCount('demo', 'values')).toBe(before + 1)
+    })
+  },
+)

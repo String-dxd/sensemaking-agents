@@ -1,118 +1,110 @@
-// @ts-nocheck — Step 2 (Drizzle/Postgres port): this test uses the
-// legacy `openInMemoryDb` / better-sqlite3 path. Skipped at runtime via
-// DATABASE_URL gate below; the test body is rewritten in Step 3 against
-// the Drizzle/Postgres surface (or mocked queries.ts).
-// TODO(reza-step2-followup): rewrite against new TenantContext + Drizzle.
 /**
  * U9 — forget-timeline-entry handler tests.
  *
- * Happy path: forgetting a committed timeline entry sets `forgotten_at`,
- * removes the row from `listVipsTimelineEntries`, removes the row from
- * the FTS5 mirror (so hybrid search misses it — R19), and increments
- * `vips_forget_count.count` (R20: recorded, not surfaced).
+ * The handler delegates the whole soft-forget to `forgetVipsTimelineEntry`,
+ * so what belongs here is the orchestration around that one call:
  *
- * Cross-student isolation: forgetting another student's entry is a
- * no-op (the row stays committed, count unchanged) and surfaces a
- * `ForgetTimelineEntryError` from the handler.
+ * - Happy path: delegate under the counselor-context student id, echo the
+ *   entry id, and surface the delegate's `dimension` + `forgotten_at`.
+ * - Cross-student isolation: the delegate returns `null` when the row does
+ *   not belong to this student; the handler must turn that into a
+ *   `ForgetTimelineEntryError` rather than a silent no-op.
+ * - Defensive: a row that came back without `forgotten_at` fails loud.
+ * - Input validation on `entryId`.
+ *
+ * The R19 (FTS exclusion) and R20 (`vips_forget_count` increment) cases that
+ * used to live here assert `forgetVipsTimelineEntry`'s *SQL*, not this
+ * handler's orchestration, so they moved to Lane B in `test/db.test.ts`
+ * behind the DATABASE_URL gate — see plans/059.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { openInMemoryDb, resetDbForTests, setDbForTests } from '~/db/client'
-import {
-  getVipsForgetCount,
-  insertVipsTimelineEntry,
-  listVipsTimelineEntries,
-  searchVipsTimelineEntries,
-} from '~/db/queries'
-import { seed } from '~/db/seed'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { forgetTimelineEntryHandler } from '~/server/forget-timeline-entry.handler.server'
 
+const requireCounselorContextMock = vi.hoisted(() => vi.fn())
+const forgetVipsTimelineEntryMock = vi.hoisted(() => vi.fn())
+
+vi.mock('~/auth/identity', () => ({
+  requireCounselorContext: () => requireCounselorContextMock(),
+}))
+
+vi.mock('~/db/queries', () => ({
+  forgetVipsTimelineEntry: (studentId: string, entryId: number) =>
+    forgetVipsTimelineEntryMock(studentId, entryId),
+}))
+
 beforeEach(() => {
-  setDbForTests(openInMemoryDb())
-  seed()
-})
-
-afterEach(() => {
-  resetDbForTests()
-})
-
-function seedEntry(studentId = 'demo', overrides: Partial<{ verbatim_quote: string }> = {}) {
-  return insertVipsTimelineEntry(studentId, {
-    dimension: 'values',
-    canonical_claim_id: 'values.independence',
-    verbatim_quote: overrides.verbatim_quote ?? 'practices self-direction in school',
-    reflection_id: null,
-    strength: 'medium',
-    parallax_tag: ['school'],
-    reinforces_id: null,
-  })
-}
-
-describe.skipIf(!process.env.DATABASE_URL)('forgetTimelineEntryHandler — happy path', () => {
-  it('stamps forgotten_at and removes the row from listVipsTimelineEntries', () => {
-    const entry = seedEntry()
-    expect(listVipsTimelineEntries('demo', 'values')).toHaveLength(1)
-
-    const result = forgetTimelineEntryHandler({ studentId: 'demo', entryId: entry.id })
-
-    expect(result.dimension).toBe('values')
-    expect(result.forgotten_at).toBeTruthy()
-    // Default `includeForgotten: false` — the row is gone from the list.
-    expect(listVipsTimelineEntries('demo', 'values')).toHaveLength(0)
-    // But it's preserved as an audit-trail row (`includeForgotten: true`).
-    const withForgotten = listVipsTimelineEntries('demo', 'values', { includeForgotten: true })
-    expect(withForgotten).toHaveLength(1)
-    expect(withForgotten[0]?.forgotten_at).toBeTruthy()
-  })
-
-  it('removes the row from the FTS5 mirror so hybrid search misses it (R19)', () => {
-    const entry = seedEntry('demo', { verbatim_quote: 'i love mentoring younger students' })
-    // Pre-forget: FTS5 mirror contains the row.
-    const before = searchVipsTimelineEntries('demo', 'mentoring')
-    expect(before.some((r) => r.id === entry.id)).toBe(true)
-
-    forgetTimelineEntryHandler({ studentId: 'demo', entryId: entry.id })
-
-    const after = searchVipsTimelineEntries('demo', 'mentoring')
-    expect(after.some((r) => r.id === entry.id)).toBe(false)
-  })
-
-  it('increments vips_forget_count.count for the dimension (R20: recorded)', () => {
-    const before = getVipsForgetCount('demo', 'values')
-    const entry = seedEntry()
-
-    forgetTimelineEntryHandler({ studentId: 'demo', entryId: entry.id })
-
-    expect(getVipsForgetCount('demo', 'values')).toBe(before + 1)
+  requireCounselorContextMock.mockReset()
+  forgetVipsTimelineEntryMock.mockReset()
+  requireCounselorContextMock.mockResolvedValue({
+    counselorId: 'demo-counselor',
+    studentId: 'demo',
   })
 })
 
-describe.skipIf(!process.env.DATABASE_URL)(
-  'forgetTimelineEntryHandler — cross-student isolation',
-  () => {
-    it("forgetting another student's entry surfaces an error and is a no-op", () => {
-      const entry = seedEntry('demo')
-
-      expect(() =>
-        forgetTimelineEntryHandler({ studentId: 'other-student', entryId: entry.id }),
-      ).toThrow(/not found/)
-
-      // The demo entry is still present and unforgotten.
-      expect(listVipsTimelineEntries('demo', 'values')).toHaveLength(1)
-      expect(getVipsForgetCount('demo', 'values')).toBe(0)
+describe('forgetTimelineEntryHandler — happy path', () => {
+  it('delegates the forget under the context student id and returns dimension + forgotten_at', async () => {
+    forgetVipsTimelineEntryMock.mockResolvedValue({
+      id: 11,
+      dimension: 'values',
+      forgotten_at: '2026-05-19T08:00:00.000Z',
     })
 
-    it('rejects an empty studentId via Zod', () => {
-      expect(() =>
-        // biome-ignore lint/suspicious/noExplicitAny: deliberately invalid input
-        forgetTimelineEntryHandler({ studentId: '', entryId: 1 } as any),
-      ).toThrow()
+    const result = await forgetTimelineEntryHandler({ entryId: 11 })
+
+    expect(forgetVipsTimelineEntryMock).toHaveBeenCalledTimes(1)
+    expect(forgetVipsTimelineEntryMock).toHaveBeenCalledWith('demo', 11)
+    expect(result).toEqual({
+      entry_id: 11,
+      dimension: 'values',
+      forgotten_at: '2026-05-19T08:00:00.000Z',
+    })
+  })
+
+  it('takes the student id from the counselor context, never from the caller', async () => {
+    // Replaces the old "rejects an empty studentId via Zod" case: the input
+    // schema is now `{ entryId }` only. Tenancy comes from
+    // `requireCounselorContext`, so a caller-supplied studentId is ignored.
+    requireCounselorContextMock.mockResolvedValue({
+      counselorId: 'demo-counselor',
+      studentId: 'demo-a',
+    })
+    forgetVipsTimelineEntryMock.mockResolvedValue({
+      id: 3,
+      dimension: 'skills',
+      forgotten_at: '2026-05-19T08:00:00.000Z',
     })
 
-    it('rejects a non-positive entryId via Zod', () => {
-      expect(() =>
-        // biome-ignore lint/suspicious/noExplicitAny: deliberately invalid input
-        forgetTimelineEntryHandler({ studentId: 'demo', entryId: 0 } as any),
-      ).toThrow()
+    await forgetTimelineEntryHandler({ entryId: 3, studentId: 'attacker' } as never)
+
+    expect(forgetVipsTimelineEntryMock).toHaveBeenCalledWith('demo-a', 3)
+  })
+})
+
+describe('forgetTimelineEntryHandler — cross-student isolation', () => {
+  it("forgetting another student's entry surfaces an error and is a no-op", async () => {
+    // `forgetVipsTimelineEntry` returns null when the row is not visible to
+    // this student's tenancy envelope. The handler must fail deterministically.
+    forgetVipsTimelineEntryMock.mockResolvedValue(null)
+
+    await expect(forgetTimelineEntryHandler({ entryId: 11 })).rejects.toThrow(/not found/)
+    expect(forgetVipsTimelineEntryMock).toHaveBeenCalledWith('demo', 11)
+  })
+
+  it('fails loud when the delegate returns a row without forgotten_at', async () => {
+    forgetVipsTimelineEntryMock.mockResolvedValue({
+      id: 11,
+      dimension: 'values',
+      forgotten_at: null,
     })
-  },
-)
+
+    await expect(forgetTimelineEntryHandler({ entryId: 11 })).rejects.toThrow(
+      /did not record forgotten_at/,
+    )
+  })
+
+  it('rejects a non-positive entryId via Zod', async () => {
+    await expect(forgetTimelineEntryHandler({ entryId: 0 })).rejects.toThrow()
+    // Validation happens before any DB work.
+    expect(forgetVipsTimelineEntryMock).not.toHaveBeenCalled()
+  })
+})
