@@ -29,7 +29,7 @@ import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EngineHost } from '~/components/student-space/EngineHost'
-import { useEngine } from '~/lib/student-space/use-engine'
+import { useEngine, useEngineHydrated } from '~/lib/student-space/use-engine'
 
 const dispose = vi.fn()
 const openSurface = vi.fn()
@@ -368,6 +368,39 @@ describe('EngineHost', () => {
     await waitFor(() =>
       expect(openSurface).toHaveBeenCalledWith(expect.objectContaining({ surface: 'trajectory' })),
     )
+  })
+
+  // `refreshSnapshot` is optional in StudentSpaceBackendBridge, and the
+  // hoisted fixture above is a bare `{ version: 1 }` bridge (the afterEach
+  // deletes any per-test override). Optional-call short-circuiting used to
+  // make the whole hydration chain evaluate to `undefined`, so `hydrated`
+  // stayed false forever — pausing hydration-gated surfaces and pinning the
+  // History calendar skeleton. "No snapshot source" is a settled state.
+  describe('bridge without refreshSnapshot', () => {
+    it('still flips hydrated to true', async () => {
+      function HydrationProbe() {
+        return <div data-testid="hydrated">{useEngineHydrated() ? 'yes' : 'no'}</div>
+      }
+      renderHostAt(
+        '/',
+        <EngineHost>
+          <HydrationProbe />
+        </EngineHost>,
+      )
+      await waitFor(() => expect(screen.getByTestId('hydrated').textContent).toBe('yes'))
+    }, 3_000)
+
+    it('does not leave a hydration-gated route paused forever', async () => {
+      renderHostAt('/trajectory')
+
+      // `useStudentSpaceRouteSync` skips openSurface entirely while paused,
+      // so this call only lands once hydration settles.
+      await waitFor(() =>
+        expect(openSurface).toHaveBeenCalledWith(
+          expect.objectContaining({ surface: 'trajectory' }),
+        ),
+      )
+    }, 3_000)
   })
 
   it('does not call createGame when unmounted before the dynamic import resolves', async () => {
