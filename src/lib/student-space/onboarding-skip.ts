@@ -1,4 +1,5 @@
 import { OFFLINE_DEMO_STUDENTS } from '~/engine/student-space/Game/View/Onboarding/copy.js'
+import { addSgDays, sgToday } from '~/lib/entry-date'
 
 /**
  * Canonical "skip onboarding (dev)" routine for the React ceremony.
@@ -35,15 +36,14 @@ const DEMO_MOOD_EMOTIONS = ['joy', 'anxiety', 'sadness', 'envy', 'ennui', 'fear'
 function seedDemoMoodWeek(moodPins: NonNullable<SkipContext['state']>['moodPins']) {
   if (!moodPins?.hydrate) return
   if (Array.isArray(moodPins.pins) && moodPins.pins.length > 0) return
-  const today = new Date()
-  today.setHours(12, 0, 0, 0)
+  const todayKey = sgToday()
   const pins: SeedPin[] = DEMO_MOOD_EMOTIONS.map((emotion, offset) => {
-    const day = new Date(today)
-    day.setDate(today.getDate() - (DEMO_MOOD_EMOTIONS.length - 1 - offset))
-    const entryDate = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`
+    const entryDate = addSgDays(todayKey, -(DEMO_MOOD_EMOTIONS.length - 1 - offset)) ?? todayKey
+    // Noon SGT so the instant is unambiguously inside the day it is keyed to.
+    const createdAt = new Date(`${entryDate}T12:00:00+08:00`).toISOString()
     return {
       id: `demo-mood-${entryDate}`,
-      createdAt: day.toISOString(),
+      createdAt,
       entryDate,
       emotion,
       intensity: 0.45 + ((offset * 13) % 35) / 100,
