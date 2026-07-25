@@ -4,8 +4,8 @@
  * `shiftCorpusDates` is a pure function: no DB, no fetches, only an
  * optional `now` override. These tests exercise the guarantees from the
  * plan:
- *   - the shifted demo-a max `created_at` lands on "yesterday" (UTC date)
- *     relative to the given `now`
+ *   - the shifted demo-a max `created_at` lands on "yesterday" (Asia/Singapore
+ *     date) relative to the given `now`
  *   - sort order of all `created_at` values is preserved
  *   - every reflection shifts by the same whole-day delta
  *   - `vips_timeline_entries[].committed_at` shifts by the same delta;
@@ -16,8 +16,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import { loadSeedCorpus, type MultiStudentSeedCorpus, shiftCorpusDates } from '~/db/seed'
+import { sgDateKey } from '~/lib/entry-date'
 
 const NOW = new Date('2026-07-23T10:00:00Z')
+/** 01:00 SGT on 2026-07-23 — the UTC date is still 07-22 at this instant. */
+const NOW_EARLY_SGT_MORNING = new Date('2026-07-22T17:00:00Z')
 
 function allCreatedAt(corpus: MultiStudentSeedCorpus): string[] {
   return corpus.students.flatMap((student) => student.reflections.map((r) => r.created_at))
@@ -30,14 +33,41 @@ function findStudent(corpus: MultiStudentSeedCorpus, studentId: string) {
 }
 
 describe('shiftCorpusDates', () => {
-  it('lands the shifted demo-a max created_at on "yesterday" (UTC date)', () => {
+  it('lands the shifted demo-a max created_at on "yesterday" (Asia/Singapore day)', () => {
     const original = loadSeedCorpus({ shiftDates: false })
     const shifted = shiftCorpusDates(original, NOW)
 
     const demoA = findStudent(shifted, 'demo-a')
     const sortedDates = demoA.reflections.map((r) => r.created_at).sort()
     const maxCreatedAt = sortedDates[sortedDates.length - 1]
-    expect(maxCreatedAt?.slice(0, 10)).toBe('2026-07-22')
+    expect(sgDateKey(maxCreatedAt)).toBe('2026-07-22')
+  })
+
+  it('still lands on yesterday between 00:00 and 08:00 SGT (the morning-demo window)', () => {
+    // At 01:00 SGT on 07-23 the UTC date is still 07-22, so the old
+    // UTC-anchored delta was one day too large and put the newest entry on
+    // 2026-07-21 — two SGT days back, leaving yesterday's cell empty.
+    const original = loadSeedCorpus({ shiftDates: false })
+    const shifted = shiftCorpusDates(original, NOW_EARLY_SGT_MORNING)
+
+    const demoA = findStudent(shifted, 'demo-a')
+    const sortedDates = demoA.reflections.map((r) => r.created_at).sort()
+    const maxCreatedAt = sortedDates[sortedDates.length - 1]
+    expect(sgDateKey(maxCreatedAt)).toBe('2026-07-22')
+  })
+
+  it('depends on the instant, never on the runner timezone', () => {
+    const original = loadSeedCorpus({ shiftDates: false })
+    const baseline = shiftCorpusDates(original, NOW)
+
+    const ORIGINAL_TZ = process.env.TZ
+    process.env.TZ = 'Pacific/Auckland'
+    try {
+      const underAuckland = shiftCorpusDates(original, NOW)
+      expect(allCreatedAt(underAuckland)).toEqual(allCreatedAt(baseline))
+    } finally {
+      process.env.TZ = ORIGINAL_TZ
+    }
   })
 
   it('preserves the sort order of all created_at values across all students', () => {

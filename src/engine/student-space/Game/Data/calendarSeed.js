@@ -7,12 +7,14 @@
  * visible month at boot.
  */
 
-const dateOffset = (n) =>
-{
-    const d = new Date()
-    d.setDate(d.getDate() + n)
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+import { sgDateKey } from '../entry-date.constants.js'
+
+const MS_PER_DAY = 86_400_000
+
+// Offset in instant space, then read the Asia/Singapore day — SGT has no DST,
+// so ±24h steps are exact and the seed lands on the same cells the calendar
+// renders regardless of the device timezone.
+const dateOffset = (n) => sgDateKey(new Date(Date.now() + n * MS_PER_DAY))
 
 export const CALENDAR_SEED = [
     { id: 'ev_01', label: 'Mathematics — Sec 3.4',          kind: 'class', date: dateOffset(1)  },

@@ -3,7 +3,7 @@ import { Toggle } from '@base-ui-components/react/toggle'
 import { ToggleGroup } from '@base-ui-components/react/toggle-group'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { sgDateKey, sgToday } from '~/lib/entry-date'
+import { addSgDays, sgDayKeyParts, sgMonthGridKeys, sgToday, sgWeekKeys } from '~/lib/entry-date'
 import { EMOTION_BY_ID } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
 
@@ -34,32 +34,22 @@ const MONTH_NAMES = [
   'December',
 ]
 
-const dayLabel = (d: Date): string =>
-  d.toLocaleDateString(undefined, {
+/**
+ * Format a day key for the accessible name. The key is anchored to UTC and
+ * read back with `timeZone: 'UTC'`, so the label can never disagree with the
+ * key it came from — rebuilding a local `Date` from a key would re-introduce
+ * the device timezone and shift the label a day east of UTC+8.
+ */
+const dayLabel = (dayKey: string): string => {
+  const parts = sgDayKeyParts(dayKey)
+  if (!parts) return dayKey
+  return new Date(Date.UTC(parts.year, parts.month0, parts.day)).toLocaleDateString(undefined, {
     weekday: 'long',
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'UTC',
   })
-
-function buildMonthCells(year: number, month0: number): Date[] {
-  const first = new Date(year, month0, 1)
-  const startOffset = first.getDay()
-  const cells: Date[] = []
-  for (let i = 0; i < 42; i++) cells.push(new Date(year, month0, 1 + (i - startOffset)))
-  return cells
-}
-
-function buildWeekCells(anchor: Date): Date[] {
-  const sunday = new Date(anchor)
-  sunday.setDate(anchor.getDate() - anchor.getDay())
-  const cells: Date[] = []
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(sunday)
-    d.setDate(sunday.getDate() + i)
-    cells.push(d)
-  }
-  return cells
 }
 
 const SHORT_MONTH_NAMES = [
@@ -77,19 +67,19 @@ const SHORT_MONTH_NAMES = [
   'Dec',
 ]
 
-function formatWeekRange(cells: Date[]): string {
-  const start = cells[0]
-  const end = cells[cells.length - 1]
+function formatWeekRange(cells: string[]): string {
+  const start = sgDayKeyParts(cells[0])
+  const end = sgDayKeyParts(cells[cells.length - 1])
   if (!start || !end) return ''
-  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
-  const sameYear = start.getFullYear() === end.getFullYear()
+  const sameMonth = start.month0 === end.month0 && start.year === end.year
+  const sameYear = start.year === end.year
   if (sameMonth) {
-    return `${SHORT_MONTH_NAMES[start.getMonth()]} ${start.getDate()} – ${end.getDate()}, ${start.getFullYear()}`
+    return `${SHORT_MONTH_NAMES[start.month0]} ${start.day} – ${end.day}, ${start.year}`
   }
   if (sameYear) {
-    return `${SHORT_MONTH_NAMES[start.getMonth()]} ${start.getDate()} – ${SHORT_MONTH_NAMES[end.getMonth()]} ${end.getDate()}, ${start.getFullYear()}`
+    return `${SHORT_MONTH_NAMES[start.month0]} ${start.day} – ${SHORT_MONTH_NAMES[end.month0]} ${end.day}, ${start.year}`
   }
-  return `${SHORT_MONTH_NAMES[start.getMonth()]} ${start.getDate()}, ${start.getFullYear()} – ${SHORT_MONTH_NAMES[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`
+  return `${SHORT_MONTH_NAMES[start.month0]} ${start.day}, ${start.year} – ${SHORT_MONTH_NAMES[end.month0]} ${end.day}, ${end.year}`
 }
 
 export interface CalendarPaneEngineState {
@@ -149,20 +139,26 @@ export function CalendarPane({
   loading?: boolean
 }) {
   void onViewModeChange // Receiver wires the toggle; CalendarPane only reads viewMode now.
-  const now = new Date()
-  const [anchorDate, setAnchorDate] = useState<Date>(() => parseYmdToDate(selectedDate) ?? now)
+  // Cell identity is a YYYY-MM-DD Asia/Singapore day key end to end: no cell is
+  // ever built from `new Date(y, m, d)`, so the rendered day number, the
+  // accessible label and the Toggle value can never disagree with each other or
+  // with the key the read side files entries under.
+  const [anchorKey, setAnchorKey] = useState<string>(() =>
+    selectedDate && sgDayKeyParts(selectedDate) ? selectedDate : sgToday(),
+  )
 
   useEffect(() => {
-    const next = parseYmdToDate(selectedDate)
-    if (next) setAnchorDate(next)
+    if (selectedDate && sgDayKeyParts(selectedDate)) setAnchorKey(selectedDate)
   }, [selectedDate])
 
+  const todayYmd = sgToday()
+  const anchorParts = sgDayKeyParts(anchorKey) ?? sgDayKeyParts(todayYmd)
+  const viewYear = anchorParts?.year ?? 1970
+  const viewMonth = anchorParts?.month0 ?? 0
+
   const cells = useMemo(
-    () =>
-      viewMode === 'week'
-        ? buildWeekCells(anchorDate)
-        : buildMonthCells(anchorDate.getFullYear(), anchorDate.getMonth()),
-    [viewMode, anchorDate],
+    () => (viewMode === 'week' ? sgWeekKeys(anchorKey) : sgMonthGridKeys(viewYear, viewMonth)),
+    [viewMode, anchorKey, viewYear, viewMonth],
   )
   const captures = engineState?.captures?.entries ?? []
   const events = engineState?.calendar?.events ?? []
@@ -189,24 +185,28 @@ export function CalendarPane({
     pushChip(date, { type: 'event', label: ev.label ?? ev.title ?? 'Event' })
   }
 
-  const todayYmd = sgToday()
-  const viewYear = anchorDate.getFullYear()
-  const viewMonth = anchorDate.getMonth()
-
   const stepView = (delta: number) => {
-    const next = new Date(anchorDate)
-    if (viewMode === 'week') next.setDate(next.getDate() + delta * 7)
-    else next.setMonth(next.getMonth() + delta)
-    setAnchorDate(next)
+    if (viewMode === 'week') {
+      setAnchorKey((current) => addSgDays(current, delta * 7) ?? current)
+      return
+    }
+    // Month steps anchor to the 1st. Stepping with a local Date's setMonth used
+    // to overflow from long months (Jan 31 + 1 month → Mar 3); month view only
+    // reads year/month off the anchor, so the day is not otherwise observable.
+    const stepped = new Date(Date.UTC(viewYear, viewMonth + delta, 1))
+    const y = stepped.getUTCFullYear()
+    const mm = String(stepped.getUTCMonth() + 1).padStart(2, '0')
+    setAnchorKey(`${y}-${mm}-01`)
   }
 
   const headerLabel =
     viewMode === 'week' ? formatWeekRange(cells) : `${MONTH_NAMES[viewMonth]} ${viewYear}`
 
+  const todayParts = sgDayKeyParts(todayYmd)
   const isCurrentView =
     viewMode === 'week'
-      ? cells.some((c) => sgDateKey(c) === todayYmd)
-      : viewYear === now.getFullYear() && viewMonth === now.getMonth()
+      ? cells.includes(todayYmd)
+      : viewYear === todayParts?.year && viewMonth === todayParts?.month0
 
   return (
     <div
@@ -230,7 +230,7 @@ export function CalendarPane({
           {!isCurrentView ? (
             <BaseButton
               type="button"
-              onClick={() => setAnchorDate(now)}
+              onClick={() => setAnchorKey(todayYmd)}
               className="h-10 cursor-pointer rounded-full px-3 text-xs font-semibold text-(--color-sheet-ink-soft) transition-[background-color,color,transform] hover:bg-black/5 hover:text-(--color-sheet-ink) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent active:scale-[0.96]"
             >
               Today
@@ -265,9 +265,9 @@ export function CalendarPane({
             if (typeof value === 'string') onSelectDate(value)
           }}
         >
-          {cells.map((cell) => {
-            const cellYmd = sgDateKey(cell) ?? ''
-            const isOutside = viewMode === 'month' && cell.getMonth() !== viewMonth
+          {cells.map((cellYmd) => {
+            const cellParts = sgDayKeyParts(cellYmd)
+            const isOutside = viewMode === 'month' && cellParts?.month0 !== viewMonth
             const isSelected = selectedDate === cellYmd
             const isToday = cellYmd === todayYmd
             const cellChips = chipsByDay.get(cellYmd) ?? []
@@ -282,7 +282,7 @@ export function CalendarPane({
                 type="button"
                 value={cellYmd}
                 aria-current={isToday ? 'date' : undefined}
-                aria-label={dayLabel(cell)}
+                aria-label={dayLabel(cellYmd)}
                 data-selected={isSelected || undefined}
                 data-today={isToday || undefined}
                 data-outside={isOutside || undefined}
@@ -302,11 +302,11 @@ export function CalendarPane({
                     isSelected ? 'text-white' : 'text-(--color-sheet-ink)',
                   )}
                 >
-                  {cell.getDate()}
+                  {cellParts?.day}
                 </span>
                 {loading && !isOutside ? (
                   <div className="flex min-h-0 flex-col gap-0.5" aria-hidden>
-                    {Array.from({ length: skeletonChipCount(cell.getDate()) }).map((_, i) => (
+                    {Array.from({ length: skeletonChipCount(cellParts?.day ?? 1) }).map((_, i) => (
                       // biome-ignore lint/suspicious/noArrayIndexKey: positional skeleton bars
                       <SkeletonChip key={i} />
                     ))}
@@ -435,15 +435,4 @@ function CalendarLegend() {
 
 function eventDate(event: { entryDate?: string; date?: string }) {
   return event.entryDate || event.date || ''
-}
-
-function parseYmdToDate(value: string | null): Date | null {
-  if (!value) return null
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!match) return null
-  const year = Number.parseInt(match[1] ?? '', 10)
-  const month = Number.parseInt(match[2] ?? '', 10) - 1
-  const day = Number.parseInt(match[3] ?? '', 10)
-  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
-  return new Date(year, month, day)
 }

@@ -84,7 +84,7 @@ function parseArgs(argv: string[]): CliArgs {
 const args = parseArgs(process.argv.slice(2))
 
 function resolveStudentIds(studentFlag: string | undefined): string[] {
-  const corpus = loadSeedCorpus()
+  const corpus = loadSeedCorpus({ shiftDates: false })
   const known = corpus.students.map((s) => s.student_id)
   if (studentFlag === undefined) return known
   if (!known.includes(studentFlag)) {
@@ -107,7 +107,11 @@ function loadReflectionsInScope(
   studentIds: string[],
   limit: number | undefined,
 ): ReflectionWithMeta[] {
-  const corpus = loadSeedCorpus()
+  // Read the corpus unshifted: absolute `created_at` values reach agent prompts
+  // (src/agents/context/index.ts), so ablation inputs must be byte-stable across
+  // days or every run's prompts differ. The DB seed in main() stays shifted —
+  // that one only has to make search_past_mirrors return plausible rows.
+  const corpus = loadSeedCorpus({ shiftDates: false })
   const flat: ReflectionWithMeta[] = []
   for (const s of corpus.students) {
     if (!studentIds.includes(s.student_id)) continue
