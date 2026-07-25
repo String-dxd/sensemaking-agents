@@ -1,0 +1,29 @@
+name: CI — check + test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      # NOTE: no DATABASE_URL on purpose. 128 DB-gated tests are skipped by
+      # design until plans/059 revives them; setting DATABASE_URL here would
+      # turn them into hard failures.
+      - run: pnpm test
