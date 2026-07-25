@@ -8,6 +8,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
+  sgDateKey as engineSgDateKey,
+  sgToday as engineSgToday,
+} from '~/engine/student-space/Game/entry-date.constants.js'
+import {
   addSgDays,
   sgDateKey,
   sgDayKeyParts,
@@ -151,5 +155,37 @@ describe('day-key arithmetic is device-timezone independent', () => {
       '2026-03-20',
       '2026-03-21',
     ])
+  })
+})
+
+/**
+ * Parity with the engine mirror
+ * (src/engine/student-space/Game/entry-date.constants.js). The engine stays
+ * vanilla JS and cannot import this TS module, so the day-bucketing logic is
+ * hand-mirrored — this block is the contract that keeps the two honest, the
+ * same arrangement as test/lib/year-buckets.test.ts.
+ */
+describe('engine mirror parity', () => {
+  const BOUNDARY_INSTANTS = [
+    '2026-07-19T15:59:00Z', // 23:59 SGT on 07-19
+    '2026-07-19T16:00:00Z', // 00:00 SGT on 07-20 — the boundary itself
+    '2026-07-19T23:00:00Z', // 07:00 SGT on 07-20
+    '2026-12-31T15:59:59Z', // 23:59 SGT on 12-31
+    '2026-12-31T16:00:00Z', // 00:00 SGT on 2027-01-01 — year rollover
+    '2026-03-09T23:45:00Z', // 07:45 SGT on 03-10
+    '2026-01-01T00:00:00Z', // 08:00 SGT on 01-01
+  ]
+
+  it.each(BOUNDARY_INSTANTS)('agrees with the engine mirror on %s', (iso) => {
+    expect(engineSgDateKey(iso)).toBe(sgDateKey(iso))
+  })
+
+  it('agrees with the engine mirror on invalid input', () => {
+    expect(engineSgDateKey('not-a-date')).toBeNull()
+    expect(sgDateKey('not-a-date')).toBeNull()
+  })
+
+  it('agrees with the engine mirror on today', () => {
+    expect(engineSgToday()).toBe(sgToday())
   })
 })
