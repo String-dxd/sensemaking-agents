@@ -252,17 +252,29 @@ export function EngineHost({
         // flips non-null. Snapshot hydration only re-applies the route
         // surface so already-rendered sheets refresh against fresh data,
         // and unpauses hydration-gated surfaces (e.g. trajectory).
-        void backend
-          .refreshSnapshot?.()
-          .then((snapshot) => {
-            if (cancelled) return
-            applyStudentSpaceBackendSnapshot(live, snapshot)
-            setHydrated(true)
-          })
-          .catch((snapshotErr) => {
-            console.warn('[EngineHost] backend snapshot hydration failed', snapshotErr)
-            if (!cancelled) setHydrated(true)
-          })
+        // A bridge may legitimately omit `refreshSnapshot` (the field is
+        // optional in StudentSpaceBackendBridge). Calling it with the
+        // optional-call operator and chaining off the result short-circuits
+        // the WHOLE chain to `undefined` when the method is absent, so
+        // neither `.then` nor `.catch` runs and `hydrated` stays false
+        // forever — pausing hydration-gated surfaces and pinning the History
+        // calendar skeleton. Branch explicitly instead.
+        const refresh = backend.refreshSnapshot
+        if (refresh) {
+          void refresh()
+            .then((snapshot) => {
+              if (cancelled) return
+              applyStudentSpaceBackendSnapshot(live, snapshot)
+              setHydrated(true)
+            })
+            .catch((snapshotErr) => {
+              console.warn('[EngineHost] backend snapshot hydration failed', snapshotErr)
+              if (!cancelled) setHydrated(true)
+            })
+        } else if (!cancelled) {
+          // No snapshot source: hydration is trivially settled.
+          setHydrated(true)
+        }
       } catch (err) {
         console.error('[EngineHost] createGame failed', err)
         if (!cancelled) {

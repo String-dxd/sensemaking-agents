@@ -22,6 +22,9 @@ import type { z } from 'zod'
 
 const DEFAULT_TIMEOUT_MS = 120_000
 
+/** Upper bound on stream cleanup. See the `finally` in `runManagedAgent`. */
+const CLEANUP_TIMEOUT_MS = 1_000
+
 /**
  * Normalized event shape consumed by `runManagedAgent`. Mirrors the subset of
  * `BetaManagedAgentsStreamSessionEvents` we actually act on. Adding new
@@ -32,7 +35,9 @@ export type ManagedAgentRunnerEvent =
   | { type: 'agent.message'; text: string }
   | {
       type: 'session.status_idle'
-      stopReason: 'end_turn' | 'requires_action' | 'retries_exhausted'
+      stopReason: 'end_turn' | 'requires_action' | 'retries_exhausted' | 'unrecognised'
+      /** The stop reason exactly as the SDK reported it, for logging. */
+      rawStopReason: string
     }
   | { type: 'session.status_terminated' }
   | { type: 'session.error'; message: string; retryStatus: 'retrying' | 'exhausted' | 'terminal' }
@@ -85,7 +90,8 @@ export class ManagedAgentError extends Error {
       | 'STREAM_ERROR'
       | 'TIMEOUT'
       | 'REQUIRES_ACTION'
-      | 'RETRIES_EXHAUSTED',
+      | 'RETRIES_EXHAUSTED'
+      | 'UNKNOWN_STOP_REASON',
     readonly cause?: unknown,
   ) {
     super(message)
@@ -289,7 +295,13 @@ async function* mapSdkEventStream(
   }
 }
 
-function translateSdkEvent(
+/**
+ * Exported for tests. Production code reaches this only through
+ * `mapSdkEventStream`; the export exists so the stop-reason classification can
+ * be table-tested directly (same precedent as
+ * `resetManagedAgentClientCacheForTests`).
+ */
+export function translateSdkEvent(
   raw: { type?: string } & Record<string, unknown>,
 ): ManagedAgentRunnerEvent {
   const t = raw.type
@@ -302,14 +314,15 @@ function translateSdkEvent(
     return { type: 'agent.message', text }
   }
   if (t === 'session.status_idle') {
-    const stop = raw.stop_reason as { type: string } | undefined
+    const stop = raw.stop_reason as { type?: string } | undefined
+    const rawStopReason = typeof stop?.type === 'string' ? stop.type : 'missing'
     const stopReason =
-      stop?.type === 'end_turn' ||
-      stop?.type === 'requires_action' ||
-      stop?.type === 'retries_exhausted'
-        ? stop.type
-        : 'end_turn'
-    return { type: 'session.status_idle', stopReason }
+      rawStopReason === 'end_turn' ||
+      rawStopReason === 'requires_action' ||
+      rawStopReason === 'retries_exhausted'
+        ? rawStopReason
+        : 'unrecognised'
+    return { type: 'session.status_idle', stopReason, rawStopReason }
   }
   if (t === 'session.status_terminated') {
     return { type: 'session.status_terminated' }
@@ -353,6 +366,10 @@ function translateSdkEvent(
  *   - REQUIRES_ACTION:   the agent paused on a tool call. Mirror has no tools;
  *                        Connector/Cartographer (Steps 8/9) will need a tool loop.
  *   - RETRIES_EXHAUSTED: the agent hit `max_iterations` or an unrecoverable error.
+ *   - UNKNOWN_STOP_REASON: session went idle with a stop reason we do not
+ *                        recognise. Treated as a failure, never as success —
+ *                        a future or partial stop reason must not be reported
+ *                        as a completed turn.
  *   - NO_OUTPUT:         stream ended with idle but produced no agent.message text.
  *   - PARSE_ERROR:       text was not valid JSON, or failed schema validation.
  *   - STREAM_ERROR:      surfaced `session.error` with `retry_status: terminal`.
@@ -375,10 +392,18 @@ export async function runManagedAgent<T>(
   // Open the event stream before sending input so we don't miss the first
   // `session.status_running` or `agent.message` event the server emits in
   // response to the user message.
-  const streamIterable = transport.streamEvents(
-    sessionId,
-    opts.signal ? { signal: opts.signal } : undefined,
-  )
+  //
+  // The runner owns its own abort signal so its `timeoutMs` can actually
+  // cancel the in-flight HTTP request. Chained to the caller's signal so an
+  // external abort still propagates.
+  const controller = new AbortController()
+  const forwardAbort = () => controller.abort(opts.signal?.reason)
+  if (opts.signal) {
+    if (opts.signal.aborted) controller.abort(opts.signal.reason)
+    else opts.signal.addEventListener('abort', forwardAbort, { once: true })
+  }
+
+  const streamIterable = transport.streamEvents(sessionId, { signal: controller.signal })
   await transport.sendUserMessage(sessionId, opts.prompt)
 
   const usage: ManagedAgentUsage = {
@@ -420,6 +445,17 @@ export async function runManagedAgent<T>(
             'REQUIRES_ACTION',
           )
         }
+        if (value.stopReason === 'unrecognised') {
+          // eslint-disable-next-line no-console -- ops triage signal: we need the raw value to widen the union later
+          console.warn('[managed-agent] unrecognised stop_reason', {
+            sessionId,
+            rawStopReason: value.rawStopReason,
+          })
+          throw new ManagedAgentError(
+            `Managed Agents runner: session ${sessionId} went idle with an unrecognised stop reason "${value.rawStopReason}". Refusing to treat it as a completed turn.`,
+            'UNKNOWN_STOP_REASON',
+          )
+        }
         throw new ManagedAgentError(
           `Managed Agents runner: session ${sessionId} exhausted retries before producing a final answer.`,
           'RETRIES_EXHAUSTED',
@@ -440,8 +476,23 @@ export async function runManagedAgent<T>(
       }
       // 'other' events (status_running, thinking, span.model_request_start, etc.) are no-ops here.
     }
+  } catch (err) {
+    // Cancel the in-flight request so the pending `iterator.next()` settles
+    // and the cleanup below cannot block on it.
+    controller.abort(err)
+    throw err
   } finally {
-    await iterator.return?.()
+    if (opts.signal) opts.signal.removeEventListener('abort', forwardAbort)
+    // Bounded cleanup: `mapSdkEventStream` is an async generator, so its
+    // `.return()` queues behind any still-pending `.next()`. On a genuinely
+    // hung upstream stream an unbounded `await` here swallows the TIMEOUT we
+    // are trying to surface. Race it and move on. Rejections from `return()`
+    // are swallowed on purpose — a failing cleanup must never replace the
+    // original error.
+    await Promise.race([
+      Promise.resolve(iterator.return?.()).catch(() => undefined),
+      new Promise((resolve) => setTimeout(resolve, CLEANUP_TIMEOUT_MS)),
+    ])
   }
 
   if (collectedText.trim().length === 0) {
