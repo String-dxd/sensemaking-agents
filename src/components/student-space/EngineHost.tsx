@@ -1,10 +1,14 @@
 import { useLocation } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { toast as sonnerToast } from 'sonner'
 import { Vector3 } from 'three'
 import '~/engine/student-space/style.css'
 import type { AuthMenuState, Game } from '~/engine/student-space/Game'
-import { createStudentSpaceBackendBridge } from '~/lib/student-space/backend-bridge'
+import {
+  createStudentSpaceBackendBridge,
+  DEMO_CONNECTOR_FINISHED_EVENT,
+} from '~/lib/student-space/backend-bridge'
 import { applyStudentSpaceBackendSnapshot } from '~/lib/student-space/backend-snapshot'
 import { useCameraPreset } from '~/lib/student-space/camera-tuner'
 import {
@@ -65,7 +69,24 @@ export function EngineHost({
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [error, setError] = useState<Error | null>(null)
-  const backend = useMemo(() => createStudentSpaceBackendBridge(), [])
+  // Live-engine handle for the bridge's snapshot-apply seam. A ref (not the
+  // `game` state) because the bridge is constructed once, before the engine
+  // exists, and must keep seeing the current instance across boots.
+  const gameRef = useRef<Game | null>(null)
+  const backend = useMemo(
+    () =>
+      createStudentSpaceBackendBridge({
+        // Plan 066: the capture-time Connector run pushes its fresh snapshot
+        // into the engine through this callback instead of reaching for the
+        // `window.__studentSpaceGame` global. No engine mounted → no-op.
+        applySnapshot: (snapshot) => {
+          const live = gameRef.current
+          if (!live) return
+          applyStudentSpaceBackendSnapshot(live, snapshot)
+        },
+      }),
+    [],
+  )
   const [game, setGame] = useState<Game | null>(null)
   const [hydrated, setHydrated] = useState(false)
   const onNavigate = useStudentSpaceNavigate()
@@ -241,9 +262,11 @@ export function EngineHost({
         // `dispose()` synchronously to drain Persistence before the
         // `ss:v1:*` localStorage wipe. The handle is cleared on unmount.
         window.__studentSpaceGame = live
+        gameRef.current = live
         setGame(live)
         dispose = () => {
           window.__studentSpaceGame = null
+          gameRef.current = null
           setGame(null)
           setHydrated(false)
           live.dispose()
@@ -331,11 +354,48 @@ export function EngineHost({
           {showOnboardingFlow ? <OnboardingFlow /> : null}
           {import.meta.env.DEV && game ? <CameraTuneBridge game={game} /> : null}
           {game ? <MatureIslandBridge game={game} /> : null}
+          <DemoConnectorAckBridge />
           {children}
         </EngineOverlayProvider>
       </EngineHydrationContext.Provider>
     </EngineContext.Provider>
   )
+}
+
+const DEMO_CONNECTOR_ACK_TOAST_ID = 'demo-connector-ack'
+const DEMO_CONNECTOR_ACK_TTL_MS = 3200
+
+/**
+ * The acknowledgment beat for the capture-time Connector run (plan 066,
+ * copy authored in plan 041 Step 6). Flag-gated, listen-only, and
+ * deliberately silent on every non-success path: no toast when the run
+ * failed, and none when it produced nothing (`succeeded === 0`). Never an
+ * error message — the tone constraint is "still listening", never
+ * "rejected", and no XP/points/streak framing.
+ *
+ * Renders through the `<Toaster>` the world route already mounts
+ * (`IslandProgressionOverlay`), which is where captures happen; a second
+ * Toaster would duplicate every toast in the app.
+ */
+function DemoConnectorAckBridge() {
+  useEffect(() => {
+    if (import.meta.env.VITE_DEMO_CONNECTOR_AT_CAPTURE !== '1') return
+    const onFinished = (event: Event) => {
+      const succeeded = (event as CustomEvent<{ succeeded?: number }>).detail?.succeeded ?? 0
+      if (succeeded <= 0) return
+      sonnerToast.custom(
+        () => (
+          <div className="pointer-events-auto flex w-[min(90vw,380px)] items-center rounded-2xl bg-[rgba(20,28,18,0.92)] px-3.5 py-2.5 text-xs font-medium text-[#fffbe6] shadow-[0_10px_30px_rgba(0,0,0,0.24)] backdrop-blur-md">
+            Heard. Something is growing on the island.
+          </div>
+        ),
+        { duration: DEMO_CONNECTOR_ACK_TTL_MS, id: DEMO_CONNECTOR_ACK_TOAST_ID },
+      )
+    }
+    window.addEventListener(DEMO_CONNECTOR_FINISHED_EVENT, onFinished)
+    return () => window.removeEventListener(DEMO_CONNECTOR_FINISHED_EVENT, onFinished)
+  }, [])
+  return null
 }
 
 /**

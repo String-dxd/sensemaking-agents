@@ -195,6 +195,46 @@ Reasoning:
     cannot block capture UX, but the wall-clock time to a visibly-updated
     `/profile` is still unmeasured in this environment.
 
+## Measured latency (plan 066) — STILL BLOCKED
+
+Plan 066 Step 1 re-attempted the measurement on 2026-07-25 and hit the same
+wall. The executor's worktree has no live backend to measure against:
+
+```
+$ printenv DATABASE_URL   → (empty, exit 1)
+$ printenv | grep -c MANAGED_AGENT   → 0
+$ ls -a | grep '^\.env'   → no matches
+```
+
+No numbers are recorded here, because no run happened. **The median
+capture→profile latency remains unmeasured**, and the "seconds" claim in the
+Recommendation above is still an architectural expectation rather than an
+observation. Anyone with `DATABASE_URL` + `MANAGED_AGENT_*` can close this by
+following the "To complete Step 4" recipe above and appending the three raw
+`…ms` values, their median, and the machine/network context.
+
+## Productionization status (plan 066)
+
+Three of the four maintenance items the Recommendation lists as blockers have
+since landed (still behind `VITE_DEMO_CONNECTOR_AT_CAPTURE`):
+
+- **Snapshot-apply seam** — the helper no longer reads
+  `window.__studentSpaceGame`. `createStudentSpaceBackendBridge` now takes an
+  optional `applySnapshot` callback, and `EngineHost` binds it to the live
+  `Game` it already owns. No engine mounted → the push is silently dropped.
+- **Burst debounce** — module-local single-flight state in
+  `backend-bridge.ts`: at most one run in flight plus at most one queued
+  rerun, settle-triggered (no timers). A burst of N captures costs 2 runs, and
+  the newest capture is still picked up by the rerun's candidate scan.
+- **Acknowledgment beat** — a successful run with `processed > 0` dispatches
+  `ss:demo-connector-finished` with `{ succeeded }`; `EngineHost` listens and
+  shows one auto-dismissing toast ("Heard. Something is growing on the
+  island.") only when `succeeded > 0`. Failures and zero-yield runs render
+  nothing — silence stays the failure UX.
+
+Still open, deliberately: the live latency number above, and the product
+decision about promoting the flag to a default or a per-student setting.
+
 ## What was skipped
 
 - **Step 4** (live measurement): BLOCKED, reason above.
