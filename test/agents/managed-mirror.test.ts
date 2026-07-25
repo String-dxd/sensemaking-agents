@@ -1,9 +1,10 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ManagedAgentError,
   type ManagedAgentRunnerEvent,
   type ManagedAgentTransport,
   runManagedAgent,
+  translateSdkEvent,
 } from '~/agents/runner'
 import { MirrorOutputSchema } from '~/agents/schemas'
 
@@ -109,7 +110,7 @@ describe('U6 runManagedAgent — happy path', () => {
           cacheReadInputTokens: 0,
           cacheCreationInputTokens: 0,
         },
-        { type: 'session.status_idle', stopReason: 'end_turn' },
+        { type: 'session.status_idle', stopReason: 'end_turn', rawStopReason: 'end_turn' },
       ],
       { capture },
     )
@@ -137,7 +138,7 @@ describe('U6 runManagedAgent — happy path', () => {
     const transport = makeFakeTransport([
       { type: 'agent.message', text: part1 },
       { type: 'agent.message', text: part2 },
-      { type: 'session.status_idle', stopReason: 'end_turn' },
+      { type: 'session.status_idle', stopReason: 'end_turn', rawStopReason: 'end_turn' },
     ])
 
     const result = await runManagedAgent({
@@ -153,7 +154,7 @@ describe('U6 runManagedAgent — happy path', () => {
   it('strips ```json fences before JSON.parse', async () => {
     const transport = makeFakeTransport([
       { type: 'agent.message', text: `\`\`\`json\n${VALID_MIRROR_JSON}\n\`\`\`` },
-      { type: 'session.status_idle', stopReason: 'end_turn' },
+      { type: 'session.status_idle', stopReason: 'end_turn', rawStopReason: 'end_turn' },
     ])
     const result = await runManagedAgent({
       agentId: 'agt_mirror',
@@ -171,7 +172,7 @@ describe('U6 runManagedAgent — happy path', () => {
         type: 'agent.message',
         text: `\`\`\`json\n${VALID_MIRROR_JSON}\n\nI will stop here.`,
       },
-      { type: 'session.status_idle', stopReason: 'end_turn' },
+      { type: 'session.status_idle', stopReason: 'end_turn', rawStopReason: 'end_turn' },
     ])
     const result = await runManagedAgent({
       agentId: 'agt_mirror',
@@ -188,7 +189,11 @@ describe('U6 runManagedAgent — failure modes', () => {
   it('throws REQUIRES_ACTION when session.status_idle stop_reason is requires_action (Mirror has no tools)', async () => {
     const transport = makeFakeTransport([
       { type: 'agent.message', text: '{"partial":true}' },
-      { type: 'session.status_idle', stopReason: 'requires_action' },
+      {
+        type: 'session.status_idle',
+        stopReason: 'requires_action',
+        rawStopReason: 'requires_action',
+      },
     ])
     await expect(
       runManagedAgent({
@@ -203,7 +208,11 @@ describe('U6 runManagedAgent — failure modes', () => {
 
   it('throws RETRIES_EXHAUSTED on retries_exhausted stop_reason', async () => {
     const transport = makeFakeTransport([
-      { type: 'session.status_idle', stopReason: 'retries_exhausted' },
+      {
+        type: 'session.status_idle',
+        stopReason: 'retries_exhausted',
+        rawStopReason: 'retries_exhausted',
+      },
     ])
     await expect(
       runManagedAgent({
@@ -251,7 +260,7 @@ describe('U6 runManagedAgent — failure modes', () => {
     const transport = makeFakeTransport([
       { type: 'session.error', message: 'transient', retryStatus: 'retrying' },
       { type: 'agent.message', text: VALID_MIRROR_JSON },
-      { type: 'session.status_idle', stopReason: 'end_turn' },
+      { type: 'session.status_idle', stopReason: 'end_turn', rawStopReason: 'end_turn' },
     ])
     const result = await runManagedAgent({
       agentId: 'agt_mirror',
@@ -264,7 +273,9 @@ describe('U6 runManagedAgent — failure modes', () => {
   })
 
   it('throws NO_OUTPUT when end_turn arrives with no agent.message text', async () => {
-    const transport = makeFakeTransport([{ type: 'session.status_idle', stopReason: 'end_turn' }])
+    const transport = makeFakeTransport([
+      { type: 'session.status_idle', stopReason: 'end_turn', rawStopReason: 'end_turn' },
+    ])
     await expect(
       runManagedAgent({
         agentId: 'agt_mirror',
@@ -279,7 +290,7 @@ describe('U6 runManagedAgent — failure modes', () => {
   it('throws PARSE_ERROR when text is not JSON', async () => {
     const transport = makeFakeTransport([
       { type: 'agent.message', text: 'I am thinking out loud, not JSON.' },
-      { type: 'session.status_idle', stopReason: 'end_turn' },
+      { type: 'session.status_idle', stopReason: 'end_turn', rawStopReason: 'end_turn' },
     ])
     await expect(
       runManagedAgent({
@@ -298,7 +309,7 @@ describe('U6 runManagedAgent — failure modes', () => {
         type: 'agent.message',
         text: '{"validation":"","inferred_meaning":"i","story_reframe":"s"}',
       },
-      { type: 'session.status_idle', stopReason: 'end_turn' },
+      { type: 'session.status_idle', stopReason: 'end_turn', rawStopReason: 'end_turn' },
     ])
     await expect(
       runManagedAgent({
@@ -317,7 +328,7 @@ describe('U6 runManagedAgent — failure modes', () => {
     try {
       const transport = makeFakeTransport([
         { type: 'agent.message', text: VALID_MIRROR_JSON },
-        { type: 'session.status_idle', stopReason: 'end_turn' },
+        { type: 'session.status_idle', stopReason: 'end_turn', rawStopReason: 'end_turn' },
       ])
       const result = await runManagedAgent({
         agentId: 'agt_mirror',
@@ -363,6 +374,59 @@ describe('U6 runManagedAgent — timeout is terminal', () => {
         timeoutMs: 50,
       }),
     ).rejects.toMatchObject({ code: 'TIMEOUT' })
+  })
+})
+
+describe('translateSdkEvent — stop reasons are classified, never coerced to success', () => {
+  it.each([
+    ['end_turn', 'end_turn', 'end_turn'],
+    ['requires_action', 'requires_action', 'requires_action'],
+    ['retries_exhausted', 'retries_exhausted', 'retries_exhausted'],
+    // A stop reason the SDK may add later must NOT read as a completed turn.
+    ['max_tokens', 'unrecognised', 'max_tokens'],
+  ])('stop_reason %s → stopReason %s (rawStopReason %s)', (raw, stopReason, rawStopReason) => {
+    expect(translateSdkEvent({ type: 'session.status_idle', stop_reason: { type: raw } })).toEqual({
+      type: 'session.status_idle',
+      stopReason,
+      rawStopReason,
+    })
+  })
+
+  it('classifies a missing stop_reason as unrecognised, not end_turn', () => {
+    expect(translateSdkEvent({ type: 'session.status_idle' })).toEqual({
+      type: 'session.status_idle',
+      stopReason: 'unrecognised',
+      rawStopReason: 'missing',
+    })
+  })
+
+  it('throws UNKNOWN_STOP_REASON rather than admitting a truncated turn as success', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const transport = makeFakeTransport([
+      // Schema-valid text that arrived before an unrecognised idle. The old
+      // coerce-to-end_turn path would have returned this as a real result.
+      { type: 'agent.message', text: VALID_MIRROR_JSON },
+      {
+        type: 'session.status_idle',
+        stopReason: 'unrecognised',
+        rawStopReason: 'max_tokens',
+      },
+    ])
+    await expect(
+      runManagedAgent({
+        agentId: 'agt_mirror',
+        environmentId: 'env_x',
+        prompt: 'p',
+        outputSchema: MirrorOutputSchema,
+        transport,
+      }),
+    ).rejects.toMatchObject({ code: 'UNKNOWN_STOP_REASON' })
+    // The raw value is the only signal telling ops to widen the union.
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[managed-agent] unrecognised stop_reason',
+      expect.objectContaining({ rawStopReason: 'max_tokens' }),
+    )
+    warnSpy.mockRestore()
   })
 })
 
