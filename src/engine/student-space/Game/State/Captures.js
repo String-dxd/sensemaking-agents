@@ -12,6 +12,7 @@
  * stay unchanged.
  */
 
+import { sgDateKey } from '../entry-date.constants.js'
 import Persistence from './Persistence.js'
 import { mergeArray, mergeCapture } from './schema.js'
 
@@ -82,7 +83,9 @@ export default class Captures
     add(payload)
     {
         const now = new Date()
-        const entryDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        // Asia/Singapore day bucketing — the read side (src/lib/entry-date.ts)
+        // files entries by SGT day, so the write side must stamp the same day.
+        const entryDate = sgDateKey(now)
         const entry = {
             id: uuid(),
             createdAt: now.toISOString(),

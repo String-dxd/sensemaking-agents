@@ -23,6 +23,7 @@
  * useSyncExternalStore can wrap this slice without infinite loops.
  */
 
+import { sgDateKey } from '../entry-date.constants.js'
 import Persistence from './Persistence.js'
 import { claimCellAt, occupiedCellsFromSpec, snapPositionToLand } from './islandSpecCore/snapToLand.ts'
 import { coercePosition, mergeArray, mergeSprout } from './schema.js'
@@ -580,7 +581,9 @@ export default class Sprouts
     _spawnSprout()
     {
         const now = new Date()
-        const entryDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        // Asia/Singapore day bucketing — the read side (src/lib/entry-date.ts)
+        // files entries by SGT day, so the write side must stamp the same day.
+        const entryDate = sgDateKey(now)
         const treeSpecies = TREE_SPECIES_ROTATION[this.cycleIndex % TREE_SPECIES_ROTATION.length]
         // Species starts as 'pending' — the student picks a dimension
         // chip after the capture lands; setDimensionForFirstCapture
