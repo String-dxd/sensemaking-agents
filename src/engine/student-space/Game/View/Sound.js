@@ -877,8 +877,18 @@ export default class Sound
 
     _loadMutePref()
     {
-        try { return localStorage.getItem('ss.sound.muted') === '1' }
-        catch(_) { return false }
+        // Default to MUTED. The world autoplays streamed ambient music, which
+        // is hostile in a classroom, a meeting room, or a screen-share, so a
+        // first-time visitor starts silent and opts in via the HUD toggle.
+        // `_savePref` always writes an explicit '1'/'0', so a stored '0' means
+        // "the user deliberately turned sound on" and must win over this
+        // default; only an absent key falls through to muted.
+        try
+        {
+            const stored = localStorage.getItem('ss.sound.muted')
+            return stored === null ? true : stored === '1'
+        }
+        catch(_) { return true }
     }
     _savePref()
     {
