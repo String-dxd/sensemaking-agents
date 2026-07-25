@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createStudentSpaceBackendBridge } from '~/lib/student-space/backend-bridge'
+import {
+  createStudentSpaceBackendBridge,
+  DEMO_CONNECTOR_FINISHED_EVENT,
+  resetDemoConnectorBurstStateForTests,
+} from '~/lib/student-space/backend-bridge'
 
 const runConnectorMock = vi.hoisted(() => vi.fn())
 const submitStudentSpaceReflectionMock = vi.hoisted(() => vi.fn())
@@ -86,6 +90,10 @@ afterEach(() => {
   loadWikiMock.mockClear()
   loadTrajectoryMock.mockClear()
   loadAuthMenuMock.mockClear()
+  // The capture-time Connector's burst-coalescing flags are module-local, so
+  // a test that leaves a run un-settled would otherwise swallow the next
+  // test's run. Reset them explicitly to keep every case independent.
+  resetDemoConnectorBurstStateForTests()
   vi.unstubAllEnvs()
 })
 
@@ -96,6 +104,36 @@ async function flushMicrotasks(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
   await Promise.resolve()
+}
+
+/** Yields to the macrotask queue, which drains the whole microtask queue
+ * first — enough for the demo-connector chain (runConnector → snapshot load →
+ * apply → event dispatch → queued rerun) to settle completely. */
+async function flushAsync(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
+interface Deferred<T> {
+  promise: Promise<T>
+  resolve: (value: T) => void
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
+const OK_RUN = {
+  status: 'ok',
+  processed: 1,
+  succeeded: 1,
+  failed: 0,
+  remaining: 0,
+  entries: [],
 }
 
 describe('createStudentSpaceBackendBridge', () => {
@@ -368,17 +406,12 @@ describe('createStudentSpaceBackendBridge', () => {
     it('runs the Connector then refreshes the snapshot after a confirmed capture with the flag on', async () => {
       vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
       mockPersistMirrorOnce('confirmed')
-      runConnectorMock.mockResolvedValueOnce({
-        status: 'ok',
-        processed: 1,
-        succeeded: 1,
-        failed: 0,
-        remaining: 0,
-        entries: [],
-      })
+      runConnectorMock.mockResolvedValueOnce(OK_RUN)
+      const applySnapshot = vi.fn()
 
-      const persistPromise =
-        createStudentSpaceBackendBridge().logPreparedReflection?.(confirmedInput)
+      const persistPromise = createStudentSpaceBackendBridge({
+        applySnapshot,
+      }).logPreparedReflection?.(confirmedInput)
       // The persist promise must resolve without waiting on the Connector
       // run: at this point runConnector has not even been invoked yet
       // (it is scheduled fire-and-forget inside a `void (async () => ...)`).
@@ -390,6 +423,29 @@ describe('createStudentSpaceBackendBridge', () => {
       expect(loadVipsPagesMock).toHaveBeenCalled()
       expect(loadWikiMock).toHaveBeenCalled()
       expect(loadTrajectoryMock).toHaveBeenCalled()
+      // Plan 066: the fresh snapshot reaches the engine through the host's
+      // seam, not through a `window` global.
+      expect(applySnapshot).toHaveBeenCalledTimes(1)
+      expect(applySnapshot.mock.calls[0]?.[0]).toEqual(
+        expect.objectContaining({
+          profile: expect.any(Object),
+          reflections: expect.any(Array),
+        }),
+      )
+    })
+
+    it('skips the snapshot apply when the host supplied no engine seam', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      mockPersistMirrorOnce('confirmed')
+      runConnectorMock.mockResolvedValueOnce(OK_RUN)
+
+      // No `applySnapshot` option — the pre-boot / no-engine case must stay
+      // silent rather than throw inside the fire-and-forget chain.
+      const result = await createStudentSpaceBackendBridge().logPreparedReflection?.(confirmedInput)
+      expect(result?.mirrorEntry.reviewStatus).toBe('confirmed')
+
+      await flushAsync()
+      expect(runConnectorMock).toHaveBeenCalledTimes(1)
     })
 
     it('resolves the persist result even when the flagged Connector run rejects', async () => {
@@ -417,6 +473,171 @@ describe('createStudentSpaceBackendBridge', () => {
       await flushMicrotasks()
       expect(result?.mirrorEntry.reviewStatus).toBe('forgotten')
       expect(runConnectorMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('capture-time Connector burst debounce + acknowledgment event (plan 066)', () => {
+    function mockSubmitReflectionOnce() {
+      submitStudentSpaceReflectionMock.mockResolvedValueOnce({
+        local_capture_id: 'local-voice',
+        mirror_entry: {
+          id: 77,
+          transcript: 'open ai transcript',
+          validation: 'valid',
+          inferred_meaning: 'meaning',
+          story_reframe: 'story',
+          context_type: 'school',
+          review_status: 'confirmed',
+          created_at: '2026-07-25T08:00:00.000Z',
+        },
+      })
+    }
+
+    const voiceInput = {
+      localCaptureId: 'local-voice',
+      transcript: 'open ai transcript',
+      contextType: 'school' as const,
+    }
+
+    it('does not start a second Connector run while one is already in flight', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      const inFlight = deferred<typeof OK_RUN>()
+      runConnectorMock.mockReturnValueOnce(inFlight.promise)
+      mockSubmitReflectionOnce()
+      mockSubmitReflectionOnce()
+      const bridge = createStudentSpaceBackendBridge()
+
+      await bridge.submitReflection?.(voiceInput)
+      await bridge.submitReflection?.(voiceInput)
+      await flushAsync()
+
+      // Second capture coalesced into a queued rerun instead of a parallel run.
+      expect(runConnectorMock).toHaveBeenCalledTimes(1)
+
+      inFlight.resolve(OK_RUN)
+      await flushAsync()
+    })
+
+    it('fires exactly one queued rerun after the in-flight run settles', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      const first = deferred<typeof OK_RUN>()
+      const second = deferred<typeof OK_RUN>()
+      runConnectorMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+      mockSubmitReflectionOnce()
+      mockSubmitReflectionOnce()
+      const bridge = createStudentSpaceBackendBridge()
+
+      await bridge.submitReflection?.(voiceInput)
+      await bridge.submitReflection?.(voiceInput)
+      await flushAsync()
+      expect(runConnectorMock).toHaveBeenCalledTimes(1)
+
+      first.resolve(OK_RUN)
+      await flushAsync()
+      // Exactly one follow-up run — the newest capture is picked up by the
+      // rerun's own candidate scan.
+      expect(runConnectorMock).toHaveBeenCalledTimes(2)
+
+      second.resolve(OK_RUN)
+      await flushAsync()
+      // The queue is empty now, so settling the rerun must not chain further.
+      expect(runConnectorMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('caps a burst of three captures at one in-flight run plus one rerun', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      const first = deferred<typeof OK_RUN>()
+      const second = deferred<typeof OK_RUN>()
+      runConnectorMock.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+      mockSubmitReflectionOnce()
+      mockSubmitReflectionOnce()
+      mockSubmitReflectionOnce()
+      const bridge = createStudentSpaceBackendBridge()
+
+      await bridge.submitReflection?.(voiceInput)
+      await bridge.submitReflection?.(voiceInput)
+      await bridge.submitReflection?.(voiceInput)
+      await flushAsync()
+      expect(runConnectorMock).toHaveBeenCalledTimes(1)
+
+      first.resolve(OK_RUN)
+      await flushAsync()
+      expect(runConnectorMock).toHaveBeenCalledTimes(2)
+
+      second.resolve(OK_RUN)
+      await flushAsync()
+      expect(runConnectorMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('dispatches ss:demo-connector-finished with the succeeded count after a processed run', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      runConnectorMock.mockResolvedValueOnce({
+        status: 'ok',
+        processed: 2,
+        succeeded: 2,
+        failed: 0,
+        remaining: 0,
+        entries: [],
+      })
+      mockSubmitReflectionOnce()
+      const details: Array<{ succeeded?: number }> = []
+      const listener = (event: Event) => {
+        details.push((event as CustomEvent<{ succeeded?: number }>).detail)
+      }
+      window.addEventListener(DEMO_CONNECTOR_FINISHED_EVENT, listener)
+
+      try {
+        await createStudentSpaceBackendBridge().submitReflection?.(voiceInput)
+        await flushAsync()
+        expect(details).toEqual([{ succeeded: 2 }])
+      } finally {
+        window.removeEventListener(DEMO_CONNECTOR_FINISHED_EVENT, listener)
+      }
+    })
+
+    it('dispatches nothing when the run processed no entries', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      runConnectorMock.mockResolvedValueOnce({
+        status: 'nothing_to_run',
+        processed: 0,
+        succeeded: 0,
+        failed: 0,
+        remaining: 0,
+        entries: [],
+      })
+      mockSubmitReflectionOnce()
+      const listener = vi.fn()
+      window.addEventListener(DEMO_CONNECTOR_FINISHED_EVENT, listener)
+
+      try {
+        await createStudentSpaceBackendBridge().submitReflection?.(voiceInput)
+        await flushAsync()
+        expect(runConnectorMock).toHaveBeenCalledTimes(1)
+        expect(listener).not.toHaveBeenCalled()
+      } finally {
+        window.removeEventListener(DEMO_CONNECTOR_FINISHED_EVENT, listener)
+      }
+    })
+
+    it('dispatches nothing when the run fails — silence is the failure UX', async () => {
+      vi.stubEnv('VITE_DEMO_CONNECTOR_AT_CAPTURE', '1')
+      runConnectorMock.mockRejectedValueOnce(new Error('connector down'))
+      mockSubmitReflectionOnce()
+      const listener = vi.fn()
+      const applySnapshot = vi.fn()
+      window.addEventListener(DEMO_CONNECTOR_FINISHED_EVENT, listener)
+
+      try {
+        const result = await createStudentSpaceBackendBridge({
+          applySnapshot,
+        }).submitReflection?.(voiceInput)
+        expect(result?.mirrorEntry.reviewStatus).toBe('confirmed')
+        await flushAsync()
+        expect(listener).not.toHaveBeenCalled()
+        expect(applySnapshot).not.toHaveBeenCalled()
+      } finally {
+        window.removeEventListener(DEMO_CONNECTOR_FINISHED_EVENT, listener)
+      }
     })
   })
 })

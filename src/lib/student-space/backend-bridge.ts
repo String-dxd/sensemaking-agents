@@ -1,6 +1,5 @@
 import type { Mood, VipsContextType } from '~/agents/tools/schemas'
 import {
-  applyStudentSpaceBackendSnapshot,
   createStudentSpaceBackendSnapshot,
   mapMirrorEntryToReflectionCapture,
   mapTrajectoryResultToStudentSpaceCapture,
@@ -171,7 +170,23 @@ export interface StudentSpaceBackendBridge {
   openSurface?: (input: StudentSpaceOpenSurfaceInput) => void
 }
 
-export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
+/**
+ * Construction-time seams the host supplies to the bridge.
+ *
+ * `applySnapshot` is the engine-apply seam (plan 066): the host owns the live
+ * `Game` instance, so it — not the bridge — decides how a freshly loaded
+ * snapshot reaches engine state. Omitting it (tests, SSR, any non-host
+ * caller) simply means snapshot pushes are dropped, which is the correct
+ * "no engine mounted" behavior.
+ */
+export interface StudentSpaceBackendBridgeOptions {
+  applySnapshot?: (snapshot: StudentSpaceBackendSnapshot) => void
+}
+
+export function createStudentSpaceBackendBridge(
+  options: StudentSpaceBackendBridgeOptions = {},
+): StudentSpaceBackendBridge {
+  const { applySnapshot } = options
   return {
     version: 1,
     refreshSnapshot: async () => loadBackendSnapshot(),
@@ -206,8 +221,9 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
       })) as PrepareStudentSpaceReflectionResult
       return mapPreparedReflectionResult(result)
     },
-    logPreparedReflection: (input) => persistPreparedReflection(input, 'confirmed'),
-    forgetPreparedReflection: (input) => persistPreparedReflection(input, 'forgotten'),
+    logPreparedReflection: (input) => persistPreparedReflection(input, 'confirmed', applySnapshot),
+    forgetPreparedReflection: (input) =>
+      persistPreparedReflection(input, 'forgotten', applySnapshot),
     submitReflection: async (input) => {
       const result = (await submitStudentSpaceReflection({
         data: {
@@ -219,7 +235,7 @@ export function createStudentSpaceBackendBridge(): StudentSpaceBackendBridge {
           ...(input.mood ? { mood: input.mood } : {}),
         },
       })) as SubmitStudentSpaceReflectionResult
-      maybeRunDemoConnectorAfterCapture()
+      maybeRunDemoConnectorAfterCapture(applySnapshot)
       return {
         localCaptureId: result.local_capture_id,
         mirrorEntry: mapMirrorEntryRowToSummary(result.mirror_entry),
@@ -304,40 +320,97 @@ async function loadBackendSnapshot(): Promise<StudentSpaceBackendSnapshot> {
 }
 
 /**
- * SPIKE (plan 041): when `VITE_DEMO_CONNECTOR_AT_CAPTURE=1`, run the
- * Connector (capped small, `limit: 3`) right after a confirmed capture
- * persists, then push a fresh snapshot into the live engine so the
- * Profile/Trajectory sheets visibly update within seconds of speaking.
- *
- * Fire-and-forget by design: callers must never `await` this. It is a
- * demo-only prototype — see docs/solutions/2026-07-23-connector-at-capture-spike.md
- * for latency/cost findings and the productionization notes before promoting
- * this off the flag.
+ * Fired on `window` after a capture-time Connector run processed at least one
+ * entry. Detail carries `{ succeeded }` — the number of entries that actually
+ * produced a staged diff. Consumers must render nothing when `succeeded` is
+ * 0: silence is the failure UX for this path (plan 066).
  */
-function maybeRunDemoConnectorAfterCapture(): void {
+export const DEMO_CONNECTOR_FINISHED_EVENT = 'ss:demo-connector-finished'
+
+type ApplyBackendSnapshot = (snapshot: StudentSpaceBackendSnapshot) => void
+
+// Burst coalescing (plan 066), module-local on purpose: at most one run is in
+// flight at a time, and at most one follow-up run is queued behind it. A
+// burst of N captures therefore costs 2 runs, not N — and the newest capture
+// is never dropped, because the queued rerun's candidate scan picks it up.
+// Settle-triggered rather than timer-based so tests stay deterministic.
+let demoConnectorRunInFlight = false
+let demoConnectorRerunQueued = false
+
+/**
+ * @internal Test-only reset for the burst-coalescing state above. Production
+ * code must never call this — the flags are self-clearing when a run settles.
+ */
+export function resetDemoConnectorBurstStateForTests(): void {
+  demoConnectorRunInFlight = false
+  demoConnectorRerunQueued = false
+}
+
+/**
+ * When `VITE_DEMO_CONNECTOR_AT_CAPTURE=1`, run the Connector (capped small,
+ * `limit: 3`) right after a confirmed capture persists, then push a fresh
+ * snapshot into the live engine so the Profile/Trajectory sheets visibly
+ * update within seconds of speaking.
+ *
+ * Fire-and-forget by design: callers must never `await` this, and every
+ * failure degrades to "nothing happened". Spike findings (latency, cost,
+ * idempotency vs. the evening cron) live in
+ * docs/solutions/2026-07-23-connector-at-capture-spike.md; the flag stays the
+ * gate until the operator decides to promote it.
+ */
+function maybeRunDemoConnectorAfterCapture(applySnapshot?: ApplyBackendSnapshot): void {
   if (import.meta.env.VITE_DEMO_CONNECTOR_AT_CAPTURE !== '1') return
+  if (demoConnectorRunInFlight) {
+    demoConnectorRerunQueued = true
+    return
+  }
+  demoConnectorRunInFlight = true
   void (async () => {
-    const startedAt = performance.now()
     try {
-      const run = await runConnector({ data: { limit: 3 } })
-      const snapshot = await loadBackendSnapshot()
-      const game = typeof window !== 'undefined' ? window.__studentSpaceGame : null
-      if (game) applyStudentSpaceBackendSnapshot(game as never, snapshot)
-      console.info(
-        `[demo-connector] status=${run.status} processed=${run.processed} in ${Math.round(performance.now() - startedAt)}ms`,
-      )
-    } catch (err) {
-      // Demo must not break: degrade silently. A failed capture-time run is
-      // picked up by the evening cron pass (see queries.ts idempotency note
-      // in plan 041) — never surface an error to the capture UX.
-      console.warn('[demo-connector] capture-time connector run failed', err)
+      await runDemoConnectorOnce(applySnapshot)
+    } finally {
+      demoConnectorRunInFlight = false
+      if (demoConnectorRerunQueued) {
+        demoConnectorRerunQueued = false
+        maybeRunDemoConnectorAfterCapture(applySnapshot)
+      }
     }
   })()
+}
+
+/** One capture-time Connector run. Never rejects — it owns a total catch. */
+async function runDemoConnectorOnce(applySnapshot?: ApplyBackendSnapshot): Promise<void> {
+  const startedAt = performance.now()
+  try {
+    const run = await runConnector({ data: { limit: 3 } })
+    const snapshot = await loadBackendSnapshot()
+    // No engine mounted (pre-boot, post-dispose, or a non-host caller that
+    // supplied no seam) → skip the apply silently, exactly as the previous
+    // global-handle read did.
+    applySnapshot?.(snapshot)
+    console.info(
+      `[demo-connector] status=${run.status} processed=${run.processed} in ${Math.round(performance.now() - startedAt)}ms`,
+    )
+    if (run.processed > 0 && typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent(DEMO_CONNECTOR_FINISHED_EVENT, {
+          detail: { succeeded: run.succeeded },
+        }),
+      )
+    }
+  } catch (err) {
+    // Demo must not break: degrade silently. A failed capture-time run is
+    // picked up by the evening cron pass (see queries.ts idempotency note
+    // in plan 041) — never surface an error to the capture UX, and never
+    // dispatch the acknowledgment event.
+    console.warn('[demo-connector] capture-time connector run failed', err)
+  }
 }
 
 async function persistPreparedReflection(
   input: StudentSpacePreparedReflection,
   reviewStatus: 'confirmed' | 'forgotten',
+  applySnapshot?: ApplyBackendSnapshot,
 ): Promise<StudentSpaceReflectionResult> {
   const result = (await persistMirror({
     data: {
@@ -365,7 +438,7 @@ async function persistPreparedReflection(
       },
     },
   })) as PersistMirrorResult
-  if (reviewStatus === 'confirmed') maybeRunDemoConnectorAfterCapture()
+  if (reviewStatus === 'confirmed') maybeRunDemoConnectorAfterCapture(applySnapshot)
   return {
     localCaptureId: input.localCaptureId,
     mirrorEntry: mapMirrorEntryRowToSummary(result.mirror_entry),

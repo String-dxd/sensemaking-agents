@@ -40,9 +40,23 @@ const createGame = vi
   .mockReturnValue({ dispose, openSurface, closeActiveSurface, setRenderActive })
 const localStorageAdapter = vi.fn().mockReturnValue({})
 const backendBridge = vi.hoisted(() => ({ version: 1 }))
+// Captures the construction options the host passes to the bridge factory —
+// the `applySnapshot` engine seam (plan 066) is asserted through this.
+const backendBridgeOptions = vi.hoisted(() => ({ current: undefined as unknown }))
+const applyBackendSnapshot = vi.hoisted(() => vi.fn())
 
 vi.mock('~/lib/student-space/backend-bridge', () => ({
-  createStudentSpaceBackendBridge: () => backendBridge,
+  DEMO_CONNECTOR_FINISHED_EVENT: 'ss:demo-connector-finished',
+  createStudentSpaceBackendBridge: (options?: unknown) => {
+    backendBridgeOptions.current = options
+    return backendBridge
+  },
+}))
+
+vi.mock('~/lib/student-space/backend-snapshot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('~/lib/student-space/backend-snapshot')>()),
+  applyStudentSpaceBackendSnapshot: (game: unknown, snapshot: unknown) =>
+    applyBackendSnapshot(game, snapshot),
 }))
 
 vi.mock('~/engine/student-space/Game', () => ({
@@ -80,6 +94,8 @@ afterEach(() => {
   closeActiveSurface.mockClear()
   setRenderActive.mockClear()
   localStorageAdapter.mockClear()
+  applyBackendSnapshot.mockClear()
+  backendBridgeOptions.current = undefined
   createGame.mockImplementation(() => ({
     dispose,
     openSurface,
@@ -152,6 +168,45 @@ describe('EngineHost', () => {
     expect(arg.container?.classList.contains('game')).toBe(true)
     expect(container.querySelector('.game')).toBeInTheDocument()
     expect(arg.backend).toMatchObject({ version: 1 })
+  })
+
+  it('constructs the bridge with an applySnapshot seam bound to the live engine', async () => {
+    renderHostAt('/')
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+
+    const applySnapshot = (
+      backendBridgeOptions.current as {
+        applySnapshot?: (snapshot: unknown) => void
+      }
+    )?.applySnapshot
+    expect(typeof applySnapshot).toBe('function')
+
+    const snapshot = { profile: {}, reflections: [] }
+    act(() => applySnapshot?.(snapshot))
+
+    // The seam replaces the `window.__studentSpaceGame` read the capture-time
+    // Connector used to rely on (plan 066).
+    expect(applyBackendSnapshot).toHaveBeenCalledTimes(1)
+    expect(applyBackendSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ dispose }),
+      snapshot,
+    )
+  })
+
+  it('drops snapshot pushes through the seam when no engine is mounted', async () => {
+    const { unmount } = renderHostAt('/')
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    const applySnapshot = (
+      backendBridgeOptions.current as {
+        applySnapshot?: (snapshot: unknown) => void
+      }
+    )?.applySnapshot
+
+    unmount()
+    applyBackendSnapshot.mockClear()
+
+    expect(() => applySnapshot?.({ profile: {}, reflections: [] })).not.toThrow()
+    expect(applyBackendSnapshot).not.toHaveBeenCalled()
   })
 
   it('passes the resolved authMenu through to createGame', async () => {
