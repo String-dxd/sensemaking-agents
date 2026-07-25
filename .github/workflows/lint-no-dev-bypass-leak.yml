@@ -16,10 +16,6 @@ name: Lint — no DEV_BYPASS_AUTH references outside src/auth/middleware.ts
 #   - src/auth/middleware.ts  (the canonical single read)
 #   - plan/docs files         (explanatory references)
 #   - this workflow file      (the literal name appears in error messages)
-#
-# Note: the separate `lint-no-stale-flag.yml` workflow (plan Step 12)
-# guards the `USE_MANAGED_AGENTS` flag and starts failing on day 21
-# post-cutover; this one is permanent.
 
 on:
   pull_request:
