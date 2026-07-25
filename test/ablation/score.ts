@@ -163,6 +163,7 @@ export interface VerifierVerdictCounters {
   dropped_no_quote_match: number
   dropped_unknown_reflection: number
   dropped_unknown_canonical_claim_id: number
+  dropped_empty_quote: number
   aspirational: number
   claim_ids: string[]
 }
@@ -174,6 +175,7 @@ export function zeroVerdictCounters(): VerifierVerdictCounters {
     dropped_no_quote_match: 0,
     dropped_unknown_reflection: 0,
     dropped_unknown_canonical_claim_id: 0,
+    dropped_empty_quote: 0,
     aspirational: 0,
     claim_ids: [],
   }
@@ -277,6 +279,7 @@ export function aggregateVerifierCounters(rows: PerFixtureRow[]): VerifierVerdic
     totals.dropped_no_quote_match += v.dropped_no_quote_match
     totals.dropped_unknown_reflection += v.dropped_unknown_reflection
     totals.dropped_unknown_canonical_claim_id += v.dropped_unknown_canonical_claim_id
+    totals.dropped_empty_quote += v.dropped_empty_quote
     totals.aspirational += v.aspirational
     totals.claim_ids.push(...v.claim_ids)
   }

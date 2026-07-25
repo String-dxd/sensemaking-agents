@@ -6,7 +6,8 @@
  * is the structural gate that enforces:
  *
  *   R10  every admitted timeline entry has its `verbatim_quote` actually
- *        present in the cited reflection's transcript (normalized).
+ *        present in the cited reflection's transcript (normalized, on token
+ *        boundaries — a bare substring is not a quotation).
  *   R11  parallax cap — a single-context history cannot mint a
  *        strength=high entry; it gets capped to low + flagged
  *        `aspirational: true` so the review surface shows the flag.
@@ -67,6 +68,30 @@ function tokenize(s: string): string[] {
 }
 
 /**
+ * Does `needle` appear in `haystack` on token boundaries? Both sides are
+ * already `normalize`d to single-space-separated tokens, so a boundary is
+ * "start of string, end of string, or a space".
+ *
+ * Scans EVERY occurrence. Checking only `indexOf`'s first hit (the previous
+ * behaviour) scored 0 for a window whose first occurrence sits mid-token even
+ * when a later, properly aligned occurrence existed — dropping legitimate
+ * quotes. It also let the full-match path admit a bare substring: `ate` from a
+ * transcript containing `date`. One helper, both callers, no divergence.
+ */
+function containsOnTokenBoundary(haystack: string, needle: string): boolean {
+  if (needle.length === 0) return false
+  let idx = haystack.indexOf(needle)
+  while (idx !== -1) {
+    const beforeOk = idx === 0 || haystack[idx - 1] === ' '
+    const afterIdx = idx + needle.length
+    const afterOk = afterIdx === haystack.length || haystack[afterIdx] === ' '
+    if (beforeOk && afterOk) return true
+    idx = haystack.indexOf(needle, idx + 1)
+  }
+  return false
+}
+
+/**
  * Longest-contiguous-token-subsequence ratio of `quoteTokens` inside
  * `transcriptTokens`. We slide a window of decreasing size over
  * `quoteTokens` and find the longest window that appears verbatim in
@@ -81,21 +106,7 @@ function longestContiguousTokenRatio(quoteTokens: string[], transcriptTokens: st
   for (let windowSize = quoteTokens.length; windowSize > 0; windowSize -= 1) {
     for (let start = 0; start + windowSize <= quoteTokens.length; start += 1) {
       const window = quoteTokens.slice(start, start + windowSize).join(' ')
-      // Match on token boundaries — `\bword\b` would mishandle the
-      // contractions we already stripped via punctuation removal; joining
-      // with single spaces and checking includes is safe because both
-      // sides have been normalized to single-space-separated tokens.
-      if (transcriptStr.includes(window)) {
-        // Require the window to start at a token boundary in the
-        // transcript: either at index 0 or preceded by a space. Same
-        // for the end. This prevents a 3-letter prefix matching a
-        // longer transcript token (e.g. 'ate' inside 'date').
-        const idx = transcriptStr.indexOf(window)
-        const beforeOk = idx === 0 || transcriptStr[idx - 1] === ' '
-        const afterIdx = idx + window.length
-        const afterOk = afterIdx === transcriptStr.length || transcriptStr[afterIdx] === ' '
-        if (beforeOk && afterOk) return windowSize / quoteTokens.length
-      }
+      if (containsOnTokenBoundary(transcriptStr, window)) return windowSize / quoteTokens.length
     }
   }
   return 0
@@ -142,10 +153,22 @@ export function verifyProposedDiff(input: VerifyInput): VerifierResult {
     // ── phase 1: quote match (R10) ──
     const normQuote = normalize(entry.verbatim_quote)
 
+    // A punctuation-only quote (e.g. "...") survives z.string().min(1) but
+    // normalizes to '' — and `includes('')` is always true, which used to
+    // admit a zero-evidence entry at the agent's proposed strength. Drop it.
+    if (normQuote.length === 0) {
+      dropped.push({ entry, reason: 'empty_quote' })
+      continue
+    }
+
     let partialMatch = false
     let effectiveStrength = entry.strength
 
-    if (!normTranscript.includes(normQuote)) {
+    // Full match must land on token boundaries. A raw `includes` admitted a
+    // bare substring at full strength ('ate' from a transcript containing
+    // 'date'); the partial path below has always required boundaries, so both
+    // now share `containsOnTokenBoundary`.
+    if (!containsOnTokenBoundary(normTranscript, normQuote)) {
       const quoteTokens = tokenize(normQuote)
       const ratio = longestContiguousTokenRatio(quoteTokens, transcriptTokens)
       if (ratio >= PARTIAL_MATCH_THRESHOLD) {
