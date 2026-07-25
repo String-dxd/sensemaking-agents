@@ -238,6 +238,7 @@ export const VerifierDropReasonSchema = z.enum([
   'no_quote_match',
   'unknown_reflection',
   'unknown_canonical_claim_id',
+  'empty_quote',
 ])
 export type VerifierDropReason = z.infer<typeof VerifierDropReasonSchema>
 

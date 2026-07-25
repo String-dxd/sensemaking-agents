@@ -343,6 +343,7 @@ async function verifyConnectorDraft(
       else if (dropped.reason === 'unknown_reflection') counters.dropped_unknown_reflection += 1
       else if (dropped.reason === 'unknown_canonical_claim_id')
         counters.dropped_unknown_canonical_claim_id += 1
+      else if (dropped.reason === 'empty_quote') counters.dropped_empty_quote += 1
     }
     for (const ann of [...result.admitted, ...result.downgraded]) {
       if (ann.aspirational) counters.aspirational += 1

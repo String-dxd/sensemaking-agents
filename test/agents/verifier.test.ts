@@ -461,3 +461,76 @@ describe('schema & integration shape', () => {
     expect(() => ProposedTimelineEntryDraftSchema.parse(draft())).not.toThrow()
   })
 })
+
+// ── quote-match boundary holes (plan 052) ─────────────────────────────────
+describe('quote-match boundary holes (plan 052)', () => {
+  it('punctuation-only quote → dropped with empty_quote', () => {
+    // normalize() strips punctuation, so this quote carries zero evidence;
+    // `includes('')` used to admit it at proposed strength.
+    const result = verifyProposedDiff({
+      diff: { timeline_entries: [draft({ verbatim_quote: '...' })] },
+      mirrorEntry: baseMirror,
+      existingTimelineEntries: [],
+    })
+    expect(result.admitted).toHaveLength(0)
+    expect(result.downgraded).toHaveLength(0)
+    expect(result.dropped).toHaveLength(1)
+    expect(result.dropped[0]?.reason).toBe('empty_quote')
+  })
+
+  it('substring inside a token is rejected ("ate" in "date")', () => {
+    // Substring is not quotation — `ate` is not something the student said.
+    const mirror: VerifierMirrorEntry = {
+      id: 101,
+      transcript: 'i had a date with the dentist',
+      context_type: 'school',
+    }
+    const result = verifyProposedDiff({
+      diff: { timeline_entries: [draft({ verbatim_quote: 'ate' })] },
+      mirrorEntry: mirror,
+      existingTimelineEntries: [],
+    })
+    expect(result.admitted).toHaveLength(0)
+    expect(result.downgraded).toHaveLength(0)
+    expect(result.dropped).toHaveLength(1)
+    expect(result.dropped[0]?.reason).toBe('no_quote_match')
+  })
+
+  it('later boundary-aligned occurrence is found → downgraded, not dropped', () => {
+    // The 4/5-token window `ate the cake at` first occurs mid-token inside
+    // `inflate`; a later occurrence is boundary-aligned. First-occurrence-only
+    // checking scored 0.6 and dropped a legitimate quote; scanning all
+    // occurrences scores 0.8.
+    const mirror: VerifierMirrorEntry = {
+      id: 101,
+      transcript: 'i inflate the cake at home then i ate the cake at school',
+      context_type: 'school',
+    }
+    const result = verifyProposedDiff({
+      diff: { timeline_entries: [draft({ verbatim_quote: 'ate the cake at midnight' })] },
+      mirrorEntry: mirror,
+      existingTimelineEntries: [],
+    })
+    expect(result.dropped).toHaveLength(0)
+    expect(result.downgraded).toHaveLength(1)
+    expect(result.downgraded[0]?.partial_match).toBe(true)
+    expect(result.downgraded[0]?.strength).toBe('low')
+  })
+
+  it('plain happy-path full match is unchanged', () => {
+    // Tightening must not start rejecting real quotations — this is a
+    // boundary-aligned internal substring of the transcript and must stay
+    // admitted.
+    const result = verifyProposedDiff({
+      diff: {
+        timeline_entries: [draft({ verbatim_quote: 'when teacher told us exactly what to do' })],
+      },
+      mirrorEntry: baseMirror,
+      existingTimelineEntries: [],
+    })
+    expect(result.dropped).toHaveLength(0)
+    expect(result.admitted).toHaveLength(1)
+    expect(result.admitted[0]?.partial_match).toBe(false)
+    expect(result.admitted[0]?.strength).toBe('medium')
+  })
+})
