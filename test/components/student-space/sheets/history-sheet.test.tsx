@@ -58,6 +58,16 @@ vi.mock('three/examples/jsm/controls/OrbitControls.js', () => ({
 
 const TODAY = '2026-05-22'
 
+function calendarDayLabel(year: number, month0: number, day: number) {
+  return new Date(Date.UTC(year, month0, day)).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  })
+}
+
 type TestCapture = {
   id: string
   entryDate: string
@@ -228,19 +238,17 @@ describe('HistorySheet (React)', () => {
       '/history#reflection-24',
     )
 
-    expect(await screen.findByRole('button', { name: 'Friday, 3 April 2026' })).toHaveAttribute(
-      'data-selected',
-      'true',
-    )
+    expect(
+      await screen.findByRole('button', { name: calendarDayLabel(2026, 3, 3) }),
+    ).toHaveAttribute('data-selected', 'true')
     expect(
       within(screen.getByTestId('day-detail-card')).getByText('Linked reflection'),
     ).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: 'Wednesday, 15 April 2026' }))
-    expect(await screen.findByRole('button', { name: 'Wednesday, 15 April 2026' })).toHaveAttribute(
-      'data-selected',
-      'true',
-    )
+    await userEvent.click(screen.getByRole('button', { name: calendarDayLabel(2026, 3, 15) }))
+    expect(
+      await screen.findByRole('button', { name: calendarDayLabel(2026, 3, 15) }),
+    ).toHaveAttribute('data-selected', 'true')
     expect(
       within(screen.getByTestId('day-detail-card')).queryByText('Linked reflection'),
     ).not.toBeInTheDocument()
