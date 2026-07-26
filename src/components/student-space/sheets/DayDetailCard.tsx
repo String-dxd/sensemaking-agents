@@ -304,6 +304,13 @@ function RetrySyncNotice({
 }) {
   const [busy, setBusy] = useState(false)
 
+  // The audio blob is never retained on the capture (see DayDetailCapture and the
+  // engine's KNOWN_CAPTURE_KEYS): only `text` can be resent. A capture that failed
+  // before transcription has nothing to send, so the server's `.refine()` would
+  // reject it and surface a raw validator message as product copy. Show guidance
+  // instead of a button that is guaranteed to fail.
+  const canResend = Boolean(cap.text?.trim())
+
   async function retry() {
     const patch = engineState?.captures?.patch
     const submitReflection = engineState?.backend?.submitReflection
@@ -338,6 +345,17 @@ function RetrySyncNotice({
     return <p className="mt-1.5 text-xs text-(--color-sheet-ink-soft)">Syncing…</p>
   }
   if (cap.syncStatus !== 'failed') return null
+
+  if (!canResend) {
+    return (
+      <div className="mt-1.5 space-y-1.5">
+        <p role="alert" className="text-xs text-(--color-sheet-ink-soft)">
+          Couldn&apos;t save this reflection, and the recording is no longer available to send
+          again. Recording it again will save it.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="mt-1.5 space-y-1.5">

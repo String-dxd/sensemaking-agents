@@ -447,6 +447,33 @@ describe('HistorySheet (React)', () => {
     expect(await screen.findByRole('button', { name: 'Retry sync' })).toBeInTheDocument()
   })
 
+  it('offers guidance instead of retry when a failed capture has nothing to resend', async () => {
+    // A capture that failed before transcription has no text and no retained
+    // audio, so a retry would be rejected by the server's `.refine()` and the
+    // raw validator message would become product copy.
+    const submitReflection = vi.fn()
+    const engine = makeEngine({
+      backend: { submitReflection },
+      captures: [
+        {
+          id: 'local-ask-3',
+          entryDate: sgToday(),
+          createdAt: new Date().toISOString(),
+          kind: 'ask',
+          text: '',
+          syncStatus: 'failed',
+          syncError: 'transcription failed',
+          contextType: 'home',
+        },
+      ],
+    })
+    renderHistory(engine)
+
+    expect(await screen.findByText(/no longer available to send again/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Retry sync' })).toBeNull()
+    expect(submitReflection).not.toHaveBeenCalled()
+  })
+
   it('switches to Growth tab and loads /api/growth/summary', async () => {
     renderHistory(makeEngine())
     await userEvent.click(await screen.findByRole('button', { name: 'Growth' }))
