@@ -171,8 +171,8 @@ plan assumes.
 
 ### Step 2: Add a headroom timeout for this one test
 
-Even memoized, this test does real work, and CI runners are slower. Give this
-single test an explicit timeout of 20000 ms as a second line of defence:
+This test does real work, and CI runners are slower. Give this single test an
+explicit timeout of 20000 ms as a second line of defence:
 
 ```ts
   it('never lands on a pre-occupied cell (spec decorative objects / character)', () => {
@@ -229,16 +229,15 @@ Stop and report if:
 - The test excerpt does not match "Current state" (drift).
 - Run alone, the test is already fast and cheap — the flake then has another
   cause and this plan is aimed at the wrong thing.
-- Memoizing changes the snapped position (see the Step 2 caveat) and the
-  exact-coordinate fallback does not recover the original result.
 - You find yourself wanting to edit `vitest.config.ts`, the production sampler,
   an assertion, or the start coordinates.
 - A loaded run still times out at 20 s.
 
 ## Maintenance notes
 
-- The memo is deliberately **test-local**. If `evaluateHeight` ever becomes hot
-  in production, the fix belongs in the sampler, not copied from here.
+- The timeout is deliberately **test-local**. If `evaluateHeight` ever becomes
+  hot in production, the fix belongs in the sampler rather than a global test
+  timeout increase.
 - Reviewer should scrutinise: assertions byte-identical, start coordinates
   unchanged, global `testTimeout` untouched, and the loaded-run evidence — a
   quiet green run does not demonstrate this flake is fixed.
