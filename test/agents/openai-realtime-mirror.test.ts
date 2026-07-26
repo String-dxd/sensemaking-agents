@@ -7,21 +7,39 @@ import {
   buildRealtimeMirrorResponseInstructions,
 } from '~/agents/openai-realtime/mirror-payloads'
 import {
+  buildRealtimeMirrorSessionConfig,
+  getMirrorSystemPrompt,
+} from '~/agents/openai-realtime/mirror-prompt'
+import {
   type RealtimeMirrorSocket,
   runOpenAIRealtimeMirror,
 } from '~/agents/openai-realtime/mirror-runner'
 import { parseMirrorRealtimeText } from '~/agents/openai-realtime/parse'
 
 describe('OpenAI Realtime Mirror prompt packaging', () => {
-  it('inlines the system prompt instead of reading it from the deployment filesystem', () => {
-    const source = readFileSync(
+  it('loads the exact bundled prompt without deployment filesystem access', () => {
+    const moduleSource = readFileSync(
       join(process.cwd(), 'src/agents/openai-realtime/mirror-prompt.ts'),
       'utf8',
     )
+    const promptSource = readFileSync(
+      join(process.cwd(), 'src/agents/mirror.prompt.md'),
+      'utf8',
+    ).trim()
 
-    expect(source).toContain("from '../mirror.prompt.md?raw'")
-    expect(source).not.toContain("from 'node:fs'")
-    expect(source).not.toContain('readFileSync')
+    expect(getMirrorSystemPrompt()).toBe(promptSource)
+    expect(buildRealtimeMirrorSessionConfig().instructions).toContain(promptSource)
+    expect(moduleSource).toContain("from '../mirror.prompt.md?raw'")
+    expect(moduleSource).not.toContain("from 'node:fs'")
+    expect(moduleSource).not.toContain('readFileSync')
+  })
+
+  it('does not advertise unavailable tools in a tool-less session', () => {
+    const session = buildRealtimeMirrorSessionConfig()
+
+    expect(session.tool_choice).toBe('none')
+    expect(session.tools).toEqual([])
+    expect(session.instructions).not.toContain('search_past_mirrors')
   })
 })
 

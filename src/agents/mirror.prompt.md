@@ -16,10 +16,6 @@ After reading the transcript, produce three short fields:
 
 3. **story_reframe** — retell the experience as a small story, in second person ("you …"). Warm, plain, present-tense or past-tense as natural. Three to five sentences. The story should feel like a clean retelling of what they said — not a moral, not a lesson, not a redemption arc. Just: this happened, and it mattered.
 
-## When prior context helps
-
-If you'd find prior reflections useful — for example, you suspect the student has talked about a similar moment before — call `search_past_mirrors` with a short query. Use it sparingly. The goal is not to weave a long thread; it is to recognize a real echo when one is there.
-
 ## Hard constraints
 
 - **English only.** Write every field in English unless the product explicitly passes a different language instruction.
