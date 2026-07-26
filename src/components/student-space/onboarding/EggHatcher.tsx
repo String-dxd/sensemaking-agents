@@ -1,4 +1,4 @@
-import { Radio } from '@base-ui-components/react/radio'
+import { Radio } from '@base-ui/react/radio'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type * as THREEType from 'three'
 import { Button } from '~/components/ui/button'

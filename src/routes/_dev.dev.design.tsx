@@ -633,7 +633,7 @@ function PatternConventions() {
         <ConventionCard
           title="Base UI primitive imports"
           file="src/components/ui/dialog.tsx"
-          snippet={`import { Dialog as BaseDialog } from\n  '@base-ui-components/react/dialog'`}
+          snippet={`import { Dialog as BaseDialog } from\n  '@base-ui/react/dialog'`}
         />
         <ConventionCard
           title="Base UI transition attributes"
@@ -658,10 +658,8 @@ function PatternConventions() {
           </CardTitle>
           <CardDescription className="text-xs">
             The primitive layer is{' '}
-            <code className="rounded bg-muted px-1 py-0.5">
-              @base-ui-components/react@1.0.0-rc.0
-            </code>
-            . shadcn officially supports Base UI as of January 2026. New primitives must come from{' '}
+            <code className="rounded bg-muted px-1 py-0.5">@base-ui/react@1.6.0</code>. shadcn
+            officially supports Base UI as of January 2026. New primitives must come from{' '}
             <code className="rounded bg-muted px-1 py-0.5">--base base-ui</code> — never from the
             Radix variant.
           </CardDescription>

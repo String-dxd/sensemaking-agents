@@ -1,4 +1,4 @@
-import { Button as BaseButton } from '@base-ui-components/react/button'
+import { Button as BaseButton } from '@base-ui/react/button'
 import type { Game } from '~/engine/student-space/Game'
 import { performOnboardingSkip } from '~/lib/student-space/onboarding-skip'
 import { cn } from '~/lib/utils'

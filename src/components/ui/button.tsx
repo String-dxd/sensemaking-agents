@@ -1,4 +1,4 @@
-import { Button as BaseButton } from '@base-ui-components/react/button'
+import { Button as BaseButton } from '@base-ui/react/button'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { type ComponentPropsWithoutRef, forwardRef, type ReactNode } from 'react'
 import { cn } from '~/lib/utils'

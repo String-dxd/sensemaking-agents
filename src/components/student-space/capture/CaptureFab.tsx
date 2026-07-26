@@ -1,4 +1,4 @@
-import { Button as BaseButton } from '@base-ui-components/react/button'
+import { Button as BaseButton } from '@base-ui/react/button'
 import { Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { EMOTION_BY_ID } from '~/lib/student-space/mood-shapes'
