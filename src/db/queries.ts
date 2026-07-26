@@ -406,6 +406,47 @@ export interface InsertMirrorEntryInput {
   context_type?: VipsContextType
   tags?: string[]
   trace?: unknown
+  /**
+   * Client-supplied idempotency key (the engine's local capture id). When set, a
+   * second insert for the same (student, local_capture_id) returns the existing
+   * row instead of creating a duplicate reflection.
+   */
+  local_capture_id?: string
+}
+
+/**
+ * Look up a reflection by the client's local capture id. Used as the
+ * read-before-insert half of submit idempotency: a retry of the same capture
+ * must return the row the first attempt committed rather than re-running the
+ * paid Mirror agent.
+ */
+export async function findMirrorEntryByLocalCaptureId(
+  studentId: string,
+  localCaptureId: string,
+  opts: { ctx?: TenantContext } = {},
+): Promise<MirrorEntryRow | null> {
+  if (opts.ctx) return findMirrorEntryByLocalCaptureIdInner(opts.ctx, localCaptureId)
+  return withStudent(studentId, (ctx) => findMirrorEntryByLocalCaptureIdInner(ctx, localCaptureId))
+}
+
+async function findMirrorEntryByLocalCaptureIdInner(
+  ctx: TenantContext,
+  localCaptureId: string,
+): Promise<MirrorEntryRow | null> {
+  const rows = await ctx.db
+    .select()
+    .from(mirrorEntries)
+    .where(
+      and(
+        eq(mirrorEntries.studentId, ctx.studentId),
+        eq(mirrorEntries.localCaptureId, localCaptureId),
+      ),
+    )
+    .limit(1)
+  const first = rows[0]
+  if (!first) return null
+  const row = drizzleMirrorRow(first)
+  return rowToMirrorEntry(row, await loadTagsInner(ctx, row.id))
 }
 
 export async function insertMirrorEntry(
@@ -422,6 +463,13 @@ async function insertMirrorEntryInner(
   studentId: string,
   input: InsertMirrorEntryInput,
 ): Promise<MirrorEntryRow> {
+  if (input.local_capture_id) {
+    const existing = await findMirrorEntryByLocalCaptureIdInner(ctx, input.local_capture_id)
+    // A retry of the same capture must not create a second reflection (or a
+    // second agent_traces row). Return the row the first attempt committed.
+    if (existing) return existing
+  }
+
   const inserted = await ctx.db
     .insert(mirrorEntries)
     .values({
@@ -432,9 +480,21 @@ async function insertMirrorEntryInner(
       storyReframe: input.story_reframe,
       rawOutputJson: JSON.stringify(input.raw_output),
       contextType: input.context_type ?? 'school',
+      localCaptureId: input.local_capture_id ?? null,
     })
+    .onConflictDoNothing()
     .returning({ id: mirrorEntries.id })
-  const id = requireRow(inserted, 'insert').id
+  const insertedId = inserted[0]?.id
+  if (insertedId === undefined) {
+    // The unique index fired between our lookup and this insert: a concurrent
+    // submit of the same capture won. Return its row rather than failing.
+    if (input.local_capture_id) {
+      const winner = await findMirrorEntryByLocalCaptureIdInner(ctx, input.local_capture_id)
+      if (winner) return winner
+    }
+    throw new Error('insertMirrorEntry: insert returned no row')
+  }
+  const id = insertedId
 
   for (const label of input.tags ?? []) {
     const tagId = await upsertTagInner(ctx, studentId, label)

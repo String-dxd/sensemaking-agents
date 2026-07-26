@@ -16,6 +16,7 @@ export const persistMirrorInputSchema = z.object({
   review_status: z.enum(['confirmed', 'forgotten']).optional(),
   raw_output: z.unknown(),
   trace: z.unknown().optional(),
+  local_capture_id: z.string().min(1).optional(),
 })
 export type PersistMirrorInput = z.output<typeof persistMirrorInputSchema>
 

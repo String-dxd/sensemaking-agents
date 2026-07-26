@@ -1,0 +1,2 @@
+ALTER TABLE "mirror_entries" ADD COLUMN "local_capture_id" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "mirror_entries_student_local_capture_uq" ON "mirror_entries" USING btree ("student_id","local_capture_id");
