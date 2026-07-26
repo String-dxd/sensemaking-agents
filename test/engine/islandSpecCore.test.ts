@@ -739,7 +739,17 @@ describe('snapToLand', () => {
     if (!snapped) return
     const { c, r } = worldToCell(committedSpec.worldSize, committedSpec.grid, snapped.x, snapped.z)
     expect(preSeeded.has(cellIndex(committedSpec.grid, c, r))).toBe(false)
-  })
+    // 20 s timeout (vitest's default is 5 s), for this test only. The x=-20
+    // start clamps to the grid edge, so the ring search legitimately scans
+    // ~896 distinct cells, each running the 4-pass blurred bicubic sampler
+    // over a 128x128 spec. The rings are disjoint (see snapToLand.ts), so no
+    // cell is ever visited twice — the cost is INHERENT, not redundant, and
+    // memoizing the predicate was measured to be a no-op (896 calls, 0 cache
+    // hits). Measured at 4364-5472 ms under 10 busy cores on a 10-core
+    // machine — the worst case EXCEEDS the 5 s default, which is exactly the
+    // observed flake. 20 s leaves ~4x headroom for a slower CI runner. If
+    // this ever times out again, profile the search rather than raising this.
+  }, 20_000)
 
   it('claimCellAt reserves the cell of an already-valid object', () => {
     const env = makeEnv()
