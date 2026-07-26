@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button } from '~/components/ui/button'
+import { Button, buttonVariants } from '~/components/ui/button'
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
 import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
@@ -176,24 +176,25 @@ export function EdupassLogin({
       <div className="relative z-[1] flex w-full max-w-[360px] flex-col items-center gap-3">
         <fieldset className="m-0 flex w-full flex-col items-stretch gap-2 border-0 p-0">
           <legend className="sr-only">Sign in</legend>
-          <Button
+          <a
+            ref={edupassRef}
+            href={edupassHref}
             data-action="edupass"
             aria-disabled={connecting !== null}
             className={cn(
+              buttonVariants(),
               EDUPASS_BUTTON_CLASS,
               connecting && 'pointer-events-none opacity-60',
               connecting === 'edupass' && 'cursor-progress opacity-85',
             )}
-            render={
-              <a ref={edupassRef} href={edupassHref} onClick={onEdupassClick}>
-                <span>
-                  {connecting === 'edupass'
-                    ? `${ONBOARDING_COPY.login.connecting}...`
-                    : ONBOARDING_COPY.login.actions.edupass}
-                </span>
-              </a>
-            }
-          />
+            onClick={onEdupassClick}
+          >
+            <span>
+              {connecting === 'edupass'
+                ? `${ONBOARDING_COPY.login.connecting}...`
+                : ONBOARDING_COPY.login.actions.edupass}
+            </span>
+          </a>
 
           <form data-action="demo" method="post" action={demoAction} onSubmit={onDemoSubmit}>
             <Button
