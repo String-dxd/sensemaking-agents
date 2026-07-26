@@ -1,4 +1,4 @@
-import { Dialog as BaseDialog } from '@base-ui-components/react/dialog'
+import { Dialog as BaseDialog } from '@base-ui/react/dialog'
 import { Heart, MessageCircle, X } from 'lucide-react'
 import { useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
 import { cn } from '~/lib/utils'
