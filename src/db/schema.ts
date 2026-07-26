@@ -71,6 +71,13 @@ export const mirrorEntries = pgTable(
     transcript: text('transcript').notNull(),
     /** Optional short display title (e.g. demo corpus section headings). */
     title: text('title'),
+    /**
+     * Idempotency key from the Student Space client (the engine's local capture
+     * id). Present for student-space submits; NULL for seeds, imports, and other
+     * insert paths. Unique per student so a retry of the same capture returns the
+     * existing row instead of duplicating the reflection.
+     */
+    localCaptureId: text('local_capture_id'),
     validation: text('validation').notNull(),
     inferredMeaning: text('inferred_meaning').notNull(),
     storyReframe: text('story_reframe').notNull(),
@@ -86,6 +93,7 @@ export const mirrorEntries = pgTable(
   (t) => [
     check('mirror_entries_context_type_check', CONTEXT_TYPE_CHECK),
     index('idx_mirror_entries_student').on(t.studentId, t.createdAt.desc()),
+    uniqueIndex('mirror_entries_student_local_capture_uq').on(t.studentId, t.localCaptureId),
     index('idx_mirror_entries_story_reframe_tsv').using('gin', t.storyReframeTsv),
     pgPolicy('mirror_entries_rls', {
       as: 'permissive',
