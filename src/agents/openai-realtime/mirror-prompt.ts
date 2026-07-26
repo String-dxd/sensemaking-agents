@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import type { RealtimeSessionCreateRequest } from 'openai/resources/realtime/realtime'
+import MIRROR_PROMPT_RAW from '../mirror.prompt.md?raw'
 import { OPENAI_REALTIME_MIRROR_DEFAULT_MODEL } from './config'
 import {
   buildRealtimeMirrorLiveAudioInputConfig,
@@ -22,15 +20,10 @@ export {
   OPENAI_REALTIME_MIRROR_VOICE,
 } from './mirror-payloads'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-const PROMPT_PATH = resolve(__dirname, '..', 'mirror.prompt.md')
-
-let cachedMirrorPrompt: string | null = null
+const MIRROR_PROMPT = MIRROR_PROMPT_RAW.trim()
 
 export function getMirrorSystemPrompt(): string {
-  cachedMirrorPrompt ??= readFileSync(PROMPT_PATH, 'utf8').trim()
-  return cachedMirrorPrompt
+  return MIRROR_PROMPT
 }
 
 export function buildRealtimeMirrorInstructions(): string {

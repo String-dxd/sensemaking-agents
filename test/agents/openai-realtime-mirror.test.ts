@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import type { RealtimeClientEvent, RealtimeServerEvent } from 'openai/resources/realtime/realtime'
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -9,6 +11,19 @@ import {
   runOpenAIRealtimeMirror,
 } from '~/agents/openai-realtime/mirror-runner'
 import { parseMirrorRealtimeText } from '~/agents/openai-realtime/parse'
+
+describe('OpenAI Realtime Mirror prompt packaging', () => {
+  it('inlines the system prompt instead of reading it from the deployment filesystem', () => {
+    const source = readFileSync(
+      join(process.cwd(), 'src/agents/openai-realtime/mirror-prompt.ts'),
+      'utf8',
+    )
+
+    expect(source).toContain("from '../mirror.prompt.md?raw'")
+    expect(source).not.toContain("from 'node:fs'")
+    expect(source).not.toContain('readFileSync')
+  })
+})
 
 describe('OpenAI Realtime Mirror runner', () => {
   it('returns parsed Mirror output from a Realtime text response', async () => {
