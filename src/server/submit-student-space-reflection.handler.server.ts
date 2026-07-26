@@ -1,6 +1,6 @@
 import type { SelfCritiqueOutput } from '~/agents/tools/schemas'
 import { requireCounselorContext } from '~/auth/identity'
-import type { MirrorEntryRow } from '~/db/queries'
+import { findMirrorEntryByLocalCaptureId, type MirrorEntryRow } from '~/db/queries'
 import {
   type PersistMirrorDeps,
   persistMirrorForStudent,
@@ -34,6 +34,7 @@ export interface SubmitStudentSpaceReflectionDeps {
   transcribeAudio?: typeof transcribeMirrorAudio
   runMirror?: typeof runMirrorForStudent
   persistMirror?: typeof persistMirrorForStudent
+  findExisting?: typeof findMirrorEntryByLocalCaptureId
   transcriptionDeps?: Omit<TranscribeMirrorDeps, 'authenticate'>
   mirrorDeps?: RunMirrorHandlerDeps
   persistDeps?: Omit<PersistMirrorDeps, 'requireContext'>
@@ -45,6 +46,30 @@ export async function submitStudentSpaceReflectionHandler(
 ): Promise<SubmitStudentSpaceReflectionResult> {
   const parsed = submitStudentSpaceReflectionInputSchema.parse(data)
   const { studentId } = await (deps.requireContext ?? requireCounselorContext)()
+
+  // Idempotency: the client retries with the same localCaptureId. If the first
+  // attempt already committed a row (e.g. it failed *after* insert, in the
+  // memory-append step), return that row instead of re-running the paid Mirror
+  // agent and inserting a duplicate reflection.
+  const existing = await (deps.findExisting ?? findMirrorEntryByLocalCaptureId)(
+    studentId,
+    parsed.localCaptureId,
+  )
+  if (existing) {
+    return {
+      local_capture_id: parsed.localCaptureId,
+      transcript: existing.transcript,
+      mirror_entry: existing,
+      output: {
+        validation: existing.validation,
+        inferred_meaning: existing.inferred_meaning,
+        story_reframe: existing.story_reframe,
+      },
+      eval_review: null,
+      transcription: null,
+    }
+  }
+
   const transcription = parsed.transcript
     ? null
     : await (deps.transcribeAudio ?? transcribeMirrorAudio)(
@@ -74,6 +99,7 @@ export async function submitStudentSpaceReflectionHandler(
       mood: parsed.mood,
       review_status: 'confirmed',
       raw_output: mirror.output,
+      local_capture_id: parsed.localCaptureId,
       trace: {
         source: 'student-space',
         local_capture_id: parsed.localCaptureId,

@@ -81,6 +81,7 @@ export async function persistMirrorForStudent(
     },
     trace: parsed.trace,
     tags: taggedMood ? [mirrorMoodTag(taggedMood)] : undefined,
+    ...(parsed.local_capture_id ? { local_capture_id: parsed.local_capture_id } : {}),
   })
   if (parsed.review_status) {
     const updateReviewStatus = deps.updateMirrorEntryReviewStatus ?? updateMirrorEntryReviewStatus

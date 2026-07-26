@@ -12,6 +12,7 @@ describe('submitStudentSpaceReflectionHandler', () => {
     }))
     const persistMirror = vi.fn(async () => ({ mirror_entry: mirrorEntry() }))
     const transcribeAudio = vi.fn()
+    const findExisting = vi.fn(async () => null)
 
     const result = await submitStudentSpaceReflectionHandler(
       {
@@ -20,7 +21,7 @@ describe('submitStudentSpaceReflectionHandler', () => {
         context_type: 'school',
         mood: 'joy',
       },
-      { requireContext, runMirror, persistMirror, transcribeAudio },
+      { requireContext, runMirror, persistMirror, transcribeAudio, findExisting },
     )
 
     expect(requireContext).toHaveBeenCalledOnce()
@@ -73,6 +74,7 @@ describe('submitStudentSpaceReflectionHandler', () => {
         transcribeAudio,
         runMirror,
         persistMirror: vi.fn(async () => ({ mirror_entry: mirrorEntry() })),
+        findExisting: vi.fn(async () => null),
       },
     )
 
