@@ -68,7 +68,25 @@ the middle only where noted):
   })
 ```
 
-Why it is slow, and why the cost is avoidable:
+> **CORRECTION (2026-07-26, after execution round 1).** The original version of
+> this plan claimed the cost was *redundant* — that the search "revisits the
+> same grid cells repeatedly" and could be memoized. **That was wrong, and the
+> memoization step has been removed.** `snapToLand.ts:78-93` ring-searches
+> Chebyshev rings with a `Math.max(Math.abs(dc), Math.abs(dr)) !== radius`
+> guard, so rings are disjoint and each cell is visited **at most once**. The
+> executor measured it: **896 predicate calls, 896 distinct cells, 0 cache
+> hits** — a memo is provably a no-op, and so is the exact-coordinate fallback,
+> since cell-keying is strictly coarser. The cost is **inherent**, not
+> redundant. What survives is the per-test timeout, and the measurement below
+> justifies it.
+>
+> Measured under 10 busy spinners on a 10-core machine, across three full-suite
+> runs: **4364 / 4614 / 5472 ms**. The worst of those **exceeds vitest's 5000 ms
+> default outright** — that run would have gone red without this fix. This is
+> the flake caught in the act, not inferred. 20 s leaves ~3.7× headroom over the
+> observed worst case.
+
+Why it is slow, and why the cost is **not** avoidable by caching:
 
 - It starts at `x = -20`, deliberately far off-world, and `snapPositionToLand`
   searches outward from there until it finds a valid unoccupied cell. That is a
@@ -79,9 +97,10 @@ Why it is slow, and why the cost is avoidable:
   `evaluateHeight` runs the tier-field sampler whose kernel is a 4-pass blur
   with bicubic B-spline interpolation (`BLUR_PASSES = 4`, `BLUR_MIX = 0.85`,
   set by plan 032). That is an expensive call, invoked many times.
-- **`evaluateHeight` is a pure function of the spec and the position**, and the
-  search revisits the same grid cells repeatedly. So the repeated cost is
-  redundant, not inherent.
+- `evaluateHeight` is pure, but that does not help here: the
+  search visits each cell **at most once** — `snapToLand.ts` walks disjoint
+  Chebyshev rings. The cost is therefore **inherent, not redundant**, and
+  caching the predicate was measured to be a no-op (896 calls, 0 hits).
 
 Neither `vitest.config.ts` nor the test file sets a custom timeout today, so
 the default 5000 ms applies. `vitest.config.ts` does pin
@@ -133,7 +152,7 @@ the stash stack is repo-global.
 ## Git workflow
 
 - Branch: `advisor/070-fix-islandspeccore-timeout-flake`
-- Commit: `test(engine): memoize the snap predicate so the island snap test stops timing out under load`
+- Commit: `test(engine): give the island snap test headroom over its measured ~5.5 s worst case`
 - Do NOT push or open a PR.
 
 ## Steps
@@ -150,50 +169,7 @@ count in your report. If the test does **not** take a meaningful fraction of a
 second alone, STOP and report — the flake may have a different cause than this
 plan assumes.
 
-### Step 2: Memoize the predicate per grid cell
-
-Replace the inline `isValid` with a memoized closure, local to this test. The
-key must be the **grid cell**, not the raw float coordinates, because the
-search probes many distinct `(x, z)` that resolve to the same cell — that is
-where the redundancy is. `worldToCell` and `cellIndex` are already imported in
-this file; use them.
-
-Target shape (adapt names to the file's style):
-
-```ts
-    const heightCache = new Map<number, boolean>()
-    const isValidCached = (x: number, z: number) => {
-      const { c, r } = worldToCell(committedSpec.worldSize, committedSpec.grid, x, z)
-      const key = cellIndex(committedSpec.grid, c, r)
-      const hit = heightCache.get(key)
-      if (hit !== undefined) return hit
-      // Same predicate as before: land = above sea level (coarse validity).
-      // Memoized per grid cell because `evaluateHeight` runs the 4-pass
-      // blurred tier-field sampler over a 128×128 spec, and the outward
-      // search from x=-20 probes the same cells repeatedly.
-      const value = evaluateHeight(committedSpec, x, z) > committedSpec.seaLevel + 0.02
-      heightCache.set(key, value)
-      return value
-    }
-```
-
-Then pass `isValid: isValidCached`.
-
-**One correctness caveat you must check, not assume:** `evaluateHeight` takes
-continuous coordinates, so two positions in the same cell could in principle
-return different heights, and caching by cell would then change the predicate's
-answers. Verify the outcome is unchanged by confirming the final assertions
-still pass **and** that the snapped cell is the same as before your change —
-record the `snapped.x` / `snapped.z` from Step 1 and compare. If the snapped
-position moves, the cell-level cache is too coarse: fall back to keying the
-cache on the exact `x,z` pair (still a large win, since the search revisits
-exact positions) and say so in your report.
-
-**Verify**: `pnpm exec vitest run test/engine/islandSpecCore.test.ts` → all
-pass, and this test's duration is materially lower than Step 1's number. Report
-both numbers.
-
-### Step 3: Add a headroom timeout for this one test
+### Step 2: Add a headroom timeout for this one test
 
 Even memoized, this test does real work, and CI runners are slower. Give this
 single test an explicit timeout of 20000 ms as a second line of defence:
@@ -212,7 +188,7 @@ CPU contention. Only this test gets the override.
 **Verify**: `grep -n 'testTimeout' vitest.config.ts` → no matches (the global
 default is untouched).
 
-### Step 4: Prove it under contention
+### Step 3: Prove it under contention
 
 The bug only appears under load, so a quiet green run proves little. Reproduce
 contention and show the test survives it: run the **full** suite with parallel
@@ -226,7 +202,7 @@ well above the ~10 s quiet baseline). If any run still fails on this test, STOP
 and report the observed duration — the timeout may need to be higher, and that
 is a decision for the reviewer.
 
-### Step 5: Full gate
+### Step 4: Full gate
 
 **Verify**: `pnpm check` → exit 0, 18 warnings.
 **Verify**: `pnpm test` → 1097 passed / 40 skipped / 0 failed.
