@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { MEMORY_FILE_PATHS } from '~/agents/memory'
-import type { MirrorEntryRow } from '~/db/queries'
+import type { InsertMirrorEntryInput, MirrorEntryRow } from '~/db/queries'
 import { persistMirrorHandler } from '~/server/persist-mirror.handler.server'
 
 function input() {
@@ -112,5 +112,50 @@ describe('persistMirrorHandler', () => {
 
     expect(updateMirrorEntryReviewStatus).toHaveBeenCalledWith('demo', 42, 'confirmed')
     expect(result.mirror_entry.review_status).toBe('confirmed')
+  })
+
+  it('forwards the client idempotency key to the insert', async () => {
+    const insertMirrorEntry = vi.fn(async () => mirrorEntry())
+
+    await persistMirrorHandler(
+      { ...input(), local_capture_id: 'local-7' },
+      {
+        requireContext: vi.fn(async () => ({ counselorId: 'counselor', studentId: 'demo' })),
+        insertMirrorEntry,
+        appendStudentMemory: vi.fn(async () => ({
+          filePath: MEMORY_FILE_PATHS.studentVoice,
+          skipped: false,
+          opCount: 1,
+          snapshotVersion: null,
+          memoryId: 'mem_1',
+        })),
+      },
+    )
+
+    expect(insertMirrorEntry).toHaveBeenCalledWith(
+      'demo',
+      expect.objectContaining({ local_capture_id: 'local-7' }),
+    )
+  })
+
+  it('omits the idempotency key entirely when the caller supplies none', async () => {
+    const insertMirrorEntry = vi.fn(async (_studentId: string, _input: InsertMirrorEntryInput) =>
+      mirrorEntry(),
+    )
+
+    await persistMirrorHandler(input(), {
+      requireContext: vi.fn(async () => ({ counselorId: 'counselor', studentId: 'demo' })),
+      insertMirrorEntry,
+      appendStudentMemory: vi.fn(async () => ({
+        filePath: MEMORY_FILE_PATHS.studentVoice,
+        skipped: false,
+        opCount: 1,
+        snapshotVersion: null,
+        memoryId: 'mem_1',
+      })),
+    })
+
+    // Not merely undefined — absent, so seeds and imports never write the column.
+    expect(insertMirrorEntry.mock.calls[0]?.[1]).not.toHaveProperty('local_capture_id')
   })
 })

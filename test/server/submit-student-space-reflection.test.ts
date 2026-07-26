@@ -86,6 +86,75 @@ describe('submitStudentSpaceReflectionHandler', () => {
     expect(result.transcription).toMatchObject({ transcript: 'voice transcript' })
   })
 
+  it('returns the already-committed row on a retry instead of re-running Mirror', async () => {
+    // Regression: the first attempt can insert the row and *then* fail (the
+    // DIAGNOSTIC_LANGUAGE rethrow in persistMirrorForStudent happens after the
+    // insert). The client records 'failed' and offers Retry. Without keying on
+    // localCaptureId that retry re-ran the paid Mirror agent and inserted a
+    // second reflection — the same entry twice in the timeline, billed twice.
+    const runMirror = vi.fn()
+    const persistMirror = vi.fn()
+    const transcribeAudio = vi.fn()
+    const findExisting = vi.fn(async () => mirrorEntry())
+
+    const result = await submitStudentSpaceReflectionHandler(
+      {
+        localCaptureId: 'local-1',
+        transcript: 'I wanted the project to help someone.',
+        context_type: 'school',
+      },
+      {
+        requireContext: vi.fn(async () => ({ counselorId: 'counselor', studentId: 'demo' })),
+        runMirror,
+        persistMirror,
+        transcribeAudio,
+        findExisting,
+      },
+    )
+
+    expect(findExisting).toHaveBeenCalledWith('demo', 'local-1')
+    expect(runMirror).not.toHaveBeenCalled()
+    expect(persistMirror).not.toHaveBeenCalled()
+    expect(transcribeAudio).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      local_capture_id: 'local-1',
+      mirror_entry: { id: 42 },
+      eval_review: null,
+      transcription: null,
+    })
+  })
+
+  it('passes the idempotency key to persist on a genuine first attempt', async () => {
+    const runMirror = vi.fn(async () => ({ output: mirrorOutput(), eval_review: null }))
+    const persistMirror = vi.fn(async () => ({ mirror_entry: mirrorEntry() }))
+
+    await submitStudentSpaceReflectionHandler(
+      {
+        localCaptureId: 'local-1',
+        transcript: 'I wanted the project to help someone.',
+        context_type: 'school',
+      },
+      {
+        requireContext: vi.fn(async () => ({ counselorId: 'counselor', studentId: 'demo' })),
+        runMirror,
+        persistMirror,
+        findExisting: vi.fn(async () => null),
+      },
+    )
+
+    expect(runMirror).toHaveBeenCalledOnce()
+    expect(persistMirror).toHaveBeenCalledOnce()
+    // Both: the column is the idempotency key, the trace stays the audit record.
+    expect(persistMirror).toHaveBeenCalledWith(
+      'demo',
+      expect.objectContaining({
+        local_capture_id: 'local-1',
+        trace: expect.objectContaining({ local_capture_id: 'local-1' }),
+      }),
+      undefined,
+    )
+  })
+
   it('rejects unsupported audio before it reaches transcription', async () => {
     await expect(
       transcribeMirrorHandler(
