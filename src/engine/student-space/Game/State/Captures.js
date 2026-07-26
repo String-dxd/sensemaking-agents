@@ -169,6 +169,22 @@ export default class Captures
     {
         if(!Array.isArray(snapshot) || snapshot.length === 0) return
         this.entries = mergeArray(snapshot, mergeCapture, 'capture')
+
+        // A persisted 'syncing' status can only mean the page went away mid
+        // submit (AskSheet writes it before the network call). Nothing else
+        // reconciles it, so the capture would render "Syncing…" forever with
+        // Retry suppressed and the reflection silently lost. hydrate() runs once
+        // at boot (State.js), before any submit in this session can be in flight,
+        // so re-marking here cannot race a live request.
+        for(const entry of this.entries)
+        {
+            if(entry.syncStatus === 'syncing' && !entry.backendMirrorEntryId)
+            {
+                entry.syncStatus = 'failed'
+                entry.syncError  = 'Interrupted before saving'
+            }
+        }
+
         // Bulk load is not a save event — see MoodPins.hydrate for the
         // same reasoning. Subscribers read `this.entries` on demand.
     }
