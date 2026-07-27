@@ -114,13 +114,18 @@ vi.mock('~/engine/student-space/Game/index.js', () => ({
 
 import Game from '~/engine/student-space/Game/Game.js'
 
+interface SoundStub {
+  suspend: () => void
+  resume: () => void
+}
+
 interface GameInternals {
   _running: boolean
   _hidden: boolean
   _renderActive: boolean
   _rafId: number | null
   state: { update: () => void }
-  view: { update: () => void }
+  view: { update: () => void; sound: SoundStub }
   update(): void
   setRenderActive(active: boolean): void
   _handleVisibilityChange(): void
@@ -139,7 +144,7 @@ function makeHarness(initial: Partial<GameInternals> = {}): GameInternals {
     _renderActive: true,
     _rafId: null,
     state: { update: vi.fn() },
-    view: { update: vi.fn() },
+    view: { update: vi.fn(), sound: { suspend: vi.fn(), resume: vi.fn() } },
     update: proto.update,
     setRenderActive: proto.setRenderActive,
     _handleVisibilityChange: proto._handleVisibilityChange,
@@ -286,6 +291,57 @@ describe('Game.setRenderActive / rAF gate (U6)', () => {
     expect(ctx._hidden).toBe(false)
     expect(rafSpy).toHaveBeenCalledTimes(1)
     expect(ctx.state.update).toHaveBeenCalledTimes(1)
+  })
+
+  // Audio rides the same gate as the rAF loop: freezing the world must
+  // freeze the soundtrack, or ambience keeps playing behind a routed sheet.
+  it('suspends audio when the route pauses the render loop', () => {
+    const ctx = makeHarness({ _rafId: 42 })
+    ctx.setRenderActive(false)
+    expect(ctx.view.sound.suspend).toHaveBeenCalledTimes(1)
+    expect(ctx.view.sound.resume).not.toHaveBeenCalled()
+  })
+
+  it('resumes audio when the route un-pauses the render loop', () => {
+    const ctx = makeHarness({ _renderActive: false, _rafId: null })
+    ctx.setRenderActive(true)
+    expect(ctx.view.sound.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT resume audio when setRenderActive(true) fires while the tab is hidden', () => {
+    const ctx = makeHarness({ _renderActive: false, _hidden: true, _rafId: null })
+    ctx.setRenderActive(true)
+    expect(ctx.view.sound.resume).not.toHaveBeenCalled()
+  })
+
+  it('does NOT resume audio when an rAF is already scheduled (StrictMode replay)', () => {
+    const ctx = makeHarness({ _renderActive: false, _rafId: 99 })
+    ctx.setRenderActive(true)
+    expect(ctx.view.sound.resume).not.toHaveBeenCalled()
+  })
+
+  // The hidden-tab path talks to Sound, not to the raw AudioContext — the
+  // ctx alone doesn't cover streamed <audio> elements, which bypass the
+  // Web Audio graph entirely.
+  it('_handleVisibilityChange suspends audio through Sound when the tab hides', () => {
+    const ctx = makeHarness({ _hidden: false, _rafId: 7 })
+    Object.defineProperty(document, 'hidden', { configurable: true, value: true })
+    ctx._handleVisibilityChange()
+    expect(ctx.view.sound.suspend).toHaveBeenCalledTimes(1)
+  })
+
+  it('_handleVisibilityChange resumes audio through Sound when the tab returns (render active)', () => {
+    const ctx = makeHarness({ _renderActive: true, _hidden: true, _rafId: null })
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false })
+    ctx._handleVisibilityChange()
+    expect(ctx.view.sound.resume).toHaveBeenCalledTimes(1)
+  })
+
+  it('_handleVisibilityChange does NOT resume audio while a routed sheet owns the pause', () => {
+    const ctx = makeHarness({ _renderActive: false, _hidden: true, _rafId: null })
+    Object.defineProperty(document, 'hidden', { configurable: true, value: false })
+    ctx._handleVisibilityChange()
+    expect(ctx.view.sound.resume).not.toHaveBeenCalled()
   })
 
   // Drive a captured rAF callback so the schedule path is exercised end-to-end.

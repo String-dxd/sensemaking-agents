@@ -127,10 +127,12 @@ export default class Game
         {
             // Suspend the rAF loop. The flag below tells update() not to
             // schedule a follow-up frame; the in-flight rAF (if any) drops
-            // its body on next entry. AudioContext suspend stops the music
-            // graph from running into a tab the user isn't listening to.
+            // its body on next entry. Sound.suspend() stops the music from
+            // running into a tab the user isn't listening to — it covers
+            // both the Web Audio graph and the streamed <audio> elements
+            // that bypass it.
             if(this._rafId != null) { cancelAnimationFrame(this._rafId); this._rafId = null }
-            try { this.view?.sound?.ctx?.suspend?.() } catch(_) {}
+            try { this.view?.sound?.suspend?.() } catch(_) {}
         }
         else if(this._running && this._renderActive)
         {
@@ -141,7 +143,7 @@ export default class Game
             // Gate on `_renderActive` so audio doesn't resume while a routed
             // sheet covers the world — otherwise music plays into a tab the
             // user expects to be quiet (paused by `setRenderActive(false)`).
-            try { this.view?.sound?.ctx?.resume?.() } catch(_) {}
+            try { this.view?.sound?.resume?.() } catch(_) {}
             this.update()
         }
     }
@@ -286,13 +288,22 @@ export default class Game
         if(!next)
         {
             if(this._rafId != null) { cancelAnimationFrame(this._rafId); this._rafId = null }
+            // Freezing the render loop has to freeze the soundtrack too —
+            // otherwise ambience keeps playing behind a routed sheet.
+            try { this.view?.sound?.suspend?.() } catch(_) {}
             return
         }
         // Resume only if the engine isn't otherwise suspended (running and
         // not hidden) AND we don't already have an rAF scheduled. The
         // `_rafId == null` guard prevents StrictMode's effect-replay from
         // starting two parallel rAF chains via false→true→false→true.
-        if(this._running && !this._hidden && this._rafId == null) this.update()
+        // Audio rides the same condition so flipping render-active while the
+        // tab is hidden doesn't resume music into a hidden tab.
+        if(this._running && !this._hidden && this._rafId == null)
+        {
+            try { this.view?.sound?.resume?.() } catch(_) {}
+            this.update()
+        }
     }
 
     /**

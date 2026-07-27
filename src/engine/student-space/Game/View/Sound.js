@@ -144,6 +144,11 @@ export default class Sound
         this._streamVolTarget = STREAM_BASE
         this._streamLoadPromise = null
 
+        // Set while the engine is paused (routed sheet covering the world,
+        // or a hidden tab). Distinct from `_muted`: the user can toggle mute
+        // while suspended without starting playback behind a sheet.
+        this._suspended = false
+
         // Lazy-unlock on first gesture. Browsers block AudioContext until
         // a user-initiated event; we listen once and then build the graph.
         // The handler ref is stored so `dispose()` can remove the listeners
@@ -177,9 +182,45 @@ export default class Sound
         {
             el.volume = muted ? 0 : this._streamVolTarget
             if(muted) el.pause()
-            else if(TRACKS_BY_ID[this._trackId]?.id === this._streamElIdOf(el))
+            // Unmuting while suspended must not start playback — the route
+            // (or the hidden tab) still owns the silence. `resume()` picks
+            // the track back up when the world comes forward again.
+            else if(!this._suspended && TRACKS_BY_ID[this._trackId]?.id === this._streamElIdOf(el))
                 el.play().catch(() => {})
         }
+    }
+
+    /**
+     * Silence every audio source without tearing the graph down. Called when
+     * the render loop pauses — a routed sheet covering the world, or the tab
+     * going hidden. Suspending the AudioContext alone isn't enough: streamed
+     * tracks play through <audio> elements that bypass the Web Audio graph,
+     * so they have to be paused directly.
+     */
+    suspend()
+    {
+        this._suspended = true
+        try { this.ctx?.suspend?.() } catch(_) {}
+        for(const el of this._streamEls.values())
+        {
+            try { el.pause() } catch(_) {}
+        }
+    }
+
+    /**
+     * Undo `suspend()`. When muted, only the flag clears — the user asked for
+     * silence and resuming the world must not override that. Otherwise the
+     * context resumes and the current track's element (streams only) picks up
+     * where it left off, mirroring the `setMuted(false)` idiom.
+     */
+    resume()
+    {
+        this._suspended = false
+        if(this._muted) return
+        try { this.ctx?.resume?.() } catch(_) {}
+        if(TRACKS_BY_ID[this._trackId]?.type !== 'stream') return
+        const el = this._streamEls.get(this._trackId)
+        if(el) { try { el.play().catch(() => {}) } catch(_) {} }
     }
 
     _streamElIdOf(el)
