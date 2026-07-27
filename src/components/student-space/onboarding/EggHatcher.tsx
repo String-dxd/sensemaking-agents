@@ -14,7 +14,6 @@ import {
   smootherstep,
   smoothstep,
 } from '~/engine/student-space/Game/util/easing.js'
-import { applyToonMaterials } from '~/engine/student-space/Game/View/Materials/toonMaterial.ts'
 import {
   EGG_COLOR_BY_ID,
   EGG_COLORS,
@@ -490,14 +489,16 @@ export function EggCanvas({
         // twitch the egg bird.
         void (async () => {
           try {
-            const [gltf, SkeletonUtils] = await Promise.all([
+            const [gltf, SkeletonUtils, { applyToonMaterials }] = await Promise.all([
               // Dynamic: `assetLoader` statically pulls three + GLTFLoader +
-              // MeshoptDecoder, and a static edge here would put all of that
-              // on the pre-hydration chunk graph.
+              // MeshoptDecoder, and `toonMaterial` pulls three too. Static
+              // edges here would put all of that on the pre-hydration chunk
+              // graph, for a surface only the hatch ceremony renders.
               import('~/engine/student-space/Game/View/assetLoader.ts').then((m) =>
                 m.loadGlb(m.MODEL_URLS.character),
               ),
               import('three/examples/jsm/utils/SkeletonUtils.js'),
+              import('~/engine/student-space/Game/View/Materials/toonMaterial.ts'),
             ])
             if (token !== buildToken || cancelled || !gltf) return
             applyToonMaterials(gltf.scene)

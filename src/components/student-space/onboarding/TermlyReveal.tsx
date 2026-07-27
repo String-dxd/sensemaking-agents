@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react'
-import { Vector3 } from 'three'
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
 import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
@@ -106,6 +105,10 @@ export function TermlyReveal({
       const treeEntry = view?.tree?.entries?.[0]
       const treePreset = getPreset('tree-wide')
 
+      // Resolves from the module cache — the engine has long since loaded
+      // three by the time this reveal beat runs. Dynamic purely to keep three
+      // off the synchronous chunk graph the browser parses to hydrate.
+      const { Vector3 } = await import('three')
       view?.camera?.zoomTo?.(
         new Vector3(treePreset.camX, treePreset.camY, treePreset.camZ),
         new Vector3(0, treePreset.lookAtY, 0),
