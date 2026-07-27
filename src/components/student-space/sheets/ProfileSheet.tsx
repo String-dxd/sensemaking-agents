@@ -31,6 +31,7 @@ import {
   SheetTitle,
   usePageEscape,
 } from '~/components/ui/sheet'
+import { PROFILE_TAB_THEMES } from '~/data/profile-tabs'
 import { VIPS_TAXONOMY, type VipsDimension } from '~/data/vips-taxonomy'
 import ShareTokenBridge from '~/engine/student-space/Game/State/ShareTokenBridge.js'
 import { PROFILE_HEADERS, PROFILE_THEMES } from '~/lib/profile-tokens'
@@ -1561,14 +1562,7 @@ function splitThesisAndEvidence(text: string): { thesis: string; evidence: strin
 }
 
 function themeVars(tab: ProfileTab): CSSProperties {
-  if (!isVipsTab(tab)) {
-    return {
-      '--profile-accent': tab === 'relationships' ? '#D08A4A' : '#5C8FB0',
-      '--profile-soft': tab === 'relationships' ? '#F6E4CC' : '#DDEAF3',
-      '--profile-ink': tab === 'relationships' ? '#7A4413' : '#2F5773',
-    } as CSSProperties
-  }
-  const theme = PROFILE_THEMES[tab]
+  const theme = isVipsTab(tab) ? PROFILE_THEMES[tab] : PROFILE_TAB_THEMES[tab]
   return {
     '--profile-accent': theme.accent,
     '--profile-soft': theme.soft,

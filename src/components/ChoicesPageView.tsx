@@ -6,7 +6,12 @@
  *   §3 What I want to change                    — change intentions linked to §2 patterns
  *
  * Data lives in the engine `Choices` state slice (singleton + persist).
+ *
+ * Chrome follows the VIPS tabs in ProfileSheet: sheet ink/divider tokens,
+ * `rounded-xl` hairline cards, and the tab accent reserved for the header
+ * pill and the callout badges.
  */
+import type { CSSProperties } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -82,6 +87,32 @@ const PATTERN_TAG_DESCRIPTION: Record<DecisionPatternTag, string> = {
   deliberate: 'I tend to weigh options before deciding',
 }
 
+// Shared chrome. Declared once so the three sections cannot drift apart, and
+// so elevation is stated in exactly one place (a hairline border, no shadow).
+const CARD =
+  'rounded-xl border border-(color:--color-sheet-divider) bg-(--color-sheet-pane-left) p-4'
+const EMPTY =
+  'rounded-xl border border-(color:--color-sheet-divider) p-5 text-sm text-(--color-sheet-ink-soft)'
+const SECTION_HEADING = 'text-xs font-semibold text-(--color-sheet-ink-soft)'
+const INLINE_LABEL = 'text-xs font-semibold text-(--color-sheet-ink-soft)'
+const FIELD_LABEL = 'flex flex-col gap-1.5 text-xs font-medium text-(--color-sheet-ink-soft)'
+const FIELD =
+  'rounded-lg border border-(color:--color-sheet-field) bg-white px-3 py-2 text-sm text-(--color-sheet-ink) transition-[border-color] focus-visible:border-(color:--profile-accent) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(color:--profile-accent)'
+const REMOVE_BUTTON = 'ml-auto text-xs text-(--color-sheet-ink-soft) hover:text-(--color-sheet-ink)'
+const TOGGLE =
+  'relative cursor-pointer rounded-full border text-xs font-medium transition-[background-color,color,border-color,transform] before:absolute before:-inset-2 before:content-[""] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(color:--profile-accent) active:scale-[0.96]'
+const TOGGLE_OFF =
+  'border-(color:--color-sheet-field) bg-white/70 text-(--color-sheet-ink-soft) hover:text-(--color-sheet-ink)'
+
+// Set locally rather than inherited: ProfileSheet already declares these on the
+// tab wrapper, but the view is also embedded standalone (dev design route) where
+// nothing upstream would.
+const THEME_VARS: CSSProperties = {
+  '--profile-accent': PROFILE_TAB_THEMES.choices.accent,
+  '--profile-soft': PROFILE_TAB_THEMES.choices.soft,
+  '--profile-ink': PROFILE_TAB_THEMES.choices.ink,
+} as CSSProperties
+
 export function ChoicesPageView({
   disabled = false,
   decisions,
@@ -89,47 +120,38 @@ export function ChoicesPageView({
   actions,
 }: ChoicesPageViewProps) {
   const header = PROFILE_TAB_HEADERS.choices
-  const theme = PROFILE_TAB_THEMES.choices
 
   const patternCounts = useMemo(() => computePatternCounts(decisions), [decisions])
   const dominantPatternTag = useMemo(() => computeDominantPattern(patternCounts), [patternCounts])
 
   return (
-    <section className="flex w-full flex-col text-[#2b2620]" data-testid="choices-page">
-      <div className="w-full">
-        <header className="border-b border-[#e3d8c4] pb-6">
-          <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold text-[#2b2620]/55">{header.eyebrow}</p>
-            <span className="rounded-full bg-[#f1ede5] px-2 py-0.5 text-[11px] font-semibold text-[#2b2620]/70">
-              {header.tag}
-            </span>
-          </div>
-          <h1 className="mt-2 text-[clamp(1.6rem,4vw,2rem)] font-semibold leading-tight tracking-tight">
-            {header.title}
-          </h1>
-          <p className="mt-2 text-sm text-[#2b2620]/60">{header.subtitle}</p>
-        </header>
+    <section
+      className="flex w-full flex-col gap-8 text-(--color-sheet-ink)"
+      style={THEME_VARS}
+      data-testid="choices-page"
+    >
+      <header className="flex flex-col gap-3">
+        <span className="w-fit rounded-full bg-(--profile-soft) px-2.5 py-1 text-xs font-semibold text-(--profile-ink)">
+          {header.tag}
+        </span>
+        <div>
+          <h2 className="text-2xl font-semibold leading-tight">{header.title}</h2>
+          <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">{header.subtitle}</p>
+        </div>
+      </header>
 
-        <SectionDecisions
-          decisions={decisions}
-          theme={theme}
-          disabled={disabled}
-          actions={actions}
-        />
-        <SectionPatterns
-          decisions={decisions}
-          counts={patternCounts}
-          dominantPatternTag={dominantPatternTag}
-          theme={theme}
-        />
-        <SectionIntentions
-          intentions={intentions}
-          theme={theme}
-          disabled={disabled}
-          actions={actions}
-          dominantPatternTag={dominantPatternTag}
-        />
-      </div>
+      <SectionDecisions decisions={decisions} disabled={disabled} actions={actions} />
+      <SectionPatterns
+        decisions={decisions}
+        counts={patternCounts}
+        dominantPatternTag={dominantPatternTag}
+      />
+      <SectionIntentions
+        intentions={intentions}
+        disabled={disabled}
+        actions={actions}
+        dominantPatternTag={dominantPatternTag}
+      />
     </section>
   )
 }
@@ -138,26 +160,20 @@ export function ChoicesPageView({
 
 function SectionDecisions({
   decisions,
-  theme,
   disabled,
   actions,
 }: {
   decisions: DecisionEntry[]
-  theme: (typeof PROFILE_TAB_THEMES)['choices']
   disabled: boolean
   actions: ChoicesActions
 }) {
   const [adding, setAdding] = useState(false)
   return (
-    <section
-      className="border-b border-[#e3d8c4] py-6"
-      aria-labelledby="choices-decisions-heading"
-      data-testid="choices-section-decisions"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="choices-decisions-heading" className="text-xs font-semibold text-[#2b2620]/55">
+    <section aria-labelledby="choices-decisions-heading" data-testid="choices-section-decisions">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 id="choices-decisions-heading" className={SECTION_HEADING}>
           Decisions I&apos;ve made and why
-        </h2>
+        </h3>
         <Button
           size="sm"
           variant="outline"
@@ -171,7 +187,6 @@ function SectionDecisions({
 
       {adding ? (
         <DecisionForm
-          theme={theme}
           onCancel={() => setAdding(false)}
           onSubmit={(payload) => {
             actions.addDecision(payload)
@@ -181,8 +196,8 @@ function SectionDecisions({
       ) : null}
 
       {decisions.length === 0 && !adding ? (
-        <p className="mt-4 text-sm italic text-[#2b2620]/55" data-testid="choices-decisions-empty">
-          Log a real choice — CCA leadership, subject combination, a conflict you handled. Name your
+        <p className={EMPTY} data-testid="choices-decisions-empty">
+          Log a real choice: CCA leadership, a subject combination, a conflict you handled. Name the
           options and what pushed you.
         </p>
       ) : null}
@@ -193,13 +208,10 @@ function SectionDecisions({
             <li
               key={entry.id}
               data-testid={`choices-decision-entry-${entry.id}`}
-              className={cn(
-                'rounded-[14px] border-l-3 bg-white/60 px-4 py-3 text-sm',
-                theme.border,
-              )}
+              className={cn(CARD, 'text-sm')}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className={cn('font-semibold', theme.text)}>{entry.decision}</span>
+                <span className="font-semibold">{entry.decision}</span>
                 {entry.when ? (
                   <Badge variant="secondary" size="sm" radius="sm">
                     {entry.when}
@@ -208,35 +220,29 @@ function SectionDecisions({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="ml-auto text-xs text-[#2b2620]/55 hover:text-[#2b2620]"
+                  className={REMOVE_BUTTON}
                   disabled={disabled}
                   onClick={() => actions.removeDecision(entry.id)}
                   data-testid={`choices-decision-remove-${entry.id}`}
                 >
-                  remove
+                  Remove
                 </Button>
               </div>
               {entry.chose || entry.options.length > 0 ? (
-                <div className="mt-2 flex flex-col gap-1 text-[#2b2620]/80">
+                <div className="mt-2 flex flex-col gap-1">
                   {entry.chose ? (
                     <p>
-                      <span className="text-xs font-semibold text-[#2b2620]/55">chose:&nbsp;</span>
+                      <span className={cn(INLINE_LABEL, 'mr-1.5')}>Chose</span>
                       {entry.chose}
                     </p>
                   ) : null}
                   {entry.options.length > 0 ? (
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="text-xs font-semibold text-[#2b2620]/55">rejected:</span>
+                      <span className={INLINE_LABEL}>Rejected</span>
                       {entry.options
                         .filter((o) => o !== entry.chose)
                         .map((opt) => (
-                          <Badge
-                            key={opt}
-                            variant="secondary"
-                            size="sm"
-                            radius="sm"
-                            className="text-[#2b2620]/60"
-                          >
+                          <Badge key={opt} variant="secondary" size="sm" radius="sm">
                             {opt}
                           </Badge>
                         ))}
@@ -246,22 +252,20 @@ function SectionDecisions({
               ) : null}
               {entry.forces.length > 0 ? (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs font-semibold text-[#2b2620]/55">forces:</span>
+                  <span className={INLINE_LABEL}>Forces</span>
                   {entry.forces.map((f) => (
                     <Badge
                       key={f}
                       size="sm"
                       radius="sm"
-                      className={cn('font-medium', theme.callout)}
+                      className="bg-(--profile-soft) font-medium text-(--profile-ink)"
                     >
                       {FORCE_LABEL[f]}
                     </Badge>
                   ))}
                 </div>
               ) : null}
-              {entry.note ? (
-                <p className="mt-2 whitespace-pre-wrap text-[#2b2620]/80">{entry.note}</p>
-              ) : null}
+              {entry.note ? <p className="mt-2 whitespace-pre-wrap">{entry.note}</p> : null}
               <PatternTagPicker
                 entry={entry}
                 disabled={disabled}
@@ -286,7 +290,7 @@ function PatternTagPicker({
 }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
-      <span className="text-xs font-semibold text-[#2b2620]/55">pattern:</span>
+      <span className={INLINE_LABEL}>Pattern</span>
       {DECISION_PATTERN_TAG_VALUES.map((tag) => {
         const active = entry.patternTag === tag
         return (
@@ -298,10 +302,11 @@ function PatternTagPicker({
             aria-pressed={active}
             data-testid={`choices-decision-tag-${entry.id}-${tag}`}
             className={cn(
-              'relative cursor-pointer rounded-full border px-2.5 py-0.5 text-xs font-medium transition-[background-color,color,border-color,transform] before:absolute before:-inset-2 before:content-[""] active:scale-[0.96] disabled:pointer-events-none',
+              TOGGLE,
+              'px-2.5 py-0.5 disabled:pointer-events-none',
               active
-                ? 'border-[#2b2620] bg-[#2b2620] text-white'
-                : 'border-[#e3d8c4] bg-white/70 text-[#2b2620]/65 hover:text-[#2b2620]',
+                ? 'border-(color:--color-sheet-ink) bg-(--color-sheet-ink) text-white'
+                : TOGGLE_OFF,
               disabled && 'cursor-not-allowed opacity-50',
             )}
           >
@@ -314,11 +319,9 @@ function PatternTagPicker({
 }
 
 function DecisionForm({
-  theme,
   onSubmit,
   onCancel,
 }: {
-  theme: (typeof PROFILE_TAB_THEMES)['choices']
   onSubmit: (payload: Partial<DecisionEntry>) => void
   onCancel: () => void
 }) {
@@ -333,7 +336,7 @@ function DecisionForm({
   return (
     <form
       data-testid="choices-decision-form"
-      className={cn('mt-4 rounded-[14px] border bg-white/70 p-4', theme.border)}
+      className={CARD}
       onSubmit={(e) => {
         e.preventDefault()
         if (!valid) return
@@ -351,7 +354,7 @@ function DecisionForm({
         })
       }}
     >
-      <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={FIELD_LABEL}>
         Decision
         <input
           type="text"
@@ -359,47 +362,47 @@ function DecisionForm({
           onChange={(e) => setDecision(e.target.value)}
           required
           placeholder="CCA captain election"
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          className={FIELD}
           data-testid="choices-decision-form-decision"
         />
       </label>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className={FIELD_LABEL}>
           Options (comma-separated)
           <input
             type="text"
             value={options}
             onChange={(e) => setOptions(e.target.value)}
             placeholder="stand for it, decline, propose someone else"
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="choices-decision-form-options"
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+        <label className={FIELD_LABEL}>
           I chose
           <input
             type="text"
             value={chose}
             onChange={(e) => setChose(e.target.value)}
             placeholder="declined"
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="choices-decision-form-chose"
           />
         </label>
       </div>
-      <label className="mt-3 flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={cn(FIELD_LABEL, 'mt-3')}>
         When
         <input
           type="text"
           value={when}
           onChange={(e) => setWhen(e.target.value)}
-          placeholder="last term, end of Sec 3, etc."
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          placeholder="last term, end of Sec 3"
+          className={FIELD}
           data-testid="choices-decision-form-when"
         />
       </label>
       <fieldset className="mt-3">
-        <legend className="text-xs font-medium text-[#2b2620]/75">
+        <legend className="text-xs font-medium text-(--color-sheet-ink-soft)">
           Forces that pushed me (pick all that apply)
         </legend>
         <div className="mt-2 flex flex-wrap gap-2">
@@ -415,10 +418,11 @@ function DecisionForm({
                 aria-pressed={active}
                 data-testid={`choices-decision-form-force-${f}`}
                 className={cn(
-                  'relative cursor-pointer rounded-full border px-3 py-1 text-xs font-medium transition-[background-color,color,border-color,transform] before:absolute before:-inset-2 before:content-[""] active:scale-[0.96]',
+                  TOGGLE,
+                  'px-3 py-1',
                   active
-                    ? cn('font-medium', theme.callout, theme.border)
-                    : 'border-[#e3d8c4] bg-white text-[#2b2620]/65 hover:text-[#2b2620]',
+                    ? 'border-(color:--profile-accent) bg-(--profile-soft) text-(--profile-ink)'
+                    : TOGGLE_OFF,
                 )}
               >
                 {FORCE_LABEL[f]}
@@ -427,17 +431,17 @@ function DecisionForm({
           })}
         </div>
       </fieldset>
-      <label className="mt-3 flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={cn(FIELD_LABEL, 'mt-3')}>
         Note (optional)
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          className={FIELD}
           data-testid="choices-decision-form-note"
         />
       </label>
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2">
         <Button
           type="submit"
           size="sm"
@@ -467,37 +471,32 @@ function SectionPatterns({
   decisions,
   counts,
   dominantPatternTag,
-  theme,
 }: {
   decisions: DecisionEntry[]
   counts: Record<DecisionPatternTag, number>
   dominantPatternTag: DecisionPatternTag | null
-  theme: (typeof PROFILE_TAB_THEMES)['choices']
 }) {
   const taggedCount = Object.values(counts).reduce((a, b) => a + b, 0)
   return (
     <section
-      className="border-b border-[#e3d8c4] py-6"
+      className="border-t border-(color:--color-sheet-divider) pt-8"
       aria-labelledby="choices-patterns-heading"
       data-testid="choices-section-patterns"
     >
-      <h2 id="choices-patterns-heading" className="text-xs font-semibold text-[#2b2620]/55">
+      <h3 id="choices-patterns-heading" className={cn(SECTION_HEADING, 'mb-3 block')}>
         Patterns in how I handle hard situations
-      </h2>
+      </h3>
       {decisions.length === 0 ? (
-        <p className="mt-4 text-sm italic text-[#2b2620]/55" data-testid="choices-patterns-empty">
+        <p className={EMPTY} data-testid="choices-patterns-empty">
           Once you&apos;ve logged a few decisions, tag each one so the pattern surfaces here.
         </p>
       ) : taggedCount === 0 ? (
-        <p
-          className="mt-4 text-sm italic text-[#2b2620]/55"
-          data-testid="choices-patterns-untagged"
-        >
-          You&apos;ve logged {decisions.length} decision{decisions.length === 1 ? '' : 's'} but
-          haven&apos;t tagged any yet. Open §1 and pick a pattern on each one.
+        <p className={EMPTY} data-testid="choices-patterns-untagged">
+          You&apos;ve logged {decisions.length} decision{decisions.length === 1 ? '' : 's'}, none
+          tagged yet. Pick a pattern on each one above.
         </p>
       ) : (
-        <div className="mt-4 grid gap-3 sm:grid-cols-3" data-testid="choices-patterns-rollup">
+        <div className="grid gap-3 sm:grid-cols-3" data-testid="choices-patterns-rollup">
           {DECISION_PATTERN_TAG_VALUES.map((tag) => {
             const count = counts[tag]
             const isDominant = dominantPatternTag === tag
@@ -506,17 +505,24 @@ function SectionPatterns({
                 key={tag}
                 data-testid={`choices-patterns-cell-${tag}`}
                 className={cn(
-                  'rounded-[14px] border bg-white/60 p-4',
-                  isDominant ? cn(theme.border, theme.callout) : 'border-[#e3d8c4]',
+                  CARD,
+                  isDominant && 'border-(color:--profile-accent) bg-(--profile-soft)',
                 )}
               >
-                <p className={cn('text-base font-semibold', isDominant ? theme.text : '')}>
+                <p
+                  className={cn(
+                    'font-semibold',
+                    isDominant ? 'text-(--profile-ink)' : 'text-(--color-sheet-ink)',
+                  )}
+                >
                   {PATTERN_TAG_LABEL[tag]}
                 </p>
-                <p className="text-xs text-[#2b2620]/65">{PATTERN_TAG_DESCRIPTION[tag]}</p>
-                <p className="mt-2 text-2xl font-semibold tabular-nums">
+                <p className="mt-0.5 text-xs text-(--color-sheet-ink-soft)">
+                  {PATTERN_TAG_DESCRIPTION[tag]}
+                </p>
+                <p className="mt-3 text-xl font-semibold tabular-nums">
                   {count}
-                  <span className="ml-1 text-xs font-normal text-[#2b2620]/55">
+                  <span className="ml-1.5 text-xs font-normal text-(--color-sheet-ink-soft)">
                     {count === 1 ? 'decision' : 'decisions'}
                   </span>
                 </p>
@@ -533,13 +539,11 @@ function SectionPatterns({
 
 function SectionIntentions({
   intentions,
-  theme,
   disabled,
   actions,
   dominantPatternTag,
 }: {
   intentions: ChangeIntention[]
-  theme: (typeof PROFILE_TAB_THEMES)['choices']
   disabled: boolean
   actions: ChoicesActions
   dominantPatternTag: DecisionPatternTag | null
@@ -547,14 +551,14 @@ function SectionIntentions({
   const [adding, setAdding] = useState(false)
   return (
     <section
-      className="pb-14 pt-6"
+      className="border-t border-(color:--color-sheet-divider) pt-8"
       aria-labelledby="choices-intentions-heading"
       data-testid="choices-section-intentions"
     >
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="choices-intentions-heading" className="text-xs font-semibold text-[#2b2620]/55">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 id="choices-intentions-heading" className={SECTION_HEADING}>
           What I want to change
-        </h2>
+        </h3>
         <Button
           size="sm"
           variant="outline"
@@ -568,7 +572,6 @@ function SectionIntentions({
 
       {adding ? (
         <IntentionForm
-          theme={theme}
           defaultPatternTag={dominantPatternTag}
           onCancel={() => setAdding(false)}
           onSubmit={(payload) => {
@@ -579,7 +582,7 @@ function SectionIntentions({
       ) : null}
 
       {intentions.length === 0 && !adding ? (
-        <p className="mt-4 text-sm italic text-[#2b2620]/55" data-testid="choices-intentions-empty">
+        <p className={EMPTY} data-testid="choices-intentions-empty">
           Given the pattern you see, what&apos;s one thing you want to do differently?
         </p>
       ) : null}
@@ -590,16 +593,17 @@ function SectionIntentions({
             <li
               key={entry.id}
               data-testid={`choices-intention-entry-${entry.id}`}
-              className={cn(
-                'rounded-[14px] border-l-3 bg-white/60 px-4 py-3 text-sm',
-                theme.border,
-              )}
+              className={cn(CARD, 'text-sm')}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className={cn('font-semibold', theme.text)}>{entry.change}</span>
+                <span className="font-semibold">{entry.change}</span>
                 {entry.linkedPatternTag ? (
-                  <Badge size="sm" radius="sm" className={cn('font-medium', theme.callout)}>
-                    pattern: {PATTERN_TAG_LABEL[entry.linkedPatternTag]}
+                  <Badge
+                    size="sm"
+                    radius="sm"
+                    className="bg-(--profile-soft) font-medium text-(--profile-ink)"
+                  >
+                    Pattern: {PATTERN_TAG_LABEL[entry.linkedPatternTag]}
                   </Badge>
                 ) : null}
                 {entry.byWhen ? (
@@ -610,17 +614,17 @@ function SectionIntentions({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="ml-auto text-xs text-[#2b2620]/55 hover:text-[#2b2620]"
+                  className={REMOVE_BUTTON}
                   disabled={disabled}
                   onClick={() => actions.removeChangeIntention(entry.id)}
                   data-testid={`choices-intention-remove-${entry.id}`}
                 >
-                  remove
+                  Remove
                 </Button>
               </div>
               {entry.current ? (
-                <p className="mt-2 text-[#2b2620]/75">
-                  <span className="text-xs font-semibold text-[#2b2620]/55">today:&nbsp;</span>
+                <p className="mt-2">
+                  <span className={cn(INLINE_LABEL, 'mr-1.5')}>Today</span>
                   {entry.current}
                 </p>
               ) : null}
@@ -633,12 +637,10 @@ function SectionIntentions({
 }
 
 function IntentionForm({
-  theme,
   onSubmit,
   onCancel,
   defaultPatternTag,
 }: {
-  theme: (typeof PROFILE_TAB_THEMES)['choices']
   onSubmit: (payload: Partial<ChangeIntention>) => void
   onCancel: () => void
   defaultPatternTag: DecisionPatternTag | null
@@ -660,7 +662,7 @@ function IntentionForm({
   return (
     <form
       data-testid="choices-intention-form"
-      className={cn('mt-4 rounded-[14px] border bg-white/70 p-4', theme.border)}
+      className={CARD}
       onSubmit={(e) => {
         e.preventDefault()
         if (!valid) return
@@ -672,7 +674,7 @@ function IntentionForm({
         })
       }}
     >
-      <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={FIELD_LABEL}>
         What do you want to change?
         <input
           type="text"
@@ -680,23 +682,23 @@ function IntentionForm({
           onChange={(e) => setChange(e.target.value)}
           required
           placeholder="Pause one beat before answering"
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          className={FIELD}
           data-testid="choices-intention-form-change"
         />
       </label>
-      <label className="mt-3 flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={cn(FIELD_LABEL, 'mt-3')}>
         What does the current pattern look like?
         <textarea
           value={current}
           onChange={(e) => setCurrent(e.target.value)}
           rows={2}
-          placeholder="I jump in fast and only later realise…"
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          placeholder="I jump in fast and only realise later"
+          className={FIELD}
           data-testid="choices-intention-form-current"
         />
       </label>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className={FIELD_LABEL}>
           Linked pattern (optional)
           <select
             value={linkedPatternTag ?? ''}
@@ -704,10 +706,10 @@ function IntentionForm({
               setUserTouchedPattern(true)
               setLinkedPatternTag((e.target.value || null) as DecisionPatternTag | null)
             }}
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="choices-intention-form-pattern"
           >
-            <option value="">(not linked)</option>
+            <option value="">Not linked</option>
             {DECISION_PATTERN_TAG_VALUES.map((tag) => (
               <option key={tag} value={tag}>
                 {PATTERN_TAG_LABEL[tag]}
@@ -715,19 +717,19 @@ function IntentionForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+        <label className={FIELD_LABEL}>
           By when (optional)
           <input
             type="text"
             value={byWhen}
             onChange={(e) => setByWhen(e.target.value)}
-            placeholder="end of term, next CCA meeting…"
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            placeholder="end of term, next CCA meeting"
+            className={FIELD}
             data-testid="choices-intention-form-bywhen"
           />
         </label>
       </div>
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2">
         <Button
           type="submit"
           size="sm"

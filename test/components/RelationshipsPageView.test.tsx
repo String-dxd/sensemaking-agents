@@ -115,7 +115,7 @@ describe('RelationshipsPageView', () => {
     })
     expect(screen.getByText(/You explain things calmly/)).toBeInTheDocument()
     expect(screen.getByText(/Differs from how I see myself/)).toBeInTheDocument()
-    expect(screen.getByText(/Peer — Aiden/)).toBeInTheDocument()
+    expect(screen.getByText(/Peer · Aiden/)).toBeInTheDocument()
   })
 
   it('self-side column renders placeholder when no VIPS data is present', () => {

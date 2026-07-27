@@ -76,6 +76,11 @@
   --color-sheet-ink-soft: rgba(43, 38, 32, 0.62);
   --color-sheet-ink-faint: rgba(43, 38, 32, 0.32);
   --color-sheet-divider: rgba(43, 38, 32, 0.06);
+  /* Form-control edge. --color-sheet-divider is a decorative hairline and
+     falls far short of the 3:1 that WCAG 1.4.11 asks of an input boundary.
+     At 52% this measures 3.2:1 against the sheet's cream card surface and
+     3.4:1 against a white field fill — clear on both sides of the border. */
+  --color-sheet-field: rgba(43, 38, 32, 0.52);
   --color-sheet-tab-active: rgba(43, 38, 32, 0.075);
   --blur-sheet: 10px;
   /* Aliases retained for the ~30 existing usages; new code reaches for

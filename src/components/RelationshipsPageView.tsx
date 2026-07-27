@@ -8,7 +8,12 @@
  * Data lives in the engine `Relationships` state slice (singleton + persist).
  * §3 cross-tab linkage to VIPS lands in U6 (this file renders the layout,
  * the self-side column hooks into VIPS pages in the U6 wiring).
+ *
+ * Chrome follows the VIPS tabs in ProfileSheet: sheet ink/divider tokens,
+ * `rounded-xl` hairline cards, and the tab accent reserved for the header
+ * pill and the callout badges.
  */
+import type { CSSProperties } from 'react'
 import { useState } from 'react'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -18,6 +23,7 @@ import type {
   OutsidePerspectiveEntry,
   RelationshipMapEntry,
 } from '~/engine/student-space/Game/State/Relationships.js'
+import { DIMENSION_LABEL } from '~/lib/profile-tokens'
 import type { VipsSelfSideClaim } from '~/lib/student-space/vips-self-side'
 import { cn } from '~/lib/utils'
 
@@ -93,6 +99,27 @@ const AGREEMENT_LABEL: Record<OutsidePerspectiveEntry['agreementSelf'], string> 
   unknown: 'Not compared yet',
 }
 
+// Shared chrome. Declared once so the three sections cannot drift apart, and
+// so elevation is stated in exactly one place (a hairline border, no shadow).
+const CARD =
+  'rounded-xl border border-(color:--color-sheet-divider) bg-(--color-sheet-pane-left) p-4'
+const EMPTY =
+  'rounded-xl border border-(color:--color-sheet-divider) p-5 text-sm text-(--color-sheet-ink-soft)'
+const SECTION_HEADING = 'text-xs font-semibold text-(--color-sheet-ink-soft)'
+const FIELD_LABEL = 'flex flex-col gap-1.5 text-xs font-medium text-(--color-sheet-ink-soft)'
+const FIELD =
+  'rounded-lg border border-(color:--color-sheet-field) bg-white px-3 py-2 text-sm text-(--color-sheet-ink) transition-[border-color] focus-visible:border-(color:--profile-accent) focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-(color:--profile-accent)'
+const REMOVE_BUTTON = 'ml-auto text-xs text-(--color-sheet-ink-soft) hover:text-(--color-sheet-ink)'
+
+// Set locally rather than inherited: ProfileSheet already declares these on the
+// tab wrapper, but the view is also embedded standalone (dev design route, the
+// engine bridge) where nothing upstream would.
+const THEME_VARS: CSSProperties = {
+  '--profile-accent': PROFILE_TAB_THEMES.relationships.accent,
+  '--profile-soft': PROFILE_TAB_THEMES.relationships.soft,
+  '--profile-ink': PROFILE_TAB_THEMES.relationships.ink,
+} as CSSProperties
+
 export function RelationshipsPageView({
   disabled = false,
   map,
@@ -102,34 +129,31 @@ export function RelationshipsPageView({
   actions,
 }: RelationshipsPageViewProps) {
   const header = PROFILE_TAB_HEADERS.relationships
-  const theme = PROFILE_TAB_THEMES.relationships
 
   return (
-    <section className="flex w-full flex-col text-[#2b2620]" data-testid="relationships-page">
-      <div className="w-full">
-        <header className="border-b border-[#e3d8c4] pb-6">
-          <div className="flex items-center gap-2">
-            <p className="text-xs font-semibold text-[#2b2620]/55">{header.eyebrow}</p>
-            <span className="rounded-full bg-[#f1ede5] px-2 py-0.5 text-[11px] font-semibold text-[#2b2620]/70">
-              {header.tag}
-            </span>
-          </div>
-          <h1 className="mt-2 text-[clamp(1.6rem,4vw,2rem)] font-semibold leading-tight tracking-tight">
-            {header.title}
-          </h1>
-          <p className="mt-2 text-sm text-[#2b2620]/60">{header.subtitle}</p>
-        </header>
+    <section
+      className="flex w-full flex-col gap-8 text-(--color-sheet-ink)"
+      style={THEME_VARS}
+      data-testid="relationships-page"
+    >
+      <header className="flex flex-col gap-3">
+        <span className="w-fit rounded-full bg-(--profile-soft) px-2.5 py-1 text-xs font-semibold text-(--profile-ink)">
+          {header.tag}
+        </span>
+        <div>
+          <h2 className="text-2xl font-semibold leading-tight">{header.title}</h2>
+          <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">{header.subtitle}</p>
+        </div>
+      </header>
 
-        <SectionMap entries={map} theme={theme} disabled={disabled} actions={actions} />
-        <SectionBelonging entries={belonging} theme={theme} disabled={disabled} actions={actions} />
-        <SectionPerspectives
-          entries={perspectives}
-          theme={theme}
-          disabled={disabled}
-          actions={actions}
-          selfSide={selfSide}
-        />
-      </div>
+      <SectionMap entries={map} disabled={disabled} actions={actions} />
+      <SectionBelonging entries={belonging} disabled={disabled} actions={actions} />
+      <SectionPerspectives
+        entries={perspectives}
+        disabled={disabled}
+        actions={actions}
+        selfSide={selfSide}
+      />
     </section>
   )
 }
@@ -138,26 +162,20 @@ export function RelationshipsPageView({
 
 function SectionMap({
   entries,
-  theme,
   disabled,
   actions,
 }: {
   entries: RelationshipMapEntry[]
-  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   disabled: boolean
   actions: RelationshipsActions
 }) {
   const [adding, setAdding] = useState(false)
   return (
-    <section
-      className="border-b border-[#e3d8c4] py-6"
-      aria-labelledby="relationships-map-heading"
-      data-testid="relationships-section-map"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <h2 id="relationships-map-heading" className="text-xs font-semibold text-[#2b2620]/55">
+    <section aria-labelledby="relationships-map-heading" data-testid="relationships-section-map">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 id="relationships-map-heading" className={SECTION_HEADING}>
           My relationship map
-        </h2>
+        </h3>
         <Button
           size="sm"
           variant="outline"
@@ -171,7 +189,6 @@ function SectionMap({
 
       {adding ? (
         <RelationshipPersonForm
-          theme={theme}
           onCancel={() => setAdding(false)}
           onSubmit={(payload) => {
             actions.addPerson(payload)
@@ -181,9 +198,9 @@ function SectionMap({
       ) : null}
 
       {entries.length === 0 && !adding ? (
-        <p className="mt-4 text-sm italic text-[#2b2620]/55" data-testid="relationships-map-empty">
-          No one named yet. Who&apos;s in your circle right now — family, CCA team, close friends,
-          teachers?
+        <p className={EMPTY} data-testid="relationships-map-empty">
+          Nobody here yet. Add the people who are in your week: family, CCA, close friends,
+          teachers.
         </p>
       ) : null}
 
@@ -193,35 +210,34 @@ function SectionMap({
             <li
               key={entry.id}
               data-testid={`relationships-map-entry-${entry.id}`}
-              className={cn(
-                'rounded-[14px] border-l-3 bg-white/60 px-4 py-3 text-sm',
-                theme.border,
-              )}
+              className={cn(CARD, 'text-sm')}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className={cn('font-semibold', theme.text)}>{entry.name}</span>
+                <span className="font-semibold">{entry.name}</span>
                 <Badge variant="secondary" size="sm" radius="sm">
                   {CATEGORY_LABEL[entry.category]}
                 </Badge>
                 {entry.quality ? (
-                  <Badge size="sm" radius="sm" className={cn('font-medium', theme.callout)}>
+                  <Badge
+                    size="sm"
+                    radius="sm"
+                    className="bg-(--profile-soft) font-medium text-(--profile-ink)"
+                  >
                     {QUALITY_LABEL[entry.quality]}
                   </Badge>
                 ) : null}
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="ml-auto text-xs text-[#2b2620]/55 hover:text-[#2b2620]"
+                  className={REMOVE_BUTTON}
                   disabled={disabled}
                   onClick={() => actions.removePerson(entry.id)}
                   data-testid={`relationships-map-remove-${entry.id}`}
                 >
-                  remove
+                  Remove
                 </Button>
               </div>
-              {entry.note ? (
-                <p className="mt-2 whitespace-pre-wrap text-[#2b2620]/75">{entry.note}</p>
-              ) : null}
+              {entry.note ? <p className="mt-2 whitespace-pre-wrap">{entry.note}</p> : null}
             </li>
           ))}
         </ul>
@@ -231,11 +247,9 @@ function SectionMap({
 }
 
 function RelationshipPersonForm({
-  theme,
   onSubmit,
   onCancel,
 }: {
-  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   onSubmit: (payload: Partial<RelationshipMapEntry>) => void
   onCancel: () => void
 }) {
@@ -247,31 +261,31 @@ function RelationshipPersonForm({
   return (
     <form
       data-testid="relationships-map-form"
-      className={cn('mt-4 rounded-[14px] border bg-white/70 p-4', theme.border)}
+      className={CARD}
       onSubmit={(e) => {
         e.preventDefault()
         if (!valid) return
         onSubmit({ name: name.trim(), category, quality, note: note.trim() || null })
       }}
     >
-      <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={FIELD_LABEL}>
         Name
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          className={FIELD}
           data-testid="relationships-map-form-name"
         />
       </label>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className={FIELD_LABEL}>
           Category
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value as RelationshipMapEntry['category'])}
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="relationships-map-form-category"
           >
             {Object.entries(CATEGORY_LABEL).map(([key, label]) => (
@@ -281,17 +295,17 @@ function RelationshipPersonForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+        <label className={FIELD_LABEL}>
           Quality
           <select
             value={quality ?? ''}
             onChange={(e) =>
               setQuality((e.target.value || null) as RelationshipMapEntry['quality'])
             }
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="relationships-map-form-quality"
           >
-            <option value="">(not set)</option>
+            <option value="">Not set</option>
             {Object.entries(QUALITY_LABEL).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
@@ -300,17 +314,17 @@ function RelationshipPersonForm({
           </select>
         </label>
       </div>
-      <label className="mt-3 flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={cn(FIELD_LABEL, 'mt-3')}>
         Note (optional)
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          className={FIELD}
           data-testid="relationships-map-form-note"
         />
       </label>
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2">
         <Button
           type="submit"
           size="sm"
@@ -338,29 +352,24 @@ function RelationshipPersonForm({
 
 function SectionBelonging({
   entries,
-  theme,
   disabled,
   actions,
 }: {
   entries: BelongingEntry[]
-  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   disabled: boolean
   actions: RelationshipsActions
 }) {
   const [adding, setAdding] = useState(false)
   return (
     <section
-      className="border-b border-[#e3d8c4] py-6"
+      className="border-t border-(color:--color-sheet-divider) pt-8"
       aria-labelledby="relationships-belonging-heading"
       data-testid="relationships-section-belonging"
     >
-      <div className="flex items-center justify-between gap-3">
-        <h2
-          id="relationships-belonging-heading"
-          className="text-xs font-semibold text-[#2b2620]/55"
-        >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 id="relationships-belonging-heading" className={SECTION_HEADING}>
           Where I belong
-        </h2>
+        </h3>
         <Button
           size="sm"
           variant="outline"
@@ -374,7 +383,6 @@ function SectionBelonging({
 
       {adding ? (
         <BelongingForm
-          theme={theme}
           onCancel={() => setAdding(false)}
           onSubmit={(payload) => {
             actions.addBelonging(payload)
@@ -384,10 +392,7 @@ function SectionBelonging({
       ) : null}
 
       {entries.length === 0 && !adding ? (
-        <p
-          className="mt-4 text-sm italic text-[#2b2620]/55"
-          data-testid="relationships-belonging-empty"
-        >
+        <p className={EMPTY} data-testid="relationships-belonging-empty">
           Which groups do you actually feel part of, and which are you just turning up to?
         </p>
       ) : null}
@@ -398,31 +403,26 @@ function SectionBelonging({
             <li
               key={entry.id}
               data-testid={`relationships-belonging-entry-${entry.id}`}
-              className={cn(
-                'rounded-[14px] border-l-3 bg-white/60 px-4 py-3 text-sm',
-                theme.border,
-              )}
+              className={cn(CARD, 'text-sm')}
             >
               <div className="flex flex-wrap items-center gap-2">
-                <span className={cn('font-semibold', theme.text)}>{entry.groupName}</span>
+                <span className="font-semibold">{entry.groupName}</span>
                 <Badge variant="secondary" size="sm" radius="sm">
                   {GROUP_KIND_LABEL[entry.groupKind]}
                 </Badge>
-                <BelongLevelPill level={entry.belongLevel} theme={theme} />
+                <BelongLevelPill level={entry.belongLevel} />
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="ml-auto text-xs text-[#2b2620]/55 hover:text-[#2b2620]"
+                  className={REMOVE_BUTTON}
                   disabled={disabled}
                   onClick={() => actions.removeBelonging(entry.id)}
                   data-testid={`relationships-belonging-remove-${entry.id}`}
                 >
-                  remove
+                  Remove
                 </Button>
               </div>
-              {entry.note ? (
-                <p className="mt-2 whitespace-pre-wrap text-[#2b2620]/75">{entry.note}</p>
-              ) : null}
+              {entry.note ? <p className="mt-2 whitespace-pre-wrap">{entry.note}</p> : null}
             </li>
           ))}
         </ul>
@@ -431,19 +431,15 @@ function SectionBelonging({
   )
 }
 
-function BelongLevelPill({
-  level,
-  theme,
-}: {
-  level: BelongingEntry['belongLevel']
-  theme: (typeof PROFILE_TAB_THEMES)['relationships']
-}) {
+function BelongLevelPill({ level }: { level: BelongingEntry['belongLevel'] }) {
+  // Three levels, three weights — the pill's own emphasis carries the level
+  // instead of a separate icon or color code.
   const intensity =
     level === 'belong'
-      ? cn('font-medium', theme.callout)
+      ? 'bg-(--profile-soft) font-medium text-(--profile-ink)'
       : level === 'participate'
-        ? 'bg-white/70 text-[#2b2620] font-medium'
-        : 'bg-white/40 text-[#2b2620]/65'
+        ? 'bg-white/70 font-medium text-(--color-sheet-ink)'
+        : 'bg-white/40 text-(--color-sheet-ink-soft)'
   return (
     <Badge size="sm" radius="sm" className={intensity}>
       {BELONG_LEVEL_LABEL[level]}
@@ -452,11 +448,9 @@ function BelongLevelPill({
 }
 
 function BelongingForm({
-  theme,
   onSubmit,
   onCancel,
 }: {
-  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   onSubmit: (payload: Partial<BelongingEntry>) => void
   onCancel: () => void
 }) {
@@ -468,7 +462,7 @@ function BelongingForm({
   return (
     <form
       data-testid="relationships-belonging-form"
-      className={cn('mt-4 rounded-[14px] border bg-white/70 p-4', theme.border)}
+      className={CARD}
       onSubmit={(e) => {
         e.preventDefault()
         if (!valid) return
@@ -480,24 +474,24 @@ function BelongingForm({
         })
       }}
     >
-      <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={FIELD_LABEL}>
         Group name
         <input
           type="text"
           value={groupName}
           onChange={(e) => setGroupName(e.target.value)}
           required
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          className={FIELD}
           data-testid="relationships-belonging-form-name"
         />
       </label>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className={FIELD_LABEL}>
           Kind
           <select
             value={groupKind}
             onChange={(e) => setGroupKind(e.target.value as BelongingEntry['groupKind'])}
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="relationships-belonging-form-kind"
           >
             {Object.entries(GROUP_KIND_LABEL).map(([key, label]) => (
@@ -507,12 +501,12 @@ function BelongingForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+        <label className={FIELD_LABEL}>
           How it feels
           <select
             value={belongLevel}
             onChange={(e) => setBelongLevel(e.target.value as BelongingEntry['belongLevel'])}
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="relationships-belonging-form-level"
           >
             {Object.entries(BELONG_LEVEL_LABEL).map(([key, label]) => (
@@ -523,17 +517,17 @@ function BelongingForm({
           </select>
         </label>
       </div>
-      <label className="mt-3 flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={cn(FIELD_LABEL, 'mt-3')}>
         Note (optional)
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={2}
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          className={FIELD}
           data-testid="relationships-belonging-form-note"
         />
       </label>
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2">
         <Button
           type="submit"
           size="sm"
@@ -561,13 +555,11 @@ function BelongingForm({
 
 function SectionPerspectives({
   entries,
-  theme,
   disabled,
   actions,
   selfSide,
 }: {
   entries: OutsidePerspectiveEntry[]
-  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   disabled: boolean
   actions: RelationshipsActions
   selfSide?: VipsSelfSideClaim[]
@@ -575,17 +567,14 @@ function SectionPerspectives({
   const [adding, setAdding] = useState(false)
   return (
     <section
-      className="pb-14 pt-6"
+      className="border-t border-(color:--color-sheet-divider) pt-8"
       aria-labelledby="relationships-perspectives-heading"
       data-testid="relationships-section-perspectives"
     >
-      <div className="flex items-center justify-between gap-3">
-        <h2
-          id="relationships-perspectives-heading"
-          className="text-xs font-semibold text-[#2b2620]/55"
-        >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 id="relationships-perspectives-heading" className={SECTION_HEADING}>
           How others see me differently from how I see myself
-        </h2>
+        </h3>
         <Button
           size="sm"
           variant="outline"
@@ -597,34 +586,29 @@ function SectionPerspectives({
         </Button>
       </div>
 
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         {/* Left: self-side from VIPS (cross-tab reference, wired by U6) */}
-        <div
-          className="rounded-[14px] border border-dashed border-[#e3d8c4] bg-white/50 p-4"
-          data-testid="relationships-perspectives-self-side"
-        >
-          <h3 className="text-[11px] font-semibold text-[#2b2620]/55">
-            How I see myself (from VIPS)
-          </h3>
+        <div className={CARD} data-testid="relationships-perspectives-self-side">
+          <h4 className={SECTION_HEADING}>How I see myself (from VIPS)</h4>
           {selfSide && selfSide.length > 0 ? (
             <ul className="mt-3 flex flex-col gap-2 text-sm">
               {selfSide.map((claim) => (
                 <li
                   key={claim.dimension}
-                  className="rounded-md bg-white/70 px-3 py-2"
+                  className="rounded-lg bg-white/70 px-3 py-2"
                   data-testid={`relationships-self-side-${claim.dimension}`}
                 >
-                  <span className="text-[11px] font-semibold text-[#2b2620]/55">
-                    {claim.dimension}
+                  <span className="text-xs font-semibold text-(--color-sheet-ink-soft)">
+                    {DIMENSION_LABEL[claim.dimension]}
                   </span>
-                  <p className="text-[#2b2620]">{claim.topClaimLabel}</p>
+                  <p>{claim.topClaimLabel}</p>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="mt-3 text-sm italic text-[#2b2620]/55">
-              No VIPS signal yet — once you confirm a few reflections, your top claim per dimension
-              will appear here for side-by-side comparison.
+            <p className="mt-3 text-sm text-(--color-sheet-ink-soft)">
+              No VIPS signal yet. Confirm a few reflections and your strongest claim in each area
+              shows up here.
             </p>
           )}
         </div>
@@ -633,7 +617,6 @@ function SectionPerspectives({
         <div className="flex flex-col gap-3">
           {adding ? (
             <PerspectiveForm
-              theme={theme}
               onCancel={() => setAdding(false)}
               onSubmit={(payload) => {
                 actions.addPerspective(payload)
@@ -643,12 +626,8 @@ function SectionPerspectives({
           ) : null}
 
           {entries.length === 0 && !adding ? (
-            <p
-              className="text-sm italic text-[#2b2620]/55"
-              data-testid="relationships-perspectives-empty"
-            >
-              Ask one peer, teacher, or coach what they see in you. Log one observation here — the
-              point is the gap, not agreement.
+            <p className={EMPTY} data-testid="relationships-perspectives-empty">
+              Ask a peer, teacher, or coach what they see in you, then log what they said here.
             </p>
           ) : null}
 
@@ -658,37 +637,38 @@ function SectionPerspectives({
                 <li
                   key={entry.id}
                   data-testid={`relationships-perspectives-entry-${entry.id}`}
-                  className={cn(
-                    'rounded-[14px] border-l-3 bg-white/60 px-4 py-3 text-sm',
-                    theme.border,
-                  )}
+                  className={cn(CARD, 'text-sm')}
                 >
-                  <blockquote className="leading-relaxed text-[#2b2620]">
+                  <blockquote className="leading-relaxed">
                     &ldquo;{entry.observation}&rdquo;
                   </blockquote>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[#2b2620]/60">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Badge variant="secondary" size="sm" radius="sm">
                       {entry.sourceLabel
-                        ? `${SOURCE_LABEL[entry.source]} — ${entry.sourceLabel}`
+                        ? `${SOURCE_LABEL[entry.source]} · ${entry.sourceLabel}`
                         : SOURCE_LABEL[entry.source]}
                     </Badge>
-                    <Badge size="sm" radius="sm" className={cn('font-medium', theme.callout)}>
+                    <Badge
+                      size="sm"
+                      radius="sm"
+                      className="bg-(--profile-soft) font-medium text-(--profile-ink)"
+                    >
                       {AGREEMENT_LABEL[entry.agreementSelf]}
                     </Badge>
                     {entry.vipsDimensionRef ? (
                       <Badge variant="secondary" size="sm" radius="sm">
-                        re: {entry.vipsDimensionRef}
+                        About {DIMENSION_LABEL[entry.vipsDimensionRef]}
                       </Badge>
                     ) : null}
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="ml-auto text-xs text-[#2b2620]/55 hover:text-[#2b2620]"
+                      className={REMOVE_BUTTON}
                       disabled={disabled}
                       onClick={() => actions.removePerspective(entry.id)}
                       data-testid={`relationships-perspectives-remove-${entry.id}`}
                     >
-                      remove
+                      Remove
                     </Button>
                   </div>
                 </li>
@@ -702,11 +682,9 @@ function SectionPerspectives({
 }
 
 function PerspectiveForm({
-  theme,
   onSubmit,
   onCancel,
 }: {
-  theme: (typeof PROFILE_TAB_THEMES)['relationships']
   onSubmit: (payload: Partial<OutsidePerspectiveEntry>) => void
   onCancel: () => void
 }) {
@@ -721,7 +699,7 @@ function PerspectiveForm({
   return (
     <form
       data-testid="relationships-perspectives-form"
-      className={cn('rounded-[14px] border bg-white/70 p-4', theme.border)}
+      className={CARD}
       onSubmit={(e) => {
         e.preventDefault()
         if (!valid) return
@@ -734,24 +712,24 @@ function PerspectiveForm({
         })
       }}
     >
-      <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <label className={FIELD_LABEL}>
         Observation
         <textarea
           value={observation}
           onChange={(e) => setObservation(e.target.value)}
           rows={3}
           required
-          className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+          className={FIELD}
           data-testid="relationships-perspectives-form-observation"
         />
       </label>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className={FIELD_LABEL}>
           Source
           <select
             value={source}
             onChange={(e) => setSource(e.target.value as OutsidePerspectiveEntry['source'])}
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="relationships-perspectives-form-source"
           >
             {Object.entries(SOURCE_LABEL).map(([key, label]) => (
@@ -761,27 +739,27 @@ function PerspectiveForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+        <label className={FIELD_LABEL}>
           Source label (optional)
           <input
             type="text"
             value={sourceLabel}
-            placeholder="e.g. Mr. Tan, Aiden"
+            placeholder="Mr. Tan, Aiden"
             onChange={(e) => setSourceLabel(e.target.value)}
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="relationships-perspectives-form-source-label"
           />
         </label>
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <label className={FIELD_LABEL}>
           Compared to how I see myself
           <select
             value={agreementSelf}
             onChange={(e) =>
               setAgreementSelf(e.target.value as OutsidePerspectiveEntry['agreementSelf'])
             }
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="relationships-perspectives-form-agreement"
           >
             {Object.entries(AGREEMENT_LABEL).map(([key, label]) => (
@@ -791,7 +769,7 @@ function PerspectiveForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-[#2b2620]/75">
+        <label className={FIELD_LABEL}>
           About which VIPS area? (optional)
           <select
             value={vipsDimensionRef ?? ''}
@@ -800,10 +778,10 @@ function PerspectiveForm({
                 (e.target.value || null) as OutsidePerspectiveEntry['vipsDimensionRef'],
               )
             }
-            className="rounded-md border border-[#e3d8c4] bg-white px-3 py-2 text-sm text-[#2b2620]"
+            className={FIELD}
             data-testid="relationships-perspectives-form-vips"
           >
-            <option value="">(not linked)</option>
+            <option value="">Not linked</option>
             <option value="values">Values</option>
             <option value="interests">Interests</option>
             <option value="personality">Personality</option>
@@ -811,7 +789,7 @@ function PerspectiveForm({
           </select>
         </label>
       </div>
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2">
         <Button
           type="submit"
           size="sm"

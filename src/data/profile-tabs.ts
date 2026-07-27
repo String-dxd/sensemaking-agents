@@ -46,7 +46,6 @@ export const PROFILE_TAB_LABEL: Record<ProfileTab, string> = {
 }
 
 export interface ProfileTabHeader {
-  eyebrow: string
   tag: string
   title: string
   subtitle: string
@@ -54,13 +53,11 @@ export interface ProfileTabHeader {
 
 export const PROFILE_TAB_HEADERS: Record<NonVipsProfileTab, ProfileTabHeader> = {
   relationships: {
-    eyebrow: 'WHO IS IN MY LIFE',
     tag: 'Relationships',
     title: 'Who is in my life',
     subtitle: 'The people, the groups, and how others see you',
   },
   choices: {
-    eyebrow: "WHAT I'VE CHOSEN, AND WHY",
     tag: 'Choices',
     title: "What I've chosen, and why",
     subtitle: 'A log of real decisions and the patterns across them',
