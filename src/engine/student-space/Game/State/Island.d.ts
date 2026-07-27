@@ -28,5 +28,6 @@ export default class Island {
   isPlaceable(x: number, z: number, inset?: number): boolean
   landCells(): LandCell[]
   placeableCells(): LandCell[]
+  elevatedPlaceableCells(): LandCell[]
 
 }

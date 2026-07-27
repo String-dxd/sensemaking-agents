@@ -30,7 +30,8 @@ import { snapPositionToLand } from '../State/islandSpecCore/snapToLand.ts'
  * glow, dissolve → 200ms cross-fade.
  *
  * Placement: seeds → world coords via a multiplicative hash mapped
- * into the central plateau (radius ~3 from origin), then state.island.
+ * into a random elevated (tier >= 2) placeable cell of the spec
+ * terrain — strictly above the tier-1 beach — then state.island.
  * heightAt(x, z) for terrain-snapped y.
  */
 
@@ -88,15 +89,25 @@ const BOB_PERIOD_S  = 2.5    // seconds per bob cycle
 const PULSE_PERIOD_S = 2.5   // seconds per pulse cycle
 const DISSOLVE_MS = 700      // bloomed sprout dissolve duration
 
-// Seeded placements land on random PLACEABLE land cells of the spec terrain
-// (world-port U10) — the old polar plateau formula is gone.
+// Seeded placements land on random ELEVATED (tier >= 2) placeable land
+// cells of the spec terrain (world-port U10) — the old polar plateau
+// formula is gone, and growth is kept off the tier-1 beach.
 
-// Camera flow timings — total ≈1.5s for a normal grow, ≈2.7s for a bloom.
+// Camera flow timings. The confirmation hold is student-controlled: once
+// Kira opens, the close-up remains parked until the student presses OK.
 const CAM_ZOOM_IN_MS    = 500
 const CAM_HOLD_MS       = 500     // non-bloom hold before returning
 const CAM_HOLD_BLOOM_MS = 350     // shorter; bloom animation provides the dwell
 const CAM_ZOOM_OUT_MS   = 500
 const BLOOM_GROW_MS     = 1000    // bloomed-object grow-in duration (was 1200)
+
+const PENDING_FLOW_TIMEOUT_MS = 4000  // max wait on a busy camera before flying anyway
+
+// Narrator beat — the bottom Kira panel confirms the capture while the
+// camera holds on the sprout. Copy is deliberately plain; species-aware
+// variants are a product decision deferred to a future plan.
+const GROW_NARRATION  = 'Your capture has been recorded — your island is growing.'
+const BLOOM_NARRATION = 'Your capture has been recorded — something new is blooming on your island!'
 
 /** Stable PRNG from a seed integer. Deterministic + fast. */
 export function seededPlacement(seed, island)
@@ -107,7 +118,7 @@ export function seededPlacement(seed, island)
     const b = Math.sin(seed * 78.233) * 12345.6789
     const theta = (a - Math.floor(a)) * Math.PI * 2
     const u = b - Math.floor(b)
-    const cells = island.placeableCells()
+    const cells = island.elevatedPlaceableCells()
     if(cells.length === 0) return { theta, x: 0, z: 0 }
     const cell = cells[Math.min(cells.length - 1, Math.floor(u * cells.length))]
     return { theta, x: cell.x, z: cell.z }
@@ -232,6 +243,8 @@ export default class Sprouts
         // (badge, sprout scale tick) but don't enqueue another camera
         // moment — the existing flow finishes first.
         this._camFlow = null  // null | { sproutId, phase, startMs, autoBloom }
+        this._pendingCamFlow = null  // { sproutId, autoBloom, queuedAtMs }
+        this._rmNarratorFlow = null
 
         // Pick-and-plant edit mode. Flipped via the 'ss:edit-mode'
         // CustomEvent dispatched by the React overlay's Arrange button.
@@ -1315,6 +1328,50 @@ export default class Sprouts
     }
 
     /**
+     * True while the capture overlays are up or another consumer holds the
+     * camera. Starting the sprout zoom now would (a) play behind the sheet
+     * and (b) snapshot the capture dolly's close-up as the 'sprouts' restore
+     * anchor — the sheet's later out-of-order restoreZoom('capture') then
+     * drops the true pre-capture pose (Camera.js save-stack semantics), and
+     * the camera ends the cinematic stuck at the capture framing.
+     */
+    _shouldDeferCameraFlow()
+    {
+        if(typeof document !== 'undefined')
+        {
+            const cls = document.body.classList
+            if(cls.contains('has-capture-sheet') || cls.contains('has-chooser')) return true
+        }
+        const camera = this.view.camera
+        if(camera && (camera._zoom || (camera._saveStack && camera._saveStack.size > 0))) return true
+        return false
+    }
+
+    /** Start a queued flow once the overlay is gone and the camera settles. */
+    _drainPendingCamFlow(now)
+    {
+        const pending = this._pendingCamFlow
+        if(!pending || this._camFlow) return
+        if(typeof document !== 'undefined')
+        {
+            const cls = document.body.classList
+            // An open overlay always blocks — no timeout while the student
+            // is mid-capture.
+            if(cls.contains('has-capture-sheet') || cls.contains('has-chooser')) return
+        }
+        const camera = this.view.camera
+        const busy = camera && (camera._zoom || (camera._saveStack && camera._saveStack.size > 0))
+        if(busy && now - pending.queuedAtMs < PENDING_FLOW_TIMEOUT_MS) return
+        this._pendingCamFlow = null
+        // force: true — this method already re-derived the authoritative
+        // decision to go (overlay-closed, and either idle or past the busy
+        // timeout). Without it, _startCameraFlow's own _shouldDeferCameraFlow()
+        // check would see the same still-busy camera and just re-queue,
+        // silently defeating the timeout safety valve.
+        this._startCameraFlow(pending.sproutId, { autoBloom: pending.autoBloom, force: true })
+    }
+
+    /**
      * Start the per-capture camera flow: glide camera to the sprout,
      * hold, then either restore or trigger auto-bloom. If a flow is
      * already running, skip silently — the visual badge / scale tick
@@ -1326,10 +1383,20 @@ export default class Sprouts
      * auto-bloom still fires but with the existing reduced-motion path
      * (200ms cross-fade) inside the dissolve/grow code.
      */
-    _startCameraFlow(sproutId, { autoBloom })
+    _startCameraFlow(sproutId, { autoBloom, force = false })
     {
         const node = this.nodes.get(sproutId)
         if(!node) return
+
+        if(!force && this._shouldDeferCameraFlow())
+        {
+            this._pendingCamFlow = {
+                sproutId,
+                autoBloom: autoBloom || !!(this._pendingCamFlow && this._pendingCamFlow.autoBloom),
+                queuedAtMs: performance.now(),
+            }
+            return
+        }
 
         // While the student is arranging the island, suppress the
         // auto-fly cinematic — flying the camera around would yank them
@@ -1349,6 +1416,9 @@ export default class Sprouts
         {
             node.tapAckUntilMs = performance.now() + 240
             if(autoBloom) this._triggerBloom(sproutId)
+            const rmFlow = { autoBloom, narratorOpened: false }
+            this._openFlowNarrator(rmFlow)
+            if(rmFlow.narratorOpened) this._rmNarratorFlow = rmFlow
             return
         }
 
@@ -1402,14 +1472,31 @@ export default class Sprouts
             {
                 flow.phase = 'holding'
                 flow.startMs = now
+                this._openFlowNarrator(flow)
             }
             return
         }
 
         if(flow.phase === 'holding')
         {
-            const holdMs = flow.autoBloom ? CAM_HOLD_BLOOM_MS : CAM_HOLD_MS
-            if(elapsed >= holdMs)
+            if(flow.narratorOpened)
+            {
+                // Normal growth stays parked until the required OK action.
+                // Auto-bloom may animate while the confirmation remains up,
+                // but the camera still waits for that acknowledgement.
+                if(flow.autoBloom && elapsed >= CAM_HOLD_BLOOM_MS)
+                {
+                    const ok = this._triggerBloom(flow.sproutId)
+                    if(ok)
+                    {
+                        flow.phase = 'blooming'
+                        flow.startMs = now
+                    }
+                }
+                return
+            }
+
+            if(elapsed >= (flow.autoBloom ? CAM_HOLD_BLOOM_MS : CAM_HOLD_MS))
             {
                 if(flow.autoBloom)
                 {
@@ -1431,15 +1518,23 @@ export default class Sprouts
         {
             if(elapsed >= BLOOM_GROW_MS)
             {
-                this._returnCamera(flow)
+                if(flow.confirmed) this._returnCamera(flow)
+                else
+                {
+                    flow.phase = 'awaiting-confirmation'
+                    flow.startMs = now
+                }
             }
             return
         }
+
+        if(flow.phase === 'awaiting-confirmation') return
 
         if(flow.phase === 'returning')
         {
             if(elapsed >= CAM_ZOOM_OUT_MS)
             {
+                this._closeFlowNarrator(flow)
                 this._camFlow = null
             }
         }
@@ -1451,6 +1546,67 @@ export default class Sprouts
         if(camera && camera.restoreZoom) camera.restoreZoom(CAM_ZOOM_OUT_MS, { owner: 'sprouts' })
         flow.phase = 'returning'
         flow.startMs = performance.now()
+    }
+
+    /** Open the bottom Kira panel for this flow. No-ops if the narrator is
+     *  unavailable (world host unmounted) or already mid-conversation. */
+    _openFlowNarrator(flow)
+    {
+        const narrator = this.view.kiraNarrator
+        if(!narrator || typeof narrator.speak !== 'function' || narrator.isActive) return
+        try
+        {
+            narrator.speak({
+                text: flow.autoBloom ? BLOOM_NARRATION : GROW_NARRATION,
+                cta: 'OK',
+                dismissible: false,
+                onConfirm: () => this._confirmFlowNarrator(flow),
+            })
+            flow.narratorOpened = true
+        }
+        catch(_) {}
+    }
+
+    _confirmFlowNarrator(flow)
+    {
+        if(!flow || flow.confirmed) return
+        flow.confirmed = true
+        this._closeFlowNarrator(flow)
+
+        if(this._rmNarratorFlow === flow)
+        {
+            this._rmNarratorFlow = null
+            return
+        }
+        if(this._camFlow !== flow) return
+
+        if(flow.phase === 'holding')
+        {
+            if(flow.autoBloom)
+            {
+                const ok = this._triggerBloom(flow.sproutId)
+                if(ok)
+                {
+                    flow.phase = 'blooming'
+                    flow.startMs = performance.now()
+                    return
+                }
+            }
+            this._returnCamera(flow)
+            return
+        }
+        if(flow.phase === 'awaiting-confirmation') this._returnCamera(flow)
+    }
+
+    _closeFlowNarrator(flow)
+    {
+        if(!flow || !flow.narratorOpened) return
+        flow.narratorOpened = false
+        const narrator = this.view.kiraNarrator
+        if(narrator && narrator.isActive)
+        {
+            try { narrator.close() } catch(_) {}
+        }
     }
 
     /**
@@ -1535,6 +1691,7 @@ export default class Sprouts
         const camera = this.view.camera?.instance
 
         // Drive the per-capture camera-flow state machine.
+        this._drainPendingCamFlow(now)
         this._tickCameraFlow(now)
 
         // Late-install decor hit targets once Tree.js finishes loading
@@ -1707,6 +1864,10 @@ export default class Sprouts
             if(controls) controls.enabled = true
         }
         catch(_) {}
+        this._pendingCamFlow = null
+        this._closeFlowNarrator(this._camFlow)
+        this._closeFlowNarrator(this._rmNarratorFlow)
+        this._rmNarratorFlow = null
         for(const id of Array.from(this.nodes.keys()))
         {
             this._disposeNode(id)

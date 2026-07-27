@@ -15,48 +15,54 @@ import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
 
 const GREETINGS = {
-  morning: ["You're back. The island's been quiet.", "Morning. The wind's from the east today."],
-  afternoon: [
-    "Good — I was hoping you'd come by.",
-    'The fruit on the southwest tree is heavier than yesterday.',
+  morning: [
+    'What are you hoping goes well at school today?',
+    "Is there anything at school you're thinking about this morning?",
   ],
-  evening: ["Late one. I'll keep my voice down.", "Hey. The light's getting soft."],
-  any: ['Settling in?', "Take your time. I'll be on the branch."],
+  afternoon: [
+    "What happened at school today that you're still thinking about?",
+    'Did anyone make your day a little better?',
+  ],
+  evening: [
+    'What part of school is still on your mind?',
+    "Was there something you wanted to say today but didn't?",
+  ],
+  any: ['What made you laugh today?', "What's something you did well today?"],
 }
 
 const FIRST_ARRIVAL_GREETINGS = [
-  "There you are. I've been on this branch a while.",
-  "Welcome. The island's quiet — but it's listening.",
-  "The sky was waiting for someone. That's you.",
-  "Take a look around. Nothing's growing yet, and that's okay.",
+  'How did school go today?',
+  'What was the best part of your day?',
+  'Did anything at school surprise you today?',
+  "What's one thing you want to remember from today?",
 ]
 
 const INVITES = [
-  'Anything pull at you today?',
-  'What was the loudest part of today?',
-  'If you had to describe today as a kind of weather — what would it be?',
-  'Something stuck with you. I can usually tell. What was it?',
-  "Small thing. Big thing. Either's fine.",
-  'Did anything surprise you today?',
-  "Anything you'd want me to remember?",
-  'What did you do that felt like *you*?',
-  'If today had a color, what would it be?',
-  'Heavy day or light one?',
+  "What happened at school today that you're still thinking about?",
+  'What made you laugh today?',
+  'Did anyone make your day a little better?',
+  'Was there a class that felt harder than usual?',
+  'Did anything happen that you wish had gone differently?',
+  "What's something you did well today?",
+  "Was there something you wanted to say but didn't?",
+  'What part of today felt the longest?',
+  'How did things go with your friends today?',
+  "Is there anything about tomorrow you're already thinking about?",
 ]
 
 const SOFT_INVITES = [
-  "Quiet day. That's okay.",
-  "I'm not asking anything today.",
-  'Just here if you want company.',
-  "The wind's gentle today.",
-  "Take your time. I'll be on the branch.",
-  'We can both just sit for a bit.',
-  "I noticed. That's all.",
+  'Was today harder than usual?',
+  'Is there one part of today you want to talk about?',
+  'Did anything at school leave you feeling tired?',
+  'Was there a moment today you wish had gone differently?',
+  'Did anyone help make today a little easier?',
+  'Is there something you wish someone understood?',
+  'What would make tomorrow feel a little easier?',
 ]
 
 const KIRA_NARRATION = {
-  text: 'It’s me. If anything is on your mind, I’m here. Choose whatever feels easiest — words, voice, a feeling, or a picture.',
-  cta: 'Talk to me',
+  text: 'How did school go today? You can answer with words, your voice, a feeling, or a picture.',
+  cta: 'Tell me',
 }
 
 const SPECIES_LINE: Record<string, string> = {
@@ -139,6 +145,7 @@ type NarratorState = {
   name: string
   text: string
   cta: string
+  dismissible: boolean
 }
 
 type HoverCtaState = {
@@ -170,7 +177,13 @@ type ObjectPickupState = {
 }
 
 const INITIAL_BUBBLE: KiraBubbleState = { visible: false, text: '', x: 0, y: 0, hidden: false }
-const INITIAL_NARRATOR: NarratorState = { open: false, name: 'Kira', text: '', cta: 'Open' }
+const INITIAL_NARRATOR: NarratorState = {
+  open: false,
+  name: 'Kira',
+  text: '',
+  cta: 'Open',
+  dismissible: true,
+}
 const INITIAL_HOVER_CTA: HoverCtaState = {
   open: false,
   eyebrow: '',
@@ -524,8 +537,9 @@ class KiraNarratorController {
   _kiraTurn: KiraTurnState | null = null
   _kiraRestYaw: number | null = null
   _speakConfirm: (() => void) | null = null
+  _speakDismissible = true
   _onKeyDown = (event: KeyboardEvent) => {
-    if (this.isActive && event.key === 'Escape') this.close()
+    if (this.isActive && this._speakDismissible && event.key === 'Escape') this.close()
   }
 
   constructor(
@@ -550,8 +564,14 @@ class KiraNarratorController {
   narrate(target: Target) {
     if (!target) return
     this.target = target
+    this._speakDismissible = true
     const narration = narrationFor(target, this.state)
-    this.setNarrator((prev) => ({ ...prev, cta: narration.cta, text: '' }))
+    this.setNarrator((prev) => ({
+      ...prev,
+      cta: narration.cta,
+      text: '',
+      dismissible: true,
+    }))
     this._scheduleType(narration.text, 260)
 
     this.view.kiraDialogue?.hide?.()
@@ -608,23 +628,28 @@ class KiraNarratorController {
    *
    * `cta` is optional: omit it to render the panel as read-only text, with
    * only the close X for dismissal. `onConfirm` fires when the CTA is tapped.
+   * Set `dismissible` false for a required acknowledgement: the close X and
+   * Escape dismissal are suppressed, while programmatic close still works.
    */
   speak({
     text,
     cta = '',
     name,
     onConfirm,
+    dismissible = true,
   }: {
     text: string
     cta?: string
     name?: string
     onConfirm?: () => void
+    dismissible?: boolean
   }) {
     this.target = null
     this._speakConfirm = onConfirm ?? null
+    this._speakDismissible = dismissible
 
     if (this.isActive) {
-      this.setNarrator((prev) => ({ ...prev, cta, text: '' }))
+      this.setNarrator((prev) => ({ ...prev, cta, text: '', dismissible }))
       this._scheduleType(text, 0)
       return
     }
@@ -634,6 +659,7 @@ class KiraNarratorController {
       cta,
       text: '',
       name: name ?? this.state?.profile?.displayCompanionName?.() ?? 'Kira',
+      dismissible,
     }))
     this._scheduleType(text, 180)
 
@@ -696,6 +722,7 @@ class KiraNarratorController {
     this.isActive = false
     this.typerId += 1
     this._speakConfirm = null
+    this._speakDismissible = true
     this._clearTimers()
     this.setNarrator((prev) => ({ ...prev, open: false }))
     if (keepFraming) {
@@ -1710,22 +1737,20 @@ function KiraBubble({ state, onDismiss }: { state: KiraBubbleState; onDismiss: (
         transform: `translate(calc(${Math.round(state.x)}px - 50%), calc(${Math.round(state.y)}px - 100% - 8px))`,
       }}
       className={cn(
-        'pointer-events-auto fixed left-0 top-0 z-[54] max-w-[240px] rounded-2xl bg-white px-3.5 py-2.5 text-left font-sans text-[13.5px] leading-[1.45] font-medium text-[#2b2620]',
-        'shadow-[0_2px_4px_rgba(40,30,20,0.06),0_12px_30px_rgba(40,30,20,0.14)] ring-1 ring-black/5',
-        'transition-[opacity,transform] duration-(--duration-base) ease-(--ease-out) motion-reduce:transition-none',
+        'pointer-events-auto fixed left-0 top-0 z-[54] max-w-[210px] rounded-[14px] bg-[#fffaf0]/96 px-3 py-2 text-left font-sans text-[13px] leading-[1.4] font-normal text-[#352f28]',
+        'shadow-[0_4px_14px_rgba(40,30,20,0.12)] ring-1 ring-black/8',
+        'transition-[opacity,transform,background-color] duration-(--duration-base) ease-(--ease-out) hover:bg-[#fffdf7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7d654d]/55 focus-visible:ring-offset-2 motion-reduce:transition-none',
         // Hide the bubble when a capture sheet or chooser covers the
         // world — those surfaces sit above z-[54] but the bubble still
         // bleeds through their backdrop. Onboarding intentionally reuses
         // this bubble for the bird's dialogue, so don't hide on
         // `is-onboarding`.
         '[body.has-capture-sheet_&]:hidden [body.has-chooser_&]:hidden',
-        // Caret as a downward-pointing triangle. clip-path is more reliable
-        // than border-triangles in Tailwind (no border-style needed).
-        // ::before paints the outline (matched to ring-black/5), ::after
-        // sits 1px higher so the white fill covers all but a 1px rim.
-        'before:absolute before:left-1/2 before:top-full before:h-[7px] before:w-[18px] before:-translate-x-1/2 before:-translate-y-px before:bg-black/5',
+        // Caret as a downward-pointing triangle. ::before paints the
+        // subtle outline; ::after sits 1px higher to reveal a narrow rim.
+        'before:absolute before:left-1/2 before:top-full before:h-[6px] before:w-[14px] before:-translate-x-1/2 before:-translate-y-px before:bg-black/8',
         'before:[clip-path:polygon(0_0,100%_0,50%_100%)]',
-        'after:absolute after:left-1/2 after:top-full after:h-[7px] after:w-[18px] after:-translate-x-1/2 after:-translate-y-[2px] after:bg-white',
+        'after:absolute after:left-1/2 after:top-full after:h-[6px] after:w-[14px] after:-translate-x-1/2 after:-translate-y-[2px] after:bg-[#fffaf0]',
         'after:[clip-path:polygon(0_0,100%_0,50%_100%)]',
         state.visible ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0',
       )}
@@ -1814,14 +1839,16 @@ function NarratorPanel({
       <div className="absolute -top-3 left-6 rounded-full bg-[#ffd15f] px-3 py-1 text-xs font-extrabold text-[#402a10] shadow-[0_8px_18px_rgba(64,42,16,0.18)]">
         {state.name}
       </div>
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-        className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-lg leading-none text-[#4c4034]/72 transition-[transform,background-color,color] duration-(--duration-fast) ease-(--ease-out) hover:bg-black/10 hover:text-[#2b2620] active:scale-95 motion-reduce:active:scale-100"
-      >
-        ×
-      </button>
+      {state.dismissible ? (
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+          className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-lg leading-none text-[#4c4034]/72 transition-[transform,background-color,color] duration-(--duration-fast) ease-(--ease-out) hover:bg-black/10 hover:text-[#2b2620] active:scale-95 motion-reduce:active:scale-100"
+        >
+          ×
+        </button>
+      ) : null}
       <p className="m-0 min-h-[3lh] text-[17px] leading-[1.65] font-semibold">{state.text}</p>
       {state.cta ? (
         <div className="mt-4 flex justify-end">
