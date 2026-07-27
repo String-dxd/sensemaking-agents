@@ -654,6 +654,21 @@ reasons — see each plan's Maintenance notes for detail):
   render-blocking Google Fonts, and the landing page paying the full world
   boot for a login backdrop (product decision).
 
+### Capture cinematic suite (2026-07-27, planned at `ac56d2eb`)
+
+Operator `/improve plan` request: after a capture, the island's growth
+response should read clearly — seed sprouts/trees on the raised tiers above
+the sand, zoom the camera to the sprout once the capture sheet is out of the
+way, and confirm with the Kira bottom-panel dialog ("your capture has been
+recorded — your island is growing"). Recon also surfaced a live sequencing
+bug the plan fixes: the sprout camera flow starts while the capture sheet's
+own dolly (owner `'capture'`) still holds the framing, corrupting the
+Camera save-stack anchors so the camera ends stuck at the capture close-up.
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 075 | Capture cinematic — sprout/bloom seeding moves to elevated placeable cells (tier ≥ 2, above the sand); the per-capture camera flow defers until capture overlays close and the camera is idle (fixes the save-stack anchor corruption); Kira narrator panel confirms the capture during the hold | P1 | M | — | DONE — reviewer-approved and merged to `main` via PR #102 on 2026-07-27. Branch `advisor/075-capture-cinematic-elevated-growth`, 5 commits (head `95c0db05`). Reviewer re-ran all gates in the worktree: `pnpm check` 18 pre-existing warnings / 0 errors; targeted capture-flow suite 10 tests green; full `pnpm test` **1141 passed / 40 skipped / 0 failed**. Final runtime scope is the 4 planned files plus `WorldInteractions.tsx` for two operator-approved follow-ups: the capture close-up and confirmation now stay parked until OK, and Kira's ambient dialogue uses natural school-day questions in a smaller, quieter bubble. **Approved deviation (fixes a bug in the plan's own Step 3):** `_startCameraFlow` gained a `force` param used only by `_drainPendingCamFlow`'s timeout branch — without it the drain's 4 s busy-camera valve re-entered `_shouldDeferCameraFlow`, re-queued with a fresh `queuedAtMs`, and never fired. Known accepted nit: the plan's literal done-criteria grep (`grep "placeableCells()"`) cannot substring-match `elevatedPlaceableCells()` — verified intent case-insensitively at the single `seededPlacement` call site. Human smoke: one real capture end-to-end — sheet closes → camera flies to the sprout on elevated ground → Kira confirms → dialog and camera wait for OK → camera returns to the pre-capture view. |
+
 ## Reconcile log
 
 **2026-07-23 (HEAD `a9e1364e`)** — full backlog reconcile; nothing TODO /
