@@ -92,8 +92,9 @@ export const SPECIES_HINT = {
 // trees, scaled down to read as a young tree. They share the cached
 // toon-converted materials UNTINTED, so a capture's tree looks exactly
 // like the island's bright authored trees — one sprout-tree look, not a
-// darker tinted variant.
-const MINI_TREE_SCALE = 0.5
+// darker tinted variant. 0.35 of the authored 1.7-unit tree ≈ 0.6 units —
+// clearly a sapling next to the full-size island trees.
+const MINI_TREE_SCALE = 0.35
 
 const BOB_AMPLITUDE = 0.05   // metres of vertical bob when ready
 const BOB_PERIOD_S  = 2.5    // seconds per bob cycle
