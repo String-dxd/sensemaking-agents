@@ -60,7 +60,8 @@ describe('realtime-mirror-client', () => {
         channelCount: 1,
       },
     })
-    expect(peer.addedTracks).toEqual([track])
+    expect(peer.transceivers).toEqual([{ kind: 'audio', init: { direction: 'sendrecv' } }])
+    expect(peer.sender.replaceTrack).toHaveBeenCalledWith(track)
     expect(forwardedOffer).toBe('offer-sdp')
     expect(peer.remoteDescription).toEqual({ type: 'answer', sdp: 'answer-sdp' })
     peer.emitTrack(remoteStream)
@@ -213,8 +214,8 @@ describe('realtime-mirror-client', () => {
     expect(peer.closed).toBe(true)
   })
 
-  it('consumes a prewarmed connection: mic stays muted while warm, no second setup on capture', async () => {
-    const track = { stop: vi.fn(), kind: 'audio', enabled: true } as unknown as MediaStreamTrack
+  it('consumes a prewarmed transport: warming never touches the mic, capture attaches it', async () => {
+    const track = { stop: vi.fn(), kind: 'audio' } as unknown as MediaStreamTrack
     const stream = {
       getAudioTracks: () => [track],
       getTracks: () => [track],
@@ -234,19 +235,21 @@ describe('realtime-mirror-client', () => {
 
     prewarmRealtimeMirrorCapture(deps)
     await vi.waitFor(() => expect(peer.remoteDescription).not.toBeNull())
-    // Warm transport is fully set up with the mic muted.
-    expect(getUserMedia).toHaveBeenCalledTimes(1)
-    expect(track.enabled).toBe(false)
+    // The warm transport carries a track-less audio m-line: no mic prompt, no
+    // recording indicator while nobody is recording.
+    expect(getUserMedia).not.toHaveBeenCalled()
+    expect(peer.transceivers).toEqual([{ kind: 'audio', init: { direction: 'sendrecv' } }])
+    expect(peer.sender.replaceTrack).not.toHaveBeenCalled()
     // Idempotent while warm.
     prewarmRealtimeMirrorCapture(deps)
-    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    expect(PeerCtor).toHaveBeenCalledTimes(1)
 
     const capture = await createRealtimeMirrorCapture({ localCaptureId: 'ask-warm' }, deps)
-    // The capture reuses the warm transport instead of connecting again.
-    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    // The capture reuses the warm transport and only pays for the mic.
     expect(PeerCtor).toHaveBeenCalledTimes(1)
     expect(fetchImpl).toHaveBeenCalledTimes(1)
-    expect(track.enabled).toBe(true)
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    expect(peer.sender.replaceTrack).toHaveBeenCalledWith(track)
 
     capture.abort()
     expect(channel.closed).toBe(true)
@@ -254,13 +257,51 @@ describe('realtime-mirror-client', () => {
     expect(track.stop).toHaveBeenCalled()
   })
 
-  it('disposes an unconsumed prewarmed connection', async () => {
-    const track = { stop: vi.fn(), kind: 'audio', enabled: true } as unknown as MediaStreamTrack
+  it('disposes an unconsumed prewarmed transport', async () => {
+    const track = { stop: vi.fn(), kind: 'audio' } as unknown as MediaStreamTrack
     const stream = {
       getAudioTracks: () => [track],
       getTracks: () => [track],
     } as unknown as MediaStream
     const getUserMedia = vi.fn(async () => stream)
+    const channel = new FakeDataChannel()
+    const peer = new FakePeerConnection(channel)
+    const audio = new FakeAudioElement()
+    const fetchImpl = vi.fn(async () => new Response('answer-sdp', { status: 200 }))
+    const deps = {
+      fetch: fetchImpl as typeof fetch,
+      mediaDevices: { getUserMedia },
+      RTCPeerConnection: vi.fn(() => peer) as unknown as typeof RTCPeerConnection,
+      createAudioElement: () => audio as unknown as HTMLAudioElement,
+    }
+
+    prewarmRealtimeMirrorCapture(deps)
+    await vi.waitFor(() => expect(peer.remoteDescription).not.toBeNull())
+    expect(getUserMedia).not.toHaveBeenCalled()
+    disposePrewarmedRealtimeMirrorCapture()
+    await vi.waitFor(() => expect(peer.closed).toBe(true))
+    expect(channel.closed).toBe(true)
+
+    // The next capture connects fresh (a second SDP exchange) rather than
+    // reusing the disposed transport.
+    const channel2 = new FakeDataChannel()
+    const peer2 = new FakePeerConnection(channel2)
+    await createRealtimeMirrorCapture(
+      { localCaptureId: 'ask-fresh' },
+      {
+        ...deps,
+        RTCPeerConnection: vi.fn(() => peer2) as unknown as typeof RTCPeerConnection,
+      },
+    )
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(getUserMedia).toHaveBeenCalledTimes(1)
+    expect(peer2.remoteDescription).not.toBeNull()
+  })
+
+  it('disposes the warm transport when the mic permission is denied at capture time', async () => {
+    const getUserMedia = vi.fn(async () => {
+      throw Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' })
+    })
     const channel = new FakeDataChannel()
     const peer = new FakePeerConnection(channel)
     const audio = new FakeAudioElement()
@@ -273,24 +314,21 @@ describe('realtime-mirror-client', () => {
 
     prewarmRealtimeMirrorCapture(deps)
     await vi.waitFor(() => expect(peer.remoteDescription).not.toBeNull())
-    disposePrewarmedRealtimeMirrorCapture()
-    await vi.waitFor(() => expect(peer.closed).toBe(true))
-    expect(track.stop).toHaveBeenCalled()
+
+    await expect(
+      createRealtimeMirrorCapture({ localCaptureId: 'ask-denied' }, deps),
+    ).rejects.toThrow('Permission denied')
+    expect(peer.closed).toBe(true)
     expect(channel.closed).toBe(true)
 
-    // The next capture connects fresh (a second getUserMedia) rather than
-    // reusing the disposed transport.
-    const channel2 = new FakeDataChannel()
-    const peer2 = new FakePeerConnection(channel2)
-    await createRealtimeMirrorCapture(
-      { localCaptureId: 'ask-fresh' },
-      {
-        ...deps,
-        RTCPeerConnection: vi.fn(() => peer2) as unknown as typeof RTCPeerConnection,
-      },
-    )
-    expect(getUserMedia).toHaveBeenCalledTimes(2)
-    expect(peer2.remoteDescription).not.toBeNull()
+    // The failed capture leaves no warm slot behind: the next warm builds a
+    // brand-new transport.
+    const peer2 = new FakePeerConnection(new FakeDataChannel())
+    prewarmRealtimeMirrorCapture({
+      ...deps,
+      RTCPeerConnection: vi.fn(() => peer2) as unknown as typeof RTCPeerConnection,
+    })
+    await vi.waitFor(() => expect(peer2.remoteDescription).not.toBeNull())
   })
 
   it('parses fenced Mirror JSON from Realtime events', async () => {
@@ -581,15 +619,18 @@ class FakeDataChannel {
 }
 
 class FakePeerConnection {
-  addedTracks: unknown[] = []
+  // One sender for the single audio transceiver the client opens.
+  sender = { replaceTrack: vi.fn(async (_track: MediaStreamTrack | null) => {}) }
+  transceivers: Array<{ kind: string; init?: unknown }> = []
   remoteDescription: RTCSessionDescriptionInit | null = null
   ontrack: ((event: RTCTrackEvent) => void) | null = null
   closed = false
 
   constructor(private channel: FakeDataChannel) {}
 
-  addTrack(track: unknown) {
-    this.addedTracks.push(track)
+  addTransceiver(kind: string, init?: unknown) {
+    this.transceivers.push({ kind, init })
+    return { sender: this.sender }
   }
 
   createDataChannel() {

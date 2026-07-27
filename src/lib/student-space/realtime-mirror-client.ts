@@ -70,7 +70,7 @@ type MinimalDataChannel = Pick<
 
 type MinimalPeerConnection = Pick<
   RTCPeerConnection,
-  | 'addTrack'
+  | 'addTransceiver'
   | 'close'
   | 'createDataChannel'
   | 'createOffer'
@@ -97,43 +97,63 @@ export function canCreateRealtimeMirrorCapture(): boolean {
 }
 
 interface RealtimeMirrorConnection {
-  stream: MediaStream
   peer: MinimalPeerConnection
   dataChannel: MinimalDataChannel
   remoteAudio: { attach: (event: RTCTrackEvent) => void; close: () => void }
   sessionReady: Promise<void>
+  /** Populated by attachMic(); null while the transport is only warmed. */
+  stream: MediaStream | null
+  /** getUserMedia + sender.replaceTrack; idempotent once attached. */
+  attachMic: () => Promise<MediaStream>
   dispose: () => void
 }
 
 /**
- * Open the transport half of a Realtime Mirror session: mic stream, WebRTC
- * peer + SDP exchange through the server broker, data channel, and the
- * `session.update` handshake (sent once the channel opens). No capture
- * semantics attach yet — the mic tracks stay MUTED so a prewarmed connection
- * never streams audible audio before the user taps the mic.
+ * Open the transport half of a Realtime Mirror session WITHOUT touching the
+ * mic: WebRTC peer + SDP exchange through the server broker, data channel,
+ * and the `session.update` handshake (sent once the channel opens). The audio
+ * m-line comes from a track-less `addTransceiver('audio')`, so warming this
+ * transport never prompts for microphone permission and never lights the
+ * browser's recording indicator. Call `attachMic()` when a capture actually
+ * starts — `replaceTrack` fills the existing sender with no renegotiation.
  */
-async function openRealtimeMirrorConnection(
+async function openRealtimeMirrorTransport(
   deps: RealtimeMirrorClientDeps = {},
 ): Promise<RealtimeMirrorConnection> {
-  const mediaDevices = deps.mediaDevices ?? navigator.mediaDevices
   const PeerConnection =
     deps.RTCPeerConnection ??
     (globalThis as typeof globalThis & { RTCPeerConnection?: typeof RTCPeerConnection })
       .RTCPeerConnection
-  if (!mediaDevices?.getUserMedia || !PeerConnection) {
+  if (!PeerConnection) {
     throw new Error('Realtime voice is not available in this browser.')
   }
 
-  const stream = await mediaDevices.getUserMedia({ audio: REALTIME_AUDIO_CONSTRAINTS })
-  setMicEnabled(stream, false)
   const peer = new PeerConnection() as MinimalPeerConnection
   const remoteAudio = createRemoteAudioOutput(deps.createAudioElement)
   peer.ontrack = (event) => remoteAudio.attach(event)
-  for (const track of stream.getAudioTracks()) {
-    peer.addTrack(track, stream)
-  }
+  const audioTransceiver = peer.addTransceiver('audio', { direction: 'sendrecv' })
   const dataChannel = peer.createDataChannel('oai-events') as MinimalDataChannel
-  const dispose = () => teardownRealtimeCapture(peer, dataChannel, stream, remoteAudio)
+
+  // The mic is late-bound; `stream` stays null for a purely warm transport and
+  // is the single source of truth for teardown and for `connection.stream`.
+  let stream: MediaStream | null = null
+  const dispose = () => {
+    replaceSenderTrack(audioTransceiver, null)
+    teardownRealtimeCapture(peer, dataChannel, stream, remoteAudio)
+  }
+
+  const attachMic = async (): Promise<MediaStream> => {
+    if (stream) return stream
+    const mediaDevices =
+      deps.mediaDevices ?? (typeof navigator === 'undefined' ? undefined : navigator.mediaDevices)
+    if (!mediaDevices?.getUserMedia) {
+      throw new Error('Realtime voice is not available in this browser.')
+    }
+    const next = await mediaDevices.getUserMedia({ audio: REALTIME_AUDIO_CONSTRAINTS })
+    stream = next
+    await audioTransceiver.sender.replaceTrack(next.getAudioTracks()[0] ?? null)
+    return next
+  }
 
   try {
     const offer = await peer.createOffer()
@@ -153,17 +173,37 @@ async function openRealtimeMirrorConnection(
       sdp: await response.text(),
     })
     const sessionReady = sendRealtimeMirrorLiveSessionUpdateWhenOpen(dataChannel)
-    return { stream, peer, dataChannel, remoteAudio, sessionReady, dispose }
+    return {
+      peer,
+      dataChannel,
+      remoteAudio,
+      sessionReady,
+      get stream() {
+        return stream
+      },
+      attachMic,
+      dispose,
+    }
   } catch (err) {
     dispose()
     throw err
   }
 }
 
+function replaceSenderTrack(transceiver: RTCRtpTransceiver, track: MediaStreamTrack | null) {
+  try {
+    const result = transceiver.sender.replaceTrack(track)
+    // A closed peer rejects; nobody awaits this best-effort detach.
+    if (result && typeof result.catch === 'function') result.catch(() => {})
+  } catch {
+    // Best effort browser cleanup.
+  }
+}
+
 let prewarmedConnection: Promise<RealtimeMirrorConnection> | null = null
 let prewarmTtlTimer: ReturnType<typeof setTimeout> | null = null
 
-/** How long an unconsumed warm connection may hold the (muted) mic open. */
+/** How long an unconsumed warm transport may hold its Realtime session open. */
 const PREWARM_TTL_MS = 60_000
 
 function clearPrewarmTtl() {
@@ -174,20 +214,25 @@ function clearPrewarmTtl() {
 
 /**
  * Pre-connect the Realtime Mirror transport so a later
- * `createRealtimeMirrorCapture` starts listening instantly instead of paying
- * for getUserMedia + WebRTC + SDP + channel-open after the mic tap. The
- * warmed connection keeps its mic muted; a failed prewarm silently clears the
- * slot so the mic tap falls back to the normal connect path (and its error
- * surface). Idempotent while a warm connection is pending or ready.
+ * `createRealtimeMirrorCapture` only pays for getUserMedia (~50-150ms once
+ * permission is granted) instead of a full WebRTC + SDP + channel-open round
+ * trip after the mic tap. Warming never touches the mic, so it is free of
+ * permission prompts and recording indicators — safe to call on any signal of
+ * intent. A failed prewarm silently clears the slot so the mic tap falls back
+ * to the normal connect path (and its error surface). Idempotent while a warm
+ * transport is pending or ready.
  */
 export function prewarmRealtimeMirrorCapture(deps: RealtimeMirrorClientDeps = {}): void {
   if (prewarmedConnection) return
-  const hasInjectedTransport = Boolean(deps.mediaDevices?.getUserMedia && deps.RTCPeerConnection)
-  if (!hasInjectedTransport && !canCreateRealtimeMirrorCapture()) return
-  const pending = openRealtimeMirrorConnection(deps)
+  const hasPeerConnection =
+    Boolean(deps.RTCPeerConnection) ||
+    typeof (globalThis as typeof globalThis & { RTCPeerConnection?: unknown }).RTCPeerConnection !==
+      'undefined'
+  if (!hasPeerConnection) return
+  const pending = openRealtimeMirrorTransport(deps)
   prewarmedConnection = pending
-  // Expire unconsumed warmth so a hover-triggered prewarm can't hold the
-  // (muted) mic open indefinitely when the user never records.
+  // Expire unconsumed warmth so a hover-triggered prewarm can't hold an idle
+  // Realtime session open indefinitely when the user never records.
   clearPrewarmTtl()
   prewarmTtlTimer = setTimeout(() => {
     if (prewarmedConnection === pending) disposePrewarmedRealtimeMirrorCapture()
@@ -207,7 +252,7 @@ export function prewarmRealtimeMirrorCapture(deps: RealtimeMirrorClientDeps = {}
   )
 }
 
-/** Drop an unconsumed prewarmed connection (sheet closed, mic never tapped). */
+/** Drop an unconsumed prewarmed transport (sheet closed, mic never tapped). */
 export function disposePrewarmedRealtimeMirrorCapture(): void {
   const pending = prewarmedConnection
   prewarmedConnection = null
@@ -225,7 +270,9 @@ function takePrewarmedRealtimeMirrorConnection(): Promise<RealtimeMirrorConnecti
 function isRealtimeMirrorConnectionUsable(connection: RealtimeMirrorConnection): boolean {
   const state = connection.dataChannel.readyState
   if (state === 'closed' || state === 'closing') return false
-  const tracks = connection.stream.getAudioTracks()
+  // A warm transport has no stream yet. If one somehow got attached, refuse it
+  // once the mic tracks have ended.
+  const tracks = connection.stream?.getAudioTracks() ?? []
   return tracks.length === 0 || tracks.some((track) => track.readyState !== 'ended')
 }
 
@@ -243,17 +290,7 @@ async function obtainRealtimeMirrorConnection(
       // caller sees the live error, not the stale one.
     }
   }
-  return openRealtimeMirrorConnection(deps)
-}
-
-function setMicEnabled(stream: MediaStream, enabled: boolean) {
-  for (const track of stream.getAudioTracks()) {
-    try {
-      track.enabled = enabled
-    } catch {
-      // Fake tracks in tests may not be writable; the live path always is.
-    }
-  }
+  return openRealtimeMirrorTransport(deps)
 }
 
 export async function createRealtimeMirrorCapture(
@@ -263,8 +300,16 @@ export async function createRealtimeMirrorCapture(
   // Consume the prewarmed transport when one is ready (mic tap after the
   // sheet pre-connected) — otherwise connect from scratch as before.
   const connection = await obtainRealtimeMirrorConnection(deps)
-  const { stream, dataChannel } = connection
-  setMicEnabled(stream, true)
+  const { dataChannel } = connection
+  // The mic joins only now, so a denied permission must not strand the
+  // transport — dispose it and let the caller surface the error.
+  let stream: MediaStream
+  try {
+    stream = await connection.attachMic()
+  } catch (err) {
+    connection.dispose()
+    throw err
+  }
 
   const accumulator = createRealtimeMirrorAccumulator(input, {
     timeoutMs: deps.resultTimeoutMs,
@@ -914,10 +959,11 @@ function waitForRealtimeTranscript(
 function teardownRealtimeCapture(
   peer: MinimalPeerConnection,
   dataChannel: MinimalDataChannel,
-  stream: MediaStream,
+  stream: MediaStream | null,
   remoteAudio: { close: () => void },
 ) {
-  stopStreamTracks(stream)
+  // A warm transport never attached a mic, so there are no tracks to stop.
+  if (stream) stopStreamTracks(stream)
   remoteAudio.close()
   try {
     dataChannel.close()
