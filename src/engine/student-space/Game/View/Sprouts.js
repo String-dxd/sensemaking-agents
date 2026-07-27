@@ -3,6 +3,10 @@ import * as THREE from 'three'
 import View from './View.js'
 import State from '../State/State.js'
 import { snapPositionToLand } from '../State/islandSpecCore/snapToLand.ts'
+import { loadGlb, MODEL_URLS } from './assetLoader.ts'
+import { applyToonMaterials, objectGradientMap } from './Materials/toonMaterial.ts'
+import { CanopySpring } from './wind.ts'
+import { hashString, mulberry32 } from '../State/islandSpecCore/rand.ts'
 
 /**
  * Sprouts view — renders the engine's Sprouts state slice as small 3D
@@ -82,6 +86,17 @@ export const SPECIES_HINT = {
         leafDark:  0x6A8A36,
         glow:      0xE4906A,   // amber ring
     },
+}
+
+// Bloomed mini-trees render the same authored tree.glb as the island's
+// layout trees (Tree.js), scaled down to read as a young tree. Tint
+// handling mirrors Tree.js: the GLB carries baked vertex colors, and the
+// species tint is a partial lerp from white so it never crushes the bake.
+const MINI_TREE_SCALE = 0.5
+const MINI_TREE_TINT_STRENGTH = 0.35
+const MINI_TREE_DEFAULT_TINTS = {
+    oak:    0x3A7D2A,
+    cherry: 0xFF66A3,
 }
 
 const BOB_AMPLITUDE = 0.05   // metres of vertical bob when ready
@@ -201,6 +216,27 @@ export default class Sprouts
 
         // Cached screen-projection vector reused per frame.
         this._tmpVec = new THREE.Vector3()
+
+        // Shared authored tree.glb (same cache Tree.js uses) so bloomed
+        // mini-trees match the island's layout trees. `undefined` = still
+        // loading, `null` = load failed (procedural fallback), scene =
+        // ready. Per-species tinted material sets are cloned once from the
+        // toon-converted GLB materials, mirroring Tree._materializeSpecies.
+        this._miniTreeTemplate = undefined
+        this._miniTreeMats = {}
+        this._miniTreeFallbackShared = null
+        this._miniTreeGlbPromise = loadGlb(MODEL_URLS.tree).then((gltf) =>
+        {
+            if(gltf)
+            {
+                applyToonMaterials(gltf.scene)
+                this._miniTreeTemplate = gltf.scene
+            }
+            else
+            {
+                this._miniTreeTemplate = null
+            }
+        })
 
         // Onboarding hides EVERY sprout + bloomed mesh so a persisted
         // prior-session sprout doesn't leak into the ceremony's empty
@@ -999,6 +1035,9 @@ export default class Sprouts
             try { this.root?.remove(node.group) } catch(_) {}
             node.group.traverse((obj) =>
             {
+                // Mini-tree meshes share the GLB cache / per-species
+                // material sets — never dispose those.
+                if(obj.userData?.sharedAssets) return
                 if(obj.geometry) { try { obj.geometry.dispose() } catch(_) {} }
                 if(obj.material) { try { obj.material.dispose() } catch(_) {} }
             })
@@ -1025,7 +1064,7 @@ export default class Sprouts
         if(species === 'flower')        parts = this._buildBloomedFlower(group, tree.placementSeed)
         else if(species === 'butterfly') parts = this._buildBloomedButterfly(group, tree.placementSeed)
         else if(species === 'fruit')     parts = this._buildBloomedFruit(group, tree.placementSeed)
-        else                             parts = this._buildBloomedTree(group, tree.treeSpecies)
+        else                             parts = this._buildBloomedTree(group, tree.treeSpecies, tree.placementSeed)
 
         const targetScale = 1.0
         if(animate)
@@ -1060,28 +1099,172 @@ export default class Sprouts
         })
     }
 
-    _buildBloomedTree(group, treeSpeciesId)
+    _buildBloomedTree(group, treeSpeciesId, placementSeed)
     {
-        const isOak = treeSpeciesId === 'oak'
-        const trunkColor = isOak ? COLORS.trunkOak : COLORS.trunkCherry
-        const leafColor  = isOak ? COLORS.leafOak  : COLORS.leafCherry
+        const parts = { kind: 'tree' }
+        if(this._miniTreeTemplate !== undefined)
+        {
+            this._attachMiniTree(group, treeSpeciesId, placementSeed, parts)
+        }
+        else
+        {
+            // GLB still loading (constructor-time hydration spawn) — attach
+            // once it settles, unless the node was removed meanwhile.
+            this._miniTreeGlbPromise.then(() =>
+            {
+                // Skip if the node was removed or the view disposed meanwhile.
+                if(this.root && group.parent) this._attachMiniTree(group, treeSpeciesId, placementSeed, parts)
+            })
+        }
+        return parts
+    }
 
-        const matTrunk = new THREE.MeshLambertMaterial({ color: trunkColor, flatShading: true })
-        const matLeaf  = new THREE.MeshLambertMaterial({ color: leafColor,  flatShading: true })
+    /** Attach the authored-GLB mini-tree (or the procedural fallback when
+     *  the GLB failed to load) to a bloomed group. */
+    _attachMiniTree(group, treeSpeciesId, placementSeed, parts)
+    {
+        if(!this._miniTreeTemplate)
+        {
+            this._buildFallbackBloomedTree(group, treeSpeciesId, parts)
+            return
+        }
 
-        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.075, 0.55, 8), matTrunk)
+        const model = this._miniTreeTemplate.clone(true)
+        model.userData.sharedAssets = true
+
+        // Seeded per-instance variety on the 'canopy' handle — same recipe
+        // as Tree.js so mini-trees vary the way layout trees do.
+        const rand = mulberry32(hashString(`bloom-${placementSeed ?? 0}`))
+        const canopy = model.getObjectByName('canopy')
+        if(canopy)
+        {
+            canopy.rotation.y = rand() * Math.PI * 2
+            const girth = 0.92 + rand() * 0.16
+            canopy.scale.x = girth
+            canopy.scale.z = girth
+
+            parts.canopy = canopy
+            parts.spring = new CanopySpring(rand() * Math.PI * 2)
+            parts.windAmp = canopy.userData.windAmp ?? 0.55
+        }
+
+        this._materializeMiniSpecies(treeSpeciesId, model)
+        model.traverse((n) =>
+        {
+            if(!n.isMesh) return
+            n.castShadow = true
+            n.receiveShadow = true
+            // Geometry and materials are shared with the GLB cache /
+            // per-species sets — _disposeBloomedNode must not dispose them.
+            n.userData.sharedAssets = true
+        })
+        model.scale.setScalar(MINI_TREE_SCALE)
+        group.add(model)
+        parts.model = model
+    }
+
+    /** Mirror of Tree._materializeSpecies for the mini-tree lane: one tinted
+     *  material set per species, cloned from the toon-converted GLB set. */
+    _materializeMiniSpecies(species, model)
+    {
+        const existing = this._miniTreeMats[species]
+        if(!existing)
+        {
+            const set = []
+            model.traverse((n) =>
+            {
+                if(!n.isMesh) return
+                if(Array.isArray(n.material))
+                {
+                    n.material = n.material.map((m) =>
+                    {
+                        const cloned = m.clone()
+                        set.push(cloned)
+                        return cloned
+                    })
+                }
+                else
+                {
+                    const cloned = n.material.clone()
+                    set.push(cloned)
+                    n.material = cloned
+                }
+            })
+            const palette = this.state.speciesPalette
+            const tintHex = palette?.get('tree', species)?.colorA
+                ?? MINI_TREE_DEFAULT_TINTS[species] ?? 0xffffff
+            const tint = new THREE.Color(tintHex)
+            for(const m of set)
+            {
+                m.color.set(0xffffff).lerp(tint, MINI_TREE_TINT_STRENGTH)
+            }
+            this._miniTreeMats[species] = set
+            return
+        }
+        let cursor = 0
+        model.traverse((n) =>
+        {
+            if(!n.isMesh) return
+            if(Array.isArray(n.material)) n.material = n.material.map(() => existing[cursor++])
+            else n.material = existing[cursor++] ?? n.material
+        })
+    }
+
+    /** Procedural fallback when tree.glb is unavailable — same silhouette
+     *  as before, but toon-shaded with the island tint so it still sits in
+     *  the world's material language. Geometry/materials are shared across
+     *  instances (flagged sharedAssets; disposed in dispose()). */
+    _buildFallbackBloomedTree(group, treeSpeciesId, parts)
+    {
+        if(!this._miniTreeFallbackShared)
+        {
+            const gradientMap = objectGradientMap()
+            this._miniTreeFallbackShared = {
+                trunkGeo:   new THREE.CylinderGeometry(0.05, 0.075, 0.55, 8),
+                canopyGeoA: new THREE.IcosahedronGeometry(0.20, 1),
+                canopyGeoB: new THREE.IcosahedronGeometry(0.16, 1),
+                canopyGeoC: new THREE.IcosahedronGeometry(0.15, 1),
+                mats: {},
+                gradientMap,
+            }
+        }
+        const shared = this._miniTreeFallbackShared
+        if(!shared.mats[treeSpeciesId])
+        {
+            const isOak = treeSpeciesId === 'oak'
+            shared.mats[treeSpeciesId] = {
+                trunk: new THREE.MeshToonMaterial({
+                    color: isOak ? COLORS.trunkOak : COLORS.trunkCherry,
+                    gradientMap: shared.gradientMap,
+                }),
+                leaf: new THREE.MeshToonMaterial({
+                    color: isOak ? COLORS.leafOak : COLORS.leafCherry,
+                    gradientMap: shared.gradientMap,
+                }),
+            }
+        }
+        const mats = shared.mats[treeSpeciesId]
+
+        const trunk = new THREE.Mesh(shared.trunkGeo, mats.trunk)
         trunk.position.y = 0.275
-        group.add(trunk)
-
-        const canopyA = new THREE.Mesh(new THREE.IcosahedronGeometry(0.20, 1), matLeaf)
+        const canopyA = new THREE.Mesh(shared.canopyGeoA, mats.leaf)
         canopyA.position.set(0, 0.62, 0)
-        const canopyB = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 1), matLeaf)
+        const canopyB = new THREE.Mesh(shared.canopyGeoB, mats.leaf)
         canopyB.position.set(0.13, 0.56, 0.05)
-        const canopyC = new THREE.Mesh(new THREE.IcosahedronGeometry(0.15, 1), matLeaf)
+        const canopyC = new THREE.Mesh(shared.canopyGeoC, mats.leaf)
         canopyC.position.set(-0.10, 0.55, -0.07)
-        group.add(canopyA, canopyB, canopyC)
+        for(const mesh of [trunk, canopyA, canopyB, canopyC])
+        {
+            mesh.castShadow = true
+            mesh.receiveShadow = true
+            mesh.userData.sharedAssets = true
+        }
+        group.add(trunk, canopyA, canopyB, canopyC)
 
-        return { kind: 'tree', trunk, canopyA, canopyB, canopyC }
+        parts.trunk = trunk
+        parts.canopyA = canopyA
+        parts.canopyB = canopyB
+        parts.canopyC = canopyC
     }
 
     _buildBloomedFlower(group, seed)
@@ -1821,6 +2004,20 @@ export default class Sprouts
             node.group.scale.setScalar(node.targetScale * eased)
             if(t >= 1) node.growStartMs = null
         }
+
+        // Canopy sway on GLB mini-trees — same spring-damper gust front as
+        // the island's layout trees (Tree.js update).
+        const windT = this.state.time.elapsed
+        const windDt = this.state.time.delta || 0
+        for(const node of this.bloomedNodes.values())
+        {
+            const p = node.parts
+            if(!p?.spring || !p.canopy || !node.group.visible) continue
+            p.spring.step(windT, windDt, node.group.position.x, node.group.position.z, p.windAmp)
+            p.canopy.rotation.x = p.spring.rotX
+            p.canopy.rotation.z = p.spring.rotZ
+            p.canopy.scale.y = p.spring.scaleY
+        }
     }
 
     _disposeNode(id)
@@ -1875,6 +2072,27 @@ export default class Sprouts
         for(const id of Array.from(this.bloomedNodes.keys()))
         {
             this._disposeBloomedNode(id)
+        }
+        // Sprouts-owned shared mini-tree resources (the GLB cache itself is
+        // never disposed — see assetLoader).
+        for(const set of Object.values(this._miniTreeMats || {}))
+        {
+            for(const m of set) { try { m.dispose() } catch(_) {} }
+        }
+        this._miniTreeMats = {}
+        if(this._miniTreeFallbackShared)
+        {
+            const s = this._miniTreeFallbackShared
+            for(const geo of [s.trunkGeo, s.canopyGeoA, s.canopyGeoB, s.canopyGeoC])
+            {
+                try { geo.dispose() } catch(_) {}
+            }
+            for(const pair of Object.values(s.mats))
+            {
+                try { pair.trunk.dispose() } catch(_) {}
+                try { pair.leaf.dispose() } catch(_) {}
+            }
+            this._miniTreeFallbackShared = null
         }
         if(this.root)
         {

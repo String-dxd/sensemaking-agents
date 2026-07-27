@@ -93,14 +93,7 @@ export function MirrorDetailPane({ entryId, onClose }: { entryId: number; onClos
         <div className="min-w-0">
           <SheetEyebrow>Story reframe</SheetEyebrow>
           <h2 className="mt-1 text-xl font-semibold leading-snug tracking-[-0.01em] text-(--color-sheet-ink)">
-            {capture
-              ? capture.title?.trim() ||
-                capture.reframe?.headline?.trim() ||
-                capture.reframe?.highlightPhrase?.trim() ||
-                'Untitled mirror'
-              : hydrated
-                ? 'Mirror not found'
-                : 'Loading…'}
+            {capture ? summarizedTitle(capture) : hydrated ? 'Mirror not found' : 'Loading…'}
           </h2>
           {capture ? (
             <p className="mt-1 text-sm text-(--color-sheet-ink-soft)">
@@ -354,6 +347,27 @@ function ReviewActions({
       ) : null}
     </div>
   )
+}
+
+/**
+ * Header title. An authored `title` wins; otherwise derive a SHORT summary
+ * from the reframe rather than dumping the whole story-reframe paragraph
+ * into the h2 (it reads as a wall of bold text — the full reframe already
+ * renders below in its own "Story" section).
+ */
+const TITLE_MAX_CHARS = 64
+
+function summarizedTitle(capture: MirrorCapture): string {
+  const explicit = capture.title?.trim()
+  if (explicit) return explicit
+  const source = capture.reframe?.headline?.trim() || capture.reframe?.highlightPhrase?.trim() || ''
+  if (!source) return 'Untitled mirror'
+  const firstSentence = source.split(/(?<=[.!?])\s+/)[0] ?? source
+  if (firstSentence.length <= TITLE_MAX_CHARS) return firstSentence.replace(/[.!?]+$/, '')
+  const cut = firstSentence.slice(0, TITLE_MAX_CHARS)
+  const lastSpace = cut.lastIndexOf(' ')
+  const atWord = lastSpace > TITLE_MAX_CHARS / 2 ? cut.slice(0, lastSpace) : cut
+  return `${atWord.replace(/[,;:\s]+$/, '')}…`
 }
 
 function formatLongDate(ymd: string | undefined): string {

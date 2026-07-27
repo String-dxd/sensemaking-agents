@@ -12,7 +12,8 @@ import {
   SheetTitle,
   usePageEscape,
 } from '~/components/ui/sheet'
-import { useEngine } from '~/lib/student-space/use-engine'
+import { Skeleton } from '~/components/ui/skeleton'
+import { useEngine, useEngineHydrated } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 import { useIsMobile } from '~/lib/student-space/use-is-mobile'
 import { cn } from '~/lib/utils'
@@ -56,6 +57,7 @@ export function LettersSheet() {
   const letters = ((engine?.state as unknown as { letters?: LettersSlice } | undefined)?.letters ??
     null) as LettersSlice | null
   useEngineSliceVersion(letters)
+  const hydrated = useEngineHydrated()
 
   // body.has-overlay drives the engine CSS that hides the world canvas and
   // other engine surfaces while a sheet is up. While the engine still owns
@@ -150,7 +152,18 @@ export function LettersSheet() {
           </SheetDescription>
         </SheetIdentityHeader>
         <div className="px-4 pb-6">
-          {sorted.length === 0 ? (
+          {sorted.length === 0 && !hydrated ? (
+            // Cold load: the first backend snapshot is still in flight —
+            // hold the list shape instead of flashing the empty-inbox copy.
+            <div className="space-y-1" data-testid="letters-skeleton">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="rounded-xl px-3 py-3">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="mt-2 h-3 w-1/3" />
+                </div>
+              ))}
+            </div>
+          ) : sorted.length === 0 ? (
             <p className="text-base leading-relaxed text-(--color-sheet-ink-soft)">
               No letters yet. Your teacher will write when they notice something.
             </p>

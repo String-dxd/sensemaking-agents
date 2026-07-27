@@ -15,7 +15,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LettersSheet } from '~/components/student-space/sheets/LettersSheet'
-import { EngineContext } from '~/lib/student-space/use-engine'
+import { EngineContext, EngineHydrationContext } from '~/lib/student-space/use-engine'
 
 interface FakeLetter {
   id: string
@@ -61,7 +61,11 @@ function renderLetters(engine: ReturnType<typeof makeFakeEngine>) {
   const rootRoute = createRootRoute({
     component: () => (
       <EngineContext.Provider value={engine as never}>
-        <LettersSheet />
+        {/* Hydrated: these tests assert real data / genuine-empty copy, not
+            the cold-load skeleton (which shows only while unhydrated). */}
+        <EngineHydrationContext.Provider value={true}>
+          <LettersSheet />
+        </EngineHydrationContext.Provider>
       </EngineContext.Provider>
     ),
   })

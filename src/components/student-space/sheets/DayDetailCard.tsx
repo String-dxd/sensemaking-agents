@@ -1,6 +1,7 @@
 import { Link, useNavigate } from '@tanstack/react-router'
 import { Sparkles } from 'lucide-react'
 import { useState } from 'react'
+import { Skeleton } from '~/components/ui/skeleton'
 import { sgToday } from '~/lib/entry-date'
 import { EMOTION_BY_ID, shapeDataUri } from '~/lib/student-space/mood-shapes'
 import { cn } from '~/lib/utils'
@@ -104,11 +105,15 @@ export function DayDetailCard({
   date,
   engineState,
   openEntryId,
+  loading = false,
 }: {
   date: string | null
   engineState: DayDetailEngineState | undefined
   /** Entry currently open in the History right column — highlights its card. */
   openEntryId?: number | null
+  /** Cold load (first backend snapshot in flight) — skeleton instead of the
+   *  "nothing logged" copy, which would be a lie until data lands. */
+  loading?: boolean
 }) {
   const moods = date ? (engineState?.moodPins?.pins ?? []).filter((p) => p.entryDate === date) : []
   const captures = date
@@ -142,7 +147,13 @@ export function DayDetailCard({
           {formatLongDate(date)}
         </h3>
       </header>
-      {isEmpty ? (
+      {isEmpty && loading ? (
+        <div className="space-y-3" data-testid="day-detail-skeleton">
+          <Skeleton className="h-4 w-1/3" />
+          <Skeleton className="h-16 w-full rounded-xl" />
+          <Skeleton className="h-16 w-3/4 rounded-xl" />
+        </div>
+      ) : isEmpty ? (
         <EmptyDay date={date} />
       ) : (
         <div className="space-y-5">

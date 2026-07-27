@@ -11,6 +11,7 @@ import {
   resolveElementEvidence,
 } from '~/engine/student-space/Game/View/elementEvidence.js'
 import { FACET_HEADERS, FACET_THEMES } from '~/engine/student-space/Game/View/facets.js'
+import { clearApproachUnit } from '~/lib/student-space/camera-clearance'
 import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
 
@@ -584,11 +585,18 @@ class KiraNarratorController {
     const fromKiraDx = liveCam.x - perch.x
     const fromKiraDz = liveCam.z - perch.z
     const flatLen = Math.hypot(fromKiraDx, fromKiraDz) || 1
-    const unitX = fromKiraDx / flatLen
-    const unitZ = fromKiraDz / flatLen
     // Same close-up as the onboarding dialogue beat (first-chat preset):
-    // tight head-on portrait, approached from the camera's current azimuth.
+    // tight head-on portrait, approached from the camera's current azimuth —
+    // or, when that azimuth points into a cliff, the nearest clear angle
+    // (clearApproachUnit walks the island heightfield).
     const { distance, camYAboveLookAt, lookAtYAbovePerch } = getPreset('first-chat')
+    const { x: unitX, z: unitZ } = clearApproachUnit(
+      this.state.island,
+      { x: perch.x, y: perch.y + lookAtYAbovePerch, z: perch.z },
+      { x: fromKiraDx / flatLen, z: fromKiraDz / flatLen },
+      distance,
+      perch.y + lookAtYAbovePerch + camYAboveLookAt,
+    )
     const camPos = new THREE.Vector3(
       perch.x + unitX * distance,
       perch.y + lookAtYAbovePerch + camYAboveLookAt,

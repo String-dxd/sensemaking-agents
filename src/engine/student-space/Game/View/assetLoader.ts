@@ -24,6 +24,9 @@ export const MODEL_URLS = {
   tree: `${ASSET_BASE}models/tree.glb`,
   rock: `${ASSET_BASE}models/rock.glb`,
   character: `${ASSET_BASE}models/character.glb`,
+  mailbox: `${ASSET_BASE}models/mailbox.glb`,
+  bush: `${ASSET_BASE}models/bush.glb`,
+  telescope: `${ASSET_BASE}models/telescope.glb`,
 } as const
 
 type LoaderLike = { loadAsync(url: string): Promise<GLTF> }

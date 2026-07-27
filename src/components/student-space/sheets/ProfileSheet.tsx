@@ -31,12 +31,13 @@ import {
   SheetTitle,
   usePageEscape,
 } from '~/components/ui/sheet'
+import { Skeleton } from '~/components/ui/skeleton'
 import { PROFILE_TAB_THEMES } from '~/data/profile-tabs'
 import { VIPS_TAXONOMY, type VipsDimension } from '~/data/vips-taxonomy'
 import ShareTokenBridge from '~/engine/student-space/Game/State/ShareTokenBridge.js'
 import { PROFILE_HEADERS, PROFILE_THEMES } from '~/lib/profile-tokens'
 import { bootProfileTabSlices } from '~/lib/student-space/profile-tab-state'
-import { useEngine } from '~/lib/student-space/use-engine'
+import { useEngine, useEngineHydrated } from '~/lib/student-space/use-engine'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 import { cn } from '~/lib/utils'
 
@@ -528,6 +529,7 @@ function VipsProfileTab({
   const claims = CLAIMS_BY_DIMENSION[tab] ?? []
   const counts = profile?.countByClaim?.(tab) ?? {}
   const total = claims.reduce((sum, claim) => sum + (counts[claim.id] ?? 0), 0)
+  const hydrated = useEngineHydrated()
   const header = PROFILE_HEADERS[tab]
   const visibleQuotes = (facet?.quotes ?? [])
     .filter((quote) => !selectedClaimId || quote.canonicalClaimId === selectedClaimId)
@@ -600,7 +602,24 @@ function VipsProfileTab({
               </button>
             ) : null}
           </div>
-          {total === 0 ? (
+          {total === 0 && !hydrated ? (
+            // Cold load: hold the tile-grid shape until the first backend
+            // snapshot settles, instead of flashing the empty-state copy.
+            <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="profile-skeleton">
+              {[0, 1, 2, 3].map((i) => (
+                <li
+                  key={i}
+                  className="flex items-start gap-3 rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-4"
+                >
+                  <Skeleton className="size-14 shrink-0 rounded-xl" />
+                  <div className="min-w-0 flex-1">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="mt-2 h-3 w-1/2" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : total === 0 ? (
             <div
               data-testid="profile-dimension-empty"
               className="rounded-xl border border-(--color-sheet-divider) bg-(--color-sheet-pane-left) p-5 text-sm text-(--color-sheet-ink-soft)"

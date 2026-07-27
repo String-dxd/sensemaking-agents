@@ -17,6 +17,7 @@ import {
   canRecordStudentSpaceAudio,
   startStudentSpaceAudioCapture,
 } from '~/lib/student-space/audio-capture'
+import { clearApproachUnit } from '~/lib/student-space/camera-clearance'
 import { getPreset } from '~/lib/student-space/camera-tuner'
 import {
   EMOTION_BY_ID,
@@ -394,16 +395,29 @@ export function AskSheet() {
     const dx = (liveCam?.x ?? kira.x) - kira.x
     const dz = (liveCam?.z ?? kira.z + 1) - kira.z
     const flat = Math.hypot(dx, dz) || 1
-    const unitX = dx / flat
-    const unitZ = dz / flat
-    // The character GLB's face reads toward rotation.y - 90deg (same offset
-    // as the onboarding first-chat preset and the kira-narrator turn), so
-    // add the quarter turn to point the face at the camera.
-    const targetYaw = Math.atan2(-unitZ, unitX) + Math.PI / 2
     // Scale the narrator's rise-over-run to the wider distance so the pitch
     // tracks the first-chat preset if it is ever re-tuned.
     const chat = getPreset('first-chat')
     const camYAboveLookAt = (chat.camYAboveLookAt / chat.distance) * CAPTURE_DISTANCE
+    // Auto-orbit: if the current azimuth would park the camera inside a
+    // cliff (Kira perched below terrain relative to the camera), swing to
+    // the nearest clear angle instead of framing a wall of dirt.
+    const island = (
+      engine as unknown as {
+        state?: { island?: { heightAt?: (x: number, z: number) => number } }
+      } | null
+    )?.state?.island
+    const { x: unitX, z: unitZ } = clearApproachUnit(
+      island,
+      { x: kira.x, y: kira.y + CAPTURE_LOOK_AT_Y_ABOVE_PERCH, z: kira.z },
+      { x: dx / flat, z: dz / flat },
+      CAPTURE_DISTANCE,
+      kira.y + CAPTURE_LOOK_AT_Y_ABOVE_PERCH + camYAboveLookAt,
+    )
+    // The character GLB's face reads toward rotation.y - 90deg (same offset
+    // as the onboarding first-chat preset and the kira-narrator turn), so
+    // add the quarter turn to point the face at the camera.
+    const targetYaw = Math.atan2(-unitZ, unitX) + Math.PI / 2
     const camPos: Vec3Like = new Vec(
       kira.x + unitX * CAPTURE_DISTANCE,
       kira.y + CAPTURE_LOOK_AT_Y_ABOVE_PERCH + camYAboveLookAt,

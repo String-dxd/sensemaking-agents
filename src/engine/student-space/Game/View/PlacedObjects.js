@@ -5,7 +5,7 @@ import View from './View.js'
 import State from '../State/State.js'
 import { loadGlb, MODEL_URLS } from './assetLoader.ts'
 import { buildObjectModel } from './buildObjectModel.ts'
-import { applyToonMaterials } from './Materials/toonMaterial.ts'
+import { applyToonMaterials, applyUnlitMaterials } from './Materials/toonMaterial.ts'
 import { CanopySpring } from './wind.ts'
 import { hashString, mulberry32 } from '../State/islandSpecCore/rand.ts'
 import { worldPositionOfObject } from '../State/islandSpecCore/terrainGrid.ts'
@@ -100,25 +100,33 @@ export default class PlacedObjects
     async _place(o, blurred)
     {
         let model = null
-        if(o.kind === 'bush')
+        const url = MODEL_URLS[o.kind]
+        if(url)
         {
-            model = buildObjectModel('bush', hashString(o.id))
-        }
-        else
-        {
-            const url = MODEL_URLS[o.kind]
-            if(!url) return
             const gltf = await loadGlb(url)
-            if(!gltf || this._disposed) return
-            // Toon-convert the CACHED scene in place (idempotent) BEFORE
-            // cloning, so every clone shares the converted materials and the
-            // never-dispose-shared rule holds.
-            applyToonMaterials(gltf.scene)
-            model = o.kind === 'character'
-                ? cloneSkinned(gltf.scene)
-                : gltf.scene.clone(true)
-            model.userData.sharedAssets = true
-            randomizeInstance(model, hashString(o.id))
+            if(this._disposed) return
+            if(gltf)
+            {
+                // Convert the CACHED scene's materials in place (idempotent)
+                // BEFORE cloning, so every clone shares the converted set and
+                // the never-dispose-shared rule holds. The bush ships with
+                // lighting baked into its texture → unlit; the rest take the
+                // toon ramp.
+                if(o.kind === 'bush') applyUnlitMaterials(gltf.scene)
+                else applyToonMaterials(gltf.scene)
+                model = o.kind === 'character'
+                    ? cloneSkinned(gltf.scene)
+                    : gltf.scene.clone(true)
+                model.userData.sharedAssets = true
+                randomizeInstance(model, hashString(o.id))
+            }
+        }
+        if(!model)
+        {
+            // Only the bush has a procedural fallback; other kinds simply
+            // keep nothing on screen when their GLB is unavailable.
+            if(o.kind !== 'bush') return
+            model = buildObjectModel('bush', hashString(o.id))
         }
         if(this._disposed) return
 

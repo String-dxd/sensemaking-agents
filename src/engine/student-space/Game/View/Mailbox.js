@@ -2,12 +2,18 @@ import * as THREE from 'three'
 
 import View from './View.js'
 import State from '../State/State.js'
+import { loadGlb, MODEL_URLS } from './assetLoader.ts'
+import { applyUnlitMaterials } from './Materials/toonMaterial.ts'
 
 /**
- * Mailbox — the on-island entry into LettersSheet. A classic American-style
- * red mailbox: arched red body mounted on a red post with a black base
- * plate, and a red signal flag on the side that rises when there is unread
- * mail.
+ * Mailbox — the on-island entry into LettersSheet. Rendered from the
+ * authored `mailbox.glb` (red arched body on a wooden post with baked
+ * grass tufts at the base), unlit — its lighting is baked into the
+ * texture. The GLB carries no signal flag: the engine-built flag read as
+ * a detached plate against the authored silhouette, so the unread-mail
+ * flag animation only exists on the procedural fallback (built when the
+ * GLB fails to load, per assetLoader's catch-and-keep-placeholder
+ * precedent).
  *
  * Raycast: HoverProbe picks `mailbox` ahead of trees/flowers (priority sits
  * with Kira and the mailbox — small, deliberate targets). On click, the
@@ -31,6 +37,10 @@ const COLORS = {
 
 const FLAG_DOWN_RAD = -Math.PI * 0.45   // pole tilted back, flag tucked low
 const FLAG_UP_RAD   =  0                // pole straight up — "you have mail"
+
+// Authored GLB is 1 unit tall (box top ~1.0, post below, grass mound at the
+// base). Scaled to keep the previous procedural mailbox's ~1.15 world height.
+const GLB_SCALE = 1.15
 
 export default class Mailbox
 {
@@ -62,24 +72,62 @@ export default class Mailbox
         this.group.rotation.y = Math.PI * 0.92
         this.scene.add(this.group)
 
-        this._build()
-
-        // Initial flag posture from current letter state.
+        // Flag posture state is live from construction; the flag mesh
+        // attaches once the async build settles (update() and
+        // _setFlagAngle no-op until _flagAxisGroup exists).
+        this._disposed = false
         this._flagTarget = this._flagRestForLetterState()
         this._flagCurrent = this._flagTarget
-        this._setFlagAngle(this._flagCurrent)
+
+        this._loadAndBuild()
 
         this._unsubLetters = this.state.letters.subscribe(() => this._refreshFlag())
     }
 
-    _build()
+    async _loadAndBuild()
+    {
+        const gltf = await loadGlb(MODEL_URLS.mailbox)
+        if(this._disposed || !this.group) return
+
+        if(gltf)
+        {
+            // Unlit-convert the cached scene in place (idempotent, shared
+            // clones) — the mailbox's lighting is baked into its texture,
+            // so scene lights would double-shade it.
+            applyUnlitMaterials(gltf.scene)
+            const model = gltf.scene.clone(true)
+            model.userData.sharedAssets = true
+            model.traverse((n) =>
+            {
+                if(!n.isMesh) return
+                n.castShadow = true
+                // Geometry/materials belong to the app-lifetime GLB cache —
+                // dispose() must skip them.
+                n.userData.sharedAssets = true
+            })
+            model.scale.setScalar(GLB_SCALE)
+            this.group.add(model)
+            this.model = model
+            // No engine-built flag on the GLB — it read as a detached
+            // floating plate against the authored silhouette. The unread-
+            // mail flag easing no-ops without a flag mesh (see
+            // _setFlagAngle); the procedural fallback still builds one.
+        }
+        else
+        {
+            this._buildProcedural()
+        }
+
+        this._setFlagAngle(this._flagCurrent)
+    }
+
+    _buildProcedural()
     {
         const matBase    = new THREE.MeshLambertMaterial({ color: COLORS.base,    flatShading: true })
         const matBracket = new THREE.MeshLambertMaterial({ color: COLORS.bracket, flatShading: true })
         const matRed     = new THREE.MeshLambertMaterial({ color: COLORS.red,     flatShading: true })
         const matDoor    = new THREE.MeshLambertMaterial({ color: COLORS.redDark, flatShading: true })
         const matKnob    = new THREE.MeshLambertMaterial({ color: COLORS.knob,    flatShading: true })
-        const matFlag    = new THREE.MeshLambertMaterial({ color: COLORS.red,     flatShading: true, side: THREE.DoubleSide })
 
         // BASE PLATE — flat black square at ground level so the post reads
         // as bolted down rather than driven into the soil.
@@ -165,13 +213,22 @@ export default class Mailbox
         knob.position.set(0, 0.97 + 0.05, length / 2 + 0.012)
         this.group.add(knob)
 
-        // FLAG ASSEMBLY — vertical red pole anchored at the side of the
-        // box near the front, with a rectangular red flag at the top. The
-        // whole anchor rotates about X so the pole tilts back along the
-        // body when "down" (no mail) and stands straight up when "up"
-        // (unread letters waiting).
+        this._buildFlag({ x: halfW + 0.006, y: 0.97 + flatH + 0.02, z: length / 2 - 0.07 })
+    }
+
+    /**
+     * FLAG ASSEMBLY — vertical red pole with a rectangular red flag at the
+     * top, anchored at `pos` on the side of the box. The whole anchor
+     * rotates about X so the pole tilts back along the body when "down"
+     * (no mail) and stands straight up when "up" (unread letters waiting).
+     */
+    _buildFlag(pos)
+    {
+        const matRed  = new THREE.MeshLambertMaterial({ color: COLORS.red, flatShading: true })
+        const matFlag = new THREE.MeshLambertMaterial({ color: COLORS.red, flatShading: true, side: THREE.DoubleSide })
+
         const flagAnchor = new THREE.Group()
-        flagAnchor.position.set(halfW + 0.006, 0.97 + flatH + 0.02, length / 2 - 0.07)
+        flagAnchor.position.set(pos.x, pos.y, pos.z)
         this.group.add(flagAnchor)
         this.flagAnchor = flagAnchor
 
@@ -185,10 +242,10 @@ export default class Mailbox
 
         // Flag plate — small red rectangle at the top of the pole,
         // projecting outward (along +X in anchor space) so the broadside
-        // faces forward when the pole is upright.
+        // faces forward when the pole is upright. Pivot at the inner edge
+        // so the flag attaches to the pole rather than floating with its
+        // centre offset.
         const flagGeo = new THREE.PlaneGeometry(0.11, 0.08)
-        // Pivot at inner edge so the flag attaches to the pole rather than
-        // floating with its centre offset.
         flagGeo.translate(0.055, 0, 0)
         const flag = new THREE.Mesh(flagGeo, matFlag)
         flag.position.set(0, 0.20, 0)
@@ -216,7 +273,8 @@ export default class Mailbox
     {
         // Rotation about X tilts the whole pole/flag assembly forward and
         // back along the body length — UP = vertical, DOWN = laid back.
-        this._flagAxisGroup.rotation.x = rad
+        // No-op until the async build attaches the flag.
+        if(this._flagAxisGroup) this._flagAxisGroup.rotation.x = rad
     }
 
     /**
@@ -253,6 +311,7 @@ export default class Mailbox
      */
     dispose()
     {
+        this._disposed = true
         if(this._unsubLetters)
         {
             try { this._unsubLetters() } catch(_) {}
@@ -263,6 +322,9 @@ export default class Mailbox
             try { this.scene?.remove?.(this.group) } catch(_) {}
             this.group.traverse((node) =>
             {
+                // GLB meshes share the app-lifetime asset cache — never
+                // dispose those; only engine-built geometry/materials.
+                if(node.userData?.sharedAssets) return
                 if(node.geometry) { try { node.geometry.dispose() } catch(_) {} }
                 if(node.material) { try { node.material.dispose() } catch(_) {} }
             })
@@ -271,6 +333,7 @@ export default class Mailbox
         this.flag = null
         this.flagAnchor = null
         this.body = null
+        this.model = null
         this._flagAxisGroup = null
     }
 
@@ -290,7 +353,9 @@ export default class Mailbox
 
         // Gentle idle sway when the flag is up — rotate around the pole's
         // own vertical axis so the flag plate swings side-to-side like a
-        // tin flag catching a light breeze.
+        // tin flag catching a light breeze. (Flag mesh attaches after the
+        // async build; the state easing above runs regardless.)
+        if(!this._flagAxisGroup) return
         if(Math.abs(this._flagTarget - FLAG_UP_RAD) < 0.05)
         {
             const t = this.state.time.elapsed

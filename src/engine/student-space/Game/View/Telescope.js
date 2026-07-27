@@ -2,16 +2,19 @@ import * as THREE from 'three'
 
 import View from './View.js'
 import State from '../State/State.js'
+import { loadGlb, MODEL_URLS } from './assetLoader.ts'
+import { applyUnlitMaterials } from './Materials/toonMaterial.ts'
 
 /**
  * Telescope — small prop on the NE rim of the plateau, tube pitched up at
- * the sky. Mirrors Mailbox.js in shape: a simple low-poly model parented to
- * a Group placed at the ground height under its XZ. HoverProbe picks it via
- * the group, KiraNarrator delivers a short line on click, and the CTA opens
- * the TrajectorySheet (overlay key 'trajectory').
- *
- * Palette stays in the v1 painterly band — warm brass tube, dark wood eyepiece,
- * pale tripod legs, matching the cream/sand-ink range of the island.
+ * the sky. Rendered from the authored `telescope.glb`, unlit — its lighting
+ * is baked into the texture (same lane as the mailbox and bushes). Mirrors
+ * Mailbox.js in shape: the model parents to a Group placed at the ground
+ * height under its XZ. HoverProbe picks it via the group, KiraNarrator
+ * delivers a short line on click, and the CTA opens the TrajectorySheet
+ * (overlay key 'trajectory'). If the GLB fails to load, the legacy
+ * procedural brass telescope builds instead (assetLoader's
+ * catch-and-keep-placeholder precedent).
  */
 
 const COLORS = {
@@ -30,6 +33,10 @@ const TUBE_PITCH = Math.PI * 0.30   // ~54° above horizontal; aimed at the sky
 // Tube yaw is set so the eyepiece faces inward (toward the island centre)
 // and the long lens end points out over the ocean.
 const TUBE_YAW   = Math.PI * 0.45
+
+// Authored GLB is 1 unit tall (meters baked in at export-optimize time).
+// Slight upscale to match the procedural prop's ~1.1-unit presence.
+const GLB_SCALE = 1.1
 
 export default class Telescope
 {
@@ -56,10 +63,41 @@ export default class Telescope
         this.group.rotation.y = Math.atan2(-x, -z) + Math.PI / 2
         this.scene.add(this.group)
 
-        this._build()
+        this._disposed = false
+        this._loadAndBuild()
     }
 
-    _build()
+    async _loadAndBuild()
+    {
+        const gltf = await loadGlb(MODEL_URLS.telescope)
+        if(this._disposed || !this.group) return
+
+        if(gltf)
+        {
+            // Unlit-convert the cached scene in place (idempotent, shared
+            // clones) — lighting is baked into the texture.
+            applyUnlitMaterials(gltf.scene)
+            const model = gltf.scene.clone(true)
+            model.userData.sharedAssets = true
+            model.traverse((n) =>
+            {
+                if(!n.isMesh) return
+                n.castShadow = true
+                // Geometry/materials belong to the app-lifetime GLB cache —
+                // dispose() must skip them.
+                n.userData.sharedAssets = true
+            })
+            model.scale.setScalar(GLB_SCALE)
+            this.group.add(model)
+            this.model = model
+        }
+        else
+        {
+            this._buildProcedural()
+        }
+    }
+
+    _buildProcedural()
     {
         const matBrass   = new THREE.MeshLambertMaterial({ color: COLORS.brass,   flatShading: true })
         const matBrassDk = new THREE.MeshLambertMaterial({ color: COLORS.brassDk, flatShading: true })
@@ -191,17 +229,22 @@ export default class Telescope
      */
     dispose()
     {
+        this._disposed = true
         if(this.group)
         {
             try { this.scene?.remove?.(this.group) } catch(_) {}
             this.group.traverse((node) =>
             {
+                // GLB meshes share the app-lifetime asset cache — never
+                // dispose those; only engine-built geometry/materials.
+                if(node.userData?.sharedAssets) return
                 if(node.geometry) { try { node.geometry.dispose() } catch(_) {} }
                 if(node.material) { try { node.material.dispose() } catch(_) {} }
             })
             this.group = null
         }
         this.headPivot = null
+        this.model = null
     }
 
     update()

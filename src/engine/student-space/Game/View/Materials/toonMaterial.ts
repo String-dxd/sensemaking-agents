@@ -49,3 +49,32 @@ export function applyToonMaterials(root: THREE.Object3D): void {
     mesh.material = Array.isArray(mesh.material) ? converted : (converted[0] as THREE.Material)
   })
 }
+
+/** Convert every mesh material under `root` to MeshBasicMaterial IN PLACE —
+ *  for authored GLBs whose lighting is fully baked into the base-color
+ *  texture (mailbox, bush). Unlit sidesteps the toon ramp entirely, so
+ *  single-sided backfaces read as painted foliage instead of falling into
+ *  the ramp's dark band. Idempotent, same shared-cache contract as
+ *  applyToonMaterials. */
+export function applyUnlitMaterials(root: THREE.Object3D): void {
+  root.traverse((node) => {
+    const mesh = node as THREE.Mesh
+    if (!mesh.isMesh) return
+    const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    const converted = mats.map((m) => {
+      if ((m as THREE.MeshBasicMaterial).isMeshBasicMaterial) return m
+      const src = m as THREE.MeshStandardMaterial
+      const basic = new THREE.MeshBasicMaterial({
+        map: src.map ?? null,
+        color: src.color?.clone() ?? new THREE.Color(0xffffff),
+        vertexColors: src.vertexColors ?? false,
+        transparent: src.transparent ?? false,
+        opacity: src.opacity ?? 1,
+        side: src.side ?? THREE.FrontSide,
+      })
+      basic.name = src.name
+      return basic
+    })
+    mesh.material = Array.isArray(mesh.material) ? converted : (converted[0] as THREE.Material)
+  })
+}

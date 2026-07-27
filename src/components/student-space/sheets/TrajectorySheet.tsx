@@ -12,6 +12,7 @@ import {
   SheetTitle,
   usePageEscape,
 } from '~/components/ui/sheet'
+import { Skeleton } from '~/components/ui/skeleton'
 import type {
   ChoiceDecisionShape,
   ChoiceIntentionShape,
@@ -180,7 +181,15 @@ export function TrajectorySheet() {
       <PageSurface>
         <SheetContent>
           <SheetBody data-stagger-slot="1">
-            <p className="text-sm text-(--color-sheet-ink-soft)">Loading Path Finder...</p>
+            <div data-testid="trajectory-skeleton" role="status" aria-label="Loading Path Finder">
+              <Skeleton className="h-8 w-1/2" />
+              <Skeleton className="mt-3 h-4 w-3/4" />
+              <div className="mt-8 space-y-3">
+                <Skeleton className="h-24 w-full rounded-xl" />
+                <Skeleton className="h-24 w-full rounded-xl" />
+                <Skeleton className="h-24 w-2/3 rounded-xl" />
+              </div>
+            </div>
           </SheetBody>
         </SheetContent>
       </PageSurface>

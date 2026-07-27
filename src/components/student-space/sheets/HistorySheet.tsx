@@ -314,6 +314,7 @@ function TimelinePane({
           date={selectedDate}
           engineState={engineState as never}
           openEntryId={openEntryId}
+          loading={isColdLoad}
         />
       </div>
     </div>

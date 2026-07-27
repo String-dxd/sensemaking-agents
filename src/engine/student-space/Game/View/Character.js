@@ -399,17 +399,32 @@ export default class Character
         }
 
         // The capture sheet parks the bird too (view.captureFocus): the
-        // student is mid-conversation, so hold the talk pose instead of
+        // student is mid-conversation, so hold a stationary pose instead of
         // letting the wander walk the bird out of the dolly's framing.
-        if((narrating || this.view.captureFocus === true) && !script)
+        //
+        // IN WATER the talk pose is wrong: leaving the swim phase drops the
+        // vertical logic to terrain-following, which sinks the bird to the
+        // pond floor (invisible under the sheet). Park her paddling in place
+        // instead — keep the swim phase/clip/draught and simply skip the
+        // behavior advance so she holds position while the sheet is open.
+        const parked = (narrating || this.view.captureFocus === true) && !script
+        const parkedInWater = parked && (s.phase === 'swim' || (s.phase === 'goto' && s.wet))
+        if(parked && !parkedInWater)
         {
             // Freeze wander + face the reader: hold the talk clip while the
             // narrator panel is open.
             if(s.phase !== 'talk') triggerTalk(s)
             s.remaining = Math.max(s.remaining, 0.5)
         }
+        if(parkedInWater)
+        {
+            // Pin the swim phase (a goto-in-water counts) and keep its timer
+            // from expiring mid-conversation.
+            s.phase = 'swim'
+            s.remaining = Math.max(s.remaining, 0.5)
+        }
 
-        if(!this._reducedMotion || script)
+        if((!this._reducedMotion || script) && !parkedInWater)
         {
             advanceBehavior(s, dt, this._env)
         }
@@ -477,8 +492,12 @@ export default class Character
             seaMat.uniforms.uSwim.value.set(s.x, s.z, 0, swimming ? 1 : 0)
         }
 
-        // Clip resolution + mixer tick.
-        this._playClip(narrating ? 'Talk_Passionately' : behaviorClip(s), idling && !narrating)
+        // Clip resolution + mixer tick. Parked-in-water keeps the swim clip —
+        // the talk clip is a standing pose and reads wrong at swim draught.
+        this._playClip(
+            narrating && !parkedInWater ? 'Talk_Passionately' : behaviorClip(s),
+            idling && !narrating,
+        )
         if(this._mixer) this._mixer.update(dt)
     }
 

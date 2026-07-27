@@ -2,6 +2,8 @@ import * as THREE from 'three'
 
 import View from './View.js'
 import State from '../State/State.js'
+import { loadGlb, MODEL_URLS } from './assetLoader.ts'
+import { applyUnlitMaterials } from './Materials/toonMaterial.ts'
 
 /**
  * Fruits — Skills' on-island metaphor.
@@ -51,6 +53,13 @@ const BERRIES_MAX = 7
 const PEDUNCLE_COLOR = 0x5A4327
 const LEAF_COLOR = 0x5E823C         // flat-shaded shrub green (matches flower leaves)
 const LEAF_COLOR_DARK = 0x4E6E32    // secondary blob — slight two-tone variety
+
+// Authored bush.glb clump dimensions (model space): ~0.61 wide × 0.35 tall
+// × 0.67 deep. Scaled up so the shrub keeps the procedural bush's presence.
+const BUSH_GLB_SCALE  = 1.3
+const BUSH_GLB_HALF_X = 0.30
+const BUSH_GLB_HALF_Z = 0.335
+const BUSH_GLB_HEIGHT = 0.35
 
 
 export default class Fruits
@@ -113,6 +122,27 @@ export default class Fruits
             })
         }
 
+        // Authored bush.glb foliage (same shared-cache + toon lane as the
+        // trees). `undefined` = still loading, `null` = load failed
+        // (procedural leaf-blob fallback), scene = ready. Placement waits
+        // for this to settle so every bush builds the same way.
+        this._bushTemplate = undefined
+        loadGlb(MODEL_URLS.bush).then((gltf) =>
+        {
+            if(gltf)
+            {
+                // Unlit — the bush's lighting is baked into its texture;
+                // scene lights would push the single-sided leaf backfaces
+                // into the toon ramp's dark band.
+                applyUnlitMaterials(gltf.scene)
+                this._bushTemplate = gltf.scene
+            }
+            else
+            {
+                this._bushTemplate = null
+            }
+        })
+
         // Placement is deferred to the first update() tick so the island
         // heightfield is settled before bushes snap to ground.
         this._placed = false
@@ -141,53 +171,94 @@ export default class Fruits
         group.userData.fruitBush = true
         this.group.add(group)
 
-        // 2 leaf blobs per bush — one main, one smaller offset blob, so the
-        // silhouette is irregular and reads as a clump of foliage rather
-        // than a perfect sphere.
-        const blobs = [
-            {
-                dx: 0,
-                dz: 0,
-                r:  0.32 + rnd() * 0.04,
-            },
-            {
-                dx: (rnd() - 0.5) * 0.42,
-                dz: (rnd() - 0.5) * 0.42,
-                r:  0.20 + rnd() * 0.05,
-            },
-        ]
-        blobs.forEach((b, i) =>
+        if(this._bushTemplate)
         {
-            const blob = new THREE.Mesh(this._leafGeo, i === 0 ? this._leafMat : this._leafMatDark)
-            blob.position.set(b.dx, b.r * 0.88, b.dz)
-            blob.scale.setScalar(b.r)
-            group.add(blob)
-        })
+            // Authored bush clump — cloned from the shared toon-converted
+            // GLB scene, seeded yaw for silhouette variety.
+            const model = this._bushTemplate.clone(true)
+            model.userData.sharedAssets = true
+            model.traverse((n) =>
+            {
+                if(!n.isMesh) return
+                n.castShadow = true
+                // Shared with the app-lifetime GLB cache — reconcile/dispose
+                // paths must never dispose these.
+                n.userData.sharedAssets = true
+            })
+            model.scale.setScalar(BUSH_GLB_SCALE)
+            model.rotation.y = rnd() * Math.PI * 2
+            group.add(model)
 
-        // Berry clusters scattered across the bush canopy.
-        const canopy = blobs.map((b) => ({
-            cx: b.dx,
-            cy: b.r * 0.88,
-            cz: b.dz,
-            r:  b.r,
-        }))
-
-        for(let i = 0; i < FRUITS_PER_BUSH; i++)
+            // Berry clusters sit on the clump's upper dome: uniform ring
+            // angle, radial distance inside the footprint, height following
+            // a parabolic dome profile so clusters rest on the foliage.
+            const s  = BUSH_GLB_SCALE
+            const hx = BUSH_GLB_HALF_X * s
+            const hz = BUSH_GLB_HALF_Z * s
+            for(let i = 0; i < FRUITS_PER_BUSH; i++)
+            {
+                const theta = rnd() * Math.PI * 2
+                const frac  = 0.25 + rnd() * 0.55
+                const y     = BUSH_GLB_HEIGHT * s * (0.92 - 0.45 * frac * frac)
+                const cluster = this._buildBerryCluster(species, rnd)
+                cluster.position.set(
+                    Math.cos(theta) * frac * hx,
+                    y,
+                    Math.sin(theta) * frac * hz,
+                )
+                group.add(cluster)
+            }
+        }
+        else
         {
-            const blob = i < canopy.length
-                ? canopy[i]
-                : canopy[Math.floor(rnd() * canopy.length)]
+            // Fallback (bush.glb unavailable): 2 leaf blobs per bush — one
+            // main, one smaller offset blob, so the silhouette is irregular
+            // and reads as a clump of foliage rather than a perfect sphere.
+            const blobs = [
+                {
+                    dx: 0,
+                    dz: 0,
+                    r:  0.32 + rnd() * 0.04,
+                },
+                {
+                    dx: (rnd() - 0.5) * 0.42,
+                    dz: (rnd() - 0.5) * 0.42,
+                    r:  0.20 + rnd() * 0.05,
+                },
+            ]
+            blobs.forEach((b, i) =>
+            {
+                const blob = new THREE.Mesh(this._leafGeo, i === 0 ? this._leafMat : this._leafMatDark)
+                blob.position.set(b.dx, b.r * 0.88, b.dz)
+                blob.scale.setScalar(b.r)
+                group.add(blob)
+            })
 
-            const theta = rnd() * Math.PI * 2
-            const phi   = Math.acos(2 * rnd() - 1)
-            const r     = blob.r * (0.94 + rnd() * 0.12)
-            const dx = r * Math.sin(phi) * Math.cos(theta)
-            const dy = r * Math.cos(phi) - blob.r * 0.05
-            const dz = r * Math.sin(phi) * Math.sin(theta)
+            // Berry clusters scattered across the bush canopy.
+            const canopy = blobs.map((b) => ({
+                cx: b.dx,
+                cy: b.r * 0.88,
+                cz: b.dz,
+                r:  b.r,
+            }))
 
-            const cluster = this._buildBerryCluster(species, rnd)
-            cluster.position.set(blob.cx + dx, blob.cy + dy, blob.cz + dz)
-            group.add(cluster)
+            for(let i = 0; i < FRUITS_PER_BUSH; i++)
+            {
+                const blob = i < canopy.length
+                    ? canopy[i]
+                    : canopy[Math.floor(rnd() * canopy.length)]
+
+                const theta = rnd() * Math.PI * 2
+                const phi   = Math.acos(2 * rnd() - 1)
+                const r     = blob.r * (0.94 + rnd() * 0.12)
+                const dx = r * Math.sin(phi) * Math.cos(theta)
+                const dy = r * Math.cos(phi) - blob.r * 0.05
+                const dz = r * Math.sin(phi) * Math.sin(theta)
+
+                const cluster = this._buildBerryCluster(species, rnd)
+                cluster.position.set(blob.cx + dx, blob.cy + dy, blob.cz + dz)
+                group.add(cluster)
+            }
         }
 
         this.entries.push({
@@ -246,6 +317,9 @@ export default class Fruits
     {
         if(!this._placed)
         {
+            // Wait for the bush GLB to settle (scene or null) so every bush
+            // builds through the same path — a few frames at most.
+            if(this._bushTemplate === undefined) return
             this._placeBushes()
             this._placed = true
             // If hideAll was requested before first placement, apply it now.
@@ -294,6 +368,8 @@ export default class Fruits
                 this.group.remove(entry.group)
                 entry.group.traverse?.((n) =>
                 {
+                    // GLB foliage shares the app-lifetime asset cache.
+                    if(n.userData?.sharedAssets) return
                     if(n.geometry) try { n.geometry.dispose() } catch(_) {}
                     if(n.material) try { n.material.dispose() } catch(_) {}
                 })

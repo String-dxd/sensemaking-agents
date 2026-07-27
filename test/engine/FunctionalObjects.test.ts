@@ -176,14 +176,27 @@ describe('Mailbox — letters flag coupling', () => {
     }
   }
 
-  it('flag rises with unread letters and drops when read', () => {
+  it('flag rises with unread letters and drops when read', async () => {
     const state = setupState()
     const letters = makeLetters(0)
     state.letters = letters
     state.islandLayout = { get: () => null }
 
+    // Deterministic GLB failure → Mailbox builds its procedural fallback
+    // (without this, a dev server on :3000 can make the default loader's
+    // fetch succeed or fail slowly).
+    __setLoaderForTests(async () => ({
+      loadAsync: async () => {
+        throw new Error('no asset in tests')
+      },
+    }))
+
     const mailbox = new Mailbox()
     expect(mailbox._flagTarget).toBeLessThan(0) // FLAG_DOWN
+
+    // The build is async (GLB load → procedural fallback); wait for the
+    // flag assembly to attach before driving updates.
+    await vi.waitFor(() => expect(mailbox.flag).toBeTruthy())
 
     letters.setUnread(2)
     expect(mailbox._flagTarget).toBe(0) // FLAG_UP
