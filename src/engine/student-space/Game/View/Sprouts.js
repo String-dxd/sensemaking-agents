@@ -1363,7 +1363,12 @@ export default class Sprouts
         const busy = camera && (camera._zoom || (camera._saveStack && camera._saveStack.size > 0))
         if(busy && now - pending.queuedAtMs < PENDING_FLOW_TIMEOUT_MS) return
         this._pendingCamFlow = null
-        this._startCameraFlow(pending.sproutId, { autoBloom: pending.autoBloom })
+        // force: true — this method already re-derived the authoritative
+        // decision to go (overlay-closed, and either idle or past the busy
+        // timeout). Without it, _startCameraFlow's own _shouldDeferCameraFlow()
+        // check would see the same still-busy camera and just re-queue,
+        // silently defeating the timeout safety valve.
+        this._startCameraFlow(pending.sproutId, { autoBloom: pending.autoBloom, force: true })
     }
 
     /**
@@ -1378,12 +1383,12 @@ export default class Sprouts
      * auto-bloom still fires but with the existing reduced-motion path
      * (200ms cross-fade) inside the dissolve/grow code.
      */
-    _startCameraFlow(sproutId, { autoBloom })
+    _startCameraFlow(sproutId, { autoBloom, force = false })
     {
         const node = this.nodes.get(sproutId)
         if(!node) return
 
-        if(this._shouldDeferCameraFlow())
+        if(!force && this._shouldDeferCameraFlow())
         {
             this._pendingCamFlow = {
                 sproutId,
