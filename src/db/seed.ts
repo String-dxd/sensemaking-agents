@@ -16,7 +16,7 @@ import { eq, sql } from 'drizzle-orm'
 import type { Mood, VipsClaimStrength, VipsContextType } from '~/agents/tools/schemas'
 import { VIPS_DIMENSIONS, type VipsDimension } from '~/data/vips-taxonomy'
 import { sgDateKey } from '~/lib/entry-date'
-import { mirrorMoodTag } from '~/server/mood-tags'
+import { mirrorMoodTag, mirrorPhotoTag } from '~/server/mood-tags'
 import { type TenantContext, withStudent } from './client'
 import { type CartographerPathway, insertCartographerOutput, upsertVipsPage } from './queries'
 import {
@@ -50,6 +50,11 @@ export interface SeedReflectionFixture {
   story_reframe?: string
   review_status?: SeedMirrorReviewStatus
   mood?: Mood
+  /** Public asset path for a photo attached to the reflection (e.g.
+   *  "/seed/sec2-camp.jpg"). Stored as a `photo:` mirror tag — the mirror
+   *  row has no image column — and surfaced by the snapshot mapper as the
+   *  capture's `dataUrl`. */
+  photo?: string
   created_at: string
 }
 
@@ -258,6 +263,9 @@ export async function seed(): Promise<SeedResult> {
         await applyMirrorReviewStatus(ctx.db, student.student_id, reflectionId, r.review_status)
         if (r.mood) {
           await attachMirrorTag(ctx.db, student.student_id, reflectionId, mirrorMoodTag(r.mood))
+        }
+        if (r.photo) {
+          await attachMirrorTag(ctx.db, student.student_id, reflectionId, mirrorPhotoTag(r.photo))
         }
         count++
       }

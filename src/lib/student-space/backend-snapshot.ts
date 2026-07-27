@@ -5,6 +5,7 @@ import type { AuthMenuState } from '~/server/auth-menu.handler.server'
 import type { LoadTrajectoryResult } from '~/server/load-trajectory.handler.server'
 import type { LoadVipsPagesResult } from '~/server/load-vips-pages.handler.server'
 import type { WikiSnapshot } from '~/server/load-wiki.handler.server'
+import { photoFromMirrorTags } from '~/server/mood-tags'
 
 export interface StudentSpaceProfileQuote {
   id: string
@@ -47,6 +48,9 @@ export interface StudentSpaceReflectionCaptureSnapshot {
    *  incremental `captures.patch` writes (AskSheet, retry sync) don't carry
    *  this field; the detail view reads it via optional chaining. */
   validation?: string
+  /** Photo attached to the reflection — a public asset path (seeded via a
+   *  `photo:` mirror tag) or, for local captures, a data URL. */
+  dataUrl?: string
   reframe: {
     headline: string
     highlightPhrase: string
@@ -295,6 +299,7 @@ export function mapMirrorEntryToReflectionCapture(
     kind: 'ask',
     text: entry.transcript,
     ...(entry.title ? { title: entry.title } : {}),
+    ...(photoUrl(entry) ? { dataUrl: photoUrl(entry) as string } : {}),
     validation: entry.validation,
     reframe: {
       headline: entry.story_reframe,
@@ -434,6 +439,10 @@ function isVisibleTimelineEntry(entry: VipsTimelineEntryRow): boolean {
 
 function mirrorCaptureId(id: number): string {
   return `mirror:${id}`
+}
+
+function photoUrl(entry: MirrorEntryRow): string | null {
+  return photoFromMirrorTags(entry.tags)
 }
 
 function toEntryDate(value: string): string {
