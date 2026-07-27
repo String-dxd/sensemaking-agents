@@ -24,6 +24,7 @@ import { MoodSheet } from './capture/MoodSheet'
 import { MobileNav } from './navigation/MobileNav'
 import { SideRail } from './navigation/SideRail'
 import { OnboardingFlow } from './onboarding/OnboardingFlow'
+import { WorldBootScreen } from './onboarding/WorldBootScreen'
 
 // DEV-only camera tuner. Lazy because `CameraTuneHud` (and the bridge's own
 // `Vector3` use) pull three.js into whatever chunk imports them — a static
@@ -402,6 +403,7 @@ export function EngineHost({
                 'linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--sky-bottom) 100%)',
             }}
           />
+          {!game && isWorldRoute ? <WorldBootScreen className="z-[2]" /> : null}
           <RouteOverlayEffects isWorldRoute={isWorldRoute} />
           {game ? <SideRail game={game} /> : null}
           {game ? <MobileNav game={game} /> : null}

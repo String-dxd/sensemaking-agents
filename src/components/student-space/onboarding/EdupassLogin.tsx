@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Button, buttonVariants } from '~/components/ui/button'
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
 import { getPreset } from '~/lib/student-space/camera-tuner'
 import { cn } from '~/lib/utils'
+import { WorldBootScreen } from './WorldBootScreen'
 
 /**
  * Edupass sign-in landing.
@@ -46,10 +48,22 @@ function authActionHref({ demo = false } = {}) {
 
 function disposeEngineForNavigation() {
   if (typeof window === 'undefined') return
+  const game = window.__studentSpaceGame
+  const canvas = document.querySelector<HTMLCanvasElement>('.game canvas')
   try {
-    window.__studentSpaceGame?.dispose?.()
+    game?.dispose?.()
   } catch (err) {
     console.warn('[EdupassLogin] engine dispose before navigation failed', err)
+  } finally {
+    // Game.dispose() intentionally tears down the WebGL context but the host
+    // normally owns removal of its canvas. During a body-scoped auth POST the
+    // host stays mounted, so remove the now context-lost canvas ourselves.
+    // Leaving it in place makes Chrome paint a broken-media glyph at the
+    // canvas origin while the request is in flight.
+    canvas?.remove()
+    // Engine disposal clears host body classes. Keep the landing geometry
+    // full-bleed until the browser commits the navigation.
+    document.body.classList.add('is-onb-landing')
   }
 }
 
@@ -117,7 +131,10 @@ export function EdupassLogin({
 
   const begin = (kind: 'edupass' | 'demo') => {
     if (connecting) return false
-    setConnecting(kind)
+    // Commit the self-contained cover before tearing down WebGL. The browser
+    // can then paint one complete frame even when form.submit() navigates
+    // synchronously from this event.
+    flushSync(() => setConnecting(kind))
     return true
   }
 
@@ -138,6 +155,7 @@ export function EdupassLogin({
   return (
     <div
       data-testid="onboarding-edupass-login"
+      data-connecting={connecting !== null ? 'true' : 'false'}
       className={cn(
         'absolute inset-0 flex flex-col items-center justify-between overflow-hidden',
         'bg-transparent px-6 py-[max(2rem,env(safe-area-inset-bottom))]',
@@ -145,6 +163,8 @@ export function EdupassLogin({
         visible ? 'opacity-100' : 'opacity-0',
       )}
     >
+      {connecting ? <WorldBootScreen className="z-[3]" /> : null}
+
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_15%,rgba(255,248,226,0.58),rgba(255,248,226,0.18)_42%,rgba(15,18,36,0.18)_100%)]"

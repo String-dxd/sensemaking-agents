@@ -170,6 +170,30 @@ describe('EngineHost', () => {
     expect(arg.backend).toMatchObject({ version: 1 })
   })
 
+  it('shows an asset-free world boot screen until the engine is ready', async () => {
+    let resolveAuthMenu: ((value: { status: 'signed-in' }) => void) | undefined
+    ;(backendBridge as { loadAuthMenu?: () => Promise<unknown> }).loadAuthMenu = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveAuthMenu = resolve
+        }),
+    )
+
+    const { container } = renderHostAt('/')
+
+    const bootScreen = await screen.findByTestId('student-space-engine-loading')
+    expect(bootScreen).toHaveTextContent(/opening your world/i)
+    expect(bootScreen.querySelector('img')).toBeNull()
+    expect(createGame).not.toHaveBeenCalled()
+
+    act(() => resolveAuthMenu?.({ status: 'signed-in' }))
+
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(container.querySelector('[data-testid="student-space-engine-loading"]')).toBeNull(),
+    )
+  })
+
   it('constructs the bridge with an applySnapshot seam bound to the live engine', async () => {
     renderHostAt('/')
     await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))

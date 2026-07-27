@@ -109,6 +109,31 @@ describe('EdupassLogin (React)', () => {
     expect(submitted.parentElement).toBe(document.body)
   })
 
+  it('covers the disposed world with a purposeful transition while demo sign-in completes', async () => {
+    const gameContainer = document.createElement('div')
+    gameContainer.className = 'game'
+    const canvas = document.createElement('canvas')
+    gameContainer.appendChild(canvas)
+    document.body.appendChild(gameContainer)
+    window.__studentSpaceGame = {
+      dispose: vi.fn(() => document.body.classList.remove('is-onb-landing')),
+    } as typeof window.__studentSpaceGame
+    vi.spyOn(HTMLFormElement.prototype, 'submit').mockImplementation(() => {})
+    renderLogin()
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /use a demo account/i }))
+
+    expect(screen.getByRole('status')).toHaveTextContent(/opening your world/i)
+    expect(screen.getByTestId('onboarding-edupass-login')).toHaveAttribute(
+      'data-connecting',
+      'true',
+    )
+    expect(canvas).not.toBeInTheDocument()
+    expect(document.body).toHaveClass('is-onb-landing')
+  })
+
   it('re-entrant clicks are ignored while connecting', async () => {
     const dispose = vi.fn()
     window.__studentSpaceGame = { dispose } as typeof window.__studentSpaceGame
