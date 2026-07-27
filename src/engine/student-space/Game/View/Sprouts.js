@@ -30,7 +30,8 @@ import { snapPositionToLand } from '../State/islandSpecCore/snapToLand.ts'
  * glow, dissolve → 200ms cross-fade.
  *
  * Placement: seeds → world coords via a multiplicative hash mapped
- * into the central plateau (radius ~3 from origin), then state.island.
+ * into a random elevated (tier >= 2) placeable cell of the spec
+ * terrain — strictly above the tier-1 beach — then state.island.
  * heightAt(x, z) for terrain-snapped y.
  */
 
@@ -88,8 +89,9 @@ const BOB_PERIOD_S  = 2.5    // seconds per bob cycle
 const PULSE_PERIOD_S = 2.5   // seconds per pulse cycle
 const DISSOLVE_MS = 700      // bloomed sprout dissolve duration
 
-// Seeded placements land on random PLACEABLE land cells of the spec terrain
-// (world-port U10) — the old polar plateau formula is gone.
+// Seeded placements land on random ELEVATED (tier >= 2) placeable land
+// cells of the spec terrain (world-port U10) — the old polar plateau
+// formula is gone, and growth is kept off the tier-1 beach.
 
 // Camera flow timings — total ≈1.5s for a normal grow, ≈2.7s for a bloom.
 const CAM_ZOOM_IN_MS    = 500
@@ -107,7 +109,7 @@ export function seededPlacement(seed, island)
     const b = Math.sin(seed * 78.233) * 12345.6789
     const theta = (a - Math.floor(a)) * Math.PI * 2
     const u = b - Math.floor(b)
-    const cells = island.placeableCells()
+    const cells = island.elevatedPlaceableCells()
     if(cells.length === 0) return { theta, x: 0, z: 0 }
     const cell = cells[Math.min(cells.length - 1, Math.floor(u * cells.length))]
     return { theta, x: cell.x, z: cell.z }

@@ -169,4 +169,18 @@ export default class Island
         this._placeableCells = this.landCells().filter((cell) => this.isPlaceable(cell.x, cell.z))
         return this._placeableCells
     }
+
+    /**
+     * Placeable cells on the raised tiers (grid tier >= 2) — strictly above
+     * the tier-1 beach. Sprout/bloom seeding uses this pool so growth reads
+     * as "the island levels up", not sand clutter. Falls back to the full
+     * placeable pool if a custom spec has no elevated land. Cached.
+     */
+    elevatedPlaceableCells()
+    {
+        if(this._elevatedPlaceableCells) return this._elevatedPlaceableCells
+        const elevated = this.placeableCells().filter((cell) => cell.tier >= 2)
+        this._elevatedPlaceableCells = elevated.length > 0 ? elevated : this.placeableCells()
+        return this._elevatedPlaceableCells
+    }
 }
