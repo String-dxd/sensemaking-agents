@@ -93,27 +93,17 @@ export function CaptureFab() {
 
   // Start warming the realtime voice transport as soon as the user shows
   // intent, so the connection is usually ready before the capture sheet's
-  // mic tap. Idempotent — the client keeps one warm connection (with a TTL);
-  // the sheet re-warms on open and disposes on close. Hover/focus only warm
-  // when mic permission is already granted, so a stray hover never pops the
-  // browser's permission prompt; a committed press warms unconditionally.
+  // mic tap. Warming opens the WebRTC transport only — it never touches the
+  // microphone, so there is no permission prompt and no recording indicator;
+  // the mic is requested when a capture actually starts. Every trigger
+  // (hover, press, focus) can therefore warm unconditionally. Idempotent —
+  // the client keeps one warm transport (with a TTL); the sheet re-warms on
+  // open and disposes on close.
   const warmVoice = useCallback(() => {
     const backend = engine?.state?.backend
     if (!backend?.createRealtimeMirrorCapture) return
     backend.prewarmRealtimeMirrorCapture?.()
   }, [engine])
-
-  const warmVoiceIfGranted = useCallback(() => {
-    if (typeof navigator === 'undefined' || !navigator.permissions?.query) return
-    navigator.permissions
-      .query({ name: 'microphone' as PermissionName })
-      .then((status) => {
-        if (status.state === 'granted') warmVoice()
-      })
-      .catch(() => {
-        // Permission introspection is best-effort; press/open still warm.
-      })
-  }, [warmVoice])
 
   return (
     <>
@@ -123,9 +113,9 @@ export function CaptureFab() {
           aria-label={captureOpen ? 'Close Capture' : 'Capture'}
           data-testid="capture-fab"
           onClick={() => (captureOpen ? overlay.closeCapture() : overlay.openCapture('ask'))}
-          onPointerEnter={warmVoiceIfGranted}
+          onPointerEnter={warmVoice}
           onPointerDown={warmVoice}
-          onFocus={warmVoiceIfGranted}
+          onFocus={warmVoice}
           className={cn(
             'pointer-events-auto inline-flex min-h-12 cursor-pointer items-center gap-2 rounded-full border border-white/45 px-4',
             'bg-white/86 text-[13px] font-semibold tracking-[0] text-[rgba(43,38,32,0.86)] shadow-[0_14px_36px_rgba(15,18,36,0.22)] backdrop-blur-md',

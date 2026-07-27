@@ -297,9 +297,9 @@ export function AskSheet() {
   }, [abortRecording, open])
 
   // Pre-connect the realtime voice transport while the sheet is open so the
-  // mic tap starts listening instantly instead of paying for getUserMedia +
-  // WebRTC + SDP + channel-open after the click. The warmed connection keeps
-  // its mic muted until a capture consumes it; unused warmth is dropped when
+  // mic tap only pays for getUserMedia instead of WebRTC + SDP + channel-open
+  // after the click. Warming never touches the mic — no permission prompt, no
+  // recording indicator — so it is safe on open; unused warmth is dropped when
   // the sheet closes.
   useEffect(() => {
     if (!open || readOnly) return
