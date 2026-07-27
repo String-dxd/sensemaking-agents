@@ -1,8 +1,7 @@
 import { useLocation } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { toast as sonnerToast } from 'sonner'
-import { Vector3 } from 'three'
 import '~/engine/student-space/style.css'
 import type { AuthMenuState, Game } from '~/engine/student-space/Game'
 import {
@@ -10,7 +9,6 @@ import {
   DEMO_CONNECTOR_FINISHED_EVENT,
 } from '~/lib/student-space/backend-bridge'
 import { applyStudentSpaceBackendSnapshot } from '~/lib/student-space/backend-snapshot'
-import { useCameraPreset } from '~/lib/student-space/camera-tuner'
 import {
   surfaceFromPathname,
   useStudentSpaceNavigate,
@@ -25,14 +23,56 @@ import { CaptureChooser } from './capture/CaptureChooser'
 import { MoodSheet } from './capture/MoodSheet'
 import { MobileNav } from './navigation/MobileNav'
 import { SideRail } from './navigation/SideRail'
-import { CameraTuneHud, type CameraTuneTargets } from './onboarding/CameraTuneHud'
 import { OnboardingFlow } from './onboarding/OnboardingFlow'
+
+// DEV-only camera tuner. Lazy because `CameraTuneHud` (and the bridge's own
+// `Vector3` use) pull three.js into whatever chunk imports them — a static
+// edge here would drag the renderer onto the pre-hydration chunk graph.
+const LazyCameraTuneBridge = lazy(() => import('./CameraTuneBridge'))
 
 // Surfaces that render empty without server data — we defer the open call
 // until the backend snapshot resolves so the student doesn't see an empty
 // shell. Other sheets (Profile, History, Letters) render meaningful chrome
 // from local state and open immediately.
 const SURFACES_REQUIRING_HYDRATION = new Set(['trajectory'])
+
+// Boot-critical world assets. The engine only requests these once `View`
+// constructs (textures in `Game/View/Island.js:_loadTextures`, GLBs through
+// `Game/View/assetLoader.ts`), which is several hundred ms after hydration —
+// preloading overlaps those downloads with the engine chunk fetch instead.
+// Keep in sync with `Island.js:_loadTextures` and `MODEL_URLS`; a drifted
+// entry is harmless (one wasted request) but silently stops helping.
+const BOOT_ASSET_PRELOADS: Array<{ href: string; as: 'image' | 'fetch' }> = [
+  { href: '/student-space/textures/sand-soft-ripples.png', as: 'image' },
+  { href: '/student-space/textures/cliff-soft-strata.png', as: 'image' },
+  { href: '/student-space/textures/water-foam-cells.png', as: 'image' },
+  { href: '/student-space/textures/water-short-bubbles.png', as: 'image' },
+  { href: '/models/tree.glb', as: 'fetch' },
+  { href: '/models/character.glb', as: 'fetch' },
+]
+
+function preloadBootAssets() {
+  for (const { href, as } of BOOT_ASSET_PRELOADS) {
+    // Idempotent: this module re-evaluates under HMR.
+    if (document.querySelector(`link[rel="preload"][href="${href}"]`)) continue
+    const link = document.createElement('link')
+    link.rel = 'preload'
+    link.href = href
+    link.as = as
+    // GLBs are fetched by GLTFLoader's FileLoader (XHR), which the preload
+    // cache only matches when the CORS mode agrees. Textures load through
+    // `Image` with no crossorigin, so they must stay bare.
+    if (as === 'fetch') link.crossOrigin = 'anonymous'
+    document.head.append(link)
+  }
+}
+
+// Kick off the engine chunk download as soon as this module evaluates in the
+// browser — the mount effect awaits the same promise, so the fetch overlaps
+// hydration instead of starting after it. SSR never touches it (the engine
+// assumes a browser-owned window/document at eval time).
+const enginePromise = typeof window === 'undefined' ? null : import('~/engine/student-space/Game')
+if (typeof window !== 'undefined') preloadBootAssets()
 
 /**
  * Mounts the vendored Student Space engine once at the root layout level so
@@ -56,11 +96,18 @@ export function EngineHost({
   showOnboardingFlow = true,
   hideCompanion = false,
   landingShowcase = false,
+  authMenu,
 }: {
   className?: string
   children?: ReactNode
   showOnboardingFlow?: boolean
   hideCompanion?: boolean
+  // Server-resolved auth menu, already awaited by the `_app` route's
+  // `beforeLoad`. When provided (including an explicit `null`) the host skips
+  // its own `backend.loadAuthMenu()` round trip entirely — that RPC used to
+  // gate `createGame` behind a second fetch plus a 3s timeout. Leave it
+  // `undefined` and the legacy bridge-fetch path runs instead.
+  authMenu?: AuthMenuState | null
   // When true, populate the island (all flowers, the tree, butterflies)
   // so signed-out visitors see a mature island instead of the sparse
   // one. Reverts on cleanup so a sign-in transition lands cleanly on
@@ -94,6 +141,10 @@ export function EngineHost({
   // callback without forcing a re-mount on every navigation.
   const onNavigateRef = useRef(onNavigate)
   onNavigateRef.current = onNavigate
+  // Same ref trick for the auth-menu prop: the boot effect must stay keyed on
+  // `[backend]` alone, so a new prop identity can never remount the engine.
+  const authMenuPropRef = useRef(authMenu)
+  authMenuPropRef.current = authMenu
 
   // Compute the active surface from the live router location (not
   // window.location) so memory-router tests work and SSR-derived initial
@@ -226,27 +277,34 @@ export function EngineHost({
 
     void (async () => {
       try {
-        // Fetch the server-resolved auth menu in parallel with the engine
-        // dynamic import so onboarding can decide whether to skip the dummy
-        // login surface and chrome can render the right sign-in / sign-out
-        // affordance from the first paint. A rejection or timeout is
-        // non-fatal — the engine boots with the default signed-out menu.
-        const authMenuPromise: Promise<AuthMenuState | null> = backend.loadAuthMenu
-          ? Promise.race<AuthMenuState | null>([
-              backend.loadAuthMenu().catch((err) => {
-                console.warn('[EngineHost] loadAuthMenu failed', err)
-                return null
-              }),
-              new Promise<null>((resolve) => {
-                authMenuTimeoutId = setTimeout(() => {
-                  console.warn('[EngineHost] loadAuthMenu timed out after 3s')
-                  resolve(null)
-                }, 3000)
-              }),
-            ])
-          : Promise.resolve(null)
+        // The auth menu decides whether onboarding skips the dummy login
+        // surface and which sign-in / sign-out affordance chrome paints. When
+        // the route handed us one, use it — re-fetching would only re-derive
+        // what the router already awaited. Otherwise fall back to the bridge
+        // fetch, raced against a 3s timeout; a rejection or timeout is
+        // non-fatal, the engine boots with the default signed-out menu.
+        const providedAuthMenu = authMenuPropRef.current
+        const authMenuPromise: Promise<AuthMenuState | null> =
+          providedAuthMenu !== undefined
+            ? Promise.resolve(providedAuthMenu)
+            : backend.loadAuthMenu
+              ? Promise.race<AuthMenuState | null>([
+                  backend.loadAuthMenu().catch((err) => {
+                    console.warn('[EngineHost] loadAuthMenu failed', err)
+                    return null
+                  }),
+                  new Promise<null>((resolve) => {
+                    authMenuTimeoutId = setTimeout(() => {
+                      console.warn('[EngineHost] loadAuthMenu timed out after 3s')
+                      resolve(null)
+                    }, 3000)
+                  }),
+                ])
+              : Promise.resolve(null)
         const [engine, authMenu] = await Promise.all([
-          import('~/engine/student-space/Game'),
+          // Already in flight since module eval in the browser; the `??` keeps
+          // non-DOM test environments (no `window` at eval time) working.
+          enginePromise ?? import('~/engine/student-space/Game'),
           authMenuPromise,
         ])
         if (cancelled) return
@@ -352,7 +410,11 @@ export function EngineHost({
           <AskSheet />
           <MoodSheet />
           {showOnboardingFlow ? <OnboardingFlow /> : null}
-          {import.meta.env.DEV && game ? <CameraTuneBridge game={game} /> : null}
+          {import.meta.env.DEV && game ? (
+            <Suspense fallback={null}>
+              <LazyCameraTuneBridge game={game} />
+            </Suspense>
+          ) : null}
           {game ? <MatureIslandBridge game={game} /> : null}
           <DemoConnectorAckBridge />
           {children}
@@ -436,31 +498,6 @@ function MatureIslandBridge({ game }: { game: Game }) {
     return () => window.removeEventListener('ss:mature-island-toggle', handler)
   }, [game])
   return null
-}
-
-function CameraTuneBridge({ game }: { game: Game }) {
-  const worldDefault = useCameraPreset('world-default')
-  const view = (game as unknown as { view?: CameraTuneTargets }).view ?? null
-
-  useEffect(() => {
-    const camera = view?.camera as
-      | {
-          setDefaultFraming?: (
-            pose: { fov: number; distance: number; pitchDeg: number; target: Vector3 },
-            options?: { apply?: boolean },
-          ) => void
-        }
-      | null
-      | undefined
-    camera?.setDefaultFraming?.({
-      fov: worldDefault.fov,
-      distance: worldDefault.distance,
-      pitchDeg: worldDefault.pitchDeg,
-      target: new Vector3(worldDefault.lookAtX, worldDefault.lookAtY, worldDefault.lookAtZ),
-    })
-  }, [view, worldDefault])
-
-  return <CameraTuneHud targets={view} />
 }
 
 function RouteOverlayEffects({ isWorldRoute }: { isWorldRoute: boolean }) {

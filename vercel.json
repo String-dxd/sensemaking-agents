@@ -38,6 +38,18 @@
     {
       "source": "/share/(.*)",
       "headers": [{ "key": "Referrer-Policy", "value": "no-referrer" }]
+    },
+    {
+      "source": "/models/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
+      ]
+    },
+    {
+      "source": "/student-space/textures/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
+      ]
     }
   ],
   "rewrites": [

@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import { Vector3 } from 'three'
 import { ONBOARDING_COPY } from '~/engine/student-space/Game/View/Onboarding/copy.js'
 import { getPreset } from '~/lib/student-space/camera-tuner'
 import type { IslandRevealView } from './IslandReveal'
@@ -79,6 +78,10 @@ export function BloomCelebrate({
       }
 
       const bloomPreset = getPreset('bloom')
+      // Resolves from the module cache — the engine has long since loaded
+      // three by the time this celebration beat runs. Dynamic purely to keep
+      // three off the synchronous chunk graph the browser parses to hydrate.
+      const { Vector3 } = await import('three')
       const lookAt = new Vector3(flower.x, bloomPreset.lookAtY, flower.z)
       const camPos = new Vector3(
         flower.x,
