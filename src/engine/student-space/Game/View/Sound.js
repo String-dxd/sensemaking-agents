@@ -277,6 +277,10 @@ export default class Sound
                 if(this._trackId !== id) return   // user switched again mid-load
                 // Apply current muted/duck state when starting.
                 el.volume = this._currentStreamVolume()
+                // A suspended world (routed sheet / hidden tab) owns the
+                // silence — switching tracks must not start playback behind
+                // it. resume() picks the current track back up.
+                if(this._suspended) return
                 el.play().catch(err => console.warn('[Sound] stream play failed:', err))
             })
         }
@@ -419,6 +423,11 @@ export default class Sound
 
         this._buildGraph()
         this.unlocked = true
+        // The unlocking gesture can land while the world is paused (the
+        // pointerdown listener is window-global, so a click inside a routed
+        // sheet unlocks too). Re-apply the suspension to the fresh context
+        // and graph so nothing starts sounding behind the sheet.
+        if(this._suspended) this.suspend()
     }
 
     _buildGraph()
@@ -457,6 +466,9 @@ export default class Sound
             {
                 if(this._trackId !== el._trackId && TRACKS_BY_ID[this._trackId]?.type !== 'stream') return
                 el.volume = this._muted ? 0 : this._streamVolTarget
+                // The stream can finish loading after _unlock()'s suspend
+                // re-application ran — never start it into a paused world.
+                if(this._suspended) return
                 el.play().catch(err => console.warn('[Sound] stream play failed:', err))
             })
         }

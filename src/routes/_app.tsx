@@ -22,7 +22,11 @@ export const Route = createFileRoute('/_app')({
         return { authMenu: await loadAuthMenu() }
       } catch (err) {
         console.warn('[_app] loadAuthMenu failed on onboarding; showing sign-in fallback', err)
-        return { authMenu: null }
+        // `undefined`, not `null`: an explicit null tells EngineHost "the
+        // menu IS null, don't fetch", which would freeze a transient failure
+        // into a signed-out boot. Undefined lets its bridge-fetch fallback
+        // retry moments later.
+        return { authMenu: undefined }
       }
     }
     // Fail-open on auth-menu errors so a transient network failure (or a test
@@ -33,7 +37,9 @@ export const Route = createFileRoute('/_app')({
       auth = await loadAuthMenu()
     } catch (err) {
       console.warn('[_app] loadAuthMenu failed; skipping signed-out redirect', err)
-      return { authMenu: null }
+      // See the onboarding catch above: undefined keeps EngineHost's own
+      // auth-menu retry alive instead of booting permanently signed out.
+      return { authMenu: undefined }
     }
     if (auth.status === 'signed-out') {
       throw redirect({ to: '/onboarding' })
@@ -53,12 +59,7 @@ function AppLayout() {
 
   if (isOnboardingPath(location.pathname) && authMenu?.status !== 'signed-in') {
     return (
-      <EngineHost
-        showOnboardingFlow={false}
-        hideCompanion
-        landingShowcase
-        authMenu={authMenu ?? null}
-      >
+      <EngineHost showOnboardingFlow={false} hideCompanion landingShowcase authMenu={authMenu}>
         <SignedOutOnboarding />
       </EngineHost>
     )
@@ -66,8 +67,10 @@ function AppLayout() {
 
   return (
     // `beforeLoad` already awaited the auth menu — handing it down means the
-    // engine boots without a second round trip gating `createGame`.
-    <EngineHost authMenu={authMenu ?? null}>
+    // engine boots without a second round trip gating `createGame`. When the
+    // route-level fetch failed the context holds undefined and EngineHost
+    // runs its own (timeout-raced) fetch instead.
+    <EngineHost authMenu={authMenu}>
       <div className="mx-auto flex min-h-svh w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
         <main className="flex min-h-0 w-full flex-1 flex-col">
           <Outlet />

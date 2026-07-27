@@ -8,9 +8,14 @@ import { StudentSpaceHud } from './student-space/hud/StudentSpaceHud'
 
 // `WorldInteractions` imports all of three.js. Lazy so the renderer stays off
 // the chunk graph the browser parses before hydration — it can only do
-// anything once the engine exists anyway, which is strictly later.
+// anything once the engine exists anyway, which is strictly later. The fetch
+// still starts at module evaluation (not first render) so the hover/click
+// bridges are ready by the time the engine boots, instead of leaving a brief
+// window where the canvas is interactive but unbridged.
+const worldInteractionsPromise =
+  typeof window === 'undefined' ? null : import('./student-space/world/WorldInteractions')
 const WorldInteractions = lazy(() =>
-  import('./student-space/world/WorldInteractions').then((m) => ({
+  (worldInteractionsPromise ?? import('./student-space/world/WorldInteractions')).then((m) => ({
     default: m.WorldInteractions,
   })),
 )

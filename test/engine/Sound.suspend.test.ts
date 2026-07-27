@@ -126,3 +126,56 @@ describe('Sound.setMuted while suspended', () => {
     expect(el.play).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('suspension holds across the async start paths', () => {
+  // setTrack()'s stream start resolves asynchronously; a track change made
+  // from the Settings sheet (world paused → suspended) must not start
+  // playback behind the sheet.
+  it('setTrack while suspended loads the stream but does not play it', async () => {
+    const { other: nextEl, receiver: base } = makeReceiver({ _suspended: true })
+    const receiver = Object.assign(base, {
+      unlocked: true,
+      _streamVolTarget: 0.55,
+      _saveTrackPref: vi.fn(),
+      _trackListeners: [] as Array<(id: string) => void>,
+      _ensureStream: Sound.prototype._ensureStream,
+      _currentStreamVolume: Sound.prototype._currentStreamVolume,
+    })
+    Sound.prototype.setTrack.call(receiver, 'tranquility')
+    // _ensureStream resolves from the pre-seeded map; flush its microtask.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(receiver._trackId).toBe('tranquility')
+    expect(nextEl.play).not.toHaveBeenCalled()
+    // Coming back to the world picks the switched track up.
+    resume(receiver)
+    expect(nextEl.play).toHaveBeenCalledTimes(1)
+  })
+
+  // The unlock gesture listener is window-global, so the first-ever click can
+  // land inside a routed sheet. The fresh AudioContext + graph must inherit
+  // the suspension instead of starting to sound behind the sheet.
+  it('_unlock while suspended re-applies suspend() to the fresh graph', () => {
+    class FakeAudioContext {
+      state = 'running'
+      resume = vi.fn()
+      suspend = vi.fn()
+    }
+    vi.stubGlobal('AudioContext', FakeAudioContext)
+    try {
+      const receiver = {
+        unlocked: false,
+        _suspended: true,
+        ctx: null as unknown,
+        _buildGraph: vi.fn(),
+        suspend: vi.fn(),
+      }
+      Sound.prototype._unlock.call(receiver)
+      expect(receiver._buildGraph).toHaveBeenCalledTimes(1)
+      expect(receiver.unlocked).toBe(true)
+      expect(receiver.suspend).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+})
