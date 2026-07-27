@@ -226,6 +226,20 @@ describe('EngineHost', () => {
     expect(arg.authMenu).toEqual(menu)
   })
 
+  it('uses the authMenu prop and never calls the bridge fetch', async () => {
+    // The `_app` route's beforeLoad already awaited the menu; re-fetching it
+    // here would gate createGame behind a redundant round trip (plan 074).
+    const menu = { status: 'signed-out' } as const
+    const loadAuthMenu = vi.fn(async () => ({ status: 'signed-in' }))
+    ;(backendBridge as { loadAuthMenu?: () => Promise<unknown> }).loadAuthMenu = loadAuthMenu
+
+    renderHostAt('/', <EngineHost authMenu={menu} />)
+    await waitFor(() => expect(createGame).toHaveBeenCalledTimes(1))
+    const arg = createGame.mock.calls[0]?.[0] as { authMenu?: unknown }
+    expect(arg.authMenu).toEqual(menu)
+    expect(loadAuthMenu).not.toHaveBeenCalled()
+  })
+
   it('boots with authMenu=null when loadAuthMenu rejects', async () => {
     ;(backendBridge as { loadAuthMenu?: () => Promise<unknown> }).loadAuthMenu = vi.fn(async () => {
       throw new Error('boom')

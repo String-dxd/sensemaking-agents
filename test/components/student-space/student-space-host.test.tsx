@@ -37,37 +37,39 @@ describe('StudentSpaceHost', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('mounts the world-route composition once the engine is ready', () => {
+  it('mounts the world-route composition once the engine is ready', async () => {
     const fakeGame = {
       dispose: vi.fn(),
       state: { onboarding: { isDone: true, subscribe: () => () => {} } },
     }
-    const { getByTestId } = render(
+    const { findByTestId, getByTestId } = render(
       <EngineContext.Provider value={fakeGame as never}>
         <EngineOverlayProvider>
           <StudentSpaceHost />
         </EngineOverlayProvider>
       </EngineContext.Provider>,
     )
-    expect(getByTestId('world-interactions')).toBeInTheDocument()
+    // WorldInteractions is lazy (plan 074 keeps three.js off the
+    // pre-hydration chunk graph), so it resolves a microtask later.
+    expect(await findByTestId('world-interactions')).toBeInTheDocument()
     expect(getByTestId('island-overlay')).toBeInTheDocument()
     expect(getByTestId('student-space-hud')).toBeInTheDocument()
     expect(getByTestId('capture-fab')).toBeInTheDocument()
   })
 
-  it('renders WorldInteractions but not chrome while the onboarding ceremony is unfinished', () => {
+  it('renders WorldInteractions but not chrome while the onboarding ceremony is unfinished', async () => {
     const fakeGame = {
       dispose: vi.fn(),
       state: { onboarding: { isDone: false, subscribe: () => () => {} } },
     }
-    const { getByTestId, queryByTestId } = render(
+    const { findByTestId, queryByTestId } = render(
       <EngineContext.Provider value={fakeGame as never}>
         <EngineOverlayProvider>
           <StudentSpaceHost />
         </EngineOverlayProvider>
       </EngineContext.Provider>,
     )
-    expect(getByTestId('world-interactions')).toBeInTheDocument()
+    expect(await findByTestId('world-interactions')).toBeInTheDocument()
     expect(queryByTestId('island-overlay')).toBeNull()
     expect(queryByTestId('student-space-hud')).toBeNull()
     expect(queryByTestId('capture-fab')).toBeNull()

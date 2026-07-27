@@ -1,10 +1,19 @@
+import { lazy, Suspense } from 'react'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { useEngineOverlay } from '~/lib/student-space/use-engine-overlay'
 import { useEngineSliceVersion } from '~/lib/student-space/use-engine-slice-version'
 import { IslandProgressionOverlay } from './IslandProgressionOverlay'
 import { CaptureFab } from './student-space/capture/CaptureFab'
 import { StudentSpaceHud } from './student-space/hud/StudentSpaceHud'
-import { WorldInteractions } from './student-space/world/WorldInteractions'
+
+// `WorldInteractions` imports all of three.js. Lazy so the renderer stays off
+// the chunk graph the browser parses before hydration — it can only do
+// anything once the engine exists anyway, which is strictly later.
+const WorldInteractions = lazy(() =>
+  import('./student-space/world/WorldInteractions').then((m) => ({
+    default: m.WorldInteractions,
+  })),
+)
 
 /**
  * World-route React composition. Mounts on `/` and `/onboarding` — the
@@ -45,7 +54,9 @@ export function StudentSpaceHost() {
 
   return (
     <>
-      <WorldInteractions game={game} onboardingMode={!ceremonyDone || isOnboarding} />
+      <Suspense fallback={null}>
+        <WorldInteractions game={game} onboardingMode={!ceremonyDone || isOnboarding} />
+      </Suspense>
       {showWorldChrome ? (
         <>
           <IslandProgressionOverlay game={game} />

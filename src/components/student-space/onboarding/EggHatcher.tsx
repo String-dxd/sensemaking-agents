@@ -14,7 +14,6 @@ import {
   smootherstep,
   smoothstep,
 } from '~/engine/student-space/Game/util/easing.js'
-import { loadGlb, MODEL_URLS } from '~/engine/student-space/Game/View/assetLoader.ts'
 import { applyToonMaterials } from '~/engine/student-space/Game/View/Materials/toonMaterial.ts'
 import {
   EGG_COLOR_BY_ID,
@@ -492,7 +491,12 @@ export function EggCanvas({
         void (async () => {
           try {
             const [gltf, SkeletonUtils] = await Promise.all([
-              loadGlb(MODEL_URLS.character),
+              // Dynamic: `assetLoader` statically pulls three + GLTFLoader +
+              // MeshoptDecoder, and a static edge here would put all of that
+              // on the pre-hydration chunk graph.
+              import('~/engine/student-space/Game/View/assetLoader.ts').then((m) =>
+                m.loadGlb(m.MODEL_URLS.character),
+              ),
               import('three/examples/jsm/utils/SkeletonUtils.js'),
             ])
             if (token !== buildToken || cancelled || !gltf) return

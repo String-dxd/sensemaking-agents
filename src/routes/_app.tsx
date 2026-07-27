@@ -53,14 +53,21 @@ function AppLayout() {
 
   if (isOnboardingPath(location.pathname) && authMenu?.status !== 'signed-in') {
     return (
-      <EngineHost showOnboardingFlow={false} hideCompanion landingShowcase>
+      <EngineHost
+        showOnboardingFlow={false}
+        hideCompanion
+        landingShowcase
+        authMenu={authMenu ?? null}
+      >
         <SignedOutOnboarding />
       </EngineHost>
     )
   }
 
   return (
-    <EngineHost>
+    // `beforeLoad` already awaited the auth menu — handing it down means the
+    // engine boots without a second round trip gating `createGame`.
+    <EngineHost authMenu={authMenu ?? null}>
       <div className="mx-auto flex min-h-svh w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
         <main className="flex min-h-0 w-full flex-1 flex-col">
           <Outlet />
