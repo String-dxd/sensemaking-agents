@@ -88,6 +88,10 @@ export default class Telescope
                 n.userData.sharedAssets = true
             })
             model.scale.setScalar(GLB_SCALE)
+            // The authored tube reads inward (up-hill) under the group's
+            // rim yaw — flip the model so it aims out over the ocean, with
+            // the eyepiece facing the island where the student stands.
+            model.rotation.y = Math.PI
             this.group.add(model)
             this.model = model
         }
