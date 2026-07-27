@@ -201,10 +201,17 @@ export interface SeedResult {
  * ablation harness sorts by this column, so it must match the curated
  * timeline).
  */
-export async function seed(): Promise<SeedResult> {
-  const corpus = loadSeedCorpus()
+export interface SeedOptions {
+  /** In-memory corpus (date-shifted here) — for callers where the fixture
+   *  file isn't on disk, e.g. the bundled serverless reseed route. */
+  corpus?: MultiStudentSeedCorpus
+  replaceExisting?: boolean
+}
+
+export async function seed(options: SeedOptions = {}): Promise<SeedResult> {
+  const corpus = options.corpus ? shiftCorpusDates(options.corpus) : loadSeedCorpus()
   const selectedStudentIds = parseSelectedStudentIds()
-  const replaceExisting = isTruthy(process.env.SEED_REPLACE_EXISTING)
+  const replaceExisting = options.replaceExisting ?? isTruthy(process.env.SEED_REPLACE_EXISTING)
 
   let inserted = 0
   let timelineEntriesInserted = 0
