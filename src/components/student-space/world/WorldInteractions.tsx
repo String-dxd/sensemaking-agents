@@ -139,6 +139,7 @@ type NarratorState = {
   name: string
   text: string
   cta: string
+  dismissible: boolean
 }
 
 type HoverCtaState = {
@@ -170,7 +171,13 @@ type ObjectPickupState = {
 }
 
 const INITIAL_BUBBLE: KiraBubbleState = { visible: false, text: '', x: 0, y: 0, hidden: false }
-const INITIAL_NARRATOR: NarratorState = { open: false, name: 'Kira', text: '', cta: 'Open' }
+const INITIAL_NARRATOR: NarratorState = {
+  open: false,
+  name: 'Kira',
+  text: '',
+  cta: 'Open',
+  dismissible: true,
+}
 const INITIAL_HOVER_CTA: HoverCtaState = {
   open: false,
   eyebrow: '',
@@ -524,8 +531,9 @@ class KiraNarratorController {
   _kiraTurn: KiraTurnState | null = null
   _kiraRestYaw: number | null = null
   _speakConfirm: (() => void) | null = null
+  _speakDismissible = true
   _onKeyDown = (event: KeyboardEvent) => {
-    if (this.isActive && event.key === 'Escape') this.close()
+    if (this.isActive && this._speakDismissible && event.key === 'Escape') this.close()
   }
 
   constructor(
@@ -550,8 +558,14 @@ class KiraNarratorController {
   narrate(target: Target) {
     if (!target) return
     this.target = target
+    this._speakDismissible = true
     const narration = narrationFor(target, this.state)
-    this.setNarrator((prev) => ({ ...prev, cta: narration.cta, text: '' }))
+    this.setNarrator((prev) => ({
+      ...prev,
+      cta: narration.cta,
+      text: '',
+      dismissible: true,
+    }))
     this._scheduleType(narration.text, 260)
 
     this.view.kiraDialogue?.hide?.()
@@ -608,23 +622,28 @@ class KiraNarratorController {
    *
    * `cta` is optional: omit it to render the panel as read-only text, with
    * only the close X for dismissal. `onConfirm` fires when the CTA is tapped.
+   * Set `dismissible` false for a required acknowledgement: the close X and
+   * Escape dismissal are suppressed, while programmatic close still works.
    */
   speak({
     text,
     cta = '',
     name,
     onConfirm,
+    dismissible = true,
   }: {
     text: string
     cta?: string
     name?: string
     onConfirm?: () => void
+    dismissible?: boolean
   }) {
     this.target = null
     this._speakConfirm = onConfirm ?? null
+    this._speakDismissible = dismissible
 
     if (this.isActive) {
-      this.setNarrator((prev) => ({ ...prev, cta, text: '' }))
+      this.setNarrator((prev) => ({ ...prev, cta, text: '', dismissible }))
       this._scheduleType(text, 0)
       return
     }
@@ -634,6 +653,7 @@ class KiraNarratorController {
       cta,
       text: '',
       name: name ?? this.state?.profile?.displayCompanionName?.() ?? 'Kira',
+      dismissible,
     }))
     this._scheduleType(text, 180)
 
@@ -696,6 +716,7 @@ class KiraNarratorController {
     this.isActive = false
     this.typerId += 1
     this._speakConfirm = null
+    this._speakDismissible = true
     this._clearTimers()
     this.setNarrator((prev) => ({ ...prev, open: false }))
     if (keepFraming) {
@@ -1814,14 +1835,16 @@ function NarratorPanel({
       <div className="absolute -top-3 left-6 rounded-full bg-[#ffd15f] px-3 py-1 text-xs font-extrabold text-[#402a10] shadow-[0_8px_18px_rgba(64,42,16,0.18)]">
         {state.name}
       </div>
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-        className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-lg leading-none text-[#4c4034]/72 transition-[transform,background-color,color] duration-(--duration-fast) ease-(--ease-out) hover:bg-black/10 hover:text-[#2b2620] active:scale-95 motion-reduce:active:scale-100"
-      >
-        ×
-      </button>
+      {state.dismissible ? (
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+          className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-lg leading-none text-[#4c4034]/72 transition-[transform,background-color,color] duration-(--duration-fast) ease-(--ease-out) hover:bg-black/10 hover:text-[#2b2620] active:scale-95 motion-reduce:active:scale-100"
+        >
+          ×
+        </button>
+      ) : null}
       <p className="m-0 min-h-[3lh] text-[17px] leading-[1.65] font-semibold">{state.text}</p>
       {state.cta ? (
         <div className="mt-4 flex justify-end">

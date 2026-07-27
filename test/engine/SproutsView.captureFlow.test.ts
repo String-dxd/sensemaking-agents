@@ -8,9 +8,8 @@
  *    defers instead of firing while the capture overlay is open or the
  *    camera is otherwise busy (Camera._zoom / _saveStack), draining once
  *    the overlay closes and the camera settles (or after a timeout)
- *  - the Kira narrator confirmation beat opens during the camera hold,
- *    extends the hold while the panel is up, and closes when the flow
- *    returns (or immediately if the student dismisses the panel early)
+ *  - the Kira narrator confirmation beat opens during the camera hold
+ *    and keeps the close-up parked until the student presses OK
  *
  * Tests the diff logic directly against the prototype methods, with a
  * lightweight stub `this` shape — modeled on
@@ -155,7 +154,15 @@ describe('SproutsView — capture camera flow deferral', () => {
 describe('SproutsView — narrator confirmation beat', () => {
   function makeNarratorStub(id = 'sprout-1') {
     const restoreZoom = vi.fn()
-    const speak = vi.fn(function (this: { isActive: boolean }, _opts: { text: string }) {
+    const speak = vi.fn(function (
+      this: { isActive: boolean },
+      _opts: {
+        text: string
+        cta?: string
+        dismissible?: boolean
+        onConfirm?: () => void
+      },
+    ) {
       this.isActive = true
     })
     const close = vi.fn(function (this: { isActive: boolean }) {
@@ -179,6 +186,7 @@ describe('SproutsView — narrator confirmation beat', () => {
       _tickCameraFlow: SproutsView.prototype._tickCameraFlow,
       _openFlowNarrator: SproutsView.prototype._openFlowNarrator,
       _closeFlowNarrator: SproutsView.prototype._closeFlowNarrator,
+      _confirmFlowNarrator: SproutsView.prototype._confirmFlowNarrator,
     }
     return { self, kiraNarrator, speak, close, restoreZoom }
   }
@@ -193,40 +201,55 @@ describe('SproutsView — narrator confirmation beat', () => {
     expect((self._camFlow as { phase: string }).phase).toBe('holding')
     expect(speak).toHaveBeenCalledTimes(1)
     expect(speak.mock.calls[0]?.[0]?.text).toMatch(/growing/)
+    expect(speak.mock.calls[0]?.[0]).toMatchObject({
+      cta: 'OK',
+      dismissible: false,
+      onConfirm: expect.any(Function),
+    })
     expect((self._camFlow as { narratorOpened: boolean }).narratorOpened).toBe(true)
   })
 
-  it('returns the camera right away if the student dismisses the panel early', () => {
-    const { self, kiraNarrator, restoreZoom } = makeNarratorStub()
+  it('keeps the dialog and close-up parked until the student presses OK', () => {
+    const { self, speak, close, restoreZoom } = makeNarratorStub()
     const t0 = performance.now()
     self._camFlow = { sproutId: 'sprout-1', phase: 'flying', startMs: t0, autoBloom: false }
     self._tickCameraFlow.call(self, t0 + 510) // → holding, narrator opens
     expect((self._camFlow as { phase: string }).phase).toBe('holding')
+    const holdStart = (self._camFlow as { startMs: number }).startMs
 
-    kiraNarrator.isActive = false // student tapped the close X
-    self._tickCameraFlow.call(self, t0 + 600)
+    // Elapsed time alone must never dismiss the confirmation or restore
+    // the camera — the student controls when this beat finishes.
+    self._tickCameraFlow.call(self, holdStart + 60_000)
+    expect((self._camFlow as { phase: string }).phase).toBe('holding')
+    expect(close).not.toHaveBeenCalled()
+    expect(restoreZoom).not.toHaveBeenCalled()
 
+    speak.mock.calls[0]?.[0]?.onConfirm?.()
+    expect(close).toHaveBeenCalledTimes(1)
     expect(restoreZoom).toHaveBeenCalledTimes(1)
     expect((self._camFlow as { phase: string }).phase).toBe('returning')
   })
 
-  it('holds through NARRATOR_HOLD_MS then closes the panel when the flow completes', () => {
-    const { self, close } = makeNarratorStub()
+  it('lets auto-bloom finish while parked and returns only after OK', () => {
+    const { self, speak, close, restoreZoom } = makeNarratorStub()
     const t0 = performance.now()
-    self._camFlow = { sproutId: 'sprout-1', phase: 'flying', startMs: t0, autoBloom: false }
+    self._camFlow = { sproutId: 'sprout-1', phase: 'flying', startMs: t0, autoBloom: true }
     self._tickCameraFlow.call(self, t0 + 510) // → holding, narrator opens
     const holdStart = (self._camFlow as { startMs: number }).startMs
 
-    // Keep the panel active through the full hold.
-    self._tickCameraFlow.call(self, holdStart + 3610) // → returning
-    expect((self._camFlow as { phase: string }).phase).toBe('returning')
+    self._tickCameraFlow.call(self, holdStart + 360) // → blooming
+    expect((self._camFlow as { phase: string }).phase).toBe('blooming')
+    const bloomStart = (self._camFlow as { startMs: number }).startMs
+    self._tickCameraFlow.call(self, bloomStart + 60_000)
+
+    expect((self._camFlow as { phase: string }).phase).toBe('awaiting-confirmation')
     expect(close).not.toHaveBeenCalled()
+    expect(restoreZoom).not.toHaveBeenCalled()
 
-    const returnStart = (self._camFlow as { startMs: number }).startMs
-    self._tickCameraFlow.call(self, returnStart + 510) // zoom-out completes
-
+    speak.mock.calls[0]?.[0]?.onConfirm?.()
     expect(close).toHaveBeenCalledTimes(1)
-    expect(self._camFlow).toBeNull()
+    expect(restoreZoom).toHaveBeenCalledTimes(1)
+    expect((self._camFlow as { phase: string }).phase).toBe('returning')
   })
 
   it('does not reopen an already-active narrator, and falls back to the short hold', () => {

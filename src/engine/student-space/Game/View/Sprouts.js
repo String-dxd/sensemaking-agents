@@ -93,7 +93,8 @@ const DISSOLVE_MS = 700      // bloomed sprout dissolve duration
 // cells of the spec terrain (world-port U10) — the old polar plateau
 // formula is gone, and growth is kept off the tier-1 beach.
 
-// Camera flow timings — total ≈1.5s for a normal grow, ≈2.7s for a bloom.
+// Camera flow timings. The confirmation hold is student-controlled: once
+// Kira opens, the close-up remains parked until the student presses OK.
 const CAM_ZOOM_IN_MS    = 500
 const CAM_HOLD_MS       = 500     // non-bloom hold before returning
 const CAM_HOLD_BLOOM_MS = 350     // shorter; bloom animation provides the dwell
@@ -105,7 +106,6 @@ const PENDING_FLOW_TIMEOUT_MS = 4000  // max wait on a busy camera before flying
 // Narrator beat — the bottom Kira panel confirms the capture while the
 // camera holds on the sprout. Copy is deliberately plain; species-aware
 // variants are a product decision deferred to a future plan.
-const NARRATOR_HOLD_MS = 3600   // replaces CAM_HOLD_MS while the panel is up
 const GROW_NARRATION  = 'Your capture has been recorded — your island is growing.'
 const BLOOM_NARRATION = 'Your capture has been recorded — something new is blooming on your island!'
 
@@ -244,7 +244,7 @@ export default class Sprouts
         // moment — the existing flow finishes first.
         this._camFlow = null  // null | { sproutId, phase, startMs, autoBloom }
         this._pendingCamFlow = null  // { sproutId, autoBloom, queuedAtMs }
-        this._rmNarratorCloseAtMs = 0
+        this._rmNarratorFlow = null
 
         // Pick-and-plant edit mode. Flipped via the 'ss:edit-mode'
         // CustomEvent dispatched by the React overlay's Arrange button.
@@ -1418,7 +1418,7 @@ export default class Sprouts
             if(autoBloom) this._triggerBloom(sproutId)
             const rmFlow = { autoBloom, narratorOpened: false }
             this._openFlowNarrator(rmFlow)
-            if(rmFlow.narratorOpened) this._rmNarratorCloseAtMs = performance.now() + NARRATOR_HOLD_MS
+            if(rmFlow.narratorOpened) this._rmNarratorFlow = rmFlow
             return
         }
 
@@ -1479,17 +1479,24 @@ export default class Sprouts
 
         if(flow.phase === 'holding')
         {
-            const holdMs = flow.autoBloom
-                ? CAM_HOLD_BLOOM_MS
-                : (flow.narratorOpened ? NARRATOR_HOLD_MS : CAM_HOLD_MS)
-            // Student dismissed the panel early — return right away.
-            if(flow.narratorOpened && !this.view.kiraNarrator?.isActive)
+            if(flow.narratorOpened)
             {
-                flow.narratorOpened = false
-                this._returnCamera(flow)
+                // Normal growth stays parked until the required OK action.
+                // Auto-bloom may animate while the confirmation remains up,
+                // but the camera still waits for that acknowledgement.
+                if(flow.autoBloom && elapsed >= CAM_HOLD_BLOOM_MS)
+                {
+                    const ok = this._triggerBloom(flow.sproutId)
+                    if(ok)
+                    {
+                        flow.phase = 'blooming'
+                        flow.startMs = now
+                    }
+                }
                 return
             }
-            if(elapsed >= holdMs)
+
+            if(elapsed >= (flow.autoBloom ? CAM_HOLD_BLOOM_MS : CAM_HOLD_MS))
             {
                 if(flow.autoBloom)
                 {
@@ -1511,10 +1518,17 @@ export default class Sprouts
         {
             if(elapsed >= BLOOM_GROW_MS)
             {
-                this._returnCamera(flow)
+                if(flow.confirmed) this._returnCamera(flow)
+                else
+                {
+                    flow.phase = 'awaiting-confirmation'
+                    flow.startMs = now
+                }
             }
             return
         }
+
+        if(flow.phase === 'awaiting-confirmation') return
 
         if(flow.phase === 'returning')
         {
@@ -1542,10 +1556,46 @@ export default class Sprouts
         if(!narrator || typeof narrator.speak !== 'function' || narrator.isActive) return
         try
         {
-            narrator.speak({ text: flow.autoBloom ? BLOOM_NARRATION : GROW_NARRATION })
+            narrator.speak({
+                text: flow.autoBloom ? BLOOM_NARRATION : GROW_NARRATION,
+                cta: 'OK',
+                dismissible: false,
+                onConfirm: () => this._confirmFlowNarrator(flow),
+            })
             flow.narratorOpened = true
         }
         catch(_) {}
+    }
+
+    _confirmFlowNarrator(flow)
+    {
+        if(!flow || flow.confirmed) return
+        flow.confirmed = true
+        this._closeFlowNarrator(flow)
+
+        if(this._rmNarratorFlow === flow)
+        {
+            this._rmNarratorFlow = null
+            return
+        }
+        if(this._camFlow !== flow) return
+
+        if(flow.phase === 'holding')
+        {
+            if(flow.autoBloom)
+            {
+                const ok = this._triggerBloom(flow.sproutId)
+                if(ok)
+                {
+                    flow.phase = 'blooming'
+                    flow.startMs = performance.now()
+                    return
+                }
+            }
+            this._returnCamera(flow)
+            return
+        }
+        if(flow.phase === 'awaiting-confirmation') this._returnCamera(flow)
     }
 
     _closeFlowNarrator(flow)
@@ -1643,11 +1693,6 @@ export default class Sprouts
         // Drive the per-capture camera-flow state machine.
         this._drainPendingCamFlow(now)
         this._tickCameraFlow(now)
-        if(this._rmNarratorCloseAtMs && now >= this._rmNarratorCloseAtMs)
-        {
-            this._rmNarratorCloseAtMs = 0
-            this._closeFlowNarrator({ narratorOpened: true })
-        }
 
         // Late-install decor hit targets once Tree.js finishes loading
         // its async templates. No-op once installed.
@@ -1821,7 +1866,8 @@ export default class Sprouts
         catch(_) {}
         this._pendingCamFlow = null
         this._closeFlowNarrator(this._camFlow)
-        this._rmNarratorCloseAtMs = 0
+        this._closeFlowNarrator(this._rmNarratorFlow)
+        this._rmNarratorFlow = null
         for(const id of Array.from(this.nodes.keys()))
         {
             this._disposeNode(id)
