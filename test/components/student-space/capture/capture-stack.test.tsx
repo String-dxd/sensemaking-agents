@@ -499,8 +499,16 @@ describe('React capture stack', () => {
 
     await waitFor(() => expect(zoomTo).toHaveBeenCalledTimes(1))
     const [camPos, camLook] = zoomTo.mock.calls[0] ?? []
-    expect(camPos).toMatchObject({ x: 0, y: 1.05, z: 4.2 })
-    expect(camLook).toMatchObject({ x: 0, y: 0.72, z: 0 })
+    // Kira sits at the origin with the camera on +Z. The capture sheet covers
+    // the bottom of the viewport, so the rig aims at her perch (lookAt y = 0)
+    // rather than at her head — aiming low is what lifts her clear of the
+    // sheet. Camera height keeps the first-chat pitch at the wider distance:
+    // (0.7 / 2.4) * 3.2.
+    expect(camPos).toMatchObject({ x: 0, z: 3.2 })
+    expect(camPos.y).toBeCloseTo(0.9333, 4)
+    expect(camLook).toMatchObject({ x: 0, y: 0, z: 0 })
+    // The lookAt must never sit above the perch, or she drops behind the sheet.
+    expect(camLook.y).toBeLessThanOrEqual(0)
     // Camera sits on +Z of the bird; the GLB's face reads toward
     // rotation.y - 90deg, so facing the camera means atan2 + 90deg = 0 here.
     await waitFor(() => expect(rotation.y).toBeCloseTo(0))

@@ -17,6 +17,7 @@ import {
   canRecordStudentSpaceAudio,
   startStudentSpaceAudioCapture,
 } from '~/lib/student-space/audio-capture'
+import { getPreset } from '~/lib/student-space/camera-tuner'
 import {
   EMOTION_BY_ID,
   EMOTIONS,
@@ -103,6 +104,19 @@ type KiraCameraView = {
   kira?: KiraActor
   captureFocus?: boolean
 }
+
+/**
+ * Capture framing (see the dolly effect below for the derivation). Planar
+ * distance from Kira's perch — wider than the narrator's close-up because the
+ * capture sheet eats more of the viewport.
+ */
+const CAPTURE_DISTANCE = 3.2
+/**
+ * LookAt height above the perch. Zero — the camera aims at her feet, which is
+ * what lifts her clear of the sheet. The narrator shot aims at +0.35 and can
+ * afford to, sitting above a shorter card.
+ */
+const CAPTURE_LOOK_AT_Y_ABOVE_PERCH = 0
 
 type GameWithAsk = {
   state?: {
@@ -351,8 +365,23 @@ export function AskSheet() {
   }, [capture, open, prefilledText, readOnly, setAudioCaptureHandle, setRealtimeCaptureHandle])
 
   // Camera dolly toward Kira + freeze her wander while Capture is open.
-  // Uses a slightly wider composition than the first-chat framing so her face
-  // stays visible above the capture sheet. Restores on close.
+  // Restores on close.
+  //
+  // The kira-narrator close-up (first-chat preset) is the composition we want,
+  // but the capture sheet covers the bottom ~45% of the viewport against the
+  // narrator card's ~28%, so Kira has to sit higher and read a touch smaller.
+  //
+  // Pulling the camera back does not lift her — the previous framing dollied
+  // out to 4.2 and *raised* the lookAt to +0.72, which aims the axis over her
+  // head and pushes her down into the sheet (she landed at 53–73% of viewport
+  // height, i.e. behind it). Raising a subject in frame means aiming lower.
+  //
+  // So: widen to CAPTURE_DISTANCE and drop the whole rig — camera and target
+  // together, which preserves the first-chat pitch exactly — until the aim
+  // sits at her perch. She lands at ~25–50% of viewport height, taking the
+  // same share of the free band above the sheet (46%) that the narrator shot
+  // gives her above its own card (44%), with ~5% clearance above the tallest
+  // capture stage.
   useEffect(() => {
     if (!open) return
     const view = (engine as unknown as { view?: KiraCameraView } | null)?.view
@@ -371,8 +400,16 @@ export function AskSheet() {
     // as the onboarding first-chat preset and the kira-narrator turn), so
     // add the quarter turn to point the face at the camera.
     const targetYaw = Math.atan2(-unitZ, unitX) + Math.PI / 2
-    const camPos: Vec3Like = new Vec(kira.x + unitX * 4.2, kira.y + 1.05, kira.z + unitZ * 4.2)
-    const camLook: Vec3Like = new Vec(kira.x, kira.y + 0.72, kira.z)
+    // Scale the narrator's rise-over-run to the wider distance so the pitch
+    // tracks the first-chat preset if it is ever re-tuned.
+    const chat = getPreset('first-chat')
+    const camYAboveLookAt = (chat.camYAboveLookAt / chat.distance) * CAPTURE_DISTANCE
+    const camPos: Vec3Like = new Vec(
+      kira.x + unitX * CAPTURE_DISTANCE,
+      kira.y + CAPTURE_LOOK_AT_Y_ABOVE_PERCH + camYAboveLookAt,
+      kira.z + unitZ * CAPTURE_DISTANCE,
+    )
+    const camLook: Vec3Like = new Vec(kira.x, kira.y + CAPTURE_LOOK_AT_Y_ABOVE_PERCH, kira.z)
     const rotation = kiraActor?.group?.rotation
     const initialYaw = rotation?.y
     let yawFrame: number | null = null
