@@ -50,20 +50,22 @@ for (let changed = true; changed; ) {
   }
 }
 
-// Chunks nobody statically imports are only reachable via `import()`, so they
-// are off the synchronous path by construction (e.g. the engine's own entry
-// chunk, which legitimately carries three).
-const staticallyImported = new Set()
-for (const f of files) for (const t of staticImports.get(f)) staticallyImported.add(t)
+// Roots of the synchronous boot graph. `_app-<hash>.js` is the layout chunk
+// every app route nests under, so anything it statically pulls — directly or
+// through a shared vendor chunk — must be parsed before hydration; the
+// transitive taint above covers those intermediates, which is why only the
+// roots need naming here.
+//
+// Excluded deliberately:
+//  - dot-suffixed TanStack route chunks (`_app.history-<hash>.js`), which are
+//    imported lazily on navigation;
+//  - `index-<hash>.js`, which in this build names the engine's own entry
+//    chunk (it exports createGame and is reached only via `import()`, so it
+//    is expected to carry three) and shared vendor chunks (already covered
+//    transitively through `_app`).
+const isBootChunk = (f) => /^(_app|main|client|entry)-[^.]*\.js$/.test(f)
 
-// The synchronous boot chunks: the `_app` layout chunk and the client entry.
-// Dot-suffixed TanStack route chunks (`_app.history-<hash>.js`) are imported
-// lazily on navigation, so they are deliberately excluded.
-const isBootChunk = (f) => /^(_app|main|client|index)-[^.]*\.js$/.test(f)
-
-const offenders = files.filter(
-  (f) => isBootChunk(f) && tainted.has(f) && staticallyImported.has(f),
-)
+const offenders = files.filter((f) => isBootChunk(f) && tainted.has(f))
 
 console.log('three-defining chunks:', threeChunks.join(', '))
 if (offenders.length) {
