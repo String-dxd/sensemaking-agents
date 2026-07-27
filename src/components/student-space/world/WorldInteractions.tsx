@@ -180,7 +180,7 @@ type ObjectPickupState = {
 const INITIAL_BUBBLE: KiraBubbleState = { visible: false, text: '', x: 0, y: 0, hidden: false }
 const INITIAL_NARRATOR: NarratorState = {
   open: false,
-  name: 'Kira',
+  name: 'Momo',
   text: '',
   cta: 'Open',
   dismissible: true,
@@ -204,7 +204,7 @@ const INITIAL_OBJECT_PEEK: ObjectPeekState = {
 }
 const INITIAL_OBJECT_PICKUP: ObjectPickupState = {
   open: false,
-  name: 'Kira',
+  name: 'Momo',
   text: '',
   talkLabel: 'Talk about it more',
   detailLabel: 'Open detail page',
@@ -621,7 +621,7 @@ class KiraNarratorController {
       if (this.disposed) return
       this.setNarrator((prev) => ({
         ...prev,
-        name: this.state?.profile?.displayCompanionName?.() || 'Kira',
+        name: this.state?.profile?.displayCompanionName?.() || 'Momo',
         open: true,
       }))
     }, 180)
@@ -666,7 +666,7 @@ class KiraNarratorController {
       ...prev,
       cta,
       text: '',
-      name: name ?? this.state?.profile?.displayCompanionName?.() ?? 'Kira',
+      name: name ?? this.state?.profile?.displayCompanionName?.() ?? 'Momo',
       dismissible,
     }))
     this._scheduleType(text, 180)
@@ -1220,7 +1220,7 @@ class ObjectPeekController {
 
     this.setObjectPickup({
       open: false,
-      name: this.state?.profile?.displayCompanionName?.() || 'Kira',
+      name: this.state?.profile?.displayCompanionName?.() || 'Momo',
       text: '',
       talkLabel: config.primaryCta.label,
       detailLabel: config.secondaryCta.label,
@@ -1837,7 +1837,7 @@ function NarratorPanel({
   return (
     <div
       role="dialog"
-      aria-label={`${state.name || 'Kira'} dialogue`}
+      aria-label={`${state.name || 'Momo'} dialogue`}
       data-kira-dialogue
       className={cn(
         'fixed inset-x-[max(18px,8vw)] bottom-6 z-[58] mx-auto max-w-3xl rounded-[26px] border border-white/75 bg-[#fff7e8]/96 px-6 pt-8 pb-5 font-sans text-[#2b2620] shadow-[0_22px_60px_rgba(35,25,18,0.26)] backdrop-blur-md transition-[opacity,transform] duration-[220ms] ease-(--ease-out) motion-reduce:transition-none max-[640px]:inset-x-4 max-[640px]:bottom-4 max-[640px]:px-5 max-[640px]:pt-7',
@@ -1921,7 +1921,7 @@ function ObjectPickupPanel({
   return (
     <div
       role="dialog"
-      aria-label={`${state.name || 'Kira'} detail`}
+      aria-label={`${state.name || 'Momo'} detail`}
       data-object-pickup
       data-kira-dialogue
       className={cn(

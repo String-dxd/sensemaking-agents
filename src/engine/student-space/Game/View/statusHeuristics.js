@@ -21,11 +21,11 @@
  */
 import State from '../State/State.js'
 
-// Companion display name — falls back to 'Kira' before the first-run
+// Companion display name — falls back to 'Momo' before the first-run
 // ceremony writes identity.companionName.
 function _companionName()
 {
-    return State.getInstance()?.profile?.displayCompanionName?.() || 'Kira'
+    return State.getInstance()?.profile?.displayCompanionName?.() || 'Momo'
 }
 
 export const STATUS_IDS = ['starter', 'diffused', 'searching', 'foreclosed', 'achieved']

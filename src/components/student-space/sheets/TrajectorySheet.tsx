@@ -202,7 +202,7 @@ export function TrajectorySheet() {
     tldr?: string
     lead?: string
   }
-  const companion = state?.profile?.displayCompanionName?.() || 'Kira'
+  const companion = state?.profile?.displayCompanionName?.() || 'Momo'
   const showRun = Boolean(state?.backend?.runTrajectory && needsBearings(renderStatus))
   const showEscape = audit.status !== 'starter' && audit.status !== 'searching' && !escapeHatch
 

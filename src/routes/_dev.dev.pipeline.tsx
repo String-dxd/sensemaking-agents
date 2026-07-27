@@ -189,7 +189,7 @@ function PipelinePageInner({
     })
     if (update.status === 'final') {
       appendActionLog(
-        `Realtime ${update.role === 'kira' ? 'Kira' : 'student'}: ${truncateForLog(text)}`,
+        `Realtime ${update.role === 'kira' ? 'Momo' : 'student'}: ${truncateForLog(text)}`,
       )
     }
   }
@@ -568,7 +568,7 @@ function PipelinePageInner({
                     )}
                   >
                     <span className="font-sans text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {message.role === 'kira' ? 'Kira' : 'You'}
+                      {message.role === 'kira' ? 'Momo' : 'You'}
                       {message.status === 'streaming' ? ' · streaming' : ''}
                     </span>
                     <p>{message.text}</p>

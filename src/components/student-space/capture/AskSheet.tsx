@@ -1016,8 +1016,8 @@ export function AskSheet() {
         engine as unknown as {
           state?: { profile?: { displayCompanionName?: () => string } }
         } | null
-      )?.state?.profile?.displayCompanionName?.() || 'Kira'
-    ).trim() || 'Kira'
+      )?.state?.profile?.displayCompanionName?.() || 'Momo'
+    ).trim() || 'Momo'
 
   const stagePillLabel =
     stage === 'compose'
