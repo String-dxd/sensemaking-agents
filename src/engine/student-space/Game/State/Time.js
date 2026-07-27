@@ -19,14 +19,15 @@ export default class Time
     {
         const current = Date.now() / 1000
 
+        // Clamp before accumulating: `elapsed` is the animation clock every
+        // shader / wander deadline reads, so a paused render loop (routed
+        // sheet, hidden tab) must not hand it the whole pause at once — that
+        // jumps every animation and expires every `elapsed + duration`
+        // deadline the instant the world comes back. `rawDelta` keeps the
+        // true wall-clock gap for anything that genuinely needs it.
         this.rawDelta = current - this.current
-        this.delta = this.rawDelta
+        this.delta = Math.min(this.rawDelta, 60 / 1000)
         this.elapsed += this.delta
         this.current = current
-
-        if(this.delta > 60 / 1000)
-        {
-            this.delta = 60 / 1000
-        }
     }
 }
