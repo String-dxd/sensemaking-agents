@@ -201,6 +201,22 @@ export default class Captures
         const backendKeys = new Set(
             backendEntries.map((entry) => backendKey(entry)).filter(Boolean),
         )
+        // Photos are client-side only (captured into localStorage; the
+        // backend mirror row has no image column). When a backend entry
+        // replaces the local capture with the same durable key, carry the
+        // local photo bytes over so the reflection keeps its picture.
+        const localByKey = new Map()
+        for(const entry of this.entries)
+        {
+            const key = backendKey(entry)
+            if(key) localByKey.set(key, entry)
+        }
+        for(const entry of backendEntries)
+        {
+            const key = backendKey(entry)
+            const local = key ? localByKey.get(key) : null
+            if(local?.dataUrl && !entry.dataUrl) entry.dataUrl = local.dataUrl
+        }
         const localEntries = this.entries.filter((entry) =>
         {
             const key = backendKey(entry)

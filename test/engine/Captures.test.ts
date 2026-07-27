@@ -205,6 +205,33 @@ describe('Captures', () => {
     expect(refreshed.map((e) => e.id)).toEqual(['backend-1-refreshed', local.id])
   })
 
+  it('carries the local photo over when a backend row replaces the capture', () => {
+    // Photo captured with the reflection — client-side only; the backend
+    // mirror row has no image column.
+    captures.add({
+      kind: 'ask',
+      text: 'with photo',
+      dataUrl: 'data:image/jpeg;base64,PHOTO',
+      backendMirrorEntryId: 91,
+    })
+
+    captures.upsertBackend([
+      {
+        id: 'mirror:91',
+        createdAt: '2020-01-01T00:00:00.000Z',
+        entryDate: '2020-01-01',
+        kind: 'ask',
+        text: 'from the server',
+        backendMirrorEntryId: 91,
+      },
+    ])
+
+    const merged = captures.serialize() as Array<CaptureEntry & { dataUrl?: string }>
+    const entry = merged.find((e) => e.backendMirrorEntryId === 91)
+    expect(entry?.id).toBe('mirror:91')
+    expect(entry?.dataUrl).toBe('data:image/jpeg;base64,PHOTO')
+  })
+
   it("re-marks an interrupted 'syncing' capture as failed at boot", () => {
     captures.hydrate([
       {

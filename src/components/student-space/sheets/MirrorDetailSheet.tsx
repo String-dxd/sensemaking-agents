@@ -20,6 +20,7 @@ interface MirrorCapture {
   kind: string
   text?: string
   title?: string
+  dataUrl?: string | null
   validation?: string
   createdAt?: string
   backendMirrorEntryId?: number | string
@@ -114,6 +115,14 @@ export function MirrorDetailPane({ entryId, onClose }: { entryId: number; onClos
       <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6 max-[640px]:px-5">
         {capture ? (
           <div className="space-y-6">
+            {capture.dataUrl ? (
+              <img
+                src={capture.dataUrl}
+                alt="Moment captured with this reflection"
+                data-testid="mirror-photo"
+                className="image-outline max-h-72 w-full rounded-xl object-cover"
+              />
+            ) : null}
             {capture.reframe?.highlightPhrase?.trim() ? (
               <p className="text-base italic leading-relaxed text-(--color-sheet-ink-soft)">
                 “{capture.reframe.highlightPhrase.trim()}”
