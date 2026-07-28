@@ -1,10 +1,16 @@
 import { createFileRoute, Outlet, redirect, useLocation } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { EngineHost } from '~/components/student-space/EngineHost'
 import { EdupassLogin } from '~/components/student-space/onboarding/EdupassLogin'
 import { useEngine } from '~/lib/student-space/use-engine'
 import { loadAuthMenu } from '~/server/auth-menu.functions'
 import type { AuthMenuState } from '~/server/auth-menu.handler.server'
+
+const LazyHatchTuneHud = lazy(() =>
+  import('~/components/student-space/onboarding/HatchTuneHud').then(({ HatchTuneHud }) => ({
+    default: HatchTuneHud,
+  })),
+)
 
 // Pathless layout for the student-space app shell. Every route nested under
 // `_app` (the home world, `/profile`, `/history`, `/letters`, `/trajectory`,
@@ -59,24 +65,39 @@ function AppLayout() {
 
   if (isOnboardingPath(location.pathname) && authMenu?.status !== 'signed-in') {
     return (
-      <EngineHost showOnboardingFlow={false} hideCompanion landingShowcase authMenu={authMenu}>
-        <SignedOutOnboarding />
-      </EngineHost>
+      <>
+        <EngineHost showOnboardingFlow={false} hideCompanion landingShowcase authMenu={authMenu}>
+          <SignedOutOnboarding />
+        </EngineHost>
+        <AppDevelopmentTools />
+      </>
     )
   }
 
   return (
-    // `beforeLoad` already awaited the auth menu — handing it down means the
-    // engine boots without a second round trip gating `createGame`. When the
-    // route-level fetch failed the context holds undefined and EngineHost
-    // runs its own (timeout-raced) fetch instead.
-    <EngineHost authMenu={authMenu}>
-      <div className="mx-auto flex min-h-svh w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
-        <main className="flex min-h-0 w-full flex-1 flex-col">
-          <Outlet />
-        </main>
-      </div>
-    </EngineHost>
+    <>
+      {/* `beforeLoad` already awaited the auth menu — handing it down means the
+          engine boots without a second round trip gating `createGame`. When the
+          route-level fetch failed the context holds undefined and EngineHost
+          runs its own (timeout-raced) fetch instead. */}
+      <EngineHost authMenu={authMenu}>
+        <div className="mx-auto flex min-h-svh w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
+          <main className="flex min-h-0 w-full flex-1 flex-col">
+            <Outlet />
+          </main>
+        </div>
+      </EngineHost>
+      <AppDevelopmentTools />
+    </>
+  )
+}
+
+function AppDevelopmentTools() {
+  if (!import.meta.env.DEV) return null
+  return (
+    <Suspense fallback={null}>
+      <LazyHatchTuneHud />
+    </Suspense>
   )
 }
 

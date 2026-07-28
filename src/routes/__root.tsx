@@ -1,11 +1,16 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createRootRouteWithContext, HeadContent, Outlet, Scripts } from '@tanstack/react-router'
-import { type ReactNode, useEffect } from 'react'
-import { DevPalette } from '~/components/DevPalette'
-import { HatchTuneHud } from '~/components/student-space/onboarding/HatchTuneHud'
+import { lazy, type ReactNode, Suspense, useEffect } from 'react'
 import { queryClient } from '~/router'
 import styles from '~/styles.css?url'
+
+// Keep the globally reachable developer palette available on both `_app` and
+// `_dev` routes without making its Student Space helpers part of every public
+// route's shared static graph. Production removes the guarded mount entirely.
+const LazyDevPalette = lazy(() =>
+  import('~/components/DevPalette').then(({ DevPalette }) => ({ default: DevPalette })),
+)
 
 export interface RouterContext {
   queryClient: QueryClient
@@ -82,8 +87,11 @@ function RootComponent() {
             public share page (`/share/$token`) and API routes opt out of
             both layouts by sitting at the top level. */}
         <Outlet />
-        <DevPalette />
-        <HatchTuneHud />
+        {import.meta.env.DEV ? (
+          <Suspense fallback={null}>
+            <LazyDevPalette />
+          </Suspense>
+        ) : null}
       </QueryClientProvider>
     </RootDocument>
   )

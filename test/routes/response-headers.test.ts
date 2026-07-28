@@ -87,4 +87,13 @@ describe('vercel.json response headers', () => {
     expect(share).toBeDefined()
     expect(headerValue(share as VercelHeaderRule, 'Referrer-Policy')).toBe('no-referrer')
   })
+
+  it('keeps the unlisted FAQ out of indexes and suppresses outbound referrers', () => {
+    const faq = readHeaderRules().find((r) => r.source === '/my-world/faq')
+    expect(faq).toBeDefined()
+    if (!faq) return
+
+    expect(headerValue(faq, 'X-Robots-Tag')).toBe('noindex, nofollow')
+    expect(headerValue(faq, 'Referrer-Policy')).toBe('no-referrer')
+  })
 })
