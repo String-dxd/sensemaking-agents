@@ -198,9 +198,6 @@ export default class Captures
     {
         if(!Array.isArray(snapshot)) return
         const backendEntries = mergeArray(snapshot, mergeCapture, 'capture.backend')
-        const backendKeys = new Set(
-            backendEntries.map((entry) => backendKey(entry)).filter(Boolean),
-        )
         // Photos are client-side only (captured into localStorage; the
         // backend mirror row has no image column). When a backend entry
         // replaces the local capture with the same durable key, carry the
@@ -217,10 +214,24 @@ export default class Captures
             const local = key ? localByKey.get(key) : null
             if(local?.dataUrl && !entry.dataUrl) entry.dataUrl = local.dataUrl
         }
+        const backendKeys = new Set(
+            backendEntries.map((entry) => backendKey(entry)).filter(Boolean),
+        )
         const localEntries = this.entries.filter((entry) =>
         {
             const key = backendKey(entry)
-            return !key || !backendKeys.has(key)
+            // Unsynced local capture — always survives.
+            if(!key) return true
+            // Cached snapshot row (`mirror:*` / `cartographer:*` id): the
+            // snapshot is its source of truth. A key missing from the new
+            // snapshot means the backend row was deleted or replaced (e.g.
+            // a reseed minted fresh ids), so keeping the stale copy would
+            // duplicate the reflection.
+            if(isSnapshotSourced(entry)) return false
+            // Locally-authored but synced capture: dedupe when the backend
+            // row is present, keep otherwise — a snapshot fetched before
+            // the sync landed must not drop the capture (and its photo).
+            return !backendKeys.has(key)
         })
         this.entries = [...localEntries, ...backendEntries].sort((a, b) =>
             Date.parse(a.createdAt) - Date.parse(b.createdAt),
@@ -232,6 +243,12 @@ export default class Captures
     serialize() { return this.entries }
 
     _persist() { Persistence.getInstance()?.save('captures', this.serialize()) }
+}
+
+function isSnapshotSourced(entry)
+{
+    const id = typeof entry.id === 'string' ? entry.id : ''
+    return id.startsWith('mirror:') || id.startsWith('cartographer:')
 }
 
 function backendKey(entry)

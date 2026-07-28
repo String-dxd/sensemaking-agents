@@ -232,6 +232,46 @@ describe('Captures', () => {
     expect(entry?.dataUrl).toBe('data:image/jpeg;base64,PHOTO')
   })
 
+  it('drops cached snapshot rows whose backend id vanished, keeps synced local captures', () => {
+    // Cached snapshot row from a previous session (persisted `mirror:*` id).
+    // A reseed replaced the backend rows with fresh ids, so id 90 no longer
+    // exists — keeping it would show the reflection twice.
+    captures.hydrate([
+      {
+        id: 'mirror:90',
+        createdAt: '2020-01-01T00:00:00.000Z',
+        entryDate: '2020-01-01',
+        kind: 'ask',
+        text: 'stale seed row',
+        backendMirrorEntryId: 90,
+      },
+    ])
+    // Locally-authored capture already synced (id 91) — a snapshot fetched
+    // before that sync landed must not drop it or its photo.
+    const synced: CaptureEntry = captures.add({
+      kind: 'ask',
+      text: 'freshly synced',
+      dataUrl: 'data:image/jpeg;base64,PHOTO',
+      backendMirrorEntryId: 91,
+    })
+
+    captures.upsertBackend([
+      {
+        id: 'mirror:190',
+        createdAt: '2020-01-02T00:00:00.000Z',
+        entryDate: '2020-01-02',
+        kind: 'ask',
+        text: 'reseeded replacement',
+        backendMirrorEntryId: 190,
+      },
+    ])
+
+    // Sorted by createdAt: the reseeded 2020 row precedes the just-added
+    // local capture. The stale `mirror:90` row is gone.
+    const merged = captures.serialize() as CaptureEntry[]
+    expect(merged.map((e) => e.id)).toEqual(['mirror:190', synced.id])
+  })
+
   it("re-marks an interrupted 'syncing' capture as failed at boot", () => {
     captures.hydrate([
       {
