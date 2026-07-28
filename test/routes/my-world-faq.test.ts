@@ -59,6 +59,8 @@ describe('/my-world/faq public route', () => {
     ).toBeInTheDocument()
     expect(screen.getByText(/does not indicate MOE approval/i)).toBeInTheDocument()
     expect(screen.getByText(/human relationships, student agency/i)).toBeInTheDocument()
+    expect(screen.getByTestId('faq-product-loop')).toBeInTheDocument()
+    expect(screen.getAllByTestId('faq-question-trigger')).toHaveLength(34)
     expect(screen.getByRole('link', { name: /see the concerns/i })).toHaveAttribute(
       'href',
       '#signals',

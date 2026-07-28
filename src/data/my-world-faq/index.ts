@@ -31,7 +31,9 @@ export {
 import { FAQ_QUESTIONS } from './questions'
 import type { FaqQuestion } from './types'
 
-const normalizeQuestionKey = (value: string) => value.trim().toLocaleLowerCase('en')
+function normalizeQuestionKey(value: string): string {
+  return value.trim().toLocaleLowerCase('en')
+}
 
 export const FAQ_QUESTION_BY_ID = new Map<string, FaqQuestion>(
   FAQ_QUESTIONS.map((question) => [question.id, question] as const),

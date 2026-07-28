@@ -1,24 +1,11 @@
+import { GuardrailLedgerPreview } from './GuardrailLedgerPreview'
+import { ProductLoop } from './ProductLoop'
+import { QuestionField } from './QuestionField'
+import { SignalSourceStrip } from './SignalSourceStrip'
+
 export interface MyWorldFaqPageProps {
   feedbackEnabled: boolean
 }
-
-const READING_GUIDE = [
-  {
-    label: 'The hypothesis',
-    title: 'Reflection could take less effort',
-    body: 'Carefully designed AI may help a student capture an experience and begin reflecting while the moment is still fresh.',
-  },
-  {
-    label: 'The boundary',
-    title: 'Human support stays primary',
-    body: 'Relationships, student agency, and developmental safety govern the design. My World is not a substitute for family, teachers, peers, or professional care.',
-  },
-  {
-    label: 'The test',
-    title: 'A pilot would investigate—not prove',
-    body: 'Any structured pilot would need to examine reflection quality, agency, safety, and effects on human relationships, including where the idea falls short.',
-  },
-] as const
 
 export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
   return (
@@ -102,68 +89,37 @@ export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
           </div>
         </section>
 
-        <section
-          id="signals"
-          aria-labelledby="signals-title"
-          className="scroll-mt-6 border-b border-(--color-faq-line)"
-        >
-          <div className="mx-auto w-full max-w-6xl px-5 py-14 sm:px-8 sm:py-18 lg:px-10 lg:py-20">
-            <div className="max-w-2xl">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--color-faq-ink-faint)">
-                Before the questions
-              </p>
-              <h2
-                id="signals-title"
-                className="mt-3 text-[clamp(1.8rem,4vw,3rem)] font-semibold leading-tight tracking-[-0.04em]"
-              >
-                The frame for making sense of the signals
-              </h2>
-              <p className="mt-4 text-base leading-relaxed text-(--color-faq-ink-soft)">
-                This FAQ separates what the product does today, what research can support, what we
-                still do not know, and what would need to be tested before any pilot.
-              </p>
-            </div>
-
-            <ol className="mt-10 grid gap-px overflow-hidden rounded-3xl border border-(--color-faq-line) bg-(--color-faq-line) md:grid-cols-3">
-              {READING_GUIDE.map((item, index) => (
-                <li key={item.label} className="bg-(--color-faq-surface) p-6 sm:p-7">
-                  <div className="flex items-center justify-between gap-4">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.13em] text-(--color-faq-stage-ink)">
-                      {item.label}
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className="font-mono text-xs text-(--color-faq-ink-faint)"
-                    >
-                      0{index + 1}
-                    </span>
-                  </div>
-                  <h3 className="mt-8 text-lg font-semibold tracking-[-0.025em]">{item.title}</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-(--color-faq-ink-soft)">
-                    {item.body}
-                  </p>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </section>
+        <ProductLoop />
+        <SignalSourceStrip />
+        <QuestionField />
+        <GuardrailLedgerPreview />
 
         <section aria-labelledby="access-title">
           <div className="mx-auto grid w-full max-w-6xl gap-7 px-5 py-12 sm:px-8 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:px-10 lg:py-16">
-            <h2 id="access-title" className="text-lg font-semibold tracking-[-0.02em]">
-              Unlisted, not private
-            </h2>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--color-faq-ink-faint)">
+                Access and listening
+              </p>
+              <h2 id="access-title" className="mt-2 text-lg font-semibold tracking-[-0.02em]">
+                Unlisted, not private
+              </h2>
+            </div>
             <div className="max-w-2xl text-sm leading-relaxed text-(--color-faq-ink-soft)">
               <p>
                 This page is intentionally absent from product navigation and search discovery.
                 Anyone with the exact link can open or forward it, so it should not be treated as
                 access-controlled.
               </p>
-              {!feedbackEnabled ? (
-                <p className="mt-3 text-(--color-faq-ink-faint)">
-                  Feedback submissions are not open on this working prototype yet.
+              <div className="mt-5 rounded-2xl border border-(--color-faq-line) bg-(--color-faq-surface) p-4">
+                <h3 className="font-semibold text-(--color-faq-ink)">
+                  We want the harder questions
+                </h3>
+                <p className="mt-2 text-(--color-faq-ink-soft)">
+                  {feedbackEnabled
+                    ? 'The delivery gate may be enabled, but this comprehension checkpoint does not include a submission form or claim that a message was received.'
+                    : 'Feedback is currently disabled. No submission form or fake success state is shown while the delivery path, review ownership, and abuse controls remain gated.'}
                 </p>
-              ) : null}
+              </div>
             </div>
           </div>
         </section>
