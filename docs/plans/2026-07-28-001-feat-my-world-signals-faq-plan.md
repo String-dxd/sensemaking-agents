@@ -9,6 +9,22 @@ origin: docs/brainstorms/2026-07-28-my-world-signals-faq-requirements.md
 
 # feat: Add the My World Signals → Sensemaking FAQ
 
+## Implementation amendment
+
+The approved card direction in
+`docs/decisions/2026-07-28-my-world-faq-cards.md` supersedes this plan where
+the two differ. In particular:
+
+- Event concerns are rendered as quotes. The supplied Pigeonhole interface
+  screenshots are source material only and are not shown on the page.
+- FAQ topics use card accordions with a concise answer first and an optional
+  “Evidence and limits” disclosure. This replaces the focused answer panel and
+  the earlier rejection of a long accordion.
+- “Product at a glance” and “FAQ” are separate top-level navigation links.
+
+The evidence labels, careful claim posture, question coverage and accessibility
+requirements below still apply.
+
 ## Overview
 
 Build an unlisted, unauthenticated FAQ at `/my-world/faq` that helps

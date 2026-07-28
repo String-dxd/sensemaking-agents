@@ -53,18 +53,17 @@ describe('/my-world/faq public route', () => {
   it('renders the truthful prototype and pilot posture while signed out', () => {
     render(createElement(MyWorldFaqPage, { feedbackEnabled: false }))
 
-    expect(screen.getByText('Working prototype — testing a hypothesis')).toBeInTheDocument()
-    expect(
-      screen.getByText(/considering whether to proceed to a structured pilot/i),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/does not indicate MOE approval/i)).toBeInTheDocument()
-    expect(screen.getByText(/human relationships, student agency/i)).toBeInTheDocument()
+    expect(screen.getByText('Working prototype')).toBeInTheDocument()
+    expect(screen.getByText('Pilot under consideration')).toBeInTheDocument()
+    expect(screen.getByText(/leadership has not decided whether to run one/i)).toBeInTheDocument()
+    expect(screen.getByText(/one touchpoint alongside family/i)).toBeInTheDocument()
     expect(screen.getByTestId('faq-product-loop')).toBeInTheDocument()
     expect(screen.getAllByTestId('faq-question-trigger')).toHaveLength(34)
-    expect(screen.getByRole('link', { name: /see the concerns/i })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Product at a glance' })).toHaveAttribute(
       'href',
-      '#signals',
+      '#product',
     )
+    expect(screen.getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '#faq')
 
     expect(loadAuthMenuMock).not.toHaveBeenCalled()
     expect(engineHostMock).not.toHaveBeenCalled()
@@ -73,9 +72,7 @@ describe('/my-world/faq public route', () => {
   it('states that exact-link access is forwardable rather than private', () => {
     render(createElement(MyWorldFaqPage, { feedbackEnabled: false }))
 
-    expect(
-      screen.getByText(/anyone with the exact link can open or forward it/i),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/anyone with this link can open or forward it/i)).toBeInTheDocument()
   })
 
   it('uses a normal document-scroll root and exposes the disabled feedback capability', () => {

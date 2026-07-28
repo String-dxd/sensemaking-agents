@@ -150,7 +150,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What problem is it solving?'],
     searchAliases: ['What is the purpose beyond a blanket AI push?'],
     shortAnswer:
-      'My World is testing a narrow idea: whether voice and other low-effort capture, followed by reviewable sensemaking, can help secondary students notice and reflect on lived experience more independently. That need and this solution are not yet validated. Human relationships, student choice and developmental safety remain more important than product use.',
+      'My World tests whether low-effort capture and reviewable reflection help secondary students notice patterns in their experience. The need and the product’s value are not validated yet.',
     blocks: [
       productFact({
         id: 'reflection-problem-current-loop',
@@ -203,7 +203,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Is it just another chatbot?'],
     searchAliases: ['Is AI supplementing or replacing student thinking?'],
     shortAnswer:
-      'Kira uses conversation, so “chatbot” is not entirely wrong. The intended job is narrower: ask one brief question at a time, follow details the student supplied, and hand the turn back. Separate systems prepare reviewable notes and later evidence links. We still need to test whether students experience that boundary in practice.',
+      'Kira uses conversation, but its intended role is narrow. It asks one brief question, follows what the student shares and hands the turn back. We still need to test whether students feel that boundary.',
     blocks: [
       productFact({
         id: 'chatbot-boundary-live-prompt',
@@ -249,7 +249,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Why not a paper journal?'],
     searchAliases: ['Can students still reflect independently without AI?'],
     shortAnswer:
-      'Paper is a valid, private and low-distraction option, and a pilot should not treat it as obsolete. My World’s hypothesis is that speaking may lower the effort of starting and that later links can help a student revisit patterns. We do not yet know whether those additions improve reflection enough to justify their risks and cost.',
+      'Paper remains a valid, private and low-distraction option. My World tests whether voice makes it easier to start and whether later links support reflection. We do not know if those benefits justify the risks.',
     blocks: [
       productFact({
         id: 'paper-journal-product-difference',
@@ -302,7 +302,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['How does Capture become VIPS and a timeline?'],
     searchAliases: [],
     shortAnswer:
-      'Capture does not instantly become a settled profile. Mirror first prepares a reviewable reflection. Connector later proposes links into the closed Values, Interests, Personality and Skills vocabulary; code checks the cited quote and canonical ID before a link is stored. The island’s immediate visual growth is a separate, capture-driven signal today.',
+      'Capture does not become a profile immediately. Students first review a draft reflection. Later links to Values, Interests, Personality and Skills must cite the student’s own words.',
     blocks: [
       productFact({
         id: 'capture-to-sensemaking-handoff',
@@ -325,7 +325,7 @@ export const FAQ_QUESTIONS = [
         id: 'capture-to-sensemaking-island',
         kind: 'how-it-works',
         heading: 'What the island means today',
-        text: 'The current sprout system grows from capture or mood references and lets the student trigger a bloom; that visual threshold is not the same as a verified VIPS claim.',
+        text: 'The current sprout system grows from capture or mood references and lets the student trigger a bloom. That visual threshold is not a verified VIPS claim.',
         sourceIds: [],
         provenanceIds: ['repo-island-progression'],
         guardrailIds: ['reflection-quality'],
@@ -364,7 +364,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What does Kira do, and what does Kira not do?'],
     searchAliases: ['How transparent is the AI role?'],
     shortAnswer:
-      'Kira’s current prompt asks for brief, concrete turns that help a student tell what happened and reflect in their own direction. It forbids advice, diagnosis and invented detail. The same prompt calls Kira a warm, quick friend. We should show that tension plainly and test whether role disclosure is understood.',
+      'Kira is meant to ask brief, concrete questions without advice or diagnosis. The current prompt also uses friend-like language. We need to test whether students understand the boundary.',
     blocks: [
       productFact({
         id: 'kira-role-prompt',
@@ -409,7 +409,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Are we replacing the dinner table?'],
     searchAliases: [],
     shortAnswer:
-      'We do not want My World to replace family conversation, but intent cannot settle that risk. A private, low-friction reflection may help a student find words; it may also become easier than talking to someone. Any pilot must measure whether use prompts, coexists with or displaces family and other human conversation.',
+      'My World should support family conversations, not replace them. A private reflection may help a student find words. A pilot must test whether students use My World alongside human conversation or instead of it.',
     blocks: [
       productFact({
         id: 'dinner-table-current-product',
@@ -436,7 +436,7 @@ export const FAQ_QUESTIONS = [
           'Adults using general text and voice chatbots, not Singapore secondary students.',
         fit: 'An adult risk signal for measuring family conversation and human socialisation.',
         limitations:
-          'It is not evidence that My World displaces family conversation for Singapore secondary students.',
+          'The study does not show that My World displaces family conversation for Singapore secondary students.',
       }),
       openPilotQuestion({
         id: 'dinner-table-displacement-test',
@@ -467,7 +467,7 @@ export const FAQ_QUESTIONS = [
     ],
     searchAliases: [],
     shortAnswer:
-      'Kira is deliberately warm, and the live prompt even uses friend-like language. We should not deny that design choice or assume students will keep it in proportion. Preference, trust and attachment must be treated as outcomes to observe, alongside whether students still seek people for challenge, care and practical help.',
+      'Warmth may help students open up, but it can blur Kira’s role. A pilot should track trust, attachment and whether students still seek people for care, challenge and practical help.',
     blocks: [
       productFact({
         id: 'human-preference-warm-language',
@@ -529,7 +529,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What about students without a safe place to talk at home?'],
     searchAliases: [],
     shortAnswer:
-      'A private outlet may feel easier for a student who lacks a safe conversation at home. That possibility matters, but it also raises the stakes: My World cannot become a substitute caregiver or emergency service. Before a pilot, students need clear role boundaries, meaningful choice and a tested route to appropriate human support.',
+      'A private outlet may help when home does not feel safe. That raises the duty of care. My World cannot be a substitute caregiver or emergency service. A tested human-support path is required.',
     blocks: [
       researchBacked({
         id: 'unsafe-home-child-centred-guidance',
@@ -574,7 +574,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ["Could My World become a student's only support?"],
     searchAliases: [],
     shortAnswer:
-      'It could become disproportionately important for some students, especially if other support feels unsafe or unavailable. We cannot rule that out today. The prototype’s prompt says Kira is not a counsellor or therapist, but an end-to-end distress and human-escalation path is not yet verified and is required before any pilot.',
+      'Some students could rely on My World more than intended. The current prompt says Kira is not a counsellor. The end-to-end path to human support is not yet verified.',
     blocks: [
       teamCheck({
         id: 'only-support-current-gap',
@@ -636,7 +636,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Is it addictive?'],
     searchAliases: [],
     shortAnswer:
-      'We cannot rule out dependency or problematic use. The prototype omits generic XP, streaks, rankings, leaderboards and student comparison, and Kira’s replies are deliberately short. Those are design choices, not outcome evidence. Actual frequency, duration, trust, dependence, sleep and displacement would need measurement with clear stop or change signals.',
+      'We cannot rule out dependency. The prototype has no generic XP, streaks, rankings or student comparison, and Kira’s replies are brief. A pilot must still measure use, sleep, trust and displacement.',
     blocks: [
       productFact({
         id: 'dependency-risk-omitted-mechanics',
@@ -669,7 +669,7 @@ export const FAQ_QUESTIONS = [
         id: 'dependency-risk-pilot',
         kind: 'pilot-test',
         heading: 'What we would test',
-        text: 'Measure sessions, duration, voluntary stopping, return pressure, trust, dependence, sleep and displaced activities—not engagement alone—and act on pre-agreed thresholds.',
+        text: 'Measure sessions, duration, voluntary stopping, return pressure, trust, dependence, sleep and displaced activities. Act on pre-agreed thresholds.',
         sourceIds: [],
         provenanceIds: ['faq-origin-requirements'],
         guardrailIds: [
@@ -699,7 +699,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Will it add to already-high PLD screen time?'],
     searchAliases: [],
     shortAnswer:
-      'Yes, My World would add another digital activity. A reflective purpose may make that time different from passive scrolling, but it does not erase cumulative screen burden or displacement of sleep, movement and conversation. A pilot should keep sessions bounded, record actual use and compare the value gained with lower-screen alternatives.',
+      'My World would add screen time. Reflective use may differ from passive scrolling, but total burden still matters. A pilot should measure duration and compare the value with lower-screen options.',
     blocks: [
       researchBacked({
         id: 'screen-burden-moe-guidance',
@@ -717,7 +717,7 @@ export const FAQ_QUESTIONS = [
       researchBacked({
         id: 'screen-burden-age-caveat',
         kind: 'research',
-        heading: 'What the age-specific guidance can—and cannot—tell us',
+        heading: 'What the age-specific guidance can tell us',
         text: 'MOH guidance treats cumulative screen use and family involvement seriously, but its published numeric advice is for children aged 0–12.',
         sourceIds: ['moh-screen-use-2025'],
         provenanceIds: [],
@@ -755,7 +755,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Why use an island?', 'Is this superficial gamification?'],
     searchAliases: [],
     shortAnswer:
-      'The island makes otherwise invisible capture and review activity tangible. That can help orientation, but a beautiful world can also make activity feel more meaningful than it is. We should not call the visual harmless or educational by default. Students must understand what grew, what did not, and whether the metaphor supports reflection.',
+      'The island shows that a student has captured and reviewed moments. It does not prove reflection or personal growth. We need to test whether students understand that difference.',
     blocks: [
       productFact({
         id: 'island-purpose-current-behavior',
@@ -809,7 +809,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Does more capturing grow the world faster than better reflection?'],
     searchAliases: [],
     shortAnswer:
-      'Today, yes: the active sprout grows when capture or mood references are added, and its threshold is a count. That is separate from later, verifier-gated VIPS linking. The world therefore risks rewarding quantity more visibly than quality. We should say so, then test or change the mechanic rather than relabel the count as insight.',
+      'Yes. The island currently grows with the number of captures or mood entries. That may reward quantity more visibly than reflection quality, so the mechanic needs testing.',
     blocks: [
       productFact({
         id: 'capture-growth-live-count',
@@ -862,7 +862,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Are there streaks, scores, rewards, rankings, or competition?'],
     searchAliases: [],
     shortAnswer:
-      'The current prototype has no generic XP, streaks, leaderboards, rankings or student comparison. It does have visual growth, thresholds and a student-triggered bloom, so it is not free of motivational design. We can describe the omitted mechanics precisely; we cannot use their absence to claim that repeated use or dependency will not occur.',
+      'The prototype has no generic XP, streaks, leaderboards, rankings or student comparison. It does use visual growth and thresholds, so motivational design is still present.',
     blocks: [
       productFact({
         id: 'engagement-mechanics-audit',
@@ -914,7 +914,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What stops endless conversation?'],
     searchAliases: [],
     shortAnswer:
-      'Kira is prompted to reply briefly, ask one question at a time, close after a few turns and avoid chasing silence. Those are useful prompt constraints, but they are not a deterministic time or turn limit. Hard session boundaries, quiet hours and a clear stop experience remain required before a pilot.',
+      'Kira is prompted to keep replies short and close after a few turns. Those prompts are not hard limits. Session boundaries, quiet hours and a clear stopping point are required before a pilot.',
     blocks: [
       productFact({
         id: 'conversation-limits-prompt',
@@ -968,7 +968,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Is Kira a counsellor or therapist?'],
     searchAliases: ['Where is adult mediation and verification?'],
     shortAnswer:
-      'No. Kira’s intended role is to help a student describe and briefly reflect on an experience; current prompts prohibit diagnosis, advice and therapy framing. That boundary needs visible student-facing disclosure and testing. Prompt text alone does not make the system suitable for distress, replace trained adults or create a safeguarding pathway.',
+      'No. Kira is meant to help students describe and reflect on an experience. Kira cannot provide clinical care, and prompt text cannot replace a safeguarding pathway.',
     blocks: [
       productFact({
         id: 'role-not-therapy-prompt',
@@ -1025,7 +1025,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Can it give harmful advice?', 'Will it simply agree with students?'],
     searchAliases: [],
     shortAnswer:
-      'It can fail. Current prompts prohibit advice and invented claims, and a separate self-critique may flag safety or sycophancy. That review is best-effort and does not block persistence. The deterministic verifier protects admitted VIPS evidence links, not every conversational reply. Harmful agreement needs direct red-teaming and human escalation before a pilot.',
+      'It can fail. Prompts restrict advice and invented claims, but the safety review does not block every reply. Harmful agreement needs direct testing and a human escalation path.',
     blocks: [
       productFact({
         id: 'harmful-advice-current-controls',
@@ -1058,8 +1058,7 @@ export const FAQ_QUESTIONS = [
         guardrailIds: ['distress-human-escalation', 'red-team-subgroup-testing'],
         populationContext: 'Ten public bots responding to fictional adolescent distress scenarios.',
         fit: 'Identifies harmful endorsement and weak limit-setting as concrete test cases.',
-        limitations:
-          'It is a small simulation, not a real-student study and not a test of My World.',
+        limitations: 'This small simulation did not involve real students or test My World.',
       }),
       openPilotQuestion({
         id: 'harmful-advice-red-team',
@@ -1091,7 +1090,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What happens if a student mentions harm?'],
     searchAliases: [],
     shortAnswer:
-      'A prompt telling Kira not to act like a therapist is not a crisis system. We have not verified an end-to-end path that detects serious distress, explains what happens next, reaches a named human and handles failure. That remains required before any pilot; the FAQ must not imply it is already built.',
+      'We have not verified an end-to-end distress pathway. Before a pilot, serious concerns need a clear route to a named human, including what happens if that route fails.',
     blocks: [
       teamCheck({
         id: 'distress-escalation-current-status',
@@ -1144,7 +1143,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Can one emotional moment become a fixed identity label?'],
     searchAliases: [],
     shortAnswer:
-      'It should not, but the system can still overinterpret. Current prompts prohibit fixed identity claims, immediate reflection is separated from later linking, and proposed VIPS links face quote and taxonomy checks. Those checks do not verify every generated sentence. We need to audit whether tentative language stays tentative across repeated synthesis and review.',
+      'One moment should remain one piece of evidence. Current checks separate immediate reflection from later pattern linking, but they do not review every generated sentence. Repeated sensemaking needs audit.',
     blocks: [
       productFact({
         id: 'fixed-identity-current-controls',
@@ -1203,7 +1202,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Can students challenge, correct, or forget an interpretation?'],
     searchAliases: [],
     shortAnswer:
-      'Students can inspect a prepared reflection, choose Log or Forget, and forget committed timeline evidence so it is excluded from future sensemaking queries. That is meaningful agency, but it is not a claim that every processor copy, log or backup disappears. Editing and contesting every later interpretation also need a product review.',
+      'Students can review a reflection, choose Log or Forget, and exclude forgotten evidence from future sensemaking. We still need to verify editing, system-wide deletion and ways to contest later interpretations.',
     blocks: [
       productFact({
         id: 'student-correction-current-controls',
@@ -1244,7 +1243,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['How are bias, language, Singlish, disability, and cultural fit handled?'],
     searchAliases: [],
     shortAnswer:
-      'The live prompt says to follow Singlish, slang and code-switching without correcting or heavily mimicking them, while still responding in English. That is an intent, not evidence of fair performance. Language, accent, disability, device access, culture and different support contexts all require subgroup testing and meaningful alternatives.',
+      'The prompt supports Singlish, slang and code-switching without correction. That is an intention, not evidence of fair performance. A pilot needs subgroup testing and accessible alternatives.',
     blocks: [
       productFact({
         id: 'inclusive-fit-live-language',
@@ -1301,7 +1300,7 @@ export const FAQ_QUESTIONS = [
     ],
     searchAliases: [],
     shortAnswer:
-      'We should not answer this with a broad reassurance. The exact people and systems that can access a reflection depend on the deployed tenancy, support, sharing and operational contracts. Before publication or pilot, the team must verify student, parent, teacher, school, MOE, vendor and operator access—including exceptional and incident access.',
+      'We cannot give one broad access answer yet. The team must verify exactly what students, parents, teachers, schools, MOE, vendors and operators can see in the deployed system.',
     blocks: [
       teamCheck({
         id: 'reflection-access-roles',
@@ -1354,7 +1353,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Are voice recordings or photos retained?'],
     searchAliases: [],
     shortAnswer:
-      'We need to answer each medium separately. Capture currently accepts voice, typed text, feelings and an optional image upload. Repository code documents a transcripts-only policy for one audio path and keeps selected images on the capture entry, but that is not a deployed retention contract. Raw audio, images, logs, backups and vendor copies all require verification.',
+      'Voice, photos and transcripts have different risks. The prototype accepts each, but repository behaviour is not a retention contract. Storage, access and deletion need separate verification for every medium.',
     blocks: [
       teamCheck({
         id: 'source-media-retention-path',
@@ -1408,7 +1407,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Are transcripts retained?'],
     searchAliases: [],
     shortAnswer:
-      'Yes, the current product persists transcript text with a reflection so it can appear in History and support later evidence linking. That does not answer how long every copy remains, who can access it, what providers retain or what deletion reaches. Those lifecycle details stay a Team check until verified against the deployment and agreements.',
+      'Yes. The prototype stores transcript text for History and later evidence linking. Retention, provider access and the reach of deletion still need deployment and agreement checks.',
     blocks: [
       productFact({
         id: 'transcript-retention-product',
@@ -1448,7 +1447,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Do model providers train on student data?'],
     searchAliases: [],
     shortAnswer:
-      'We do not have enough approved evidence in this registry to make that claim. Provider training, human or service access, content retention, storage residency and deletion behavior depend on the exact deployed products and agreements. Each stays visibly unsettled until privacy/legal and deployment owners attach current contractual and technical evidence.',
+      'We do not have approved evidence for this claim. Training, access, retention, residency and deletion depend on the exact provider products and agreements. Privacy and legal owners must verify them.',
     blocks: [
       teamCheck({
         id: 'provider-data-use-contract',
@@ -1491,7 +1490,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Where is data stored, for how long, and who can delete it?'],
     searchAliases: [],
     shortAnswer:
-      'The application has student-scoped records and visible Forget controls, but that is only part of the lifecycle. We need a deployment-verified map of databases, regions, providers, logs, backups, access roles, retention periods and deletion paths. Until then, this FAQ should not claim that one action erases every copy everywhere.',
+      'The prototype has student-scoped records and a Forget control. We still need one verified map covering databases, regions, providers, logs, backups, access roles, retention and deletion.',
     blocks: [
       productFact({
         id: 'data-lifecycle-forget-scope',
@@ -1545,7 +1544,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Is participation optional?'],
     searchAliases: [],
     shortAnswer:
-      'That has not been settled for a pilot, so we should not promise it yet. Our required posture is meaningful consent or assent, a clear opt-out, a usable non-AI alternative and no hidden penalty for declining or withdrawing. School context and adult authority make the practical meaning of “optional” especially important.',
+      'A pilot must make declining or withdrawing practical. That means clear assent, a usable non-AI option and no hidden penalty. The exact approach has not been agreed.',
     blocks: [
       teamCheck({
         id: 'optional-participation-status',
@@ -1598,7 +1597,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What student need has been validated?', 'What evidence exists today?'],
     searchAliases: [],
     shortAnswer:
-      'No formal efficacy or long-term safety evidence exists for My World today. The repository proves that a working product flow and several structural controls exist. External research makes reflection and careful AI design plausible areas to test. Reported field enthusiasm is an early signal only. The core student need and incremental value remain open.',
+      'No formal efficacy or long-term safety evidence exists for My World today. We have a working prototype, relevant external research and reported early interest. The student need and added value remain open.',
     blocks: [
       productFact({
         id: 'validated-need-product-evidence',
@@ -1664,7 +1663,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['Do students and teachers actually want this?'],
     searchAliases: [],
     shortAnswer:
-      'Early field signal · team verify is the only status we can give the reported encouraging reactions. We do not yet have a documented sample, method, scope, permissions or caveats, so enthusiasm cannot become a demand estimate, endorsement or efficacy claim. The team must document who participated, what they saw, what was asked and what dissent appeared.',
+      'Reported interest is an early field signal. We need the sample, method, context and dissent before treating it as evidence of demand. Reported interest is not an endorsement or outcome.',
     blocks: [
       earlyFieldSignal({
         id: 'field-demand-unverified-report',
@@ -1706,7 +1705,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What research supports reflection?'],
     searchAliases: [],
     shortAnswer:
-      'A meta-analysis of expressive-writing interventions for adolescents found small, promising effects across several outcomes and judged the evidence not decisive. That supports taking structured reflection seriously. It does not show that voice is better than writing, that AI improves reflection, or that My World works for Singapore secondary students.',
+      'Research suggests structured reflection can help adolescents, but findings are small and not decisive. It does not show that voice beats writing, AI improves reflection or My World works in Singapore.',
     blocks: [
       researchBacked({
         id: 'reflection-research-meta',
@@ -1719,7 +1718,7 @@ export const FAQ_QUESTIONS = [
         populationContext: 'Youth aged 10–18 in varied expressive-writing interventions.',
         fit: 'Supports reflection as a plausible mechanism worth careful study.',
         limitations:
-          'It is not evidence for My World, conversational AI, voice capture or Singapore implementation.',
+          'The study does not test My World, conversational AI, voice capture or Singapore implementation.',
       }),
       openPilotQuestion({
         id: 'reflection-research-product-test',
@@ -1747,7 +1746,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What research warns about AI companionship?'],
     searchAliases: [],
     shortAnswer:
-      'The evidence is young and mixed. Adult longitudinal work raises questions about intensity, trust, dependence and socialisation. Youth studies report unsafe disclosure, manipulation and harmful responses in broader chatbot use. These sources do not prove My World causes those outcomes. They identify failure modes, measures and safeguards a pilot cannot ignore.',
+      'Early companion research raises concerns about trust, dependence, unsafe disclosure and harmful responses. It does not prove My World causes them. It tells us what to test and guard against.',
     blocks: [
       researchBacked({
         id: 'companion-risk-adult-study',
@@ -1803,7 +1802,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What would a pilot measure?'],
     searchAliases: [],
     shortAnswer:
-      'Not engagement alone. A useful pilot would examine reflection quality, student ownership, correction and independent transfer; actual use, stopping and burden; family, peer and help-seeking displacement; harmful responses and escalation; privacy comprehension; subgroup differences; and whether simpler alternatives work as well. Measures need pre-agreed stop and change thresholds.',
+      'A pilot should measure reflection quality, agency, screen burden, human displacement, safety, privacy understanding and subgroup differences. Engagement alone is not enough. Stop and change thresholds should be agreed first.',
     blocks: [
       openPilotQuestion({
         id: 'pilot-measures-reflection',
@@ -1874,7 +1873,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What would make the team stop or change direction?'],
     searchAliases: [],
     shortAnswer:
-      'A pilot should stop, pause or change if serious safety or privacy failures occur, human escalation fails, role confusion persists, dependency or human displacement rises, important subgroups are harmed, students cannot opt out freely, reflection becomes shallower, or My World adds no meaningful value over simpler alternatives. Thresholds must be agreed before results.',
+      'A pilot should pause after serious safety or privacy failures, failed human escalation or persistent role confusion. Rising dependency or no added value should also prompt change. Thresholds must be set before results.',
     blocks: [
       openPilotQuestion({
         id: 'stop-change-immediate',
@@ -1933,7 +1932,7 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['How will feedback affect the design?'],
     searchAliases: [],
     shortAnswer:
-      'Feedback should change the question set, guardrail ledger, pilot design or product—not become a decorative inbox. The team needs named reviewers, a review cadence and a record of what changed, what did not and why. Individual comments remain signals, not votes or prevalence evidence, and contact details should never be required.',
+      'Feedback should change the question set, guardrails, pilot or product. The team needs named reviewers and a visible record of what changed, what did not and why.',
     blocks: [
       openPilotQuestion({
         id: 'feedback-to-design-process',
