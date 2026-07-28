@@ -1,0 +1,32 @@
+# Local and generated state
+.git/
+.github/
+.claude/
+.context/
+.tanstack/
+.vercel/
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+coverage/
+
+# Planning and design-source archives are not runtime inputs. Public web
+# copies of approved FAQ media remain under public/my-world-faq/.
+advisor-plans/
+docs/
+plans/
+
+# Standalone authoring tools are not part of the Student Space web build.
+bird-builder/
+character-studio/
+
+# Keep island-editor/package.json as a workspace manifest for pnpm install,
+# but omit its standalone application and source assets from this deployment.
+island-editor/assets/
+island-editor/public/
+island-editor/saves/
+island-editor/scripts/
+island-editor/server/
+island-editor/src/
+island-editor/test/
