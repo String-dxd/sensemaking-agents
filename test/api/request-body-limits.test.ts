@@ -20,8 +20,22 @@ describe('FAQ editor request-body limits', () => {
     expect(getEditorBodyPolicy('/api/my-world/faq/editor/publish', 'POST')).toMatchObject({
       maxBytes: 1_048_576,
     })
-    expect(getEditorBodyPolicy('/api/my-world/faq/editor/session', 'GET')).toBeNull()
+    expect(() => getEditorBodyPolicy('/api/my-world/faq/editor/session', 'PUT')).toThrowError(
+      expect.objectContaining({ code: 'METHOD_NOT_ALLOWED', status: 405 }),
+    )
     expect(getEditorBodyPolicy('/api/openai/realtime-mirror', 'POST')).toBeNull()
+  })
+
+  it('rejects non-canonical and unknown editor paths before buffering', () => {
+    for (const pathname of [
+      '/api/my-world/faq/editor/session/',
+      '/api/my-world/faq/editor/SESSION',
+      '/api/my-world/faq/editor/unknown',
+    ]) {
+      expect(() => getEditorBodyPolicy(pathname, 'POST')).toThrowError(
+        expect.objectContaining({ code: 'NON_CANONICAL_PATH', status: 404 }),
+      )
+    }
   })
 
   it('requires JSON and rejects malformed or oversized declared lengths', () => {

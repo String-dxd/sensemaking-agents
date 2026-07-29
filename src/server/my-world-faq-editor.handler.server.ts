@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import {
   assertMyWorldFaqEditorEnabled,
+  assertMyWorldFaqEditorRequestTransport,
   clearMyWorldFaqEditorCookieHeader,
   MyWorldFaqEditorAuthError,
   type MyWorldFaqEditorSessionIdentity,
@@ -13,6 +14,7 @@ import {
 export async function handleMyWorldFaqEditorUnlock(request: Request): Promise<Response> {
   try {
     assertMyWorldFaqEditorEnabled()
+    assertMyWorldFaqEditorRequestTransport(request.url)
   } catch {
     emitFaqEditorSecurityEvent(request, {
       event: 'unlock',

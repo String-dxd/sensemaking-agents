@@ -44,9 +44,9 @@ export default async function handler(
 
   let body: ArrayBuffer | undefined
   if (method !== 'GET' && method !== 'HEAD') {
-    const bodyPolicy = getEditorBodyPolicy(new URL(url).pathname, method)
     let buf: Buffer
     try {
+      const bodyPolicy = getEditorBodyPolicy(new URL(url).pathname, method)
       if (bodyPolicy) {
         validateBodyEnvelope(req.headers, bodyPolicy)
         buf = await readBodyWithinLimit(req, bodyPolicy.maxBytes)
@@ -109,6 +109,10 @@ function sendEnvelopeError(res: ServerResponse, error: BodyEnvelopeError): void 
           ? 'Request body is too large.'
           : error.code === 'UNSUPPORTED_MEDIA'
             ? 'Use application/json.'
+            : error.code === 'NON_CANONICAL_PATH'
+              ? 'Not found.'
+              : error.code === 'METHOD_NOT_ALLOWED'
+                ? 'Method not allowed.'
             : 'Invalid request body length.',
     }),
   )

@@ -83,6 +83,12 @@ export function assertMyWorldFaqEditorEnabled(): void {
   }
 }
 
+export function assertMyWorldFaqEditorRequestTransport(requestUrl: string): void {
+  const url = new URL(requestUrl)
+  if (url.protocol === 'https:' || isPlainHttpLocalDevelopment(url)) return
+  throw new MyWorldFaqEditorAuthError('UNAVAILABLE')
+}
+
 export function validateMyWorldFaqArgon2Hash(hash: string): boolean {
   const sections = hash.split('$')
   if (sections.length < 6 || sections[1] !== 'argon2id' || sections[2] !== 'v=19') return false
@@ -208,7 +214,7 @@ export function myWorldFaqEditorCookieHeader(
   absoluteExpiresAt: Date,
   requestUrl: string,
 ): string {
-  const secure = new URL(requestUrl).protocol === 'https:'
+  const secure = !isPlainHttpLocalDevelopment(new URL(requestUrl))
   const maxAge = Math.max(
     0,
     Math.min(
@@ -229,7 +235,7 @@ export function myWorldFaqEditorCookieHeader(
 }
 
 export function clearMyWorldFaqEditorCookieHeader(requestUrl: string): string {
-  const secure = new URL(requestUrl).protocol === 'https:'
+  const secure = !isPlainHttpLocalDevelopment(new URL(requestUrl))
   return [
     `${cookieName(secure)}=`,
     'Max-Age=0',
@@ -269,6 +275,20 @@ function readMyWorldFaqEditorCookie(request: Request): string | null {
 
 function cookieName(secure: boolean): string {
   return secure ? MY_WORLD_FAQ_EDITOR_COOKIE_PRODUCTION : MY_WORLD_FAQ_EDITOR_COOKIE_DEVELOPMENT
+}
+
+function isPlainHttpLocalDevelopment(url: URL): boolean {
+  const hostname = url.hostname.toLowerCase()
+  const isLoopback =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '[::1]' ||
+    hostname === '::1'
+  const isDeployment =
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL === '1' ||
+    typeof process.env.VERCEL_ENV === 'string'
+  return url.protocol === 'http:' && isLoopback && !isDeployment
 }
 
 function identityFromSession(

@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import { argon2id, hash } from 'argon2'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  assertMyWorldFaqEditorRequestTransport,
   clearMyWorldFaqEditorCookieHeader,
   createMyWorldFaqEditorSessionService,
   credentialFingerprintForMyWorldFaq,
@@ -161,6 +162,26 @@ describe('My World FAQ editor session boundary', () => {
     expect(development).toContain(`${MY_WORLD_FAQ_EDITOR_COOKIE_DEVELOPMENT}=token`)
     expect(development).not.toContain('Secure')
     expect(clearMyWorldFaqEditorCookieHeader('https://faq.example/')).toContain('Max-Age=0')
+
+    expect(() => assertMyWorldFaqEditorRequestTransport('https://faq.example/')).not.toThrow()
+    expect(() =>
+      assertMyWorldFaqEditorRequestTransport('http://faq.example/my-world/faq/edit'),
+    ).toThrowError(expect.objectContaining({ code: 'UNAVAILABLE' }))
+    const remoteHttp = myWorldFaqEditorCookieHeader(
+      'token',
+      expiry,
+      'http://faq.example/my-world/faq/edit',
+    )
+    expect(remoteHttp).toContain(`${MY_WORLD_FAQ_EDITOR_COOKIE_PRODUCTION}=token`)
+    expect(remoteHttp).toContain('Secure')
+
+    vi.stubEnv('NODE_ENV', 'production')
+    expect(() =>
+      assertMyWorldFaqEditorRequestTransport('http://localhost/my-world/faq/edit'),
+    ).toThrowError(expect.objectContaining({ code: 'UNAVAILABLE' }))
+    expect(
+      myWorldFaqEditorCookieHeader('token', expiry, 'http://localhost/my-world/faq/edit'),
+    ).toContain(`${MY_WORLD_FAQ_EDITOR_COOKIE_PRODUCTION}=token`)
   })
 
   it('uses independent audit IDs rather than token-derived identifiers', () => {

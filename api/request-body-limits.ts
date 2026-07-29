@@ -5,21 +5,35 @@ export interface EditorBodyPolicy {
   requireJson: true
 }
 
-export type BodyEnvelopeErrorCode = 'BAD_CONTENT_LENGTH' | 'PAYLOAD_TOO_LARGE' | 'UNSUPPORTED_MEDIA'
+export type BodyEnvelopeErrorCode =
+  | 'BAD_CONTENT_LENGTH'
+  | 'METHOD_NOT_ALLOWED'
+  | 'NON_CANONICAL_PATH'
+  | 'PAYLOAD_TOO_LARGE'
+  | 'UNSUPPORTED_MEDIA'
 
 export class BodyEnvelopeError extends Error {
   readonly code: BodyEnvelopeErrorCode
-  readonly status: 400 | 413 | 415
+  readonly status: 400 | 404 | 405 | 413 | 415
 
   constructor(code: BodyEnvelopeErrorCode) {
     super(code)
     this.name = 'BodyEnvelopeError'
     this.code = code
     this.status =
-      code === 'PAYLOAD_TOO_LARGE' ? 413 : code === 'UNSUPPORTED_MEDIA' ? 415 : 400
+      code === 'NON_CANONICAL_PATH'
+        ? 404
+        : code === 'METHOD_NOT_ALLOWED'
+          ? 405
+          : code === 'PAYLOAD_TOO_LARGE'
+            ? 413
+            : code === 'UNSUPPORTED_MEDIA'
+              ? 415
+              : 400
   }
 }
 
+const EDITOR_API_NAMESPACE = '/api/my-world/faq/editor'
 const EDITOR_POST_POLICIES = new Map<string, EditorBodyPolicy>([
   ['/api/my-world/faq/editor/session', { maxBytes: 4 * 1_024, requireJson: true }],
   ['/api/my-world/faq/editor/logout', { maxBytes: 1_024, requireJson: true }],
@@ -28,8 +42,23 @@ const EDITOR_POST_POLICIES = new Map<string, EditorBodyPolicy>([
 ])
 
 export function getEditorBodyPolicy(pathname: string, method: string): EditorBodyPolicy | null {
-  if (method.toUpperCase() !== 'POST') return null
-  return EDITOR_POST_POLICIES.get(pathname) ?? null
+  const lowerPathname = pathname.toLowerCase()
+  const isEditorApi =
+    lowerPathname === EDITOR_API_NAMESPACE ||
+    lowerPathname.startsWith(`${EDITOR_API_NAMESPACE}/`)
+  if (!isEditorApi) return null
+  if (method.toUpperCase() !== 'POST') {
+    throw new BodyEnvelopeError('METHOD_NOT_ALLOWED')
+  }
+
+  const policy = EDITOR_POST_POLICIES.get(pathname)
+  if (!policy) {
+    // Reject case variants, trailing slashes and unknown paths before reading
+    // their bodies. Otherwise a downstream router or proxy could normalize
+    // them after they bypassed the exact-path limits and firewall rules.
+    throw new BodyEnvelopeError('NON_CANONICAL_PATH')
+  }
+  return policy
 }
 
 export function validateBodyEnvelope(
