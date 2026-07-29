@@ -1,9 +1,38 @@
 ---
 date: 2026-07-28
+updated: 2026-07-29
 topic: my-world-signals-faq
 ---
 
 # My World “Signals → Sensemaking” FAQ
+
+## 2026-07-29 Collaborative Authoring Amendment
+
+The FAQ is no longer treated as content that only engineers update through
+source changes and deployment. The My World team needs to refine sensitive
+answers directly before sharing the page and as evidence changes.
+
+The selected first-version authoring model is intentionally simple:
+
+- `/my-world/faq` remains public, read-only and limited to the last successful
+  save.
+- `/my-world/faq/edit` is a simple editor URL protected by a shared team
+  password.
+- An editor enters their display name, edits existing editorial fields in the
+  context of the real page, and selects **Save & publish**.
+- A successful save publishes the complete page immediately. There is no
+  separate draft, review or approval stage in this version.
+- Every save creates an immutable, attributed revision that can be restored.
+- Structural, evidence-integrity or conflicting changes are blocked before
+  publication. A failed save leaves the public page unchanged and preserves
+  the editor's work.
+
+This amendment supersedes earlier assumptions that maintaining the FAQ
+requires editing the TypeScript registries, rebuilding and redeploying. It
+does not weaken the evidence labels, team-check posture, guardrail states,
+calibrated claims or public read-only boundary defined below.
+
+---
 
 ## Problem Frame
 
@@ -81,6 +110,9 @@ ever diverge.
 - A6. **Kira, the companion:** Appears as a visual guide and is shown inside
   real product flows. Kira does not narrate policy, evidence, safety, or
   institutional claims on the FAQ.
+- A7. **FAQ collaborator:** A PM, designer, engineer or other trusted My World
+  teammate who uses the shared password, identifies themselves for revision
+  history, and updates existing editorial content without needing to edit code.
 
 ---
 
@@ -89,11 +121,11 @@ ever diverge.
 - F1. **Understand My World in about 20 seconds**
   - **Trigger:** A1, A2, or A3 opens the unlisted URL.
   - **Actors:** A1/A2/A3, A4, A5, A6
-  - **Steps:** The reader sees (1) the visible stage label “Working prototype —
-    testing a hypothesis”; (2) the one-sentence thesis that carefully bounded
-    AI may lower the effort of reflection without replacing human support; and
-    (3) a visual Capture → Reflect → Sensemake → Review explanation using real
-    product imagery.
+  - **Steps:** The reader sees (1) the visible stage label “Working prototype”;
+    (2) the one-sentence thesis that carefully bounded AI may lower the effort
+    of reflection without replacing human support; and (3) short recordings of
+    the real desktop product showing Capture, My Identity, History and Path
+    Finder.
   - **Outcome:** The reader can distinguish My World from an open-ended AI
     friend, a therapist, a social network, and a game before encountering the
     contested questions.
@@ -154,6 +186,32 @@ ever diverge.
     resource that can also inform decisions, rather than a one-time defence of
     the prototype.
   - **Covered by:** R8, R9, R12, R14
+
+- F6. **Edit existing content and publish it immediately**
+  - **Trigger:** A7 opens `/my-world/faq/edit` to improve an answer or another
+    piece of editorial copy.
+  - **Actors:** A5, A7
+  - **Steps:** The collaborator enters the shared password and their display
+    name, opens the existing content in the real page context, edits one or
+    more allowed fields, reviews the unsaved result, and selects **Save &
+    publish**.
+  - **Outcome:** After complete validation and conflict checking, the page
+    publishes atomically and the public route serves the new revision without
+    a code change or deployment.
+  - **Failure path:** Authentication, validation, persistence or conflict
+    failures preserve the local edits, explain the failure and leave the
+    public page on its prior revision.
+  - **Covered by:** R19, R20, R21, R22, R23, R24, R25, R26, R27, R28
+
+- F7. **Inspect and restore an earlier version**
+  - **Trigger:** A collaborator notices an unwanted or mistaken published
+    change.
+  - **Actors:** A5, A7
+  - **Steps:** The collaborator opens revision history, inspects who saved each
+    version and when, previews an earlier complete version, and restores it.
+  - **Outcome:** The selected earlier content becomes the latest published
+    revision without deleting or rewriting the historical record.
+  - **Covered by:** R25, R29
 
 ---
 
@@ -321,9 +379,10 @@ families. Final claims require source-level review during content production.
 - R1. The first version is available to anyone with the exact link but is
   intentionally unlisted: it is not linked from the main product navigation,
   promoted as a public launch, or presented for search discovery.
-- R2. The opening visibly states “Working prototype — testing a hypothesis”
-  and notes that leadership is considering whether to proceed to a structured
-  pilot. It must not imply formal MOE endorsement, approval, or deployment.
+- R2. The opening visibly states “Working prototype.” It does not show a
+  “Pilot under consideration” hero panel; pilot readiness and uncertainty are
+  handled within the relevant FAQ and evidence content. The page must not imply
+  formal MOE endorsement, approval or deployment.
 - R3. The primary thesis is constructive but bounded: carefully designed AI may
   lower the effort of capturing and reflecting on experience, while human
   relationships, student agency, and developmental safety remain the governing
@@ -331,15 +390,15 @@ families. Final claims require source-level review during content production.
 
 **Product explanation and imagery**
 
-- R4. Before the FAQ field, a visual explainer communicates Capture → Reflect
-  → Sensemake → Review in about 20 seconds. It shows multimodal capture, Kira's
-  brief prompting role, the timeline/VIPS evidence layer, and student review or
-  forget control without exposing unnecessary internal architecture.
-- R5. The page uses real, current My World screenshots rather than illustrative
-  mock products. It also uses the six user-provided Pigeonhole Live screenshots
-  as a “Signals we heard” source wall. Pigeonhole comments remain visibly
-  contextualised as anonymous event feedback; crops or annotations must not
-  change their meaning or imply representativeness.
+- R4. Before the FAQ field, a visual explainer uses short recordings of the
+  real desktop prototype to show Capture, My Identity, History and Path Finder
+  without exposing unnecessary internal architecture or taking unsafe product
+  actions during capture.
+- R5. The page uses real, current My World desktop recordings with synthetic
+  data rather than mobile screenshots or illustrative mock products. The six
+  supplied Pigeonhole Live screenshots remain source material only and are not
+  displayed. Selected concerns appear as faithful quotations without the
+  Pigeonhole interface and without implying representativeness.
 - R6. Kira may guide attention through illustration, microcopy, or transitions,
   but all substantive claims use “we, the My World team.” Kira never answers
   questions about Kira's own safety, evidence, privacy, or institutional role.
@@ -416,9 +475,64 @@ families. Final claims require source-level review during content production.
 
 - R18. The complete experience works on phone and desktop; preserves readable
   focus, text scaling, reduced-motion preferences, keyboard navigation, and
-  non-colour status cues; and supplies concise alt text or transcriptions for
-  every product and Pigeonhole screenshot. Visual delight must not depend on a
+  non-colour status cues; and supplies concise text equivalents for every
+  product recording and quoted concern. Visual delight must not depend on a
   running 3D scene, autoplay audio, or high-end hardware.
+
+**Direct team authoring**
+
+- R19. The public page remains read-only at `/my-world/faq`. Trusted
+  collaborators use the simple, separately protected URL
+  `/my-world/faq/edit`; knowing the editor URL alone never grants access.
+- R20. The first version uses one rotatable shared team password. The password
+  is never placed in the URL, page source, public bundle, revision record or
+  browser-readable persistent storage. Successful entry creates a secure,
+  expiring editor session; failed attempts are rate-limited and fail closed.
+- R21. All substantive editorial copy is editable: the hero and section
+  introductions, product explanations, audience quotations, FAQ questions,
+  concise and detailed answers, evidence context and limitations, source
+  titles and links, guardrail summaries, calls to contribute, and footer
+  review copy. Saved content persists across refreshes and deployments and is
+  shared by all authorised collaborators.
+- R22. The first version edits existing fields only. Stable IDs, slugs,
+  clusters, ordering, page sections, card and block structure, fixed
+  interaction labels, evidence-label vocabulary and reference relationships
+  remain system-owned. Collaborators cannot add, remove or reorder questions,
+  evidence blocks, guardrails or page sections.
+- R23. The editor presents editable fields in the context of the real page,
+  clearly distinguishes editor mode from the public page, and previews
+  unsaved changes without exposing them to public readers. It shows which
+  fields have changed and preserves unsaved work across recoverable save
+  errors.
+- R24. **Save & publish** is the only publication action in the first version.
+  A successful save validates and publishes the complete page atomically; it
+  does not require a separate draft, review, approval, code change, build or
+  deployment. If any part fails, the prior public revision remains intact.
+- R25. Before editing, a collaborator supplies a display name. Every successful
+  save creates an immutable complete-page revision recording that self-declared
+  name and the save time. The UI must not imply that the shared password
+  cryptographically proves the person's identity.
+- R26. A save is based on the version the collaborator opened. If another
+  collaborator publishes first, the stale save is blocked rather than silently
+  overwriting newer work. The editor explains the conflict and preserves the
+  collaborator's unsaved text for comparison or copying.
+- R27. Publication-time validation preserves the existing content and evidence
+  contract. It blocks missing required copy, broken references, invalid status
+  or evidence-label values, unsafe source links, structurally incompatible
+  content, and prohibited claims that the current publication gate already
+  rejects. Length guidance is visible before save where layout depends on it.
+- R28. While the content store is available, the public route receives only the
+  latest successful published content. During a declared store outage, it may
+  receive only the latest validated previously published public snapshot; it
+  must never fall back to superseded compiled seed copy. Passwords, sessions,
+  editor names, history metadata, conflict details, unsaved work and internal
+  validation output must not enter the public loader or client bundle.
+- R29. Authorised collaborators can inspect complete revision history, preview
+  an earlier revision and restore it. Restore publishes that content as a new
+  revision so the historical record remains append-only.
+- R30. Password entry, editing, save status, validation messages, conflicts,
+  history and restore work with keyboard navigation, visible focus, text
+  scaling and non-colour state cues on phone and desktop.
 
 ---
 
@@ -426,13 +540,13 @@ families. Final claims require source-level review during content production.
 
 - AE1. **Covers R1, R2, R3.** Given an MOE/DXD colleague opens the exact URL,
   when the first screen settles, they see that this is a working prototype
-  testing a hypothesis and that pilot approval is still under discussion; they
-  do not see language implying launch or endorsement.
+  without the removed pilot-stage hero panel; they do not see language implying
+  launch, approval or endorsement.
 - AE2. **Covers R4, R5, R6.** Given a reader knows only that My World “has an AI
-  chatbot,” when they spend about 20 seconds on the explainer, they can say that
-  students capture experiences, Kira briefly prompts and reflects, patterns
-  appear later in a reviewable timeline/VIPS layer, and the student retains
-  review/forget agency.
+  chatbot,” when they inspect the short desktop recordings, they can say that
+  students capture experiences, review evidence in My Identity and History,
+  and explore possible directions through Path Finder. They do not see the
+  supplied Pigeonhole interface presented as product evidence.
 - AE3. **Covers R7, R8, R9.** Given a reader is worried about family
   displacement, when they select “Are we replacing the dinner table?”, the
   first interaction provides a concise answer and the second reveals research,
@@ -467,6 +581,28 @@ families. Final claims require source-level review during content production.
   previous/next/close controls are reachable, closing returns focus to the
   originating question, and every screenshot has an equivalent text
   description.
+- AE11. **Covers R19, R20, R28.** Given a public reader knows both the public
+  and editor URLs, when they open the editor without the shared password, they
+  cannot read editor-only data or modify published content.
+- AE12. **Covers R21, R22, R23, R24, R25.** Given an authorised collaborator
+  changes the hero, a concise answer and a source title, when they select
+  **Save & publish**, all three changes appear together on the public page and
+  one complete revision records the collaborator's entered name and save time.
+- AE13. **Covers R24, R27.** Given an edit contains a broken source URL,
+  invalid evidence label or missing required limitation, when the collaborator
+  saves, publication is rejected, the editor retains the changes and the
+  public page remains on the prior revision.
+- AE14. **Covers R26.** Given two collaborators open the same revision and the
+  first publishes, when the second tries to publish their stale version, the
+  second save is blocked with a conflict and does not overwrite the first.
+- AE15. **Covers R25, R29.** Given a published edit should be undone, when an
+  authorised collaborator previews and restores the prior revision, that
+  content becomes public as a new attributed revision and both earlier
+  revisions remain inspectable.
+- AE16. **Covers R28, R30.** Given a keyboard-only public reader and an
+  authorised mobile editor inspect the page, the reader receives no editor
+  metadata while the editor can unlock, change a field, understand save
+  status and recover from a validation error without relying on colour.
 
 ---
 
@@ -490,9 +626,18 @@ families. Final claims require source-level review during content production.
 - The anonymous feedback interaction delivers valid submissions to a
   team-owned destination, remains anonymous by default, and preserves the
   reader's draft across validation, delivery, or rate-limit failures.
+- A non-engineering collaborator can unlock the editor, update any existing
+  editorial field and publish it without changing source code, running a build
+  or requesting a deployment.
+- Public readers see either the complete previous revision or the complete new
+  revision; they never see partial, invalid, conflicting or unsaved content.
+- Every successful save is attributed by self-declared editor name and remains
+  restorable through an append-only revision history.
+- Losing, failing or rotating the shared password never exposes the password,
+  editor history or unpublished browser state through the public page.
 - Planning can identify page surfaces, content modules, assets, verification
-  work, and test scenarios without inventing product positioning or answer
-  behavior.
+  work, editorial fields, publication boundaries and test scenarios without
+  inventing product positioning, answer behavior or collaboration workflow.
 
 ---
 
@@ -521,6 +666,22 @@ families. Final claims require source-level review during content production.
   added to the unlisted page.
 - The visual concept is not an infinite feed, debate scoreboard, voting system,
   or competitive “concern resolution” game.
+- The first authoring version does not add invitations, individual accounts,
+  organisation SSO, role-based approval, formal review states or per-user
+  publishing permissions.
+- The first authoring version does not add real-time co-editing, presence,
+  comments, suggestions, assignments or automatic merging. Conflicting saves
+  are blocked instead.
+- Editors cannot add, remove or reorder questions, evidence blocks, guardrails
+  or page sections. It is not a general page builder.
+- Editorial fields remain structured plain text and validated source links.
+  Raw HTML, free-form page markup and a general rich-text authoring system are
+  outside the first version.
+- The shared password grants access but does not prove an editor's identity.
+  Revision attribution is explicitly based on the name the collaborator
+  enters.
+- The editor does not generate or rewrite answers with AI. Human teammates own
+  the wording and the evidence classification.
 
 ---
 
@@ -530,8 +691,9 @@ families. Final claims require source-level review during content production.
   intentional parent lens.
 - **Primary outcome:** “I understand My World and trust the team to test it
   carefully”; the secondary outcome is contribution of questions or evidence.
-- **Stage language:** “Working prototype — testing a hypothesis.” Leadership is
-  considering, not yet committed to, a pilot.
+- **Stage language:** “Working prototype.” The removed “Pilot under
+  consideration” panel does not return above the fold; pilot readiness remains
+  part of the relevant evidence and FAQ content.
 - **Access:** Anyone with the exact link can open it, but it remains unlisted
   and unpromoted.
 - **Voice:** The My World team owns answers. Kira is a visual/product guide.
@@ -546,14 +708,26 @@ families. Final claims require source-level review during content production.
   delivered through a real backend in the first version.
 - **Scope:** Populate the comprehensive question set now rather than reducing
   to a minimal FAQ.
+- **Authoring access:** Use the memorable `/my-world/faq/edit` route with a
+  shared, rotatable password rather than invitations, open sign-in or URL
+  secrecy alone.
+- **Editing scope:** Make all substantive page copy editable in context while
+  keeping structure, stable references and fixed control labels system-owned.
+- **Publication:** Save and publish are one immediate, atomic action. There is
+  no separate draft, review or approval state in the first version.
+- **Safety net:** Every save is a complete immutable revision; conflicts and
+  invalid content are blocked, and any earlier revision can be restored
+  without erasing history.
+- **Collaboration level:** Optimistic conflict protection is sufficient for the
+  first version. Real-time simultaneous editing is deliberately deferred.
 
 ---
 
 ## Dependencies / Assumptions
 
-- The six Pigeonhole Live screenshots supplied in the conversation are approved
-  for use on an unlisted internal-facing page. Asset provenance and any required
-  internal approval remain a team check.
+- The six Pigeonhole Live screenshots supplied in the conversation remain
+  private source material. The public page uses selected faithful quotations
+  only and does not render the Pigeonhole interface.
 - Current product screenshots will be captured from the live local app during
   implementation; older audit screenshots may guide composition but must not
   silently represent stale behavior as current.
@@ -572,6 +746,17 @@ families. Final claims require source-level review during content production.
   infrastructure where practical, define who can review submissions, and
   specify retention, failure handling, and abuse protection without requiring
   reader identity.
+- The team will provide and rotate a strong shared editor password through the
+  deployment's secret-management mechanism. The credential is not committed to
+  the repository.
+- Self-declared editor names are sufficient attribution for this internal first
+  version. The team accepts that they are not identity verification.
+- The current source-controlled FAQ content is the initial published revision.
+  Moving to direct authoring must preserve the existing public page until the
+  durable content store is ready and initialised.
+- Direct editing requires durable shared persistence that survives serverless
+  instances and deployments. Planning must use the repository's established
+  deployment capabilities rather than runtime file writes.
 
 ---
 
@@ -598,6 +783,25 @@ families. Final claims require source-level review during content production.
 - [Affects R17][Technical] Which team-owned destination and submission contract
   should v1 use, and how should it provide rate limiting, retention, reviewer
   access, and truthful delivery status without identity tracking?
+- [Affects R19, R20, R28][Security] How should the shared password be verified,
+  rate-limited, rotated and exchanged for an expiring secure editor session
+  without exposing secrets to the public client?
+- [Affects R21, R22, R27][Technical] How should fragmented component copy and
+  the current TypeScript registries become one versioned runtime-validated
+  content document while preserving stable IDs and the existing publication
+  invariants?
+- [Affects R24, R25, R26, R29][Technical] Which durable revision and
+  concurrency model best guarantees atomic publication, append-only history,
+  stale-save rejection and safe restore in the existing deployment?
+- [Affects R23, R30][Technical] Which in-context field, save-status,
+  validation, conflict and history patterns should the editor reuse so it
+  remains accessible without turning the public page into a page builder?
+- [Affects R21, R24, R28][Operational] How should the current compiled content
+  initialise the first published revision, and what fallback keeps the public
+  page available if the content store is temporarily unavailable?
+- [Affects R24, R26, R29][Testing] How should database-backed publication,
+  concurrency and restore behavior run against disposable persistence in CI
+  when the default test lane does not provision a database?
 
 ---
 
