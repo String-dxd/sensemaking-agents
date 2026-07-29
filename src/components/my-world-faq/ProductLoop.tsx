@@ -3,69 +3,29 @@ import { useRef, useState } from 'react'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from '~/components/ui/tabs'
+import { DEFAULT_MY_WORLD_FAQ_CONTENT, type MyWorldFaqContent } from '~/data/my-world-faq'
 
-const PRODUCT_CLIPS = [
-  {
-    id: 'capture',
-    title: 'Capture',
-    heading: 'Put a moment into words.',
-    body: 'Text, voice, images and feelings offer different ways to begin.',
-    boundary: 'This demo stops before Send. Nothing is submitted.',
-    videoPath: '/my-world-faq/product/capture-desktop.webm',
-    posterPath: '/my-world-faq/product/capture-desktop-poster.png',
-    transcript:
-      'The island opens Capture. Text mode is selected and a neutral demo reflection is typed. Send is never pressed.',
-  },
-  {
-    id: 'identity',
-    title: 'My Identity',
-    heading: 'Check the patterns taking shape.',
-    body: 'Themes stay connected to the moments that produced them.',
-    boundary: 'A pattern is a prompt to inspect, not a fixed label.',
-    videoPath: '/my-world-faq/product/identity-desktop.webm',
-    posterPath: '/my-world-faq/product/identity-desktop-poster.png',
-    transcript:
-      'My Identity moves from Values to Interests, then filters the synthetic timeline to Investigative evidence.',
-  },
-  {
-    id: 'history',
-    title: 'History',
-    heading: 'Return to the original moment.',
-    body: 'Students can revisit what they shared and how it was interpreted.',
-    boundary: 'The interpretation remains traceable to student evidence.',
-    videoPath: '/my-world-faq/product/history-desktop.webm',
-    posterPath: '/my-world-faq/product/history-desktop-poster.png',
-    transcript:
-      'History selects Saturday 25 July and opens the synthetic ECG Career Fair reflection with the original moment and Mirror notes.',
-  },
-  {
-    id: 'path-finder',
-    title: 'Path Finder',
-    heading: 'Explore a possible next direction.',
-    body: 'Pathways are grounded in patterns across earlier reflections.',
-    boundary: 'Evidence opens a possibility, not a prescription.',
-    videoPath: '/my-world-faq/product/path-finder-desktop.webm',
-    posterPath: '/my-world-faq/product/path-finder-desktop-poster.png',
-    transcript:
-      'Path Finder expands the first evidence set, opens its source CPR reflection, then returns to the pathway.',
-  },
-] as const
-
-type ProductClipId = (typeof PRODUCT_CLIPS)[number]['id']
 type PlaybackState = 'idle' | 'playing' | 'paused' | 'ended'
 
-export function ProductLoop() {
-  const [activeId, setActiveId] = useState<ProductClipId>(PRODUCT_CLIPS[0].id)
+export interface ProductLoopProps {
+  content?: MyWorldFaqContent
+}
+
+export function ProductLoop({ content = DEFAULT_MY_WORLD_FAQ_CONTENT }: ProductLoopProps = {}) {
+  const [activeId, setActiveId] = useState(content.productSteps[0]?.id ?? '')
   const [playback, setPlayback] = useState<PlaybackState>('idle')
   const videoRef = useRef<HTMLVideoElement>(null)
-  const activeClip = PRODUCT_CLIPS.find((clip) => clip.id === activeId) ?? PRODUCT_CLIPS[0]
+  const activeClip =
+    content.productSteps.find((clip) => clip.id === activeId) ?? content.productSteps[0]
+  const activeAsset = content.assets.find((asset) => asset.id === activeClip?.assetId)
+  if (!activeClip || !activeAsset) return null
   const descriptionId = `product-clip-description-${activeClip.id}`
 
   const selectClip = (value: string | null) => {
     if (!value || value === activeId) return
     videoRef.current?.pause()
     setPlayback('idle')
-    setActiveId(value as ProductClipId)
+    setActiveId(value)
   }
 
   const playClip = async (restart = false) => {
@@ -125,22 +85,24 @@ export function ProductLoop() {
     >
       <div className="mx-auto w-full max-w-7xl px-5 py-14 sm:px-8 sm:py-18 lg:px-10 lg:py-20">
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold text-(--color-faq-stage-ink)">Product at a glance</p>
+          <p className="text-xs font-semibold text-(--color-faq-stage-ink)">
+            {content.page.product.eyebrow}
+          </p>
           <h2
             id="product-loop-title"
             className="mt-2 text-[clamp(1.9rem,4vw,3.2rem)] font-semibold leading-tight tracking-[-0.045em] text-balance"
           >
-            See how a reflection moves.
+            {content.page.product.heading}
           </h2>
           <p className="mt-3 max-w-[58ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
-            Four short journeys through the current desktop prototype.
+            {content.page.product.introduction}
           </p>
         </div>
 
         <Tabs value={activeId} onValueChange={selectClip} className="mt-8">
           <div className="-mx-5 overflow-x-auto px-5 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
             <TabsList aria-label="Product journeys">
-              {PRODUCT_CLIPS.map((clip) => (
+              {content.productSteps.map((clip) => (
                 <TabsTrigger key={clip.id} value={clip.id}>
                   {clip.title}
                 </TabsTrigger>
@@ -156,12 +118,12 @@ export function ProductLoop() {
                   <video
                     key={activeClip.id}
                     ref={videoRef}
-                    src={activeClip.videoPath}
-                    poster={activeClip.posterPath}
+                    src={activeAsset.videoPath}
+                    poster={activeAsset.publicPath}
                     preload="metadata"
                     muted
                     playsInline
-                    aria-label={`${activeClip.title} product demonstration`}
+                    aria-label={activeAsset.alt}
                     aria-describedby={descriptionId}
                     data-testid="faq-product-video"
                     className="size-full object-contain"
@@ -178,7 +140,7 @@ export function ProductLoop() {
                   id={descriptionId}
                   className="mt-3 max-w-[80ch] text-xs leading-relaxed text-(--color-faq-ink-faint)"
                 >
-                  {activeClip.transcript}
+                  {activeAsset.transcript}
                 </figcaption>
               </figure>
 
@@ -207,9 +169,7 @@ export function ProductLoop() {
           </TabsContent>
         </Tabs>
 
-        <p className="mt-6 text-xs text-(--color-faq-ink-faint)">
-          Silent clips · synthetic demo data · captured 29 July 2026
-        </p>
+        <p className="mt-6 text-xs text-(--color-faq-ink-faint)">{content.page.product.footnote}</p>
       </div>
     </section>
   )

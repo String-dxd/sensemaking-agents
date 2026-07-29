@@ -14,26 +14,15 @@ import {
 } from '~/components/ui/dialog'
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import {
-  FAQ_CONCERN_CLUSTERS,
-  FAQ_PRODUCT_PROVENANCE,
-  FAQ_QUESTIONS,
-  FAQ_SOURCES,
-  type FaqEvidenceBlock,
-  type FaqProductProvenance,
-  type FaqQuestion,
-  type FaqSource,
+  DEFAULT_MY_WORLD_FAQ_CONTENT,
+  type MyWorldFaqContent,
+  type MyWorldFaqEvidenceBlock,
+  type MyWorldFaqQuestion,
 } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
 
-const SOURCE_BY_ID: ReadonlyMap<string, FaqSource> = new Map(
-  FAQ_SOURCES.map((source) => [source.id, source] as const),
-)
-const PROVENANCE_BY_ID: ReadonlyMap<string, FaqProductProvenance> = new Map(
-  FAQ_PRODUCT_PROVENANCE.map((item) => [item.id, item] as const),
-)
-
-function displayQuestion(question: FaqQuestion) {
-  return question.committedQuestions[0] ?? question.title
+function displayQuestion(question: MyWorldFaqQuestion) {
+  return question.displayedQuestion
 }
 
 const CARD_TONES = [
@@ -75,8 +64,12 @@ const CARD_SHAPES = [
   'rounded-[2.75rem_2.75rem_1rem_2.75rem]',
 ] as const
 
-export function QuestionField() {
-  const firstCluster = FAQ_CONCERN_CLUSTERS[0]
+export interface QuestionFieldProps {
+  content?: MyWorldFaqContent
+}
+
+export function QuestionField({ content = DEFAULT_MY_WORLD_FAQ_CONTENT }: QuestionFieldProps = {}) {
+  const firstCluster = content.concernClusters[0]
   if (!firstCluster) return null
 
   return (
@@ -87,23 +80,24 @@ export function QuestionField() {
     >
       <div className="mx-auto w-full max-w-6xl px-5 py-14 sm:px-8 sm:py-18 lg:px-10 lg:py-20">
         <div className="max-w-2xl">
-          <p className="text-xs font-semibold text-(--color-faq-stage-ink)">FAQ</p>
+          <p className="text-xs font-semibold text-(--color-faq-stage-ink)">
+            {content.page.faq.eyebrow}
+          </p>
           <h2
             id="question-field-title"
             className="mt-2 text-[clamp(1.9rem,4vw,3.2rem)] font-semibold leading-tight tracking-[-0.045em] text-balance"
           >
-            Questions we are working through
+            {content.page.faq.heading}
           </h2>
           <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
-            Scan the questions. Turn a card over for our short answer, or inspect the evidence
-            behind it.
+            {content.page.faq.introduction}
           </p>
         </div>
 
         <Tabs defaultValue={firstCluster.id} className="mt-8">
           <div className="-mx-5 overflow-x-auto px-5 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
             <TabsList aria-label="FAQ topics">
-              {FAQ_CONCERN_CLUSTERS.map((cluster) => (
+              {content.concernClusters.map((cluster) => (
                 <TabsTrigger key={cluster.id} value={cluster.id}>
                   {cluster.label}
                 </TabsTrigger>
@@ -112,8 +106,10 @@ export function QuestionField() {
             </TabsList>
           </div>
 
-          {FAQ_CONCERN_CLUSTERS.map((cluster) => {
-            const questions = FAQ_QUESTIONS.filter((question) => question.clusterId === cluster.id)
+          {content.concernClusters.map((cluster) => {
+            const questions = content.questions.filter(
+              (question) => question.clusterId === cluster.id,
+            )
             return (
               <TabsContent
                 key={cluster.id}
@@ -133,7 +129,12 @@ export function QuestionField() {
 
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                   {questions.map((question, index) => (
-                    <FaqFlipCard key={question.id} question={question} index={index} />
+                    <FaqFlipCard
+                      key={question.id}
+                      question={question}
+                      index={index}
+                      content={content}
+                    />
                   ))}
                 </div>
               </TabsContent>
@@ -145,7 +146,15 @@ export function QuestionField() {
   )
 }
 
-function FaqFlipCard({ question, index }: { question: FaqQuestion; index: number }) {
+function FaqFlipCard({
+  question,
+  index,
+  content,
+}: {
+  question: MyWorldFaqQuestion
+  index: number
+  content: MyWorldFaqContent
+}) {
   const [flipped, setFlipped] = useState(false)
   const frontButtonRef = useRef<HTMLButtonElement>(null)
   const answerRef = useRef<HTMLDivElement>(null)
@@ -264,7 +273,7 @@ function FaqFlipCard({ question, index }: { question: FaqQuestion; index: number
             {question.shortAnswer}
           </p>
           <div className="mt-auto flex items-center gap-2 pt-5">
-            <FaqEvidenceDialog question={question} />
+            <FaqEvidenceDialog question={question} content={content} />
             <Button
               type="button"
               variant="ghost"
@@ -283,7 +292,13 @@ function FaqFlipCard({ question, index }: { question: FaqQuestion; index: number
   )
 }
 
-function FaqEvidenceDialog({ question }: { question: FaqQuestion }) {
+function FaqEvidenceDialog({
+  question,
+  content,
+}: {
+  question: MyWorldFaqQuestion
+  content: MyWorldFaqContent
+}) {
   return (
     <Dialog>
       <DialogTrigger
@@ -320,7 +335,7 @@ function FaqEvidenceDialog({ question }: { question: FaqQuestion }) {
         </DialogHeader>
         <div className="mt-3 space-y-7">
           {question.blocks.map((block) => (
-            <EvidenceBlock key={block.id} block={block} />
+            <EvidenceBlock key={block.id} block={block} content={content} />
           ))}
         </div>
       </DialogContent>
@@ -328,13 +343,19 @@ function FaqEvidenceDialog({ question }: { question: FaqQuestion }) {
   )
 }
 
-function EvidenceBlock({ block }: { block: FaqEvidenceBlock }) {
+function EvidenceBlock({
+  block,
+  content,
+}: {
+  block: MyWorldFaqEvidenceBlock
+  content: MyWorldFaqContent
+}) {
   const sources = block.sourceIds.flatMap((id) => {
-    const source = SOURCE_BY_ID.get(id)
+    const source = content.sources.find((item) => item.id === id)
     return source ? [source] : []
   })
   const provenance = block.provenanceIds.flatMap((id) => {
-    const item = PROVENANCE_BY_ID.get(id)
+    const item = content.productProvenance.find((candidate) => candidate.id === id)
     return item ? [item] : []
   })
 

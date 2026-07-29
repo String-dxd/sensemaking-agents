@@ -1,32 +1,12 @@
-import { FAQ_GUARDRAILS, type FaqGuardrailState } from '~/data/my-world-faq'
+import { DEFAULT_MY_WORLD_FAQ_CONTENT, type MyWorldFaqContent } from '~/data/my-world-faq'
 
-const PREVIEW = [
-  {
-    state: 'built-today',
-    label: 'Built today',
-    description: 'Repository-verified behaviour, not proof of safety or efficacy.',
-    guardrailId: 'review-log-forget-controls',
-  },
-  {
-    state: 'required-before-pilot',
-    label: 'Required before any pilot',
-    description: 'A deployment and governance condition, not future reassurance.',
-    guardrailId: 'distress-human-escalation',
-  },
-  {
-    state: 'still-researching',
-    label: 'Still researching',
-    description: 'An outcome the team does not know and evidence must be allowed to challenge.',
-    guardrailId: 'family-peer-displacement',
-  },
-] as const satisfies ReadonlyArray<{
-  state: FaqGuardrailState
-  label: string
-  description: string
-  guardrailId: string
-}>
+export interface GuardrailLedgerPreviewProps {
+  content?: MyWorldFaqContent
+}
 
-export function GuardrailLedgerPreview() {
+export function GuardrailLedgerPreview({
+  content = DEFAULT_MY_WORLD_FAQ_CONTENT,
+}: GuardrailLedgerPreviewProps = {}) {
   return (
     <section
       aria-labelledby="guardrail-preview-title"
@@ -36,22 +16,24 @@ export function GuardrailLedgerPreview() {
       <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
         <div className="grid gap-7 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
-            <p className="text-xs font-semibold text-(--color-faq-coral-ink)">Guardrail ledger</p>
+            <p className="text-xs font-semibold text-(--color-faq-coral-ink)">
+              {content.page.ledger.eyebrow}
+            </p>
             <h2
               id="guardrail-preview-title"
               className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em]"
             >
-              Keep the states separate.
+              {content.page.ledger.heading}
             </h2>
           </div>
           <p className="max-w-[50ch] text-sm leading-relaxed text-(--color-faq-ink-soft) lg:col-span-5 lg:justify-self-end">
-            What exists now, what a pilot would require, and what still needs evidence.
+            {content.page.ledger.introduction}
           </p>
         </div>
 
         <div className="mt-12 border-y border-(--color-faq-ink)">
-          {PREVIEW.map((preview, index) => {
-            const guardrail = FAQ_GUARDRAILS.find((item) => item.id === preview.guardrailId)
+          {content.ledgerPreview.map((preview, index) => {
+            const guardrail = content.guardrails.find((item) => item.id === preview.guardrailId)
             if (!guardrail) return null
             return (
               <article

@@ -1,5 +1,6 @@
 import { Badge } from '~/components/ui/badge'
 import { buttonVariants } from '~/components/ui/button'
+import { DEFAULT_MY_WORLD_FAQ_CONTENT, type MyWorldFaqContent } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
 import { GuardrailLedgerPreview } from './GuardrailLedgerPreview'
 import { ProductLoop } from './ProductLoop'
@@ -8,9 +9,13 @@ import { SignalSourceStrip } from './SignalSourceStrip'
 
 export interface MyWorldFaqPageProps {
   feedbackEnabled: boolean
+  content?: MyWorldFaqContent
 }
 
-export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
+export function MyWorldFaqPage({
+  feedbackEnabled,
+  content = DEFAULT_MY_WORLD_FAQ_CONTENT,
+}: MyWorldFaqPageProps) {
   return (
     <div
       className="min-h-svh bg-(--color-faq-paper) text-(--color-faq-ink)"
@@ -78,15 +83,16 @@ export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
                 variant="outline"
                 className="faq-eyebrow border-(--color-faq-ink) bg-(--color-faq-yellow) text-(--color-faq-ink)"
               >
-                Working prototype
+                {content.page.hero.eyebrow}
               </Badge>
               <h1 className="mt-7 max-w-4xl text-[clamp(3.1rem,8vw,7rem)] font-semibold leading-[0.91] tracking-[-0.07em] text-balance">
-                Capture a moment.
-                <span className="block text-(--color-faq-coral-ink)">Make sense of it.</span>
+                {content.page.hero.heading}
+                <span className="block text-(--color-faq-coral-ink)">
+                  {content.page.hero.headingAccent}
+                </span>
               </h1>
               <p className="mt-8 max-w-[58ch] text-[clamp(1.05rem,2vw,1.3rem)] leading-relaxed text-(--color-faq-ink-soft) text-pretty">
-                My World helps students reflect on everyday experiences. We are exploring it as one
-                touchpoint alongside family, friends, teachers and other support.
+                {content.page.hero.introduction}
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
                 <a
@@ -96,7 +102,7 @@ export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
                     'faq-button-primary h-12 bg-(--color-faq-ink) px-6 text-(--color-faq-paper) hover:bg-(--color-faq-coral-ink)',
                   )}
                 >
-                  See how it works
+                  {content.page.hero.productCta}
                 </a>
                 <a
                   href="#faq"
@@ -105,17 +111,17 @@ export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
                     'faq-button-secondary h-12 border-(--color-faq-ink) bg-transparent px-6 hover:bg-(--color-faq-yellow)',
                   )}
                 >
-                  Browse the questions
+                  {content.page.hero.faqCta}
                 </a>
               </div>
             </div>
           </div>
         </section>
 
-        <ProductLoop />
-        <SignalSourceStrip />
-        <GuardrailLedgerPreview />
-        <QuestionField />
+        <ProductLoop content={content} />
+        <SignalSourceStrip content={content} />
+        <GuardrailLedgerPreview content={content} />
+        <QuestionField content={content} />
         <section
           aria-labelledby="faq-more-questions-title"
           className="border-b border-(--color-faq-ink) bg-(--color-faq-coral) text-(--color-faq-ink)"
@@ -123,18 +129,17 @@ export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
           <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-14 sm:px-8 sm:py-16 lg:grid-cols-12 lg:items-end lg:px-12">
             <div className="lg:col-span-8">
               <p className="text-xs font-semibold uppercase tracking-[0.12em]">
-                Keep the questions coming
+                {content.page.contribution.eyebrow}
               </p>
               <h2
                 id="faq-more-questions-title"
                 className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em]"
               >
-                Have another question?
+                {content.page.contribution.heading}
               </h2>
             </div>
             <p className="max-w-[48ch] text-base leading-relaxed lg:col-span-4">
-              Send it to the My World team through the same channel that brought you here. Recurring
-              concerns will shape this page and the pilot decision.
+              {content.page.contribution.body}
             </p>
           </div>
         </section>
@@ -144,10 +149,10 @@ export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-5 py-9 sm:flex-row sm:items-end sm:justify-between sm:px-8 lg:px-12">
           <div className="flex items-center gap-3">
             <span aria-hidden="true" className="size-4 rounded-full bg-(--color-faq-coral)" />
-            <span className="text-sm font-semibold">My World working prototype</span>
+            <span className="text-sm font-semibold">{content.page.footer.brand}</span>
           </div>
           <span className="max-w-xl text-xs leading-relaxed text-(--color-faq-paper-soft) sm:text-right">
-            Anyone with this link can open or forward it. Last reviewed 29 July 2026.
+            {content.page.footer.sharing}
           </span>
         </div>
       </footer>

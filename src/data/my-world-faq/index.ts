@@ -1,4 +1,38 @@
 export { FAQ_ASSETS } from './assets'
+export {
+  canonicalizeMyWorldFaqDocument,
+  composeMyWorldFaqDocument,
+  DEFAULT_MY_WORLD_FAQ_CONTENT,
+  digestMyWorldFaqDocument,
+  normalizeMyWorldFaqDocument,
+} from './compose-document'
+export {
+  FAQ_EDITABLE_FIELDS,
+  FAQ_EDITABLE_PATHS,
+  FAQ_EDITORIAL_FIELD_LIMITS,
+  FAQ_LEDGER_PREVIEW_MANIFEST,
+  FAQ_LOCKED_STRUCTURE,
+  FAQ_PRODUCT_STEP_MANIFEST,
+  FAQ_SIGNAL_QUOTE_MANIFEST,
+  type FaqEditorialFieldCategory,
+  type FaqEditorialFieldDefinition,
+  MY_WORLD_FAQ_SCHEMA_VERSION,
+  MY_WORLD_FAQ_STRUCTURE_VERSION,
+} from './content-manifest'
+export {
+  MY_WORLD_FAQ_DOCUMENT_SCHEMA,
+  type MyWorldFaqContent,
+  type MyWorldFaqEditorialDocument,
+  type MyWorldFaqEvidenceBlock,
+  type MyWorldFaqProductProvenance,
+  type MyWorldFaqQuestion,
+  type MyWorldFaqSource,
+  type MyWorldFaqValidationIssue,
+  type MyWorldFaqValidationResult,
+  type MyWorldFaqValidationWarning,
+  validateMyWorldFaqDocument,
+} from './content-schema'
+export { DEFAULT_MY_WORLD_FAQ_DOCUMENT } from './default-document'
 export { FAQ_GUARDRAILS } from './guardrails'
 export {
   FAQ_COMMITTED_QUESTION_TAXONOMY,
@@ -28,26 +62,27 @@ export {
   type IsoDate,
 } from './types'
 
-import { FAQ_QUESTIONS } from './questions'
-import type { FaqQuestion } from './types'
+import { DEFAULT_MY_WORLD_FAQ_CONTENT } from './compose-document'
+import type { MyWorldFaqContent, MyWorldFaqQuestion } from './content-schema'
 
 function normalizeQuestionKey(value: string): string {
   return value.trim().toLocaleLowerCase('en')
 }
 
-export const FAQ_QUESTION_BY_ID = new Map<string, FaqQuestion>(
-  FAQ_QUESTIONS.map((question) => [question.id, question] as const),
+export const FAQ_QUESTION_BY_ID = new Map<string, MyWorldFaqQuestion>(
+  DEFAULT_MY_WORLD_FAQ_CONTENT.questions.map((question) => [question.id, question] as const),
 )
 
-export const FAQ_QUESTION_BY_SLUG = new Map<string, FaqQuestion>(
-  FAQ_QUESTIONS.map((question) => [question.slug, question] as const),
+export const FAQ_QUESTION_BY_SLUG = new Map<string, MyWorldFaqQuestion>(
+  DEFAULT_MY_WORLD_FAQ_CONTENT.questions.map((question) => [question.slug, question] as const),
 )
 
-const FAQ_QUESTION_BY_LANGUAGE = new Map<string, FaqQuestion>()
+const FAQ_QUESTION_BY_LANGUAGE = new Map<string, MyWorldFaqQuestion>()
 
-for (const question of FAQ_QUESTIONS) {
+for (const question of DEFAULT_MY_WORLD_FAQ_CONTENT.questions) {
   for (const phrase of [
     question.title,
+    question.displayedQuestion,
     ...question.committedQuestions,
     ...question.searchAliases,
   ]) {
@@ -55,8 +90,24 @@ for (const question of FAQ_QUESTIONS) {
   }
 }
 
-export function resolveFaqQuestion(value: string): FaqQuestion | undefined {
+export function resolveFaqQuestion(
+  value: string,
+  content: MyWorldFaqContent = DEFAULT_MY_WORLD_FAQ_CONTENT,
+): MyWorldFaqQuestion | undefined {
   const normalized = normalizeQuestionKey(value)
+  if (content !== DEFAULT_MY_WORLD_FAQ_CONTENT) {
+    return content.questions.find(
+      (question) =>
+        question.id === normalized ||
+        question.slug === normalized ||
+        [
+          question.title,
+          question.displayedQuestion,
+          ...question.committedQuestions,
+          ...question.searchAliases,
+        ].some((phrase) => normalizeQuestionKey(phrase) === normalized),
+    )
+  }
   return (
     FAQ_QUESTION_BY_ID.get(normalized) ??
     FAQ_QUESTION_BY_SLUG.get(normalized) ??
