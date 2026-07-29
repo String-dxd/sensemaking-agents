@@ -33,6 +33,24 @@ export {
   validateMyWorldFaqDocument,
 } from './content-schema'
 export { DEFAULT_MY_WORLD_FAQ_DOCUMENT } from './default-document'
+export {
+  compareMyWorldFaqEditorialVersions,
+  type MyWorldFaqEditorialComparisonStatus,
+  type MyWorldFaqEditorialFieldComparison,
+  type MyWorldFaqEditorialIntentResult,
+  type MyWorldFaqEditorialMutationFailureReason,
+  type MyWorldFaqEditorialMutationIssue,
+  type MyWorldFaqEditorialMutationIssueCode,
+  type MyWorldFaqEditorialMutationResult,
+  type PrepareMyWorldFaqEditorialIntentInput,
+  type PrepareMyWorldFaqEditorialMutationInput,
+  prepareMyWorldFaqEditorialIntent,
+  prepareMyWorldFaqEditorialMutation,
+  readMyWorldFaqManifestPath,
+  type StampMyWorldFaqEditorialIntentInput,
+  setMyWorldFaqManifestPath,
+  stampMyWorldFaqEditorialIntent,
+} from './editorial-mutations'
 export { FAQ_GUARDRAILS } from './guardrails'
 export {
   FAQ_COMMITTED_QUESTION_TAXONOMY,

@@ -7,6 +7,8 @@ import {
   MY_WORLD_FAQ_SCHEMA_VERSION,
   MY_WORLD_FAQ_STRUCTURE_VERSION,
   type MyWorldFaqEditorialDocument,
+  prepareMyWorldFaqEditorialIntent,
+  stampMyWorldFaqEditorialIntent,
   validateMyWorldFaqDocument,
 } from '~/data/my-world-faq'
 import { type AppDatabase, type AppTransaction, getMyWorldFaqSystemDatabase } from '~/db/client'
@@ -71,7 +73,7 @@ export interface PublishMyWorldFaqRevisionInput {
 export interface PublishMyWorldFaqRevisionResult {
   outcome: 'committed' | 'committed-but-superseded'
   committed: MyWorldFaqRevisionSnapshot
-  liveHead: MyWorldFaqHeadRef
+  live: MyWorldFaqRevisionSnapshot
 }
 
 export interface MyWorldFaqHistoryPage {
@@ -145,6 +147,20 @@ interface RepositoryHooks {
   afterRevisionInsert?: () => void | Promise<void>
 }
 
+type PreparedPublication =
+  | {
+      operation: 'publish'
+      requestFingerprint: string
+      intentDocument: MyWorldFaqEditorialDocument
+      dirtyPaths: string[]
+      rejection?: 'INVALID_DOCUMENT'
+    }
+  | {
+      operation: 'restore'
+      requestFingerprint: string
+      document: MyWorldFaqEditorialDocument
+    }
+
 export function createMyWorldFaqRepository(database: AppDatabase, hooks: RepositoryHooks = {}) {
   async function loadPublicSnapshot(): Promise<MyWorldFaqPublicSnapshot> {
     try {
@@ -196,30 +212,16 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
   async function publishRevision(
     input: PublishMyWorldFaqRevisionInput,
   ): Promise<PublishMyWorldFaqRevisionResult> {
-    const candidate = normalizeCandidate(input.document)
     validatePublishInput(input)
-    const canonical = canonicalizeMyWorldFaqDocument(candidate)
-    const candidateDigest = await digestMyWorldFaqDocument(candidate)
-    const operation = input.restoredFromRevisionId ? 'restore' : 'publish'
-    const requestFingerprint = sha256(
-      JSON.stringify([
-        1,
-        operation,
-        MY_WORLD_FAQ_PAGE_KEY,
-        input.expectedBase.revisionId,
-        input.expectedBase.version,
-        input.expectedBase.digest,
-        candidateDigest,
-        input.restoredFromRevisionId ?? null,
-        input.savedByName,
-      ]),
-    )
+    const submitted = normalizeCandidate(input.document)
 
     try {
+      const prepared = await preparePublication(database, input, submitted)
+
       return await database.transaction(async (tx) => {
         const beforeLock = await loadRevisionByAttempt(tx, input.attemptId)
         if (beforeLock) {
-          return resolveCommittedAttempt(tx, beforeLock, requestFingerprint)
+          return resolveCommittedAttempt(tx, beforeLock, prepared.requestFingerprint)
         }
 
         const lockedHead = await lockCurrentHead(tx)
@@ -227,21 +229,42 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
 
         const afterLock = await loadRevisionByAttempt(tx, input.attemptId)
         if (afterLock) {
-          return resolveCommittedAttempt(tx, afterLock, requestFingerprint)
+          return resolveCommittedAttempt(tx, afterLock, prepared.requestFingerprint)
         }
 
         if (!sameHead(lockedHead, input.expectedBase)) {
           throw new MyWorldFaqRepositoryError('STALE_HEAD')
         }
-
-        if (input.restoredFromRevisionId) {
-          const restoreSource = await loadRevisionRow(tx, input.restoredFromRevisionId)
-          if (!restoreSource) throw new MyWorldFaqRepositoryError('REVISION_NOT_FOUND')
-          if (restoreSource.digest !== candidateDigest) {
-            throw new MyWorldFaqRepositoryError('RESTORE_MISMATCH')
-          }
+        if (prepared.operation === 'publish' && prepared.rejection) {
+          throw new MyWorldFaqRepositoryError(prepared.rejection)
         }
 
+        let candidate: MyWorldFaqEditorialDocument
+        if (prepared.operation === 'restore') {
+          // Restores are exact snapshots. In particular, their accountable
+          // review dates belong to the selected revision and must not be
+          // replaced by the date of the restore operation.
+          candidate = prepared.document
+        } else {
+          // PostgreSQL supplies the accountable date only after the singleton
+          // head is locked. The unstamped intent was fingerprinted above, so a
+          // retry remains the same request even when current_date has rolled.
+          const reviewDateResult = await tx.execute<
+            Record<string, unknown> & { reviewDate: string }
+          >(sql`select current_date::text as "reviewDate"`)
+          const reviewDate = reviewDateResult.rows[0]?.reviewDate
+          if (!reviewDate) throw new MyWorldFaqRepositoryError('PERSISTENCE_FAILED')
+          const stamped = stampMyWorldFaqEditorialIntent({
+            intentDocument: prepared.intentDocument,
+            dirtyPaths: prepared.dirtyPaths,
+            reviewDate,
+          })
+          if (!stamped.success) throw new MyWorldFaqRepositoryError('INVALID_DOCUMENT')
+          candidate = normalizeCandidate(stamped.document)
+        }
+
+        const canonical = canonicalizeMyWorldFaqDocument(candidate)
+        const candidateDigest = await digestMyWorldFaqDocument(candidate)
         const nextVersion = lockedHead.version + 1
         const inserted = await tx.execute<RevisionRow>(sql`
           insert into my_world_faq_revisions (
@@ -267,7 +290,7 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
             ${input.savedByName},
             ${input.restoredFromRevisionId ?? null},
             ${input.attemptId},
-            ${requestFingerprint}
+            ${prepared.requestFingerprint}
           )
           returning
             id as "revisionId",
@@ -308,7 +331,7 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
         return {
           outcome: 'committed' as const,
           committed,
-          liveHead: headFromRevision(committed),
+          live: committed,
         }
       })
     } catch (error) {
@@ -686,14 +709,100 @@ async function resolveCommittedAttempt(
     throw new MyWorldFaqRepositoryError('ATTEMPT_REUSED')
   }
   const committed = await hydrateRevisionRow(row)
-  const liveHead = await loadHead(tx)
-  if (!liveHead) throw new MyWorldFaqRepositoryError('CORRUPT_STATE')
+  const liveRow = await loadCurrentJoinedRow(tx)
+  if (!liveRow) throw new MyWorldFaqRepositoryError('CORRUPT_STATE')
+  const live = await hydrateRevisionRow(liveRow)
   return {
-    outcome:
-      liveHead.revisionId === committed.revisionId ? 'committed' : 'committed-but-superseded',
+    outcome: live.revisionId === committed.revisionId ? 'committed' : 'committed-but-superseded',
     committed,
-    liveHead,
+    live,
   }
+}
+
+async function preparePublication(
+  database: AppDatabase,
+  input: PublishMyWorldFaqRevisionInput,
+  submitted: MyWorldFaqEditorialDocument,
+): Promise<PreparedPublication> {
+  if (input.restoredFromRevisionId) {
+    const restoreSourceRow = await loadRevisionRow(database, input.restoredFromRevisionId)
+    if (!restoreSourceRow) throw new MyWorldFaqRepositoryError('REVISION_NOT_FOUND')
+    const restoreSource = await hydrateRevisionRow(restoreSourceRow)
+    if (restoreSource.digest !== (await digestMyWorldFaqDocument(submitted))) {
+      throw new MyWorldFaqRepositoryError('RESTORE_MISMATCH')
+    }
+
+    const canonicalTarget = canonicalizeMyWorldFaqDocument(restoreSource.document)
+    return {
+      operation: 'restore',
+      document: restoreSource.document,
+      requestFingerprint: publicationRequestFingerprint({
+        operation: 'restore',
+        expectedBase: input.expectedBase,
+        canonicalIntent: canonicalTarget,
+        restoredFromRevisionId: restoreSource.revisionId,
+        savedByName: input.savedByName,
+      }),
+    }
+  }
+
+  const expectedBaseRow = await loadRevisionRow(database, input.expectedBase.revisionId)
+  if (!expectedBaseRow) throw new MyWorldFaqRepositoryError('STALE_HEAD')
+  const expectedBase = await hydrateRevisionRow(expectedBaseRow)
+  const intent = prepareMyWorldFaqEditorialIntent({
+    base: expectedBase.document,
+    submitted,
+  })
+  if (!intent.success) {
+    if (intent.reason !== 'no_op') throw new MyWorldFaqRepositoryError('INVALID_DOCUMENT')
+    const intentDocument = expectedBase.document
+    return {
+      operation: 'publish',
+      intentDocument,
+      dirtyPaths: [],
+      rejection: 'INVALID_DOCUMENT',
+      requestFingerprint: publicationRequestFingerprint({
+        operation: 'publish',
+        expectedBase: input.expectedBase,
+        canonicalIntent: canonicalizeMyWorldFaqDocument(intentDocument),
+        restoredFromRevisionId: null,
+        savedByName: input.savedByName,
+      }),
+    }
+  }
+
+  return {
+    operation: 'publish',
+    intentDocument: intent.intentDocument,
+    dirtyPaths: intent.dirtyPaths,
+    requestFingerprint: publicationRequestFingerprint({
+      operation: 'publish',
+      expectedBase: input.expectedBase,
+      canonicalIntent: canonicalizeMyWorldFaqDocument(intent.intentDocument),
+      restoredFromRevisionId: null,
+      savedByName: input.savedByName,
+    }),
+  }
+}
+
+function publicationRequestFingerprint(input: {
+  operation: 'publish' | 'restore'
+  expectedBase: MyWorldFaqHeadRef
+  canonicalIntent: string
+  restoredFromRevisionId: string | null
+  savedByName: string
+}): string {
+  return sha256(
+    JSON.stringify([
+      2,
+      input.operation,
+      MY_WORLD_FAQ_PAGE_KEY,
+      [input.expectedBase.revisionId, input.expectedBase.version, input.expectedBase.digest],
+      input.canonicalIntent,
+      input.restoredFromRevisionId,
+      ['self-declared', input.savedByName],
+    ]),
+  )
 }
 
 async function loadCurrentJoinedRow(db: FaqDatabaseExecutor): Promise<RevisionRow | null> {
@@ -718,19 +827,6 @@ async function loadCurrentJoinedRow(db: FaqDatabaseExecutor): Promise<RevisionRo
       and revisions.version = heads.current_version
       and revisions.canonical_digest = heads.current_digest
     where heads.page_key = ${MY_WORLD_FAQ_PAGE_KEY}
-    limit 1
-  `)
-  return result.rows[0] ?? null
-}
-
-async function loadHead(db: FaqDatabaseExecutor): Promise<MyWorldFaqHeadRef | null> {
-  const result = await db.execute<HeadRow>(sql`
-    select
-      current_revision_id as "revisionId",
-      current_version as version,
-      current_digest as digest
-    from my_world_faq_heads
-    where page_key = ${MY_WORLD_FAQ_PAGE_KEY}
     limit 1
   `)
   return result.rows[0] ?? null

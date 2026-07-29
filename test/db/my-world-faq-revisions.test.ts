@@ -17,6 +17,14 @@ function cloneDefault() {
   return structuredClone(DEFAULT_MY_WORLD_FAQ_DOCUMENT)
 }
 
+function headFromRevision(revision: { revisionId: string; version: number; digest: string }) {
+  return {
+    revisionId: revision.revisionId,
+    version: revision.version,
+    digest: revision.digest,
+  }
+}
+
 describeWithDatabase('My World FAQ global revisions', () => {
   let pool: Pool
   let database: ReturnType<typeof drizzle<typeof schema>>
@@ -203,7 +211,7 @@ describeWithDatabase('My World FAQ global revisions', () => {
     secondDocument.page.footer.brand = 'Second published wording'
     const second = await repository.publishRevision({
       document: secondDocument,
-      expectedBase: first.liveHead,
+      expectedBase: headFromRevision(first.live),
       attemptId: randomUUID(),
       savedByName: 'Jamie Lim',
     })
@@ -218,8 +226,132 @@ describeWithDatabase('My World FAQ global revisions', () => {
 
     expect(retry.outcome).toBe('committed-but-superseded')
     expect(retry.committed.revisionId).toBe(first.committed.revisionId)
-    expect(retry.liveHead.revisionId).toBe(second.committed.revisionId)
+    expect(retry.live).toEqual(second.committed)
+    expect(Object.keys(retry.live).sort()).toEqual([
+      'attributionKind',
+      'createdAt',
+      'digest',
+      'document',
+      'restoredFromRevisionId',
+      'revisionId',
+      'savedByName',
+      'schemaVersion',
+      'structureVersion',
+      'version',
+    ])
     expect(current.head.revisionId).toBe(second.committed.revisionId)
+  })
+
+  it('fingerprints the unstamped intent so a retry is stable across database dates', async () => {
+    const datePool = new Pool({ connectionString: databaseUrl, max: 1 })
+    const dateDatabase = drizzle(datePool, { schema, casing: 'snake_case' })
+
+    try {
+      await datePool.query(`set time zone 'Pacific/Kiritimati'`)
+      const repository = createMyWorldFaqRepository(dateDatabase)
+      const bootstrap = await repository.bootstrapDefaultDocument()
+      const question = bootstrap.revision.document.questions[0]
+      if (!question) throw new Error('Expected a seeded FAQ question')
+      const submitted = structuredClone(bootstrap.revision.document)
+      submitted.questions[0] = {
+        ...question,
+        displayedQuestion: `${question.displayedQuestion} Please tell us what you think.`,
+      }
+      const firstDateResult = await datePool.query<{ reviewDate: string }>(
+        `select current_date::text as "reviewDate"`,
+      )
+      const firstDate = firstDateResult.rows[0]?.reviewDate
+      if (!firstDate) throw new Error('Expected the first PostgreSQL date')
+      const input = {
+        document: submitted,
+        expectedBase: headFromRevision(bootstrap.revision),
+        attemptId: randomUUID(),
+        savedByName: 'Alex Tan',
+      }
+
+      const first = await repository.publishRevision(input)
+      expect(first.committed.document.questions[0]?.review.lastReviewed).toBe(firstDate)
+
+      await datePool.query(`set time zone 'America/Adak'`)
+      const retryDateResult = await datePool.query<{ reviewDate: string }>(
+        `select current_date::text as "reviewDate"`,
+      )
+      expect(retryDateResult.rows[0]?.reviewDate).not.toBe(firstDate)
+
+      const retry = await repository.publishRevision(input)
+      expect(retry).toEqual(first)
+      expect(retry.committed.document.questions[0]?.review.lastReviewed).toBe(firstDate)
+    } finally {
+      await datePool.end()
+    }
+  })
+
+  it('rejects reuse of an attempt for a different intent, saver, or base', async () => {
+    const repository = createMyWorldFaqRepository(database)
+    const bootstrap = await repository.bootstrapDefaultDocument()
+    const base = headFromRevision(bootstrap.revision)
+    const firstDocument = cloneDefault()
+    firstDocument.page.footer.brand = 'Original attempt wording'
+    const attemptId = randomUUID()
+    const first = await repository.publishRevision({
+      document: firstDocument,
+      expectedBase: base,
+      attemptId,
+      savedByName: 'Alex Tan',
+    })
+
+    const differentIntent = cloneDefault()
+    differentIntent.page.footer.brand = 'Different attempt wording'
+    await expect(
+      repository.publishRevision({
+        document: differentIntent,
+        expectedBase: base,
+        attemptId,
+        savedByName: 'Alex Tan',
+      }),
+    ).rejects.toMatchObject({ code: 'ATTEMPT_REUSED' })
+    await expect(
+      repository.publishRevision({
+        document: firstDocument,
+        expectedBase: base,
+        attemptId,
+        savedByName: 'Jamie Lim',
+      }),
+    ).rejects.toMatchObject({ code: 'ATTEMPT_REUSED' })
+    await expect(
+      repository.publishRevision({
+        document: first.live.document,
+        expectedBase: headFromRevision(first.live),
+        attemptId,
+        savedByName: 'Alex Tan',
+      }),
+    ).rejects.toMatchObject({ code: 'ATTEMPT_REUSED' })
+
+    await expect(
+      repository.publishRevision({
+        document: bootstrap.revision.document,
+        expectedBase: base,
+        attemptId: randomUUID(),
+        savedByName: 'Alex Tan',
+      }),
+    ).rejects.toMatchObject({ code: 'STALE_HEAD' })
+  })
+
+  it('rejects a current-head no-op without appending a revision', async () => {
+    const repository = createMyWorldFaqRepository(database)
+    const bootstrap = await repository.bootstrapDefaultDocument()
+
+    await expect(
+      repository.publishRevision({
+        document: bootstrap.revision.document,
+        expectedBase: headFromRevision(bootstrap.revision),
+        attemptId: randomUUID(),
+        savedByName: 'Alex Tan',
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_DOCUMENT' })
+
+    const history = await repository.listRevisionMetadata()
+    expect(history.items).toHaveLength(1)
   })
 
   it('deduplicates two simultaneous first uses of one attempt ID', async () => {
@@ -297,7 +429,7 @@ describeWithDatabase('My World FAQ global revisions', () => {
     })
     const restored = await repository.publishRevision({
       document: bootstrap.revision.document,
-      expectedBase: published.liveHead,
+      expectedBase: headFromRevision(published.live),
       attemptId: randomUUID(),
       savedByName: 'Jamie Lim',
       restoredFromRevisionId: bootstrap.revision.revisionId,
@@ -306,6 +438,7 @@ describeWithDatabase('My World FAQ global revisions', () => {
 
     expect(restored.committed.version).toBe(3)
     expect(restored.committed.restoredFromRevisionId).toBe(bootstrap.revision.revisionId)
+    expect(restored.committed.document).toEqual(bootstrap.revision.document)
     expect(history.items).toHaveLength(3)
     expect(history.items[0]).not.toHaveProperty('document')
 
