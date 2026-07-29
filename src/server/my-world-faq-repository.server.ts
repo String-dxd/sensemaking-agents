@@ -357,6 +357,10 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
           sql`select pg_advisory_xact_lock(hashtextextended(${`my-world-faq-bootstrap:${MY_WORLD_FAQ_PAGE_KEY}`}, 0))`,
         )
 
+        // Existing publishers lock the same singleton row. Take that lock
+        // before reading aggregate state so a healthy concurrent publication
+        // cannot look like a version/count mismatch.
+        const head = await lockCurrentHead(tx)
         const aggregateResult = await tx.execute<BootstrapStateRow>(sql`
           select
             count(*) as "revisionCount",
@@ -368,7 +372,6 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
         const aggregate = aggregateResult.rows[0]
         if (!aggregate) throw new MyWorldFaqRepositoryError('CORRUPT_STATE')
         const revisionCount = Number(aggregate.revisionCount)
-        const head = await loadHead(tx)
 
         if (revisionCount === 0 && !head) {
           const attemptId = randomUUID()
@@ -489,21 +492,37 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
     credentialFingerprint: string,
   ): Promise<MyWorldFaqEditorSessionRow | null> {
     try {
-      const result = await database.execute<MyWorldFaqEditorSessionRow>(sql`
-        update my_world_faq_editor_sessions
-        set last_seen_at = case
-          when last_seen_at <= now() - interval '5 minutes' then now()
-          else last_seen_at
-        end
-        where token_digest = ${tokenDigest}
-          and credential_fingerprint = ${credentialFingerprint}
-          and revoked_at is null
-          and absolute_expires_at > now()
-          and last_seen_at > now() - interval '30 minutes'
-        returning ${sessionReturningColumns()}
-      `)
-      const row = result.rows[0]
-      return row ? normalizeSessionRow(row) : null
+      return await database.transaction(async (tx) => {
+        const selected = await tx.execute<MyWorldFaqEditorSessionRow & { touchDue: boolean }>(sql`
+          select
+            ${sessionReturningColumns()},
+            last_seen_at <= now() - interval '5 minutes' as "touchDue"
+          from my_world_faq_editor_sessions
+          where token_digest = ${tokenDigest}
+            and credential_fingerprint = ${credentialFingerprint}
+            and revoked_at is null
+            and absolute_expires_at > now()
+            and last_seen_at > now() - interval '30 minutes'
+          for update
+        `)
+        const row = selected.rows[0]
+        if (!row) return null
+        const normalized = normalizeSessionRow(row)
+        if (!row.touchDue) return normalized
+
+        const touched = await tx.execute<MyWorldFaqEditorSessionRow>(sql`
+          update my_world_faq_editor_sessions
+          set last_seen_at = now()
+          where token_digest = ${tokenDigest}
+            and credential_fingerprint = ${credentialFingerprint}
+            and revoked_at is null
+            and absolute_expires_at > now()
+            and last_seen_at > now() - interval '30 minutes'
+          returning ${sessionReturningColumns()}
+        `)
+        const touchedRow = touched.rows[0]
+        return touchedRow ? normalizeSessionRow(touchedRow) : null
+      })
     } catch (error) {
       throw mapRepositoryError(error)
     }
@@ -775,7 +794,15 @@ function normalizeCandidate(input: unknown): MyWorldFaqEditorialDocument {
 }
 
 async function hydrateRevisionRow(row: RevisionRow): Promise<MyWorldFaqRevisionSnapshot> {
-  const document = normalizeCandidate(row.document)
+  let document: MyWorldFaqEditorialDocument
+  try {
+    document = normalizeCandidate(row.document)
+  } catch (error) {
+    if (error instanceof MyWorldFaqRepositoryError && error.code === 'INVALID_DOCUMENT') {
+      throw new MyWorldFaqRepositoryError('CORRUPT_STATE', { cause: error })
+    }
+    throw error
+  }
   const recomputed = await digestMyWorldFaqDocument(document)
   if (
     row.digest !== recomputed ||

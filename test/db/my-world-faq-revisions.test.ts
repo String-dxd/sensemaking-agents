@@ -318,9 +318,52 @@ describeWithDatabase('My World FAQ global revisions', () => {
     })
 
     expect(created.displayName).toBe('FAQ Teammate')
+    const beforeResolve = await database.execute<
+      Record<string, unknown> & { rowVersion: string }
+    >(sql`
+      select xmin::text as "rowVersion"
+      from my_world_faq_editor_sessions
+      where token_digest = ${tokenDigest}
+    `)
     expect(
       await repository.resolveAndTouchEditorSession(tokenDigest, credentialFingerprint),
     ).not.toBeNull()
+    const afterFreshResolve = await database.execute<
+      Record<string, unknown> & { rowVersion: string }
+    >(sql`
+      select xmin::text as "rowVersion"
+      from my_world_faq_editor_sessions
+      where token_digest = ${tokenDigest}
+    `)
+    expect(afterFreshResolve.rows[0]?.rowVersion).toBe(beforeResolve.rows[0]?.rowVersion)
+
+    await database.execute(sql`
+      update my_world_faq_editor_sessions
+      set
+        created_at = now() - interval '10 minutes',
+        mutation_window_started_at = now() - interval '10 minutes',
+        last_seen_at = now() - interval '6 minutes'
+      where token_digest = ${tokenDigest}
+    `)
+    const beforeDueTouch = await database.execute<
+      Record<string, unknown> & { rowVersion: string }
+    >(sql`
+      select xmin::text as "rowVersion"
+      from my_world_faq_editor_sessions
+      where token_digest = ${tokenDigest}
+    `)
+    expect(
+      await repository.resolveAndTouchEditorSession(tokenDigest, credentialFingerprint),
+    ).not.toBeNull()
+    const afterDueTouch = await database.execute<
+      Record<string, unknown> & { rowVersion: string }
+    >(sql`
+      select xmin::text as "rowVersion"
+      from my_world_faq_editor_sessions
+      where token_digest = ${tokenDigest}
+    `)
+    expect(afterDueTouch.rows[0]?.rowVersion).not.toBe(beforeDueTouch.rows[0]?.rowVersion)
+
     for (let attempt = 1; attempt <= 10; attempt += 1) {
       await expect(repository.consumeEditorMutationPermit(tokenDigest)).resolves.toMatchObject({
         allowed: true,
