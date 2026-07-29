@@ -143,6 +143,7 @@ export interface FaqAsset {
   id: string
   kind: FaqAssetKind
   publicPath: string
+  videoPath?: string
   width: number
   height: number
   alt: string

@@ -354,7 +354,7 @@ export const FAQ_GUARDRAILS = [
     state: 'required-before-pilot',
     title: 'Named accountable human oversight',
     protects:
-      'Ensures people—not Kira or an automated score—own safety, privacy and stop/change decisions.',
+      'Ensures people, not Kira or an automated score, own safety, privacy and stop/change decisions.',
     statusSummary:
       'A pilot needs named product, education/child-safety and privacy/legal owners with authority to pause or change it.',
     label: 'Open question · pilot',

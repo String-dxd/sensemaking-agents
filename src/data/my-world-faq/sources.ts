@@ -96,7 +96,7 @@ export const FAQ_SOURCES = [
     identifier: 'WHO/EURO:2025-12187-51959-79685',
     populationContext: 'Young people in the WHO European Region.',
     method: 'Policy brief based on an evidence review and policy mapping.',
-    fit: 'Supports measuring content, context, displacement and subgroup vulnerability—not duration alone.',
+    fit: 'Supports measuring content, context, displacement and subgroup vulnerability, not duration alone.',
     limitations:
       'The evidence is mixed, bidirectional and regionally broader than Singapore secondary students.',
     lastChecked: '2026-07-28',

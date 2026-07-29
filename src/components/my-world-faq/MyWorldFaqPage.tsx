@@ -1,6 +1,7 @@
 import { Badge } from '~/components/ui/badge'
 import { buttonVariants } from '~/components/ui/button'
 import { cn } from '~/lib/utils'
+import { GuardrailLedgerPreview } from './GuardrailLedgerPreview'
 import { ProductLoop } from './ProductLoop'
 import { QuestionField } from './QuestionField'
 import { SignalSourceStrip } from './SignalSourceStrip'
@@ -16,77 +17,158 @@ export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
       data-feedback-enabled={String(feedbackEnabled)}
       data-testid="my-world-faq-page"
     >
-      <header className="sticky top-0 z-30 border-b border-(--color-faq-line) bg-(--color-faq-paper)/95 backdrop-blur-sm">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-8 lg:px-10">
+      <a
+        href="#top"
+        className="sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:not-sr-only focus:rounded-md focus:bg-(--color-faq-ink) focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-(--color-faq-paper) focus:outline-none focus:ring-2 focus:ring-(--color-faq-focus) focus:ring-offset-2"
+      >
+        Skip to main content
+      </a>
+      <header className="sticky top-0 z-30 border-b border-(--color-faq-line-strong) bg-(--color-faq-paper)">
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-8 lg:px-12">
           <a
             href="#top"
-            className="inline-flex min-h-11 shrink-0 items-center rounded-md text-sm font-semibold tracking-[-0.01em] outline-none focus-visible:ring-2 focus-visible:ring-(--color-faq-focus) focus-visible:ring-offset-2"
+            aria-label="My World home"
+            className="group inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md text-sm font-semibold tracking-[-0.02em] outline-none focus-visible:ring-2 focus-visible:ring-(--color-faq-focus) focus-visible:ring-offset-2"
           >
-            My World
+            <span
+              aria-hidden="true"
+              className="relative grid size-7 place-items-center overflow-hidden rounded-full bg-(--color-faq-ink)"
+            >
+              <span className="size-2.5 rounded-full bg-(--color-faq-coral) transition-transform duration-(--duration-fast) ease-(--ease-out) group-hover:scale-125 motion-reduce:transition-none" />
+            </span>
+            <span className="hidden min-[350px]:inline">My World</span>
           </a>
-          <nav aria-label="Page sections" className="flex items-center">
+          <nav
+            aria-label="Page sections"
+            className="faq-nav-shell flex items-center border border-(--color-faq-ink)"
+          >
             <a
               href="#product"
               className={cn(
                 buttonVariants({ variant: 'ghost', size: 'default' }),
-                'min-h-11 px-3 text-xs sm:text-sm',
+                'faq-nav-link min-h-11 gap-2 px-3 text-xs hover:bg-(--color-faq-blue) sm:px-4 sm:text-sm',
               )}
             >
+              <span aria-hidden="true" className="hidden text-[10px] font-semibold sm:inline">
+                01
+              </span>
               Product at a glance
             </a>
             <a
               href="#faq"
               className={cn(
                 buttonVariants({ variant: 'ghost', size: 'default' }),
-                'min-h-11 px-3 text-xs sm:text-sm',
+                'faq-nav-link min-h-11 gap-2 border-l border-(--color-faq-ink) px-3 text-xs hover:bg-(--color-faq-coral) sm:px-4 sm:text-sm',
               )}
             >
+              <span aria-hidden="true" className="hidden text-[10px] font-semibold sm:inline">
+                02
+              </span>
               FAQ
             </a>
           </nav>
         </div>
       </header>
 
-      <main id="top">
-        <section className="border-b border-(--color-faq-line)">
-          <div className="mx-auto grid w-full max-w-6xl gap-10 px-5 py-14 sm:px-8 sm:py-18 lg:grid-cols-12 lg:px-10 lg:py-20">
-            <div className="max-w-3xl lg:col-span-8">
+      <main id="top" tabIndex={-1}>
+        <section className="relative overflow-hidden border-b border-(--color-faq-line-strong)">
+          <div className="mx-auto grid w-full max-w-7xl gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-12 lg:items-center lg:px-12 lg:py-28">
+            <div className="max-w-4xl lg:col-span-7">
               <Badge
                 variant="outline"
-                className="border-(--color-faq-stage-line) bg-(--color-faq-stage-soft) text-(--color-faq-stage-ink)"
+                className="faq-eyebrow border-(--color-faq-ink) bg-(--color-faq-yellow) text-(--color-faq-ink)"
               >
                 Working prototype
               </Badge>
-              <h1 className="mt-6 max-w-3xl text-[clamp(2.4rem,7vw,5rem)] font-semibold leading-[1] tracking-[-0.055em] text-balance">
-                Capture a moment. Make sense of it.
+              <h1 className="mt-7 max-w-4xl text-[clamp(3.1rem,8vw,7rem)] font-semibold leading-[0.91] tracking-[-0.07em] text-balance">
+                Capture a moment.
+                <span className="block text-(--color-faq-coral-ink)">Make sense of it.</span>
               </h1>
-              <p className="mt-6 max-w-[66ch] text-[clamp(1rem,2vw,1.25rem)] leading-relaxed text-(--color-faq-ink-soft) text-pretty">
+              <p className="mt-8 max-w-[58ch] text-[clamp(1.05rem,2vw,1.3rem)] leading-relaxed text-(--color-faq-ink-soft) text-pretty">
                 My World helps students reflect on everyday experiences. We are exploring it as one
                 touchpoint alongside family, friends, teachers and other support.
               </p>
+              <div className="mt-9 flex flex-wrap gap-3">
+                <a
+                  href="#product"
+                  className={cn(
+                    buttonVariants({ variant: 'default', size: 'lg' }),
+                    'faq-button-primary h-12 bg-(--color-faq-ink) px-6 text-(--color-faq-paper) hover:bg-(--color-faq-coral-ink)',
+                  )}
+                >
+                  See how it works
+                </a>
+                <a
+                  href="#faq"
+                  className={cn(
+                    buttonVariants({ variant: 'outline', size: 'lg' }),
+                    'faq-button-secondary h-12 border-(--color-faq-ink) bg-transparent px-6 hover:bg-(--color-faq-yellow)',
+                  )}
+                >
+                  Browse the questions
+                </a>
+              </div>
             </div>
-            <aside className="self-end border-l-2 border-(--color-faq-stage) pl-5 lg:col-span-4">
-              <p className="text-xs font-semibold text-(--color-faq-stage-ink)">Current stage</p>
-              <h2 className="mt-2 text-xl font-semibold tracking-[-0.025em]">
-                Pilot under consideration
-              </h2>
-              <p className="mt-2 max-w-[50ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
-                Leadership has not decided whether to run one. This page explains the prototype and
-                the questions still open.
-              </p>
+
+            <aside className="faq-hero-art relative min-h-[25rem] overflow-hidden bg-(--color-faq-ink) text-(--color-faq-paper) lg:col-span-5">
+              <div aria-hidden="true" className="absolute inset-0">
+                <span className="faq-geometry faq-geometry-coral-arch" />
+                <span className="faq-geometry faq-geometry-blue-disc" />
+                <span className="faq-geometry faq-geometry-green-u" />
+                <span className="faq-geometry faq-geometry-yellow-block" />
+                <span className="faq-geometry faq-geometry-pink-dot" />
+              </div>
+              <div className="absolute inset-x-0 bottom-0 z-10 bg-(--color-faq-ink) p-7 sm:p-9">
+                <p className="text-xs font-semibold text-(--color-faq-yellow)">Current stage</p>
+                <h2 className="mt-2 max-w-sm text-2xl font-semibold tracking-[-0.035em]">
+                  Pilot under consideration
+                </h2>
+                <p className="mt-3 max-w-[43ch] text-sm leading-relaxed text-(--color-faq-paper-soft)">
+                  Leadership has not decided whether to run one. This page explains the prototype
+                  and the questions still open.
+                </p>
+              </div>
             </aside>
           </div>
         </section>
 
         <ProductLoop />
         <SignalSourceStrip />
+        <GuardrailLedgerPreview />
         <QuestionField />
+        <section
+          aria-labelledby="faq-more-questions-title"
+          className="border-b border-(--color-faq-ink) bg-(--color-faq-coral) text-(--color-faq-ink)"
+        >
+          <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-14 sm:px-8 sm:py-16 lg:grid-cols-12 lg:items-end lg:px-12">
+            <div className="lg:col-span-8">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em]">
+                Keep the questions coming
+              </p>
+              <h2
+                id="faq-more-questions-title"
+                className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em]"
+              >
+                Have another question?
+              </h2>
+            </div>
+            <p className="max-w-[48ch] text-base leading-relaxed lg:col-span-4">
+              Send it to the My World team through the same channel that brought you here. Recurring
+              concerns will shape this page and the pilot decision.
+            </p>
+          </div>
+        </section>
       </main>
 
-      <footer className="border-t border-(--color-faq-line)">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-5 py-6 text-xs text-(--color-faq-ink-faint) sm:px-8 lg:px-10">
-          <span>My World working prototype</span>
-          <span>Anyone with this link can open or forward it. Last reviewed 28 July 2026.</span>
+      <footer className="bg-(--color-faq-ink) text-(--color-faq-paper)">
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-5 py-9 sm:flex-row sm:items-end sm:justify-between sm:px-8 lg:px-12">
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className="size-4 rounded-full bg-(--color-faq-coral)" />
+            <span className="text-sm font-semibold">My World working prototype</span>
+          </div>
+          <span className="max-w-xl text-xs leading-relaxed text-(--color-faq-paper-soft) sm:text-right">
+            Anyone with this link can open or forward it. Last reviewed 29 July 2026.
+          </span>
         </div>
       </footer>
     </div>

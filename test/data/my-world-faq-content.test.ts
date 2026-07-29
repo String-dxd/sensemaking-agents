@@ -129,6 +129,20 @@ describe('My World FAQ content registry', () => {
     }
   })
 
+  it('registers four desktop product recordings with poster frames', () => {
+    const productAssets = FAQ_ASSETS.filter((asset) => asset.kind === 'product-step')
+
+    expect(productAssets).toHaveLength(4)
+    for (const asset of productAssets) {
+      expect(asset.width).toBe(1440)
+      expect(asset.height).toBe(900)
+      expect(asset.publicPath).toMatch(/-desktop-poster\.png$/)
+      expect(asset.videoPath).toMatch(/-desktop\.webm$/)
+      expect(asset.transcript.trim().length).toBeGreaterThan(0)
+      expect(asset.provenance).toContain('synthetic demo-a data')
+    }
+  })
+
   it('makes every factual block auditable and resolves all references', () => {
     const sourceIds = new Set<string>(FAQ_SOURCES.map((source) => source.id))
     const provenanceIds = new Set<string>(FAQ_PRODUCT_PROVENANCE.map((item) => item.id))

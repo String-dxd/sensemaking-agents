@@ -12,20 +12,27 @@
   --color-warning: oklch(0.78 0.16 70);
 
   /* ── My World public FAQ ────────────────────────────────────────────── */
-  --color-faq-paper: #f7f3e9;
-  --color-faq-surface: #fffdf7;
-  --color-faq-ink: #28241f;
-  --color-faq-ink-soft: rgba(40, 36, 31, 0.7);
-  --color-faq-ink-faint: rgba(40, 36, 31, 0.68);
-  --color-faq-line: rgba(40, 36, 31, 0.13);
-  --color-faq-line-strong: rgba(40, 36, 31, 0.32);
-  --color-faq-stage: #d85d38;
-  --color-faq-stage-soft: #f9e7dd;
-  --color-faq-stage-line: rgba(158, 65, 38, 0.25);
-  --color-faq-stage-ink: #873b27;
-  --color-faq-focus: #17686b;
-  --color-faq-glow: rgba(224, 109, 72, 0.16);
-  --shadow-faq-card: 0 22px 64px rgba(71, 54, 36, 0.08);
+  --color-faq-paper: oklch(0.96 0.026 80);
+  --color-faq-paper-soft: oklch(0.9 0.02 74);
+  --color-faq-surface: oklch(0.985 0.014 82);
+  --color-faq-ink: oklch(0.17 0.035 22);
+  --color-faq-ink-soft: oklch(0.38 0.024 33);
+  --color-faq-ink-faint: oklch(0.46 0.02 38);
+  --color-faq-line: oklch(0.17 0.035 22 / 0.16);
+  --color-faq-line-strong: oklch(0.17 0.035 22 / 0.42);
+  --color-faq-stage: oklch(0.66 0.16 37);
+  --color-faq-stage-soft: oklch(0.9 0.055 48);
+  --color-faq-stage-line: oklch(0.46 0.11 34 / 0.36);
+  --color-faq-stage-ink: oklch(0.39 0.105 35);
+  --color-faq-coral: oklch(0.7 0.17 37);
+  --color-faq-coral-ink: oklch(0.46 0.14 31);
+  --color-faq-blue: oklch(0.81 0.075 237);
+  --color-faq-green: oklch(0.83 0.085 125);
+  --color-faq-yellow: oklch(0.86 0.13 82);
+  --color-faq-pink: oklch(0.82 0.075 8);
+  --color-faq-focus: oklch(0.43 0.1 216);
+  --color-faq-glow: oklch(0.7 0.17 37 / 0.16);
+  --shadow-faq-card: 0 18px 0 oklch(0.17 0.035 22 / 0.08);
 
   /* ── Typography ─────────────────────────────────────────────────────── */
   /* Single sans family across product UI and marketing. Inter is loaded
@@ -220,6 +227,164 @@ body,
 }
 
 /* ──────────────────────────────────────────────────────────────────────
+   My World FAQ identity.
+   Geometric warmth with a deliberately irregular silhouette. These rules
+   are isolated from the authenticated product UI.
+   ────────────────────────────────────────────────────────────────────── */
+.faq-nav-shell {
+  border-radius: 999px 12px 12px 999px;
+  overflow: hidden;
+}
+
+.faq-nav-link {
+  border-radius: 0;
+}
+
+.faq-eyebrow {
+  border-radius: 999px 8px 8px 999px;
+  padding: 0.4rem 0.85rem;
+}
+
+.faq-button-primary {
+  border-radius: 999px 10px 10px 999px;
+}
+
+.faq-button-secondary {
+  border-radius: 10px 999px 999px 10px;
+}
+
+.faq-hero-art {
+  border-radius: 5rem 1.25rem 5rem 1.25rem;
+}
+
+.faq-geometry {
+  display: block;
+  position: absolute;
+}
+
+.faq-geometry-coral-arch {
+  top: 2rem;
+  left: 1.5rem;
+  width: 10rem;
+  height: 7.5rem;
+  border: 2.25rem solid var(--color-faq-coral);
+  border-bottom: 0;
+  border-radius: 10rem 10rem 0 0;
+}
+
+.faq-geometry-blue-disc {
+  top: 1.5rem;
+  right: 1.75rem;
+  width: 7.25rem;
+  height: 7.25rem;
+  border-radius: 999px;
+  background: var(--color-faq-blue);
+}
+
+.faq-geometry-green-u {
+  top: 7.25rem;
+  right: 6.25rem;
+  width: 8.5rem;
+  height: 8rem;
+  border: 2rem solid var(--color-faq-green);
+  border-top: 0;
+  border-radius: 0 0 8rem 8rem;
+}
+
+.faq-geometry-yellow-block {
+  top: 8.5rem;
+  right: 1.75rem;
+  width: 3.5rem;
+  height: 7.5rem;
+  border-radius: 1.75rem 0.5rem 0.5rem 1.75rem;
+  background: var(--color-faq-yellow);
+}
+
+.faq-geometry-pink-dot {
+  top: 10.75rem;
+  left: 5.25rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  background: var(--color-faq-pink);
+}
+
+.faq-signal-card {
+  border: 1px solid var(--color-faq-ink);
+}
+
+.faq-signal-card--coral .faq-signal-card {
+  border-radius: 4rem 1rem 1rem 4rem;
+  background: var(--color-faq-coral);
+}
+
+.faq-signal-card--blue .faq-signal-card {
+  border-radius: 1rem 4rem 4rem 1rem;
+  background: var(--color-faq-blue);
+}
+
+.faq-signal-card--yellow .faq-signal-card {
+  border-radius: 1rem 1rem 5rem 1rem;
+  background: var(--color-faq-yellow);
+}
+
+.faq-signal-card--green .faq-signal-card {
+  border-radius: 5rem 1rem 1rem 1rem;
+  background: var(--color-faq-green);
+}
+
+.faq-signal-card--pink .faq-signal-card {
+  border-radius: 1rem 5rem 1rem 5rem;
+  background: var(--color-faq-pink);
+}
+
+.faq-ledger-row[data-state='built-today'] {
+  background: var(--color-faq-green);
+}
+
+.faq-ledger-row[data-state='required-before-pilot'] {
+  background: var(--color-faq-yellow);
+}
+
+.faq-ledger-row[data-state='still-researching'] {
+  background: var(--color-faq-blue);
+}
+
+@media (max-width: 639px) {
+  .faq-nav-shell {
+    border-radius: 999px 8px 8px 999px;
+  }
+
+  .faq-hero-art {
+    border-radius: 3.5rem 1rem 3.5rem 1rem;
+  }
+
+  .faq-geometry-coral-arch {
+    left: 1rem;
+  }
+
+  .faq-geometry-blue-disc {
+    right: 1rem;
+  }
+
+  .faq-geometry-green-u {
+    right: 4.75rem;
+  }
+
+  .faq-geometry-yellow-block {
+    right: 1rem;
+  }
+
+  .faq-signal-card--coral .faq-signal-card,
+  .faq-signal-card--blue .faq-signal-card,
+  .faq-signal-card--yellow .faq-signal-card,
+  .faq-signal-card--green .faq-signal-card,
+  .faq-signal-card--pink .faq-signal-card {
+    border-radius: 2.5rem 0.75rem 2.5rem 0.75rem;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────
    Sheet first-open stagger. Fires only when PageSurface carries
    data-fresh-enter="true" (set by usePageEnterState when the previous
    pathname was a world route or undefined). Sheets attach
@@ -319,6 +484,10 @@ body,
    reduced-motion blocks; both layers coexist.
    ────────────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
+  .faq-flip-card[data-flipped='true'] {
+    transform: none !important;
+  }
+
   *,
   *::before,
   *::after {

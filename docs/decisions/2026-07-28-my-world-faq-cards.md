@@ -1,5 +1,30 @@
 # Design decision record — My World FAQ cards
 
+## 2026-07-29 interaction and visual-direction amendment
+
+The project owner superseded the accordion treatment after reviewing the first
+implementation.
+
+- FAQ questions use a three-column card grid at desktop, two columns at
+  intermediate widths and one column on narrow screens.
+- A card front carries one question. Activating it turns the card to a concise
+  answer.
+- The answer face links to a focused evidence dialog for research, product
+  facts, limitations and proposed pilot checks.
+- Product at a glance uses short recordings of the real desktop prototype with
+  synthetic data. Mobile screenshots are out of scope.
+- The public page takes visual cues from Fauna Robotics' geometric warmth,
+  confident scale and distinctive control silhouettes. It must not reproduce
+  Fauna's logo, robotics imagery, typeface, exact palette or compositions.
+- Product at a glance and FAQ remain separate top-level navigation
+  destinations.
+- Audience questions appear as quotes. The Pigeonhole interface does not
+  appear.
+- Copy stays brief at the first layer. Evidence remains available by choice.
+
+This amendment is the authority wherever the earlier accordion decision,
+static product screenshots or prior visual treatment differ.
+
 - **Date:** 2026-07-28
 - **Product:** My World working prototype
 - **Change type:** modification

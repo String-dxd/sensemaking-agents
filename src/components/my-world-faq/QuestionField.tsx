@@ -1,12 +1,17 @@
-import { ChevronDown } from 'lucide-react'
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from '~/components/ui/accordion'
+import { ArrowUpRight, RotateCcw, X } from 'lucide-react'
+import { type CSSProperties, useEffect, useRef, useState } from 'react'
 import { Badge } from '~/components/ui/badge'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '~/components/ui/collapsible'
+import { Button, buttonVariants } from '~/components/ui/button'
+import { Card } from '~/components/ui/card'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '~/components/ui/dialog'
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import {
   FAQ_CONCERN_CLUSTERS,
@@ -18,6 +23,7 @@ import {
   type FaqQuestion,
   type FaqSource,
 } from '~/data/my-world-faq'
+import { cn } from '~/lib/utils'
 
 const SOURCE_BY_ID: ReadonlyMap<string, FaqSource> = new Map(
   FAQ_SOURCES.map((source) => [source.id, source] as const),
@@ -29,6 +35,45 @@ const PROVENANCE_BY_ID: ReadonlyMap<string, FaqProductProvenance> = new Map(
 function displayQuestion(question: FaqQuestion) {
   return question.committedQuestions[0] ?? question.title
 }
+
+const CARD_TONES = [
+  {
+    surface: 'var(--color-faq-coral)',
+    ink: 'var(--color-faq-ink)',
+    accent: 'var(--color-faq-yellow)',
+  },
+  {
+    surface: 'var(--color-faq-blue)',
+    ink: 'var(--color-faq-ink)',
+    accent: 'var(--color-faq-pink)',
+  },
+  {
+    surface: 'var(--color-faq-green)',
+    ink: 'var(--color-faq-ink)',
+    accent: 'var(--color-faq-yellow)',
+  },
+  {
+    surface: 'var(--color-faq-pink)',
+    ink: 'var(--color-faq-ink)',
+    accent: 'var(--color-faq-blue)',
+  },
+  {
+    surface: 'var(--color-faq-yellow)',
+    ink: 'var(--color-faq-ink)',
+    accent: 'var(--color-faq-coral)',
+  },
+  {
+    surface: 'var(--color-faq-surface)',
+    ink: 'var(--color-faq-ink)',
+    accent: 'var(--color-faq-green)',
+  },
+] as const
+
+const CARD_SHAPES = [
+  'rounded-[2.75rem_1rem_2.75rem_1rem]',
+  'rounded-[1rem_2.75rem_1rem_2.75rem]',
+  'rounded-[2.75rem_2.75rem_1rem_2.75rem]',
+] as const
 
 export function QuestionField() {
   const firstCluster = FAQ_CONCERN_CLUSTERS[0]
@@ -50,7 +95,8 @@ export function QuestionField() {
             Questions we are working through
           </h2>
           <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
-            Choose a topic, then open a question.
+            Scan the questions. Turn a card over for our short answer, or inspect the evidence
+            behind it.
           </p>
         </div>
 
@@ -85,20 +131,11 @@ export function QuestionField() {
                   </span>
                 </div>
 
-                <Accordion hiddenUntilFound>
-                  {questions.map((question) => (
-                    <AccordionItem key={question.id} value={question.id}>
-                      <AccordionTrigger data-testid="faq-question-trigger">
-                        <span className="max-w-[66ch] text-pretty">
-                          {displayQuestion(question)}
-                        </span>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <FaqAnswer question={question} />
-                      </AccordionContent>
-                    </AccordionItem>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {questions.map((question, index) => (
+                    <FaqFlipCard key={question.id} question={question} index={index} />
                   ))}
-                </Accordion>
+                </div>
               </TabsContent>
             )
           })}
@@ -108,34 +145,186 @@ export function QuestionField() {
   )
 }
 
-function FaqAnswer({ question }: { question: FaqQuestion }) {
-  return (
-    <div className="max-w-[70ch]">
-      <p
-        data-testid="faq-short-answer"
-        className="text-base leading-relaxed text-(--color-faq-ink-soft) text-pretty"
-      >
-        {question.shortAnswer}
-      </p>
+function FaqFlipCard({ question, index }: { question: FaqQuestion; index: number }) {
+  const [flipped, setFlipped] = useState(false)
+  const frontButtonRef = useRef<HTMLButtonElement>(null)
+  const answerRef = useRef<HTMLDivElement>(null)
+  const hasInteractedRef = useRef(false)
+  const questionText = displayQuestion(question)
+  const questionHeadingId = `faq-question-${question.id}`
+  const answerId = `faq-answer-${question.id}`
+  const tone = CARD_TONES[index % CARD_TONES.length] ?? CARD_TONES[0]
+  const shape = CARD_SHAPES[index % CARD_SHAPES.length] ?? CARD_SHAPES[0]
 
-      <Collapsible className="mt-5 border-t border-(--color-faq-line)">
-        <CollapsibleTrigger
-          data-testid="faq-evidence-trigger"
-          className="group flex min-h-11 w-full items-center justify-between gap-4 rounded-md py-3 text-left text-sm font-semibold text-(--color-faq-ink)"
+  useEffect(() => {
+    if (!hasInteractedRef.current) return
+    if (flipped) {
+      answerRef.current?.focus()
+    } else {
+      frontButtonRef.current?.focus()
+    }
+  }, [flipped])
+
+  const showAnswer = () => {
+    hasInteractedRef.current = true
+    setFlipped(true)
+  }
+
+  const showQuestion = () => {
+    hasInteractedRef.current = true
+    setFlipped(false)
+  }
+
+  const cardStyle = {
+    '--faq-card-surface': tone.surface,
+    '--faq-card-ink': tone.ink,
+    '--faq-card-accent': tone.accent,
+  } as CSSProperties
+
+  return (
+    <div className="relative min-h-[23rem] [perspective:1200px]" data-testid="faq-question-card">
+      <Card
+        data-flipped={flipped}
+        style={cardStyle}
+        className={cn(
+          'faq-flip-card relative grid min-h-[23rem] border-(--faq-card-ink) bg-(--faq-card-surface) p-0 text-(--faq-card-ink) shadow-none',
+          '[transform-style:preserve-3d] transition-transform duration-500 ease-(--ease-in-out)',
+          'data-[flipped=true]:[transform:rotateY(180deg)] motion-reduce:transform-none motion-reduce:transition-none',
+          shape,
+        )}
+      >
+        <div
+          aria-hidden={flipped}
+          // `inert` keeps the hidden face and its controls out of the keyboard order.
+          inert={flipped}
+          className={cn(
+            'absolute inset-0 overflow-hidden rounded-[inherit] bg-(--faq-card-surface) [backface-visibility:hidden]',
+            flipped ? 'pointer-events-none motion-reduce:hidden' : 'pointer-events-auto',
+          )}
         >
-          Evidence and limits
-          <ChevronDown
-            aria-hidden="true"
-            className="size-4 shrink-0 text-(--color-faq-ink-faint) transition-transform duration-(--duration-fast) ease-(--ease-out) group-data-panel-open:rotate-180 motion-reduce:transition-none"
-          />
-        </CollapsibleTrigger>
-        <CollapsibleContent data-testid="faq-evidence-details" className="space-y-6 pb-1">
+          <h3 id={questionHeadingId} className="sr-only">
+            {questionText}
+          </h3>
+          <Button
+            ref={frontButtonRef}
+            type="button"
+            variant="ghost"
+            data-testid="faq-question-trigger"
+            aria-labelledby={questionHeadingId}
+            aria-expanded={flipped}
+            aria-controls={answerId}
+            onClick={showAnswer}
+            className={cn(
+              'relative flex min-h-[23rem] w-full flex-col items-start justify-between overflow-hidden p-6 text-left text-(--faq-card-ink)',
+              'rounded-[inherit] whitespace-normal hover:bg-black/5 focus-visible:ring-(--color-faq-focus) focus-visible:ring-inset',
+              'active:scale-[0.99] sm:p-7',
+            )}
+          >
+            <span
+              aria-hidden="true"
+              className="absolute -right-8 -top-9 size-32 rounded-full border border-current opacity-35"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -bottom-12 -left-6 h-28 w-40 rounded-t-full bg-(--faq-card-accent) opacity-75"
+            />
+            <span className="relative text-xs font-semibold uppercase tracking-[0.12em]">
+              Question {String(index + 1).padStart(2, '0')}
+            </span>
+            <span className="relative max-w-[24ch] text-[clamp(1.35rem,2.2vw,1.8rem)] font-semibold leading-[1.12] tracking-[-0.035em] text-pretty">
+              {questionText}
+            </span>
+            <span className="relative inline-flex min-h-11 items-center gap-2 text-sm font-semibold">
+              Turn over
+              <ArrowUpRight aria-hidden="true" className="size-4" />
+            </span>
+          </Button>
+        </div>
+
+        <div
+          id={answerId}
+          ref={answerRef}
+          tabIndex={-1}
+          aria-hidden={!flipped}
+          inert={!flipped}
+          className={cn(
+            'absolute inset-0 flex flex-col overflow-hidden rounded-[inherit] bg-(--faq-card-surface) [backface-visibility:hidden] [transform:rotateY(180deg)]',
+            'p-6 outline-none focus-visible:ring-2 focus-visible:ring-(--color-faq-focus) focus-visible:ring-inset sm:p-7',
+            'motion-reduce:transform-none',
+            flipped
+              ? 'pointer-events-auto motion-reduce:flex'
+              : 'pointer-events-none motion-reduce:hidden',
+          )}
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.12em]">Short answer</p>
+          <p
+            data-testid="faq-short-answer"
+            className="mt-5 text-base leading-relaxed text-pretty sm:text-[1.05rem]"
+          >
+            {question.shortAnswer}
+          </p>
+          <div className="mt-auto flex items-center gap-2 pt-5">
+            <FaqEvidenceDialog question={question} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="default"
+              aria-label="Back to question"
+              onClick={showQuestion}
+              className="min-h-11 shrink-0 gap-2 rounded-[1.4rem_0.5rem_1.4rem_0.5rem] px-3 text-(--faq-card-ink) hover:bg-black/8 focus-visible:ring-(--color-faq-focus)"
+            >
+              <RotateCcw aria-hidden="true" className="size-4" />
+              Back
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+function FaqEvidenceDialog({ question }: { question: FaqQuestion }) {
+  return (
+    <Dialog>
+      <DialogTrigger
+        data-testid="faq-evidence-trigger"
+        className={cn(
+          buttonVariants({ variant: 'default', size: 'lg' }),
+          'min-h-11 flex-1 rounded-[1.4rem_0.5rem_1.4rem_0.5rem] bg-(--faq-card-ink) px-3 text-(--faq-card-surface) hover:bg-(--faq-card-ink)/90 focus-visible:ring-(--color-faq-focus)',
+        )}
+      >
+        Evidence and limits
+        <ArrowUpRight aria-hidden="true" className="ml-2 size-4" />
+      </DialogTrigger>
+      <DialogContent
+        data-testid="faq-evidence-details"
+        className="max-h-[min(90svh,52rem)] max-w-3xl overflow-y-auto rounded-[2.5rem_0.75rem_2.5rem_0.75rem] border-(--color-faq-line-strong) bg-(--color-faq-surface) p-6 shadow-(--shadow-faq-card) sm:p-9"
+        showClose={false}
+      >
+        <DialogClose
+          aria-label="Close evidence"
+          className="absolute right-3 top-3 inline-flex size-11 items-center justify-center rounded-full text-(--color-faq-ink-soft) outline-none hover:bg-(--color-faq-paper) hover:text-(--color-faq-ink) focus-visible:ring-2 focus-visible:ring-(--color-faq-focus) sm:right-5 sm:top-5"
+        >
+          <X aria-hidden="true" className="size-5" />
+        </DialogClose>
+        <DialogHeader className="pr-10">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-faq-stage-ink)">
+            Evidence and limits
+          </p>
+          <DialogTitle className="mt-2 text-[clamp(1.65rem,4vw,2.5rem)] leading-[1.08] tracking-[-0.04em] text-(--color-faq-ink) text-pretty">
+            {displayQuestion(question)}
+          </DialogTitle>
+          <DialogDescription className="mt-3 text-base leading-relaxed text-(--color-faq-ink-soft) text-pretty">
+            {question.shortAnswer}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-3 space-y-7">
           {question.blocks.map((block) => (
             <EvidenceBlock key={block.id} block={block} />
           ))}
-        </CollapsibleContent>
-      </Collapsible>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -164,7 +353,7 @@ function EvidenceBlock({ block }: { block: FaqEvidenceBlock }) {
           Reviewed {block.review.lastReviewed}
         </time>
       </div>
-      <h4 className="mt-3 text-base font-semibold tracking-[-0.02em]">{block.heading}</h4>
+      <h3 className="mt-3 text-base font-semibold tracking-[-0.02em]">{block.heading}</h3>
       <p className="mt-2 text-sm leading-relaxed text-(--color-faq-ink-soft) text-pretty">
         {block.text}
       </p>

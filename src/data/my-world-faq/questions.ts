@@ -280,7 +280,7 @@ export const FAQ_QUESTIONS = [
         id: 'paper-journal-comparison',
         kind: 'pilot-test',
         heading: 'What we would test',
-        text: 'Compare My World with paper or a simple deterministic prompt on completion burden, specificity, student ownership, delayed recall and preference—including who chooses no tool.',
+        text: 'Compare My World with paper or a simple deterministic prompt on completion burden, specificity, student ownership, delayed recall and preference, including who chooses no tool.',
         sourceIds: [],
         provenanceIds: ['faq-origin-requirements'],
         guardrailIds: ['reflection-quality', 'multimodal-sensemaking-hypothesis'],
@@ -360,7 +360,7 @@ export const FAQ_QUESTIONS = [
     slug: 'kira-role',
     clusterId: 'what-is-my-world',
     order: 5,
-    title: 'Kira’s small job—and its real boundary problem',
+    title: 'Kira’s small job and its real boundary problem',
     committedQuestions: ['What does Kira do, and what does Kira not do?'],
     searchAliases: ['How transparent is the AI role?'],
     shortAnswer:
@@ -460,7 +460,7 @@ export const FAQ_QUESTIONS = [
     slug: 'human-preference',
     clusterId: 'human-connection',
     order: 7,
-    title: 'Warmth can help—and can blur the line',
+    title: 'Warmth can help and can blur the line',
     committedQuestions: [
       'What if a student prefers Kira to a parent, teacher, or friend?',
       'Is Kira designed to feel like a friend?',

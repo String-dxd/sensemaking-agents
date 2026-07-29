@@ -1,8 +1,8 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { MyWorldFaqPage } from '~/components/my-world-faq/MyWorldFaqPage'
-import { FAQ_ASSETS, FAQ_CONCERN_CLUSTERS, FAQ_QUESTIONS } from '~/data/my-world-faq'
+import { FAQ_CONCERN_CLUSTERS, FAQ_QUESTIONS } from '~/data/my-world-faq'
 
 describe('MyWorldFaqPage comprehension checkpoint', () => {
   it('separates Product at a glance and FAQ in the top navigation', () => {
@@ -15,28 +15,37 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(screen.getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '#faq')
   })
 
-  it('shows the four full product screens without cropping them', () => {
+  it('shows one active desktop product clip at a time with a poster and text equivalent', async () => {
+    const user = userEvent.setup()
     render(<MyWorldFaqPage feedbackEnabled={false} />)
 
     const loop = screen.getByTestId('faq-product-loop')
-    for (const step of ['Capture', 'Sensemake', 'Review', 'Act or return']) {
+    for (const step of ['Capture', 'My Identity', 'History', 'Path Finder']) {
       expect(within(loop).getByRole('tab', { name: step })).toBeInTheDocument()
     }
 
-    const productAssets = FAQ_ASSETS.filter((asset) => asset.kind === 'product-step')
-    const productImages = within(loop).getAllByTestId('faq-product-image')
-    expect(productAssets).toHaveLength(4)
-    expect(productImages).toHaveLength(4)
-    for (const [index, asset] of productAssets.entries()) {
-      expect(productImages[index]).toHaveAttribute('src', asset.publicPath)
-      expect(productImages[index]).toHaveAttribute('loading', 'lazy')
-      expect(productImages[index]).toHaveAttribute('alt', asset.alt)
-      expect(productImages[index]).toHaveClass('h-auto')
-      expect(productImages[index]).not.toHaveClass('object-cover')
-    }
+    expect(within(loop).getAllByTestId('faq-product-video')).toHaveLength(1)
+    expect(within(loop).getByTestId('faq-product-video')).toHaveAttribute(
+      'src',
+      '/my-world-faq/product/capture-desktop.webm',
+    )
+    expect(within(loop).getByTestId('faq-product-video')).toHaveAttribute(
+      'poster',
+      '/my-world-faq/product/capture-desktop-poster.png',
+    )
+    expect(within(loop).getByTestId('faq-product-video')).not.toHaveAttribute('autoplay')
+    expect(within(loop).getByText(/send is never pressed/i)).toBeInTheDocument()
+
+    await user.click(within(loop).getByRole('tab', { name: 'My Identity' }))
+    expect(within(loop).getAllByTestId('faq-product-video')).toHaveLength(1)
+    expect(within(loop).getByTestId('faq-product-video')).toHaveAttribute(
+      'src',
+      '/my-world-faq/product/identity-desktop.webm',
+    )
+    expect(within(loop).getByText(/filters the synthetic timeline/i)).toBeInTheDocument()
   })
 
-  it('keeps all six topics and all 34 canonical questions in the card accordion', () => {
+  it('keeps all six topics and all 34 canonical questions in the card grid', () => {
     render(<MyWorldFaqPage feedbackEnabled={false} />)
 
     expect(screen.getAllByTestId('faq-question-cluster')).toHaveLength(FAQ_CONCERN_CLUSTERS.length)
@@ -45,7 +54,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(FAQ_QUESTIONS).toHaveLength(34)
   })
 
-  it('opens a short answer, then reveals its evidence and limits', async () => {
+  it('flips to a short answer, then opens its evidence and limits', async () => {
     const user = userEvent.setup()
     render(<MyWorldFaqPage feedbackEnabled={false} />)
 
@@ -54,20 +63,26 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
 
     await user.click(question)
     expect(question).toHaveAttribute('aria-expanded', 'true')
-    const questionCard = question.closest<HTMLElement>('[data-slot="accordion-item"]')
+    const questionCard = question.closest<HTMLElement>('[data-testid="faq-question-card"]')
     if (!questionCard) throw new Error('FAQ question card was not found')
-    expect(within(questionCard).getByTestId('faq-short-answer')).toHaveTextContent(
-      /low-effort capture and reviewable reflection/i,
-    )
+    const shortAnswer = within(questionCard).getByTestId('faq-short-answer')
+    expect(shortAnswer).toHaveTextContent(/low-effort capture and reviewable reflection/i)
+    await waitFor(() => expect(shortAnswer.parentElement).toHaveFocus())
 
     const evidenceTrigger = within(questionCard).getByRole('button', {
       name: 'Evidence and limits',
     })
-    expect(evidenceTrigger).toHaveAttribute('aria-expanded', 'false')
     await user.click(evidenceTrigger)
-    expect(evidenceTrigger).toHaveAttribute('aria-expanded', 'true')
-    expect(within(questionCard).getAllByTestId('faq-evidence-label').length).toBeGreaterThan(0)
-    expect(within(questionCard).getAllByText(/^Limit:/i).length).toBeGreaterThan(0)
+    const dialog = screen.getByRole('dialog', { name: 'What problem is it solving?' })
+    expect(within(dialog).getAllByTestId('faq-evidence-label').length).toBeGreaterThan(0)
+    expect(within(dialog).getAllByText(/^Limit:/i).length).toBeGreaterThan(0)
+
+    await user.click(within(dialog).getByRole('button', { name: 'Close evidence' }))
+    await waitFor(() => expect(evidenceTrigger).toHaveFocus())
+
+    await user.click(within(questionCard).getByRole('button', { name: 'Back to question' }))
+    await waitFor(() => expect(question).toHaveFocus())
+    expect(question).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('switches FAQ topics and shows the matching card set', async () => {

@@ -4,7 +4,7 @@ const PREVIEW = [
   {
     state: 'built-today',
     label: 'Built today',
-    description: 'Repository-verified behavior—not proof of safety or efficacy.',
+    description: 'Repository-verified behaviour, not proof of safety or efficacy.',
     guardrailId: 'review-log-forget-controls',
   },
   {
@@ -30,48 +30,56 @@ export function GuardrailLedgerPreview() {
   return (
     <section
       aria-labelledby="guardrail-preview-title"
-      className="border-b border-(--color-faq-line) bg-(--color-faq-surface)"
+      className="border-b border-(--color-faq-line-strong) bg-(--color-faq-surface)"
       data-testid="faq-guardrail-preview"
     >
-      <div className="mx-auto w-full max-w-6xl px-5 py-14 sm:px-8 lg:px-10 lg:py-18">
-        <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-(--color-faq-ink-faint)">
-              Guardrail ledger · preview
-            </p>
+      <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
+        <div className="grid gap-7 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-7">
+            <p className="text-xs font-semibold text-(--color-faq-coral-ink)">Guardrail ledger</p>
             <h2
               id="guardrail-preview-title"
-              className="mt-3 text-[clamp(1.7rem,3.5vw,2.6rem)] font-semibold leading-tight tracking-[-0.04em]"
+              className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em]"
             >
-              Three states that cannot be blurred
+              Keep the states separate.
             </h2>
           </div>
-          <p className="max-w-2xl text-sm leading-relaxed text-(--color-faq-ink-soft)">
-            One example from each state is shown here for the checkpoint. “Built today” describes
-            inspected behavior. It does not promote an item from “before pilot” or answer a
-            long-term research question.
+          <p className="max-w-[50ch] text-sm leading-relaxed text-(--color-faq-ink-soft) lg:col-span-5 lg:justify-self-end">
+            What exists now, what a pilot would require, and what still needs evidence.
           </p>
         </div>
 
-        <div className="mt-8 grid gap-px overflow-hidden rounded-3xl border border-(--color-faq-line) bg-(--color-faq-line) md:grid-cols-3">
-          {PREVIEW.map((preview) => {
+        <div className="mt-12 border-y border-(--color-faq-ink)">
+          {PREVIEW.map((preview, index) => {
             const guardrail = FAQ_GUARDRAILS.find((item) => item.id === preview.guardrailId)
             if (!guardrail) return null
             return (
-              <article key={preview.state} className="bg-(--color-faq-paper) p-6">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.11em] text-(--color-faq-stage-ink)">
-                  {preview.label}
-                </p>
-                <p className="mt-2 text-xs leading-relaxed text-(--color-faq-ink-faint)">
-                  {preview.description}
-                </p>
-                <h3 className="mt-6 text-lg font-semibold tracking-[-0.025em]">
-                  {guardrail.title}
-                </h3>
-                <p className="mt-3 text-sm leading-relaxed text-(--color-faq-ink-soft)">
-                  {guardrail.statusSummary}
-                </p>
-                <p className="mt-4 border-t border-(--color-faq-line) pt-3 text-xs leading-relaxed text-(--color-faq-ink-faint)">
+              <article
+                key={preview.state}
+                className="faq-ledger-row grid gap-6 border-b border-(--color-faq-ink) px-5 py-7 last:border-b-0 sm:px-7 lg:grid-cols-12 lg:items-start"
+                data-state={preview.state}
+              >
+                <div className="flex items-center gap-4 lg:col-span-3">
+                  <span
+                    aria-hidden="true"
+                    className="grid size-10 shrink-0 place-items-center rounded-full border border-(--color-faq-ink) text-xs font-semibold tabular-nums"
+                  >
+                    {String(index + 1).padStart(2, '0')}
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold">{preview.label}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-(--color-faq-ink-soft)">
+                      {preview.description}
+                    </p>
+                  </div>
+                </div>
+                <div className="lg:col-span-4">
+                  <h3 className="text-xl font-semibold tracking-[-0.03em]">{guardrail.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-(--color-faq-ink-soft)">
+                    {guardrail.statusSummary}
+                  </p>
+                </div>
+                <p className="text-xs leading-relaxed text-(--color-faq-ink-soft) lg:col-span-5 lg:pl-8">
                   <span className="font-semibold text-(--color-faq-ink)">{guardrail.label}.</span>{' '}
                   {guardrail.limitations}
                 </p>

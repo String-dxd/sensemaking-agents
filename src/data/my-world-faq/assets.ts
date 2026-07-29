@@ -4,73 +4,82 @@ import type { FaqAsset } from './types'
  * The six event-signal screenshots are authorised for this unlisted
  * comprehension prototype and recorded one-to-one in the source inventory.
  * Approval deliberately remains `team-check`: prototype use is not blanket
- * publication approval. The four current-interface screenshots use synthetic
- * demo data and retain the same team-check posture pending wider publication.
+ * publication approval. The four current-interface recordings and poster
+ * frames use synthetic demo data and retain the same team-check posture
+ * pending wider publication.
  */
 export const FAQ_ASSETS = [
   {
     id: 'product-01-capture',
     kind: 'product-step',
-    publicPath: '/my-world-faq/product/product-01-capture.png',
-    width: 430,
-    height: 932,
-    alt: 'Current My World island interface with the Capture panel open in Text mode and voice, photo, feeling, and text choices visible.',
+    publicPath: '/my-world-faq/product/capture-desktop-poster.png',
+    videoPath: '/my-world-faq/product/capture-desktop.webm',
+    width: 1440,
+    height: 900,
+    alt: 'Desktop My World island interface with Capture open in Text mode and a neutral synthetic reflection left unsent.',
     transcript:
-      'Current Capture interface using synthetic demo data. A rainy island scene sits behind an open panel labelled “Momo”. The panel asks “What’s on your mind right now?” and offers Add feeling, Photo, Voice, and Text choices. Text is selected; the reflection field is empty and Send is inactive.',
+      'The desktop island opens Capture. Text mode is selected and a neutral synthetic reflection is typed. Send is never pressed.',
     provenance:
-      'Read-only local capture from the current branch with synthetic demo-a fixture data on 2026-07-28; source inventory SHA-256 1659716733c8e9df6a6a77db97b0e603462337f6ceaec7c3c8738382cead7a1f.',
-    cropNote: 'No crop, annotation, blur, or generated replacement.',
+      'Agent Browser recording from the current branch with synthetic demo-a data at 1440×900 on 2026-07-29; video SHA-256 f3833a12ab8f47f6e4c59ed25d427ba8b8da1d2c87818b5ea47ed3388a30bfea.',
+    cropNote:
+      'The clip was trimmed to the relevant interaction. The poster is a frame from the clip.',
     approval: 'team-check',
-    capturedOrReceivedOn: '2026-07-28',
-    lastReviewed: '2026-07-28',
+    capturedOrReceivedOn: '2026-07-29',
+    lastReviewed: '2026-07-29',
   },
   {
     id: 'product-02-sensemake',
     kind: 'product-step',
-    publicPath: '/my-world-faq/product/product-02-sensemake.png',
-    width: 430,
-    height: 932,
-    alt: 'Current My Identity Values interface showing a pattern compiled from synthetic reflection evidence.',
+    publicPath: '/my-world-faq/product/identity-desktop-poster.png',
+    videoPath: '/my-world-faq/product/identity-desktop.webm',
+    width: 1440,
+    height: 900,
+    alt: 'Desktop My Identity interface moving from Values to Interests and opening Investigative evidence from synthetic reflections.',
     transcript:
-      'Current My Identity interface using synthetic demo data for Alice, Secondary 4. The Values tab is selected. A section titled “What matters to me” presents a compiled pattern beginning “Purpose-linked effort sits at the centre of how you decide” and links the interpretation to synthetic reflection examples.',
+      'My Identity moves from Values to Interests, then filters the synthetic evidence timeline to Investigative.',
     provenance:
-      'Read-only local capture from the current branch with synthetic demo-a fixture data on 2026-07-28; source inventory SHA-256 3cd20fa855475e3d80ff71ca81d8e6716c6afb432013a25a9ddcb2989e5fb21d.',
-    cropNote: 'No crop, annotation, blur, or generated replacement.',
+      'Agent Browser recording from the current branch with synthetic demo-a data at 1440×900 on 2026-07-29; video SHA-256 80995d1151b18dc520150260d9750ad207efe4564641c0bfb417a853e381e2f1.',
+    cropNote:
+      'The clip was trimmed to the relevant interaction. The poster is a frame from the clip.',
     approval: 'team-check',
-    capturedOrReceivedOn: '2026-07-28',
-    lastReviewed: '2026-07-28',
+    capturedOrReceivedOn: '2026-07-29',
+    lastReviewed: '2026-07-29',
   },
   {
     id: 'product-03-review',
     kind: 'product-step',
-    publicPath: '/my-world-faq/product/product-03-review.png',
-    width: 430,
-    height: 932,
-    alt: 'Current History review interface showing a synthetic reflection with pending-review status, story reframe, and validation.',
+    publicPath: '/my-world-faq/product/history-desktop-poster.png',
+    videoPath: '/my-world-faq/product/history-desktop.webm',
+    width: 1440,
+    height: 900,
+    alt: 'Desktop History interface opening the synthetic 25 July ECG Career Fair reflection and its evidence.',
     transcript:
-      'Current review interface using synthetic demo data. A reflection titled “Subject combination decision” is marked Pending review, with context School and mood Anxiety. It shows a Story reframe, a section titled “What this moment said”, and a Validation section titled “What Mirror noticed”.',
+      'History selects 25 July and opens the synthetic ECG Career Fair reflection with the original moment and Mirror notes.',
     provenance:
-      'Read-only local capture from the current branch with synthetic demo-a fixture data on 2026-07-28; source inventory SHA-256 41a08c1be5279729830143a8fe6fc055af3e65555ee22d5c45745215e4ec491a.',
-    cropNote: 'No crop, annotation, blur, or generated replacement.',
+      'Agent Browser recording from the current branch with synthetic demo-a data at 1440×900 on 2026-07-29; video SHA-256 2d4ea5cb82d3fc26a315e2a470c4b0174a9f10d47d846f598d0239e44bf0db85.',
+    cropNote:
+      'The clip was trimmed to the relevant interaction. The poster is a frame from the clip.',
     approval: 'team-check',
-    capturedOrReceivedOn: '2026-07-28',
-    lastReviewed: '2026-07-28',
+    capturedOrReceivedOn: '2026-07-29',
+    lastReviewed: '2026-07-29',
   },
   {
     id: 'product-04-act-return',
     kind: 'product-step',
-    publicPath: '/my-world-faq/product/product-04-act-return.png',
-    width: 430,
-    height: 932,
-    alt: 'Current Path Finder interface showing an evidence-linked exploration pathway generated from synthetic reflections.',
+    publicPath: '/my-world-faq/product/path-finder-desktop-poster.png',
+    videoPath: '/my-world-faq/product/path-finder-desktop.webm',
+    width: 1440,
+    height: 900,
+    alt: 'Desktop Path Finder interface opening evidence for a possible pathway, then returning from its synthetic source reflection.',
     transcript:
-      'Current Path Finder interface using synthetic demo data. It says “Bearings drawn from the patterns in your reflections”, previews the Searching status from current evidence, and opens “You’re in active exploration” with evidence-linked possible pathways such as sports rehabilitation, nursing, and healthcare foundations.',
+      'Path Finder expands the first evidence set, opens its synthetic source reflection, then returns to the pathway.',
     provenance:
-      'Read-only local capture from the current branch with synthetic demo-a fixture data on 2026-07-28; source inventory SHA-256 1067d74d71b742374ab5666726d5389c882b6ee5d4b8abfb51cd352902dd4631.',
-    cropNote: 'No crop, annotation, blur, or generated replacement.',
+      'Agent Browser recording from the current branch with synthetic demo-a data at 1440×900 on 2026-07-29; video SHA-256 56440b0b924f7b4c5d336e0d6babb7441d548a7ff985829a878fe5e421cd49fd.',
+    cropNote:
+      'The clip was trimmed to the relevant interaction. The poster is a frame from the clip.',
     approval: 'team-check',
-    capturedOrReceivedOn: '2026-07-28',
-    lastReviewed: '2026-07-28',
+    capturedOrReceivedOn: '2026-07-29',
+    lastReviewed: '2026-07-29',
   },
   {
     id: 'signal-01',
