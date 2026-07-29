@@ -28,6 +28,7 @@
     "db:generate": "drizzle-kit generate --config=src/db/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=src/db/drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=src/db/drizzle.config.ts",
+    "faq:verify-migration": "tsx scripts/verify-my-world-faq-migration.ts",
     "faq:bootstrap": "tsx scripts/bootstrap-my-world-faq.ts",
     "faq:hash-password": "tsx scripts/hash-my-world-faq-password.ts",
     "ablate:mirror": "tsx scripts/ablate.ts --surface=mirror",

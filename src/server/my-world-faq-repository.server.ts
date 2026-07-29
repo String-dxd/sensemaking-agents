@@ -42,6 +42,8 @@ export interface MyWorldFaqHeadRef {
   digest: string
 }
 
+export type MyWorldFaqHeadFenceResult = 'executed' | 'busy' | 'superseded'
+
 export interface MyWorldFaqRevisionMetadata extends MyWorldFaqHeadRef {
   schemaVersion: number
   structureVersion: number
@@ -144,6 +146,7 @@ interface BootstrapStateRow extends Record<string, unknown> {
 }
 
 interface RepositoryHooks {
+  beforeHeadLock?: () => void | Promise<void>
   afterRevisionInsert?: () => void | Promise<void>
 }
 
@@ -191,18 +194,23 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
   async function runWhileCurrentHeadLocked(
     expectedHead: MyWorldFaqHeadRef,
     operation: () => Promise<void>,
-  ): Promise<boolean> {
+  ): Promise<MyWorldFaqHeadFenceResult> {
     try {
       return await database.transaction(async (tx) => {
-        const lockedHead = await lockCurrentHead(tx)
-        if (!lockedHead) throw new MyWorldFaqRepositoryError('UNINITIALIZED')
-        if (!sameHead(lockedHead, expectedHead)) return false
+        const lockedHead = await tryLockCurrentHead(tx)
+        if (!lockedHead) {
+          const observedHead = await loadCurrentHead(tx)
+          if (!observedHead) throw new MyWorldFaqRepositoryError('UNINITIALIZED')
+          return sameHead(observedHead, expectedHead) ? 'busy' : 'superseded'
+        }
+        if (!sameHead(lockedHead, expectedHead)) return 'superseded'
 
-        // Keep the singleton head locked through the derived-cache write.
-        // A publication cannot advance the head and populate a newer cache
-        // entry while an older request is still able to write afterward.
+        // Keep the singleton head locked through the derived-cache write so
+        // publication and cache order cannot diverge. SKIP LOCKED ensures
+        // concurrent public refreshes return immediately instead of filling
+        // the connection pool while one remote cache write is in flight.
         await operation()
-        return true
+        return 'executed'
       })
     } catch (error) {
       throw mapRepositoryError(error)
@@ -224,6 +232,7 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
           return resolveCommittedAttempt(tx, beforeLock, prepared.requestFingerprint)
         }
 
+        await hooks.beforeHeadLock?.()
         const lockedHead = await lockCurrentHead(tx)
         if (!lockedHead) throw new MyWorldFaqRepositoryError('UNINITIALIZED')
 
@@ -841,6 +850,32 @@ async function lockCurrentHead(tx: AppTransaction): Promise<MyWorldFaqHeadRef | 
     from my_world_faq_heads
     where page_key = ${MY_WORLD_FAQ_PAGE_KEY}
     for update
+  `)
+  return result.rows[0] ?? null
+}
+
+async function tryLockCurrentHead(tx: AppTransaction): Promise<MyWorldFaqHeadRef | null> {
+  const result = await tx.execute<HeadRow>(sql`
+    select
+      current_revision_id as "revisionId",
+      current_version as version,
+      current_digest as digest
+    from my_world_faq_heads
+    where page_key = ${MY_WORLD_FAQ_PAGE_KEY}
+    for update skip locked
+  `)
+  return result.rows[0] ?? null
+}
+
+async function loadCurrentHead(db: FaqDatabaseExecutor): Promise<MyWorldFaqHeadRef | null> {
+  const result = await db.execute<HeadRow>(sql`
+    select
+      current_revision_id as "revisionId",
+      current_version as version,
+      current_digest as digest
+    from my_world_faq_heads
+    where page_key = ${MY_WORLD_FAQ_PAGE_KEY}
+    limit 1
   `)
   return result.rows[0] ?? null
 }

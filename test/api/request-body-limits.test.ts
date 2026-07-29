@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import { MY_WORLD_FAQ_PUBLISH_BODY_MAX_BYTES } from '~/server/my-world-faq-editor.functions'
 import {
   BodyEnvelopeError,
+  getEditorBodyEnvelopeErrorResponse,
   getEditorBodyPolicy,
   readBodyWithinLimit,
   validateBodyEnvelope,
@@ -18,7 +20,7 @@ describe('FAQ editor request-body limits', () => {
       maxBytes: 8_192,
     })
     expect(getEditorBodyPolicy('/api/my-world/faq/editor/publish', 'POST')).toMatchObject({
-      maxBytes: 1_048_576,
+      maxBytes: MY_WORLD_FAQ_PUBLISH_BODY_MAX_BYTES,
     })
     expect(() => getEditorBodyPolicy('/api/my-world/faq/editor/session', 'PUT')).toThrowError(
       expect.objectContaining({ code: 'METHOD_NOT_ALLOWED', status: 405 }),
@@ -90,5 +92,102 @@ describe('FAQ editor request-body limits', () => {
     ).toThrow()
     expect(iterator).not.toHaveBeenCalled()
     expect(source).toBeDefined()
+  })
+
+  it.each([
+    {
+      pathname: '/api/my-world/faq/editor/publish',
+      error: new BodyEnvelopeError('PAYLOAD_TOO_LARGE'),
+      status: 413,
+      message: 'The FAQ draft is too large to publish.',
+    },
+    {
+      pathname: '/api/my-world/faq/editor/publish',
+      error: new BodyEnvelopeError('UNSUPPORTED_MEDIA'),
+      status: 415,
+      message: 'Use application/json.',
+    },
+    {
+      pathname: '/api/my-world/faq/editor/restore',
+      error: new BodyEnvelopeError('PAYLOAD_TOO_LARGE'),
+      status: 413,
+      message: 'The restore request is too large.',
+    },
+    {
+      pathname: '/api/my-world/faq/editor/restore',
+      error: new BodyEnvelopeError('UNSUPPORTED_MEDIA'),
+      status: 415,
+      message: 'Use application/json.',
+    },
+    {
+      pathname: '/api/my-world/faq/editor/restore',
+      error: new BodyEnvelopeError('BAD_CONTENT_LENGTH'),
+      status: 400,
+      message: 'The request body length is invalid.',
+    },
+  ])('formats $status adapter failures for $pathname with the mutation response contract', ({
+    pathname,
+    error,
+    status,
+    message,
+  }) => {
+    const response = getEditorBodyEnvelopeErrorResponse(pathname, error)
+
+    expect(response).toMatchObject({
+      status,
+      body: {
+        ok: false,
+        error: 'invalid_body',
+        message,
+      },
+    })
+    expect(response.headers).toEqual({
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'private, no-store',
+      'CDN-Cache-Control': 'no-store',
+      'Vercel-CDN-Cache-Control': 'no-store',
+      Vary: 'Cookie',
+    })
+  })
+
+  it.each([
+    {
+      pathname: '/api/my-world/faq/editor/publish',
+      error: new BodyEnvelopeError('METHOD_NOT_ALLOWED'),
+      status: 405,
+      body: { error: 'Method not allowed.' },
+    },
+    {
+      pathname: '/api/my-world/faq/editor/publish/',
+      error: new BodyEnvelopeError('NON_CANONICAL_PATH'),
+      status: 404,
+      body: { error: 'Not found.' },
+    },
+  ])('keeps $status routing failures fail-closed for $pathname', ({
+    pathname,
+    error,
+    status,
+    body,
+  }) => {
+    const response = getEditorBodyEnvelopeErrorResponse(pathname, error)
+    expect(response).toMatchObject({
+      status,
+      body,
+    })
+    if (error.code === 'METHOD_NOT_ALLOWED') {
+      expect(response.headers.Allow).toBe('POST')
+    }
+  })
+
+  it.each([
+    new BodyEnvelopeError('PAYLOAD_TOO_LARGE'),
+    new BodyEnvelopeError('UNSUPPORTED_MEDIA'),
+    new BodyEnvelopeError('BAD_CONTENT_LENGTH'),
+  ])('does not clear the editor cookie when logout is rejected before routing', (error) => {
+    const production = getEditorBodyEnvelopeErrorResponse('/api/my-world/faq/editor/logout', error)
+    const development = getEditorBodyEnvelopeErrorResponse('/api/my-world/faq/editor/logout', error)
+
+    expect(production.headers['Set-Cookie']).toBeUndefined()
+    expect(development.headers['Set-Cookie']).toBeUndefined()
   })
 })

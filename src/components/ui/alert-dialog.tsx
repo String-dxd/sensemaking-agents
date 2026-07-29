@@ -1,5 +1,6 @@
 import { AlertDialog as BaseAlertDialog } from '@base-ui/react/alert-dialog'
 import type { ComponentProps, HTMLAttributes } from 'react'
+import { usePortalContainer } from '~/components/ui/portal-container'
 import { cn } from '~/lib/utils'
 
 export const AlertDialog = BaseAlertDialog.Root
@@ -28,8 +29,10 @@ export function AlertDialogContent({
   children,
   ...props
 }: ComponentProps<typeof BaseAlertDialog.Popup>) {
+  const portalContainer = usePortalContainer()
+
   return (
-    <AlertDialogPortal>
+    <AlertDialogPortal container={portalContainer}>
       <AlertDialogOverlay />
       <BaseAlertDialog.Popup
         className={cn(

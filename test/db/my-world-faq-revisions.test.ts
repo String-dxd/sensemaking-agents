@@ -107,36 +107,63 @@ describeWithDatabase('My World FAQ global revisions', () => {
       markCacheWriteStarted()
       await cacheWriteGate
     })
-    await cacheWriteStarted
-
-    const candidate = cloneDefault()
-    candidate.page.footer.brand = 'Published after the guarded cache write'
-    const publication = repository.publishRevision({
-      document: candidate,
-      expectedBase: base,
-      attemptId: randomUUID(),
-      savedByName: 'Alex Tan',
+    let markPublicationHeadLockStarted!: () => void
+    const publicationHeadLockStarted = new Promise<void>((resolve) => {
+      markPublicationHeadLockStarted = resolve
     })
-    const publicationState = await Promise.race([
-      publication.then(() => 'published' as const),
-      new Promise<'blocked'>((resolve) => {
-        setTimeout(() => resolve('blocked'), 40)
-      }),
-    ])
-    expect(publicationState).toBe('blocked')
+    const publishingRepository = createMyWorldFaqRepository(database, {
+      beforeHeadLock: markPublicationHeadLockStarted,
+    })
+    let publication: ReturnType<typeof repository.publishRevision> | undefined
+    try {
+      await cacheWriteStarted
 
-    releaseCacheWrite()
-    await expect(guardedWrite).resolves.toBe(true)
-    const published = await publication
-    expect(published.committed.version).toBe(2)
+      let concurrentCacheWriteRan = false
+      await expect(
+        repository.runWhileCurrentHeadLocked(base, async () => {
+          concurrentCacheWriteRan = true
+        }),
+      ).resolves.toBe('busy')
+      expect(concurrentCacheWriteRan).toBe(false)
 
-    let staleWriteRan = false
-    await expect(
-      repository.runWhileCurrentHeadLocked(base, async () => {
-        staleWriteRan = true
-      }),
-    ).resolves.toBe(false)
-    expect(staleWriteRan).toBe(false)
+      const candidate = cloneDefault()
+      candidate.page.footer.brand = 'Published after the guarded cache write'
+      publication = publishingRepository.publishRevision({
+        document: candidate,
+        expectedBase: base,
+        attemptId: randomUUID(),
+        savedByName: 'Alex Tan',
+      })
+      let publicationSettled = false
+      void publication.then(
+        () => {
+          publicationSettled = true
+        },
+        () => {
+          publicationSettled = true
+        },
+      )
+      await publicationHeadLockStarted
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(publicationSettled).toBe(false)
+
+      releaseCacheWrite()
+      await expect(guardedWrite).resolves.toBe('executed')
+      const published = await publication
+      expect(published.committed.version).toBe(2)
+
+      let staleWriteRan = false
+      await expect(
+        repository.runWhileCurrentHeadLocked(base, async () => {
+          staleWriteRan = true
+        }),
+      ).resolves.toBe('superseded')
+      expect(staleWriteRan).toBe(false)
+    } finally {
+      releaseCacheWrite()
+      await guardedWrite.catch(() => undefined)
+      await publication?.catch(() => undefined)
+    }
   })
 
   it('serializes distinct attempts and makes a matching retry idempotent', async () => {

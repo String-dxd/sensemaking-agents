@@ -5,6 +5,20 @@ export interface EditorBodyPolicy {
   requireJson: true
 }
 
+export interface EditorBodyEnvelopeErrorResponse {
+  status: BodyEnvelopeError['status']
+  headers: Readonly<Record<string, string>>
+  body:
+    | {
+        ok: false
+        error: 'invalid_body'
+        message: string
+      }
+    | {
+        error: string
+      }
+}
+
 export type BodyEnvelopeErrorCode =
   | 'BAD_CONTENT_LENGTH'
   | 'METHOD_NOT_ALLOWED'
@@ -34,11 +48,13 @@ export class BodyEnvelopeError extends Error {
 }
 
 const EDITOR_API_NAMESPACE = '/api/my-world/faq/editor'
+const EDITOR_PUBLISH_PATH = '/api/my-world/faq/editor/publish'
+const EDITOR_RESTORE_PATH = '/api/my-world/faq/editor/restore'
 const EDITOR_POST_POLICIES = new Map<string, EditorBodyPolicy>([
   ['/api/my-world/faq/editor/session', { maxBytes: 4 * 1_024, requireJson: true }],
   ['/api/my-world/faq/editor/logout', { maxBytes: 1_024, requireJson: true }],
-  ['/api/my-world/faq/editor/restore', { maxBytes: 8 * 1_024, requireJson: true }],
-  ['/api/my-world/faq/editor/publish', { maxBytes: 1_024 * 1_024, requireJson: true }],
+  [EDITOR_RESTORE_PATH, { maxBytes: 8 * 1_024, requireJson: true }],
+  [EDITOR_PUBLISH_PATH, { maxBytes: 1_024 * 1_024, requireJson: true }],
 ])
 
 export function getEditorBodyPolicy(pathname: string, method: string): EditorBodyPolicy | null {
@@ -59,6 +75,59 @@ export function getEditorBodyPolicy(pathname: string, method: string): EditorBod
     throw new BodyEnvelopeError('NON_CANONICAL_PATH')
   }
   return policy
+}
+
+/**
+ * Describes an adapter-level failure without importing the built application
+ * server. Publish and restore callers parse a discriminated response union, so
+ * failures intercepted before the router must use that same public contract.
+ */
+export function getEditorBodyEnvelopeErrorResponse(
+  pathname: string,
+  error: BodyEnvelopeError,
+): EditorBodyEnvelopeErrorResponse {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'private, no-store',
+    'CDN-Cache-Control': 'no-store',
+    'Vercel-CDN-Cache-Control': 'no-store',
+    Vary: 'Cookie',
+  }
+  if (error.code === 'METHOD_NOT_ALLOWED') {
+    headers.Allow = 'POST'
+  }
+
+  if (
+    (pathname === EDITOR_PUBLISH_PATH || pathname === EDITOR_RESTORE_PATH) &&
+    isBodyValidationError(error)
+  ) {
+    return {
+      status: error.status,
+      headers,
+      body: {
+        ok: false,
+        error: 'invalid_body',
+        message: bodyValidationMessage(pathname, error),
+      },
+    }
+  }
+
+  return {
+    status: error.status,
+    headers,
+    body: {
+      error:
+        error.code === 'PAYLOAD_TOO_LARGE'
+          ? 'Request body is too large.'
+          : error.code === 'UNSUPPORTED_MEDIA'
+            ? 'Use application/json.'
+            : error.code === 'NON_CANONICAL_PATH'
+              ? 'Not found.'
+              : error.code === 'METHOD_NOT_ALLOWED'
+                ? 'Method not allowed.'
+                : 'Invalid request body length.',
+    },
+  }
 }
 
 export function validateBodyEnvelope(
@@ -99,4 +168,24 @@ export async function readBodyWithinLimit(
 
 function firstHeader(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value
+}
+
+function isBodyValidationError(
+  error: BodyEnvelopeError,
+): error is BodyEnvelopeError & {
+  code: 'BAD_CONTENT_LENGTH' | 'PAYLOAD_TOO_LARGE' | 'UNSUPPORTED_MEDIA'
+} {
+  return (
+    error.code === 'BAD_CONTENT_LENGTH' ||
+    error.code === 'PAYLOAD_TOO_LARGE' ||
+    error.code === 'UNSUPPORTED_MEDIA'
+  )
+}
+
+function bodyValidationMessage(pathname: string, error: BodyEnvelopeError): string {
+  if (error.code === 'UNSUPPORTED_MEDIA') return 'Use application/json.'
+  if (error.code === 'BAD_CONTENT_LENGTH') return 'The request body length is invalid.'
+  return pathname === EDITOR_PUBLISH_PATH
+    ? 'The FAQ draft is too large to publish.'
+    : 'The restore request is too large.'
 }

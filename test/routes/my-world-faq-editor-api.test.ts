@@ -77,6 +77,7 @@ describe('My World FAQ editor APIs', () => {
       identity: {
         auditId: 'audit-id',
         displayName: 'FAQ Teammate',
+        idleExpiresAt: '2026-07-29T10:30:00.000Z',
         absoluteExpiresAt: '2026-07-29T18:00:00.000Z',
         tokenDigest: 'a'.repeat(64),
       },

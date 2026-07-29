@@ -7,6 +7,7 @@ import {
   type MyWorldFaqContent,
 } from '~/data/my-world-faq'
 import {
+  type MyWorldFaqHeadFenceResult,
   type MyWorldFaqHeadRef,
   type MyWorldFaqPublicSnapshot,
   runWhileCurrentMyWorldFaqHeadLocked,
@@ -57,6 +58,15 @@ export async function writeMyWorldFaqPublicCache(
     name: 'My World FAQ public last-known-good',
     tags: [PUBLIC_CACHE_TAG],
   })
+  const confirmed = await readMyWorldFaqPublicCache(cache)
+  if (
+    !confirmed ||
+    confirmed.revisionId !== envelope.revisionId ||
+    confirmed.revisionVersion !== envelope.revisionVersion ||
+    confirmed.documentDigest !== envelope.documentDigest
+  ) {
+    throw new Error('The My World FAQ public cache write could not be confirmed.')
+  }
 }
 
 /**
@@ -72,15 +82,15 @@ export async function writeCurrentMyWorldFaqPublicCache(
     runWhileCurrentHeadLocked?: (
       expectedHead: MyWorldFaqHeadRef,
       operation: () => Promise<void>,
-    ) => Promise<boolean>
+    ) => Promise<MyWorldFaqHeadFenceResult>
   } = {},
-): Promise<'written' | 'superseded'> {
+): Promise<'written' | 'busy' | 'superseded'> {
   const runWhileCurrentHeadLocked =
     options.runWhileCurrentHeadLocked ?? runWhileCurrentMyWorldFaqHeadLocked
-  const written = await runWhileCurrentHeadLocked(snapshot.head, () =>
+  const result = await runWhileCurrentHeadLocked(snapshot.head, () =>
     writeMyWorldFaqPublicCache(snapshot, options.cache ?? getRuntimeCache()),
   )
-  return written ? 'written' : 'superseded'
+  return result === 'executed' ? 'written' : result
 }
 
 /**

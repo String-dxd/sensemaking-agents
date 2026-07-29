@@ -1,10 +1,14 @@
 import type { MyWorldFaqContent } from '~/data/my-world-faq'
+import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 
 export interface GuardrailLedgerPreviewProps {
   content: MyWorldFaqContent
+  renderField?: MyWorldFaqFieldRenderer
 }
 
-export function GuardrailLedgerPreview({ content }: GuardrailLedgerPreviewProps) {
+export function GuardrailLedgerPreview({ content, renderField }: GuardrailLedgerPreviewProps) {
+  const field: MyWorldFaqFieldRenderer = (args) => renderField?.(args) ?? args.value
+
   return (
     <section
       aria-labelledby="guardrail-preview-title"
@@ -15,17 +19,29 @@ export function GuardrailLedgerPreview({ content }: GuardrailLedgerPreviewProps)
         <div className="grid gap-7 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
             <p className="text-xs font-semibold text-(--color-faq-coral-ink)">
-              {content.page.ledger.eyebrow}
+              {field({
+                path: 'page.ledger.eyebrow',
+                label: 'Guardrail section label',
+                value: content.page.ledger.eyebrow,
+              })}
             </p>
             <h2
               id="guardrail-preview-title"
               className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em]"
             >
-              {content.page.ledger.heading}
+              {field({
+                path: 'page.ledger.heading',
+                label: 'Guardrail section heading',
+                value: content.page.ledger.heading,
+              })}
             </h2>
           </div>
           <p className="max-w-[50ch] text-sm leading-relaxed text-(--color-faq-ink-soft) lg:col-span-5 lg:justify-self-end">
-            {content.page.ledger.introduction}
+            {field({
+              path: 'page.ledger.introduction',
+              label: 'Guardrail section introduction',
+              value: content.page.ledger.introduction,
+            })}
           </p>
         </div>
 
@@ -49,7 +65,11 @@ export function GuardrailLedgerPreview({ content }: GuardrailLedgerPreviewProps)
                   <div>
                     <p className="text-sm font-semibold">{preview.label}</p>
                     <p className="mt-1 text-xs leading-relaxed text-(--color-faq-ink-soft)">
-                      {preview.description}
+                      {field({
+                        path: `ledgerPreview.${preview.state}.description`,
+                        label: `${preview.label} description`,
+                        value: preview.description,
+                      })}
                     </p>
                   </div>
                 </div>

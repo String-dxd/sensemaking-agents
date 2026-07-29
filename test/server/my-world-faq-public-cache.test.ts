@@ -107,7 +107,7 @@ describe('My World FAQ public last-known-good cache', () => {
   it('skips an older request once its publication is no longer current', async () => {
     const cache = memoryCache()
     const publication = await snapshot()
-    const runWhileCurrentHeadLocked = vi.fn(async () => false)
+    const runWhileCurrentHeadLocked = vi.fn(async () => 'superseded' as const)
 
     await expect(
       writeCurrentMyWorldFaqPublicCache(publication, {
@@ -118,5 +118,29 @@ describe('My World FAQ public last-known-good cache', () => {
 
     expect(runWhileCurrentHeadLocked).toHaveBeenCalledWith(publication.head, expect.any(Function))
     expect(cache.set).not.toHaveBeenCalled()
+  })
+
+  it('returns busy without starting another remote write while the head fence is held', async () => {
+    const cache = memoryCache()
+    const publication = await snapshot()
+    const runWhileCurrentHeadLocked = vi.fn(async () => 'busy' as const)
+
+    await expect(
+      writeCurrentMyWorldFaqPublicCache(publication, {
+        cache,
+        runWhileCurrentHeadLocked,
+      }),
+    ).resolves.toBe('busy')
+
+    expect(cache.set).not.toHaveBeenCalled()
+  })
+
+  it('rejects a cache client that resolves set without storing the publication', async () => {
+    const cache = memoryCache()
+    vi.mocked(cache.set).mockImplementation(async () => {})
+
+    await expect(writeMyWorldFaqPublicCache(await snapshot(), cache)).rejects.toThrow(
+      'could not be confirmed',
+    )
   })
 })

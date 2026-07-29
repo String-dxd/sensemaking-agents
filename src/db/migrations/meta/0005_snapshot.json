@@ -117,9 +117,7 @@
           "name": "agent_sessions_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -211,9 +209,7 @@
           "name": "agent_traces_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -311,9 +307,7 @@
           "name": "cartographer_outputs_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -388,9 +382,7 @@
           "name": "connector_outputs_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -427,10 +419,7 @@
       "compositePrimaryKeys": {
         "counselor_students_counselor_id_student_id_pk": {
           "name": "counselor_students_counselor_id_student_id_pk",
-          "columns": [
-            "counselor_id",
-            "student_id"
-          ]
+          "columns": ["counselor_id", "student_id"]
         }
       },
       "uniqueConstraints": {},
@@ -517,9 +506,7 @@
           "name": "memory_snapshots_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -677,9 +664,7 @@
           "name": "mirror_entries_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -715,12 +700,8 @@
           "name": "mirror_entry_tags_entry_id_mirror_entries_id_fk",
           "tableFrom": "mirror_entry_tags",
           "tableTo": "mirror_entries",
-          "columnsFrom": [
-            "entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["entry_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -728,12 +709,8 @@
           "name": "mirror_entry_tags_tag_id_tags_id_fk",
           "tableFrom": "mirror_entry_tags",
           "tableTo": "tags",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -741,10 +718,7 @@
       "compositePrimaryKeys": {
         "mirror_entry_tags_entry_id_tag_id_pk": {
           "name": "mirror_entry_tags_entry_id_tag_id_pk",
-          "columns": [
-            "entry_id",
-            "tag_id"
-          ]
+          "columns": ["entry_id", "tag_id"]
         }
       },
       "uniqueConstraints": {},
@@ -868,9 +842,7 @@
         "my_world_faq_editor_sessions_audit_id_uq": {
           "name": "my_world_faq_editor_sessions_audit_id_uq",
           "nullsNotDistinct": false,
-          "columns": [
-            "audit_id"
-          ]
+          "columns": ["audit_id"]
         }
       },
       "policies": {},
@@ -940,18 +912,8 @@
           "name": "my_world_faq_heads_revision_fk",
           "tableFrom": "my_world_faq_heads",
           "tableTo": "my_world_faq_revisions",
-          "columnsFrom": [
-            "page_key",
-            "current_revision_id",
-            "current_version",
-            "current_digest"
-          ],
-          "columnsTo": [
-            "page_key",
-            "id",
-            "version",
-            "canonical_digest"
-          ],
+          "columnsFrom": ["page_key", "current_revision_id", "current_version", "current_digest"],
+          "columnsTo": ["page_key", "id", "version", "canonical_digest"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1088,12 +1050,8 @@
           "name": "my_world_faq_revisions_restored_from_revision_id_my_world_faq_revisions_id_fk",
           "tableFrom": "my_world_faq_revisions",
           "tableTo": "my_world_faq_revisions",
-          "columnsFrom": [
-            "restored_from_revision_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["restored_from_revision_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -1103,28 +1061,17 @@
         "my_world_faq_revisions_page_version_uq": {
           "name": "my_world_faq_revisions_page_version_uq",
           "nullsNotDistinct": false,
-          "columns": [
-            "page_key",
-            "version"
-          ]
+          "columns": ["page_key", "version"]
         },
         "my_world_faq_revisions_page_attempt_uq": {
           "name": "my_world_faq_revisions_page_attempt_uq",
           "nullsNotDistinct": false,
-          "columns": [
-            "page_key",
-            "attempt_id"
-          ]
+          "columns": ["page_key", "attempt_id"]
         },
         "my_world_faq_revisions_head_pointer_uq": {
           "name": "my_world_faq_revisions_head_pointer_uq",
           "nullsNotDistinct": false,
-          "columns": [
-            "page_key",
-            "id",
-            "version",
-            "canonical_digest"
-          ]
+          "columns": ["page_key", "id", "version", "canonical_digest"]
         }
       },
       "policies": {},
@@ -1240,12 +1187,8 @@
           "name": "pathfinder_outputs_connector_output_id_connector_outputs_id_fk",
           "tableFrom": "pathfinder_outputs",
           "tableTo": "connector_outputs",
-          "columnsFrom": [
-            "connector_output_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["connector_output_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1257,9 +1200,7 @@
           "name": "pathfinder_outputs_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -1309,10 +1250,7 @@
       "compositePrimaryKeys": {
         "student_memory_files_student_id_file_path_pk": {
           "name": "student_memory_files_student_id_file_path_pk",
-          "columns": [
-            "student_id",
-            "file_path"
-          ]
+          "columns": ["student_id", "file_path"]
         }
       },
       "uniqueConstraints": {},
@@ -1321,9 +1259,7 @@
           "name": "student_memory_files_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -1417,9 +1353,7 @@
           "name": "tags_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -1456,10 +1390,7 @@
       "compositePrimaryKeys": {
         "vips_forget_count_student_id_dimension_pk": {
           "name": "vips_forget_count_student_id_dimension_pk",
-          "columns": [
-            "student_id",
-            "dimension"
-          ]
+          "columns": ["student_id", "dimension"]
         }
       },
       "uniqueConstraints": {},
@@ -1468,9 +1399,7 @@
           "name": "vips_forget_count_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -1544,9 +1473,7 @@
           "name": "vips_island_snapshots_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -1617,10 +1544,7 @@
       "compositePrimaryKeys": {
         "vips_pages_student_id_dimension_pk": {
           "name": "vips_pages_student_id_dimension_pk",
-          "columns": [
-            "student_id",
-            "dimension"
-          ]
+          "columns": ["student_id", "dimension"]
         }
       },
       "uniqueConstraints": {},
@@ -1629,9 +1553,7 @@
           "name": "vips_pages_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -1749,12 +1671,8 @@
           "name": "vips_proposed_diffs_mirror_entry_id_mirror_entries_id_fk",
           "tableFrom": "vips_proposed_diffs",
           "tableTo": "mirror_entries",
-          "columnsFrom": [
-            "mirror_entry_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["mirror_entry_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1766,9 +1684,7 @@
           "name": "vips_proposed_diffs_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -1849,9 +1765,7 @@
           "name": "vips_share_tokens_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }
@@ -1990,12 +1904,8 @@
           "name": "vips_timeline_entries_reflection_id_mirror_entries_id_fk",
           "tableFrom": "vips_timeline_entries",
           "tableTo": "mirror_entries",
-          "columnsFrom": [
-            "reflection_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reflection_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -2003,12 +1913,8 @@
           "name": "vips_timeline_entries_reinforces_id_fkey",
           "tableFrom": "vips_timeline_entries",
           "tableTo": "vips_timeline_entries",
-          "columnsFrom": [
-            "reinforces_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["reinforces_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -2020,9 +1926,7 @@
           "name": "vips_timeline_entries_rls",
           "as": "PERMISSIVE",
           "for": "ALL",
-          "to": [
-            "public"
-          ],
+          "to": ["public"],
           "using": "student_id = current_setting('app.student_id', true)",
           "withCheck": "student_id = current_setting('app.student_id', true)"
         }

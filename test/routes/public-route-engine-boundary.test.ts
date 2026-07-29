@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -66,6 +66,21 @@ describe('public route engine boundary', () => {
     )
   })
 
+  it('keeps editor controls out of the public route module', () => {
+    const route = source('src/routes/my-world.faq.tsx')
+    const editorRoute = source('src/routes/my-world.faq_.edit.tsx')
+    const editorFunctions = source('src/server/my-world-faq-editor.functions.ts')
+
+    expect(route).not.toContain('MyWorldFaqEditorPage')
+    expect(route).not.toContain('FaqEditorGate')
+    expect(route).not.toContain('loadMyWorldFaqEditor')
+    expect(editorRoute).toContain('MyWorldFaqEditorPage')
+    expect(editorFunctions).not.toMatch(/^import .*my-world-faq-repository/m)
+    expect(editorFunctions).toMatch(
+      /import\(\s*['"]\.\/my-world-faq-editor\.handler\.server['"]\s*\)/,
+    )
+  })
+
   it('requires the loader document at every public renderer boundary', () => {
     const componentSources = [
       source('src/components/my-world-faq/MyWorldFaqPage.tsx'),
@@ -78,6 +93,58 @@ describe('public route engine boundary', () => {
     for (const componentSource of componentSources) {
       expect(componentSource).not.toContain('DEFAULT_MY_WORLD_FAQ_CONTENT')
       expect(componentSource).not.toMatch(/content\s*\?\s*:/)
+    }
+  })
+
+  it('keeps protected editor code and metadata out of the built public FAQ chunk graph', () => {
+    const assetsDirectory = join(REPO_ROOT, 'dist/client/assets')
+    expect(
+      existsSync(assetsDirectory),
+      'Run `pnpm build` before this boundary test so it can inspect the emitted graph.',
+    ).toBe(true)
+
+    const assetNames = readdirSync(assetsDirectory)
+    const publicEntries = assetNames.filter((name) => /^my-world\.faq-[^.]+\.js$/.test(name))
+    expect(publicEntries.length).toBeGreaterThan(0)
+
+    const graph = new Set<string>()
+    const pending = [...publicEntries]
+    while (pending.length > 0) {
+      const name = pending.pop()
+      if (!name || graph.has(name)) continue
+      graph.add(name)
+      const contents = readFileSync(join(assetsDirectory, name), 'utf8')
+      for (const match of contents.matchAll(
+        /(?:from|import)(?!\s*\()\s*["']\.\/([^"']+\.js)["']/g,
+      )) {
+        const dependency = match[1]
+        if (dependency && assetNames.includes(dependency) && !graph.has(dependency)) {
+          pending.push(dependency)
+        }
+      }
+    }
+
+    expect([...graph].some((name) => name.startsWith('my-world.faq_.edit-'))).toBe(false)
+    expect([...graph].some((name) => name.startsWith('FaqEditorGate-'))).toBe(false)
+
+    const emittedPublicGraph = [...graph]
+      .map((name) => readFileSync(join(assetsDirectory, name), 'utf8'))
+      .join('\n')
+    for (const protectedMarker of [
+      '__Host-my_world_faq_editor',
+      'my_world_faq_editor_sessions',
+      '/api/my-world/faq/editor',
+      'Save & publish',
+      'Unlock editor',
+      'Supporting records',
+      'committed-but-superseded',
+      'my-world-faq-editor-security',
+      'DATABASE_URL',
+      'argon2',
+    ]) {
+      expect(emittedPublicGraph, `public graph contains ${protectedMarker}`).not.toContain(
+        protectedMarker,
+      )
     }
   })
 })

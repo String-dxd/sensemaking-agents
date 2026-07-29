@@ -19,6 +19,7 @@ import type {
   MyWorldFaqQuestion,
 } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
+import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 
 function displayQuestion(question: MyWorldFaqQuestion) {
   return question.displayedQuestion
@@ -65,11 +66,14 @@ const CARD_SHAPES = [
 
 export interface QuestionFieldProps {
   content: MyWorldFaqContent
+  editorMode?: boolean
+  renderField?: MyWorldFaqFieldRenderer
 }
 
-export function QuestionField({ content }: QuestionFieldProps) {
+export function QuestionField({ content, editorMode = false, renderField }: QuestionFieldProps) {
   const firstCluster = content.concernClusters[0]
   if (!firstCluster) return null
+  const field: MyWorldFaqFieldRenderer = (args) => renderField?.(args) ?? args.value
 
   return (
     <section
@@ -80,68 +84,163 @@ export function QuestionField({ content }: QuestionFieldProps) {
       <div className="mx-auto w-full max-w-6xl px-5 py-14 sm:px-8 sm:py-18 lg:px-10 lg:py-20">
         <div className="max-w-2xl">
           <p className="text-xs font-semibold text-(--color-faq-stage-ink)">
-            {content.page.faq.eyebrow}
+            {field({
+              path: 'page.faq.eyebrow',
+              label: 'FAQ section label',
+              value: content.page.faq.eyebrow,
+            })}
           </p>
           <h2
             id="question-field-title"
             className="mt-2 text-[clamp(1.9rem,4vw,3.2rem)] font-semibold leading-tight tracking-[-0.045em] text-balance"
           >
-            {content.page.faq.heading}
+            {field({
+              path: 'page.faq.heading',
+              label: 'FAQ section heading',
+              value: content.page.faq.heading,
+            })}
           </h2>
           <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
-            {content.page.faq.introduction}
+            {field({
+              path: 'page.faq.introduction',
+              label: 'FAQ section introduction',
+              value: content.page.faq.introduction,
+            })}
           </p>
         </div>
 
-        <Tabs defaultValue={firstCluster.id} className="mt-8">
-          <div className="-mx-5 overflow-x-auto px-5 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
-            <TabsList aria-label="FAQ topics">
-              {content.concernClusters.map((cluster) => (
-                <TabsTrigger key={cluster.id} value={cluster.id}>
-                  {cluster.label}
-                </TabsTrigger>
-              ))}
-              <TabsIndicator className="bg-(--color-faq-stage)" />
-            </TabsList>
+        {editorMode && renderField ? (
+          <div className="mt-8 space-y-10" data-testid="faq-editor-question-field">
+            {content.concernClusters.map((cluster) => {
+              const questions = content.questions.filter(
+                (question) => question.clusterId === cluster.id,
+              )
+              return (
+                <section
+                  key={cluster.id}
+                  aria-label={`${cluster.label} questions`}
+                  className="rounded-[2rem_0.75rem_2rem_0.75rem] border border-(--color-faq-line-strong) bg-(--color-faq-surface) p-4 sm:p-6"
+                  data-testid="faq-question-cluster"
+                >
+                  <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+                    {renderField({
+                      path: `concernClusters.${cluster.id}.label`,
+                      label: 'Topic label',
+                      value: cluster.label,
+                    })}
+                    {renderField({
+                      path: `concernClusters.${cluster.id}.summary`,
+                      label: 'Topic summary',
+                      value: cluster.summary,
+                    })}
+                  </div>
+                  <div className="mt-5 grid gap-4 lg:grid-cols-2">
+                    {questions.map((question, index) => (
+                      <EditorQuestionCard
+                        key={question.id}
+                        question={question}
+                        index={index}
+                        content={content}
+                        renderField={renderField}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )
+            })}
           </div>
+        ) : (
+          <Tabs defaultValue={firstCluster.id} className="mt-8">
+            <div className="-mx-5 overflow-x-auto px-5 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
+              <TabsList aria-label="FAQ topics">
+                {content.concernClusters.map((cluster) => (
+                  <TabsTrigger key={cluster.id} value={cluster.id}>
+                    {cluster.label}
+                  </TabsTrigger>
+                ))}
+                <TabsIndicator className="bg-(--color-faq-stage)" />
+              </TabsList>
+            </div>
 
-          {content.concernClusters.map((cluster) => {
-            const questions = content.questions.filter(
-              (question) => question.clusterId === cluster.id,
-            )
-            return (
-              <TabsContent
-                key={cluster.id}
-                value={cluster.id}
-                keepMounted
-                className="pt-7"
-                data-testid="faq-question-cluster"
-              >
-                <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-                  <p className="max-w-[60ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
-                    {cluster.summary}
-                  </p>
-                  <span className="text-xs tabular-nums text-(--color-faq-ink-faint)">
-                    {questions.length} {questions.length === 1 ? 'question' : 'questions'}
-                  </span>
-                </div>
+            {content.concernClusters.map((cluster) => {
+              const questions = content.questions.filter(
+                (question) => question.clusterId === cluster.id,
+              )
+              return (
+                <TabsContent
+                  key={cluster.id}
+                  value={cluster.id}
+                  keepMounted
+                  className="pt-7"
+                  data-testid="faq-question-cluster"
+                >
+                  <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+                    <p className="max-w-[60ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
+                      {cluster.summary}
+                    </p>
+                    <span className="text-xs tabular-nums text-(--color-faq-ink-faint)">
+                      {questions.length} {questions.length === 1 ? 'question' : 'questions'}
+                    </span>
+                  </div>
 
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {questions.map((question, index) => (
-                    <FaqFlipCard
-                      key={question.id}
-                      question={question}
-                      index={index}
-                      content={content}
-                    />
-                  ))}
-                </div>
-              </TabsContent>
-            )
-          })}
-        </Tabs>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {questions.map((question, index) => (
+                      <FaqFlipCard
+                        key={question.id}
+                        question={question}
+                        index={index}
+                        content={content}
+                      />
+                    ))}
+                  </div>
+                </TabsContent>
+              )
+            })}
+          </Tabs>
+        )}
       </div>
     </section>
+  )
+}
+
+function EditorQuestionCard({
+  question,
+  index,
+  content,
+  renderField,
+}: {
+  question: MyWorldFaqQuestion
+  index: number
+  content: MyWorldFaqContent
+  renderField: MyWorldFaqFieldRenderer
+}) {
+  return (
+    <article
+      className="rounded-[1.5rem_0.5rem_1.5rem_0.5rem] border border-(--color-faq-line) bg-(--color-faq-paper) p-4"
+      data-testid="faq-editor-question-card"
+    >
+      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-(--color-faq-stage-ink)">
+        Question {String(index + 1).padStart(2, '0')}
+      </p>
+      {renderField({
+        path: `questions.${question.id}.displayedQuestion`,
+        label: 'Question',
+        value: question.displayedQuestion,
+      })}
+      {renderField({
+        path: `questions.${question.id}.shortAnswer`,
+        label: 'Short answer',
+        value: question.shortAnswer,
+      })}
+      <div className="mt-3">
+        <FaqEvidenceDialog
+          question={question}
+          content={content}
+          editorMode
+          renderField={renderField}
+        />
+      </div>
+    </article>
   )
 }
 
@@ -294,9 +393,13 @@ function FaqFlipCard({
 function FaqEvidenceDialog({
   question,
   content,
+  editorMode = false,
+  renderField,
 }: {
   question: MyWorldFaqQuestion
   content: MyWorldFaqContent
+  editorMode?: boolean
+  renderField?: MyWorldFaqFieldRenderer
 }) {
   return (
     <Dialog>
@@ -334,7 +437,14 @@ function FaqEvidenceDialog({
         </DialogHeader>
         <div className="mt-3 space-y-7">
           {question.blocks.map((block) => (
-            <EvidenceBlock key={block.id} block={block} content={content} />
+            <EvidenceBlock
+              key={block.id}
+              block={block}
+              content={content}
+              questionId={question.id}
+              editorMode={editorMode}
+              renderField={renderField}
+            />
           ))}
         </div>
       </DialogContent>
@@ -345,9 +455,15 @@ function FaqEvidenceDialog({
 function EvidenceBlock({
   block,
   content,
+  questionId,
+  editorMode = false,
+  renderField,
 }: {
   block: MyWorldFaqEvidenceBlock
   content: MyWorldFaqContent
+  questionId: string
+  editorMode?: boolean
+  renderField?: MyWorldFaqFieldRenderer
 }) {
   const sources = block.sourceIds.flatMap((id) => {
     const source = content.sources.find((item) => item.id === id)
@@ -357,6 +473,7 @@ function EvidenceBlock({
     const item = content.productProvenance.find((candidate) => candidate.id === id)
     return item ? [item] : []
   })
+  const blockPath = `questions.${questionId}.blocks.${block.id}`
 
   return (
     <section className="border-t border-(--color-faq-line) pt-5 first:border-t-0 first:pt-0">
@@ -373,14 +490,46 @@ function EvidenceBlock({
           Reviewed {block.review.lastReviewed}
         </time>
       </div>
-      <h3 className="mt-3 text-base font-semibold tracking-[-0.02em]">{block.heading}</h3>
-      <p className="mt-2 text-sm leading-relaxed text-(--color-faq-ink-soft) text-pretty">
-        {block.text}
-      </p>
-      <p className="mt-3 text-sm leading-relaxed text-(--color-faq-ink-faint) text-pretty">
-        <span className="font-semibold text-(--color-faq-ink-soft)">Limit: </span>
-        {block.limitations}
-      </p>
+      {editorMode && renderField ? (
+        <div className="mt-3">
+          {renderField({
+            path: `${blockPath}.heading`,
+            label: 'Evidence heading',
+            value: block.heading,
+          })}
+          {renderField({
+            path: `${blockPath}.text`,
+            label: 'Evidence',
+            value: block.text,
+          })}
+          {renderField({
+            path: `${blockPath}.populationContext`,
+            label: 'Population context',
+            value: block.populationContext,
+          })}
+          {renderField({
+            path: `${blockPath}.fit`,
+            label: 'Why it fits',
+            value: block.fit,
+          })}
+          {renderField({
+            path: `${blockPath}.limitations`,
+            label: 'Limitations',
+            value: block.limitations,
+          })}
+        </div>
+      ) : (
+        <>
+          <h3 className="mt-3 text-base font-semibold tracking-[-0.02em]">{block.heading}</h3>
+          <p className="mt-2 text-sm leading-relaxed text-(--color-faq-ink-soft) text-pretty">
+            {block.text}
+          </p>
+          <p className="mt-3 text-sm leading-relaxed text-(--color-faq-ink-faint) text-pretty">
+            <span className="font-semibold text-(--color-faq-ink-soft)">Limit: </span>
+            {block.limitations}
+          </p>
+        </>
+      )}
 
       {sources.length > 0 ? (
         <ul className="mt-3 space-y-2 text-sm">

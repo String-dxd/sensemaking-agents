@@ -1,6 +1,7 @@
 import { Dialog as BaseDialog } from '@base-ui/react/dialog'
 import { X } from 'lucide-react'
 import type { ComponentProps, HTMLAttributes, ReactNode } from 'react'
+import { usePortalContainer } from '~/components/ui/portal-container'
 import { cn } from '~/lib/utils'
 
 export const Dialog = BaseDialog.Root
@@ -33,8 +34,10 @@ export function DialogContent({
   closeLabel = 'Close',
   ...props
 }: DialogContentProps) {
+  const portalContainer = usePortalContainer()
+
   return (
-    <DialogPortal>
+    <DialogPortal container={portalContainer}>
       <DialogOverlay />
       <BaseDialog.Popup
         className={cn(

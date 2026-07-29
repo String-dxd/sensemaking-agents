@@ -8,9 +8,16 @@ import {
   resolveAndTouchMyWorldFaqEditorSession,
   revokeMyWorldFaqEditorSession,
 } from '~/server/my-world-faq-repository.server'
+import {
+  isPlainHttpLocalDevelopment,
+  myWorldFaqEditorCookieName,
+} from './my-world-faq-editor-cookie'
 
-export const MY_WORLD_FAQ_EDITOR_COOKIE_PRODUCTION = '__Host-my_world_faq_editor'
-export const MY_WORLD_FAQ_EDITOR_COOKIE_DEVELOPMENT = 'my_world_faq_editor_dev'
+export {
+  clearMyWorldFaqEditorCookieHeader,
+  MY_WORLD_FAQ_EDITOR_COOKIE_DEVELOPMENT,
+  MY_WORLD_FAQ_EDITOR_COOKIE_PRODUCTION,
+} from './my-world-faq-editor-cookie'
 export const MY_WORLD_FAQ_EDITOR_IDLE_MS = 30 * 60 * 1_000
 export const MY_WORLD_FAQ_EDITOR_ABSOLUTE_MS = 8 * 60 * 60 * 1_000
 export const MY_WORLD_FAQ_EDITOR_PASSWORD_MAX_BYTES = 256
@@ -44,6 +51,7 @@ export class MyWorldFaqEditorAuthError extends Error {
 export interface MyWorldFaqEditorSessionIdentity {
   auditId: string
   displayName: string
+  idleExpiresAt: string
   absoluteExpiresAt: string
   tokenDigest: string
 }
@@ -77,8 +85,18 @@ export function parseMyWorldFaqEditorEnabled(value = process.env.MY_WORLD_FAQ_ED
   return value === 'true'
 }
 
+export function isMyWorldFaqEditorOperational(
+  editorEnabled = process.env.MY_WORLD_FAQ_EDITOR_ENABLED,
+  contentSource = process.env.MY_WORLD_FAQ_CONTENT_SOURCE,
+): boolean {
+  return parseMyWorldFaqEditorEnabled(editorEnabled) && contentSource === 'database'
+}
+
 export function assertMyWorldFaqEditorEnabled(): void {
-  if (!parseMyWorldFaqEditorEnabled()) {
+  // Publishing is only truthful when the public FAQ reads the same database
+  // head. A flag-only misconfiguration must not accept a save that the public
+  // route can never display.
+  if (!isMyWorldFaqEditorOperational()) {
     throw new MyWorldFaqEditorAuthError('UNAVAILABLE')
   }
 }
@@ -223,22 +241,8 @@ export function myWorldFaqEditorCookieHeader(
     ),
   )
   return [
-    `${cookieName(secure)}=${encodeURIComponent(rawToken)}`,
+    `${myWorldFaqEditorCookieName(secure)}=${encodeURIComponent(rawToken)}`,
     `Max-Age=${maxAge}`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    secure ? 'Secure' : null,
-  ]
-    .filter(Boolean)
-    .join('; ')
-}
-
-export function clearMyWorldFaqEditorCookieHeader(requestUrl: string): string {
-  const secure = !isPlainHttpLocalDevelopment(new URL(requestUrl))
-  return [
-    `${cookieName(secure)}=`,
-    'Max-Age=0',
     'Path=/',
     'HttpOnly',
     'SameSite=Lax',
@@ -258,7 +262,7 @@ function readConfiguredPasswordHash(): string {
 
 function readMyWorldFaqEditorCookie(request: Request): string | null {
   const secure = new URL(request.url).protocol === 'https:'
-  const expectedName = cookieName(secure)
+  const expectedName = myWorldFaqEditorCookieName(secure)
   const cookieHeader = request.headers.get('cookie') ?? ''
   for (const pair of cookieHeader.split(';')) {
     const separator = pair.indexOf('=')
@@ -273,24 +277,6 @@ function readMyWorldFaqEditorCookie(request: Request): string | null {
   return null
 }
 
-function cookieName(secure: boolean): string {
-  return secure ? MY_WORLD_FAQ_EDITOR_COOKIE_PRODUCTION : MY_WORLD_FAQ_EDITOR_COOKIE_DEVELOPMENT
-}
-
-function isPlainHttpLocalDevelopment(url: URL): boolean {
-  const hostname = url.hostname.toLowerCase()
-  const isLoopback =
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    hostname === '[::1]' ||
-    hostname === '::1'
-  const isDeployment =
-    process.env.NODE_ENV === 'production' ||
-    process.env.VERCEL === '1' ||
-    typeof process.env.VERCEL_ENV === 'string'
-  return url.protocol === 'http:' && isLoopback && !isDeployment
-}
-
 function identityFromSession(
   session: MyWorldFaqEditorSessionRow,
   tokenDigest: string,
@@ -298,6 +284,9 @@ function identityFromSession(
   return {
     auditId: session.auditId,
     displayName: session.displayName,
+    idleExpiresAt: new Date(
+      new Date(session.lastSeenAt).valueOf() + MY_WORLD_FAQ_EDITOR_IDLE_MS,
+    ).toISOString(),
     absoluteExpiresAt: session.absoluteExpiresAt,
     tokenDigest,
   }

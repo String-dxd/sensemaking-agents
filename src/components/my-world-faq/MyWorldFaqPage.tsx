@@ -2,6 +2,7 @@ import { Badge } from '~/components/ui/badge'
 import { buttonVariants } from '~/components/ui/button'
 import type { MyWorldFaqContent } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
+import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 import { GuardrailLedgerPreview } from './GuardrailLedgerPreview'
 import { ProductLoop } from './ProductLoop'
 import { QuestionField } from './QuestionField'
@@ -10,9 +11,18 @@ import { SignalSourceStrip } from './SignalSourceStrip'
 export interface MyWorldFaqPageProps {
   feedbackEnabled: boolean
   content: MyWorldFaqContent
+  editorMode?: boolean
+  renderField?: MyWorldFaqFieldRenderer
 }
 
-export function MyWorldFaqPage({ feedbackEnabled, content }: MyWorldFaqPageProps) {
+export function MyWorldFaqPage({
+  feedbackEnabled,
+  content,
+  editorMode = false,
+  renderField,
+}: MyWorldFaqPageProps) {
+  const field: MyWorldFaqFieldRenderer = (args) => renderField?.(args) ?? args.value
+
   return (
     <div
       className="min-h-svh bg-(--color-faq-paper) text-(--color-faq-ink)"
@@ -25,7 +35,12 @@ export function MyWorldFaqPage({ feedbackEnabled, content }: MyWorldFaqPageProps
       >
         Skip to main content
       </a>
-      <header className="sticky top-0 z-30 border-b border-(--color-faq-line-strong) bg-(--color-faq-paper)">
+      <header
+        className={cn(
+          'z-30 border-b border-(--color-faq-line-strong) bg-(--color-faq-paper)',
+          editorMode ? 'relative' : 'sticky top-0',
+        )}
+      >
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-8 lg:px-12">
           <a
             href="#top"
@@ -80,45 +95,76 @@ export function MyWorldFaqPage({ feedbackEnabled, content }: MyWorldFaqPageProps
                 variant="outline"
                 className="faq-eyebrow border-(--color-faq-ink) bg-(--color-faq-yellow) text-(--color-faq-ink)"
               >
-                {content.page.hero.eyebrow}
+                {field({
+                  path: 'page.hero.eyebrow',
+                  label: 'Hero label',
+                  value: content.page.hero.eyebrow,
+                })}
               </Badge>
               <h1 className="mt-7 max-w-4xl text-[clamp(3.1rem,8vw,7rem)] font-semibold leading-[0.91] tracking-[-0.07em] text-balance">
-                {content.page.hero.heading}
+                {field({
+                  path: 'page.hero.heading',
+                  label: 'Hero heading',
+                  value: content.page.hero.heading,
+                })}
                 <span className="block text-(--color-faq-coral-ink)">
-                  {content.page.hero.headingAccent}
+                  {field({
+                    path: 'page.hero.headingAccent',
+                    label: 'Hero accent',
+                    value: content.page.hero.headingAccent,
+                  })}
                 </span>
               </h1>
               <p className="mt-8 max-w-[58ch] text-[clamp(1.05rem,2vw,1.3rem)] leading-relaxed text-(--color-faq-ink-soft) text-pretty">
-                {content.page.hero.introduction}
+                {field({
+                  path: 'page.hero.introduction',
+                  label: 'Hero introduction',
+                  value: content.page.hero.introduction,
+                })}
               </p>
-              <div className="mt-9 flex flex-wrap gap-3">
-                <a
-                  href="#product"
-                  className={cn(
-                    buttonVariants({ variant: 'default', size: 'lg' }),
-                    'faq-button-primary h-12 bg-(--color-faq-ink) px-6 text-(--color-faq-paper) hover:bg-(--color-faq-coral-ink)',
-                  )}
-                >
-                  {content.page.hero.productCta}
-                </a>
-                <a
-                  href="#faq"
-                  className={cn(
-                    buttonVariants({ variant: 'outline', size: 'lg' }),
-                    'faq-button-secondary h-12 border-(--color-faq-ink) bg-transparent px-6 hover:bg-(--color-faq-yellow)',
-                  )}
-                >
-                  {content.page.hero.faqCta}
-                </a>
-              </div>
+              {editorMode ? (
+                <div className="mt-9 grid max-w-2xl gap-3 sm:grid-cols-2">
+                  {field({
+                    path: 'page.hero.productCta',
+                    label: 'Product link label',
+                    value: content.page.hero.productCta,
+                  })}
+                  {field({
+                    path: 'page.hero.faqCta',
+                    label: 'FAQ link label',
+                    value: content.page.hero.faqCta,
+                  })}
+                </div>
+              ) : (
+                <div className="mt-9 flex flex-wrap gap-3">
+                  <a
+                    href="#product"
+                    className={cn(
+                      buttonVariants({ variant: 'default', size: 'lg' }),
+                      'faq-button-primary h-12 bg-(--color-faq-ink) px-6 text-(--color-faq-paper) hover:bg-(--color-faq-coral-ink)',
+                    )}
+                  >
+                    {content.page.hero.productCta}
+                  </a>
+                  <a
+                    href="#faq"
+                    className={cn(
+                      buttonVariants({ variant: 'outline', size: 'lg' }),
+                      'faq-button-secondary h-12 border-(--color-faq-ink) bg-transparent px-6 hover:bg-(--color-faq-yellow)',
+                    )}
+                  >
+                    {content.page.hero.faqCta}
+                  </a>
+                </div>
+              )}
             </div>
           </div>
         </section>
 
-        <ProductLoop content={content} />
-        <SignalSourceStrip content={content} />
-        <GuardrailLedgerPreview content={content} />
-        <QuestionField content={content} />
+        <ProductLoop content={content} editorMode={editorMode} renderField={renderField} />
+        <SignalSourceStrip content={content} renderField={renderField} />
+        <GuardrailLedgerPreview content={content} renderField={renderField} />
+        <QuestionField content={content} editorMode={editorMode} renderField={renderField} />
         <section
           aria-labelledby="faq-more-questions-title"
           className="border-b border-(--color-faq-ink) bg-(--color-faq-coral) text-(--color-faq-ink)"
@@ -126,17 +172,29 @@ export function MyWorldFaqPage({ feedbackEnabled, content }: MyWorldFaqPageProps
           <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-14 sm:px-8 sm:py-16 lg:grid-cols-12 lg:items-end lg:px-12">
             <div className="lg:col-span-8">
               <p className="text-xs font-semibold uppercase tracking-[0.12em]">
-                {content.page.contribution.eyebrow}
+                {field({
+                  path: 'page.contribution.eyebrow',
+                  label: 'Contribution label',
+                  value: content.page.contribution.eyebrow,
+                })}
               </p>
               <h2
                 id="faq-more-questions-title"
                 className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em]"
               >
-                {content.page.contribution.heading}
+                {field({
+                  path: 'page.contribution.heading',
+                  label: 'Contribution heading',
+                  value: content.page.contribution.heading,
+                })}
               </h2>
             </div>
             <p className="max-w-[48ch] text-base leading-relaxed lg:col-span-4">
-              {content.page.contribution.body}
+              {field({
+                path: 'page.contribution.body',
+                label: 'Contribution text',
+                value: content.page.contribution.body,
+              })}
             </p>
           </div>
         </section>
@@ -146,10 +204,20 @@ export function MyWorldFaqPage({ feedbackEnabled, content }: MyWorldFaqPageProps
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-5 py-9 sm:flex-row sm:items-end sm:justify-between sm:px-8 lg:px-12">
           <div className="flex items-center gap-3">
             <span aria-hidden="true" className="size-4 rounded-full bg-(--color-faq-coral)" />
-            <span className="text-sm font-semibold">{content.page.footer.brand}</span>
+            <span className="text-sm font-semibold">
+              {field({
+                path: 'page.footer.brand',
+                label: 'Footer name',
+                value: content.page.footer.brand,
+              })}
+            </span>
           </div>
           <span className="max-w-xl text-xs leading-relaxed text-(--color-faq-paper-soft) sm:text-right">
-            {content.page.footer.sharing}
+            {field({
+              path: 'page.footer.sharing',
+              label: 'Sharing note',
+              value: content.page.footer.sharing,
+            })}
           </span>
         </div>
       </footer>

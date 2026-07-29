@@ -1,10 +1,14 @@
 import type { MyWorldFaqContent } from '~/data/my-world-faq'
+import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 
 export interface SignalSourceStripProps {
   content: MyWorldFaqContent
+  renderField?: MyWorldFaqFieldRenderer
 }
 
-export function SignalSourceStrip({ content }: SignalSourceStripProps) {
+export function SignalSourceStrip({ content, renderField }: SignalSourceStripProps) {
+  const field: MyWorldFaqFieldRenderer = (args) => renderField?.(args) ?? args.value
+
   return (
     <section
       aria-labelledby="signal-source-title"
@@ -14,17 +18,29 @@ export function SignalSourceStrip({ content }: SignalSourceStripProps) {
         <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-7">
             <p className="text-xs font-semibold text-(--color-faq-yellow)">
-              {content.page.signals.eyebrow}
+              {field({
+                path: 'page.signals.eyebrow',
+                label: 'Questions section label',
+                value: content.page.signals.eyebrow,
+              })}
             </p>
             <h2
               id="signal-source-title"
               className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-balance"
             >
-              {content.page.signals.heading}
+              {field({
+                path: 'page.signals.heading',
+                label: 'Questions section heading',
+                value: content.page.signals.heading,
+              })}
             </h2>
           </div>
           <p className="max-w-[48ch] text-sm leading-relaxed text-(--color-faq-paper-soft) lg:col-span-5 lg:justify-self-end">
-            {content.page.signals.introduction}
+            {field({
+              path: 'page.signals.introduction',
+              label: 'Questions section introduction',
+              value: content.page.signals.introduction,
+            })}
           </p>
         </div>
 
@@ -39,9 +55,19 @@ export function SignalSourceStrip({ content }: SignalSourceStripProps) {
                   “
                 </span>
                 <p className="relative z-10 max-w-[34ch] text-[clamp(1.05rem,2.2vw,1.55rem)] font-medium leading-snug tracking-[-0.025em] text-pretty">
-                  {item.text}
+                  {field({
+                    path: `signalQuotes.${item.id}.text`,
+                    label: 'Audience quote',
+                    value: item.text,
+                  })}
                 </p>
-                <footer className="sr-only">{item.contextLabel}</footer>
+                <footer className={renderField ? 'mt-4' : 'sr-only'}>
+                  {field({
+                    path: `signalQuotes.${item.id}.contextLabel`,
+                    label: 'Quote context',
+                    value: item.contextLabel,
+                  })}
+                </footer>
               </blockquote>
             </li>
           ))}

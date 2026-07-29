@@ -8,6 +8,7 @@ import {
   clearMyWorldFaqEditorCookieHeader,
   createMyWorldFaqEditorSessionService,
   credentialFingerprintForMyWorldFaq,
+  isMyWorldFaqEditorOperational,
   MY_WORLD_FAQ_EDITOR_COOKIE_DEVELOPMENT,
   MY_WORLD_FAQ_EDITOR_COOKIE_PRODUCTION,
   MyWorldFaqEditorAuthError,
@@ -55,6 +56,13 @@ describe('My World FAQ editor session boundary', () => {
     expect(validateMyWorldFaqArgon2Hash('$argon2id$v=19$m=4096,p=1,t=2$c2FsdA$aGFzaA')).toBe(false)
     expect(validateMyWorldFaqArgon2Hash('$argon2i$v=19$m=19456,p=1,t=2$c2FsdA$aGFzaA')).toBe(false)
     expect(validateMyWorldFaqArgon2Hash('$argon2id$v=19$m=19456,p=2,t=2$c2FsdA$aGFzaA')).toBe(false)
+  })
+
+  it('only enables direct publishing when the public FAQ is database-backed', () => {
+    expect(isMyWorldFaqEditorOperational('true', 'database')).toBe(true)
+    expect(isMyWorldFaqEditorOperational('true', 'compiled')).toBe(false)
+    expect(isMyWorldFaqEditorOperational('true', undefined)).toBe(false)
+    expect(isMyWorldFaqEditorOperational('false', 'database')).toBe(false)
   })
 
   it('normalizes display names without accepting controls or oversized names', () => {
@@ -105,6 +113,7 @@ describe('My World FAQ editor session boundary', () => {
     const persisted = createSession.mock.calls[0]?.[0]
 
     expect(unlocked.rawToken).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(unlocked.identity.idleExpiresAt).toBe('2026-07-29T10:30:00.000Z')
     expect(persisted?.tokenDigest).toMatch(/^[a-f0-9]{64}$/)
     expect(persisted?.tokenDigest).not.toContain(unlocked.rawToken)
     expect(persisted?.displayName).toBe('FAQ Teammate')

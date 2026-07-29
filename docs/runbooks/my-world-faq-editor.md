@@ -66,26 +66,142 @@ session in 10 minutes. There is no bypass switch.
 
 ## Prepare and pin the rollback deployment
 
-Follow the migration safeguards in
-[`plans/071-production-migration-deploy-runbook.md`](../../plans/071-production-migration-deploy-runbook.md).
-Use the direct unpooled credential, bounded lock and statement timeouts, and
-verify the complete migration ledger, hashes and schema before and after.
-Stop on any mismatch.
+Export the Production `DATABASE_URL_UNPOOLED` direct connection in the
+operator shell or load it from the release checkout's protected `.env`. Do not
+put the URL in a command argument, terminal transcript or ticket. The verifier
+never reads or falls back to `DATABASE_URL`.
+
+Run the read-only preflight from the exact release checkout:
+
+```sh
+pnpm faq:verify-migration
+```
+
+The only accepted states are:
+
+- `pending`: the complete Drizzle ledger is exactly migrations 0000–0004,
+  with every timestamp and SHA-256 hash matching the local migration files,
+  and there are zero My World FAQ tables, constraints, indexes, functions,
+  triggers or policies; or
+- `applied`: the complete ledger is exactly migrations 0000–0005 and all FAQ
+  tables, columns, named constraints and foreign keys, indexes, the append-only
+  function and trigger match migration 0005 exactly, with no extras. The FAQ
+  tables, indexes and function must be owned by the connected migration user,
+  retain their migration-created null ACLs, and have no relevant altered
+  default privileges for that user.
+
+Stop on any other result. Do not repair a mixed or extra state by rerunning the
+migration.
+
+The verifier emits a credential-safe `databaseIdentity` containing the
+database name, connected user and `hostPortSha256`. Before authorizing any
+migration, compare all three values exactly with a Production identity recorded
+earlier through an independent trusted process, such as the approved secret
+inventory or a known-good deployment record. Do not create the reference from
+the URL being verified. The host/port hash is:
+
+```text
+SHA-256("postgres-host-port-v1\0" + lowercase_hostname + ":" + effective_port)
+```
+
+The effective port is the URL port or `5432` when omitted. Record only these
+three identity fields, never the URL. Stop if any field differs.
+
+Migration 0005 leaves the trigger function's ACL null, which preserves
+PostgreSQL's default `PUBLIC EXECUTE` privilege. The function returns `trigger`,
+is not `SECURITY DEFINER`, and cannot be used as a normal callable function.
+Changing that ACL requires a reviewed migration and a corresponding verifier
+update; do not alter it during release operations.
+
+If the state is `pending`, run this bounded migration command. It injects a
+5-second lock timeout and a 120-second statement timeout into the direct
+connection without putting the credential in the process arguments. It also
+clears `DATABASE_URL`, so Drizzle cannot fall back to the pooled application
+connection:
+
+```sh
+node --input-type=module <<'NODE'
+import 'dotenv/config'
+import { spawnSync } from 'node:child_process'
+
+const stop = (message) => {
+  console.error(message)
+  process.exit(1)
+}
+
+const raw = process.env.DATABASE_URL_UNPOOLED
+if (!raw) stop('DATABASE_URL_UNPOOLED is required')
+
+let url
+try {
+  url = new URL(raw)
+  if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
+    stop('DATABASE_URL_UNPOOLED must be a PostgreSQL URL')
+  }
+} catch {
+  stop('DATABASE_URL_UNPOOLED must be a valid PostgreSQL URL')
+}
+
+if ([...url.searchParams.keys()].some((key) => key.toLowerCase() === 'options')) {
+  stop('DATABASE_URL_UNPOOLED must not contain an options query parameter')
+}
+
+url.searchParams.set(
+  'options',
+  '-c lock_timeout=5000 -c statement_timeout=120000',
+)
+url.searchParams.set('connect_timeout', '10')
+url.searchParams.set(
+  'application_name',
+  'sensemaking-my-world-faq-migration-0005',
+)
+
+const result = spawnSync('pnpm', ['db:migrate'], {
+  cwd: process.cwd(),
+  env: {
+    ...process.env,
+    DATABASE_URL: '',
+    DATABASE_URL_UNPOOLED: url.toString(),
+  },
+  stdio: 'inherit',
+})
+
+if (result.error) stop('Could not start the bounded migration process')
+process.exit(result.status ?? 1)
+NODE
+```
+
+Whether preflight reported `pending` or `applied`, require the exact applied
+postflight:
+
+```sh
+pnpm faq:verify-migration --expect=applied
+```
+
+Then run the same bounded migration command a second time. It must be a no-op:
+it must not add a ledger row or change any FAQ object. Do not rely on the
+Drizzle status text alone. Prove the no-op by running the applied verifier
+again:
+
+```sh
+pnpm faq:verify-migration --expect=applied
+```
+
+Stop if either applied verification fails.
 
 Then:
 
-1. Run `pnpm db:migrate`.
-2. Run `pnpm faq:bootstrap`.
-3. Compare revision 1 and its digest with the compiled FAQ document. They must
+1. Run `pnpm faq:bootstrap`.
+2. Compare revision 1 and its digest with the compiled FAQ document. They must
    match exactly.
-4. Deploy with `MY_WORLD_FAQ_CONTENT_SOURCE=database` and
+3. Deploy with `MY_WORLD_FAQ_CONTENT_SOURCE=database` and
    `MY_WORLD_FAQ_EDITOR_ENABLED=false`.
-5. Confirm the public FAQ is database-backed and the editor, unlock, history,
+4. Confirm the public FAQ is database-backed and the editor, unlock, history,
    publish and restore surfaces all fail closed.
-6. Load the public FAQ once to prime the validated public-only last-known-good
+5. Load the public FAQ once to prime the validated public-only last-known-good
    cache. Verify a database outage serves that snapshot; an empty or corrupt
    cache must produce a generic 503.
-7. Pin this database-authoritative, editor-disabled deployment as the rollback
+6. Pin this database-authoritative, editor-disabled deployment as the rollback
    target.
 
 After the first human-authored revision, do not roll back to compiled content
@@ -131,13 +247,25 @@ instead of rotating into a split-password state.
 
 For suspected defacement or credential exposure:
 
-1. Set `MY_WORLD_FAQ_EDITOR_ENABLED=false` and deploy the pinned rollback
-   target.
-2. Preserve revisions and redacted security logs.
-3. Review the current head and restore the last approved revision through a
-   current database-aware build.
-4. Rotate the password and revoke sessions.
-5. Re-run the activation smoke tests before sharing access again.
+1. Immediately add WAF denies for the session, publish and restore endpoints.
+   Temporarily deny the public FAQ too if serving the current head would cause
+   harm. Preserve revisions and redacted security logs.
+2. Rotate the password and hash, deploy a current database-aware build with
+   `MY_WORLD_FAQ_EDITOR_ENABLED=false`, and verify Deployment Protection still
+   covers Preview and historical generated deployment URLs.
+3. Add a narrow, temporary WAF exception for the named operator's current IP,
+   then deploy the same database-aware build with the editor enabled and the
+   new secret. Keep every other client behind the mutation deny.
+4. Unlock with a fresh session and restore the immutable known-good revision.
+   Restoration must create a new revision; never update or delete an existing
+   revision row.
+5. Verify the public head points to the restored content and prime and verify
+   the validated public-only cache.
+6. Deploy again with the editor disabled, remove the operator-IP exception,
+   restore the baseline WAF rules, and prove both the old password and all old
+   cookies fail.
+7. If any step fails, keep the mutation deny in place and escalate. Do not
+   reopen mutation traffic to continue troubleshooting.
 
 Never update or delete a revision row. Restore creates a new revision and keeps
 the full record.
