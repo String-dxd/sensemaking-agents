@@ -44,7 +44,7 @@ export function MyWorldFaqPage({
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-8 lg:px-12">
           <a
             href="#top"
-            aria-label="My World home"
+            aria-label="My World FAQ home"
             className="group inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md text-sm font-semibold tracking-[-0.02em] outline-none focus-visible:ring-2 focus-visible:ring-(--color-faq-focus) focus-visible:ring-offset-2"
           >
             <span
@@ -53,7 +53,7 @@ export function MyWorldFaqPage({
             >
               <span className="size-2.5 rounded-full bg-(--color-faq-coral) transition-transform duration-(--duration-fast) ease-(--ease-out) group-hover:scale-125 motion-reduce:transition-none" />
             </span>
-            <span className="hidden min-[350px]:inline">My World</span>
+            <span className="hidden min-[350px]:inline">My World FAQ</span>
           </a>
           <nav
             aria-label="Page sections"

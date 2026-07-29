@@ -88,19 +88,19 @@ export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
   schemaVersion: MY_WORLD_FAQ_SCHEMA_VERSION,
   structureVersion: MY_WORLD_FAQ_STRUCTURE_VERSION,
   route: {
-    title: 'My World: Signals → Sensemaking',
+    title: 'My World FAQ',
     description:
-      'A working prototype FAQ about My World’s reflection hypothesis, open questions, and proposed pilot guardrails.',
+      'Learn what My World is, how the current prototype works, and how to share questions or feedback with the team.',
   },
   page: {
     hero: {
-      eyebrow: 'Working prototype',
-      heading: 'Capture a moment.',
-      headingAccent: 'Make sense of it.',
+      eyebrow: 'Hello, DXD',
+      heading: 'Here’s what My World is.',
+      headingAccent: 'And how it works.',
       introduction:
-        'My World helps students reflect on everyday experiences. We are exploring it as one touchpoint alongside family, friends, teachers and other support.',
+        'This site documents the current prototype, answers questions we have heard, and gathers feedback to guide what we explore next.',
       productCta: 'See how it works',
-      faqCta: 'Browse the questions',
+      faqCta: 'Browse the FAQ',
     },
     product: {
       eyebrow: 'Product at a glance',
@@ -131,7 +131,7 @@ export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
       body: 'Send it to the My World team through the same channel that brought you here. Recurring concerns will shape this page and the pilot decision.',
     },
     footer: {
-      brand: 'My World working prototype',
+      brand: 'My World FAQ',
       sharing: 'Anyone with this link can open or forward it. Last reviewed 29 July 2026.',
     },
   },

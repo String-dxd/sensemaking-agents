@@ -63,7 +63,7 @@ describe('/my-world/faq public route', () => {
     expect(engineHostMock).not.toHaveBeenCalled()
   })
 
-  it('renders the concise working prototype while signed out', () => {
+  it('explains the site purpose while signed out', () => {
     render(
       createElement(MyWorldFaqPage, {
         feedbackEnabled: false,
@@ -71,12 +71,16 @@ describe('/my-world/faq public route', () => {
       }),
     )
 
-    expect(screen.getByText('Working prototype')).toBeInTheDocument()
+    expect(screen.getByText('Hello, DXD')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'My World FAQ home' })).toHaveTextContent(
+      'My World FAQ',
+    )
     expect(screen.queryByText('Pilot under consideration')).not.toBeInTheDocument()
     expect(
       screen.queryByText(/leadership has not decided whether to run one/i),
     ).not.toBeInTheDocument()
-    expect(screen.getByText(/one touchpoint alongside family/i)).toBeInTheDocument()
+    expect(screen.getByText(/documents the current prototype/i)).toBeInTheDocument()
+    expect(screen.getByText(/gathers feedback to guide what we explore next/i)).toBeInTheDocument()
     expect(screen.getByTestId('faq-product-loop')).toBeInTheDocument()
     expect(screen.getAllByTestId('faq-question-trigger')).toHaveLength(34)
     expect(screen.getByRole('link', { name: 'Product at a glance' })).toHaveAttribute(
