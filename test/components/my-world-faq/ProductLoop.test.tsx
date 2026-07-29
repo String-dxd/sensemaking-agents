@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ProductLoop } from '~/components/my-world-faq/ProductLoop'
+import { DEFAULT_MY_WORLD_FAQ_CONTENT } from '~/data/my-world-faq'
 
 describe('ProductLoop media controls', () => {
   afterEach(() => {
@@ -13,7 +14,7 @@ describe('ProductLoop media controls', () => {
     const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue()
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
 
-    render(<ProductLoop />)
+    render(<ProductLoop content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     const video = screen.getByTestId('faq-product-video')
     expect(video).not.toHaveAttribute('autoplay')
@@ -36,7 +37,7 @@ describe('ProductLoop media controls', () => {
     const user = userEvent.setup()
     const pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
 
-    render(<ProductLoop />)
+    render(<ProductLoop content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     await user.click(screen.getByRole('tab', { name: 'History' }))
 

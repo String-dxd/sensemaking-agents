@@ -172,6 +172,27 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
     }
   }
 
+  async function runWhileCurrentHeadLocked(
+    expectedHead: MyWorldFaqHeadRef,
+    operation: () => Promise<void>,
+  ): Promise<boolean> {
+    try {
+      return await database.transaction(async (tx) => {
+        const lockedHead = await lockCurrentHead(tx)
+        if (!lockedHead) throw new MyWorldFaqRepositoryError('UNINITIALIZED')
+        if (!sameHead(lockedHead, expectedHead)) return false
+
+        // Keep the singleton head locked through the derived-cache write.
+        // A publication cannot advance the head and populate a newer cache
+        // entry while an older request is still able to write afterward.
+        await operation()
+        return true
+      })
+    } catch (error) {
+      throw mapRepositoryError(error)
+    }
+  }
+
   async function publishRevision(
     input: PublishMyWorldFaqRevisionInput,
   ): Promise<PublishMyWorldFaqRevisionResult> {
@@ -618,6 +639,7 @@ export function createMyWorldFaqRepository(database: AppDatabase, hooks: Reposit
     publishRevision,
     resolveAndTouchEditorSession,
     revokeEditorSession,
+    runWhileCurrentHeadLocked,
   }
 }
 
@@ -650,6 +672,10 @@ export const revokeMyWorldFaqEditorSession = (tokenDigest: string) =>
 export const pruneMyWorldFaqEditorSessions = () => getDefaultRepository().pruneEditorSessions()
 export const consumeMyWorldFaqEditorMutationPermit = (tokenDigest: string) =>
   getDefaultRepository().consumeEditorMutationPermit(tokenDigest)
+export const runWhileCurrentMyWorldFaqHeadLocked = (
+  expectedHead: MyWorldFaqHeadRef,
+  operation: () => Promise<void>,
+) => getDefaultRepository().runWhileCurrentHeadLocked(expectedHead, operation)
 
 async function resolveCommittedAttempt(
   tx: AppTransaction,

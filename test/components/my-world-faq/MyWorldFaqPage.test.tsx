@@ -2,11 +2,15 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { MyWorldFaqPage } from '~/components/my-world-faq/MyWorldFaqPage'
-import { FAQ_CONCERN_CLUSTERS, FAQ_QUESTIONS } from '~/data/my-world-faq'
+import {
+  DEFAULT_MY_WORLD_FAQ_CONTENT,
+  FAQ_CONCERN_CLUSTERS,
+  FAQ_QUESTIONS,
+} from '~/data/my-world-faq'
 
 describe('MyWorldFaqPage comprehension checkpoint', () => {
   it('separates Product at a glance and FAQ in the top navigation', () => {
-    render(<MyWorldFaqPage feedbackEnabled={false} />)
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     expect(screen.getByRole('link', { name: 'Product at a glance' })).toHaveAttribute(
       'href',
@@ -17,7 +21,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
 
   it('shows one active desktop product clip at a time with a poster and text equivalent', async () => {
     const user = userEvent.setup()
-    render(<MyWorldFaqPage feedbackEnabled={false} />)
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     const loop = screen.getByTestId('faq-product-loop')
     for (const step of ['Capture', 'My Identity', 'History', 'Path Finder']) {
@@ -46,7 +50,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
   })
 
   it('keeps all six topics and all 34 canonical questions in the card grid', () => {
-    render(<MyWorldFaqPage feedbackEnabled={false} />)
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     expect(screen.getAllByTestId('faq-question-cluster')).toHaveLength(FAQ_CONCERN_CLUSTERS.length)
     expect(screen.getAllByTestId('faq-question-trigger')).toHaveLength(FAQ_QUESTIONS.length)
@@ -56,7 +60,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
 
   it('flips to a short answer, then opens its evidence and limits', async () => {
     const user = userEvent.setup()
-    render(<MyWorldFaqPage feedbackEnabled={false} />)
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     const question = screen.getByRole('button', { name: 'What problem is it solving?' })
     expect(question).toHaveAttribute('aria-expanded', 'false')
@@ -87,7 +91,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
 
   it('switches FAQ topics and shows the matching card set', async () => {
     const user = userEvent.setup()
-    render(<MyWorldFaqPage feedbackEnabled={false} />)
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     await user.click(screen.getByRole('tab', { name: 'Privacy and governance' }))
     const panel = screen.getByRole('tabpanel', { name: 'Privacy and governance' })
@@ -98,7 +102,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
   })
 
   it('uses quoted event concerns without rendering Pigeonhole screenshots', () => {
-    render(<MyWorldFaqPage feedbackEnabled={false} />)
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     expect(screen.getByText(/anonymous event comments shaped this faq/i)).toBeInTheDocument()
     expect(screen.getByText(/are we replacing the dinner table conversation/i)).toBeInTheDocument()
@@ -108,7 +112,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
   })
 
   it('omits the pilot-stage hero panel while keeping the sharing posture', () => {
-    render(<MyWorldFaqPage feedbackEnabled={false} />)
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     expect(screen.queryByText('Pilot under consideration')).not.toBeInTheDocument()
     expect(

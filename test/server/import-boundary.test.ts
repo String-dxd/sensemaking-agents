@@ -27,6 +27,7 @@ const forbiddenImports = [
   /['"]@anthropic-ai\/sdk['"]/,
   /['"]@workos\/authkit-tanstack-react-start['"]/,
   /['"]@tanstack\/react-start\/server['"]/,
+  /['"]@vercel\/functions['"]/,
 ]
 
 const clientFacingServerFunctionFiles = readdirSync(SERVER_DIR)
@@ -62,5 +63,16 @@ describe('client-facing server function import boundary', () => {
         )
       }
     }
+  })
+
+  it('keeps the public FAQ wrapper narrow and dynamically server-bound', () => {
+    const source = readFileSync(join(SERVER_DIR, 'my-world-faq-content.functions.ts'), 'utf8')
+
+    expect(source).toMatch(
+      /await import\(\s*['"]\.\/my-world-faq-content\.handler\.server['"]\s*\)/,
+    )
+    expect(source).not.toMatch(/^import .*my-world-faq-repository/m)
+    expect(source).not.toMatch(/^import .*my-world-faq-public-cache/m)
+    expect(source).not.toMatch(/^import .*my-world-faq-editor/m)
   })
 })

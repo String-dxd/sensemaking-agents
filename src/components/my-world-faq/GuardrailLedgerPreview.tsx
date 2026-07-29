@@ -1,12 +1,10 @@
-import { DEFAULT_MY_WORLD_FAQ_CONTENT, type MyWorldFaqContent } from '~/data/my-world-faq'
+import type { MyWorldFaqContent } from '~/data/my-world-faq'
 
 export interface GuardrailLedgerPreviewProps {
-  content?: MyWorldFaqContent
+  content: MyWorldFaqContent
 }
 
-export function GuardrailLedgerPreview({
-  content = DEFAULT_MY_WORLD_FAQ_CONTENT,
-}: GuardrailLedgerPreviewProps = {}) {
+export function GuardrailLedgerPreview({ content }: GuardrailLedgerPreviewProps) {
   return (
     <section
       aria-labelledby="guardrail-preview-title"

@@ -33,6 +33,10 @@ describe('public route engine boundary', () => {
     const faqSources = [
       source('src/routes/my-world.faq.tsx'),
       source('src/components/my-world-faq/MyWorldFaqPage.tsx'),
+      source('src/components/my-world-faq/ProductLoop.tsx'),
+      source('src/components/my-world-faq/SignalSourceStrip.tsx'),
+      source('src/components/my-world-faq/GuardrailLedgerPreview.tsx'),
+      source('src/components/my-world-faq/QuestionField.tsx'),
     ]
 
     for (const faqSource of faqSources) {
@@ -42,6 +46,38 @@ describe('public route engine boundary', () => {
       expect(faqSource).not.toContain('EngineHost')
       expect(faqSource).not.toContain('PageSurface')
       expect(faqSource).not.toContain('engine/student-space/style.css')
+    }
+  })
+
+  it('keeps the public FAQ graph free of editor, database, and Runtime Cache modules', () => {
+    const route = source('src/routes/my-world.faq.tsx')
+    const page = source('src/components/my-world-faq/MyWorldFaqPage.tsx')
+    const wrapper = source('src/server/my-world-faq-content.functions.ts')
+
+    for (const publicSource of [route, page, wrapper]) {
+      expect(publicSource).not.toMatch(/^import .*my-world-faq-editor/m)
+      expect(publicSource).not.toMatch(/^import .*my-world-faq-repository/m)
+      expect(publicSource).not.toMatch(/^import .*my-world-faq-public-cache/m)
+      expect(publicSource).not.toMatch(/^import .*~\/db\//m)
+      expect(publicSource).not.toMatch(/^import .*@vercel\/functions/m)
+    }
+    expect(wrapper).toMatch(
+      /await import\(\s*['"]\.\/my-world-faq-content\.handler\.server['"]\s*\)/,
+    )
+  })
+
+  it('requires the loader document at every public renderer boundary', () => {
+    const componentSources = [
+      source('src/components/my-world-faq/MyWorldFaqPage.tsx'),
+      source('src/components/my-world-faq/ProductLoop.tsx'),
+      source('src/components/my-world-faq/SignalSourceStrip.tsx'),
+      source('src/components/my-world-faq/GuardrailLedgerPreview.tsx'),
+      source('src/components/my-world-faq/QuestionField.tsx'),
+    ]
+
+    for (const componentSource of componentSources) {
+      expect(componentSource).not.toContain('DEFAULT_MY_WORLD_FAQ_CONTENT')
+      expect(componentSource).not.toMatch(/content\s*\?\s*:/)
     }
   })
 })

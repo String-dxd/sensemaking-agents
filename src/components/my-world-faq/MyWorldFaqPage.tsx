@@ -1,6 +1,6 @@
 import { Badge } from '~/components/ui/badge'
 import { buttonVariants } from '~/components/ui/button'
-import { DEFAULT_MY_WORLD_FAQ_CONTENT, type MyWorldFaqContent } from '~/data/my-world-faq'
+import type { MyWorldFaqContent } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
 import { GuardrailLedgerPreview } from './GuardrailLedgerPreview'
 import { ProductLoop } from './ProductLoop'
@@ -9,13 +9,10 @@ import { SignalSourceStrip } from './SignalSourceStrip'
 
 export interface MyWorldFaqPageProps {
   feedbackEnabled: boolean
-  content?: MyWorldFaqContent
+  content: MyWorldFaqContent
 }
 
-export function MyWorldFaqPage({
-  feedbackEnabled,
-  content = DEFAULT_MY_WORLD_FAQ_CONTENT,
-}: MyWorldFaqPageProps) {
+export function MyWorldFaqPage({ feedbackEnabled, content }: MyWorldFaqPageProps) {
   return (
     <div
       className="min-h-svh bg-(--color-faq-paper) text-(--color-faq-ink)"

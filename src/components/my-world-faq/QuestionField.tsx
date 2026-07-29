@@ -13,11 +13,10 @@ import {
   DialogTrigger,
 } from '~/components/ui/dialog'
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from '~/components/ui/tabs'
-import {
-  DEFAULT_MY_WORLD_FAQ_CONTENT,
-  type MyWorldFaqContent,
-  type MyWorldFaqEvidenceBlock,
-  type MyWorldFaqQuestion,
+import type {
+  MyWorldFaqContent,
+  MyWorldFaqEvidenceBlock,
+  MyWorldFaqQuestion,
 } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
 
@@ -65,10 +64,10 @@ const CARD_SHAPES = [
 ] as const
 
 export interface QuestionFieldProps {
-  content?: MyWorldFaqContent
+  content: MyWorldFaqContent
 }
 
-export function QuestionField({ content = DEFAULT_MY_WORLD_FAQ_CONTENT }: QuestionFieldProps = {}) {
+export function QuestionField({ content }: QuestionFieldProps) {
   const firstCluster = content.concernClusters[0]
   if (!firstCluster) return null
 

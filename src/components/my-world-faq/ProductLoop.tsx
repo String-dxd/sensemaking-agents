@@ -3,15 +3,15 @@ import { useRef, useState } from 'react'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from '~/components/ui/tabs'
-import { DEFAULT_MY_WORLD_FAQ_CONTENT, type MyWorldFaqContent } from '~/data/my-world-faq'
+import type { MyWorldFaqContent } from '~/data/my-world-faq'
 
 type PlaybackState = 'idle' | 'playing' | 'paused' | 'ended'
 
 export interface ProductLoopProps {
-  content?: MyWorldFaqContent
+  content: MyWorldFaqContent
 }
 
-export function ProductLoop({ content = DEFAULT_MY_WORLD_FAQ_CONTENT }: ProductLoopProps = {}) {
+export function ProductLoop({ content }: ProductLoopProps) {
   const [activeId, setActiveId] = useState(content.productSteps[0]?.id ?? '')
   const [playback, setPlayback] = useState<PlaybackState>('idle')
   const videoRef = useRef<HTMLVideoElement>(null)

@@ -78,6 +78,59 @@ describeWithDatabase('My World FAQ global revisions', () => {
     expect(results.map((result) => result.revision.version)).toEqual([1, 1])
   })
 
+  it('keeps a derived-cache write ordered with publication and skips stale snapshots', async () => {
+    const repository = createMyWorldFaqRepository(database)
+    const bootstrap = await repository.bootstrapDefaultDocument()
+    const base = {
+      revisionId: bootstrap.revision.revisionId,
+      version: bootstrap.revision.version,
+      digest: bootstrap.revision.digest,
+    }
+
+    let markCacheWriteStarted!: () => void
+    const cacheWriteStarted = new Promise<void>((resolve) => {
+      markCacheWriteStarted = resolve
+    })
+    let releaseCacheWrite!: () => void
+    const cacheWriteGate = new Promise<void>((resolve) => {
+      releaseCacheWrite = resolve
+    })
+    const guardedWrite = repository.runWhileCurrentHeadLocked(base, async () => {
+      markCacheWriteStarted()
+      await cacheWriteGate
+    })
+    await cacheWriteStarted
+
+    const candidate = cloneDefault()
+    candidate.page.footer.brand = 'Published after the guarded cache write'
+    const publication = repository.publishRevision({
+      document: candidate,
+      expectedBase: base,
+      attemptId: randomUUID(),
+      savedByName: 'Alex Tan',
+    })
+    const publicationState = await Promise.race([
+      publication.then(() => 'published' as const),
+      new Promise<'blocked'>((resolve) => {
+        setTimeout(() => resolve('blocked'), 40)
+      }),
+    ])
+    expect(publicationState).toBe('blocked')
+
+    releaseCacheWrite()
+    await expect(guardedWrite).resolves.toBe(true)
+    const published = await publication
+    expect(published.committed.version).toBe(2)
+
+    let staleWriteRan = false
+    await expect(
+      repository.runWhileCurrentHeadLocked(base, async () => {
+        staleWriteRan = true
+      }),
+    ).resolves.toBe(false)
+    expect(staleWriteRan).toBe(false)
+  })
+
   it('serializes distinct attempts and makes a matching retry idempotent', async () => {
     const repository = createMyWorldFaqRepository(database)
     const bootstrap = await repository.bootstrapDefaultDocument()

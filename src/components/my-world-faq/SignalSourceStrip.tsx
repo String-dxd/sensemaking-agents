@@ -1,12 +1,10 @@
-import { DEFAULT_MY_WORLD_FAQ_CONTENT, type MyWorldFaqContent } from '~/data/my-world-faq'
+import type { MyWorldFaqContent } from '~/data/my-world-faq'
 
 export interface SignalSourceStripProps {
-  content?: MyWorldFaqContent
+  content: MyWorldFaqContent
 }
 
-export function SignalSourceStrip({
-  content = DEFAULT_MY_WORLD_FAQ_CONTENT,
-}: SignalSourceStripProps = {}) {
+export function SignalSourceStrip({ content }: SignalSourceStripProps) {
   return (
     <section
       aria-labelledby="signal-source-title"
