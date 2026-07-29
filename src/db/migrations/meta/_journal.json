@@ -36,6 +36,13 @@
       "when": 1785028711746,
       "tag": "0004_moaning_abomination",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785320547955,
+      "tag": "0005_gigantic_firebrand",
+      "breakpoints": true
     }
   ]
 }

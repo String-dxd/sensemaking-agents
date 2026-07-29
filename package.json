@@ -27,6 +27,7 @@
     "db:generate": "drizzle-kit generate --config=src/db/drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config=src/db/drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config=src/db/drizzle.config.ts",
+    "faq:bootstrap": "tsx scripts/bootstrap-my-world-faq.ts",
     "ablate:mirror": "tsx scripts/ablate.ts --surface=mirror",
     "ablate:sensemake": "tsx scripts/ablate.ts --surface=sensemake",
     "provision:managed-agents": "tsx scripts/managed-agents/provision.ts",

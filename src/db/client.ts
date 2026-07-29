@@ -140,6 +140,18 @@ export function getDbForMemoryModule(): AppDatabase {
 }
 
 /**
+ * Narrow system-scoped database entry point for the My World FAQ repository.
+ *
+ * The FAQ publication has no student tenant. Only
+ * `my-world-faq-repository.server.ts` and operator scripts may call this
+ * accessor; routes must use the repository instead. All student-owned data
+ * remains subject to `withStudent`.
+ */
+export function getMyWorldFaqSystemDatabase(): AppDatabase {
+  return getDb()
+}
+
+/**
  * Run `fn` inside a Postgres transaction with `app.student_id` set as the
  * first statement. The transaction commits on resolve, rolls back on throw.
  *

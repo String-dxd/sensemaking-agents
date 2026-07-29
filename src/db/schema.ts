@@ -7,6 +7,7 @@
 
 import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   boolean,
@@ -15,12 +16,15 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgPolicy,
   pgTable,
   primaryKey,
   text,
   timestamp,
+  unique,
   uniqueIndex,
+  uuid,
 } from 'drizzle-orm/pg-core'
 
 // `tsvector` has no built-in Drizzle type; declare via customType.
@@ -611,3 +615,153 @@ export const vipsIslandSnapshots = pgTable(
     }),
   ],
 ).enableRLS()
+
+// ---------------------------------------------------------------------------
+// my_world_faq_* — system-scoped public FAQ publication + editor sessions.
+//
+// These three tables intentionally do not carry student_id and do not use
+// student RLS. They are reachable only through the narrow server-only FAQ
+// repository; route code must not access them directly.
+// ---------------------------------------------------------------------------
+
+export const myWorldFaqRevisions = pgTable(
+  'my_world_faq_revisions',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    pageKey: text('page_key').notNull(),
+    version: integer('version').notNull(),
+    document: jsonb('document').notNull(),
+    schemaVersion: integer('schema_version').notNull(),
+    structureVersion: integer('structure_version').notNull(),
+    canonicalDigest: text('canonical_digest').notNull(),
+    attributionKind: text('attribution_kind').notNull(),
+    savedByName: text('saved_by_name'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    restoredFromRevisionId: uuid('restored_from_revision_id').references(
+      (): AnyPgColumn => myWorldFaqRevisions.id,
+      { onDelete: 'restrict' },
+    ),
+    attemptId: uuid('attempt_id').notNull(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+  },
+  (t) => [
+    check('my_world_faq_revisions_page_key_check', sql`${t.pageKey} = 'my-world-faq'`),
+    check('my_world_faq_revisions_version_check', sql`${t.version} > 0`),
+    check('my_world_faq_revisions_schema_version_check', sql`${t.schemaVersion} > 0`),
+    check('my_world_faq_revisions_structure_version_check', sql`${t.structureVersion} > 0`),
+    check(
+      'my_world_faq_revisions_document_object_check',
+      sql`jsonb_typeof(${t.document}) = 'object'`,
+    ),
+    check('my_world_faq_revisions_digest_check', sql`${t.canonicalDigest} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'my_world_faq_revisions_fingerprint_check',
+      sql`${t.requestFingerprint} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'my_world_faq_revisions_attribution_check',
+      sql`(${t.attributionKind} = 'system-import' and ${t.savedByName} is null)
+          or (${t.attributionKind} = 'self-declared'
+              and ${t.savedByName} is not null
+              and length(btrim(${t.savedByName})) between 1 and 80)`,
+    ),
+    unique('my_world_faq_revisions_page_version_uq').on(t.pageKey, t.version),
+    unique('my_world_faq_revisions_page_attempt_uq').on(t.pageKey, t.attemptId),
+    unique('my_world_faq_revisions_head_pointer_uq').on(
+      t.pageKey,
+      t.id,
+      t.version,
+      t.canonicalDigest,
+    ),
+    index('idx_my_world_faq_revisions_page_version').on(t.pageKey, t.version.desc()),
+  ],
+)
+
+export const myWorldFaqHeads = pgTable(
+  'my_world_faq_heads',
+  {
+    pageKey: text('page_key').primaryKey(),
+    currentRevisionId: uuid('current_revision_id').notNull(),
+    currentVersion: integer('current_version').notNull(),
+    currentDigest: text('current_digest').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    check('my_world_faq_heads_page_key_check', sql`${t.pageKey} = 'my-world-faq'`),
+    check('my_world_faq_heads_version_check', sql`${t.currentVersion} > 0`),
+    check('my_world_faq_heads_digest_check', sql`${t.currentDigest} ~ '^[0-9a-f]{64}$'`),
+    foreignKey({
+      name: 'my_world_faq_heads_revision_fk',
+      columns: [t.pageKey, t.currentRevisionId, t.currentVersion, t.currentDigest],
+      foreignColumns: [
+        myWorldFaqRevisions.pageKey,
+        myWorldFaqRevisions.id,
+        myWorldFaqRevisions.version,
+        myWorldFaqRevisions.canonicalDigest,
+      ],
+    }).onDelete('restrict'),
+  ],
+)
+
+export const myWorldFaqEditorSessions = pgTable(
+  'my_world_faq_editor_sessions',
+  {
+    tokenDigest: text('token_digest').primaryKey(),
+    auditId: uuid('audit_id').defaultRandom().notNull(),
+    displayName: text('display_name').notNull(),
+    credentialFingerprint: text('credential_fingerprint').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+    absoluteExpiresAt: timestamp('absolute_expires_at', {
+      withTimezone: true,
+      mode: 'string',
+    }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'string' }),
+    mutationWindowStartedAt: timestamp('mutation_window_started_at', {
+      withTimezone: true,
+      mode: 'string',
+    })
+      .notNull()
+      .defaultNow(),
+    mutationCount: integer('mutation_count').notNull().default(0),
+  },
+  (t) => [
+    check(
+      'my_world_faq_editor_sessions_token_digest_check',
+      sql`${t.tokenDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'my_world_faq_editor_sessions_credential_fingerprint_check',
+      sql`${t.credentialFingerprint} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'my_world_faq_editor_sessions_display_name_check',
+      sql`length(btrim(${t.displayName})) between 1 and 80`,
+    ),
+    check(
+      'my_world_faq_editor_sessions_time_order_check',
+      sql`${t.absoluteExpiresAt} > ${t.createdAt}
+          and ${t.lastSeenAt} >= ${t.createdAt}
+          and ${t.mutationWindowStartedAt} >= ${t.createdAt}`,
+    ),
+    check(
+      'my_world_faq_editor_sessions_mutation_count_check',
+      sql`${t.mutationCount} between 0 and 10`,
+    ),
+    unique('my_world_faq_editor_sessions_audit_id_uq').on(t.auditId),
+    index('idx_my_world_faq_editor_sessions_active_expiry')
+      .on(t.absoluteExpiresAt, t.lastSeenAt)
+      .where(sql`${t.revokedAt} is null`),
+    index('idx_my_world_faq_editor_sessions_revoked')
+      .on(t.revokedAt)
+      .where(sql`${t.revokedAt} is not null`),
+  ],
+)
