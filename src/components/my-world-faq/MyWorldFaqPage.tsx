@@ -72,8 +72,8 @@ export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
 
       <main id="top" tabIndex={-1}>
         <section className="relative overflow-hidden border-b border-(--color-faq-line-strong)">
-          <div className="mx-auto grid w-full max-w-7xl gap-12 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-12 lg:items-center lg:px-12 lg:py-28">
-            <div className="max-w-4xl lg:col-span-7">
+          <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
+            <div className="max-w-5xl">
               <Badge
                 variant="outline"
                 className="faq-eyebrow border-(--color-faq-ink) bg-(--color-faq-yellow) text-(--color-faq-ink)"
@@ -109,26 +109,6 @@ export function MyWorldFaqPage({ feedbackEnabled }: MyWorldFaqPageProps) {
                 </a>
               </div>
             </div>
-
-            <aside className="faq-hero-art relative min-h-[25rem] overflow-hidden bg-(--color-faq-ink) text-(--color-faq-paper) lg:col-span-5">
-              <div aria-hidden="true" className="absolute inset-0">
-                <span className="faq-geometry faq-geometry-coral-arch" />
-                <span className="faq-geometry faq-geometry-blue-disc" />
-                <span className="faq-geometry faq-geometry-green-u" />
-                <span className="faq-geometry faq-geometry-yellow-block" />
-                <span className="faq-geometry faq-geometry-pink-dot" />
-              </div>
-              <div className="absolute inset-x-0 bottom-0 z-10 bg-(--color-faq-ink) p-7 sm:p-9">
-                <p className="text-xs font-semibold text-(--color-faq-yellow)">Current stage</p>
-                <h2 className="mt-2 max-w-sm text-2xl font-semibold tracking-[-0.035em]">
-                  Pilot under consideration
-                </h2>
-                <p className="mt-3 max-w-[43ch] text-sm leading-relaxed text-(--color-faq-paper-soft)">
-                  Leadership has not decided whether to run one. This page explains the prototype
-                  and the questions still open.
-                </p>
-              </div>
-            </aside>
           </div>
         </section>
 

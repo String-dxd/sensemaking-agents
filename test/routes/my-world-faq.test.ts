@@ -50,12 +50,14 @@ describe('/my-world/faq public route', () => {
     expect(engineHostMock).not.toHaveBeenCalled()
   })
 
-  it('renders the truthful prototype and pilot posture while signed out', () => {
+  it('renders the concise working prototype while signed out', () => {
     render(createElement(MyWorldFaqPage, { feedbackEnabled: false }))
 
     expect(screen.getByText('Working prototype')).toBeInTheDocument()
-    expect(screen.getByText('Pilot under consideration')).toBeInTheDocument()
-    expect(screen.getByText(/leadership has not decided whether to run one/i)).toBeInTheDocument()
+    expect(screen.queryByText('Pilot under consideration')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/leadership has not decided whether to run one/i),
+    ).not.toBeInTheDocument()
     expect(screen.getByText(/one touchpoint alongside family/i)).toBeInTheDocument()
     expect(screen.getByTestId('faq-product-loop')).toBeInTheDocument()
     expect(screen.getAllByTestId('faq-question-trigger')).toHaveLength(34)

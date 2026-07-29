@@ -107,11 +107,13 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(screen.queryByTestId('faq-signal-image')).not.toBeInTheDocument()
   })
 
-  it('keeps the stage and sharing posture concise and truthful', () => {
+  it('omits the pilot-stage hero panel while keeping the sharing posture', () => {
     render(<MyWorldFaqPage feedbackEnabled={false} />)
 
-    expect(screen.getByText('Pilot under consideration')).toBeInTheDocument()
-    expect(screen.getByText(/leadership has not decided whether to run one/i)).toBeInTheDocument()
+    expect(screen.queryByText('Pilot under consideration')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/leadership has not decided whether to run one/i),
+    ).not.toBeInTheDocument()
     expect(screen.getByText(/anyone with this link can open or forward it/i)).toBeInTheDocument()
     expect(screen.getByTestId('my-world-faq-page')).toHaveAttribute(
       'data-feedback-enabled',

@@ -253,62 +253,6 @@ body,
   border-radius: 10px 999px 999px 10px;
 }
 
-.faq-hero-art {
-  border-radius: 5rem 1.25rem 5rem 1.25rem;
-}
-
-.faq-geometry {
-  display: block;
-  position: absolute;
-}
-
-.faq-geometry-coral-arch {
-  top: 2rem;
-  left: 1.5rem;
-  width: 10rem;
-  height: 7.5rem;
-  border: 2.25rem solid var(--color-faq-coral);
-  border-bottom: 0;
-  border-radius: 10rem 10rem 0 0;
-}
-
-.faq-geometry-blue-disc {
-  top: 1.5rem;
-  right: 1.75rem;
-  width: 7.25rem;
-  height: 7.25rem;
-  border-radius: 999px;
-  background: var(--color-faq-blue);
-}
-
-.faq-geometry-green-u {
-  top: 7.25rem;
-  right: 6.25rem;
-  width: 8.5rem;
-  height: 8rem;
-  border: 2rem solid var(--color-faq-green);
-  border-top: 0;
-  border-radius: 0 0 8rem 8rem;
-}
-
-.faq-geometry-yellow-block {
-  top: 8.5rem;
-  right: 1.75rem;
-  width: 3.5rem;
-  height: 7.5rem;
-  border-radius: 1.75rem 0.5rem 0.5rem 1.75rem;
-  background: var(--color-faq-yellow);
-}
-
-.faq-geometry-pink-dot {
-  top: 10.75rem;
-  left: 5.25rem;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 999px;
-  background: var(--color-faq-pink);
-}
-
 .faq-signal-card {
   border: 1px solid var(--color-faq-ink);
 }
@@ -353,26 +297,6 @@ body,
 @media (max-width: 639px) {
   .faq-nav-shell {
     border-radius: 999px 8px 8px 999px;
-  }
-
-  .faq-hero-art {
-    border-radius: 3.5rem 1rem 3.5rem 1rem;
-  }
-
-  .faq-geometry-coral-arch {
-    left: 1rem;
-  }
-
-  .faq-geometry-blue-disc {
-    right: 1rem;
-  }
-
-  .faq-geometry-green-u {
-    right: 4.75rem;
-  }
-
-  .faq-geometry-yellow-block {
-    right: 1rem;
   }
 
   .faq-signal-card--coral .faq-signal-card,
