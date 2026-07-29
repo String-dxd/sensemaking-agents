@@ -38,6 +38,42 @@ jobs:
       - run: pnpm build
       - run: pnpm check
       # NOTE: no DATABASE_URL on purpose. 128 DB-gated tests are skipped by
-      # design until plans/059 revives them; setting DATABASE_URL here would
-      # turn them into hard failures.
+      # design in this broad lane. The focused job below runs the required FAQ
+      # transaction suite against a fresh disposable Postgres service.
       - run: pnpm test
+
+  my-world-faq-database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: my_world_faq_ci
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d my_world_faq_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Apply every migration to an empty database
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@127.0.0.1:5432/my_world_faq_ci
+      - name: Run required FAQ database guarantees
+        run: pnpm test:faq-db
+        env:
+          REQUIRE_DB_TESTS: "1"
+          TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/my_world_faq_ci

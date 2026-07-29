@@ -110,6 +110,8 @@ describe('vercel.json response headers', () => {
       expect(headerValue(rule, 'X-Robots-Tag')).toBe('noindex, nofollow')
       expect(headerValue(rule, 'Referrer-Policy')).toBe('no-referrer')
       expect(headerValue(rule, 'Cache-Control')).toBe('private, no-store')
+      expect(headerValue(rule, 'CDN-Cache-Control')).toBe('no-store')
+      expect(headerValue(rule, 'Vercel-CDN-Cache-Control')).toBe('no-store')
       expect(headerValue(rule, 'Vary')).toBe('Cookie')
     }
   })

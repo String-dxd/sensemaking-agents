@@ -30,6 +30,8 @@ function privateRouteJson(status: number, error: string): Response {
       status,
       headers: {
         'Cache-Control': 'private, no-store',
+        'CDN-Cache-Control': 'no-store',
+        'Vercel-CDN-Cache-Control': 'no-store',
         Vary: 'Cookie',
       },
     },

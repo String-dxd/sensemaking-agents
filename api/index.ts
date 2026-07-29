@@ -101,6 +101,8 @@ function sendEnvelopeError(res: ServerResponse, error: BodyEnvelopeError): void 
   res.statusCode = error.status
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.setHeader('Cache-Control', 'private, no-store')
+  res.setHeader('CDN-Cache-Control', 'no-store')
+  res.setHeader('Vercel-CDN-Cache-Control', 'no-store')
   res.setHeader('Vary', 'Cookie')
   res.end(
     JSON.stringify({

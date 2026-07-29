@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:db": "REQUIRE_DB_TESTS=1 vitest run test/db test/agents/memory.test.ts",
+    "test:faq-db": "REQUIRE_DB_TESTS=1 vitest run test/db/db-gate-canary.test.ts test/db/my-world-faq-revisions.test.ts",
     "test:watch": "vitest",
     "seed": "tsx src/db/seed.ts",
     "demo:bootstrap": "pnpm db:migrate && pnpm seed",

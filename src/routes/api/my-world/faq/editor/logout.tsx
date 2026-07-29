@@ -21,6 +21,8 @@ export async function handleMyWorldFaqEditorLogoutPost({
         status: 403,
         headers: {
           'Cache-Control': 'private, no-store',
+          'CDN-Cache-Control': 'no-store',
+          'Vercel-CDN-Cache-Control': 'no-store',
           Vary: 'Cookie',
         },
       },
