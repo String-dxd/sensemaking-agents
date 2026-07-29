@@ -96,4 +96,21 @@ describe('vercel.json response headers', () => {
     expect(headerValue(faq, 'X-Robots-Tag')).toBe('noindex, nofollow')
     expect(headerValue(faq, 'Referrer-Policy')).toBe('no-referrer')
   })
+
+  it('keeps the FAQ editor pages and APIs private, unindexed, and cookie-varying', () => {
+    const sources = [
+      '/my-world/faq/edit',
+      '/my-world/faq/edit/(.*)',
+      '/api/my-world/faq/editor/(.*)',
+    ]
+    for (const source of sources) {
+      const rule = readHeaderRules().find((candidate) => candidate.source === source)
+      expect(rule, `missing header rule for ${source}`).toBeDefined()
+      if (!rule) continue
+      expect(headerValue(rule, 'X-Robots-Tag')).toBe('noindex, nofollow')
+      expect(headerValue(rule, 'Referrer-Policy')).toBe('no-referrer')
+      expect(headerValue(rule, 'Cache-Control')).toBe('private, no-store')
+      expect(headerValue(rule, 'Vary')).toBe('Cookie')
+    }
+  })
 })

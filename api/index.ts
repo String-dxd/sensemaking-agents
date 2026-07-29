@@ -1,4 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import {
+  BodyEnvelopeError,
+  getEditorBodyPolicy,
+  readBodyWithinLimit,
+  validateBodyEnvelope,
+} from './request-body-limits'
 
 // Vercel serverless function adapter for TanStack Start.
 //
@@ -38,16 +44,31 @@ export default async function handler(
 
   let body: ArrayBuffer | undefined
   if (method !== 'GET' && method !== 'HEAD') {
-    const chunks: Array<Buffer> = []
-    for await (const chunk of req) {
-      chunks.push(chunk as Buffer)
+    const bodyPolicy = getEditorBodyPolicy(new URL(url).pathname, method)
+    let buf: Buffer
+    try {
+      if (bodyPolicy) {
+        validateBodyEnvelope(req.headers, bodyPolicy)
+        buf = await readBodyWithinLimit(req, bodyPolicy.maxBytes)
+      } else {
+        const chunks: Array<Buffer> = []
+        for await (const chunk of req) {
+          chunks.push(chunk as Buffer)
+        }
+        buf = Buffer.concat(chunks)
+      }
+    } catch (error) {
+      if (error instanceof BodyEnvelopeError) {
+        sendEnvelopeError(res, error)
+        return
+      }
+      throw error
     }
     // Buffer.concat uses allocUnsafe, which can return a pooled Buffer
     // whose underlying ArrayBuffer is the entire pool (e.g. 8 KB) with the
     // real bytes at `byteOffset`. `.buffer.slice(0)` would copy pool
     // garbage — corrupting payloads like the WebRTC SDP offer sent to
     // OpenAI Realtime. Slice to the actual byte range.
-    const buf = Buffer.concat(chunks)
     body = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
   }
 
@@ -74,6 +95,23 @@ export default async function handler(
     }
   }
   res.end()
+}
+
+function sendEnvelopeError(res: ServerResponse, error: BodyEnvelopeError): void {
+  res.statusCode = error.status
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.setHeader('Cache-Control', 'private, no-store')
+  res.setHeader('Vary', 'Cookie')
+  res.end(
+    JSON.stringify({
+      error:
+        error.code === 'PAYLOAD_TOO_LARGE'
+          ? 'Request body is too large.'
+          : error.code === 'UNSUPPORTED_MEDIA'
+            ? 'Use application/json.'
+            : 'Invalid request body length.',
+    }),
+  )
 }
 
 function pickHeader(value: string | Array<string> | undefined): string | undefined {

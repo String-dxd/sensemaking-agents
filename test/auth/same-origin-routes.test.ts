@@ -67,6 +67,8 @@ describe('same-origin primitive stays single-sourced', () => {
     'routes/api/share/redactions.tsx',
     'routes/api/island/snapshot.tsx',
     'routes/api/openai/realtime-mirror.tsx',
+    'routes/api/my-world/faq/editor/session.tsx',
+    'routes/api/my-world/faq/editor/logout.tsx',
   ]
 
   for (const route of GATED_ROUTES) {

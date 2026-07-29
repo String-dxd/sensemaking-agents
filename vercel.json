@@ -47,6 +47,33 @@
       ]
     },
     {
+      "source": "/my-world/faq/edit",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "private, no-store" },
+        { "key": "Vary", "value": "Cookie" }
+      ]
+    },
+    {
+      "source": "/my-world/faq/edit/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "private, no-store" },
+        { "key": "Vary", "value": "Cookie" }
+      ]
+    },
+    {
+      "source": "/api/my-world/faq/editor/(.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "Cache-Control", "value": "private, no-store" },
+        { "key": "Vary", "value": "Cookie" }
+      ]
+    },
+    {
       "source": "/models/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
