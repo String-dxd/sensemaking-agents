@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { handleNodeRequest } from './request-adapter'
+import { handleNodeRequest } from './request-adapter.js'
 
 // Vercel serverless function adapter for TanStack Start.
 //
