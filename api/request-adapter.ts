@@ -5,7 +5,7 @@ import {
   getEditorBodyPolicy,
   readBodyWithinLimit,
   validateBodyEnvelope,
-} from './request-body-limits'
+} from './request-body-limits.js'
 
 export async function handleNodeRequest(
   req: IncomingMessage,
