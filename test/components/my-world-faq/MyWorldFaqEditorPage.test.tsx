@@ -251,81 +251,30 @@ describe('MyWorldFaqEditorPage', () => {
     )
   })
 
-  it('keeps public guardrail copy inline while classifications remain fixed', async () => {
-    const user = userEvent.setup()
-    render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
-
-    const ledger = screen.getByTestId('faq-guardrail-preview')
-    const previewedGuardrailIds = new Set(
-      DEFAULT_MY_WORLD_FAQ_CONTENT.ledgerPreview.map((item) => item.guardrailId),
-    )
-
-    for (const preview of DEFAULT_MY_WORLD_FAQ_CONTENT.ledgerPreview) {
-      const guardrail = DEFAULT_MY_WORLD_FAQ_CONTENT.guardrails.find(
-        (item) => item.id === preview.guardrailId,
-      )
-      expect(guardrail).toBeDefined()
-      if (!guardrail) continue
-
-      for (const path of [
-        `ledgerPreview.${preview.state}.description`,
-        `guardrails.${guardrail.id}.title`,
-        `guardrails.${guardrail.id}.statusSummary`,
-        `guardrails.${guardrail.id}.limitations`,
-      ]) {
-        const control = ledger.querySelector(`[data-editor-path="${path}"]`)
-        expect(control).toHaveAccessibleName(
-          path.endsWith('.description')
-            ? 'What this state means'
-            : path.endsWith('.title')
-              ? 'Guardrail title'
-              : path.endsWith('.statusSummary')
-                ? 'Current position'
-                : 'Evidence boundary',
-        )
-      }
-    }
-
-    expect(
-      within(ledger).queryByText(
-        'Edit the public wording below. State and evidence classifications are fixed.',
-      ),
-    ).toBeInTheDocument()
-
-    const firstPreview = DEFAULT_MY_WORLD_FAQ_CONTENT.ledgerPreview[0]
-    const firstGuardrail = DEFAULT_MY_WORLD_FAQ_CONTENT.guardrails.find(
-      (item) => item.id === firstPreview?.guardrailId,
-    )
-    expect(firstGuardrail).toBeDefined()
-    if (!firstGuardrail) return
-
-    const titlePath = `guardrails.${firstGuardrail.id}.title`
-    const titleControl = ledger.querySelector(`[data-editor-path="${titlePath}"]`)
-    expect(titleControl).toBeInTheDocument()
-    if (!titleControl) return
-    fireEvent.change(titleControl, {
-      target: { value: 'A clearer public guardrail title' },
-    })
-    expect(screen.getByText('1 change')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Supporting records' }))
-    expect(document.querySelectorAll(`[data-editor-path="${titlePath}"]`)).toHaveLength(1)
-
-    const nonPreviewGuardrail = DEFAULT_MY_WORLD_FAQ_CONTENT.guardrails.find(
-      (item) => !previewedGuardrailIds.has(item.id),
-    )
-    expect(nonPreviewGuardrail).toBeDefined()
-    expect(
-      document.querySelector(`[data-editor-path="guardrails.${nonPreviewGuardrail?.id}.title"]`),
-    ).toBeInTheDocument()
-  })
-
   it('keeps the sticky editor toolbar below portalled dialogs', () => {
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
     const toolbar = screen.getByText('Editing').closest('.sticky')
     expect(toolbar).toHaveClass('z-40')
     expect(toolbar).not.toHaveClass('z-50')
+  })
+
+  it('makes published versions and undo discoverable before a teammate publishes', async () => {
+    const user = userEvent.setup()
+    render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
+
+    expect(screen.getByRole('button', { name: 'Versions & undo' })).toBeEnabled()
+    expect(
+      screen.getByText('Publishing updates the live FAQ immediately and saves a new version.'),
+    ).toBeVisible()
+
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
+    expect(
+      within(dialog).getByText(
+        'Every publish is saved here. Preview an earlier version, then restore it as a new live version.',
+      ),
+    ).toBeVisible()
   })
 
   it('renders and edits question fields discovered from a dynamic base document', () => {
@@ -604,16 +553,25 @@ describe('MyWorldFaqEditorPage', () => {
     expect(sourceTitle?.closest('details')).toHaveAttribute('open')
     await user.click(within(records).getByRole('button', { name: 'Close supporting records' }))
 
+    /* A guardrail in the ledger preview used to be edited inline on the page, so this used to
+       assert the opposite: focus lands on the page and the dialog stays shut. The ledger section
+       was removed on 2026-07-30, so every guardrail is now reached the same way as any other
+       supporting record — which is the point worth asserting, because a previewed guardrail
+       being a special case is exactly what has stopped being true. */
     await user.click(
       screen.getByRole('button', {
         name: new RegExp(`guardrails\\.${previewGuardrail.id}\\.title`),
       }),
     )
-    const inlineGuardrailTitle = document.querySelector<HTMLElement>(
+    const guardrailRecords = await screen.findByRole('dialog', { name: 'Supporting records' })
+    const guardrailTitle = guardrailRecords.querySelector<HTMLElement>(
       `[data-editor-path="guardrails.${previewGuardrail.id}.title"]`,
     )
-    await waitFor(() => expect(inlineGuardrailTitle).toHaveFocus())
-    expect(screen.queryByRole('dialog', { name: 'Supporting records' })).not.toBeInTheDocument()
+    await waitFor(() => expect(guardrailTitle).toHaveFocus())
+    expect(guardrailTitle?.closest('details')).toHaveAttribute('open')
+    await user.click(
+      within(guardrailRecords).getByRole('button', { name: 'Close supporting records' }),
+    )
 
     await user.click(
       screen.getByRole('button', {
@@ -637,8 +595,8 @@ describe('MyWorldFaqEditorPage', () => {
     fireEvent.change(screen.getByLabelText('Page title'), {
       target: { value: 'Draft survives re-auth' },
     })
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    const history = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const history = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(history).getByRole('button', { name: /Version 3/ }))
     await user.click(within(history).getByRole('button', { name: 'Discard draft and reload' }))
     const discardDialog = screen.getByRole('alertdialog', {
@@ -646,7 +604,7 @@ describe('MyWorldFaqEditorPage', () => {
     })
     expect(screen.getByTestId('faq-editor-protected-portal-host')).toContainElement(discardDialog)
     fireEvent(window, new Event('pagehide'))
-    expect(screen.queryByRole('dialog', { name: 'Revision history' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Versions & undo' })).not.toBeInTheDocument()
     expect(
       screen.queryByRole('alertdialog', { name: 'Discard your draft and reload?' }),
     ).not.toBeInTheDocument()
@@ -1043,7 +1001,7 @@ describe('MyWorldFaqEditorPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Publishing…' })).toBeDisabled())
     expect(screen.getByLabelText('Page title')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Supporting records' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'History' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Versions & undo' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Log out' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Exit' })).toBeDisabled()
 
@@ -1058,7 +1016,7 @@ describe('MyWorldFaqEditorPage', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Published' })).toBeDisabled())
     expect(screen.getByLabelText('Page title')).toHaveValue('Locked while publishing')
-    expect(screen.getByRole('button', { name: 'History' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Versions & undo' })).toBeEnabled()
   })
 
   it('edits and publishes a source author without changing its locked structure', async () => {
@@ -1339,8 +1297,8 @@ describe('MyWorldFaqEditorPage', () => {
     fireEvent.change(screen.getByLabelText('Page title'), {
       target: { value: 'Draft stays in the editor' },
     })
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     expect(within(dialog).getByRole('button', { name: /Version 3/ })).toHaveTextContent(
       'Saved by Jo (self-declared)',
     )
@@ -1378,8 +1336,8 @@ describe('MyWorldFaqEditorPage', () => {
     loadHistoryMock.mockResolvedValue({ status: 'unavailable' })
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     expect(
       await within(dialog).findByText('Revision history is unavailable right now.'),
     ).toBeInTheDocument()
@@ -1402,8 +1360,8 @@ describe('MyWorldFaqEditorPage', () => {
     fireEvent.change(screen.getByLabelText('Page title'), {
       target: { value: 'Unpublished draft title' },
     })
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    let dialog = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    let dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(dialog).getByRole('button', { name: /Version 3/ }))
     expect(
       await within(dialog).findByRole('button', { name: 'Restore this version' }),
@@ -1411,12 +1369,12 @@ describe('MyWorldFaqEditorPage', () => {
 
     await user.click(within(dialog).getByRole('button', { name: 'Keep editing' }))
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Revision history' })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('dialog', { name: 'Versions & undo' })).not.toBeInTheDocument(),
     )
     expect(screen.getByLabelText('Page title')).toHaveValue('Unpublished draft title')
 
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    dialog = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(dialog).getByRole('button', { name: 'Discard draft and reload' }))
     const confirmation = screen.getByRole('alertdialog', {
       name: 'Discard your draft and reload?',
@@ -1427,7 +1385,7 @@ describe('MyWorldFaqEditorPage', () => {
     expect(screen.getByLabelText('Page title')).toHaveValue('Reloaded current title')
     expect(screen.getByText('0 changes')).toBeInTheDocument()
     expect(
-      within(screen.getByRole('dialog', { name: 'Revision history' })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: 'Versions & undo' })).getByRole('button', {
         name: 'Restore this version',
       }),
     ).toBeEnabled()
@@ -1441,8 +1399,8 @@ describe('MyWorldFaqEditorPage', () => {
     fireEvent.change(screen.getByLabelText('Page title'), {
       target: { value: 'Draft that must survive a failed reload' },
     })
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    const history = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const history = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(history).getByRole('button', { name: /Version 3/ }))
     await user.click(within(history).getByRole('button', { name: 'Discard draft and reload' }))
     const confirmation = screen.getByRole('alertdialog', {
@@ -1470,11 +1428,11 @@ describe('MyWorldFaqEditorPage', () => {
     fireEvent.change(screen.getByLabelText('Page title'), {
       target: { value: 'Draft that must survive a reload timeout' },
     })
-    fireEvent.click(screen.getByRole('button', { name: 'History' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Versions & undo' }))
     await act(async () => {
       await Promise.resolve()
     })
-    const history = screen.getByRole('dialog', { name: 'Revision history' })
+    const history = screen.getByRole('dialog', { name: 'Versions & undo' })
     fireEvent.click(within(history).getByRole('button', { name: /Version 3/ }))
     await act(async () => {
       await Promise.resolve()
@@ -1513,8 +1471,8 @@ describe('MyWorldFaqEditorPage', () => {
       .mockResolvedValue(restoreSuccess(snapshot(5, restoredDocument), { resilience: 'degraded' }))
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(dialog).getByRole('button', { name: /Version 3/ }))
     await user.click(await within(dialog).findByRole('button', { name: 'Restore this version' }))
     const confirmation = screen.getByRole('alertdialog', {
@@ -1523,7 +1481,7 @@ describe('MyWorldFaqEditorPage', () => {
     await user.click(within(confirmation).getByRole('button', { name: 'Restore and publish' }))
 
     await waitFor(() =>
-      expect(screen.queryByRole('dialog', { name: 'Revision history' })).not.toBeInTheDocument(),
+      expect(screen.queryByRole('dialog', { name: 'Versions & undo' })).not.toBeInTheDocument(),
     )
     const [, init] = fetchMock.mock.calls[0] ?? []
     const requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>
@@ -1556,8 +1514,8 @@ describe('MyWorldFaqEditorPage', () => {
     vi.spyOn(globalThis, 'fetch').mockReturnValue(pendingResponse.promise)
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    const history = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const history = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(history).getByRole('button', { name: /Version 3/ }))
     await user.click(await within(history).findByRole('button', { name: 'Restore this version' }))
     const confirmation = screen.getByRole('alertdialog', {
@@ -1572,7 +1530,7 @@ describe('MyWorldFaqEditorPage', () => {
       within(confirmation).getByRole('button', { name: 'Keep current version' }),
     ).toBeDisabled()
     expect(screen.getByLabelText('Page title')).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'History', hidden: true })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Versions & undo', hidden: true })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Log out', hidden: true })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Exit', hidden: true })).toBeDisabled()
 
@@ -1599,8 +1557,8 @@ describe('MyWorldFaqEditorPage', () => {
     })
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(dialog).getByRole('button', { name: /Version 3/ }))
     await user.click(await within(dialog).findByRole('button', { name: 'Restore this version' }))
     let confirmation = screen.getByRole('alertdialog', {
@@ -1637,8 +1595,8 @@ describe('MyWorldFaqEditorPage', () => {
     )
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    let dialog = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    let dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(dialog).getByRole('button', { name: /Version 3/ }))
     await user.click(await within(dialog).findByRole('button', { name: 'Restore this version' }))
     await user.click(
@@ -1650,13 +1608,13 @@ describe('MyWorldFaqEditorPage', () => {
     expect(
       await screen.findByText(/Someone published a newer version.*Reload the current version/),
     ).toBeInTheDocument()
-    dialog = screen.getByRole('dialog', { name: 'Revision history' })
+    dialog = screen.getByRole('dialog', { name: 'Versions & undo' })
     expect(within(dialog).getByRole('button', { name: 'Restore this version' })).toBeDisabled()
     await user.click(within(dialog).getByRole('button', { name: 'Reload current version' }))
 
     await waitFor(() => expect(screen.getByText('Version 5')).toBeInTheDocument())
     expect(
-      within(screen.getByRole('dialog', { name: 'Revision history' })).getByRole('button', {
+      within(screen.getByRole('dialog', { name: 'Versions & undo' })).getByRole('button', {
         name: 'Restore this version',
       }),
     ).toBeEnabled()
@@ -1684,8 +1642,8 @@ describe('MyWorldFaqEditorPage', () => {
       )
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(dialog).getByRole('button', { name: /Version 3/ }))
     await user.click(await within(dialog).findByRole('button', { name: 'Restore this version' }))
     let confirmation = screen.getByRole('alertdialog', {
@@ -1722,8 +1680,8 @@ describe('MyWorldFaqEditorPage', () => {
     )
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={onSessionStateChanged} />)
 
-    await user.click(screen.getByRole('button', { name: 'History' }))
-    const dialog = await screen.findByRole('dialog', { name: 'Revision history' })
+    await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     await user.click(within(dialog).getByRole('button', { name: /Version 3/ }))
     await user.click(await within(dialog).findByRole('button', { name: 'Restore this version' }))
     await user.click(

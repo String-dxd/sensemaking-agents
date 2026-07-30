@@ -27,7 +27,6 @@ export function FaqSupportingRecordsDialog({
   targetPath?: string | null
 }) {
   const contentRef = useRef<HTMLDivElement>(null)
-  const previewGuardrailIds = new Set(document.ledgerPreview.map((item) => item.guardrailId))
 
   useEffect(() => {
     if (!open || !targetPath) return
@@ -74,8 +73,8 @@ export function FaqSupportingRecordsDialog({
         <DialogHeader className="pr-12">
           <DialogTitle className="text-2xl tracking-[-0.035em]">Supporting records</DialogTitle>
           <DialogDescription className="max-w-[65ch] leading-relaxed text-(--color-faq-ink-soft)">
-            Edit source notes, prototype checks, guardrail evidence and media wording. Public
-            guardrail copy stays on the page.
+            Edit source notes, prototype checks, guardrail evidence and media wording. Every
+            guardrail is edited here now that the page no longer carries a ledger section.
           </DialogDescription>
         </DialogHeader>
 
@@ -174,25 +173,22 @@ export function FaqSupportingRecordsDialog({
         <RecordGroup title="Guardrail supporting notes" count={document.guardrails.length}>
           {document.guardrails.map((item) => (
             <RecordDetails key={item.id} title={item.title}>
-              {!previewGuardrailIds.has(item.id) ? (
-                <EditableFaqField
-                  path={`guardrails.${item.id}.title`}
-                  label="Guardrail title"
-                  value={item.title}
-                />
-              ) : null}
+              {ledgerPreviewFor(document, item.id)}
+              <EditableFaqField
+                path={`guardrails.${item.id}.title`}
+                label="Guardrail title"
+                value={item.title}
+              />
               <EditableFaqField
                 path={`guardrails.${item.id}.protects`}
                 label="What it protects"
                 value={item.protects}
               />
-              {!previewGuardrailIds.has(item.id) ? (
-                <EditableFaqField
-                  path={`guardrails.${item.id}.statusSummary`}
-                  label="Status summary"
-                  value={item.statusSummary}
-                />
-              ) : null}
+              <EditableFaqField
+                path={`guardrails.${item.id}.statusSummary`}
+                label="Status summary"
+                value={item.statusSummary}
+              />
               <EditableFaqField
                 path={`guardrails.${item.id}.populationContext`}
                 label="Population context"
@@ -203,13 +199,11 @@ export function FaqSupportingRecordsDialog({
                 label="Why it fits"
                 value={item.fit}
               />
-              {!previewGuardrailIds.has(item.id) ? (
-                <EditableFaqField
-                  path={`guardrails.${item.id}.limitations`}
-                  label="Limitations"
-                  value={item.limitations}
-                />
-              ) : null}
+              <EditableFaqField
+                path={`guardrails.${item.id}.limitations`}
+                label="Limitations"
+                value={item.limitations}
+              />
             </RecordDetails>
           ))}
         </RecordGroup>
@@ -271,5 +265,22 @@ function RecordDetails({ title, children }: { title: string; children: ReactNode
       </summary>
       <div className="border-t border-(--color-faq-line) p-3 sm:p-4">{children}</div>
     </details>
+  )
+}
+
+/* The ledger section on the page used to carry this wording, and the section was removed on
+ * 2026-07-30. It is not section furniture though -- it says what a guardrail's state MEANS, so it
+ * belongs with the guardrail rather than with the layout that happened to show it. Returns null
+ * for a guardrail that is not in the preview, which is most of them. */
+function ledgerPreviewFor(document: MyWorldFaqEditorialDocument, guardrailId: string) {
+  const preview = document.ledgerPreview.find((item) => item.guardrailId === guardrailId)
+  if (!preview) return null
+
+  return (
+    <EditableFaqField
+      path={`ledgerPreview.${preview.state}.description`}
+      label={`What "${preview.label}" means`}
+      value={preview.description}
+    />
   )
 }

@@ -6,7 +6,6 @@ import type { MyWorldFaqContent } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
 import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 import { createMyWorldFaqAuthoringShortcut } from './faq-authoring-shortcut'
-import { GuardrailLedgerPreview } from './GuardrailLedgerPreview'
 import { ProductLoop } from './ProductLoop'
 import { QuestionField } from './QuestionField'
 import { SignalSourceStrip } from './SignalSourceStrip'
@@ -178,11 +177,13 @@ export function MyWorldFaqPage({
 
         <ProductLoop content={content} editorMode={editorMode} renderField={renderField} />
         <SignalSourceStrip content={content} renderField={renderField} />
-        <GuardrailLedgerPreview
-          content={content}
-          editorMode={editorMode}
-          renderField={renderField}
-        />
+        {/* The guardrail ledger section was removed from this page on 2026-07-30, on the
+            owner's call that it was not earning its place. Its DATA is deliberately still
+            here: `page.ledger` and `ledgerPreview` are `z.strictObject` in content-schema.ts
+            and are seeded by default-document.ts, so dropping them from the document type
+            would make any revision already written to the database fail validation — and the
+            public FAQ answers a validation failure with a 503. Bringing the section back is
+            restoring one component and one line here. */}
         <QuestionField
           content={content}
           editorMode={editorMode}

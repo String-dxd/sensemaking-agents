@@ -107,9 +107,12 @@ const fields: FaqEditorialFieldDefinition[] = [
   { path: 'page.signals.eyebrow', category: 'compact' },
   { path: 'page.signals.heading', category: 'compact' },
   { path: 'page.signals.introduction', category: 'summary' },
-  { path: 'page.ledger.eyebrow', category: 'compact' },
-  { path: 'page.ledger.heading', category: 'compact' },
-  { path: 'page.ledger.introduction', category: 'summary' },
+  /* page.ledger.* is intentionally NOT editable: the section that rendered it was removed
+     from the page on 2026-07-30 and these three fields are its heading furniture, so a
+     contributor editing them would be changing words that appear nowhere. The fields stay in
+     the document type and in content-schema.ts, because both are strict and any revision
+     already in the database still contains them. Restore these three lines with the
+     section. */
   { path: 'page.faq.eyebrow', category: 'compact' },
   { path: 'page.faq.heading', category: 'compact' },
   { path: 'page.faq.introduction', category: 'summary' },
@@ -138,6 +141,11 @@ for (const quote of FAQ_SIGNAL_QUOTE_MANIFEST) {
   )
 }
 
+/* Still editable after the ledger section was removed from the page on 2026-07-30, because it
+   moved rather than went away: it is edited in the Supporting records dialog now, beside the
+   guardrail it describes. It is also the only editable path keyed by a STATE rather than an id,
+   which is the shape `readMyWorldFaqManifestPath` and `setMyWorldFaqManifestPath` are tested
+   against -- drop it and that branch of both helpers is exercised by nothing. */
 for (const item of FAQ_LEDGER_PREVIEW_MANIFEST) {
   fields.push({ path: `ledgerPreview.${item.state}.description`, category: 'summary' })
 }
