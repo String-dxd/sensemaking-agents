@@ -12,7 +12,7 @@ import {
   unlockMyWorldFaqEditor,
 } from '~/auth/my-world-faq-editor-session.server'
 import {
-  FAQ_EDITABLE_FIELDS,
+  buildMyWorldFaqEditableFields,
   FAQ_EDITORIAL_FIELD_LIMITS,
   MY_WORLD_FAQ_SCHEMA_VERSION,
   prepareMyWorldFaqEditorialIntent,
@@ -57,7 +57,7 @@ export async function loadMyWorldFaqEditorHandler(
         createdAt: revision.createdAt,
       },
       manifest: {
-        fields: FAQ_EDITABLE_FIELDS,
+        fields: buildMyWorldFaqEditableFields(revision.document),
         limits: FAQ_EDITORIAL_FIELD_LIMITS,
       },
     }

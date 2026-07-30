@@ -4,7 +4,20 @@ import { FAQ_CONCERN_CLUSTERS, FAQ_QUESTIONS } from './questions'
 import { FAQ_PRODUCT_PROVENANCE, FAQ_SOURCES } from './sources'
 
 export const MY_WORLD_FAQ_SCHEMA_VERSION = 1 as const
-export const MY_WORLD_FAQ_STRUCTURE_VERSION = 1 as const
+export const MY_WORLD_FAQ_V1_STRUCTURE_VERSION = 1 as const
+export const MY_WORLD_FAQ_STRUCTURE_VERSION = 2 as const
+export const MY_WORLD_FAQ_SUPPORTED_STRUCTURE_VERSIONS = [
+  MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
+  MY_WORLD_FAQ_STRUCTURE_VERSION,
+] as const
+
+export type MyWorldFaqStructureVersion = (typeof MY_WORLD_FAQ_SUPPORTED_STRUCTURE_VERSIONS)[number]
+
+export function isSupportedMyWorldFaqStructureVersion(
+  value: unknown,
+): value is MyWorldFaqStructureVersion {
+  return MY_WORLD_FAQ_SUPPORTED_STRUCTURE_VERSIONS.some((version) => version === value)
+}
 
 export const FAQ_PRODUCT_STEP_MANIFEST = [
   { id: 'capture', assetId: 'product-01-capture' },
@@ -54,6 +67,15 @@ export type FaqEditorialFieldCategory =
 export interface FaqEditorialFieldDefinition {
   path: string
   category: FaqEditorialFieldCategory
+}
+
+interface FaqEditableQuestionShape {
+  id: string
+  blocks: readonly { id: string }[]
+}
+
+interface FaqEditableDocumentShape {
+  questions: readonly FaqEditableQuestionShape[]
 }
 
 export const FAQ_EDITORIAL_FIELD_LIMITS = {
@@ -127,23 +149,7 @@ for (const cluster of FAQ_CONCERN_CLUSTERS) {
   )
 }
 
-for (const question of FAQ_QUESTIONS) {
-  fields.push(
-    { path: `questions.${question.id}.displayedQuestion`, category: 'question' },
-    { path: `questions.${question.id}.shortAnswer`, category: 'short-answer' },
-  )
-  for (const block of question.blocks) {
-    for (const [name, category] of [
-      ['heading', 'compact'],
-      ['text', 'body'],
-      ['populationContext', 'body'],
-      ['fit', 'body'],
-      ['limitations', 'body'],
-    ] as const) {
-      fields.push({ path: `questions.${question.id}.blocks.${block.id}.${name}`, category })
-    }
-  }
-}
+const questionFieldInsertionIndex = fields.length
 
 for (const source of FAQ_SOURCES) {
   fields.push(
@@ -194,8 +200,41 @@ for (const asset of FAQ_ASSETS) {
   )
 }
 
-export const FAQ_EDITABLE_FIELDS = Object.freeze(fields)
-export const FAQ_EDITABLE_PATHS = Object.freeze(fields.map((field) => field.path))
+export function buildMyWorldFaqEditableFields(
+  document: FaqEditableDocumentShape,
+): readonly FaqEditorialFieldDefinition[] {
+  const questionFields: FaqEditorialFieldDefinition[] = []
+  for (const question of document.questions) {
+    questionFields.push(
+      { path: `questions.${question.id}.displayedQuestion`, category: 'question' },
+      { path: `questions.${question.id}.shortAnswer`, category: 'short-answer' },
+    )
+    for (const block of question.blocks) {
+      for (const [name, category] of [
+        ['heading', 'compact'],
+        ['text', 'body'],
+        ['populationContext', 'body'],
+        ['fit', 'body'],
+        ['limitations', 'body'],
+      ] as const) {
+        questionFields.push({
+          path: `questions.${question.id}.blocks.${block.id}.${name}`,
+          category,
+        })
+      }
+    }
+  }
+  return [
+    ...fields.slice(0, questionFieldInsertionIndex),
+    ...questionFields,
+    ...fields.slice(questionFieldInsertionIndex),
+  ]
+}
+
+export const FAQ_EDITABLE_FIELDS = Object.freeze(
+  buildMyWorldFaqEditableFields({ questions: FAQ_QUESTIONS }),
+)
+export const FAQ_EDITABLE_PATHS = Object.freeze(FAQ_EDITABLE_FIELDS.map((field) => field.path))
 
 export const FAQ_LOCKED_STRUCTURE = {
   productSteps: FAQ_PRODUCT_STEP_MANIFEST.map(({ id, assetId }) => ({ id, assetId })),

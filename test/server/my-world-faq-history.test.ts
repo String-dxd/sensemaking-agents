@@ -1,7 +1,11 @@
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_MY_WORLD_FAQ_CONTENT, setMyWorldFaqManifestPath } from '~/data/my-world-faq'
+import {
+  addTeamFaqQuestion,
+  DEFAULT_MY_WORLD_FAQ_CONTENT,
+  setMyWorldFaqManifestPath,
+} from '~/data/my-world-faq'
 import type {
   MyWorldFaqHeadRef,
   MyWorldFaqRevisionMetadata,
@@ -91,6 +95,19 @@ const ATTEMPT_ID = '44444444-4444-4444-8444-444444444444'
 
 function document(label: string) {
   return setMyWorldFaqManifestPath(DEFAULT_MY_WORLD_FAQ_CONTENT, 'route.title', label)
+}
+
+function v2Document(label: string) {
+  return addTeamFaqQuestion(document(label), {
+    id: 'team-11111111-1111-4111-8111-111111111111',
+    clusterId: 'evidence-next-decision',
+    displayedQuestion: 'How is this v2 revision reviewed?',
+    shortAnswer:
+      'The team keeps this answer provisional, preserves its review metadata, and restores the selected historical document without silently rewriting its structure.',
+    detailedAnswer: 'This v2 working answer remains open to human review, evidence and correction.',
+    limitations: 'The next publication decision remains with the product team.',
+    reviewDate: '2026-07-30',
+  })
 }
 
 function revision(
@@ -216,9 +233,82 @@ describe('My World FAQ protected history and restore handler', () => {
     })
   })
 
-  it('keeps unsupported and corrupt previews generic and protected', async () => {
-    mocks.loadRevision.mockRejectedValue(new MyWorldFaqRepositoryError('CORRUPT_STATE'))
+  it('previews and restores either supported document structure exactly', async () => {
+    const targetV2 = revision(TARGET_HEAD, v2Document('FAQ v2 target'))
+    mocks.loadRevision.mockResolvedValue(targetV2)
+    const committedV2 = revision(COMMITTED_HEAD, targetV2.document)
+    mocks.publishRevision.mockResolvedValue({
+      outcome: 'committed',
+      committed: committedV2,
+      live: committedV2,
+    })
     const request = new Request('https://faq.example.gov.sg/my-world/faq/edit')
+
+    await expect(
+      loadMyWorldFaqRevisionPreviewHandler(request, {
+        revisionId: TARGET_HEAD.revisionId,
+      }),
+    ).resolves.toMatchObject({
+      status: 'ready',
+      revision: {
+        structureVersion: 2,
+        document: targetV2.document,
+      },
+    })
+
+    const response = await handleMyWorldFaqEditorRestore(restoreRequest())
+    expect(response.status).toBe(200)
+    expect(mocks.publishRevision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        document: targetV2.document,
+        restoredFromRevisionId: TARGET_HEAD.revisionId,
+      }),
+    )
+
+    const currentV2 = revision(CURRENT_HEAD, v2Document('FAQ v2 current'))
+    const targetV1 = revision(TARGET_HEAD, document('FAQ v1 target'))
+    mocks.loadEditorRevision.mockResolvedValue(currentV2)
+    mocks.loadRevision.mockResolvedValue(targetV1)
+    const committedV1 = revision(COMMITTED_HEAD, targetV1.document)
+    mocks.publishRevision.mockResolvedValue({
+      outcome: 'committed',
+      committed: committedV1,
+      live: committedV1,
+    })
+
+    const v1Response = await handleMyWorldFaqEditorRestore(restoreRequest())
+    expect(v1Response.status).toBe(200)
+    expect(mocks.publishRevision).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        document: targetV1.document,
+        restoredFromRevisionId: TARGET_HEAD.revisionId,
+      }),
+    )
+  })
+
+  it('keeps unsupported and corrupt previews generic and protected', async () => {
+    mocks.loadRevision.mockResolvedValue({
+      ...revision(TARGET_HEAD, v2Document('FAQ v2 with mismatched row metadata')),
+      structureVersion: 1,
+    })
+    const request = new Request('https://faq.example.gov.sg/my-world/faq/edit')
+    await expect(
+      loadMyWorldFaqRevisionPreviewHandler(request, {
+        revisionId: TARGET_HEAD.revisionId,
+      }),
+    ).resolves.toEqual({ status: 'unsupported' })
+
+    mocks.loadRevision.mockResolvedValue({
+      ...revision(TARGET_HEAD),
+      structureVersion: 3,
+    })
+    await expect(
+      loadMyWorldFaqRevisionPreviewHandler(request, {
+        revisionId: TARGET_HEAD.revisionId,
+      }),
+    ).resolves.toEqual({ status: 'unsupported' })
+
+    mocks.loadRevision.mockRejectedValue(new MyWorldFaqRepositoryError('CORRUPT_STATE'))
 
     await expect(
       loadMyWorldFaqRevisionPreviewHandler(request, {

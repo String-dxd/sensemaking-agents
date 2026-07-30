@@ -25,6 +25,8 @@ vi.mock('~/lib/sign-out-engine', () => ({
 }))
 
 import { DevPalette } from '~/components/DevPalette'
+import { MyWorldFaqPage } from '~/components/my-world-faq/MyWorldFaqPage'
+import { DEFAULT_MY_WORLD_FAQ_CONTENT } from '~/data/my-world-faq'
 
 let originalStorageDescriptor: PropertyDescriptor | undefined
 let originalAssign: typeof window.location.assign
@@ -219,6 +221,31 @@ describe('DevPalette', () => {
     })
     event.preventDefault()
     window.dispatchEvent(event)
+    expect(screen.queryByPlaceholderText(/type a command/i)).not.toBeInTheDocument()
+  })
+
+  it('lets the FAQ page own Cmd-K before the global developer palette', () => {
+    render(
+      <>
+        <DevPalette />
+        <MyWorldFaqPage
+          feedbackEnabled={false}
+          content={DEFAULT_MY_WORLD_FAQ_CONTENT}
+          authoringShortcutEnabled
+        />
+      </>,
+    )
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'k',
+        metaKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    )
+
+    expect(assignSpy).toHaveBeenCalledWith('/my-world/faq/edit')
     expect(screen.queryByPlaceholderText(/type a command/i)).not.toBeInTheDocument()
   })
 })

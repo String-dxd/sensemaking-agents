@@ -1,4 +1,4 @@
-import { type MyWorldFaqEditorialDocument, setMyWorldFaqManifestPath } from '~/data/my-world-faq'
+import { type MyWorldFaqEditorialDocument, updateMyWorldFaqDraftPath } from '~/data/my-world-faq'
 
 export function readMyWorldFaqEditableValue(
   document: MyWorldFaqEditorialDocument,
@@ -12,11 +12,12 @@ export function readMyWorldFaqEditableValue(
 }
 
 export function updateMyWorldFaqEditableValue(
+  base: MyWorldFaqEditorialDocument,
   document: MyWorldFaqEditorialDocument,
   path: string,
   value: string,
 ): MyWorldFaqEditorialDocument {
-  return setMyWorldFaqManifestPath(document, path, value)
+  return updateMyWorldFaqDraftPath(base, document, path, value)
 }
 
 export function deriveMyWorldFaqDirtyPaths(
@@ -24,10 +25,14 @@ export function deriveMyWorldFaqDirtyPaths(
   working: MyWorldFaqEditorialDocument,
   editablePaths: readonly string[],
 ): readonly string[] {
-  return editablePaths.filter(
-    (path) =>
-      readMyWorldFaqEditableValue(base, path) !== readMyWorldFaqEditableValue(working, path),
-  )
+  return editablePaths.filter((path) => {
+    const workingValue = resolvePath(working, path)
+    if (typeof workingValue !== 'string') {
+      throw new Error(`Editable FAQ path does not resolve to text: ${path}`)
+    }
+    const baseValue = resolvePath(base, path)
+    return typeof baseValue !== 'string' || baseValue !== workingValue
+  })
 }
 
 function resolvePath(document: MyWorldFaqEditorialDocument, path: string): unknown {

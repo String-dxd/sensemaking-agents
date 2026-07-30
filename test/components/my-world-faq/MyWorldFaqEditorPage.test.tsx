@@ -6,6 +6,7 @@ import {
   setEditorProtectedRootVisibility,
 } from '~/components/my-world-faq/editor/MyWorldFaqEditorPage'
 import {
+  addTeamFaqQuestion,
   DEFAULT_MY_WORLD_FAQ_CONTENT,
   FAQ_EDITABLE_FIELDS,
   FAQ_EDITABLE_PATHS,
@@ -25,6 +26,8 @@ const checkSessionMock = vi.hoisted(() => vi.fn())
 const loadEditorMock = vi.hoisted(() => vi.fn())
 const loadHistoryMock = vi.hoisted(() => vi.fn())
 const loadPreviewMock = vi.hoisted(() => vi.fn())
+const assignLocationMock = vi.fn()
+let originalAssignLocation: typeof window.location.assign
 
 vi.mock('~/server/my-world-faq-editor.functions', async (importOriginal) => {
   const original = await importOriginal<typeof import('~/server/my-world-faq-editor.functions')>()
@@ -41,8 +44,8 @@ const READY_DATA = {
   status: 'ready',
   identity: {
     displayName: 'Ari',
-    idleExpiresAt: '2026-07-30T00:00:00.000Z',
-    absoluteExpiresAt: '2026-07-30T00:00:00.000Z',
+    idleExpiresAt: '2099-07-30T00:00:00.000Z',
+    absoluteExpiresAt: '2099-07-30T08:00:00.000Z',
   },
   base: {
     head: {
@@ -149,10 +152,22 @@ describe('MyWorldFaqEditorPage', () => {
   afterEach(() => {
     cleanup()
     vi.useRealTimers()
+    Object.defineProperty(window.location, 'assign', {
+      configurable: true,
+      writable: true,
+      value: originalAssignLocation,
+    })
     vi.restoreAllMocks()
   })
 
   beforeEach(() => {
+    originalAssignLocation = window.location.assign
+    Object.defineProperty(window.location, 'assign', {
+      configurable: true,
+      writable: true,
+      value: assignLocationMock,
+    })
+    assignLocationMock.mockClear()
     checkSessionMock.mockReset()
     loadEditorMock.mockReset()
     loadHistoryMock.mockReset()
@@ -161,8 +176,8 @@ describe('MyWorldFaqEditorPage', () => {
       status: 'ready',
       identity: {
         displayName: 'Ari',
-        idleExpiresAt: '2026-07-30T00:00:00.000Z',
-        absoluteExpiresAt: '2026-07-30T00:00:00.000Z',
+        idleExpiresAt: '2099-07-30T00:00:00.000Z',
+        absoluteExpiresAt: '2099-07-30T08:00:00.000Z',
       },
     })
     loadEditorMock.mockResolvedValue(READY_DATA)
@@ -217,6 +232,171 @@ describe('MyWorldFaqEditorPage', () => {
 
     expect([...observedPaths].sort()).toEqual([...FAQ_EDITABLE_PATHS].sort())
   }, 60_000)
+
+  it('keeps the sticky editor toolbar below portalled dialogs', () => {
+    render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
+
+    const toolbar = screen.getByText('Editing').closest('.sticky')
+    expect(toolbar).toHaveClass('z-40')
+    expect(toolbar).not.toHaveClass('z-50')
+  })
+
+  it('renders and edits question fields discovered from a dynamic base document', () => {
+    const questionId = 'team-99999999-9999-4999-8999-999999999999'
+    const displayedQuestion = 'How will the team decide whether this question is answered?'
+    const dynamicDocument = addTeamFaqQuestion(structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT), {
+      id: questionId,
+      clusterId: 'evidence-next-decision',
+      displayedQuestion,
+      shortAnswer:
+        'The team will review product evidence, research limits, student feedback, and unresolved risks before changing this working answer or treating it as settled.',
+      detailedAnswer:
+        'This added question remains a working team response until its claims, evidence, and limitations have been reviewed.',
+      limitations:
+        'The review owner, evidence threshold, and decision date have not yet been confirmed.',
+      reviewDate: '2026-07-30',
+    })
+    const data = {
+      ...READY_DATA,
+      identity: {
+        ...READY_DATA.identity,
+        idleExpiresAt: '2099-07-30T00:00:00.000Z',
+        absoluteExpiresAt: '2099-07-30T08:00:00.000Z',
+      },
+      base: {
+        ...READY_DATA.base,
+        document: dynamicDocument,
+      },
+      // A loader from an older deployment can still send only the seed manifest.
+      // The editor must derive question fields from its actual working document.
+      manifest: {
+        ...READY_DATA.manifest,
+        fields: FAQ_EDITABLE_FIELDS,
+      },
+    } satisfies Extract<MyWorldFaqEditorLoaderData, { status: 'ready' }>
+
+    render(<MyWorldFaqEditorPage data={data} onSessionStateChanged={() => undefined} />)
+
+    const question = screen.getByDisplayValue(displayedQuestion)
+    expect(question).toHaveAttribute(
+      'data-editor-path',
+      `questions.${questionId}.displayedQuestion`,
+    )
+    expect(screen.getByText('0 changes')).toBeInTheDocument()
+
+    fireEvent.change(question, {
+      target: { value: 'How will the team decide when this question is answered?' },
+    })
+    expect(screen.getByText('1 change')).toBeInTheDocument()
+  })
+
+  it('adds a structured question and includes it in the published document', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      const request = JSON.parse(String(init?.body)) as PublishMyWorldFaqEditorRequest
+      return publishSuccess(snapshot(5, request.document))
+    })
+    render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
+
+    await user.click(screen.getByRole('button', { name: 'Add question' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add a question' })
+    fireEvent.change(within(dialog).getByLabelText('Topic'), {
+      target: { value: 'evidence-next-decision' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Question'), {
+      target: { value: 'How will the team decide whether this answer is ready?' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Short answer'), {
+      target: {
+        value:
+          'We are documenting the current design, the evidence behind it, and the questions the team still needs to test before treating this answer as settled.',
+      },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Detailed answer'), {
+      target: {
+        value:
+          'The team will review the design rationale, field signals and research limits before publishing a stronger claim.',
+      },
+    })
+    fireEvent.change(within(dialog).getByLabelText('What still needs checking?'), {
+      target: {
+        value: 'The evidence threshold, review owner and decision date still need to be agreed.',
+      },
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Add question' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Add a question' })).not.toBeInTheDocument()
+    expect(
+      screen.getByDisplayValue('How will the team decide whether this answer is ready?'),
+    ).toHaveAttribute(
+      'data-editor-path',
+      expect.stringMatching(/^questions\.team-[^.]+\.displayedQuestion$/),
+    )
+    fireEvent.change(
+      screen.getByDisplayValue('How will the team decide whether this answer is ready?'),
+      {
+        target: { value: 'How will the team decide whether this answer is ready now?' },
+      },
+    )
+    expect(screen.getByText('7 changes')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Save & publish' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Published' })).toBeDisabled())
+
+    const [, init] = fetchMock.mock.calls[0] ?? []
+    const request = JSON.parse(String(init?.body)) as PublishMyWorldFaqEditorRequest
+    const addedQuestion = request.document.questions.at(-1)
+    expect(addedQuestion).toMatchObject({
+      id: expect.stringMatching(
+        /^team-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      ),
+      clusterId: 'evidence-next-decision',
+      title: 'How will the team decide whether this answer is ready now?',
+      displayedQuestion: 'How will the team decide whether this answer is ready now?',
+      review: {
+        status: 'draft-awaiting-human-review',
+        reviewerRole: 'My World team',
+      },
+      blocks: [
+        expect.objectContaining({
+          kind: 'unknown',
+          label: 'Team check',
+          sourceIds: [],
+          provenanceIds: [],
+          guardrailIds: [],
+        }),
+      ],
+    })
+  })
+
+  it('keeps an incomplete new question in the dialog instead of changing the FAQ', async () => {
+    const user = userEvent.setup()
+    render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
+    const initialQuestionCount = screen.getAllByTestId('faq-editor-question-card').length
+
+    await user.click(screen.getByRole('button', { name: 'Add question' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add a question' })
+    fireEvent.change(within(dialog).getByLabelText('Topic'), {
+      target: { value: 'human-connection' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Question'), {
+      target: { value: 'Could this replace family time?' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Short answer'), {
+      target: { value: 'Not enough.' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('Detailed answer'), {
+      target: { value: 'This needs a careful answer.' },
+    })
+    fireEvent.change(within(dialog).getByLabelText('What still needs checking?'), {
+      target: { value: 'We still need evidence.' },
+    })
+    await user.click(within(dialog).getByRole('button', { name: 'Add question' }))
+
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Use 20–45 words.')
+    expect(screen.getByText('0 changes')).toBeInTheDocument()
+    expect(screen.getAllByTestId('faq-editor-question-card')).toHaveLength(initialQuestionCount)
+  })
 
   it('edits page and card copy in context with stable dirty counts', async () => {
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
@@ -613,6 +793,8 @@ describe('MyWorldFaqEditorPage', () => {
         limits: {
           ...READY_DATA.manifest.limits,
           'route-title': { warningGraphemes: 5, maxGraphemes: 9 },
+          question: { warningGraphemes: 8, maxGraphemes: 12 },
+          body: { maxGraphemes: 34 },
           url: { maxBytes: 99 },
         },
       },
@@ -629,6 +811,44 @@ describe('MyWorldFaqEditorPage', () => {
     expect(
       within(records).getAllByText('Use an absolute HTTPS URL up to 99 UTF-8 bytes.'),
     ).not.toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Close supporting records' }))
+    await user.click(screen.getByRole('button', { name: 'Add question' }))
+    const addDialog = screen.getByRole('dialog', { name: 'Add a question' })
+    expect(within(addDialog).getByLabelText('Question')).toHaveAttribute('maxlength', '12')
+    expect(within(addDialog).getByLabelText('Detailed answer')).toHaveAttribute('maxlength', '34')
+  })
+
+  it('disables question creation with an accessible reason at the lifetime cap', () => {
+    let cappedDocument = structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT)
+    for (let index = 1; index <= 50; index += 1) {
+      const hex = index.toString(16)
+      cappedDocument = addTeamFaqQuestion(cappedDocument, {
+        id: `team-${hex.padStart(8, '0')}-0000-4000-8000-${hex.padStart(12, '0')}`,
+        clusterId: 'evidence-next-decision',
+        displayedQuestion: `How should the team review capped question ${index}?`,
+        shortAnswer:
+          'The team should document what is known, what remains uncertain, who must review it, and which decision this working answer can support.',
+        detailedAnswer:
+          'This working answer remains open to human review, evidence and correction.',
+        limitations: 'The review owner and evidence threshold still need confirmation.',
+        reviewDate: '2026-07-30',
+      })
+    }
+    const cappedData = {
+      ...READY_DATA,
+      base: {
+        ...READY_DATA.base,
+        document: cappedDocument,
+      },
+    } satisfies typeof READY_DATA
+
+    render(<MyWorldFaqEditorPage data={cappedData} onSessionStateChanged={() => undefined} />)
+
+    const addButton = screen.getByRole('button', { name: 'Add question' })
+    const reason = screen.getByText('This FAQ already has the maximum of 50 team-added questions.')
+    expect(addButton).toBeDisabled()
+    expect(addButton).toHaveAttribute('aria-describedby', reason.id)
   })
 
   it('publishes the exact authority-free payload and adopts a degraded authoritative success', async () => {
@@ -1031,6 +1251,19 @@ describe('MyWorldFaqEditorPage', () => {
     expect(
       within(preview).getByText('Historical introduction for preview only.'),
     ).toBeInTheDocument()
+
+    for (const modifier of ['metaKey', 'ctrlKey'] as const) {
+      const event = new KeyboardEvent('keydown', {
+        key: 'k',
+        [modifier]: true,
+        bubbles: true,
+        cancelable: true,
+      })
+      window.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(false)
+    }
+    expect(assignLocationMock).not.toHaveBeenCalled()
+
     expect(screen.getByLabelText('Page title')).toHaveValue('Draft stays in the editor')
     expect(screen.getByText('1 change')).toBeInTheDocument()
   }, 15_000)

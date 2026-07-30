@@ -1,10 +1,11 @@
 import type { RuntimeCache } from '@vercel/functions'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  addTeamFaqQuestion,
   DEFAULT_MY_WORLD_FAQ_CONTENT,
   digestMyWorldFaqDocument,
   MY_WORLD_FAQ_SCHEMA_VERSION,
-  MY_WORLD_FAQ_STRUCTURE_VERSION,
+  MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
 } from '~/data/my-world-faq'
 import {
   publicCacheEnvelopeFromSnapshot,
@@ -63,7 +64,7 @@ describe('My World FAQ public last-known-good cache', () => {
       revisionVersion: 7,
       documentDigest: publication.head.digest,
       schemaVersion: MY_WORLD_FAQ_SCHEMA_VERSION,
-      structureVersion: MY_WORLD_FAQ_STRUCTURE_VERSION,
+      structureVersion: MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
       content: DEFAULT_MY_WORLD_FAQ_CONTENT,
     })
     expect(cache.value).not.toHaveProperty('savedByName')
@@ -71,6 +72,28 @@ describe('My World FAQ public last-known-good cache', () => {
     expect(cache.value).not.toHaveProperty('sessions')
     expect(cache.value).not.toHaveProperty('history')
     expect(cache.value).not.toHaveProperty('dirtyPaths')
+  })
+
+  it('round-trips a v2 publication without changing the cache envelope protocol', async () => {
+    const v2 = addTeamFaqQuestion(structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT), {
+      id: 'team-11111111-1111-4111-8111-111111111111',
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: 'How will a v2 publication remain readable?',
+      shortAnswer:
+        'The reader accepts both supported document structures while the cache envelope and integrity checks remain unchanged across a gradual rollout.',
+      detailedAnswer:
+        'The public cache validates the supported document structure and recomputes its canonical digest.',
+      limitations: 'Future structure versions still require an explicit reader update.',
+      reviewDate: '2026-07-30',
+    })
+    const envelope = await publicCacheEnvelopeFromSnapshot(await snapshot(v2, 8))
+
+    await expect(validatePublicCacheEnvelope(envelope)).resolves.toMatchObject({
+      cacheEnvelopeVersion: 1,
+      revisionVersion: 8,
+      structureVersion: 2,
+      content: v2,
+    })
   })
 
   it('rejects content changed without a matching digest', async () => {
@@ -92,6 +115,9 @@ describe('My World FAQ public last-known-good cache', () => {
     ).resolves.toBeNull()
     await expect(
       validatePublicCacheEnvelope({ ...envelope, schemaVersion: 999 }),
+    ).resolves.toBeNull()
+    await expect(
+      validatePublicCacheEnvelope({ ...envelope, structureVersion: 3 }),
     ).resolves.toBeNull()
   })
 

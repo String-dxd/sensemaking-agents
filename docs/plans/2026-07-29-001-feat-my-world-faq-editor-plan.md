@@ -22,7 +22,7 @@ The authoring model is deliberately small:
 |------|-------------------------|-------------------------|
 | Public FAQ | Read the latest complete published page, or the validated last-known-good published page during a declared database outage | Published content only |
 | Locked editor | Enter the shared password and a display name | The unlock form only |
-| Active editor | Edit existing plain-text/link fields and preview them in context | Current content, base version, validation and local dirty state |
+| Active editor | Edit plain-text/link fields, append a bounded structured question and preview in context | Current content, base version, validation and local dirty state |
 | Historical preview | Inspect one earlier complete revision | Protected read-only revision content and self-declared attribution |
 | Conflict/recovery | Preserve and compare local work after a stale, invalid or failed save | Protected current/base/local comparison; never a silent merge |
 
@@ -108,9 +108,12 @@ contract that the refactor must preserve.
   including page metadata, hero/section text, product explanations and text
   equivalents, quotations, questions, answers, evidence context, source
   metadata/links, guardrail summaries, contribution copy and footer copy.
-- R22. Keep IDs, slugs, taxonomy, order, structure, fixed control labels,
-  evidence/ledger vocabularies and all reference relationships system-owned;
-  do not add, remove or reorder records.
+- R22. Keep IDs, slugs, taxonomy, order, fixed control labels,
+  evidence/ledger vocabularies and all reference relationships system-owned.
+  Permit only bounded append-only question creation through the structured
+  form: generated identity/order, one derived working-answer block, at most 10
+  additions per publish and 50 team-added questions in total. Do not remove or
+  reorder records.
 - R23. Edit in the real page context, distinguish editor mode, show dirty
   fields and keep the working copy through recoverable save failures.
 - R24. Make Save & publish one complete, validated and atomic action with no
@@ -158,9 +161,10 @@ accessible mobile editing.
 
 ## Scope Boundaries
 
-- This plan adds direct authoring for the existing page; it does not add,
-  remove, duplicate or reorder page sections, questions, evidence blocks,
-  sources, guardrails or media.
+- This plan adds direct authoring for the existing page and bounded,
+  append-only question creation inside existing topics. It does not remove,
+  duplicate or reorder page sections, questions, evidence blocks, sources,
+  guardrails or media, and it does not create arbitrary relationships.
 - It does not create invitations, individual accounts, SSO, verified
   identities, roles, approval stages, draft review, comments or assignments.
 - It does not add real-time co-editing, presence, suggestions, automatic merge
@@ -342,7 +346,7 @@ accessible mobile editing.
 The runtime manifest is explicit rather than inferred from arbitrary object
 keys.
 
-**Editable in v1**
+**Editable in the authoring release**
 
 - route title/description and all public hero, section, CTA and footer copy;
 - product-step headings, explanations, boundaries, alt text and transcripts;
@@ -358,10 +362,11 @@ keys.
   and limitations;
 - contribution and review copy, subject to the real feedback capability state.
 
-**System-owned in v1**
+**System-owned in the authoring release**
 
-- schema/structure versions, IDs, slugs, array/key order, cluster membership and
-  card/block composition;
+- schema/structure versions, IDs, slugs, array/key order and card/block
+  composition. The application alone performs the controlled v1-to-v2 upgrade
+  when the first structured question is appended;
 - committed-question taxonomy and search aliases;
 - evidence-block kinds, label assignments and review-status/reviewer-role
   assignments;
@@ -428,12 +433,12 @@ after-the-fact safeguards, not identity verification or editorial approval, and
 must name an operational owner for password distribution, rotation and urgent
 restore before enablement.
 
-V1 removes engineering from ordinary wording changes only. New cards, sources,
-guardrails, relationships, media or layout remain code-reviewed structural
-changes owned by the product/engineering team. If that queue becomes a
-material listening bottleneck, record it as evidence for a separately designed
-record-creation workflow rather than weakening the stable-manifest contract
-inside this release.
+The release removes engineering from ordinary wording changes and lets the
+team append a bounded question card through one strict template. The generated
+ID, slug, topic-relative order, review classification and empty relationship
+arrays remain application-owned. Sources, guardrails, relationships, media or
+layout remain code-reviewed structural changes owned by the
+product/engineering team.
 
 ---
 
@@ -1195,8 +1200,13 @@ session states.
   `no-store`.
 - Warn before refresh/navigation/logout when dirty; require explicit discard
   confirmation. Opening/closing history must not replace the active draft.
-- Disable add/delete/reorder/formatting/AI controls entirely rather than
-  rendering disabled future affordances.
+- Provide one structured **Add question** dialog using the authoritative
+  manifest limits. Append to an existing topic, derive system-owned review
+  metadata from the working-answer text, and keep the dialog open if defensive
+  validation rejects the addition.
+- Disable question creation with an associated visible reason after 10
+  unpublished additions or 50 total team-added questions. Do not provide
+  delete/reorder/formatting/AI controls.
 - Support narrow safe-area toolbars, 44 px controls, keyboard-only use,
   reduced motion, 200–400% text zoom and non-overlapping focus targets.
 
@@ -1507,6 +1517,10 @@ real concurrency tests and a reversible pre-activation rollout.
 - Treat database mode as the point of no silent rollback. After the first
   authored revision, rollback must use DB-aware code with the editor disabled;
   do not alias a pre-editor build or flip back to compiled copy.
+- Deploy and pin a dual-reader build that accepts structure v1 and v2 while
+  question creation remains unavailable. Verify v1 database, cache, preview
+  and restore paths before enabling v2 writes. Once a v2 revision can be
+  published, a v1-only deployment is no longer a valid rollback target.
 - Document password rotation: update hash, redeploy, verify old password and
   sessions fail, revoke remaining rows, verify the new password, and ensure
   old/generated deployments are protected. Require Deployment Protection to be

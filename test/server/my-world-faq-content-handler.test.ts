@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_MY_WORLD_FAQ_CONTENT, digestMyWorldFaqDocument } from '~/data/my-world-faq'
+import {
+  addTeamFaqQuestion,
+  DEFAULT_MY_WORLD_FAQ_CONTENT,
+  digestMyWorldFaqDocument,
+} from '~/data/my-world-faq'
 import {
   createMyWorldFaqContentHandler,
   MY_WORLD_FAQ_UNAVAILABLE_MESSAGE,
@@ -94,6 +98,39 @@ describe('My World FAQ public content handler', () => {
     expect(deps.readPublicCache).not.toHaveBeenCalled()
     expect(deps.writePublicCache).toHaveBeenCalledWith(publication)
     expectFreshnessHeader(deps, 'current')
+  })
+
+  it('serves a v2 publication from Postgres and from degraded cache', async () => {
+    const v2 = addTeamFaqQuestion(structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT), {
+      id: 'team-11111111-1111-4111-8111-111111111111',
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: 'Will this v2 question remain available during an outage?',
+      shortAnswer:
+        'The current database publication and its integrity-checked cache both retain supported v2 questions without falling back to older compiled copy.',
+      detailedAnswer:
+        'The public handler returns the complete supported document supplied by the repository or cache.',
+      limitations: 'The cache remains a degraded last-known-good source, not an authoring store.',
+      reviewDate: '2026-07-30',
+    })
+    const publication = await snapshot(v2, 2)
+    const databaseDeps = dependencies({
+      readContentSource: () => 'database',
+      loadDatabaseSnapshot: vi.fn(async () => publication),
+    })
+    await expect(createMyWorldFaqContentHandler(databaseDeps)()).resolves.toEqual(v2)
+
+    const cached = await publicCacheEnvelopeFromSnapshot(publication)
+    const degradedDeps = dependencies({
+      readContentSource: () => 'database',
+      loadDatabaseSnapshot: vi.fn(async () => {
+        throw Object.assign(new Error('database unavailable'), {
+          code: 'DATABASE_UNAVAILABLE',
+        })
+      }),
+      readPublicCache: vi.fn(async () => cached),
+    })
+    await expect(createMyWorldFaqContentHandler(degradedDeps)()).resolves.toEqual(v2)
+    expectFreshnessHeader(degradedDeps, 'degraded')
   })
 
   it('serves a validated authored last-known-good snapshot when Postgres fails', async () => {

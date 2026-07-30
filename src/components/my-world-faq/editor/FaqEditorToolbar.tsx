@@ -102,7 +102,7 @@ export function FaqEditorToolbar({
 
   return (
     <>
-      <div className="sticky top-0 z-50 border-b border-(--color-faq-line-strong) bg-(--color-faq-surface) text-(--color-faq-ink) shadow-sm">
+      <div className="sticky top-0 z-40 border-b border-(--color-faq-line-strong) bg-(--color-faq-surface) text-(--color-faq-ink) shadow-sm">
         <div className="mx-auto flex w-full max-w-[96rem] flex-col gap-3 px-3 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <Badge className="bg-(--color-faq-ink) text-(--color-faq-paper)">Editing</Badge>

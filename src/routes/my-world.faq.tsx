@@ -83,7 +83,9 @@ function MyWorldFaqRoute() {
     return () => window.removeEventListener('pageshow', onPageShow)
   }, [router])
 
-  return <MyWorldFaqPage feedbackEnabled={feedbackEnabled} content={content} />
+  return (
+    <MyWorldFaqPage feedbackEnabled={feedbackEnabled} content={content} authoringShortcutEnabled />
+  )
 }
 
 function MyWorldFaqUnavailable() {

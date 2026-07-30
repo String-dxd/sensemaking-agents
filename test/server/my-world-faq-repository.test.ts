@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
+import {
+  addTeamFaqQuestion,
+  DEFAULT_MY_WORLD_FAQ_CONTENT,
+  digestMyWorldFaqDocument,
+} from '~/data/my-world-faq'
 import type { AppDatabase } from '~/db/client'
 import {
   createMyWorldFaqRepository,
@@ -15,6 +20,52 @@ function fakeDatabase(overrides: Partial<AppDatabase> = {}): AppDatabase {
 }
 
 describe('My World FAQ repository boundary', () => {
+  it('hydrates both supported document structures with row integrity checks intact', async () => {
+    const v1 = structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT)
+    const v2 = addTeamFaqQuestion(v1, {
+      id: 'team-11111111-1111-4111-8111-111111111111',
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: 'Can the repository hydrate this supported revision?',
+      shortAnswer:
+        'The repository validates either supported document structure, recomputes its digest, and checks that every stored version column agrees with the document.',
+      detailedAnswer:
+        'This v2 working answer remains open to human review, evidence and correction.',
+      limitations: 'Unknown future structures still fail closed as repository corruption.',
+      reviewDate: '2026-07-30',
+    })
+
+    for (const [index, document] of [v1, v2].entries()) {
+      const digest = await digestMyWorldFaqDocument(document)
+      const repository = createMyWorldFaqRepository(
+        fakeDatabase({
+          execute: vi.fn().mockResolvedValue({
+            rows: [
+              {
+                revisionId: randomUUID(),
+                version: index + 1,
+                document,
+                schemaVersion: document.schemaVersion,
+                structureVersion: document.structureVersion,
+                digest,
+                attributionKind: index === 0 ? 'system-import' : 'self-declared',
+                savedByName: index === 0 ? null : 'FAQ teammate',
+                createdAt: new Date('2026-07-30T00:00:00.000Z'),
+                restoredFromRevisionId: null,
+                attemptId: randomUUID(),
+                requestFingerprint: '1'.repeat(64),
+              },
+            ],
+          }),
+        } as unknown as AppDatabase),
+      )
+
+      await expect(repository.loadPublicSnapshot()).resolves.toMatchObject({
+        structureVersion: document.structureVersion,
+        document,
+      })
+    }
+  })
+
   it('rejects an invalid document before opening a transaction', async () => {
     const transaction = vi.fn()
     const repository = createMyWorldFaqRepository(

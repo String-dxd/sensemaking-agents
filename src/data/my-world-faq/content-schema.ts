@@ -1,12 +1,21 @@
 import { z } from 'zod'
 import {
-  FAQ_EDITABLE_FIELDS,
+  buildMyWorldFaqEditableFields,
   FAQ_EDITORIAL_FIELD_LIMITS,
   FAQ_LOCKED_STRUCTURE,
   type FaqEditorialFieldDefinition,
   MY_WORLD_FAQ_SCHEMA_VERSION,
   MY_WORLD_FAQ_STRUCTURE_VERSION,
+  MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
 } from './content-manifest'
+import {
+  containsTeamFaqFieldSignal,
+  deriveTeamFaqWorkingAnswerContract,
+  isTeamFaqQuestionId,
+  MAX_TEAM_FAQ_QUESTIONS,
+  TEAM_FAQ_QUESTION_REVIEW_STATUS,
+  TEAM_FAQ_QUESTION_REVIEWER_ROLE,
+} from './team-question-contract'
 import { FAQ_EVIDENCE_LABELS, FAQ_GUARDRAIL_STATES } from './types'
 
 const requiredText = z.string().min(1)
@@ -140,7 +149,10 @@ const assetSchema = z.strictObject({
 
 export const MY_WORLD_FAQ_DOCUMENT_SCHEMA = z.strictObject({
   schemaVersion: z.literal(MY_WORLD_FAQ_SCHEMA_VERSION),
-  structureVersion: z.literal(MY_WORLD_FAQ_STRUCTURE_VERSION),
+  structureVersion: z.union([
+    z.literal(MY_WORLD_FAQ_V1_STRUCTURE_VERSION),
+    z.literal(MY_WORLD_FAQ_STRUCTURE_VERSION),
+  ]),
   route: z.strictObject({
     title: requiredText,
     description: requiredText,
@@ -219,7 +231,9 @@ export const MY_WORLD_FAQ_DOCUMENT_SCHEMA = z.strictObject({
       order: z.number().int().positive(),
     }),
   ),
-  questions: z.array(questionSchema),
+  questions: z
+    .array(questionSchema)
+    .max(FAQ_LOCKED_STRUCTURE.questions.length + MAX_TEAM_FAQ_QUESTIONS),
   sources: z.array(sourceSchema),
   productProvenance: z.array(provenanceSchema),
   guardrails: z.array(guardrailSchema),
@@ -332,6 +346,9 @@ function validateHttpsUrl(value: string): boolean {
 }
 
 function lockedStructureOf(document: MyWorldFaqEditorialDocument) {
+  const canonicalQuestionIds = new Set(
+    FAQ_LOCKED_STRUCTURE.questions.map((question) => question.id),
+  )
   return {
     productSteps: document.productSteps.map(({ id, assetId }) => ({ id, assetId })),
     signalQuotes: document.signalQuotes.map(({ id, className }) => ({ id, className })),
@@ -341,33 +358,35 @@ function lockedStructureOf(document: MyWorldFaqEditorialDocument) {
       guardrailId,
     })),
     concernClusters: document.concernClusters.map(({ id, order }) => ({ id, order })),
-    questions: document.questions.map((question) => ({
-      id: question.id,
-      slug: question.slug,
-      clusterId: question.clusterId,
-      order: question.order,
-      title: question.title,
-      committedQuestions: question.committedQuestions,
-      searchAliases: question.searchAliases,
-      guardrailIds: question.guardrailIds,
-      assetIds: question.assetIds,
-      review: {
-        status: question.review.status,
-        reviewerRole: question.review.reviewerRole,
-      },
-      blocks: question.blocks.map((block) => ({
-        id: block.id,
-        kind: block.kind,
-        label: block.label,
-        sourceIds: block.sourceIds,
-        provenanceIds: block.provenanceIds,
-        guardrailIds: block.guardrailIds,
+    questions: document.questions
+      .filter((question) => canonicalQuestionIds.has(question.id))
+      .map((question) => ({
+        id: question.id,
+        slug: question.slug,
+        clusterId: question.clusterId,
+        order: question.order,
+        title: question.title,
+        committedQuestions: question.committedQuestions,
+        searchAliases: question.searchAliases,
+        guardrailIds: question.guardrailIds,
+        assetIds: question.assetIds,
         review: {
-          status: block.review.status,
-          reviewerRole: block.review.reviewerRole,
+          status: question.review.status,
+          reviewerRole: question.review.reviewerRole,
         },
+        blocks: question.blocks.map((block) => ({
+          id: block.id,
+          kind: block.kind,
+          label: block.label,
+          sourceIds: block.sourceIds,
+          provenanceIds: block.provenanceIds,
+          guardrailIds: block.guardrailIds,
+          review: {
+            status: block.review.status,
+            reviewerRole: block.review.reviewerRole,
+          },
+        })),
       })),
-    })),
     sources: document.sources.map((source) => ({
       id: source.id,
       kind: source.kind,
@@ -505,7 +524,7 @@ function pushCalibrationErrors(
         }
       }
       if (
-        /student engagement|teacher support|school field[- ]research/i.test(block.text) &&
+        containsTeamFaqFieldSignal(block.text) &&
         block.label !== 'Early field signal · team verify'
       ) {
         errors.push({
@@ -514,6 +533,153 @@ function pushCalibrationErrors(
           message: 'Unsupported field signals require the early-signal label.',
         })
       }
+    }
+  }
+}
+
+function pushQuestionStructureErrors(
+  document: MyWorldFaqEditorialDocument,
+  errors: MyWorldFaqValidationIssue[],
+) {
+  const canonicalIds = FAQ_LOCKED_STRUCTURE.questions.map((question) => question.id)
+  const actualPrefix = document.questions
+    .slice(0, canonicalIds.length)
+    .map((question) => question.id)
+  if (
+    actualPrefix.length !== canonicalIds.length ||
+    actualPrefix.some((id, index) => id !== canonicalIds[index])
+  ) {
+    errors.push({
+      path: 'questions',
+      code: 'structure',
+      message: 'The original FAQ questions must stay in their published order.',
+    })
+  }
+
+  const ids = new Set<string>()
+  const slugs = new Set<string>()
+  const clusterIds = new Set(document.concernClusters.map((cluster) => cluster.id))
+  const ordersByCluster = new Map<string, Set<number>>()
+  for (const question of document.questions) {
+    if (ids.has(question.id)) {
+      errors.push({
+        path: `questions.${question.id}.id`,
+        code: 'structure',
+        message: 'Question IDs must be unique.',
+      })
+    }
+    ids.add(question.id)
+    if (slugs.has(question.slug)) {
+      errors.push({
+        path: `questions.${question.id}.slug`,
+        code: 'structure',
+        message: 'Question slugs must be unique.',
+      })
+    }
+    slugs.add(question.slug)
+
+    const clusterOrders = ordersByCluster.get(question.clusterId) ?? new Set<number>()
+    if (clusterOrders.has(question.order)) {
+      errors.push({
+        path: `questions.${question.id}.order`,
+        code: 'structure',
+        message: 'Question order must be unique within its topic.',
+      })
+    }
+    clusterOrders.add(question.order)
+    ordersByCluster.set(question.clusterId, clusterOrders)
+  }
+
+  const teamQuestions = document.questions.slice(canonicalIds.length)
+  if (document.structureVersion === MY_WORLD_FAQ_V1_STRUCTURE_VERSION && teamQuestions.length > 0) {
+    errors.push({
+      path: 'structureVersion',
+      code: 'structure',
+      message: 'Structure version 1 cannot contain team-added questions.',
+    })
+  }
+  if (document.structureVersion === MY_WORLD_FAQ_STRUCTURE_VERSION && teamQuestions.length === 0) {
+    errors.push({
+      path: 'structureVersion',
+      code: 'structure',
+      message: 'Structure version 2 requires at least one team-added question.',
+    })
+  }
+  if (teamQuestions.length > MAX_TEAM_FAQ_QUESTIONS) {
+    errors.push({
+      path: 'questions',
+      code: 'structure',
+      message: `The FAQ can contain up to ${MAX_TEAM_FAQ_QUESTIONS} team-added questions.`,
+    })
+  }
+
+  for (const question of teamQuestions) {
+    const path = `questions.${question.id}`
+    const block = question.blocks[0]
+    if (!isTeamFaqQuestionId(question.id)) {
+      errors.push({
+        path: `${path}.id`,
+        code: 'structure',
+        message: 'Team-added questions require a generated team UUID.',
+      })
+    }
+    if (question.slug !== question.id) {
+      errors.push({
+        path: `${path}.slug`,
+        code: 'structure',
+        message: 'A team-added question slug must match its generated ID.',
+      })
+    }
+    if (!clusterIds.has(question.clusterId)) {
+      errors.push({
+        path: `${path}.clusterId`,
+        code: 'structure',
+        message: 'Choose an existing FAQ topic.',
+      })
+    }
+    if (
+      question.committedQuestions.length !== 0 ||
+      question.searchAliases.length !== 0 ||
+      question.guardrailIds.length !== 0 ||
+      question.assetIds.length !== 0
+    ) {
+      errors.push({
+        path,
+        code: 'structure',
+        message: 'Team-added questions cannot create aliases or evidence relationships.',
+      })
+    }
+    if (
+      question.review.status !== TEAM_FAQ_QUESTION_REVIEW_STATUS ||
+      question.review.reviewerRole !== TEAM_FAQ_QUESTION_REVIEWER_ROLE
+    ) {
+      errors.push({
+        path: `${path}.review`,
+        code: 'structure',
+        message: 'Team-added questions must remain marked for human review.',
+      })
+    }
+    const expectedBlock = block
+      ? deriveTeamFaqWorkingAnswerContract(question.id, block.text)
+      : undefined
+    if (
+      question.blocks.length !== 1 ||
+      !block ||
+      !expectedBlock ||
+      block.id !== expectedBlock.id ||
+      block.kind !== expectedBlock.kind ||
+      block.label !== expectedBlock.label ||
+      block.sourceIds.length !== expectedBlock.sourceIds.length ||
+      block.provenanceIds.length !== expectedBlock.provenanceIds.length ||
+      block.guardrailIds.length !== expectedBlock.guardrailIds.length ||
+      block.review.status !== expectedBlock.review.status ||
+      block.review.reviewerRole !== expectedBlock.review.reviewerRole
+    ) {
+      errors.push({
+        path: `${path}.blocks`,
+        code: 'structure',
+        message: 'Team-added evidence must use the review-only working-answer template.',
+      })
     }
   }
 }
@@ -543,7 +709,9 @@ export function validateMyWorldFaqDocument(input: unknown): MyWorldFaqValidation
     })
   }
 
-  for (const field of FAQ_EDITABLE_FIELDS) {
+  pushQuestionStructureErrors(document, errors)
+
+  for (const field of buildMyWorldFaqEditableFields(document)) {
     checkField(document, field, errors, warnings)
     const value = readPath(document, field.path)
     if (

@@ -8,8 +8,8 @@ import {
   requireMyWorldFaqEditorSession,
 } from '~/auth/my-world-faq-editor-session.server'
 import {
+  isSupportedMyWorldFaqStructureVersion,
   MY_WORLD_FAQ_SCHEMA_VERSION,
-  MY_WORLD_FAQ_STRUCTURE_VERSION,
   validateMyWorldFaqDocument,
 } from '~/data/my-world-faq'
 import type {
@@ -361,7 +361,9 @@ function historyMetadataFromRevision(
 function isSupportedRevision(revision: MyWorldFaqRevisionSnapshot): boolean {
   if (
     revision.schemaVersion !== MY_WORLD_FAQ_SCHEMA_VERSION ||
-    revision.structureVersion !== MY_WORLD_FAQ_STRUCTURE_VERSION
+    !isSupportedMyWorldFaqStructureVersion(revision.structureVersion) ||
+    revision.schemaVersion !== revision.document.schemaVersion ||
+    revision.structureVersion !== revision.document.structureVersion
   ) {
     return false
   }

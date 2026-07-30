@@ -7,6 +7,7 @@ export {
   normalizeMyWorldFaqDocument,
 } from './compose-document'
 export {
+  buildMyWorldFaqEditableFields,
   FAQ_EDITABLE_FIELDS,
   FAQ_EDITABLE_PATHS,
   FAQ_EDITORIAL_FIELD_LIMITS,
@@ -16,8 +17,12 @@ export {
   FAQ_SIGNAL_QUOTE_MANIFEST,
   type FaqEditorialFieldCategory,
   type FaqEditorialFieldDefinition,
+  isSupportedMyWorldFaqStructureVersion,
   MY_WORLD_FAQ_SCHEMA_VERSION,
   MY_WORLD_FAQ_STRUCTURE_VERSION,
+  MY_WORLD_FAQ_SUPPORTED_STRUCTURE_VERSIONS,
+  MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
+  type MyWorldFaqStructureVersion,
 } from './content-manifest'
 export {
   MY_WORLD_FAQ_DOCUMENT_SCHEMA,
@@ -50,6 +55,7 @@ export {
   type StampMyWorldFaqEditorialIntentInput,
   setMyWorldFaqManifestPath,
   stampMyWorldFaqEditorialIntent,
+  updateMyWorldFaqDraftPath,
 } from './editorial-mutations'
 export { FAQ_GUARDRAILS } from './guardrails'
 export {
@@ -58,6 +64,25 @@ export {
   FAQ_QUESTIONS,
 } from './questions'
 export { FAQ_PRODUCT_PROVENANCE, FAQ_SOURCES } from './sources'
+export {
+  containsTeamFaqFieldSignal,
+  deriveTeamFaqWorkingAnswerContract,
+  isTeamFaqQuestionId,
+  MAX_TEAM_FAQ_ADDITIONS_PER_PUBLISH,
+  MAX_TEAM_FAQ_QUESTIONS,
+  TEAM_FAQ_QUESTION_ID_PATTERN,
+  TEAM_FAQ_QUESTION_REVIEW_STATUS,
+  TEAM_FAQ_QUESTION_REVIEWER_ROLE,
+  TEAM_FAQ_WORKING_ANSWER_SUFFIX,
+  type TeamFaqWorkingAnswerContract,
+} from './team-question-contract'
+export {
+  addTeamFaqQuestion,
+  type CreateTeamFaqQuestionInput,
+  createTeamFaqQuestion,
+  getTeamFaqQuestionCapacity,
+  type TeamFaqQuestionCapacity,
+} from './team-questions'
 export {
   FAQ_EVIDENCE_LABELS,
   FAQ_GUARDRAIL_STATES,

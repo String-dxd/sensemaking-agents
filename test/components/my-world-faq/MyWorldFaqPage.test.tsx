@@ -1,14 +1,20 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { MyWorldFaqPage } from '~/components/my-world-faq/MyWorldFaqPage'
 import {
+  addTeamFaqQuestion,
   DEFAULT_MY_WORLD_FAQ_CONTENT,
   FAQ_CONCERN_CLUSTERS,
   FAQ_QUESTIONS,
 } from '~/data/my-world-faq'
 
 describe('MyWorldFaqPage comprehension checkpoint', () => {
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
   it('separates Product at a glance and FAQ in the top navigation', () => {
     render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
@@ -17,6 +23,48 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
       '#product',
     )
     expect(screen.getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '#faq')
+    expect(screen.queryByRole('link', { name: /edit faq/i })).not.toBeInTheDocument()
+  })
+
+  it('registers its authoring shortcut only on the public page', () => {
+    const addEventListener = vi.spyOn(window, 'addEventListener')
+    const removeEventListener = vi.spyOn(window, 'removeEventListener')
+    const publicPage = render(
+      <MyWorldFaqPage
+        feedbackEnabled={false}
+        content={DEFAULT_MY_WORLD_FAQ_CONTENT}
+        authoringShortcutEnabled
+      />,
+    )
+    const publicKeydownHandler = addEventListener.mock.calls.find(
+      ([type]) => type === 'keydown',
+    )?.[1]
+
+    expect(publicKeydownHandler).toBeTypeOf('function')
+    expect(addEventListener).toHaveBeenCalledWith('keydown', publicKeydownHandler, true)
+
+    publicPage.unmount()
+    expect(removeEventListener).toHaveBeenCalledWith('keydown', publicKeydownHandler, true)
+
+    addEventListener.mockClear()
+    render(
+      <MyWorldFaqPage
+        feedbackEnabled={false}
+        content={DEFAULT_MY_WORLD_FAQ_CONTENT}
+        authoringShortcutEnabled={false}
+        editorMode
+      />,
+    )
+    expect(addEventListener.mock.calls.some(([type]) => type === 'keydown')).toBe(false)
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'k',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    fireEvent(window, event)
+    expect(event.defaultPrevented).toBe(false)
   })
 
   it('shows one active desktop product clip at a time with a poster and text equivalent', async () => {
@@ -87,6 +135,45 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     await user.click(within(questionCard).getByRole('button', { name: 'Back to question' }))
     await waitFor(() => expect(question).toHaveFocus())
     expect(question).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('renders hostile question and answer strings literally through the card and dialog', async () => {
+    const user = userEvent.setup()
+    const executionKey = '__myWorldFaqHostileExecuted'
+    ;(globalThis as Record<string, unknown>)[executionKey] = false
+    const hostileQuestion =
+      'Will <script>globalThis.__myWorldFaqHostileExecuted=true</script> stay text?'
+    const hostileAnswer =
+      'This answer keeps <img data-faq-hostile src=x onerror="globalThis.__myWorldFaqHostileExecuted=true"> as literal author text while the team reviews every claim and limitation carefully.'
+    const hostileDetails =
+      'Detailed text: <script data-faq-hostile>globalThis.__myWorldFaqHostileExecuted=true</script>'
+    const hostileLimits =
+      'Limit: <iframe data-faq-hostile srcdoc="<script>globalThis.__myWorldFaqHostileExecuted=true</script>"></iframe>'
+    const content = addTeamFaqQuestion(structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT), {
+      id: 'team-11111111-1111-4111-8111-111111111111',
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: hostileQuestion,
+      shortAnswer: hostileAnswer,
+      detailedAnswer: hostileDetails,
+      limitations: hostileLimits,
+      reviewDate: '2026-07-30',
+    })
+    render(<MyWorldFaqPage feedbackEnabled={false} content={content} />)
+
+    await user.click(screen.getByRole('tab', { name: 'Evidence and the next decision' }))
+    const trigger = screen.getByRole('button', { name: hostileQuestion })
+    await user.click(trigger)
+    const card = trigger.closest<HTMLElement>('[data-testid="faq-question-card"]')
+    if (!card) throw new Error('FAQ question card was not found')
+    expect(within(card).getByTestId('faq-short-answer')).toHaveTextContent(hostileAnswer)
+
+    await user.click(within(card).getByRole('button', { name: 'Evidence and limits' }))
+    const dialog = screen.getByRole('dialog', { name: hostileQuestion })
+    expect(within(dialog).getByText(hostileDetails)).toBeInTheDocument()
+    expect(within(dialog).getByText(hostileLimits)).toBeInTheDocument()
+    expect(document.querySelector('[data-faq-hostile]')).toBeNull()
+    expect((globalThis as Record<string, unknown>)[executionKey]).toBe(false)
+    delete (globalThis as Record<string, unknown>)[executionKey]
   })
 
   it('switches FAQ topics and shows the matching card set', async () => {

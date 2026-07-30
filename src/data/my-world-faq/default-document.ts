@@ -4,7 +4,7 @@ import {
   FAQ_PRODUCT_STEP_MANIFEST,
   FAQ_SIGNAL_QUOTE_MANIFEST,
   MY_WORLD_FAQ_SCHEMA_VERSION,
-  MY_WORLD_FAQ_STRUCTURE_VERSION,
+  MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
 } from './content-manifest'
 import type { MyWorldFaqEditorialDocument } from './content-schema'
 import { FAQ_GUARDRAILS } from './guardrails'
@@ -86,7 +86,7 @@ const LEDGER_DESCRIPTIONS = {
  */
 export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
   schemaVersion: MY_WORLD_FAQ_SCHEMA_VERSION,
-  structureVersion: MY_WORLD_FAQ_STRUCTURE_VERSION,
+  structureVersion: MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
   route: {
     title: 'My World FAQ',
     description:

@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_MY_WORLD_FAQ_CONTENT, setMyWorldFaqManifestPath } from '~/data/my-world-faq'
+import {
+  addTeamFaqQuestion,
+  DEFAULT_MY_WORLD_FAQ_CONTENT,
+  setMyWorldFaqManifestPath,
+} from '~/data/my-world-faq'
 import type {
   MyWorldFaqHeadRef,
   MyWorldFaqRevisionSnapshot,
@@ -83,6 +87,27 @@ function validDocument() {
     'route.title',
     'My World FAQ, reviewed',
   )
+}
+
+function documentWithTeamQuestions(count: number) {
+  let document = structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT)
+  for (let index = 1; index <= count; index += 1) {
+    const prefix = index.toString(16).padStart(8, '0')
+    const suffix = index.toString(16).padStart(12, '0')
+    document = addTeamFaqQuestion(document, {
+      id: `team-${prefix}-0000-4000-8000-${suffix}`,
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: `How should the team review question ${index}?`,
+      shortAnswer:
+        'The team will keep this answer visibly provisional, review the available evidence, and revise or withdraw it before treating the wording as settled.',
+      detailedAnswer:
+        'This is a working answer from the My World team. It remains open to evidence, review and correction.',
+      limitations:
+        'This answer has not yet been linked to a reviewed source or an approved product claim.',
+      reviewDate: '2026-07-30',
+    })
+  }
+  return document
 }
 
 function request(
@@ -250,6 +275,75 @@ describe('My World FAQ publish handler', () => {
     expect(mocks.writePublicCache).toHaveBeenCalledTimes(1)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
     expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
+  })
+
+  it('accepts a v1-base request whose first structured question upgrades the document to v2', async () => {
+    const candidate = addTeamFaqQuestion(structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT), {
+      id: 'team-11111111-1111-4111-8111-111111111111',
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: 'How does the first team question publish safely?',
+      shortAnswer:
+        'The server compares against the loaded v1 base, validates the generated question contract, and permits only the associated controlled structure upgrade.',
+      detailedAnswer:
+        'This v2 working answer remains open to human review, evidence and correction.',
+      limitations: 'Later structure changes still require an explicit compatible reader.',
+      reviewDate: '2026-07-30',
+    })
+    const committedHead = {
+      revisionId: '44444444-4444-4444-8444-444444444444',
+      version: 5,
+      digest: 'b'.repeat(64),
+    }
+    const committed = revision(committedHead, candidate)
+    mocks.publishRevision.mockResolvedValue({
+      outcome: 'committed',
+      committed,
+      live: committed,
+    })
+
+    const response = await handleMyWorldFaqEditorPublish(
+      request({
+        schemaVersion: 1,
+        document: candidate,
+        expectedBase: BASE_HEAD,
+        attemptId: ATTEMPT_ID,
+      }),
+    )
+
+    expect(response.status).toBe(200)
+    expect(mocks.publishRevision).toHaveBeenCalledWith(
+      expect.objectContaining({
+        document: expect.objectContaining({ structureVersion: 2 }),
+      }),
+    )
+  })
+
+  it('rejects eleven appended questions at the publish boundary without creating a revision', async () => {
+    const candidate = documentWithTeamQuestions(11)
+
+    const response = await handleMyWorldFaqEditorPublish(
+      request({
+        schemaVersion: 1,
+        document: candidate,
+        expectedBase: BASE_HEAD,
+        attemptId: ATTEMPT_ID,
+      }),
+    )
+
+    expect(response.status).toBe(422)
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'validation_failed',
+      issues: expect.arrayContaining([
+        expect.objectContaining({
+          path: 'questions',
+          code: 'non_editable_change',
+          message: 'Add up to 10 questions in one publication.',
+        }),
+      ]),
+    })
+    expect(mocks.publishRevision).not.toHaveBeenCalled()
+    expect(mocks.writePublicCache).not.toHaveBeenCalled()
   })
 
   it('reports a busy cache fence as degraded without delaying the committed save', async () => {

@@ -3,7 +3,11 @@ import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { DEFAULT_MY_WORLD_FAQ_DOCUMENT, digestMyWorldFaqDocument } from '~/data/my-world-faq'
+import {
+  addTeamFaqQuestion,
+  DEFAULT_MY_WORLD_FAQ_DOCUMENT,
+  digestMyWorldFaqDocument,
+} from '~/data/my-world-faq'
 import * as schema from '~/db/schema'
 import {
   createMyWorldFaqRepository,
@@ -482,6 +486,85 @@ describeWithDatabase('My World FAQ global revisions', () => {
         where id = ${bootstrap.revision.revisionId}
       `),
     ).rejects.toMatchObject({ code: '55000' })
+  })
+
+  it('persists the v1 to v2 question lifecycle across an exact v1 restore', async () => {
+    const repository = createMyWorldFaqRepository(database)
+    const bootstrap = await repository.bootstrapDefaultDocument()
+    expect(bootstrap.revision.structureVersion).toBe(1)
+    expect(bootstrap.revision.document.structureVersion).toBe(1)
+
+    const firstV2Document = addTeamFaqQuestion(bootstrap.revision.document, {
+      id: 'team-11111111-1111-4111-8111-111111111111',
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: 'How is the first added question stored?',
+      shortAnswer:
+        'The first addition advances the document structure while preserving the original revision and keeping stored row metadata aligned with the complete document.',
+      detailedAnswer: 'This working answer remains open to team review, evidence and correction.',
+      limitations: 'The team must still decide whether this question should remain published.',
+      reviewDate: '2026-07-30',
+    })
+    const firstV2 = await repository.publishRevision({
+      document: firstV2Document,
+      expectedBase: headFromRevision(bootstrap.revision),
+      attemptId: randomUUID(),
+      savedByName: 'Alex Tan',
+    })
+
+    expect(firstV2.committed.structureVersion).toBe(2)
+    expect(firstV2.committed.document.structureVersion).toBe(2)
+    const firstV2Row = await database.execute<{
+      structureVersion: number
+      documentStructureVersion: number
+    }>(sql`
+      select
+        structure_version as "structureVersion",
+        (document ->> 'structureVersion')::integer as "documentStructureVersion"
+      from my_world_faq_revisions
+      where id = ${firstV2.committed.revisionId}
+    `)
+    expect(firstV2Row.rows[0]).toEqual({
+      structureVersion: 2,
+      documentStructureVersion: 2,
+    })
+
+    const restoredV1 = await repository.publishRevision({
+      document: bootstrap.revision.document,
+      expectedBase: headFromRevision(firstV2.live),
+      attemptId: randomUUID(),
+      savedByName: 'Jamie Lim',
+      restoredFromRevisionId: bootstrap.revision.revisionId,
+    })
+    expect(restoredV1.committed.version).toBe(3)
+    expect(restoredV1.committed.structureVersion).toBe(1)
+    expect(restoredV1.committed.document).toEqual(bootstrap.revision.document)
+
+    const secondV2Document = addTeamFaqQuestion(restoredV1.committed.document, {
+      id: 'team-22222222-2222-4222-8222-222222222222',
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: 'Can a restored v1 revision advance again?',
+      shortAnswer:
+        'After an exact v1 restore, another valid structured question advances the new publication to v2 without rewriting any earlier immutable revision.',
+      detailedAnswer:
+        'This second working answer also remains open to team review, evidence and correction.',
+      limitations: 'The restored and later publications must remain separately inspectable.',
+      reviewDate: '2026-07-30',
+    })
+    const secondV2 = await repository.publishRevision({
+      document: secondV2Document,
+      expectedBase: headFromRevision(restoredV1.live),
+      attemptId: randomUUID(),
+      savedByName: 'Alex Tan',
+    })
+
+    expect(secondV2.committed.version).toBe(4)
+    expect(secondV2.committed.structureVersion).toBe(2)
+    expect(secondV2.committed.document.structureVersion).toBe(2)
+    await expect(repository.loadPublicSnapshot()).resolves.toMatchObject({
+      head: headFromRevision(secondV2.live),
+      structureVersion: 2,
+      document: secondV2.committed.document,
+    })
   })
 
   it('stops when revisions exist without the singleton head', async () => {

@@ -2,8 +2,8 @@ import { getCache, type RuntimeCache } from '@vercel/functions'
 import {
   composeMyWorldFaqDocument,
   digestMyWorldFaqDocument,
+  isSupportedMyWorldFaqStructureVersion,
   MY_WORLD_FAQ_SCHEMA_VERSION,
-  MY_WORLD_FAQ_STRUCTURE_VERSION,
   type MyWorldFaqContent,
 } from '~/data/my-world-faq'
 import {
@@ -145,7 +145,7 @@ export async function validatePublicCacheEnvelope(
     typeof candidate.documentDigest !== 'string' ||
     !/^[0-9a-f]{64}$/.test(candidate.documentDigest) ||
     candidate.schemaVersion !== MY_WORLD_FAQ_SCHEMA_VERSION ||
-    candidate.structureVersion !== MY_WORLD_FAQ_STRUCTURE_VERSION
+    !isSupportedMyWorldFaqStructureVersion(candidate.structureVersion)
   ) {
     return null
   }

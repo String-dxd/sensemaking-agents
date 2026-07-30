@@ -208,6 +208,13 @@ After the first human-authored revision, do not roll back to compiled content
 or a pre-editor deployment. Roll back only to the pinned database-aware
 deployment with the editor disabled.
 
+Before enabling question creation, verify that this pinned build reads both
+document structure v1 and v2 while the editor remains disabled. Exercise the
+v1 database head, last-known-good cache, history preview and restore paths.
+Only after those checks pass may a later deployment enable the first
+v1-to-v2 question publication. Once any v2 revision can be written, never use
+a v1-only build as a rollback target.
+
 ## Activate
 
 1. Confirm the password hash, Firewall rules, Deployment Protection and
@@ -220,9 +227,12 @@ deployment with the editor disabled.
    revision history, then restore the prior version.
 5. Test a stale two-browser save. One publish must win; the other draft must
    remain available for comparison.
-6. Test keyboard-only use, reduced motion, browser Back/Forward and widths
+6. Add and publish one harmless test question. Confirm the first addition
+   upgrades the document to structure v2, history can preview and restore both
+   v1 and v2 exactly, and the public cache serves the v2 revision.
+7. Test keyboard-only use, reduced motion, browser Back/Forward and widths
    320, 360, 768, 1024 and 1280 px. Check 200% and 400% zoom.
-7. Confirm repeated unlock and mutation requests reach a real Vercel 429
+8. Confirm repeated unlock and mutation requests reach a real Vercel 429
    before function work.
 
 Only then share the editor URL and password with the named team.
@@ -253,6 +263,8 @@ For suspected defacement or credential exposure:
 2. Rotate the password and hash, deploy a current database-aware build with
    `MY_WORLD_FAQ_EDITOR_ENABLED=false`, and verify Deployment Protection still
    covers Preview and historical generated deployment URLs.
+   The build must support every structure version already present in revision
+   history; after v2 activation, a v1-only build is not an incident rollback.
 3. Add a narrow, temporary WAF exception for the named operator's current IP,
    then deploy the same database-aware build with the editor enabled and the
    new secret. Keep every other client behind the mutation deny.

@@ -537,7 +537,11 @@ export function FaqRevisionHistoryDialog({
                   ) : null}
 
                   <div data-testid="faq-historical-preview">
-                    <MyWorldFaqPage feedbackEnabled={false} content={preview.document} />
+                    <MyWorldFaqPage
+                      feedbackEnabled={false}
+                      content={preview.document}
+                      authoringShortcutEnabled={false}
+                    />
                   </div>
                 </>
               ) : null}
@@ -560,7 +564,8 @@ export function FaqRevisionHistoryDialog({
             </AlertDialogTitle>
             <AlertDialogDescription className="leading-relaxed text-(--color-faq-ink-soft)">
               This publishes the complete version {preview?.head.version} snapshot over live version{' '}
-              {currentBase.head.version}. Existing versions remain in history.
+              {currentBase.head.version}. It also removes questions added after that snapshot.
+              Existing versions remain in history.
             </AlertDialogDescription>
           </AlertDialogHeader>
           {restoreMessage ? (

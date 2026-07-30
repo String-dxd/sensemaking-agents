@@ -1,13 +1,20 @@
 import { normalizeMyWorldFaqDocument } from './compose-document'
-import { FAQ_EDITABLE_PATHS } from './content-manifest'
+import {
+  buildMyWorldFaqEditableFields,
+  MY_WORLD_FAQ_STRUCTURE_VERSION,
+  MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
+} from './content-manifest'
 import {
   type MyWorldFaqEditorialDocument,
   type MyWorldFaqValidationIssue,
   type MyWorldFaqValidationWarning,
   validateMyWorldFaqDocument,
 } from './content-schema'
-
-const EDITABLE_PATH_SET = new Set<string>(FAQ_EDITABLE_PATHS)
+import {
+  deriveTeamFaqWorkingAnswerContract,
+  isTeamFaqQuestionId,
+  MAX_TEAM_FAQ_ADDITIONS_PER_PUBLISH,
+} from './team-question-contract'
 
 type MutableRecord = Record<string, unknown>
 
@@ -159,8 +166,16 @@ function assignStablePath(input: unknown, path: string, value: unknown): boolean
   return false
 }
 
-function assertEditablePath(path: string): void {
-  if (!EDITABLE_PATH_SET.has(path)) {
+function editablePathsForDocument(document: MyWorldFaqEditorialDocument): string[] {
+  return buildMyWorldFaqEditableFields(document).map((field) => field.path)
+}
+
+function editablePathSetForDocument(document: MyWorldFaqEditorialDocument): Set<string> {
+  return new Set(editablePathsForDocument(document))
+}
+
+function assertEditablePath(document: MyWorldFaqEditorialDocument, path: string): void {
+  if (!editablePathSetForDocument(document).has(path)) {
     throw new RangeError(`Unknown My World FAQ editable path: ${path}`)
   }
 }
@@ -169,7 +184,7 @@ export function readMyWorldFaqManifestPath(
   document: MyWorldFaqEditorialDocument,
   path: string,
 ): string {
-  assertEditablePath(path)
+  assertEditablePath(document, path)
   const result = readStablePath(document, path)
   if (!result.found || typeof result.value !== 'string') {
     throw new RangeError(`My World FAQ editable path is unavailable: ${path}`)
@@ -182,11 +197,52 @@ export function setMyWorldFaqManifestPath(
   path: string,
   value: string,
 ): MyWorldFaqEditorialDocument {
-  assertEditablePath(path)
+  assertEditablePath(document, path)
   const updated = structuredClone(document)
   if (!assignStablePath(updated, path, value)) {
     throw new RangeError(`My World FAQ editable path is unavailable: ${path}`)
   }
+  return updated
+}
+
+/**
+ * Apply an editor change together with the small set of system-owned fields
+ * that are derived from that editable text.
+ */
+export function updateMyWorldFaqDraftPath(
+  base: MyWorldFaqEditorialDocument,
+  document: MyWorldFaqEditorialDocument,
+  path: string,
+  value: string,
+): MyWorldFaqEditorialDocument {
+  const updated = setMyWorldFaqManifestPath(document, path, value)
+  const questionMatch = /^questions\.([^.]+)\.displayedQuestion$/.exec(path)
+  if (
+    questionMatch?.[1] &&
+    isTeamFaqQuestionId(questionMatch[1]) &&
+    !base.questions.some((question) => question.id === questionMatch[1])
+  ) {
+    const question = updated.questions.find((item) => item.id === questionMatch[1])
+    if (question) question.title = value
+  }
+
+  const blockTextMatch = /^questions\.([^.]+)\.blocks\.([^.]+)\.text$/.exec(path)
+  if (blockTextMatch?.[1] && blockTextMatch[2] && isTeamFaqQuestionId(blockTextMatch[1])) {
+    const question = updated.questions.find((item) => item.id === blockTextMatch[1])
+    const block = question?.blocks.find((item) => item.id === blockTextMatch[2])
+    if (block) {
+      const contract = deriveTeamFaqWorkingAnswerContract(blockTextMatch[1], value)
+      block.id = contract.id
+      block.kind = contract.kind
+      block.label = contract.label
+      block.sourceIds = contract.sourceIds
+      block.provenanceIds = contract.provenanceIds
+      block.guardrailIds = contract.guardrailIds
+      block.review.status = contract.review.status
+      block.review.reviewerRole = contract.review.reviewerRole
+    }
+  }
+
   return updated
 }
 
@@ -263,6 +319,16 @@ function collectStableDiffPaths(
   differences.add(path)
 }
 
+function collapseDescendantPaths(paths: readonly string[]): string[] {
+  return [...paths]
+    .sort((left, right) => left.length - right.length || left.localeCompare(right))
+    .filter(
+      (path, _index, candidates) =>
+        !candidates.some((candidate) => candidate !== path && path.startsWith(`${candidate}.`)),
+    )
+    .sort()
+}
+
 function isLockedArrayContainerPath(path: string): boolean {
   return (
     /^(?:productSteps|signalQuotes|ledgerPreview|concernClusters|questions|sources|productProvenance|guardrails|assets)$/.test(
@@ -273,20 +339,206 @@ function isLockedArrayContainerPath(path: string): boolean {
   )
 }
 
-function isEditableValueOrPlainObjectContainer(path: string): boolean {
-  if (EDITABLE_PATH_SET.has(path)) return true
+function additiveQuestionTransitionIssues(
+  base: MyWorldFaqEditorialDocument,
+  candidate: MyWorldFaqEditorialDocument,
+): MyWorldFaqEditorialMutationIssue[] {
+  const issues: MyWorldFaqEditorialMutationIssue[] = []
+  const baseIds = base.questions.map((question) => question.id)
+  const candidatePrefix = candidate.questions.slice(0, baseIds.length)
+  if (
+    candidatePrefix.length !== baseIds.length ||
+    candidatePrefix.some((question, index) => question.id !== baseIds[index])
+  ) {
+    issues.push({
+      path: 'questions',
+      code: 'non_editable_change',
+      message: 'Published questions cannot be removed or reordered.',
+    })
+    return issues
+  }
+
+  const additions = candidate.questions.slice(base.questions.length)
+  const controlledUpgrade =
+    base.structureVersion === MY_WORLD_FAQ_V1_STRUCTURE_VERSION &&
+    candidate.structureVersion === MY_WORLD_FAQ_STRUCTURE_VERSION &&
+    additions.length > 0
+  if (candidate.structureVersion !== base.structureVersion && !controlledUpgrade) {
+    issues.push({
+      path: 'structureVersion',
+      code: 'non_editable_change',
+      message: 'The FAQ structure version can only advance when the first team question is added.',
+    })
+  }
+  if (additions.length > 0 && candidate.structureVersion !== MY_WORLD_FAQ_STRUCTURE_VERSION) {
+    issues.push({
+      path: 'structureVersion',
+      code: 'non_editable_change',
+      message: 'Team-added questions require the current FAQ structure version.',
+    })
+  }
+  if (additions.length > MAX_TEAM_FAQ_ADDITIONS_PER_PUBLISH) {
+    issues.push({
+      path: 'questions',
+      code: 'non_editable_change',
+      message: `Add up to ${MAX_TEAM_FAQ_ADDITIONS_PER_PUBLISH} questions in one publication.`,
+    })
+  }
+
+  const nextOrderByCluster = new Map<string, number>()
+  for (const question of base.questions) {
+    nextOrderByCluster.set(
+      question.clusterId,
+      Math.max(nextOrderByCluster.get(question.clusterId) ?? 0, question.order),
+    )
+  }
+
+  for (const question of additions) {
+    const path = `questions.${question.id}`
+    if (!isTeamFaqQuestionId(question.id)) {
+      issues.push({
+        path: `${path}.id`,
+        code: 'non_editable_change',
+        message: 'New questions require a generated team UUID.',
+      })
+    }
+    if (question.title !== question.displayedQuestion) {
+      issues.push({
+        path: `${path}.title`,
+        code: 'non_editable_change',
+        message: 'The initial internal title must match the displayed question.',
+      })
+    }
+    const expectedOrder = (nextOrderByCluster.get(question.clusterId) ?? 0) + 1
+    if (question.order !== expectedOrder) {
+      issues.push({
+        path: `${path}.order`,
+        code: 'non_editable_change',
+        message: 'New questions are appended to the end of their topic.',
+      })
+    }
+    nextOrderByCluster.set(question.clusterId, expectedOrder)
+  }
+
+  return issues
+}
+
+function rawTrailingAddedQuestionIds(
+  base: MyWorldFaqEditorialDocument,
+  submitted: unknown,
+): Set<string> {
+  if (!isRecord(submitted) || !Array.isArray(submitted.questions)) return new Set()
+  const submittedQuestions = submitted.questions
+  if (submittedQuestions.length < base.questions.length) return new Set()
+  for (const [index, question] of base.questions.entries()) {
+    const submittedQuestion = submittedQuestions[index]
+    if (!isRecord(submittedQuestion) || submittedQuestion.id !== question.id) return new Set()
+  }
+  const ids = submittedQuestions.slice(base.questions.length).flatMap((question) => {
+    if (!isRecord(question) || typeof question.id !== 'string') return []
+    return [question.id]
+  })
+  return new Set(ids)
+}
+
+function isEditableValueOrPlainObjectContainer(
+  path: string,
+  editablePaths: readonly string[],
+  addedQuestionIds: ReadonlySet<string>,
+  base: MyWorldFaqEditorialDocument,
+  candidate: unknown,
+): boolean {
+  if (editablePaths.includes(path)) return true
+  if (path === 'questions' && addedQuestionIds.size > 0) return true
+  if (
+    path === 'structureVersion' &&
+    base.structureVersion === MY_WORLD_FAQ_V1_STRUCTURE_VERSION &&
+    readStablePath(candidate, 'structureVersion').value === MY_WORLD_FAQ_STRUCTURE_VERSION &&
+    addedQuestionIds.size > 0
+  ) {
+    return true
+  }
+  if (isAuthorizedDerivedTeamMetadataPath(base, candidate, path)) return true
+  const questionRecord = /^questions\.([^.]+)$/.exec(path)
+  if (questionRecord?.[1] && addedQuestionIds.has(questionRecord[1])) return true
   if (path.length === 0 || isLockedArrayContainerPath(path)) return false
-  return FAQ_EDITABLE_PATHS.some((editablePath) => editablePath.startsWith(`${path}.`))
+  return editablePaths.some((editablePath) => editablePath.startsWith(`${path}.`))
+}
+
+function isAuthorizedDerivedTeamMetadataPath(
+  base: MyWorldFaqEditorialDocument,
+  candidate: unknown,
+  path: string,
+): boolean {
+  const match =
+    /^questions\.([^.]+)\.blocks\.([^.]+)\.(kind|label|review\.(?:status|reviewerRole))$/.exec(path)
+  const questionId = match?.[1]
+  const blockId = match?.[2]
+  const field = match?.[3]
+  if (
+    !questionId ||
+    !blockId ||
+    !field ||
+    !isTeamFaqQuestionId(questionId) ||
+    !base.questions.some((question) => question.id === questionId)
+  ) {
+    return false
+  }
+
+  const textPath = `questions.${questionId}.blocks.${blockId}.text`
+  const baseText = readStablePath(base, textPath)
+  const candidateText = readStablePath(candidate, textPath)
+  if (
+    !baseText.found ||
+    !candidateText.found ||
+    typeof baseText.value !== 'string' ||
+    typeof candidateText.value !== 'string' ||
+    baseText.value === candidateText.value
+  ) {
+    return false
+  }
+
+  const contract = deriveTeamFaqWorkingAnswerContract(questionId, candidateText.value)
+  if (contract.id !== blockId) return false
+  const expected =
+    field === 'kind'
+      ? contract.kind
+      : field === 'label'
+        ? contract.label
+        : field === 'review.status'
+          ? contract.review.status
+          : contract.review.reviewerRole
+  const candidateValue = readStablePath(candidate, path)
+  return candidateValue.found && candidateValue.value === expected
 }
 
 function editableDirtyPaths(
   base: MyWorldFaqEditorialDocument,
   candidate: MyWorldFaqEditorialDocument,
 ): string[] {
-  return FAQ_EDITABLE_PATHS.filter(
-    (path) =>
-      readMyWorldFaqManifestPath(base, path) !== readMyWorldFaqManifestPath(candidate, path),
-  )
+  const baseIds = new Set(base.questions.map((question) => question.id))
+  const candidateIds = new Set(candidate.questions.map((question) => question.id))
+  const addedQuestionPaths = candidate.questions
+    .filter((question) => !baseIds.has(question.id))
+    .map((question) => `questions.${question.id}`)
+  const commonPaths = [
+    ...new Set([...editablePathsForDocument(base), ...editablePathsForDocument(candidate)]),
+  ].filter((path) => {
+    const baseValue = readStablePath(base, path)
+    const candidateValue = readStablePath(candidate, path)
+    return (
+      baseValue.found &&
+      candidateValue.found &&
+      typeof baseValue.value === 'string' &&
+      typeof candidateValue.value === 'string' &&
+      baseValue.value !== candidateValue.value
+    )
+  })
+
+  for (const question of base.questions) {
+    if (!candidateIds.has(question.id)) commonPaths.push(`questions.${question.id}`)
+  }
+  return [...commonPaths, ...addedQuestionPaths]
 }
 
 function stampTargetForEditablePath(path: string): string | undefined {
@@ -313,9 +565,23 @@ function stampTargetForEditablePath(path: string): string | undefined {
   return undefined
 }
 
-function stampTargetsForDirtyPaths(dirtyPaths: readonly string[]): string[] {
+function stampTargetsForDirtyPaths(
+  dirtyPaths: readonly string[],
+  document: MyWorldFaqEditorialDocument,
+): string[] {
   const targets = new Set<string>()
   for (const path of dirtyPaths) {
+    const addedQuestion = /^questions\.([^.]+)$/.exec(path)
+    if (addedQuestion?.[1] && isTeamFaqQuestionId(addedQuestion[1])) {
+      const question = document.questions.find((item) => item.id === addedQuestion[1])
+      if (question) {
+        targets.add(`questions.${question.id}.review.lastReviewed`)
+        for (const block of question.blocks) {
+          targets.add(`questions.${question.id}.blocks.${block.id}.review.lastReviewed`)
+        }
+      }
+      continue
+    }
     const target = stampTargetForEditablePath(path)
     if (target) targets.add(target)
   }
@@ -342,22 +608,27 @@ export function prepareMyWorldFaqEditorialIntent({
     }
   }
 
-  const candidate = structuredClone(validatedBase.document)
-  for (const path of FAQ_EDITABLE_PATHS) {
-    const submittedValue = readStablePath(submitted, path)
-    assignStablePath(candidate, path, submittedValue.found ? submittedValue.value : undefined)
-  }
-
   const submittedDifferences = new Set<string>()
   collectStableDiffPaths(validatedBase.document, submitted, '', submittedDifferences)
-  const nonEditableDifferences = [...submittedDifferences].filter(
-    (path) => !isEditableValueOrPlainObjectContainer(path),
+  const rawAddedQuestionIds = rawTrailingAddedQuestionIds(validatedBase.document, submitted)
+  const baseEditablePaths = editablePathsForDocument(validatedBase.document)
+  const unauthorizedSubmittedDifferences = collapseDescendantPaths(
+    [...submittedDifferences].filter(
+      (path) =>
+        !isEditableValueOrPlainObjectContainer(
+          path,
+          baseEditablePaths,
+          rawAddedQuestionIds,
+          validatedBase.document,
+          submitted,
+        ),
+    ),
   )
-  if (nonEditableDifferences.length > 0) {
+  if (unauthorizedSubmittedDifferences.length > 0) {
     return {
       success: false,
       reason: 'non_editable_change',
-      issues: nonEditableDifferences.sort().map((path) => ({
+      issues: unauthorizedSubmittedDifferences.map((path) => ({
         path,
         code: 'non_editable_change' as const,
         message: 'This field is controlled by the application and cannot be published here.',
@@ -366,13 +637,63 @@ export function prepareMyWorldFaqEditorialIntent({
     }
   }
 
-  const validatedCandidate = validateMyWorldFaqDocument(candidate)
+  const validatedCandidate = validateMyWorldFaqDocument(submitted)
   if (!validatedCandidate.success) {
     return {
       success: false,
       reason: 'invalid_candidate',
       issues: validationIssues(validatedCandidate.errors),
       warnings: validatedCandidate.warnings,
+    }
+  }
+
+  const candidate = validatedCandidate.document
+  const transitionIssues = additiveQuestionTransitionIssues(validatedBase.document, candidate)
+  if (transitionIssues.length > 0) {
+    return {
+      success: false,
+      reason: 'non_editable_change',
+      issues: transitionIssues,
+      warnings: validatedCandidate.warnings,
+    }
+  }
+
+  const normalizedDifferences = new Set<string>()
+  collectStableDiffPaths(validatedBase.document, candidate, '', normalizedDifferences)
+  const baseQuestionIds = new Set(validatedBase.document.questions.map((question) => question.id))
+  const addedQuestionIds = new Set(
+    candidate.questions
+      .filter((question) => !baseQuestionIds.has(question.id))
+      .map((question) => question.id),
+  )
+  const editablePaths = [
+    ...new Set([
+      ...editablePathsForDocument(validatedBase.document),
+      ...editablePathsForDocument(candidate),
+    ]),
+  ]
+  const nonEditableDifferences = collapseDescendantPaths(
+    [...normalizedDifferences].filter(
+      (path) =>
+        !isEditableValueOrPlainObjectContainer(
+          path,
+          editablePaths,
+          addedQuestionIds,
+          validatedBase.document,
+          candidate,
+        ),
+    ),
+  )
+  if (nonEditableDifferences.length > 0) {
+    return {
+      success: false,
+      reason: 'non_editable_change',
+      issues: nonEditableDifferences.map((path) => ({
+        path,
+        code: 'non_editable_change' as const,
+        message: 'This field is controlled by the application and cannot be published here.',
+      })),
+      warnings: [],
     }
   }
 
@@ -393,7 +714,7 @@ export function prepareMyWorldFaqEditorialIntent({
     }
   }
 
-  const stampTargets = stampTargetsForDirtyPaths(dirtyPaths)
+  const stampTargets = stampTargetsForDirtyPaths(dirtyPaths, intentDocument)
   return {
     success: true,
     intentDocument,
@@ -408,9 +729,7 @@ export function stampMyWorldFaqEditorialIntent({
   dirtyPaths,
   reviewDate,
 }: StampMyWorldFaqEditorialIntentInput): MyWorldFaqEditorialMutationResult {
-  const stampTargets = stampTargetsForDirtyPaths(
-    dirtyPaths.filter((path) => EDITABLE_PATH_SET.has(path)),
-  )
+  const stampTargets = stampTargetsForDirtyPaths(dirtyPaths, intentDocument)
   const candidate = structuredClone(intentDocument)
   for (const path of stampTargets) {
     if (!assignStablePath(candidate, path, reviewDate)) {
@@ -457,20 +776,79 @@ export function compareMyWorldFaqEditorialVersions(
   local: MyWorldFaqEditorialDocument,
   latest: MyWorldFaqEditorialDocument,
 ): MyWorldFaqEditorialFieldComparison[] {
-  return FAQ_EDITABLE_PATHS.map((path) => {
-    const baseValue = readMyWorldFaqManifestPath(base, path)
-    const localValue = readMyWorldFaqManifestPath(local, path)
-    const latestValue = readMyWorldFaqManifestPath(latest, path)
-    const localChanged = localValue !== baseValue
-    const remoteChanged = latestValue !== baseValue
-
-    let status: MyWorldFaqEditorialComparisonStatus
-    if (!localChanged && !remoteChanged) status = 'unchanged'
-    else if (localChanged && !remoteChanged) status = 'local-only'
-    else if (!localChanged) status = 'remote-only'
-    else if (localValue === latestValue) status = 'converged'
-    else status = 'overlap'
-
-    return { path, status, baseValue, localValue, latestValue }
+  const baseQuestions = new Map(base.questions.map((question) => [question.id, question]))
+  const localQuestions = new Map(local.questions.map((question) => [question.id, question]))
+  const latestQuestions = new Map(latest.questions.map((question) => [question.id, question]))
+  const questionIds = [
+    ...new Set([...baseQuestions.keys(), ...localQuestions.keys(), ...latestQuestions.keys()]),
+  ]
+  const recordComparisons = questionIds.flatMap((id) => {
+    const baseQuestion = baseQuestions.get(id)
+    const localQuestion = localQuestions.get(id)
+    const latestQuestion = latestQuestions.get(id)
+    if (Boolean(localQuestion) === Boolean(latestQuestion)) return []
+    const baseValue = baseQuestion?.displayedQuestion ?? ''
+    const localValue = localQuestion?.displayedQuestion ?? ''
+    const latestValue = latestQuestion?.displayedQuestion ?? ''
+    return [
+      {
+        path: `questions.${id}`,
+        status: comparisonStatus(baseValue, localValue, latestValue),
+        baseValue,
+        localValue,
+        latestValue,
+      },
+    ]
   })
+  const paths = [
+    ...new Set([
+      ...editablePathsForDocument(base),
+      ...editablePathsForDocument(local),
+      ...editablePathsForDocument(latest),
+    ]),
+  ]
+  const fieldComparisons = paths.flatMap((path) => {
+    const baseValue = comparisonValue(base, path)
+    const localValue = comparisonValue(local, path)
+    const latestValue = comparisonValue(latest, path)
+    if (baseValue === undefined || localValue === undefined || latestValue === undefined) return []
+    return [
+      {
+        path,
+        status: comparisonStatus(baseValue, localValue, latestValue),
+        baseValue,
+        localValue,
+        latestValue,
+      },
+    ]
+  })
+  return [...fieldComparisons, ...recordComparisons]
+}
+
+function comparisonValue(document: MyWorldFaqEditorialDocument, path: string): string | undefined {
+  const result = readStablePath(document, path)
+  if (result.found && typeof result.value === 'string') return result.value
+
+  const questionMatch = /^questions\.([^.]+)\./.exec(path)
+  if (
+    questionMatch?.[1] &&
+    !document.questions.some((question) => question.id === questionMatch[1])
+  ) {
+    return ''
+  }
+  return undefined
+}
+
+function comparisonStatus(
+  baseValue: string,
+  localValue: string,
+  latestValue: string,
+): MyWorldFaqEditorialComparisonStatus {
+  const localChanged = localValue !== baseValue
+  const remoteChanged = latestValue !== baseValue
+  if (!localChanged && !remoteChanged) return 'unchanged'
+  if (localChanged && !remoteChanged) return 'local-only'
+  if (!localChanged) return 'remote-only'
+  if (localValue === latestValue) return 'converged'
+  return 'overlap'
 }

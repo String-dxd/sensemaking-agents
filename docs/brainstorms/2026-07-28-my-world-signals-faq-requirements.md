@@ -1,6 +1,6 @@
 ---
 date: 2026-07-28
-updated: 2026-07-29
+updated: 2026-07-30
 topic: my-world-signals-faq
 ---
 
@@ -18,8 +18,9 @@ The selected first-version authoring model is intentionally simple:
   save.
 - `/my-world/faq/edit` is a simple editor URL protected by a shared team
   password.
-- An editor enters their display name, edits existing editorial fields in the
-  context of the real page, and selects **Save & publish**.
+- An editor enters their display name, edits editorial fields or appends a
+  bounded structured question in the context of the real page, and selects
+  **Save & publish**.
 - A successful save publishes the complete page immediately. There is no
   separate draft, review or approval stage in this version.
 - Every save creates an immutable, attributed revision that can be restored.
@@ -494,11 +495,14 @@ families. Final claims require source-level review during content production.
   titles and links, guardrail summaries, calls to contribute, and footer
   review copy. Saved content persists across refreshes and deployments and is
   shared by all authorised collaborators.
-- R22. The first version edits existing fields only. Stable IDs, slugs,
-  clusters, ordering, page sections, card and block structure, fixed
-  interaction labels, evidence-label vocabulary and reference relationships
-  remain system-owned. Collaborators cannot add, remove or reorder questions,
-  evidence blocks, guardrails or page sections.
+- R22. Stable IDs, slugs, ordering, page sections, fixed interaction labels,
+  evidence-label vocabulary and reference relationships remain system-owned.
+  Collaborators may append a question to an existing topic through the
+  structured question form. The application generates its ID, slug, position,
+  single working-answer block and review metadata; reference arrays begin
+  empty. A publish may add at most 10 questions and the FAQ may contain at most
+  50 team-added questions. Collaborators cannot remove or reorder questions,
+  or add, remove or reorder evidence blocks, guardrails or page sections.
 - R23. The editor presents editable fields in the context of the real page,
   clearly distinguishes editor mode from the public page, and previews
   unsaved changes without exposing them to public readers. It shows which
@@ -585,9 +589,11 @@ families. Final claims require source-level review during content production.
   and editor URLs, when they open the editor without the shared password, they
   cannot read editor-only data or modify published content.
 - AE12. **Covers R21, R22, R23, R24, R25.** Given an authorised collaborator
-  changes the hero, a concise answer and a source title, when they select
-  **Save & publish**, all three changes appear together on the public page and
-  one complete revision records the collaborator's entered name and save time.
+  changes the hero and a source title and appends a structured question, when
+  they select **Save & publish**, all changes appear together on the public
+  page and one complete revision records the collaborator's entered name and
+  save time. The first append upgrades the document from structure v1 to v2;
+  ordinary wording edits preserve the loaded structure version.
 - AE13. **Covers R24, R27.** Given an edit contains a broken source URL,
   invalid evidence label or missing required limitation, when the collaborator
   saves, publication is rejected, the editor retains the changes and the
@@ -672,8 +678,10 @@ families. Final claims require source-level review during content production.
 - The first authoring version does not add real-time co-editing, presence,
   comments, suggestions, assignments or automatic merging. Conflicting saves
   are blocked instead.
-- Editors cannot add, remove or reorder questions, evidence blocks, guardrails
-  or page sections. It is not a general page builder.
+- Editors may append bounded, structured questions to existing topics. They
+  cannot remove or reorder questions, create arbitrary evidence relationships,
+  or add, remove or reorder evidence blocks, guardrails or page sections. It is
+  not a general page builder.
 - Editorial fields remain structured plain text and validated source links.
   Raw HTML, free-form page markup and a general rich-text authoring system are
   outside the first version.

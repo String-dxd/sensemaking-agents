@@ -5,7 +5,10 @@ import { Button } from '~/components/ui/button'
 import { Card } from '~/components/ui/card'
 import { PortalContainerProvider } from '~/components/ui/portal-container'
 import {
+  addTeamFaqQuestion,
+  buildMyWorldFaqEditableFields,
   compareMyWorldFaqEditorialVersions,
+  getTeamFaqQuestionCapacity,
   type MyWorldFaqEditorialDocument,
   type MyWorldFaqEditorialFieldComparison,
   type MyWorldFaqValidationIssue,
@@ -28,6 +31,7 @@ import {
   MY_WORLD_FAQ_EDITOR_REQUEST_TIMEOUT_MS,
 } from './editor-request'
 import { deriveMyWorldFaqDirtyPaths, updateMyWorldFaqEditableValue } from './editor-state'
+import { type AddFaqQuestionDraft, FaqAddQuestionDialog } from './FaqAddQuestionDialog'
 import { FaqConflictDialog } from './FaqConflictDialog'
 import { FaqEditorGate } from './FaqEditorGate'
 import { type FaqEditorNavigationBlock, FaqEditorToolbar } from './FaqEditorToolbar'
@@ -88,10 +92,8 @@ export function MyWorldFaqEditorPage({
   const [degradedWarning, setDegradedWarning] = useState<string | null>(null)
   const [conflict, setConflict] = useState<ConflictState | null>(null)
   const [conflictOpen, setConflictOpen] = useState(false)
-  const editablePaths = useMemo(
-    () => data.manifest.fields.map((field) => field.path),
-    [data.manifest.fields],
-  )
+  const editableFields = useMemo(() => buildMyWorldFaqEditableFields(working), [working])
+  const editablePaths = useMemo(() => editableFields.map((field) => field.path), [editableFields])
   const dirtyPaths = useMemo(
     () => deriveMyWorldFaqDirtyPaths(base.document, working, editablePaths),
     [base.document, editablePaths, working],
@@ -106,6 +108,10 @@ export function MyWorldFaqEditorPage({
   const warnings = validation.warnings
   const isDirty = dirtyPaths.length > 0
   const mutationLocked = activeMutation !== null
+  const questionCapacity = useMemo(
+    () => getTeamFaqQuestionCapacity(base.document, working),
+    [base.document, working],
+  )
 
   const replaceWorkingDocument = useCallback((document: MyWorldFaqEditorialDocument) => {
     workingGenerationRef.current += 1
@@ -126,30 +132,75 @@ export function MyWorldFaqEditorPage({
     setActiveMutation(null)
   }, [])
 
-  const updateField = useCallback((path: string, value: string) => {
-    if (activeMutationRef.current) return
-    publishAttemptRef.current = null
-    setServerIssues([])
-    setPublishState('idle')
-    setPublishMessage(null)
-    const nextWorking = updateMyWorldFaqEditableValue(workingRef.current, path, value)
-    workingGenerationRef.current += 1
-    workingRef.current = nextWorking
-    setWorking(nextWorking)
-    setConflict((currentConflict) => {
-      if (!currentConflict) return null
-      const nextLocal = updateMyWorldFaqEditableValue(currentConflict.local, path, value)
-      return {
-        ...currentConflict,
-        local: nextLocal,
-        comparisons: compareMyWorldFaqEditorialVersions(
+  const updateField = useCallback(
+    (path: string, value: string) => {
+      if (activeMutationRef.current) return
+      publishAttemptRef.current = null
+      setServerIssues([])
+      setPublishState('idle')
+      setPublishMessage(null)
+      const nextWorking = updateMyWorldFaqEditableValue(
+        base.document,
+        workingRef.current,
+        path,
+        value,
+      )
+      workingGenerationRef.current += 1
+      workingRef.current = nextWorking
+      setWorking(nextWorking)
+      setConflict((currentConflict) => {
+        if (!currentConflict) return null
+        const nextLocal = updateMyWorldFaqEditableValue(
           currentConflict.base.document,
-          nextLocal,
-          currentConflict.latest.document,
-        ),
+          currentConflict.local,
+          path,
+          value,
+        )
+        return {
+          ...currentConflict,
+          local: nextLocal,
+          comparisons: compareMyWorldFaqEditorialVersions(
+            currentConflict.base.document,
+            nextLocal,
+            currentConflict.latest.document,
+          ),
+        }
+      })
+    },
+    [base.document],
+  )
+
+  const addQuestion = useCallback(
+    (draft: AddFaqQuestionDraft): string | null => {
+      if (activeMutationRef.current) return 'Wait for the current save to finish.'
+      const capacity = getTeamFaqQuestionCapacity(base.document, workingRef.current)
+      if (capacity.disabledReason) return capacity.disabledReason
+
+      try {
+        const questionId = `team-${crypto.randomUUID()}`
+        const nextWorking = addTeamFaqQuestion(workingRef.current, {
+          ...draft,
+          id: questionId,
+          reviewDate: new Date().toISOString().slice(0, 10),
+        })
+        publishAttemptRef.current = null
+        setServerIssues([])
+        setPublishState('idle')
+        setPublishMessage(null)
+        workingGenerationRef.current += 1
+        workingRef.current = nextWorking
+        setWorking(nextWorking)
+        focusAddedQuestion(questionId)
+        return null
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'The question could not be added.'
+        setPublishState('error')
+        setPublishMessage(message)
+        return message
       }
-    })
-  }, [])
+    },
+    [base.document],
+  )
 
   const renderField = useCallback<MyWorldFaqFieldRenderer>(
     (args) => <EditableFaqField {...args} />,
@@ -571,7 +622,7 @@ export function MyWorldFaqEditorPage({
 
   const editorContext = useMemo(
     () => ({
-      fields: data.manifest.fields,
+      fields: editableFields,
       limits: data.manifest.limits,
       working,
       dirtyPaths: dirtyPathSet,
@@ -581,9 +632,9 @@ export function MyWorldFaqEditorPage({
       updateField,
     }),
     [
-      data.manifest.fields,
       data.manifest.limits,
       dirtyPathSet,
+      editableFields,
       errors,
       mutationLocked,
       updateField,
@@ -721,8 +772,18 @@ export function MyWorldFaqEditorPage({
             key={`editor-page-${protectedUiVersion}`}
             feedbackEnabled={false}
             content={working}
+            authoringShortcutEnabled={false}
             editorMode
             renderField={renderField}
+            faqEditorControl={
+              <FaqAddQuestionDialog
+                document={working}
+                disabled={mutationLocked || conflict !== null}
+                disabledReason={questionCapacity.disabledReason}
+                limits={data.manifest.limits}
+                onAdd={addQuestion}
+              />
+            }
           />
 
           {conflict ? (
@@ -786,6 +847,21 @@ function focusEditorControl(path: string, attempts = 12): void {
     return
   }
   if (attempts > 0) requestAnimationFrame(() => focusEditorControl(path, attempts - 1))
+}
+
+function focusAddedQuestion(questionId: string, attempts = 12): void {
+  requestAnimationFrame(() => {
+    const card = [...document.querySelectorAll<HTMLElement>('[data-question-id]')].find(
+      (candidate) => candidate.dataset.questionId === questionId,
+    )
+    const control = card?.querySelector<HTMLElement>('[data-editor-path]')
+    if (control) {
+      control.focus()
+      control.scrollIntoView?.({ block: 'center' })
+      return
+    }
+    if (attempts > 1) focusAddedQuestion(questionId, attempts - 1)
+  })
 }
 
 function deduplicateIssues(

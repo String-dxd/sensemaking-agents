@@ -1,5 +1,5 @@
 import { ArrowUpRight, RotateCcw, X } from 'lucide-react'
-import { type CSSProperties, useEffect, useRef, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 import { Badge } from '~/components/ui/badge'
 import { Button, buttonVariants } from '~/components/ui/button'
 import { Card } from '~/components/ui/card'
@@ -68,9 +68,15 @@ export interface QuestionFieldProps {
   content: MyWorldFaqContent
   editorMode?: boolean
   renderField?: MyWorldFaqFieldRenderer
+  editorControl?: ReactNode
 }
 
-export function QuestionField({ content, editorMode = false, renderField }: QuestionFieldProps) {
+export function QuestionField({
+  content,
+  editorMode = false,
+  renderField,
+  editorControl,
+}: QuestionFieldProps) {
   const firstCluster = content.concernClusters[0]
   if (!firstCluster) return null
   const field: MyWorldFaqFieldRenderer = (args) => renderField?.(args) ?? args.value
@@ -82,31 +88,38 @@ export function QuestionField({ content, editorMode = false, renderField }: Ques
       className="scroll-mt-16 border-b border-(--color-faq-line)"
     >
       <div className="mx-auto w-full max-w-6xl px-5 py-14 sm:px-8 sm:py-18 lg:px-10 lg:py-20">
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold text-(--color-faq-stage-ink)">
-            {field({
-              path: 'page.faq.eyebrow',
-              label: 'FAQ section label',
-              value: content.page.faq.eyebrow,
-            })}
-          </p>
-          <h2
-            id="question-field-title"
-            className="mt-2 text-[clamp(1.9rem,4vw,3.2rem)] font-semibold leading-tight tracking-[-0.045em] text-balance"
-          >
-            {field({
-              path: 'page.faq.heading',
-              label: 'FAQ section heading',
-              value: content.page.faq.heading,
-            })}
-          </h2>
-          <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
-            {field({
-              path: 'page.faq.introduction',
-              label: 'FAQ section introduction',
-              value: content.page.faq.introduction,
-            })}
-          </p>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold text-(--color-faq-stage-ink)">
+              {field({
+                path: 'page.faq.eyebrow',
+                label: 'FAQ section label',
+                value: content.page.faq.eyebrow,
+              })}
+            </p>
+            <h2
+              id="question-field-title"
+              className="mt-2 text-[clamp(1.9rem,4vw,3.2rem)] font-semibold leading-tight tracking-[-0.045em] text-balance"
+            >
+              {field({
+                path: 'page.faq.heading',
+                label: 'FAQ section heading',
+                value: content.page.faq.heading,
+              })}
+            </h2>
+            <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
+              {field({
+                path: 'page.faq.introduction',
+                label: 'FAQ section introduction',
+                value: content.page.faq.introduction,
+              })}
+            </p>
+          </div>
+          {editorMode && editorControl ? (
+            <div className="shrink-0" data-testid="faq-editor-section-control">
+              {editorControl}
+            </div>
+          ) : null}
         </div>
 
         {editorMode && renderField ? (
@@ -217,6 +230,7 @@ function EditorQuestionCard({
   return (
     <article
       className="rounded-[1.5rem_0.5rem_1.5rem_0.5rem] border border-(--color-faq-line) bg-(--color-faq-paper) p-4"
+      data-question-id={question.id}
       data-testid="faq-editor-question-card"
     >
       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-(--color-faq-stage-ink)">

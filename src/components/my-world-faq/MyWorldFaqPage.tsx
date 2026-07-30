@@ -1,8 +1,11 @@
+import type { ReactNode } from 'react'
+import { useEffect } from 'react'
 import { Badge } from '~/components/ui/badge'
 import { buttonVariants } from '~/components/ui/button'
 import type { MyWorldFaqContent } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
 import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
+import { createMyWorldFaqAuthoringShortcut } from './faq-authoring-shortcut'
 import { GuardrailLedgerPreview } from './GuardrailLedgerPreview'
 import { ProductLoop } from './ProductLoop'
 import { QuestionField } from './QuestionField'
@@ -11,17 +14,29 @@ import { SignalSourceStrip } from './SignalSourceStrip'
 export interface MyWorldFaqPageProps {
   feedbackEnabled: boolean
   content: MyWorldFaqContent
+  authoringShortcutEnabled?: boolean
   editorMode?: boolean
   renderField?: MyWorldFaqFieldRenderer
+  faqEditorControl?: ReactNode
 }
 
 export function MyWorldFaqPage({
   feedbackEnabled,
   content,
+  authoringShortcutEnabled = false,
   editorMode = false,
   renderField,
+  faqEditorControl,
 }: MyWorldFaqPageProps) {
   const field: MyWorldFaqFieldRenderer = (args) => renderField?.(args) ?? args.value
+
+  useEffect(() => {
+    if (!authoringShortcutEnabled) return
+
+    const onKeyDown = createMyWorldFaqAuthoringShortcut()
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [authoringShortcutEnabled])
 
   return (
     <div
@@ -164,7 +179,12 @@ export function MyWorldFaqPage({
         <ProductLoop content={content} editorMode={editorMode} renderField={renderField} />
         <SignalSourceStrip content={content} renderField={renderField} />
         <GuardrailLedgerPreview content={content} renderField={renderField} />
-        <QuestionField content={content} editorMode={editorMode} renderField={renderField} />
+        <QuestionField
+          content={content}
+          editorMode={editorMode}
+          renderField={renderField}
+          editorControl={faqEditorControl}
+        />
         <section
           aria-labelledby="faq-more-questions-title"
           className="border-b border-(--color-faq-ink) bg-(--color-faq-coral) text-(--color-faq-ink)"

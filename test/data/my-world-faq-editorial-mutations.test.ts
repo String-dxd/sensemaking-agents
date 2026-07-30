@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  addTeamFaqQuestion,
   compareMyWorldFaqEditorialVersions,
   DEFAULT_MY_WORLD_FAQ_CONTENT,
   type MyWorldFaqEditorialDocument,
@@ -8,7 +9,11 @@ import {
   readMyWorldFaqManifestPath,
   setMyWorldFaqManifestPath,
   stampMyWorldFaqEditorialIntent,
+  updateMyWorldFaqDraftPath,
 } from '~/data/my-world-faq'
+
+const LOCAL_TEAM_ID = 'team-11111111-1111-4111-8111-111111111111'
+const REMOTE_TEAM_ID = 'team-22222222-2222-4222-8222-222222222222'
 
 function defaultDocument(): MyWorldFaqEditorialDocument {
   return structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT)
@@ -53,6 +58,43 @@ describe('My World FAQ editorial mutation helpers', () => {
     expect(() => readMyWorldFaqManifestPath(base, `questions.${question.id}.slug`)).toThrow(
       'Unknown My World FAQ editable path',
     )
+  })
+
+  it('syncs an unpublished question title but keeps a published title locked', () => {
+    const base = defaultDocument()
+    const added = addTeamFaqQuestion(base, {
+      id: LOCAL_TEAM_ID,
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: 'What should the team review first?',
+      shortAnswer:
+        'The team should review the audience need, supporting evidence, product boundaries, and open risks before treating any new working answer as settled.',
+      detailedAnswer:
+        'This is a working answer that remains open to review, evidence and correction.',
+      limitations: 'The review owner and evidence threshold still need to be confirmed.',
+      reviewDate: '2026-07-30',
+    })
+    const path = `questions.${LOCAL_TEAM_ID}.displayedQuestion`
+    const renamedDraft = updateMyWorldFaqDraftPath(
+      base,
+      added,
+      path,
+      'What should the team validate first?',
+    )
+    expect(renamedDraft.questions.at(-1)).toMatchObject({
+      title: 'What should the team validate first?',
+      displayedQuestion: 'What should the team validate first?',
+    })
+
+    const renamedPublished = updateMyWorldFaqDraftPath(
+      added,
+      added,
+      path,
+      'What should the team validate after publishing?',
+    )
+    expect(renamedPublished.questions.at(-1)).toMatchObject({
+      title: 'What should the team review first?',
+      displayedQuestion: 'What should the team validate after publishing?',
+    })
   })
 
   it('rebuilds from the authoritative base and stamps only changed accountable records', () => {
@@ -402,5 +444,60 @@ describe('My World FAQ editorial mutation helpers', () => {
       localValue: 'Local introduction',
       latestValue: 'Remote introduction',
     })
+  })
+
+  it('compares every field of a question missing from one side without a false record row', () => {
+    const base = defaultDocument()
+    const local = addTeamFaqQuestion(base, {
+      id: LOCAL_TEAM_ID,
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: 'What evidence should the local draft add?',
+      shortAnswer:
+        'The local draft should state what is known, what remains uncertain, who must review it, and which decision the evidence can support.',
+      detailedAnswer: 'Local working-answer text.',
+      limitations: 'Local limitations that must remain visible.',
+      reviewDate: '2026-07-30',
+    })
+    const latest = addTeamFaqQuestion(base, {
+      id: REMOTE_TEAM_ID,
+      clusterId: 'evidence-next-decision',
+      displayedQuestion: 'What evidence did the live version add?',
+      shortAnswer:
+        'The live version should state what is known, what remains uncertain, who reviewed it, and which decision the evidence can support.',
+      detailedAnswer: 'Live working-answer text.',
+      limitations: 'Live limitations that must remain visible.',
+      reviewDate: '2026-07-30',
+    })
+
+    const comparisons = compareMyWorldFaqEditorialVersions(base, local, latest)
+    expect(
+      comparisonAt(
+        comparisons,
+        `questions.${LOCAL_TEAM_ID}.blocks.${LOCAL_TEAM_ID}-working-answer.text`,
+      ),
+    ).toMatchObject({
+      status: 'local-only',
+      baseValue: '',
+      localValue: 'Local working-answer text.',
+      latestValue: '',
+    })
+    expect(
+      comparisonAt(
+        comparisons,
+        `questions.${REMOTE_TEAM_ID}.blocks.${REMOTE_TEAM_ID}-working-answer.limitations`,
+      ),
+    ).toMatchObject({
+      status: 'remote-only',
+      baseValue: '',
+      localValue: '',
+      latestValue: 'Live limitations that must remain visible.',
+    })
+    expect(comparisonAt(comparisons, `questions.${LOCAL_TEAM_ID}`).status).toBe('local-only')
+    expect(comparisonAt(comparisons, `questions.${REMOTE_TEAM_ID}`).status).toBe('remote-only')
+
+    const sameAdditionOnBothSides = compareMyWorldFaqEditorialVersions(base, local, local)
+    expect(sameAdditionOnBothSides.some((item) => item.path === `questions.${LOCAL_TEAM_ID}`)).toBe(
+      false,
+    )
   })
 })

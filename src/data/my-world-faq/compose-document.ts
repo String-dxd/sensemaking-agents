@@ -8,7 +8,17 @@ import { DEFAULT_MY_WORLD_FAQ_DOCUMENT } from './default-document'
 function orderLikeTemplate(value: unknown, template: unknown): unknown {
   if (Array.isArray(template)) {
     if (!Array.isArray(value)) return value
-    return template.map((templateItem, index) => orderLikeTemplate(value[index], templateItem))
+    return value.map((valueItem, index) => {
+      const key = stableRecordKey(valueItem)
+      const matchingTemplate =
+        key === undefined
+          ? undefined
+          : template.find((templateItem) => stableRecordKey(templateItem) === key)
+      return orderLikeTemplate(
+        valueItem,
+        matchingTemplate ?? template[index] ?? template[0] ?? valueItem,
+      )
+    })
   }
   if (template && typeof template === 'object') {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return value
@@ -20,6 +30,14 @@ function orderLikeTemplate(value: unknown, template: unknown): unknown {
     return ordered
   }
   return value
+}
+
+function stableRecordKey(value: unknown): string | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const record = value as { id?: unknown; state?: unknown }
+  if (typeof record.id === 'string') return record.id
+  if (typeof record.state === 'string') return record.state
+  return undefined
 }
 
 export function normalizeMyWorldFaqDocument(input: unknown): MyWorldFaqEditorialDocument {

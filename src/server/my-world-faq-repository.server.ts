@@ -6,6 +6,7 @@ import {
   digestMyWorldFaqDocument,
   MY_WORLD_FAQ_SCHEMA_VERSION,
   MY_WORLD_FAQ_STRUCTURE_VERSION,
+  MY_WORLD_FAQ_SUPPORTED_STRUCTURE_VERSIONS,
   type MyWorldFaqEditorialDocument,
   prepareMyWorldFaqEditorialIntent,
   stampMyWorldFaqEditorialIntent,
@@ -1104,5 +1105,6 @@ function mapRepositoryError(error: unknown): MyWorldFaqRepositoryError {
 
 export const MY_WORLD_FAQ_REPOSITORY_VERSIONS = {
   schema: MY_WORLD_FAQ_SCHEMA_VERSION,
-  structure: MY_WORLD_FAQ_STRUCTURE_VERSION,
+  readableStructures: MY_WORLD_FAQ_SUPPORTED_STRUCTURE_VERSIONS,
+  latestWritableStructure: MY_WORLD_FAQ_STRUCTURE_VERSION,
 } as const
