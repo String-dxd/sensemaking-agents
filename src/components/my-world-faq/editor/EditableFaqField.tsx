@@ -73,7 +73,7 @@ export function EditableFaqField({ path, label, value, presentation }: MyWorldFa
   }
 
   return (
-    <span className="my-2 block w-full rounded-xl bg-(--color-faq-paper)/92 p-2.5 text-left text-(--color-faq-ink) ring-1 ring-(--color-faq-line)">
+    <span className="my-2 block w-full rounded-xl bg-(--color-faq-paper)/92 p-2.5 text-left font-sans text-sm leading-normal tracking-normal whitespace-normal normal-case not-italic [text-wrap:wrap] text-(--color-faq-ink) ring-1 ring-(--color-faq-line)">
       <span className="mb-2 flex min-h-5 flex-wrap items-center justify-between gap-2">
         <Label htmlFor={controlId} className="text-xs font-semibold text-(--color-faq-ink)">
           {label}

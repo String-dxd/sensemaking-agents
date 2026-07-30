@@ -337,6 +337,14 @@ export function MyWorldFaqEditorPage({
   }
 
   function openValidationIssue(path: string) {
+    const inlineControl = [...document.querySelectorAll<HTMLElement>('[data-editor-path]')].find(
+      (candidate) => candidate.dataset.editorPath === path,
+    )
+    if (inlineControl) {
+      focusEditorControl(path)
+      return
+    }
+
     if (isSupportingRecordPath(path)) {
       setRecordsTargetPath(path)
       setRecordsOpen(true)

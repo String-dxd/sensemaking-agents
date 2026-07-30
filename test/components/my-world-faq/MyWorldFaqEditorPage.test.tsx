@@ -233,6 +233,93 @@ describe('MyWorldFaqEditorPage', () => {
     expect([...observedPaths].sort()).toEqual([...FAQ_EDITABLE_PATHS].sort())
   }, 60_000)
 
+  it('isolates editor controls from the display typography around them', () => {
+    render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
+
+    const control = document.querySelector<HTMLElement>('[data-editor-path="page.hero.heading"]')
+    const field = control?.parentElement
+
+    expect(field).toHaveClass(
+      'font-sans',
+      'text-sm',
+      'leading-normal',
+      'tracking-normal',
+      'normal-case',
+      'not-italic',
+      'whitespace-normal',
+      '[text-wrap:wrap]',
+    )
+  })
+
+  it('keeps public guardrail copy inline while classifications remain fixed', async () => {
+    const user = userEvent.setup()
+    render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
+
+    const ledger = screen.getByTestId('faq-guardrail-preview')
+    const previewedGuardrailIds = new Set(
+      DEFAULT_MY_WORLD_FAQ_CONTENT.ledgerPreview.map((item) => item.guardrailId),
+    )
+
+    for (const preview of DEFAULT_MY_WORLD_FAQ_CONTENT.ledgerPreview) {
+      const guardrail = DEFAULT_MY_WORLD_FAQ_CONTENT.guardrails.find(
+        (item) => item.id === preview.guardrailId,
+      )
+      expect(guardrail).toBeDefined()
+      if (!guardrail) continue
+
+      for (const path of [
+        `ledgerPreview.${preview.state}.description`,
+        `guardrails.${guardrail.id}.title`,
+        `guardrails.${guardrail.id}.statusSummary`,
+        `guardrails.${guardrail.id}.limitations`,
+      ]) {
+        const control = ledger.querySelector(`[data-editor-path="${path}"]`)
+        expect(control).toHaveAccessibleName(
+          path.endsWith('.description')
+            ? 'What this state means'
+            : path.endsWith('.title')
+              ? 'Guardrail title'
+              : path.endsWith('.statusSummary')
+                ? 'Current position'
+                : 'Evidence boundary',
+        )
+      }
+    }
+
+    expect(
+      within(ledger).queryByText(
+        'Edit the public wording below. State and evidence classifications are fixed.',
+      ),
+    ).toBeInTheDocument()
+
+    const firstPreview = DEFAULT_MY_WORLD_FAQ_CONTENT.ledgerPreview[0]
+    const firstGuardrail = DEFAULT_MY_WORLD_FAQ_CONTENT.guardrails.find(
+      (item) => item.id === firstPreview?.guardrailId,
+    )
+    expect(firstGuardrail).toBeDefined()
+    if (!firstGuardrail) return
+
+    const titlePath = `guardrails.${firstGuardrail.id}.title`
+    const titleControl = ledger.querySelector(`[data-editor-path="${titlePath}"]`)
+    expect(titleControl).toBeInTheDocument()
+    if (!titleControl) return
+    fireEvent.change(titleControl, {
+      target: { value: 'A clearer public guardrail title' },
+    })
+    expect(screen.getByText('1 change')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Supporting records' }))
+    expect(document.querySelectorAll(`[data-editor-path="${titlePath}"]`)).toHaveLength(1)
+
+    const nonPreviewGuardrail = DEFAULT_MY_WORLD_FAQ_CONTENT.guardrails.find(
+      (item) => !previewedGuardrailIds.has(item.id),
+    )
+    expect(nonPreviewGuardrail).toBeDefined()
+    expect(
+      document.querySelector(`[data-editor-path="guardrails.${nonPreviewGuardrail?.id}.title"]`),
+    ).toBeInTheDocument()
+  })
+
   it('keeps the sticky editor toolbar below portalled dialogs', () => {
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
@@ -490,9 +577,16 @@ describe('MyWorldFaqEditorPage', () => {
     const source = documentWithIssues.sources[0]
     const question = documentWithIssues.questions[0]
     const block = question?.blocks[0]
-    if (!source || !question || !block) throw new Error('FAQ fixture is incomplete.')
+    const preview = documentWithIssues.ledgerPreview[0]
+    const previewGuardrail = documentWithIssues.guardrails.find(
+      (item) => item.id === preview?.guardrailId,
+    )
+    if (!source || !question || !block || !previewGuardrail) {
+      throw new Error('FAQ fixture is incomplete.')
+    }
     source.title = ''
     block.heading = ''
+    previewGuardrail.title = ''
     const data = {
       ...READY_DATA,
       base: { ...READY_DATA.base, document: documentWithIssues },
@@ -509,6 +603,17 @@ describe('MyWorldFaqEditorPage', () => {
     await waitFor(() => expect(sourceTitle).toHaveFocus())
     expect(sourceTitle?.closest('details')).toHaveAttribute('open')
     await user.click(within(records).getByRole('button', { name: 'Close supporting records' }))
+
+    await user.click(
+      screen.getByRole('button', {
+        name: new RegExp(`guardrails\\.${previewGuardrail.id}\\.title`),
+      }),
+    )
+    const inlineGuardrailTitle = document.querySelector<HTMLElement>(
+      `[data-editor-path="guardrails.${previewGuardrail.id}.title"]`,
+    )
+    await waitFor(() => expect(inlineGuardrailTitle).toHaveFocus())
+    expect(screen.queryByRole('dialog', { name: 'Supporting records' })).not.toBeInTheDocument()
 
     await user.click(
       screen.getByRole('button', {

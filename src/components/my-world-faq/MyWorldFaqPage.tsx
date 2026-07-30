@@ -178,7 +178,11 @@ export function MyWorldFaqPage({
 
         <ProductLoop content={content} editorMode={editorMode} renderField={renderField} />
         <SignalSourceStrip content={content} renderField={renderField} />
-        <GuardrailLedgerPreview content={content} renderField={renderField} />
+        <GuardrailLedgerPreview
+          content={content}
+          editorMode={editorMode}
+          renderField={renderField}
+        />
         <QuestionField
           content={content}
           editorMode={editorMode}

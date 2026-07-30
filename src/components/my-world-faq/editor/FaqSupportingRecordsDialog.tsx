@@ -27,6 +27,7 @@ export function FaqSupportingRecordsDialog({
   targetPath?: string | null
 }) {
   const contentRef = useRef<HTMLDivElement>(null)
+  const previewGuardrailIds = new Set(document.ledgerPreview.map((item) => item.guardrailId))
 
   useEffect(() => {
     if (!open || !targetPath) return
@@ -73,8 +74,8 @@ export function FaqSupportingRecordsDialog({
         <DialogHeader className="pr-12">
           <DialogTitle className="text-2xl tracking-[-0.035em]">Supporting records</DialogTitle>
           <DialogDescription className="max-w-[65ch] leading-relaxed text-(--color-faq-ink-soft)">
-            Edit source, prototype, guardrail and media wording. Record connections and ordering
-            stay fixed.
+            Edit source notes, prototype checks, guardrail evidence and media wording. Public
+            guardrail copy stays on the page.
           </DialogDescription>
         </DialogHeader>
 
@@ -170,24 +171,28 @@ export function FaqSupportingRecordsDialog({
           ))}
         </RecordGroup>
 
-        <RecordGroup title="Guardrails" count={document.guardrails.length}>
+        <RecordGroup title="Guardrail supporting notes" count={document.guardrails.length}>
           {document.guardrails.map((item) => (
             <RecordDetails key={item.id} title={item.title}>
-              <EditableFaqField
-                path={`guardrails.${item.id}.title`}
-                label="Guardrail title"
-                value={item.title}
-              />
+              {!previewGuardrailIds.has(item.id) ? (
+                <EditableFaqField
+                  path={`guardrails.${item.id}.title`}
+                  label="Guardrail title"
+                  value={item.title}
+                />
+              ) : null}
               <EditableFaqField
                 path={`guardrails.${item.id}.protects`}
                 label="What it protects"
                 value={item.protects}
               />
-              <EditableFaqField
-                path={`guardrails.${item.id}.statusSummary`}
-                label="Status summary"
-                value={item.statusSummary}
-              />
+              {!previewGuardrailIds.has(item.id) ? (
+                <EditableFaqField
+                  path={`guardrails.${item.id}.statusSummary`}
+                  label="Status summary"
+                  value={item.statusSummary}
+                />
+              ) : null}
               <EditableFaqField
                 path={`guardrails.${item.id}.populationContext`}
                 label="Population context"
@@ -198,11 +203,13 @@ export function FaqSupportingRecordsDialog({
                 label="Why it fits"
                 value={item.fit}
               />
-              <EditableFaqField
-                path={`guardrails.${item.id}.limitations`}
-                label="Limitations"
-                value={item.limitations}
-              />
+              {!previewGuardrailIds.has(item.id) ? (
+                <EditableFaqField
+                  path={`guardrails.${item.id}.limitations`}
+                  label="Limitations"
+                  value={item.limitations}
+                />
+              ) : null}
             </RecordDetails>
           ))}
         </RecordGroup>
