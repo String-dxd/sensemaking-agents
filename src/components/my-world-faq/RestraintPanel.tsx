@@ -24,11 +24,19 @@ import { useEffect, useState } from 'react'
  * re-digested on read and none of them has these keys. */
 const COPY = {
   eyebrow: 'Built deliberately',
-  heading: 'It runs on your time, and asks for little of it.',
+  heading: 'A world that knows when to rest.',
   introduction:
-    'My World follows the real clock. Morning is morning; a week takes a week. That is partly because a world that keeps its own time is nicer to return to \u2014 and mostly because it means there is never much waiting to be done. You cannot rush it, and it cannot fill an evening.',
-  footnote:
-    'The surface is playful on purpose. The choices underneath it are not: every one of them is argued, written down, and open to being wrong.',
+    'My World follows the student’s local clock. From 10pm to 6am, the sky settles and the Companion sleeps. It adds atmosphere without prompting a late-night return.',
+  precedentHeading: 'A design precedent, not proof',
+  precedent:
+    'Animal Crossing: New Horizons also follows real-world time. Nintendo describes an island where time passes and residents carry on while the player is away. The useful lesson for us is simple: a world can feel present without becoming an endless feed.',
+  precedentBoundary:
+    'Animal Crossing can still hold attention. This reference does not prove that My World prevents overuse.',
+  boundaryHeading: 'A cue to stop, not a solved problem',
+  boundary:
+    'The prototype has no streaks, rankings or overnight reminders. The Companion rests, and the island offers no reward for checking late. A pilot must still measure session time, sleep and displaced activities.',
+  conviction:
+    'We will keep listening, testing and changing the product with students. Winning their hearts remains mission-critical. We believe warmth and usefulness can be earned without pressure loops.',
 } as const
 
 export function RestraintPanel() {
@@ -39,8 +47,8 @@ export function RestraintPanel() {
       className="border-b border-(--color-faq-line-strong) bg-(--color-faq-paper) text-(--color-faq-ink)"
     >
       <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
-        <div className="grid gap-10 lg:grid-cols-12 lg:items-start">
-          <div className="lg:col-span-7">
+        <div className="grid gap-10 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-8">
             <p className="text-xs font-semibold text-(--color-faq-coral-ink)">{COPY.eyebrow}</p>
             <h2
               id="faq-restraint-title"
@@ -53,13 +61,46 @@ export function RestraintPanel() {
             </p>
           </div>
 
-          <div className="lg:col-span-5 lg:justify-self-end">
+          <div className="lg:col-span-4 lg:justify-self-end">
             <RealTimeCard />
-            <p className="mt-6 max-w-[42ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
-              {COPY.footnote}
-            </p>
           </div>
         </div>
+
+        <div className="mt-12 grid gap-6 lg:grid-cols-2">
+          <article className="rounded-[1.75rem_0.6rem_1.75rem_0.6rem] border border-(--color-faq-line-strong) bg-(--color-faq-blue) p-6 sm:p-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em]">Design reference</p>
+            <h3 className="mt-3 text-xl font-semibold tracking-[-0.03em]">
+              {COPY.precedentHeading}
+            </h3>
+            <p className="mt-4 max-w-[58ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
+              {COPY.precedent}
+            </p>
+            <p className="mt-4 max-w-[58ch] text-sm font-semibold leading-relaxed">
+              {COPY.precedentBoundary}
+            </p>
+            <a
+              href="https://www.nintendo.com/en-gb/Games/Nintendo-Switch-games/Animal-Crossing-New-Horizons-1438623.html"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-6 inline-flex min-h-11 items-center rounded-md border border-(--color-faq-ink) px-4 text-sm font-semibold outline-none hover:bg-(--color-faq-paper) focus-visible:ring-2 focus-visible:ring-(--color-faq-focus) focus-visible:ring-offset-2"
+            >
+              Read Nintendo’s description
+            </a>
+          </article>
+
+          <div>
+            <div className="h-full rounded-[1.75rem_0.6rem_1.75rem_0.6rem] border border-(--color-faq-line-strong) bg-(--color-faq-yellow) p-6 sm:p-8">
+              <h3 className="text-xl font-semibold tracking-[-0.03em]">{COPY.boundaryHeading}</h3>
+              <p className="mt-4 text-sm leading-relaxed text-(--color-faq-ink-soft)">
+                {COPY.boundary}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <p className="mt-8 max-w-[70ch] border-t border-(--color-faq-line-strong) pt-8 text-base font-medium leading-relaxed text-pretty">
+          {COPY.conviction}
+        </p>
       </div>
     </section>
   )
@@ -114,8 +155,7 @@ function RealTimeCard() {
             '\u00a0'}
       </p>
       <p className="mt-4 max-w-[30ch] text-sm leading-relaxed">
-        My World is on this clock too. Morning is morning, a week takes a week, and nothing in it
-        can be hurried along.
+        My World is on this clock too. At 10pm, the island settles and the Companion rests.
       </p>
     </div>
   )

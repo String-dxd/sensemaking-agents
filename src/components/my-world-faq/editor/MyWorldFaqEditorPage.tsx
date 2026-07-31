@@ -35,6 +35,7 @@ import { type AddFaqQuestionDraft, FaqAddQuestionDialog } from './FaqAddQuestion
 import { FaqConflictDialog } from './FaqConflictDialog'
 import { FaqEditorGate } from './FaqEditorGate'
 import { type FaqEditorNavigationBlock, FaqEditorToolbar } from './FaqEditorToolbar'
+import { FaqFeedbackInbox } from './FaqFeedbackInbox'
 import { FaqRevisionHistoryDialog } from './FaqRevisionHistoryDialog'
 import { FaqSupportingRecordsDialog } from './FaqSupportingRecordsDialog'
 
@@ -743,6 +744,8 @@ export function MyWorldFaqEditorPage({
               />
             </Card>
           </section>
+
+          {data.feedbackEnabled ? <FaqFeedbackInbox /> : null}
 
           {errors.length > 0 ? (
             <section

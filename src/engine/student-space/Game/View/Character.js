@@ -19,6 +19,7 @@ import {
 import { hashString, mulberry32 } from '../State/islandSpecCore/rand.ts'
 import { COMPANION_SPECIES_IDS } from '../State/schema.js'
 import { worldPositionOfObject } from '../State/islandSpecCore/terrainGrid.ts'
+import { isStudentQuietHour } from '../State/quietHours.ts'
 
 /**
  * Character view (world-port U8) — the island editor's animated character
@@ -113,6 +114,7 @@ export default class Character
         this._idleHeld = false
         this._smoothY = null
         this._script = null       // scripted arrival (flyTo)
+        this._nightResting = false
         this._reducedMotion = typeof window !== 'undefined'
             && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
@@ -398,6 +400,41 @@ export default class Character
             return
         }
 
+        // Quiet-hours posture: the world still opens, but Kira settles down
+        // between 22:00 and 06:00 local time. A deliberate interaction can
+        // wake her; once it ends, she returns to rest. This is a stopping cue,
+        // not an access lock or a claim that time matching prevents overuse.
+        const quietHour = isStudentQuietHour(this.state.day?.hour)
+        const intentionalInteraction =
+            narrating ||
+            this.view.captureFocus === true ||
+            s.phase === 'goto' ||
+            s.gotoPending === true
+        if(quietHour && intentionalInteraction)
+        {
+            this._nightResting = false
+        }
+        else if(quietHour)
+        {
+            if(!this._nightResting || s.phase !== 'sleep')
+            {
+                s.phase = 'sleep'
+                s.remaining = 3600
+                s.gotoPending = false
+                s.wet = false
+            }
+            this._nightResting = true
+        }
+        else if(this._nightResting)
+        {
+            this._nightResting = false
+            if(s.phase === 'sleep')
+            {
+                s.phase = 'wake'
+                s.remaining = 2.6
+            }
+        }
+
         // The capture sheet parks the bird too (view.captureFocus): the
         // student is mid-conversation, so hold a stationary pose instead of
         // letting the wander walk the bird out of the dolly's framing.
@@ -424,7 +461,7 @@ export default class Character
             s.remaining = Math.max(s.remaining, 0.5)
         }
 
-        if((!this._reducedMotion || script) && !parkedInWater)
+        if((!this._reducedMotion || script) && !parkedInWater && !this._nightResting)
         {
             advanceBehavior(s, dt, this._env)
         }

@@ -4,7 +4,9 @@ import { Badge } from '~/components/ui/badge'
 import { buttonVariants } from '~/components/ui/button'
 import type { MyWorldFaqContent } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
+import type { MyWorldFaqFeedbackItem } from '~/server/my-world-faq-feedback-repository.server'
 import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
+import { FeedbackPanel } from './FeedbackPanel'
 import { createMyWorldFaqAuthoringShortcut } from './faq-authoring-shortcut'
 import { PosturePanel } from './PosturePanel'
 import { ProductLoop } from './ProductLoop'
@@ -14,6 +16,7 @@ import { SignalSourceStrip } from './SignalSourceStrip'
 
 export interface MyWorldFaqPageProps {
   feedbackEnabled: boolean
+  initialFeedbackItems?: MyWorldFaqFeedbackItem[]
   content: MyWorldFaqContent
   authoringShortcutEnabled?: boolean
   editorMode?: boolean
@@ -23,6 +26,7 @@ export interface MyWorldFaqPageProps {
 
 export function MyWorldFaqPage({
   feedbackEnabled,
+  initialFeedbackItems = [],
   content,
   authoringShortcutEnabled = false,
   editorMode = false,
@@ -204,33 +208,41 @@ export function MyWorldFaqPage({
           aria-labelledby="faq-more-questions-title"
           className="border-b border-(--color-faq-ink) bg-(--color-faq-coral) text-(--color-faq-ink)"
         >
-          <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-14 sm:px-8 sm:py-16 lg:grid-cols-12 lg:items-end lg:px-12">
-            <div className="lg:col-span-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em]">
+          <div className="mx-auto w-full max-w-7xl px-5 py-14 sm:px-8 sm:py-16 lg:px-12">
+            <div className="grid gap-8 lg:grid-cols-12 lg:items-end">
+              <div className="lg:col-span-8">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em]">
+                  {field({
+                    path: 'page.contribution.eyebrow',
+                    label: 'Contribution label',
+                    value: content.page.contribution.eyebrow,
+                  })}
+                </p>
+                <h2
+                  id="faq-more-questions-title"
+                  className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em]"
+                >
+                  {field({
+                    path: 'page.contribution.heading',
+                    label: 'Contribution heading',
+                    value: content.page.contribution.heading,
+                  })}
+                </h2>
+              </div>
+              <p className="max-w-[48ch] text-base leading-relaxed lg:col-span-4">
                 {field({
-                  path: 'page.contribution.eyebrow',
-                  label: 'Contribution label',
-                  value: content.page.contribution.eyebrow,
+                  path: 'page.contribution.body',
+                  label: 'Contribution text',
+                  value: content.page.contribution.body,
                 })}
               </p>
-              <h2
-                id="faq-more-questions-title"
-                className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em]"
-              >
-                {field({
-                  path: 'page.contribution.heading',
-                  label: 'Contribution heading',
-                  value: content.page.contribution.heading,
-                })}
-              </h2>
             </div>
-            <p className="max-w-[48ch] text-base leading-relaxed lg:col-span-4">
-              {field({
-                path: 'page.contribution.body',
-                label: 'Contribution text',
-                value: content.page.contribution.body,
-              })}
-            </p>
+
+            {feedbackEnabled && !editorMode ? (
+              <div className="mt-10">
+                <FeedbackPanel initialItems={initialFeedbackItems} />
+              </div>
+            ) : null}
           </div>
         </section>
       </main>

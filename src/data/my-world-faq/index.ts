@@ -58,6 +58,7 @@ export {
   updateMyWorldFaqDraftPath,
 } from './editorial-mutations'
 export { FAQ_GUARDRAILS } from './guardrails'
+export { prepareMyWorldFaqPublicCopy } from './public-copy'
 export {
   FAQ_COMMITTED_QUESTION_TAXONOMY,
   FAQ_CONCERN_CLUSTERS,

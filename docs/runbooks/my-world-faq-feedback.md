@@ -1,25 +1,30 @@
 # My World FAQ feedback delivery
 
-Status: **disabled**
+Status: **database inbox implemented; migration required**
 
-The repository contains no approved anonymous-feedback delivery integration.
-`FAQ_FEEDBACK_ENABLED` must remain absent or false until every gate in this
-runbook is completed. Hiding the browser form is not an adequate control; the
-server endpoint must fail closed independently.
+The FAQ stores submissions in the existing project Postgres database. New
+submissions appear below the form and in the password-protected editor inbox.
+The form appears only after the server confirms that the feedback table exists.
 
 ## Phase 0 decision record
 
 | Decision | Current state |
 |---|---|
-| Team-owned review destination | Team check — not supplied |
-| Named reviewer group and owner | Team check — not supplied |
-| Existing approved internal submission service | Not found in this repository; organisation check required |
-| Approved delivery processor | Team check — not selected |
+| Team-owned review destination | Password-protected FAQ editor inbox |
+| Named reviewer group and owner | FAQ editors; page owner still requires team confirmation |
+| Existing approved internal submission service | Existing project Postgres database |
+| Approved delivery processor | No separate delivery processor |
 | Decision owner and deadline | Team check — not supplied |
 | Production sender/recipient allowlist | Team check — not supplied |
-| Preview/test sink | Team check — not supplied |
-| WAF rule and owner | Team check — not configured in repository |
-| Retention, deletion, access, and incident posture | Team check — not supplied |
+| Preview/test sink | Environment-specific project database |
+| WAF rule and owner | Global database ceiling of 60 submissions per hour; production WAF remains a team check |
+| Retention, deletion, access, and incident posture | 90-day opportunistic deletion; public read; editor inbox; submitting-browser removal |
+
+The server stores the selected type, message, creation time and a SHA-256
+digest of a random removal key. It does not store a name, email, IP address,
+user agent or browser fingerprint. The unhashed removal key stays in the
+submitting browser's local storage and is sent only when that browser removes
+its own submission.
 
 If no delivery path satisfies the gates below, do not enable the form and do
 not substitute a fake success state.
@@ -71,13 +76,13 @@ Submission content is untrusted:
 When enabled, the form must say:
 
 - no account or contact details are required;
-- hosting, WAF, and the selected delivery processor still process the request;
-- who reviews submissions and for what purpose;
+- submissions appear publicly without a name;
+- hosting and the database still process the request;
+- the team reviews submissions to improve the page and inform the pilot decision;
 - the access/retention/deletion posture;
 - adding contact details makes the submission identifiable to reviewers;
 - an individual reply is impossible without contact details;
-- provider acceptance means “accepted for delivery,” not mailbox receipt,
-  reading, or resolution.
+- removal works only while the private key remains in the submitting browser.
 
 ## Lifecycle
 

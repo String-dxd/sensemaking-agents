@@ -1,0 +1,4 @@
+ALTER TABLE "my_world_faq_feedback" DROP CONSTRAINT "my_world_faq_feedback_kind_check";--> statement-breakpoint
+ALTER TABLE "my_world_faq_feedback" ADD COLUMN "delete_token_hash" text;--> statement-breakpoint
+ALTER TABLE "my_world_faq_feedback" ADD CONSTRAINT "my_world_faq_feedback_delete_token_hash_check" CHECK ("my_world_faq_feedback"."delete_token_hash" is null or length("my_world_faq_feedback"."delete_token_hash") = 64);--> statement-breakpoint
+ALTER TABLE "my_world_faq_feedback" ADD CONSTRAINT "my_world_faq_feedback_kind_check" CHECK ("my_world_faq_feedback"."kind" in ('question', 'concern', 'suggestion', 'compliment'));

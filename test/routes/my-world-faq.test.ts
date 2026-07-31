@@ -5,7 +5,7 @@ import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MyWorldFaqPage } from '~/components/my-world-faq/MyWorldFaqPage'
 import { SHEET_HREFS } from '~/components/student-space/navigation/nav-items'
-import { DEFAULT_MY_WORLD_FAQ_CONTENT } from '~/data/my-world-faq'
+import { DEFAULT_MY_WORLD_FAQ_CONTENT, prepareMyWorldFaqPublicCopy } from '~/data/my-world-faq'
 import {
   createMyWorldFaqPageShowHandler,
   MY_WORLD_FAQ_PUBLIC_UNAVAILABLE_MESSAGE,
@@ -17,6 +17,7 @@ import { routeTree } from '~/routeTree.gen'
 const loadAuthMenuMock = vi.hoisted(() => vi.fn())
 const engineHostMock = vi.hoisted(() => vi.fn())
 const loadMyWorldFaqContentMock = vi.hoisted(() => vi.fn())
+const loadMyWorldFaqPublicFeedbackMock = vi.hoisted(() => vi.fn())
 
 vi.mock('~/server/auth-menu.functions', () => ({
   loadAuthMenu: loadAuthMenuMock,
@@ -30,9 +31,18 @@ vi.mock('~/server/my-world-faq-content.functions', () => ({
   loadMyWorldFaqContent: loadMyWorldFaqContentMock,
 }))
 
+vi.mock('~/server/my-world-faq-feedback.functions', () => ({
+  loadMyWorldFaqPublicFeedback: loadMyWorldFaqPublicFeedbackMock,
+  loadMyWorldFaqFeedbackInbox: vi.fn(),
+  deleteMyWorldFaqFeedback: vi.fn(),
+  submitMyWorldFaqFeedback: vi.fn(),
+}))
+
 type RouteHead = {
   meta?: Array<Record<string, string | undefined>>
 }
+
+const EXPECTED_PUBLIC_CONTENT = prepareMyWorldFaqPublicCopy(DEFAULT_MY_WORLD_FAQ_CONTENT)
 
 function metaContent(head: RouteHead, key: 'name' | 'property', value: string) {
   return head.meta?.find((entry) => entry[key] === value)?.content
@@ -42,6 +52,8 @@ describe('/my-world/faq public route', () => {
   beforeEach(() => {
     loadMyWorldFaqContentMock.mockReset()
     loadMyWorldFaqContentMock.mockResolvedValue(DEFAULT_MY_WORLD_FAQ_CONTENT)
+    loadMyWorldFaqPublicFeedbackMock.mockReset()
+    loadMyWorldFaqPublicFeedbackMock.mockResolvedValue({ status: 'unavailable', items: [] })
   })
 
   it('matches the direct signed-out URL outside the authenticated app layout', async () => {
@@ -56,8 +68,9 @@ describe('/my-world/faq public route', () => {
     expect(router.state.location.pathname).toBe('/my-world/faq')
     expect(router.state.matches.map((match) => match.routeId)).toContain('/my-world/faq')
     expect(router.state.matches.at(-1)?.loaderData).toEqual({
-      content: DEFAULT_MY_WORLD_FAQ_CONTENT,
+      content: EXPECTED_PUBLIC_CONTENT,
       feedbackEnabled: false,
+      feedbackItems: [],
     })
     expect(loadAuthMenuMock).not.toHaveBeenCalled()
     expect(engineHostMock).not.toHaveBeenCalled()
@@ -67,7 +80,7 @@ describe('/my-world/faq public route', () => {
     render(
       createElement(MyWorldFaqPage, {
         feedbackEnabled: false,
-        content: DEFAULT_MY_WORLD_FAQ_CONTENT,
+        content: EXPECTED_PUBLIC_CONTENT,
       }),
     )
 
@@ -88,6 +101,8 @@ describe('/my-world/faq public route', () => {
       '#product',
     )
     expect(screen.getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '#faq')
+    expect(screen.getAllByText(/what does Companion do/i).length).toBeGreaterThan(0)
+    expect(screen.queryAllByText(/Kira/)).toHaveLength(0)
 
     expect(loadAuthMenuMock).not.toHaveBeenCalled()
     expect(engineHostMock).not.toHaveBeenCalled()
@@ -139,8 +154,9 @@ describe('/my-world/faq public route', () => {
     if (!loader) throw new Error('FAQ route must declare a loader')
 
     await expect((loader as () => Promise<unknown> | unknown)()).resolves.toEqual({
-      content: DEFAULT_MY_WORLD_FAQ_CONTENT,
+      content: EXPECTED_PUBLIC_CONTENT,
       feedbackEnabled: false,
+      feedbackItems: [],
     })
   })
 

@@ -46,6 +46,7 @@ export async function loadMyWorldFaqEditorHandler(
     return {
       status: 'ready',
       identity: session.identity,
+      feedbackEnabled: true,
       base: {
         head: {
           revisionId: revision.revisionId,

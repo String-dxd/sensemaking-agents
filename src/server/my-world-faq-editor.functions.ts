@@ -45,6 +45,7 @@ export type MyWorldFaqEditorLoaderData =
         idleExpiresAt: string
         absoluteExpiresAt: string
       }
+      feedbackEnabled?: boolean
       base: MyWorldFaqEditorBaseSnapshot
       manifest: MyWorldFaqEditorManifestContract
     }

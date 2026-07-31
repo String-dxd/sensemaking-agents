@@ -126,9 +126,9 @@ export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
         'Scan the questions. Turn a card over for our short answer, or inspect the evidence behind it.',
     },
     contribution: {
-      eyebrow: 'Keep the questions coming',
-      heading: 'Have another question?',
-      body: 'Send it to the My World team through the same channel that brought you here. Recurring concerns will shape this page and the pilot decision.',
+      eyebrow: 'Build this with us',
+      heading: 'Question it. Challenge it. Help us improve it.',
+      body: 'We are listening before any pilot decision. Share a question, concern, suggestion or compliment without adding your name.',
     },
     footer: {
       brand: 'My World FAQ',

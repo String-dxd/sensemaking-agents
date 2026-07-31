@@ -1,8 +1,9 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { MyWorldFaqPage } from '~/components/my-world-faq/MyWorldFaqPage'
-import type { MyWorldFaqContent } from '~/data/my-world-faq'
+import { type MyWorldFaqContent, prepareMyWorldFaqPublicCopy } from '~/data/my-world-faq'
 import { loadMyWorldFaqContent } from '~/server/my-world-faq-content.functions'
+import { loadMyWorldFaqPublicFeedback } from '~/server/my-world-faq-feedback.functions'
 
 export const MY_WORLD_FAQ_PUBLIC_UNAVAILABLE_MESSAGE =
   'The FAQ is temporarily unavailable. Please try again in a moment.'
@@ -11,9 +12,8 @@ export const Route = createFileRoute('/my-world/faq')({
   staleTime: 0,
   preloadStaleTime: 0,
   shouldReload: true,
-  // The feedback delivery path is a later, separately gated implementation
-  // unit. Keeping the capability in route data now gives the eventual UI a
-  // server-owned, fail-closed seam instead of a client-side assumption.
+  // Feedback stays fail-closed. If the table cannot be read, the FAQ remains
+  // available and the public contribution surface is withheld.
   loader: loadMyWorldFaqPublicRouteData,
   headers: () => ({
     'Cache-Control': 'no-cache, max-age=0, must-revalidate',
@@ -27,9 +27,14 @@ export const Route = createFileRoute('/my-world/faq')({
 
 export async function loadMyWorldFaqPublicRouteData() {
   try {
+    const [content, feedback] = await Promise.all([
+      loadMyWorldFaqContent(),
+      loadMyWorldFaqPublicFeedback(),
+    ])
     return {
-      content: await loadMyWorldFaqContent(),
-      feedbackEnabled: false as const,
+      content: prepareMyWorldFaqPublicCopy(content),
+      feedbackEnabled: feedback.status === 'ready',
+      feedbackItems: feedback.items,
     }
   } catch {
     // The root error component renders messages. Never let a repository,
@@ -69,7 +74,7 @@ export function createMyWorldFaqPageShowHandler(revalidate: () => void | Promise
 }
 
 function MyWorldFaqRoute() {
-  const { content, feedbackEnabled } = Route.useLoaderData()
+  const { content, feedbackEnabled, feedbackItems } = Route.useLoaderData()
   const router = useRouter()
 
   useEffect(() => {
@@ -84,7 +89,12 @@ function MyWorldFaqRoute() {
   }, [router])
 
   return (
-    <MyWorldFaqPage feedbackEnabled={feedbackEnabled} content={content} authoringShortcutEnabled />
+    <MyWorldFaqPage
+      feedbackEnabled={feedbackEnabled}
+      initialFeedbackItems={feedbackItems}
+      content={content}
+      authoringShortcutEnabled
+    />
   )
 }
 

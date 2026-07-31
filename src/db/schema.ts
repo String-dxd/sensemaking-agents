@@ -765,3 +765,40 @@ export const myWorldFaqEditorSessions = pgTable(
       .where(sql`${t.revokedAt} is not null`),
   ],
 )
+
+// ---------------------------------------------------------------------------
+// my_world_faq_feedback — anonymous questions, concerns, suggestions and compliments.
+//
+// The public form asks for no name, email or account identifier. Rows are
+// published on the FAQ immediately and remain visible in the protected editor
+// inbox. A one-time removal token lets the submitting browser delete its own
+// row without creating an identity.
+// ---------------------------------------------------------------------------
+
+export const myWorldFaqFeedback = pgTable(
+  'my_world_faq_feedback',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    kind: text('kind').notNull(),
+    message: text('message').notNull(),
+    deleteTokenHash: text('delete_token_hash'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    check(
+      'my_world_faq_feedback_kind_check',
+      sql`${t.kind} in ('question', 'concern', 'suggestion', 'compliment')`,
+    ),
+    check(
+      'my_world_faq_feedback_message_check',
+      sql`length(btrim(${t.message})) between 1 and 2000`,
+    ),
+    check(
+      'my_world_faq_feedback_delete_token_hash_check',
+      sql`${t.deleteTokenHash} is null or length(${t.deleteTokenHash}) = 64`,
+    ),
+    index('idx_my_world_faq_feedback_created').on(t.createdAt.desc()),
+  ],
+)
