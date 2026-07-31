@@ -41,9 +41,7 @@ export function RestraintPanel() {
       <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
         <div className="grid gap-10 lg:grid-cols-12 lg:items-start">
           <div className="lg:col-span-7">
-            <p className="text-xs font-semibold text-(--color-faq-coral-ink)">
-              {COPY.eyebrow}
-            </p>
+            <p className="text-xs font-semibold text-(--color-faq-coral-ink)">{COPY.eyebrow}</p>
             <h2
               id="faq-restraint-title"
               className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-balance"

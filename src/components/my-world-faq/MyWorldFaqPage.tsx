@@ -6,10 +6,10 @@ import type { MyWorldFaqContent } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
 import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 import { createMyWorldFaqAuthoringShortcut } from './faq-authoring-shortcut'
-import { ProductLoop } from './ProductLoop'
 import { PosturePanel } from './PosturePanel'
-import { RestraintPanel } from './RestraintPanel'
+import { ProductLoop } from './ProductLoop'
 import { QuestionField } from './QuestionField'
+import { RestraintPanel } from './RestraintPanel'
 import { SignalSourceStrip } from './SignalSourceStrip'
 
 export interface MyWorldFaqPageProps {
