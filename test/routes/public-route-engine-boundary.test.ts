@@ -35,6 +35,8 @@ describe('public route engine boundary', () => {
       source('src/components/my-world-faq/MyWorldFaqPage.tsx'),
       source('src/components/my-world-faq/ProductLoop.tsx'),
       source('src/components/my-world-faq/SignalSourceStrip.tsx'),
+      source('src/components/my-world-faq/PosturePanel.tsx'),
+      source('src/components/my-world-faq/RestraintPanel.tsx'),
       source('src/components/my-world-faq/QuestionField.tsx'),
     ]
 
@@ -85,6 +87,7 @@ describe('public route engine boundary', () => {
       source('src/components/my-world-faq/MyWorldFaqPage.tsx'),
       source('src/components/my-world-faq/ProductLoop.tsx'),
       source('src/components/my-world-faq/SignalSourceStrip.tsx'),
+      source('src/components/my-world-faq/PosturePanel.tsx'),
       source('src/components/my-world-faq/QuestionField.tsx'),
     ]
 

@@ -11,6 +11,10 @@ export function SignalSourceStrip({ content, renderField }: SignalSourceStripPro
 
   return (
     <section
+      /* Named so the status section's "comments from sessions" count can link here. It was a
+         count with nowhere to go before that, and a number a reader cannot check is a number
+         they have to take on trust — which is the currency this page is short of. */
+      id="signals"
       aria-labelledby="signal-source-title"
       className="border-b border-(--color-faq-line-strong) bg-(--color-faq-ink) text-(--color-faq-paper)"
     >

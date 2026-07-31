@@ -7,6 +7,8 @@ import { cn } from '~/lib/utils'
 import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 import { createMyWorldFaqAuthoringShortcut } from './faq-authoring-shortcut'
 import { ProductLoop } from './ProductLoop'
+import { PosturePanel } from './PosturePanel'
+import { RestraintPanel } from './RestraintPanel'
 import { QuestionField } from './QuestionField'
 import { SignalSourceStrip } from './SignalSourceStrip'
 
@@ -176,7 +178,15 @@ export function MyWorldFaqPage({
         </section>
 
         <ProductLoop content={content} editorMode={editorMode} renderField={renderField} />
+        {/* Before the signals rather than after them: the restraint argument answers the worry
+            the playful product screens have just raised, and reading the worried comments first
+            makes it look like a rebuttal to those specific people. */}
+        <RestraintPanel />
         <SignalSourceStrip content={content} renderField={renderField} />
+        {/* Where the signals end and the answers begin — which is exactly where a reader wants
+            to be told that nothing has been decided yet. It also stands in for what the ledger
+            used to imply, and says it outright instead. */}
+        <PosturePanel content={content} />
         {/* The guardrail ledger section was removed from this page on 2026-07-30, on the
             owner's call that it was not earning its place. Its DATA is deliberately still
             here: `page.ledger` and `ledgerPreview` are `z.strictObject` in content-schema.ts
