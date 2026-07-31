@@ -112,7 +112,7 @@ export function FaqRevisionHistoryDialog({
           return
         }
         if (result.status === 'unavailable') {
-          setHistoryError('Revision history is unavailable right now.')
+          setHistoryError('Versions & undo is unavailable right now.')
           return
         }
         setItems((current) => {
@@ -121,7 +121,7 @@ export function FaqRevisionHistoryDialog({
         })
         setNextBeforeVersion(result.nextBeforeVersion)
       } catch {
-        setHistoryError('Revision history is unavailable right now.')
+        setHistoryError('Versions & undo is unavailable right now.')
       } finally {
         setHistoryLoading(false)
       }
@@ -280,16 +280,16 @@ export function FaqRevisionHistoryDialog({
       <Dialog open={open} onOpenChange={requestOpenChange}>
         <DialogContent
           className="grid max-h-[min(94svh,72rem)] w-[min(96vw,96rem)] max-w-none grid-rows-[auto_1fr] overflow-hidden rounded-[2rem_0.75rem_2rem_0.75rem] border-(--color-faq-line-strong) bg-(--color-faq-surface) p-0 text-(--color-faq-ink)"
-          closeLabel="Close revision history"
+          closeLabel="Close versions and undo"
         >
           <DialogHeader className="border-b border-(--color-faq-line-strong) px-5 py-5 pr-14 sm:px-7">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-faq-stage-ink)">
-              Published record
+              Published versions
             </p>
-            <DialogTitle className="text-2xl tracking-[-0.035em]">Revision history</DialogTitle>
+            <DialogTitle className="text-2xl tracking-[-0.035em]">Versions &amp; undo</DialogTitle>
             <DialogDescription className="max-w-[72ch] leading-relaxed text-(--color-faq-ink-soft)">
-              Names are self-declared. Previewing a version does not change your draft or the live
-              FAQ.
+              Every publish is saved here. Preview an earlier version, then restore it as a new live
+              version.
             </DialogDescription>
           </DialogHeader>
 
@@ -362,7 +362,11 @@ export function FaqRevisionHistoryDialog({
               </ol>
 
               {historyLoading ? (
-                <div role="status" aria-label="Loading revision history" className="mt-3 space-y-2">
+                <div
+                  role="status"
+                  aria-label="Loading versions and undo"
+                  className="mt-3 space-y-2"
+                >
                   <Skeleton className="h-24 rounded-xl" />
                   <Skeleton className="h-24 rounded-xl" />
                 </div>

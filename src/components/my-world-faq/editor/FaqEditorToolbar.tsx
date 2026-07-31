@@ -1,4 +1,4 @@
-import { ExternalLink, History, LogOut, Save, X } from 'lucide-react'
+import { ExternalLink, LogOut, Save, Undo2, X } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import {
   AlertDialog,
@@ -134,8 +134,8 @@ export function FaqEditorToolbar({
               onClick={onHistory}
               disabled={mutationLocked}
             >
-              <History aria-hidden="true" className="mr-2 size-4" />
-              History
+              <Undo2 aria-hidden="true" className="mr-2 size-4" />
+              Versions &amp; undo
             </Button>
             <a
               href="/my-world/faq"
@@ -190,7 +190,7 @@ export function FaqEditorToolbar({
         >
           {saveUnavailable
             ? 'Publishing is not connected in this build. Your edits stay in this page.'
-            : 'Publishing updates the live FAQ immediately. There is no approval step.'}
+            : 'Publishing updates the live FAQ immediately and saves a new version.'}
         </p>
         {publishNotice ? (
           <div

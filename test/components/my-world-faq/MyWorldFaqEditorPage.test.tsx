@@ -261,6 +261,12 @@ describe('MyWorldFaqEditorPage', () => {
 
   it('makes published versions and undo discoverable before a teammate publishes', async () => {
     const user = userEvent.setup()
+    const historyRequest = deferred<{
+      status: 'ready'
+      items: MyWorldFaqRevisionMetadata[]
+      nextBeforeVersion: null
+    }>()
+    loadHistoryMock.mockReturnValue(historyRequest.promise)
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
     expect(screen.getByRole('button', { name: 'Versions & undo' })).toBeEnabled()
@@ -270,6 +276,16 @@ describe('MyWorldFaqEditorPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
     const dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
+    expect(
+      within(dialog).getByRole('status', { name: 'Loading versions and undo' }),
+    ).toBeInTheDocument()
+    await act(async () => {
+      historyRequest.resolve({
+        status: 'ready',
+        items: [revisionMetadata(3)],
+        nextBeforeVersion: null,
+      })
+    })
     expect(
       within(dialog).getByText(
         'Every publish is saved here. Preview an earlier version, then restore it as a new live version.',
@@ -1339,7 +1355,7 @@ describe('MyWorldFaqEditorPage', () => {
     await user.click(screen.getByRole('button', { name: 'Versions & undo' }))
     const dialog = await screen.findByRole('dialog', { name: 'Versions & undo' })
     expect(
-      await within(dialog).findByText('Revision history is unavailable right now.'),
+      await within(dialog).findByText('Versions & undo is unavailable right now.'),
     ).toBeInTheDocument()
     expect(loadHistoryMock).toHaveBeenCalledTimes(1)
 

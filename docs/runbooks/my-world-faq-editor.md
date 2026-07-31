@@ -223,8 +223,8 @@ a v1-only build as a rollback target.
 3. Open `/my-world/faq/edit` over HTTPS. Confirm the cookie is named
    `__Host-my_world_faq_editor` and is `Secure`, `HttpOnly`, `SameSite=Lax`
    with `Path=/`.
-4. Unlock, change a harmless test field, publish, reload the public FAQ, check
-   revision history, then restore the prior version.
+4. Unlock, change a harmless test field, publish, reload the public FAQ, open
+   **Versions & undo**, then restore the prior version.
 5. Test a stale two-browser save. One publish must win; the other draft must
    remain available for comparison.
 6. Add and publish one harmless test question. Confirm the first addition
