@@ -106,6 +106,15 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(FAQ_QUESTIONS).toHaveLength(34)
   })
 
+  it('shows the review posture counts as information rather than anchor links', () => {
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
+
+    const posture = screen.getByTestId('faq-posture')
+    expect(within(posture).queryByRole('link')).not.toBeInTheDocument()
+    expect(within(posture).getAllByText('questions answered here')).toHaveLength(2)
+    expect(within(posture).getAllByText('comments from sessions')).toHaveLength(2)
+  })
+
   it('flips to a short answer, then opens its evidence and limits', async () => {
     const user = userEvent.setup()
     render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)

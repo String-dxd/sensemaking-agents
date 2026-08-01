@@ -42,14 +42,13 @@ export function PosturePanel({ content }: PosturePanelProps) {
    * on the page carries the same not-yet-human-reviewed status — true, and a serious understatement
    * of work that has 49 of its 92 evidence blocks checked. These four discriminate. */
   const counts = [
-    { value: tally.questions, label: 'questions answered here', href: '#faq' },
+    { value: tally.questions, label: 'questions answered here' },
     {
       value: `${tally.checked}/${tally.blocks}`,
       label: 'pieces of evidence checked against a source or the prototype',
-      href: '#faq',
     },
-    { value: tally.openThreads, label: 'things we still cannot answer', href: '#faq' },
-    { value: tally.signals, label: 'comments from sessions', href: '#signals' },
+    { value: tally.openThreads, label: 'things we still cannot answer' },
+    { value: tally.signals, label: 'comments from sessions' },
   ]
 
   return (
@@ -83,16 +82,7 @@ export function PosturePanel({ content }: PosturePanelProps) {
                   {count.value}
                 </span>
                 <span className="mt-2 block max-w-[22ch] text-sm leading-snug text-(--color-faq-ink-soft)">
-                  {/* An anchor only where there is somewhere to go. A count of sources has no
-                      section of its own, and a link that scrolls nowhere is worse than plain
-                      text. */}
-                  {count.href ? (
-                    <a className="underline decoration-1 underline-offset-2" href={count.href}>
-                      {count.label}
-                    </a>
-                  ) : (
-                    count.label
-                  )}
+                  {count.label}
                 </span>
               </dd>
             </div>
