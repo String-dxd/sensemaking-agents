@@ -378,9 +378,14 @@ export function MyWorldFaqEditorPage({
 
     const baseAtRequest = deepFreeze(structuredClone(base))
     const expectedBase = { ...baseAtRequest.head }
+    const expectedProjectionDigest = baseAtRequest.projectionDigest
     const documentAtRequest = structuredClone(workingRef.current)
     const generationAtRequest = workingGenerationRef.current
-    const draftKey = JSON.stringify({ document: documentAtRequest, expectedBase })
+    const draftKey = JSON.stringify({
+      document: documentAtRequest,
+      expectedBase,
+      expectedProjectionDigest,
+    })
     if (publishAttemptRef.current?.draftKey !== draftKey) {
       publishAttemptRef.current = { draftKey, attemptId: createPublishAttemptId() }
     }
@@ -388,6 +393,7 @@ export function MyWorldFaqEditorPage({
       schemaVersion: 1,
       document: documentAtRequest,
       expectedBase,
+      expectedProjectionDigest,
       attemptId: publishAttemptRef.current.attemptId,
     }
     const serializedRequest = serializeMyWorldFaqEditorPublishRequest(requestBody)

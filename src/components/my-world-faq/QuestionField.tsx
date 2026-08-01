@@ -85,6 +85,7 @@ export function QuestionField({
     <section
       id="faq"
       aria-labelledby="question-field-title"
+      data-testid="faq-question-field"
       className="scroll-mt-16 border-b border-(--color-faq-line)"
     >
       <div className="mx-auto w-full max-w-6xl px-5 py-14 sm:px-8 sm:py-18 lg:px-10 lg:py-20">

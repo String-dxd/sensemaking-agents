@@ -43,9 +43,33 @@ describe('My World FAQ publication contract', () => {
     expect(new Set(paths).size).toBe(paths.length)
     expect(paths).toContain('route.title')
     expect(paths).toContain('page.hero.introduction')
+    expect(paths).toContain('page.build.backstageIntroduction')
+    expect(paths).toContain('page.build.quietHoursBody')
+    expect(paths).toContain('page.why.heading')
     expect(paths).toContain('questions.reflection-problem.displayedQuestion')
     expect(paths).toContain('sources.moe-ai-education-2025.url')
     expect(paths).not.toContain('questions.reflection-problem.slug')
+  })
+
+  it('keeps historical documents without optional narrative copy canonically unchanged', async () => {
+    const historical = structuredClone(DEFAULT_MY_WORLD_FAQ_DOCUMENT)
+    delete historical.page.build
+    delete historical.page.why
+    delete historical.page.posture
+    const before = JSON.stringify(historical)
+
+    const validation = validateMyWorldFaqDocument(historical)
+
+    expect(validation.success).toBe(true)
+    expect(canonicalizeMyWorldFaqDocument(historical)).toBe(before)
+    expect(JSON.parse(canonicalizeMyWorldFaqDocument(historical)).page).not.toHaveProperty('build')
+    expect(JSON.parse(canonicalizeMyWorldFaqDocument(historical)).page).not.toHaveProperty('why')
+    expect(JSON.parse(canonicalizeMyWorldFaqDocument(historical)).page).not.toHaveProperty(
+      'posture',
+    )
+    expect(await digestMyWorldFaqDocument(historical)).toBe(
+      'fcabc6ff5e308e890806f02064071cb1440668b7319923b96e8d84b7159cf6b9',
+    )
   })
 
   it('rejects unknown shape, structural reordering, locked-field edits, and unsafe links', () => {

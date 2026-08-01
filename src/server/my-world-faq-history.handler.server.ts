@@ -10,6 +10,7 @@ import {
 import {
   isSupportedMyWorldFaqStructureVersion,
   MY_WORLD_FAQ_SCHEMA_VERSION,
+  projectMyWorldFaqEditorDocument,
   validateMyWorldFaqDocument,
 } from '~/data/my-world-faq'
 import type {
@@ -69,7 +70,7 @@ export async function loadMyWorldFaqRevisionPreviewHandler(
     return {
       status: 'ready',
       revision: {
-        ...editorBaseFromRevision(revision),
+        ...(await editorBaseFromRevision(revision)),
         schemaVersion: revision.schemaVersion,
         structureVersion: revision.structureVersion,
         attributionKind: revision.attributionKind,
@@ -275,8 +276,8 @@ export async function handleMyWorldFaqEditorRestore(request: Request): Promise<R
   return restoreJson(200, {
     ok: true,
     outcome: publication.outcome,
-    committed: editorBaseFromRevision(publication.committed),
-    live: editorBaseFromRevision(publication.live),
+    committed: await editorBaseFromRevision(publication.committed),
+    live: await editorBaseFromRevision(publication.live),
     resilience,
   })
 
@@ -307,7 +308,7 @@ export async function handleMyWorldFaqEditorRestore(request: Request): Promise<R
         error === 'attempt_reused'
           ? 'This restore attempt no longer matches its original request.'
           : 'Someone published a newer version. Reload the current FAQ before restoring.',
-      ...(latest ? { latest: editorBaseFromRevision(latest) } : {}),
+      ...(latest ? { latest: await editorBaseFromRevision(latest) } : {}),
     })
   }
 }
@@ -381,16 +382,18 @@ function sameRevisionHead(
   )
 }
 
-function editorBaseFromRevision(
+async function editorBaseFromRevision(
   revision: MyWorldFaqRevisionSnapshot,
-): MyWorldFaqEditorBaseSnapshot {
+): Promise<MyWorldFaqEditorBaseSnapshot> {
+  const editorProjection = await projectMyWorldFaqEditorDocument(revision.document)
   return {
     head: {
       revisionId: revision.revisionId,
       version: revision.version,
       digest: revision.digest,
     },
-    document: revision.document,
+    projectionDigest: editorProjection.digest,
+    document: editorProjection.document,
     savedByName: revision.savedByName,
     createdAt: revision.createdAt,
   }

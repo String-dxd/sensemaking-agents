@@ -5,13 +5,13 @@ import { buttonVariants } from '~/components/ui/button'
 import type { MyWorldFaqContent } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
 import type { MyWorldFaqFeedbackItem } from '~/server/my-world-faq-feedback-repository.server'
+import { BuildIcebergPanel } from './BuildIcebergPanel'
 import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 import { FeedbackPanel } from './FeedbackPanel'
 import { createMyWorldFaqAuthoringShortcut } from './faq-authoring-shortcut'
 import { PosturePanel } from './PosturePanel'
 import { ProductLoop } from './ProductLoop'
 import { QuestionField } from './QuestionField'
-import { RestraintPanel } from './RestraintPanel'
 import { SignalSourceStrip } from './SignalSourceStrip'
 
 export interface MyWorldFaqPageProps {
@@ -108,7 +108,10 @@ export function MyWorldFaqPage({
       </header>
 
       <main id="top" tabIndex={-1}>
-        <section className="relative overflow-hidden border-b border-(--color-faq-line-strong)">
+        <section
+          data-testid="faq-opener"
+          className="relative overflow-hidden border-b border-(--color-faq-line-strong)"
+        >
           <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
             <div className="max-w-5xl">
               <Badge
@@ -182,15 +185,8 @@ export function MyWorldFaqPage({
         </section>
 
         <ProductLoop content={content} editorMode={editorMode} renderField={renderField} />
-        {/* Before the signals rather than after them: the restraint argument answers the worry
-            the playful product screens have just raised, and reading the worried comments first
-            makes it look like a rebuttal to those specific people. */}
-        <RestraintPanel />
+        <BuildIcebergPanel content={content} renderField={renderField} />
         <SignalSourceStrip content={content} renderField={renderField} />
-        {/* Where the signals end and the answers begin — which is exactly where a reader wants
-            to be told that nothing has been decided yet. It also stands in for what the ledger
-            used to imply, and says it outright instead. */}
-        <PosturePanel content={content} />
         {/* The guardrail ledger section was removed from this page on 2026-07-30, on the
             owner's call that it was not earning its place. Its DATA is deliberately still
             here: `page.ledger` and `ledgerPreview` are `z.strictObject` in content-schema.ts
@@ -204,8 +200,10 @@ export function MyWorldFaqPage({
           renderField={renderField}
           editorControl={faqEditorControl}
         />
+        <PosturePanel content={content} renderField={renderField} />
         <section
           aria-labelledby="faq-more-questions-title"
+          data-testid="faq-contribution"
           className="border-b border-(--color-faq-ink) bg-(--color-faq-coral) text-(--color-faq-ink)"
         >
           <div className="mx-auto w-full max-w-7xl px-5 py-14 sm:px-8 sm:py-16 lg:px-12">

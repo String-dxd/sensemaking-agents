@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addTeamFaqQuestion,
+  DEFAULT_MY_WORLD_FAQ_BUILD_STORY,
   DEFAULT_MY_WORLD_FAQ_CONTENT,
+  DEFAULT_MY_WORLD_FAQ_WHY_STORY,
+  projectMyWorldFaqEditorDocument,
   setMyWorldFaqManifestPath,
 } from '~/data/my-world-faq'
 import type {
@@ -17,8 +20,17 @@ const mocks = vi.hoisted(() => ({
   loadEditorRevision: vi.fn(),
   loadRevision: vi.fn(),
   publishRevision: vi.fn(),
+  setResponseHeader: vi.fn(),
   writePublicCache: vi.fn(),
 }))
+
+vi.mock('@tanstack/react-start/server', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@tanstack/react-start/server')>()
+  return {
+    ...original,
+    setResponseHeader: mocks.setResponseHeader,
+  }
+})
 
 vi.mock('~/auth/my-world-faq-editor-session.server', async (importOriginal) => {
   const original =
@@ -53,7 +65,10 @@ vi.mock('~/server/my-world-faq-public-cache.server', async (importOriginal) => {
 
 import { MyWorldFaqEditorAuthError } from '~/auth/my-world-faq-editor-session.server'
 import { MY_WORLD_FAQ_PUBLISH_BODY_MAX_BYTES } from '~/server/my-world-faq-editor.functions'
-import { handleMyWorldFaqEditorPublish } from '~/server/my-world-faq-editor.handler.server'
+import {
+  handleMyWorldFaqEditorPublish,
+  loadMyWorldFaqEditorHandler,
+} from '~/server/my-world-faq-editor.handler.server'
 import { MyWorldFaqRepositoryError } from '~/server/my-world-faq-repository.server'
 import { buildValidPublishRequestAtByteLength } from '../data/my-world-faq-publish-envelope.fixture'
 
@@ -64,6 +79,7 @@ const BASE_HEAD = {
 } satisfies MyWorldFaqHeadRef
 
 const ATTEMPT_ID = '22222222-2222-4222-8222-222222222222'
+let baseProjectionDigest = ''
 
 function revision(
   head: MyWorldFaqHeadRef,
@@ -87,6 +103,14 @@ function validDocument() {
     'route.title',
     'My World FAQ, reviewed',
   )
+}
+
+function historicalDocument() {
+  const document = structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT)
+  delete document.page.build
+  delete document.page.why
+  delete document.page.posture
+  return document
 }
 
 function documentWithTeamQuestions(count: number) {
@@ -119,6 +143,13 @@ function request(
   },
   headers: HeadersInit = {},
 ): Request {
+  const requestBody =
+    body !== null &&
+    typeof body === 'object' &&
+    !Array.isArray(body) &&
+    !Object.hasOwn(body, 'expectedProjectionDigest')
+      ? { ...body, expectedProjectionDigest: baseProjectionDigest }
+      : body
   return new Request('https://faq.example.gov.sg/api/my-world/faq/editor/publish', {
     method: 'POST',
     headers: {
@@ -126,12 +157,12 @@ function request(
       Cookie: '__Host-my_world_faq_editor=opaque',
       ...headers,
     },
-    body: typeof body === 'string' ? body : JSON.stringify(body),
+    body: typeof requestBody === 'string' ? requestBody : JSON.stringify(requestBody),
   })
 }
 
 describe('My World FAQ publish handler', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks()
     mocks.requireSession.mockResolvedValue({
       auditId: '33333333-3333-4333-8333-333333333333',
@@ -159,6 +190,88 @@ describe('My World FAQ publish handler', () => {
       live: committed,
     })
     mocks.writePublicCache.mockResolvedValue('written')
+    baseProjectionDigest = (await projectMyWorldFaqEditorDocument(revision(BASE_HEAD).document))
+      .digest
+  })
+
+  it('projects optional narrative copy and its manifest into a historical editor base', async () => {
+    const historical = historicalDocument()
+    mocks.loadEditorRevision.mockResolvedValue(revision(BASE_HEAD, historical))
+
+    const result = await loadMyWorldFaqEditorHandler(
+      new Request('https://faq.example.gov.sg/my-world/faq/edit', {
+        headers: { Cookie: '__Host-my_world_faq_editor=opaque' },
+      }),
+    )
+
+    expect(result.status).toBe('ready')
+    if (result.status !== 'ready') return
+    expect(result.base.document.page.build).toEqual(DEFAULT_MY_WORLD_FAQ_BUILD_STORY)
+    expect(result.base.document.page.why).toEqual(DEFAULT_MY_WORLD_FAQ_WHY_STORY)
+    expect(result.base.projectionDigest).toBe(
+      (await projectMyWorldFaqEditorDocument(historical)).digest,
+    )
+    expect(result.manifest.fields.map((field) => field.path)).toEqual(
+      expect.arrayContaining([
+        'page.build.heading',
+        'page.build.quietHoursBody',
+        'page.why.heading',
+      ]),
+    )
+    expect(historical.page).not.toHaveProperty('build')
+    expect(historical.page).not.toHaveProperty('why')
+  })
+
+  it('rejects a stale editor projection even when the stored revision head is unchanged', async () => {
+    const historical = historicalDocument()
+    mocks.loadRevision.mockResolvedValue(revision(BASE_HEAD, historical))
+    mocks.loadEditorRevision.mockResolvedValue(revision(BASE_HEAD, historical))
+
+    const response = await handleMyWorldFaqEditorPublish(
+      request({
+        schemaVersion: 1,
+        document: setMyWorldFaqManifestPath(
+          (await projectMyWorldFaqEditorDocument(historical)).document,
+          'route.title',
+          'Draft from an older editor projection',
+        ),
+        expectedBase: BASE_HEAD,
+        expectedProjectionDigest: 'f'.repeat(64),
+        attemptId: ATTEMPT_ID,
+      }),
+    )
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'stale_head',
+      latest: {
+        head: BASE_HEAD,
+        projectionDigest: (await projectMyWorldFaqEditorDocument(historical)).digest,
+      },
+    })
+    expect(mocks.publishRevision).not.toHaveBeenCalled()
+  })
+
+  it('requires the projection digest in an otherwise valid strict publish envelope', async () => {
+    const response = await handleMyWorldFaqEditorPublish(
+      request(
+        JSON.stringify({
+          schemaVersion: 1,
+          document: validDocument(),
+          expectedBase: BASE_HEAD,
+          attemptId: ATTEMPT_ID,
+        }),
+      ),
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'invalid_body',
+    })
+    expect(mocks.loadRevision).not.toHaveBeenCalled()
+    expect(mocks.publishRevision).not.toHaveBeenCalled()
   })
 
   it('checks the protected session before reading malformed JSON', async () => {
@@ -177,7 +290,10 @@ describe('My World FAQ publish handler', () => {
 
   it('accepts the exact UTF-8 envelope limit and rejects the next byte', async () => {
     const exactBody = JSON.stringify(
-      buildValidPublishRequestAtByteLength(MY_WORLD_FAQ_PUBLISH_BODY_MAX_BYTES),
+      buildValidPublishRequestAtByteLength(
+        MY_WORLD_FAQ_PUBLISH_BODY_MAX_BYTES,
+        baseProjectionDigest,
+      ),
     )
     const exactRequest = request(exactBody)
     exactRequest.headers.set('Content-Length', String(Buffer.byteLength(exactBody, 'utf8')))
@@ -187,7 +303,10 @@ describe('My World FAQ publish handler', () => {
     expect(mocks.publishRevision).toHaveBeenCalledTimes(1)
 
     const oversizedBody = JSON.stringify(
-      buildValidPublishRequestAtByteLength(MY_WORLD_FAQ_PUBLISH_BODY_MAX_BYTES + 1),
+      buildValidPublishRequestAtByteLength(
+        MY_WORLD_FAQ_PUBLISH_BODY_MAX_BYTES + 1,
+        baseProjectionDigest,
+      ),
     )
     const oversizedRequest = request(oversizedBody)
     oversizedRequest.headers.set('Content-Length', String(Buffer.byteLength(oversizedBody, 'utf8')))

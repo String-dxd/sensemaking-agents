@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   addTeamFaqQuestion,
   compareMyWorldFaqEditorialVersions,
+  DEFAULT_MY_WORLD_FAQ_BUILD_STORY,
   DEFAULT_MY_WORLD_FAQ_CONTENT,
+  DEFAULT_MY_WORLD_FAQ_WHY_STORY,
   type MyWorldFaqEditorialDocument,
+  materializeMyWorldFaqEditorDocument,
   prepareMyWorldFaqEditorialIntent,
   prepareMyWorldFaqEditorialMutation,
   readMyWorldFaqManifestPath,
@@ -29,6 +32,50 @@ function comparisonAt(
 }
 
 describe('My World FAQ editorial mutation helpers', () => {
+  it('materialises optional narrative defaults and treats an unchanged projection as a no-op', () => {
+    const historical = defaultDocument()
+    delete historical.page.build
+    delete historical.page.why
+    delete historical.page.posture
+
+    const projected = materializeMyWorldFaqEditorDocument(historical)
+
+    expect(projected.page.build).toEqual(DEFAULT_MY_WORLD_FAQ_BUILD_STORY)
+    expect(projected.page.why).toEqual(DEFAULT_MY_WORLD_FAQ_WHY_STORY)
+    expect(historical.page).not.toHaveProperty('build')
+    expect(historical.page).not.toHaveProperty('why')
+    expect(
+      prepareMyWorldFaqEditorialIntent({
+        base: historical,
+        submitted: projected,
+      }),
+    ).toMatchObject({ success: false, reason: 'no_op' })
+  })
+
+  it('publishes one changed build-story field as one dirty path from a historical base', () => {
+    const historical = defaultDocument()
+    delete historical.page.build
+    delete historical.page.why
+    delete historical.page.posture
+    const projected = materializeMyWorldFaqEditorDocument(historical)
+    const path = 'page.build.heading'
+    const submitted = setMyWorldFaqManifestPath(
+      projected,
+      path,
+      'Playful for students. Deliberate underneath.',
+    )
+
+    const result = prepareMyWorldFaqEditorialIntent({ base: historical, submitted })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.dirtyPaths).toEqual([path])
+    expect(result.intentDocument.page.build?.heading).toBe(
+      'Playful for students. Deliberate underneath.',
+    )
+    expect(result.intentDocument.page.why).toEqual(DEFAULT_MY_WORLD_FAQ_WHY_STORY)
+  })
+
   it('reads and immutably sets stable record, state, and numeric author paths', () => {
     const base = defaultDocument()
     const question = base.questions[0]

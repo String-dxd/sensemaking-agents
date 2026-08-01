@@ -16,6 +16,7 @@ import {
   FAQ_EDITORIAL_FIELD_LIMITS,
   MY_WORLD_FAQ_SCHEMA_VERSION,
   prepareMyWorldFaqEditorialIntent,
+  projectMyWorldFaqEditorDocument,
 } from '~/data/my-world-faq'
 import {
   MY_WORLD_FAQ_PUBLISH_BODY_MAX_BYTES,
@@ -43,6 +44,7 @@ export async function loadMyWorldFaqEditorHandler(
 
   try {
     const revision = await loadMyWorldFaqEditorRevision()
+    const editorProjection = await projectMyWorldFaqEditorDocument(revision.document)
     return {
       status: 'ready',
       identity: session.identity,
@@ -53,12 +55,13 @@ export async function loadMyWorldFaqEditorHandler(
           version: revision.version,
           digest: revision.digest,
         },
-        document: revision.document,
+        projectionDigest: editorProjection.digest,
+        document: editorProjection.document,
         savedByName: revision.savedByName,
         createdAt: revision.createdAt,
       },
       manifest: {
-        fields: buildMyWorldFaqEditableFields(revision.document),
+        fields: buildMyWorldFaqEditableFields(editorProjection.document),
         limits: FAQ_EDITORIAL_FIELD_LIMITS,
       },
     }
@@ -325,6 +328,11 @@ export async function handleMyWorldFaqEditorPublish(request: Request): Promise<R
     return stalePublishResponse('stale_head')
   }
 
+  const currentProjection = await projectMyWorldFaqEditorDocument(base.document)
+  if (currentProjection.digest !== input.expectedProjectionDigest) {
+    return stalePublishResponse('stale_head')
+  }
+
   const mutation = prepareMyWorldFaqEditorialIntent({
     base: base.document,
     submitted: input.document,
@@ -421,8 +429,8 @@ export async function handleMyWorldFaqEditorPublish(request: Request): Promise<R
   return publishJson(200, {
     ok: true,
     outcome: publication.outcome,
-    committed: editorBaseFromRevision(publication.committed),
-    live: editorBaseFromRevision(publication.live),
+    committed: await editorBaseFromRevision(publication.committed),
+    live: await editorBaseFromRevision(publication.live),
     resilience,
     warnings: mutation.warnings,
   })
@@ -430,7 +438,7 @@ export async function handleMyWorldFaqEditorPublish(request: Request): Promise<R
   async function stalePublishResponse(error: 'attempt_reused' | 'stale_head'): Promise<Response> {
     let latest: MyWorldFaqEditorBaseSnapshot | undefined
     try {
-      latest = editorBaseFromRevision(await loadMyWorldFaqEditorRevision())
+      latest = await editorBaseFromRevision(await loadMyWorldFaqEditorRevision())
     } catch {
       latest = undefined
     }
@@ -440,7 +448,7 @@ export async function handleMyWorldFaqEditorPublish(request: Request): Promise<R
       message:
         error === 'attempt_reused'
           ? 'This publish attempt no longer matches its original draft. Start a new attempt.'
-          : 'Someone published a newer version. Compare it with your draft before continuing.',
+          : 'The live editor base changed. Reload it and compare it with your draft before continuing.',
       ...(latest ? { latest } : {}),
     })
   }
@@ -495,6 +503,7 @@ function publishJson(
 function parsePublishRequest(body: Record<string, unknown> | null): {
   schemaVersion: 1
   document: Record<string, unknown>
+  expectedProjectionDigest: string
   expectedBase: {
     revisionId: string
     version: number
@@ -502,7 +511,16 @@ function parsePublishRequest(body: Record<string, unknown> | null): {
   }
   attemptId: string
 } | null {
-  if (!body || !hasExactKeys(body, ['attemptId', 'document', 'expectedBase', 'schemaVersion'])) {
+  if (
+    !body ||
+    !hasExactKeys(body, [
+      'attemptId',
+      'document',
+      'expectedBase',
+      'expectedProjectionDigest',
+      'schemaVersion',
+    ])
+  ) {
     return null
   }
   if (body.schemaVersion !== MY_WORLD_FAQ_SCHEMA_VERSION) return null
@@ -511,6 +529,8 @@ function parsePublishRequest(body: Record<string, unknown> | null): {
   if (
     typeof body.attemptId !== 'string' ||
     !isUuid(body.attemptId) ||
+    typeof body.expectedProjectionDigest !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(body.expectedProjectionDigest) ||
     typeof body.expectedBase.revisionId !== 'string' ||
     !isUuid(body.expectedBase.revisionId) ||
     !Number.isInteger(body.expectedBase.version) ||
@@ -523,6 +543,7 @@ function parsePublishRequest(body: Record<string, unknown> | null): {
   return {
     schemaVersion: MY_WORLD_FAQ_SCHEMA_VERSION,
     document: body.document,
+    expectedProjectionDigest: body.expectedProjectionDigest,
     expectedBase: {
       revisionId: body.expectedBase.revisionId,
       version: body.expectedBase.version as number,
@@ -543,16 +564,18 @@ function sameRevisionHead(
   )
 }
 
-function editorBaseFromRevision(
+async function editorBaseFromRevision(
   revision: MyWorldFaqRevisionSnapshot,
-): MyWorldFaqEditorBaseSnapshot {
+): Promise<MyWorldFaqEditorBaseSnapshot> {
+  const editorProjection = await projectMyWorldFaqEditorDocument(revision.document)
   return {
     head: {
       revisionId: revision.revisionId,
       version: revision.version,
       digest: revision.digest,
     },
-    document: revision.document,
+    projectionDigest: editorProjection.digest,
+    document: editorProjection.document,
     savedByName: revision.savedByName,
     createdAt: revision.createdAt,
   }

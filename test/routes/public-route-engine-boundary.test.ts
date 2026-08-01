@@ -34,9 +34,9 @@ describe('public route engine boundary', () => {
       source('src/routes/my-world.faq.tsx'),
       source('src/components/my-world-faq/MyWorldFaqPage.tsx'),
       source('src/components/my-world-faq/ProductLoop.tsx'),
+      source('src/components/my-world-faq/BuildIcebergPanel.tsx'),
       source('src/components/my-world-faq/SignalSourceStrip.tsx'),
       source('src/components/my-world-faq/PosturePanel.tsx'),
-      source('src/components/my-world-faq/RestraintPanel.tsx'),
       source('src/components/my-world-faq/QuestionField.tsx'),
     ]
 
@@ -44,6 +44,7 @@ describe('public route engine boundary', () => {
       expect(faqSource).not.toMatch(/^import .*~\/engine\//m)
       expect(faqSource).not.toMatch(/^import .*student-space/m)
       expect(faqSource).not.toMatch(/^import .*three['"]/m)
+      expect(faqSource).not.toMatch(/^import .*~\/agents\//m)
       expect(faqSource).not.toContain('EngineHost')
       expect(faqSource).not.toContain('PageSurface')
       expect(faqSource).not.toContain('engine/student-space/style.css')
@@ -86,6 +87,7 @@ describe('public route engine boundary', () => {
     const componentSources = [
       source('src/components/my-world-faq/MyWorldFaqPage.tsx'),
       source('src/components/my-world-faq/ProductLoop.tsx'),
+      source('src/components/my-world-faq/BuildIcebergPanel.tsx'),
       source('src/components/my-world-faq/SignalSourceStrip.tsx'),
       source('src/components/my-world-faq/PosturePanel.tsx'),
       source('src/components/my-world-faq/QuestionField.tsx'),

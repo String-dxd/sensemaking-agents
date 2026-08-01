@@ -10,6 +10,7 @@ import {
   type MyWorldFaqValidationWarning,
   validateMyWorldFaqDocument,
 } from './content-schema'
+import { materializeMyWorldFaqEditorDocument } from './editor-projection'
 import {
   deriveTeamFaqWorkingAnswerContract,
   isTeamFaqQuestionId,
@@ -448,6 +449,15 @@ function isEditableValueOrPlainObjectContainer(
   base: MyWorldFaqEditorialDocument,
   candidate: unknown,
 ): boolean {
+  if (path === 'page.build' || path === 'page.why' || path === 'page.posture') {
+    const baseValue = readStablePath(base, path)
+    const candidateValue = readStablePath(candidate, path)
+    return (
+      (!baseValue.found || baseValue.value === undefined) &&
+      candidateValue.found &&
+      isRecord(candidateValue.value)
+    )
+  }
   if (editablePaths.includes(path)) return true
   if (path === 'questions' && addedQuestionIds.size > 0) return true
   if (
@@ -516,16 +526,21 @@ function editableDirtyPaths(
   base: MyWorldFaqEditorialDocument,
   candidate: MyWorldFaqEditorialDocument,
 ): string[] {
+  const comparisonBase = materializeMyWorldFaqEditorDocument(base)
+  const comparisonCandidate = materializeMyWorldFaqEditorDocument(candidate)
   const baseIds = new Set(base.questions.map((question) => question.id))
   const candidateIds = new Set(candidate.questions.map((question) => question.id))
   const addedQuestionPaths = candidate.questions
     .filter((question) => !baseIds.has(question.id))
     .map((question) => `questions.${question.id}`)
   const commonPaths = [
-    ...new Set([...editablePathsForDocument(base), ...editablePathsForDocument(candidate)]),
+    ...new Set([
+      ...editablePathsForDocument(comparisonBase),
+      ...editablePathsForDocument(comparisonCandidate),
+    ]),
   ].filter((path) => {
-    const baseValue = readStablePath(base, path)
-    const candidateValue = readStablePath(candidate, path)
+    const baseValue = readStablePath(comparisonBase, path)
+    const candidateValue = readStablePath(comparisonCandidate, path)
     return (
       baseValue.found &&
       candidateValue.found &&
@@ -776,6 +791,9 @@ export function compareMyWorldFaqEditorialVersions(
   local: MyWorldFaqEditorialDocument,
   latest: MyWorldFaqEditorialDocument,
 ): MyWorldFaqEditorialFieldComparison[] {
+  const comparisonBase = materializeMyWorldFaqEditorDocument(base)
+  const comparisonLocal = materializeMyWorldFaqEditorDocument(local)
+  const comparisonLatest = materializeMyWorldFaqEditorDocument(latest)
   const baseQuestions = new Map(base.questions.map((question) => [question.id, question]))
   const localQuestions = new Map(local.questions.map((question) => [question.id, question]))
   const latestQuestions = new Map(latest.questions.map((question) => [question.id, question]))
@@ -802,15 +820,15 @@ export function compareMyWorldFaqEditorialVersions(
   })
   const paths = [
     ...new Set([
-      ...editablePathsForDocument(base),
-      ...editablePathsForDocument(local),
-      ...editablePathsForDocument(latest),
+      ...editablePathsForDocument(comparisonBase),
+      ...editablePathsForDocument(comparisonLocal),
+      ...editablePathsForDocument(comparisonLatest),
     ]),
   ]
   const fieldComparisons = paths.flatMap((path) => {
-    const baseValue = comparisonValue(base, path)
-    const localValue = comparisonValue(local, path)
-    const latestValue = comparisonValue(latest, path)
+    const baseValue = comparisonValue(comparisonBase, path)
+    const localValue = comparisonValue(comparisonLocal, path)
+    const latestValue = comparisonValue(comparisonLatest, path)
     if (baseValue === undefined || localValue === undefined || latestValue === undefined) return []
     return [
       {

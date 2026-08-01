@@ -1,4 +1,4 @@
-import type { MyWorldFaqContent } from '~/data/my-world-faq'
+import { DEFAULT_MY_WORLD_FAQ_WHY_STORY, type MyWorldFaqContent } from '~/data/my-world-faq'
 import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 
 export interface SignalSourceStripProps {
@@ -8,36 +8,64 @@ export interface SignalSourceStripProps {
 
 export function SignalSourceStrip({ content, renderField }: SignalSourceStripProps) {
   const field: MyWorldFaqFieldRenderer = (args) => renderField?.(args) ?? args.value
+  const whyCopy = content.page.why ?? DEFAULT_MY_WORLD_FAQ_WHY_STORY
 
   return (
     <section
-      /* Named so the status section's "comments from sessions" count can link here. It was a
-         count with nowhere to go before that, and a number a reader cannot check is a number
-         they have to take on trust — which is the currency this page is short of. */
-      id="signals"
-      aria-labelledby="signal-source-title"
+      id="why"
+      aria-labelledby="faq-why-title"
+      data-testid="faq-why"
       className="border-b border-(--color-faq-line-strong) bg-(--color-faq-ink) text-(--color-faq-paper)"
     >
       <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-end">
-          <div className="lg:col-span-7">
+        <div className="grid gap-7 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-8">
             <p className="text-xs font-semibold text-(--color-faq-yellow)">
+              {field({
+                path: 'page.why.eyebrow',
+                label: 'Why section label',
+                value: whyCopy.eyebrow,
+              })}
+            </p>
+            <h2
+              id="faq-why-title"
+              className="mt-3 max-w-4xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-balance"
+            >
+              {field({
+                path: 'page.why.heading',
+                label: 'Why section heading',
+                value: whyCopy.heading,
+              })}
+            </h2>
+          </div>
+          <p className="max-w-[48ch] text-sm leading-relaxed text-(--color-faq-paper-soft) lg:col-span-4 lg:justify-self-end">
+            {field({
+              path: 'page.why.introduction',
+              label: 'Why section introduction',
+              value: whyCopy.introduction,
+            })}
+          </p>
+        </div>
+
+        <div className="mt-14 grid gap-6 border-t border-(--color-faq-paper)/25 pt-10 lg:grid-cols-12 lg:items-end">
+          <div className="lg:col-span-7">
+            <p className="text-xs font-semibold text-(--color-faq-pink)">
               {field({
                 path: 'page.signals.eyebrow',
                 label: 'Questions section label',
                 value: content.page.signals.eyebrow,
               })}
             </p>
-            <h2
+            <h3
               id="signal-source-title"
-              className="mt-3 max-w-3xl text-[clamp(2.25rem,5vw,4.6rem)] font-semibold leading-[0.98] tracking-[-0.055em] text-balance"
+              className="mt-3 max-w-3xl text-[clamp(1.8rem,4vw,3.4rem)] font-semibold leading-[1.02] tracking-[-0.045em] text-balance"
             >
               {field({
                 path: 'page.signals.heading',
                 label: 'Questions section heading',
                 value: content.page.signals.heading,
               })}
-            </h2>
+            </h3>
           </div>
           <p className="max-w-[48ch] text-sm leading-relaxed text-(--color-faq-paper-soft) lg:col-span-5 lg:justify-self-end">
             {field({

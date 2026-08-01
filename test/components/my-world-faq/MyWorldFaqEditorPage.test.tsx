@@ -28,6 +28,7 @@ const loadHistoryMock = vi.hoisted(() => vi.fn())
 const loadPreviewMock = vi.hoisted(() => vi.fn())
 const assignLocationMock = vi.fn()
 let originalAssignLocation: typeof window.location.assign
+const EDITOR_PROJECTION_DIGEST = 'e'.repeat(64)
 
 vi.mock('~/server/my-world-faq-editor.functions', async (importOriginal) => {
   const original = await importOriginal<typeof import('~/server/my-world-faq-editor.functions')>()
@@ -53,6 +54,7 @@ const READY_DATA = {
       version: 4,
       digest: 'a'.repeat(64),
     },
+    projectionDigest: EDITOR_PROJECTION_DIGEST,
     document: DEFAULT_MY_WORLD_FAQ_CONTENT,
     savedByName: 'Sam',
     createdAt: '2026-07-29T00:00:00.000Z',
@@ -73,6 +75,7 @@ function snapshot(
       version,
       digest: version.toString(16).padStart(64, '0'),
     },
+    projectionDigest: EDITOR_PROJECTION_DIGEST,
     document,
     savedByName: 'Ari',
     createdAt: `2026-07-${String(20 + version).padStart(2, '0')}T00:00:00.000Z`,
@@ -973,6 +976,7 @@ describe('MyWorldFaqEditorPage', () => {
       'attemptId',
       'document',
       'expectedBase',
+      'expectedProjectionDigest',
       'schemaVersion',
     ])
     expect(requestBody).toMatchObject({
@@ -981,6 +985,7 @@ describe('MyWorldFaqEditorPage', () => {
         route: expect.objectContaining({ title: 'Browser draft title' }),
       }),
       expectedBase: READY_DATA.base.head,
+      expectedProjectionDigest: READY_DATA.base.projectionDigest,
       attemptId: expect.stringMatching(
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
       ),

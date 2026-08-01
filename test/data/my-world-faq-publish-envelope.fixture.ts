@@ -14,6 +14,7 @@ export const FAQ_PUBLISH_ENVELOPE_TEST_HEAD = {
 } as const
 
 export const FAQ_PUBLISH_ENVELOPE_TEST_ATTEMPT_ID = '22222222-2222-4222-8222-222222222222'
+export const FAQ_PUBLISH_ENVELOPE_TEST_PROJECTION_DIGEST = 'e'.repeat(64)
 
 const expandableBodyFields = FAQ_EDITABLE_FIELDS.filter(
   (field) => field.category === 'body' && !field.path.startsWith('questions.'),
@@ -21,6 +22,7 @@ const expandableBodyFields = FAQ_EDITABLE_FIELDS.filter(
 
 export function buildValidPublishRequestAtByteLength(
   targetBytes: number,
+  expectedProjectionDigest = FAQ_PUBLISH_ENVELOPE_TEST_PROJECTION_DIGEST,
 ): PublishMyWorldFaqEditorRequest {
   let document = structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT)
   document.route.title = 'Boundary draft B'
@@ -30,6 +32,7 @@ export function buildValidPublishRequestAtByteLength(
     schemaVersion: 1,
     document,
     expectedBase: FAQ_PUBLISH_ENVELOPE_TEST_HEAD,
+    expectedProjectionDigest,
     attemptId: FAQ_PUBLISH_ENVELOPE_TEST_ATTEMPT_ID,
   }
 

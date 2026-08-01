@@ -97,6 +97,78 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(within(loop).getByText(/filters the synthetic timeline/i)).toBeInTheDocument()
   })
 
+  it('tells one continuous story from the opener through status and feedback', () => {
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
+
+    const sections = [
+      screen.getByTestId('faq-opener'),
+      screen.getByTestId('faq-product-loop'),
+      screen.getByTestId('faq-build-iceberg'),
+      screen.getByTestId('faq-why'),
+      screen.getByTestId('faq-question-field'),
+      screen.getByTestId('faq-posture'),
+      screen.getByTestId('faq-contribution'),
+    ]
+
+    for (let index = 0; index < sections.length - 1; index += 1) {
+      const current = sections[index]
+      const next = sections[index + 1]
+      if (!current || !next) throw new Error('FAQ story section was not found')
+      expect(current.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+  })
+
+  it('shows the playful surface and bounded backstage layers without interaction', () => {
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
+
+    const build = screen.getByTestId('faq-build-iceberg')
+    expect(
+      within(build).getByRole('heading', {
+        name: 'Playful on the surface. Deliberate underneath.',
+      }),
+    ).toBeInTheDocument()
+    for (const label of [
+      'Companion',
+      'Capture',
+      'Living island',
+      'Mirror',
+      'Connector',
+      'Verifier',
+      'Cartographer',
+    ]) {
+      expect(within(build).getByText(label)).toBeInTheDocument()
+    }
+    expect(within(build).getByText(/do not all run after every capture/i)).toBeInTheDocument()
+    expect(within(build).getByText(/later, after review/i)).toBeInTheDocument()
+    expect(within(build).getByText(/for Connector links/i)).toBeInTheDocument()
+    expect(within(build).getByText(/when sensemaking is requested/i)).toBeInTheDocument()
+    expect(within(build).getByText(/plain code checks the cited quote/i)).toBeInTheDocument()
+    expect(within(build).getAllByText('AI role')).toHaveLength(3)
+    expect(within(build).getByText('Deterministic check')).toBeInTheDocument()
+    expect(within(build).getByText(/advisory, not a fail-safe/i)).toBeInTheDocument()
+    expect(within(build).getByText(/at 10pm local time/i)).toBeInTheDocument()
+    expect(within(build).getByRole('link', { name: /Nintendo’s description/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining('nintendo.com'),
+    )
+    expect(within(build).queryByText(/Kira/)).not.toBeInTheDocument()
+  })
+
+  it('does not nest the editable Nintendo label inside a public link', () => {
+    render(
+      <MyWorldFaqPage
+        feedbackEnabled={false}
+        content={DEFAULT_MY_WORLD_FAQ_CONTENT}
+        editorMode
+        renderField={({ label, value }) => <input aria-label={label} defaultValue={value} />}
+      />,
+    )
+
+    const build = screen.getByTestId('faq-build-iceberg')
+    expect(within(build).getByRole('textbox', { name: 'Nintendo source link label' })).toBeVisible()
+    expect(within(build).queryByRole('link', { name: /Nintendo/i })).not.toBeInTheDocument()
+  })
+
   it('keeps all six topics and all 34 canonical questions in the card grid', () => {
     render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
@@ -111,6 +183,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
 
     const posture = screen.getByTestId('faq-posture')
     expect(within(posture).queryByRole('link')).not.toBeInTheDocument()
+    expect(within(posture).getByText(/Each answer names what it rests on/i)).toBeInTheDocument()
     expect(within(posture).getAllByText('questions answered here')).toHaveLength(2)
     expect(within(posture).getAllByText('comments from sessions')).toHaveLength(2)
   })

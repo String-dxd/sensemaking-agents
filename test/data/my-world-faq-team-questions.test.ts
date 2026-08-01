@@ -26,6 +26,14 @@ function defaultDocument(): MyWorldFaqEditorialDocument {
   return structuredClone(DEFAULT_MY_WORLD_FAQ_CONTENT)
 }
 
+function legacyDefaultDocument(): MyWorldFaqEditorialDocument {
+  const document = structuredClone(DEFAULT_MY_WORLD_FAQ_DOCUMENT)
+  delete document.page.build
+  delete document.page.why
+  delete document.page.posture
+  return document
+}
+
 function validTeamQuestionInput(
   id = FIRST_TEAM_ID,
   overrides: Partial<CreateTeamFaqQuestionInput> = {},
@@ -92,11 +100,11 @@ function addQuestions(
 }
 
 describe('My World FAQ team-added question contract', () => {
-  it('pins the original canonical digest while dynamic-array support changes', async () => {
+  it('pins the original canonical digest for revisions without projected narrative copy', async () => {
     expect(DEFAULT_MY_WORLD_FAQ_DOCUMENT.structureVersion).toBe(MY_WORLD_FAQ_V1_STRUCTURE_VERSION)
-    expect(await digestMyWorldFaqDocument(DEFAULT_MY_WORLD_FAQ_DOCUMENT)).toBe(
-      DEFAULT_CANONICAL_DIGEST,
-    )
+    const legacy = legacyDefaultDocument()
+    expect(await digestMyWorldFaqDocument(legacy)).toBe(DEFAULT_CANONICAL_DIGEST)
+    expect(canonicalizeMyWorldFaqDocument(legacy)).toBe(JSON.stringify(legacy))
     expect(canonicalizeMyWorldFaqDocument(DEFAULT_MY_WORLD_FAQ_DOCUMENT)).toBe(
       canonicalizeMyWorldFaqDocument(DEFAULT_MY_WORLD_FAQ_CONTENT),
     )

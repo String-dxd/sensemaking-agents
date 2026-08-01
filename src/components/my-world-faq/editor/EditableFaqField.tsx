@@ -123,7 +123,12 @@ function presentationForCategory(
   category: FaqEditorialFieldDefinition['category'],
 ): MyWorldFaqFieldPresentation {
   if (category === 'url') return 'url'
-  if (category === 'route-title' || category === 'route-description' || category === 'compact') {
+  if (
+    category === 'route-title' ||
+    category === 'route-description' ||
+    category === 'label' ||
+    category === 'compact'
+  ) {
     return 'single-line'
   }
   return 'multi-line'

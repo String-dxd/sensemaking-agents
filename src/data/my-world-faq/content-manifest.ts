@@ -1,7 +1,10 @@
 import { FAQ_ASSETS } from './assets'
+import { DEFAULT_MY_WORLD_FAQ_BUILD_STORY } from './build-story'
 import { FAQ_GUARDRAILS } from './guardrails'
+import { DEFAULT_MY_WORLD_FAQ_POSTURE_STORY } from './posture-story'
 import { FAQ_CONCERN_CLUSTERS, FAQ_QUESTIONS } from './questions'
 import { FAQ_PRODUCT_PROVENANCE, FAQ_SOURCES } from './sources'
+import { DEFAULT_MY_WORLD_FAQ_WHY_STORY } from './why-story'
 
 export const MY_WORLD_FAQ_SCHEMA_VERSION = 1 as const
 export const MY_WORLD_FAQ_V1_STRUCTURE_VERSION = 1 as const
@@ -55,7 +58,10 @@ export const FAQ_LEDGER_PREVIEW_MANIFEST = [
 export type FaqEditorialFieldCategory =
   | 'route-title'
   | 'route-description'
+  | 'label'
   | 'compact'
+  | 'microcopy'
+  | 'blurb'
   | 'question'
   | 'short-answer'
   | 'summary'
@@ -75,13 +81,21 @@ interface FaqEditableQuestionShape {
 }
 
 interface FaqEditableDocumentShape {
+  page?: {
+    build?: unknown
+    posture?: unknown
+    why?: unknown
+  }
   questions: readonly FaqEditableQuestionShape[]
 }
 
 export const FAQ_EDITORIAL_FIELD_LIMITS = {
   'route-title': { warningGraphemes: 60, maxGraphemes: 120 },
   'route-description': { warningGraphemes: 160, maxGraphemes: 320 },
+  label: { warningGraphemes: 40, maxGraphemes: 80 },
   compact: { warningGraphemes: 96, maxGraphemes: 320 },
+  microcopy: { warningGraphemes: 100, maxGraphemes: 180 },
+  blurb: { warningGraphemes: 240, maxGraphemes: 400 },
   question: { warningGraphemes: 220, maxGraphemes: 360 },
   'short-answer': { minWords: 20, maxWords: 45, maxGraphemes: 600 },
   summary: { warningGraphemes: 600, maxGraphemes: 2_000 },
@@ -104,6 +118,43 @@ const fields: FaqEditorialFieldDefinition[] = [
   { path: 'page.product.heading', category: 'compact' },
   { path: 'page.product.introduction', category: 'summary' },
   { path: 'page.product.footnote', category: 'summary' },
+  { path: 'page.build.eyebrow', category: 'label' },
+  { path: 'page.build.heading', category: 'compact' },
+  { path: 'page.build.introduction', category: 'blurb' },
+  { path: 'page.build.surfaceLabel', category: 'label' },
+  { path: 'page.build.companionBody', category: 'blurb' },
+  { path: 'page.build.captureBody', category: 'blurb' },
+  { path: 'page.build.islandBody', category: 'blurb' },
+  { path: 'page.build.waterlineLabel', category: 'label' },
+  { path: 'page.build.backstageLabel', category: 'label' },
+  { path: 'page.build.backstageIntroduction', category: 'blurb' },
+  { path: 'page.build.mirrorAction', category: 'label' },
+  { path: 'page.build.mirrorBody', category: 'blurb' },
+  { path: 'page.build.connectorAction', category: 'label' },
+  { path: 'page.build.connectorBody', category: 'blurb' },
+  { path: 'page.build.verifierAction', category: 'label' },
+  { path: 'page.build.verifierBody', category: 'blurb' },
+  { path: 'page.build.cartographerAction', category: 'label' },
+  { path: 'page.build.cartographerBody', category: 'blurb' },
+  { path: 'page.build.reviewLabel', category: 'label' },
+  { path: 'page.build.reviewBody', category: 'blurb' },
+  { path: 'page.build.reviewTeamBody', category: 'blurb' },
+  { path: 'page.build.decisionEyebrow', category: 'label' },
+  { path: 'page.build.decisionHeading', category: 'compact' },
+  { path: 'page.build.clockLabel', category: 'label' },
+  { path: 'page.build.clockBody', category: 'microcopy' },
+  { path: 'page.build.quietHoursBody', category: 'blurb' },
+  { path: 'page.build.precedentBody', category: 'blurb' },
+  { path: 'page.build.caveatBody', category: 'blurb' },
+  { path: 'page.build.sourceLinkLabel', category: 'label' },
+  { path: 'page.build.closingBody', category: 'blurb' },
+  { path: 'page.why.eyebrow', category: 'label' },
+  { path: 'page.why.heading', category: 'compact' },
+  { path: 'page.why.introduction', category: 'blurb' },
+  { path: 'page.posture.eyebrow', category: 'label' },
+  { path: 'page.posture.heading', category: 'compact' },
+  { path: 'page.posture.introduction', category: 'blurb' },
+  { path: 'page.posture.decisionNote', category: 'blurb' },
   { path: 'page.signals.eyebrow', category: 'compact' },
   { path: 'page.signals.heading', category: 'compact' },
   { path: 'page.signals.introduction', category: 'summary' },
@@ -232,15 +283,29 @@ export function buildMyWorldFaqEditableFields(
       }
     }
   }
+  const includeOptionalPageField = (field: FaqEditorialFieldDefinition): boolean => {
+    if (field.path.startsWith('page.build.')) return document.page?.build !== undefined
+    if (field.path.startsWith('page.why.')) return document.page?.why !== undefined
+    if (field.path.startsWith('page.posture.')) return document.page?.posture !== undefined
+    return true
+  }
+
   return [
-    ...fields.slice(0, questionFieldInsertionIndex),
+    ...fields.slice(0, questionFieldInsertionIndex).filter(includeOptionalPageField),
     ...questionFields,
-    ...fields.slice(questionFieldInsertionIndex),
+    ...fields.slice(questionFieldInsertionIndex).filter(includeOptionalPageField),
   ]
 }
 
 export const FAQ_EDITABLE_FIELDS = Object.freeze(
-  buildMyWorldFaqEditableFields({ questions: FAQ_QUESTIONS }),
+  buildMyWorldFaqEditableFields({
+    page: {
+      build: DEFAULT_MY_WORLD_FAQ_BUILD_STORY,
+      posture: DEFAULT_MY_WORLD_FAQ_POSTURE_STORY,
+      why: DEFAULT_MY_WORLD_FAQ_WHY_STORY,
+    },
+    questions: FAQ_QUESTIONS,
+  }),
 )
 export const FAQ_EDITABLE_PATHS = Object.freeze(FAQ_EDITABLE_FIELDS.map((field) => field.path))
 

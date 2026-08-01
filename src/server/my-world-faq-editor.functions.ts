@@ -13,6 +13,8 @@ export interface MyWorldFaqEditorBaseSnapshot {
     version: number
     digest: string
   }
+  /** Digest of the materialized editor document, including compiled defaults. */
+  projectionDigest: string
   document: MyWorldFaqEditorialDocument
   savedByName: string | null
   createdAt: string
@@ -53,6 +55,7 @@ export type MyWorldFaqEditorLoaderData =
 export interface PublishMyWorldFaqEditorRequest {
   schemaVersion: 1
   document: MyWorldFaqEditorialDocument
+  expectedProjectionDigest: string
   expectedBase: {
     revisionId: string
     version: number

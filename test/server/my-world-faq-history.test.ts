@@ -3,7 +3,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addTeamFaqQuestion,
+  DEFAULT_MY_WORLD_FAQ_BUILD_STORY,
   DEFAULT_MY_WORLD_FAQ_CONTENT,
+  DEFAULT_MY_WORLD_FAQ_WHY_STORY,
+  projectMyWorldFaqEditorDocument,
   setMyWorldFaqManifestPath,
 } from '~/data/my-world-faq'
 import type {
@@ -95,6 +98,14 @@ const ATTEMPT_ID = '44444444-4444-4444-8444-444444444444'
 
 function document(label: string) {
   return setMyWorldFaqManifestPath(DEFAULT_MY_WORLD_FAQ_CONTENT, 'route.title', label)
+}
+
+function historicalDocument(label: string) {
+  const historical = document(label)
+  delete historical.page.build
+  delete historical.page.why
+  delete historical.page.posture
+  return historical
 }
 
 function v2Document(label: string) {
@@ -229,6 +240,54 @@ describe('My World FAQ protected history and restore handler', () => {
       revision: {
         head: TARGET_HEAD,
         document: revision(TARGET_HEAD).document,
+      },
+    })
+  })
+
+  it('projects old revisions for preview while restoring their stored document exactly', async () => {
+    const storedDocument = historicalDocument('Historical FAQ')
+    const target = revision(TARGET_HEAD, storedDocument)
+    mocks.loadRevision.mockResolvedValue(target)
+    const committed = revision(COMMITTED_HEAD, storedDocument)
+    mocks.publishRevision.mockResolvedValue({
+      outcome: 'committed',
+      committed,
+      live: committed,
+    })
+    const request = new Request('https://faq.example.gov.sg/my-world/faq/edit')
+
+    const preview = await loadMyWorldFaqRevisionPreviewHandler(request, {
+      revisionId: TARGET_HEAD.revisionId,
+    })
+
+    expect(preview.status).toBe('ready')
+    if (preview.status !== 'ready') return
+    expect(preview.revision.document.page.build).toEqual(DEFAULT_MY_WORLD_FAQ_BUILD_STORY)
+    expect(preview.revision.document.page.why).toEqual(DEFAULT_MY_WORLD_FAQ_WHY_STORY)
+    expect(preview.revision.projectionDigest).toBe(
+      (await projectMyWorldFaqEditorDocument(storedDocument)).digest,
+    )
+    expect(storedDocument.page).not.toHaveProperty('build')
+    expect(storedDocument.page).not.toHaveProperty('why')
+    expect(storedDocument.page).not.toHaveProperty('posture')
+
+    const response = await handleMyWorldFaqEditorRestore(restoreRequest())
+
+    expect(response.status).toBe(200)
+    const publishedInput = mocks.publishRevision.mock.calls.at(-1)?.[0]
+    expect(publishedInput?.document).toBe(storedDocument)
+    expect(publishedInput?.document.page).not.toHaveProperty('build')
+    expect(publishedInput?.document.page).not.toHaveProperty('why')
+    expect(publishedInput?.document.page).not.toHaveProperty('posture')
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      committed: {
+        document: {
+          page: {
+            build: DEFAULT_MY_WORLD_FAQ_BUILD_STORY,
+            why: DEFAULT_MY_WORLD_FAQ_WHY_STORY,
+          },
+        },
       },
     })
   })

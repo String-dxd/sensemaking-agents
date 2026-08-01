@@ -1,5 +1,10 @@
 export { FAQ_ASSETS } from './assets'
 export {
+  DEFAULT_MY_WORLD_FAQ_BUILD_STORY,
+  type MyWorldFaqBuildStory,
+  materializeMyWorldFaqBuildStory,
+} from './build-story'
+export {
   canonicalizeMyWorldFaqDocument,
   composeMyWorldFaqDocument,
   DEFAULT_MY_WORLD_FAQ_CONTENT,
@@ -39,6 +44,11 @@ export {
 } from './content-schema'
 export { DEFAULT_MY_WORLD_FAQ_DOCUMENT } from './default-document'
 export {
+  type MyWorldFaqEditorProjection,
+  materializeMyWorldFaqEditorDocument,
+  projectMyWorldFaqEditorDocument,
+} from './editor-projection'
+export {
   compareMyWorldFaqEditorialVersions,
   type MyWorldFaqEditorialComparisonStatus,
   type MyWorldFaqEditorialFieldComparison,
@@ -58,6 +68,11 @@ export {
   updateMyWorldFaqDraftPath,
 } from './editorial-mutations'
 export { FAQ_GUARDRAILS } from './guardrails'
+export {
+  DEFAULT_MY_WORLD_FAQ_POSTURE_STORY,
+  type MyWorldFaqPostureStory,
+  materializeMyWorldFaqPostureStory,
+} from './posture-story'
 export { prepareMyWorldFaqPublicCopy } from './public-copy'
 export {
   FAQ_COMMITTED_QUESTION_TAXONOMY,
@@ -105,6 +120,11 @@ export {
   type FaqSourceKind,
   type IsoDate,
 } from './types'
+export {
+  DEFAULT_MY_WORLD_FAQ_WHY_STORY,
+  type MyWorldFaqWhyStory,
+  materializeMyWorldFaqWhyStory,
+} from './why-story'
 
 import { DEFAULT_MY_WORLD_FAQ_CONTENT } from './compose-document'
 import type { MyWorldFaqContent, MyWorldFaqQuestion } from './content-schema'

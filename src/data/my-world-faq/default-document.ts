@@ -1,4 +1,5 @@
 import { FAQ_ASSETS } from './assets'
+import { DEFAULT_MY_WORLD_FAQ_BUILD_STORY } from './build-story'
 import {
   FAQ_LEDGER_PREVIEW_MANIFEST,
   FAQ_PRODUCT_STEP_MANIFEST,
@@ -8,8 +9,10 @@ import {
 } from './content-manifest'
 import type { MyWorldFaqEditorialDocument } from './content-schema'
 import { FAQ_GUARDRAILS } from './guardrails'
+import { DEFAULT_MY_WORLD_FAQ_POSTURE_STORY } from './posture-story'
 import { FAQ_CONCERN_CLUSTERS, FAQ_QUESTIONS } from './questions'
 import { FAQ_PRODUCT_PROVENANCE, FAQ_SOURCES } from './sources'
+import { DEFAULT_MY_WORLD_FAQ_WHY_STORY } from './why-story'
 
 const PRODUCT_COPY = {
   capture: {
@@ -108,6 +111,9 @@ export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
       introduction: 'Four short journeys through the current desktop prototype.',
       footnote: 'Silent clips · synthetic demo data · captured 29 July 2026',
     },
+    build: { ...DEFAULT_MY_WORLD_FAQ_BUILD_STORY },
+    why: { ...DEFAULT_MY_WORLD_FAQ_WHY_STORY },
+    posture: { ...DEFAULT_MY_WORLD_FAQ_POSTURE_STORY },
     signals: {
       eyebrow: 'Questions we heard',
       heading: 'Concern is part of the work.',
