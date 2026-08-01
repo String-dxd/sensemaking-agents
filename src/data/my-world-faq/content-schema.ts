@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { MyWorldFaqBuildStory } from './build-story'
 import {
   buildMyWorldFaqEditableFields,
   FAQ_EDITORIAL_FIELD_LIMITS,
@@ -8,6 +9,7 @@ import {
   MY_WORLD_FAQ_STRUCTURE_VERSION,
   MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
 } from './content-manifest'
+import type { MyWorldFaqPostureStory } from './posture-story'
 import {
   containsTeamFaqFieldSignal,
   deriveTeamFaqWorkingAnswerContract,
@@ -17,6 +19,7 @@ import {
   TEAM_FAQ_QUESTION_REVIEWER_ROLE,
 } from './team-question-contract'
 import { FAQ_EVIDENCE_LABELS, FAQ_GUARDRAIL_STATES } from './types'
+import type { MyWorldFaqWhyStory } from './why-story'
 
 const requiredText = z.string().min(1)
 const isoDate = z.string().refine((value) => {
@@ -50,6 +53,52 @@ const sourceKind = z.enum([
 ])
 const assetKind = z.enum(['product-step', 'event-signal'])
 const assetApproval = z.enum(['approved', 'team-check'])
+
+const buildStorySchema: z.ZodType<MyWorldFaqBuildStory> = z.strictObject({
+  eyebrow: requiredText,
+  heading: requiredText,
+  introduction: requiredText,
+  surfaceLabel: requiredText,
+  companionBody: requiredText,
+  captureBody: requiredText,
+  islandBody: requiredText,
+  waterlineLabel: requiredText,
+  backstageLabel: requiredText,
+  backstageIntroduction: requiredText,
+  mirrorAction: requiredText,
+  mirrorBody: requiredText,
+  connectorAction: requiredText,
+  connectorBody: requiredText,
+  verifierAction: requiredText,
+  verifierBody: requiredText,
+  cartographerAction: requiredText,
+  cartographerBody: requiredText,
+  reviewLabel: requiredText,
+  reviewBody: requiredText,
+  reviewTeamBody: requiredText,
+  decisionEyebrow: requiredText,
+  decisionHeading: requiredText,
+  clockLabel: requiredText,
+  clockBody: requiredText,
+  quietHoursBody: requiredText,
+  precedentBody: requiredText,
+  caveatBody: requiredText,
+  sourceLinkLabel: requiredText,
+  closingBody: requiredText,
+})
+
+const whyStorySchema: z.ZodType<MyWorldFaqWhyStory> = z.strictObject({
+  eyebrow: requiredText,
+  heading: requiredText,
+  introduction: requiredText,
+})
+
+const postureStorySchema: z.ZodType<MyWorldFaqPostureStory> = z.strictObject({
+  eyebrow: requiredText,
+  heading: requiredText,
+  introduction: requiredText,
+  decisionNote: requiredText,
+})
 
 const reviewSchema = z.strictObject({
   status: reviewStatus,
@@ -172,6 +221,9 @@ export const MY_WORLD_FAQ_DOCUMENT_SCHEMA = z.strictObject({
       introduction: requiredText,
       footnote: requiredText,
     }),
+    build: buildStorySchema.optional(),
+    why: whyStorySchema.optional(),
+    posture: postureStorySchema.optional(),
     signals: z.strictObject({
       eyebrow: requiredText,
       heading: requiredText,
