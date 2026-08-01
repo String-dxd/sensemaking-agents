@@ -116,22 +116,23 @@ export function FaqAddQuestionDialog({
           }
         >
           <Plus aria-hidden="true" className="mr-2 size-4" />
-          Add question
+          Add FAQ card
         </DialogTrigger>
         <DialogContent
           showClose={false}
           className="max-h-[min(92svh,52rem)] max-w-2xl overflow-y-auto rounded-[2rem_0.75rem_2rem_0.75rem] border-(--color-faq-line-strong) bg-(--color-faq-surface) p-5 text-(--color-faq-ink) sm:p-8"
         >
           <DialogClose
-            aria-label="Close add question"
+            aria-label="Close add FAQ card"
             className="absolute right-3 top-3 inline-flex size-11 items-center justify-center rounded-full text-(--color-faq-ink-soft) outline-none hover:bg-(--color-faq-paper) focus-visible:ring-2 focus-visible:ring-(--color-faq-focus)"
           >
             <X aria-hidden="true" className="size-5" />
           </DialogClose>
           <DialogHeader className="pr-12">
-            <DialogTitle className="text-2xl tracking-[-0.035em]">Add a question</DialogTitle>
+            <DialogTitle className="text-2xl tracking-[-0.035em]">Add an FAQ card</DialogTitle>
             <DialogDescription className="max-w-[60ch] leading-relaxed text-(--color-faq-ink-soft)">
-              Start with a careful working answer. The team can refine it before publishing.
+              Choose a topic and draft both sides of the card. You can keep editing every field
+              before publishing.
             </DialogDescription>
           </DialogHeader>
 
@@ -263,7 +264,7 @@ export function FaqAddQuestionDialog({
               disabled={addDisabled}
               className="min-h-11 bg-(--color-faq-ink) text-(--color-faq-paper)"
             >
-              Add question
+              Add FAQ card
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -276,7 +277,11 @@ export function FaqAddQuestionDialog({
         >
           {disabledReason}
         </p>
-      ) : null}
+      ) : (
+        <p className="max-w-[42ch] text-xs leading-relaxed text-(--color-faq-ink-faint)">
+          Adds a new card to the selected topic. Save &amp; publish when the team is ready.
+        </p>
+      )}
     </div>
   )
 }

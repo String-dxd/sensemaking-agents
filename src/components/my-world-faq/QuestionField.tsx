@@ -415,6 +415,8 @@ function FaqEvidenceDialog({
   editorMode?: boolean
   renderField?: MyWorldFaqFieldRenderer
 }) {
+  const actionLabel = editorMode ? 'Edit full answer' : 'Evidence and limits'
+
   return (
     <Dialog>
       <DialogTrigger
@@ -424,7 +426,7 @@ function FaqEvidenceDialog({
           'min-h-11 flex-1 rounded-[1.4rem_0.5rem_1.4rem_0.5rem] bg-(--faq-card-ink) px-3 text-(--faq-card-surface) hover:bg-(--faq-card-ink)/90 focus-visible:ring-(--color-faq-focus)',
         )}
       >
-        Evidence and limits
+        {actionLabel}
         <ArrowUpRight aria-hidden="true" className="ml-2 size-4" />
       </DialogTrigger>
       <DialogContent
@@ -440,7 +442,7 @@ function FaqEvidenceDialog({
         </DialogClose>
         <DialogHeader className="pr-10">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-faq-stage-ink)">
-            Evidence and limits
+            {actionLabel}
           </p>
           <DialogTitle className="mt-2 text-[clamp(1.65rem,4vw,2.5rem)] leading-[1.08] tracking-[-0.04em] text-(--color-faq-ink) text-pretty">
             {displayQuestion(question)}

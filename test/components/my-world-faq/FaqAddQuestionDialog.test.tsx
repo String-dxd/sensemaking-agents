@@ -16,8 +16,8 @@ describe('FaqAddQuestionDialog', () => {
       />,
     )
 
-    await user.click(screen.getByRole('button', { name: 'Add question' }))
-    const dialog = screen.getByRole('dialog', { name: 'Add a question' })
+    await user.click(screen.getByRole('button', { name: 'Add FAQ card' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add an FAQ card' })
     fireEvent.change(within(dialog).getByLabelText('Topic'), {
       target: { value: 'evidence-next-decision' },
     })
@@ -36,10 +36,10 @@ describe('FaqAddQuestionDialog', () => {
     fireEvent.change(within(dialog).getByLabelText('What still needs checking?'), {
       target: { value: 'The current draft must be published first.' },
     })
-    await user.click(within(dialog).getByRole('button', { name: 'Add question' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Add FAQ card' }))
 
     expect(onAdd).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('dialog', { name: 'Add a question' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Add an FAQ card' })).toBeInTheDocument()
     expect(
       screen.getByDisplayValue('How should the team review this question?'),
     ).toBeInTheDocument()

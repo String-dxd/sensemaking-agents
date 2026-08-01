@@ -217,12 +217,12 @@ describe('MyWorldFaqEditorPage', () => {
     )
 
     const evidenceDialogCount = screen.getAllByRole('button', {
-      name: 'Evidence and limits',
+      name: 'Edit full answer',
     }).length
     expect(evidenceDialogCount).toBe(DEFAULT_MY_WORLD_FAQ_CONTENT.questions.length)
 
     for (let index = 0; index < evidenceDialogCount; index += 1) {
-      const trigger = screen.getAllByRole('button', { name: 'Evidence and limits' })[index]
+      const trigger = screen.getAllByRole('button', { name: 'Edit full answer' })[index]
       if (!trigger) throw new Error(`Evidence trigger ${index} was not rendered.`)
       await user.click(trigger)
       const dialog = screen.getByRole('dialog')
@@ -350,8 +350,8 @@ describe('MyWorldFaqEditorPage', () => {
     })
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
 
-    await user.click(screen.getByRole('button', { name: 'Add question' }))
-    const dialog = screen.getByRole('dialog', { name: 'Add a question' })
+    await user.click(screen.getByRole('button', { name: 'Add FAQ card' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add an FAQ card' })
     fireEvent.change(within(dialog).getByLabelText('Topic'), {
       target: { value: 'evidence-next-decision' },
     })
@@ -375,9 +375,9 @@ describe('MyWorldFaqEditorPage', () => {
         value: 'The evidence threshold, review owner and decision date still need to be agreed.',
       },
     })
-    await user.click(within(dialog).getByRole('button', { name: 'Add question' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Add FAQ card' }))
 
-    expect(screen.queryByRole('dialog', { name: 'Add a question' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Add an FAQ card' })).not.toBeInTheDocument()
     expect(
       screen.getByDisplayValue('How will the team decide whether this answer is ready?'),
     ).toHaveAttribute(
@@ -390,6 +390,26 @@ describe('MyWorldFaqEditorPage', () => {
         target: { value: 'How will the team decide whether this answer is ready now?' },
       },
     )
+    const addedCard = screen
+      .getByDisplayValue('How will the team decide whether this answer is ready now?')
+      .closest<HTMLElement>('[data-testid="faq-editor-question-card"]')
+    if (!addedCard) throw new Error('Added FAQ card was not rendered.')
+    await user.click(within(addedCard).getByRole('button', { name: 'Edit full answer' }))
+    const answerDialog = screen.getByRole('dialog', {
+      name: 'How will the team decide whether this answer is ready now?',
+    })
+    fireEvent.change(within(answerDialog).getByLabelText('Evidence'), {
+      target: {
+        value:
+          'The team will review the updated design rationale, field signals and research limits before publishing a stronger claim.',
+      },
+    })
+    fireEvent.change(within(answerDialog).getByLabelText('Limitations'), {
+      target: {
+        value: 'The updated evidence threshold and review owner still need to be agreed.',
+      },
+    })
+    await user.click(within(answerDialog).getByRole('button', { name: 'Close evidence' }))
     expect(screen.getByText('7 changes')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Save & publish' }))
@@ -416,6 +436,8 @@ describe('MyWorldFaqEditorPage', () => {
           sourceIds: [],
           provenanceIds: [],
           guardrailIds: [],
+          text: 'The team will review the updated design rationale, field signals and research limits before publishing a stronger claim.',
+          limitations: 'The updated evidence threshold and review owner still need to be agreed.',
         }),
       ],
     })
@@ -426,8 +448,8 @@ describe('MyWorldFaqEditorPage', () => {
     render(<MyWorldFaqEditorPage data={READY_DATA} onSessionStateChanged={() => undefined} />)
     const initialQuestionCount = screen.getAllByTestId('faq-editor-question-card').length
 
-    await user.click(screen.getByRole('button', { name: 'Add question' }))
-    const dialog = screen.getByRole('dialog', { name: 'Add a question' })
+    await user.click(screen.getByRole('button', { name: 'Add FAQ card' }))
+    const dialog = screen.getByRole('dialog', { name: 'Add an FAQ card' })
     fireEvent.change(within(dialog).getByLabelText('Topic'), {
       target: { value: 'human-connection' },
     })
@@ -443,7 +465,7 @@ describe('MyWorldFaqEditorPage', () => {
     fireEvent.change(within(dialog).getByLabelText('What still needs checking?'), {
       target: { value: 'We still need evidence.' },
     })
-    await user.click(within(dialog).getByRole('button', { name: 'Add question' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Add FAQ card' }))
 
     expect(within(dialog).getByRole('alert')).toHaveTextContent('Use 20–45 words.')
     expect(screen.getByText('0 changes')).toBeInTheDocument()
@@ -490,7 +512,7 @@ describe('MyWorldFaqEditorPage', () => {
       expect(screen.queryByRole('dialog', { name: 'Supporting records' })).not.toBeInTheDocument(),
     )
 
-    const evidenceTrigger = screen.getAllByRole('button', { name: 'Evidence and limits' })[0]
+    const evidenceTrigger = screen.getAllByRole('button', { name: 'Edit full answer' })[0]
     if (!evidenceTrigger) throw new Error('Evidence editor trigger was not rendered.')
     await user.click(evidenceTrigger)
     const evidence = screen.getByRole('dialog')
@@ -892,8 +914,8 @@ describe('MyWorldFaqEditorPage', () => {
     ).not.toHaveLength(0)
 
     await user.click(screen.getByRole('button', { name: 'Close supporting records' }))
-    await user.click(screen.getByRole('button', { name: 'Add question' }))
-    const addDialog = screen.getByRole('dialog', { name: 'Add a question' })
+    await user.click(screen.getByRole('button', { name: 'Add FAQ card' }))
+    const addDialog = screen.getByRole('dialog', { name: 'Add an FAQ card' })
     expect(within(addDialog).getByLabelText('Question')).toHaveAttribute('maxlength', '12')
     expect(within(addDialog).getByLabelText('Detailed answer')).toHaveAttribute('maxlength', '34')
   })
@@ -924,7 +946,7 @@ describe('MyWorldFaqEditorPage', () => {
 
     render(<MyWorldFaqEditorPage data={cappedData} onSessionStateChanged={() => undefined} />)
 
-    const addButton = screen.getByRole('button', { name: 'Add question' })
+    const addButton = screen.getByRole('button', { name: 'Add FAQ card' })
     const reason = screen.getByText('This FAQ already has the maximum of 50 team-added questions.')
     expect(addButton).toBeDisabled()
     expect(addButton).toHaveAttribute('aria-describedby', reason.id)
