@@ -1,6 +1,6 @@
 import { QueryClient } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { createElement } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MyWorldFaqPage } from '~/components/my-world-faq/MyWorldFaqPage'
@@ -69,9 +69,8 @@ describe('/my-world/faq public route', () => {
     expect(router.state.matches.map((match) => match.routeId)).toContain('/my-world/faq')
     expect(router.state.matches.at(-1)?.loaderData).toEqual({
       content: EXPECTED_PUBLIC_CONTENT,
-      feedbackEnabled: false,
-      feedbackItems: [],
     })
+    expect(loadMyWorldFaqPublicFeedbackMock).not.toHaveBeenCalled()
     expect(loadAuthMenuMock).not.toHaveBeenCalled()
     expect(engineHostMock).not.toHaveBeenCalled()
   })
@@ -149,15 +148,77 @@ describe('/my-world/faq public route', () => {
     expect(metaContent(head, 'name', 'twitter:card')).toBe('summary')
   })
 
-  it('keeps the feedback capability fail-closed by default', async () => {
+  it('does not make initial rendering wait for the feedback store', async () => {
     const loader = Route.options.loader
     if (!loader) throw new Error('FAQ route must declare a loader')
 
     await expect((loader as () => Promise<unknown> | unknown)()).resolves.toEqual({
       content: EXPECTED_PUBLIC_CONTENT,
-      feedbackEnabled: false,
-      feedbackItems: [],
     })
+    expect(loadMyWorldFaqPublicFeedbackMock).not.toHaveBeenCalled()
+  })
+
+  it('loads feedback after the page content is already available', async () => {
+    let finishLoading: ((value: { status: 'ready'; items: [] }) => void) | undefined
+    loadMyWorldFaqPublicFeedbackMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishLoading = resolve
+      }),
+    )
+
+    render(
+      createElement(MyWorldFaqPage, {
+        feedbackEnabled: true,
+        content: EXPECTED_PUBLIC_CONTENT,
+      }),
+    )
+
+    expect(screen.getByText('Hello, DXD')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Share without a name' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Loading shared feedback…')
+    expect(loadMyWorldFaqPublicFeedbackMock).toHaveBeenCalledTimes(1)
+
+    finishLoading?.({ status: 'ready', items: [] })
+    expect(await screen.findByRole('button', { name: 'Share without a name' })).toBeInTheDocument()
+  })
+
+  it('refreshes lazy feedback after a persisted Back/Forward restoration', async () => {
+    loadMyWorldFaqPublicFeedbackMock
+      .mockResolvedValueOnce({ status: 'ready', items: [] })
+      .mockResolvedValueOnce({ status: 'ready', items: [] })
+
+    render(
+      createElement(MyWorldFaqPage, {
+        feedbackEnabled: true,
+        content: EXPECTED_PUBLIC_CONTENT,
+      }),
+    )
+
+    await screen.findByRole('button', { name: 'Share without a name' })
+    const pageShow = new Event('pageshow')
+    Object.defineProperty(pageShow, 'persisted', { value: true })
+    act(() => window.dispatchEvent(pageShow))
+
+    await waitFor(() => expect(loadMyWorldFaqPublicFeedbackMock).toHaveBeenCalledTimes(2))
+  })
+
+  it('keeps feedback fail-closed and offers a retry when loading fails', async () => {
+    loadMyWorldFaqPublicFeedbackMock
+      .mockResolvedValueOnce({ status: 'unavailable', items: [] })
+      .mockResolvedValueOnce({ status: 'ready', items: [] })
+
+    render(
+      createElement(MyWorldFaqPage, {
+        feedbackEnabled: true,
+        content: EXPECTED_PUBLIC_CONTENT,
+      }),
+    )
+
+    const retry = await screen.findByRole('button', { name: 'Try again' })
+    expect(screen.queryByRole('button', { name: 'Share without a name' })).not.toBeInTheDocument()
+    act(() => retry.click())
+
+    expect(await screen.findByRole('button', { name: 'Share without a name' })).toBeInTheDocument()
   })
 
   it('sanitizes loader failures before the root error UI can render them', async () => {

@@ -92,15 +92,21 @@ html, body
 {
     margin: 0;
     padding: 0;
-    /* Body has no flow content (everything is position:fixed) so it would
-       collapse to height:0 and the gradient would paint into an empty box.
-       Pin both elements to the viewport so the gradient renders properly. */
     min-height: 100vh;
-    height: 100%;
     /* Lock horizontal scroll at the viewport so a stray wide child anywhere
        in the engine (or in dev/design surfaces hosted alongside it) can't
        drag the page sideways. Vertical scroll stays auto inside sheets. */
     overflow-x: hidden;
+}
+
+/* The engine has no flow content (everything is position:fixed), so its body
+   needs an explicit viewport height. Keep this scoped to the mounted shell:
+   normal document routes such as the FAQ must be allowed to grow with their
+   content or the browser exposes an extra blank scroll range. */
+html:has(body.student-space-shell),
+body.student-space-shell
+{
+    height: 100%;
 }
 
 /* When the engine shell mounts, paint html AND body to the outer chrome color

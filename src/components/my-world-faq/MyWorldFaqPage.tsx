@@ -27,7 +27,7 @@ export interface MyWorldFaqPageProps {
 
 export function MyWorldFaqPage({
   feedbackEnabled,
-  initialFeedbackItems = [],
+  initialFeedbackItems,
   content,
   authoringShortcutEnabled = false,
   editorMode = false,

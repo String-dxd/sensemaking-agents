@@ -18,6 +18,7 @@ describe('ProductLoop media controls', () => {
 
     const video = screen.getByTestId('faq-product-video')
     expect(video).not.toHaveAttribute('autoplay')
+    expect(video).toHaveAttribute('preload', 'none')
     expect(play).not.toHaveBeenCalled()
 
     await user.click(screen.getByRole('button', { name: 'Play Capture clip' }))
@@ -48,5 +49,26 @@ describe('ProductLoop media controls', () => {
       '/my-world-faq/product/history-desktop.webm',
     )
     expect(screen.getByRole('button', { name: 'Play History clip' })).toBeInTheDocument()
+  })
+
+  it('ignores a stale play completion after another clip is selected', async () => {
+    const user = userEvent.setup()
+    let finishPlay: (() => void) | undefined
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishPlay = resolve
+      }),
+    )
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
+
+    render(<ProductLoop content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
+
+    await user.click(screen.getByRole('button', { name: 'Play Capture clip' }))
+    await user.click(screen.getByRole('tab', { name: 'History' }))
+    finishPlay?.()
+    await Promise.resolve()
+
+    expect(screen.getByRole('button', { name: 'Play History clip' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pause History clip' })).not.toBeInTheDocument()
   })
 })

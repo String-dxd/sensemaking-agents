@@ -18,6 +18,7 @@ export function ProductLoop({ content, editorMode = false, renderField }: Produc
   const [activeId, setActiveId] = useState(content.productSteps[0]?.id ?? '')
   const [playback, setPlayback] = useState<PlaybackState>('idle')
   const videoRef = useRef<HTMLVideoElement>(null)
+  const playbackGeneration = useRef(0)
   const activeClip =
     content.productSteps.find((clip) => clip.id === activeId) ?? content.productSteps[0]
   const activeAsset = content.assets.find((asset) => asset.id === activeClip?.assetId)
@@ -27,6 +28,7 @@ export function ProductLoop({ content, editorMode = false, renderField }: Produc
 
   const selectClip = (value: string | null) => {
     if (!value || value === activeId) return
+    playbackGeneration.current += 1
     videoRef.current?.pause()
     setPlayback('idle')
     setActiveId(value)
@@ -35,16 +37,20 @@ export function ProductLoop({ content, editorMode = false, renderField }: Produc
   const playClip = async (restart = false) => {
     const video = videoRef.current
     if (!video) return
+    const generation = ++playbackGeneration.current
     if (restart) video.currentTime = 0
     try {
       await video.play()
+      if (playbackGeneration.current !== generation || videoRef.current !== video) return
       setPlayback('playing')
     } catch {
+      if (playbackGeneration.current !== generation || videoRef.current !== video) return
       setPlayback('paused')
     }
   }
 
   const pauseClip = () => {
+    playbackGeneration.current += 1
     videoRef.current?.pause()
     setPlayback('paused')
   }
@@ -183,19 +189,23 @@ export function ProductLoop({ content, editorMode = false, renderField }: Produc
                       ref={videoRef}
                       src={activeAsset.videoPath}
                       poster={activeAsset.publicPath}
-                      preload="metadata"
+                      preload="none"
                       muted
                       playsInline
                       aria-label={activeAsset.alt}
                       aria-describedby={descriptionId}
                       data-testid="faq-product-video"
                       className="size-full object-contain"
-                      onPlay={() => setPlayback('playing')}
+                      onPlay={(event) => {
+                        if (videoRef.current === event.currentTarget) setPlayback('playing')
+                      }}
                       onPause={() => {
                         if (videoRef.current?.ended) return
                         setPlayback((state) => (state === 'idle' ? 'idle' : 'paused'))
                       }}
-                      onEnded={() => setPlayback('ended')}
+                      onEnded={(event) => {
+                        if (videoRef.current === event.currentTarget) setPlayback('ended')
+                      }}
                     />
                     {control}
                   </div>

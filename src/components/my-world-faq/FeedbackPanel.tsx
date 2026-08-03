@@ -1,5 +1,5 @@
 import { Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Label } from '~/components/ui/label'
@@ -7,6 +7,7 @@ import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group'
 import { Textarea } from '~/components/ui/textarea'
 import {
   deleteMyWorldFaqFeedback,
+  loadMyWorldFaqPublicFeedback,
   type SubmitMyWorldFaqFeedbackInput,
   submitMyWorldFaqFeedback,
 } from '~/server/my-world-faq-feedback.functions'
@@ -24,7 +25,7 @@ const REMOVAL_KEYS_STORAGE = 'my-world-faq-feedback-removal-keys-v1'
 type SubmissionState = 'idle' | 'sending' | 'sent' | 'error'
 
 export interface FeedbackPanelProps {
-  initialItems: MyWorldFaqFeedbackItem[]
+  initialItems?: MyWorldFaqFeedbackItem[]
 }
 
 export function FeedbackPanel({ initialItems }: FeedbackPanelProps) {
@@ -32,15 +33,61 @@ export function FeedbackPanel({ initialItems }: FeedbackPanelProps) {
   const [message, setMessage] = useState('')
   const [submission, setSubmission] = useState<SubmissionState>('idle')
   const [notice, setNotice] = useState<string | null>(null)
-  const [items, setItems] = useState(initialItems)
+  const [availability, setAvailability] = useState<'loading' | 'ready' | 'unavailable'>(
+    initialItems === undefined ? 'loading' : 'ready',
+  )
+  const [items, setItems] = useState(initialItems ?? [])
   const [removalKeys, setRemovalKeys] = useState<Record<string, string>>({})
   const [confirmingRemoval, setConfirmingRemoval] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [removalError, setRemovalError] = useState<{ id: string; message: string } | null>(null)
+  const feedbackRequestGeneration = useRef(0)
 
   useEffect(() => {
     setRemovalKeys(readRemovalKeys())
   }, [])
+
+  const loadFeedback = useCallback(() => {
+    if (initialItems !== undefined) {
+      setItems(initialItems)
+      setAvailability('ready')
+      return
+    }
+
+    const generation = ++feedbackRequestGeneration.current
+    setAvailability('loading')
+    void loadMyWorldFaqPublicFeedback()
+      .then((response) => {
+        if (feedbackRequestGeneration.current !== generation) return
+        if (response.status === 'ready') {
+          setItems(response.items)
+          setAvailability('ready')
+        } else {
+          setAvailability('unavailable')
+        }
+      })
+      .catch(() => {
+        if (feedbackRequestGeneration.current === generation) setAvailability('unavailable')
+      })
+  }, [initialItems])
+
+  useEffect(() => {
+    loadFeedback()
+    return () => {
+      feedbackRequestGeneration.current += 1
+    }
+  }, [loadFeedback])
+
+  useEffect(() => {
+    if (initialItems !== undefined) return
+
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) loadFeedback()
+    }
+
+    window.addEventListener('pageshow', onPageShow)
+    return () => window.removeEventListener('pageshow', onPageShow)
+  }, [initialItems, loadFeedback])
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -112,6 +159,34 @@ export function FeedbackPanel({ initialItems }: FeedbackPanelProps) {
     } finally {
       setRemoving(null)
     }
+  }
+
+  // Availability remains fail-closed: the form appears only after the feedback
+  // store confirms it is ready. The FAQ itself has already rendered by then.
+  if (availability === 'loading') {
+    return (
+      <p role="status" className="text-sm text-(--color-faq-ink-soft)">
+        Loading shared feedback…
+      </p>
+    )
+  }
+
+  if (availability === 'unavailable') {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-sm text-(--color-faq-ink-soft)">Feedback is unavailable right now.</p>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            loadFeedback()
+          }}
+          className="min-h-11 border-(--color-faq-ink)"
+        >
+          Try again
+        </Button>
+      </div>
+    )
   }
 
   return (

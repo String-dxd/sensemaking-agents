@@ -41,7 +41,7 @@ function dependencies(
     readContentSource: vi.fn(() => 'compiled'),
     loadDatabaseSnapshot: vi.fn(async () => snapshot()),
     readPublicCache: vi.fn(async () => null),
-    writePublicCache: vi.fn(async () => {}),
+    schedulePublicCacheRefresh: vi.fn(),
     setHeader: vi.fn(),
     setStatus: vi.fn(),
     logOperationalEvent: vi.fn(),
@@ -78,11 +78,10 @@ describe('My World FAQ public content handler', () => {
     )
     expect(deps.loadDatabaseSnapshot).not.toHaveBeenCalled()
     expect(deps.readPublicCache).not.toHaveBeenCalled()
-    expect(deps.writePublicCache).not.toHaveBeenCalled()
     expectFreshnessHeader(deps, 'current')
   })
 
-  it('reads Postgres first in database mode and refreshes the public-only cache', async () => {
+  it('returns the current Postgres publication while scheduling a cache refresh', async () => {
     const publication = await snapshot()
     publication.document.page.hero.heading = 'Published from Postgres'
     publication.head.digest = await digestMyWorldFaqDocument(publication.document)
@@ -96,8 +95,43 @@ describe('My World FAQ public content handler', () => {
     expect(content.page.hero.heading).toBe('Published from Postgres')
     expect(deps.loadDatabaseSnapshot).toHaveBeenCalledTimes(1)
     expect(deps.readPublicCache).not.toHaveBeenCalled()
-    expect(deps.writePublicCache).toHaveBeenCalledWith(publication)
+    expect(deps.schedulePublicCacheRefresh).toHaveBeenCalledWith(publication, expect.any(Function))
     expectFreshnessHeader(deps, 'current')
+  })
+
+  it('logs a redacted event when a scheduled cache refresh fails', async () => {
+    let failRefresh: (() => void) | undefined
+    const deps = dependencies({
+      readContentSource: () => 'database',
+      schedulePublicCacheRefresh: vi.fn((_snapshot, onFailure) => {
+        failRefresh = onFailure
+      }),
+    })
+
+    await createMyWorldFaqContentHandler(deps)()
+    failRefresh?.()
+
+    expect(deps.logOperationalEvent).toHaveBeenCalledWith('public_cache_refresh_failed', {
+      contentSource: 'database',
+      freshness: 'current',
+    })
+  })
+
+  it('keeps serving current content when cache scheduling itself fails', async () => {
+    const deps = dependencies({
+      readContentSource: () => 'database',
+      schedulePublicCacheRefresh: () => {
+        throw new Error('scheduler unavailable')
+      },
+    })
+
+    await expect(createMyWorldFaqContentHandler(deps)()).resolves.toEqual(
+      DEFAULT_MY_WORLD_FAQ_CONTENT,
+    )
+    expect(deps.logOperationalEvent).toHaveBeenCalledWith('public_cache_refresh_failed', {
+      contentSource: 'database',
+      freshness: 'current',
+    })
   })
 
   it('serves a v2 publication from Postgres and from degraded cache', async () => {
@@ -176,7 +210,6 @@ describe('My World FAQ public content handler', () => {
       MY_WORLD_FAQ_UNAVAILABLE_MESSAGE,
     )
     expect(deps.setStatus).toHaveBeenCalledWith(503)
-    expect(deps.writePublicCache).not.toHaveBeenCalled()
     expect(
       JSON.stringify((deps.logOperationalEvent as ReturnType<typeof vi.fn>).mock.calls),
     ).not.toContain('private-host')
@@ -191,24 +224,6 @@ describe('My World FAQ public content handler', () => {
     expect(deps.setStatus).toHaveBeenCalledWith(503)
     expect(deps.loadDatabaseSnapshot).not.toHaveBeenCalled()
     expect(deps.readPublicCache).not.toHaveBeenCalled()
-  })
-
-  it('keeps database content live when refreshing resilience cache fails', async () => {
-    const publication = await snapshot()
-    const deps = dependencies({
-      readContentSource: () => 'database',
-      loadDatabaseSnapshot: vi.fn(async () => publication),
-      writePublicCache: vi.fn(async () => {
-        throw new Error('cache unavailable')
-      }),
-    })
-
-    await expect(createMyWorldFaqContentHandler(deps)()).resolves.toEqual(publication.document)
-    expectFreshnessHeader(deps, 'current')
-    expect(deps.logOperationalEvent).toHaveBeenCalledWith('public_cache_refresh_failed', {
-      contentSource: 'database',
-      freshness: 'current',
-    })
   })
 
   it('does not let a prior request or a cookie-shaped input make a newer head stale', async () => {

@@ -99,21 +99,24 @@ export async function deleteMyWorldFaqFeedbackRecord(input: {
 
 async function listFeedback(limit: number): Promise<MyWorldFaqFeedbackItem[]> {
   const db = getMyWorldFaqSystemDatabase()
-  return db.transaction(async (tx) => {
-    await removeExpiredFeedback(tx)
-    const result = await tx.execute<{
-      id: string
-      kind: MyWorldFaqFeedbackKind
-      message: string
-      created_at: string | Date
-    }>(
-      sql`select id, kind, message, created_at
-          from my_world_faq_feedback
-          order by created_at desc
-          limit ${limit}`,
-    )
-    return result.rows.map(toFeedbackItem)
-  })
+  const result = await db.execute<{
+    id: string
+    kind: MyWorldFaqFeedbackKind
+    message: string
+    created_at: string | Date
+  }>(
+    sql`with expired as (
+          delete from my_world_faq_feedback
+          where created_at < now() - (${RETENTION_DAYS} * interval '1 day')
+          returning id
+        )
+        select id, kind, message, created_at
+        from my_world_faq_feedback
+        where created_at >= now() - (${RETENTION_DAYS} * interval '1 day')
+        order by created_at desc
+        limit ${limit}`,
+  )
+  return result.rows.map(toFeedbackItem)
 }
 
 function toFeedbackItem(row: {

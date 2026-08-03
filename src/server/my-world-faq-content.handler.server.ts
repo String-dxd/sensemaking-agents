@@ -1,4 +1,5 @@
 import { setResponseHeader, setResponseStatus } from '@tanstack/react-start/server'
+import { waitUntil } from '@vercel/functions'
 import {
   composeMyWorldFaqDocument,
   DEFAULT_MY_WORLD_FAQ_DOCUMENT,
@@ -24,7 +25,7 @@ export interface MyWorldFaqContentHandlerDependencies {
   readContentSource: () => string | undefined
   loadDatabaseSnapshot: () => Promise<MyWorldFaqPublicSnapshot>
   readPublicCache: () => Promise<MyWorldFaqPublicCacheEnvelope | null>
-  writePublicCache: (snapshot: MyWorldFaqPublicSnapshot) => Promise<void>
+  schedulePublicCacheRefresh: (snapshot: MyWorldFaqPublicSnapshot, onFailure: () => void) => void
   setHeader: (name: string, value: string) => void
   setStatus: (status: number) => void
   logOperationalEvent: (
@@ -66,16 +67,19 @@ export function createMyWorldFaqContentHandler(
 
     const content = composeMyWorldFaqDocument(snapshot.document)
     dependencies.setHeader('X-My-World-FAQ-Freshness', 'current')
-
     try {
-      await dependencies.writePublicCache(snapshot)
+      dependencies.schedulePublicCacheRefresh(snapshot, () => {
+        dependencies.logOperationalEvent('public_cache_refresh_failed', {
+          contentSource: 'database',
+          freshness: 'current',
+        })
+      })
     } catch {
       dependencies.logOperationalEvent('public_cache_refresh_failed', {
         contentSource: 'database',
         freshness: 'current',
       })
     }
-
     return content
   }
 }
@@ -84,8 +88,8 @@ export const loadMyWorldFaqContentHandler = createMyWorldFaqContentHandler({
   readContentSource: () => process.env.MY_WORLD_FAQ_CONTENT_SOURCE,
   loadDatabaseSnapshot: loadCurrentMyWorldFaqRevision,
   readPublicCache: readMyWorldFaqPublicCache,
-  writePublicCache: async (snapshot) => {
-    await writeCurrentMyWorldFaqPublicCache(snapshot)
+  schedulePublicCacheRefresh: (snapshot, onFailure) => {
+    waitUntil(writeCurrentMyWorldFaqPublicCache(snapshot).catch(onFailure))
   },
   setHeader: setResponseHeader,
   setStatus: setResponseStatus,

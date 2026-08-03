@@ -150,13 +150,13 @@ export const FAQ_QUESTIONS = [
     committedQuestions: ['What problem is it solving?'],
     searchAliases: ['What is the purpose beyond a blanket AI push?'],
     shortAnswer:
-      'My World tests whether low-effort capture and reviewable reflection help secondary students notice patterns in their experience. The need and the product’s value are not validated yet.',
+      'My World tests whether small, student-owned captures help secondary students build a clearer self-picture before choices such as subject combination. This first use case is proposed; the need and product value are not validated.',
     blocks: [
       productFact({
         id: 'reflection-problem-current-loop',
         kind: 'how-it-works',
         heading: 'How My World works today',
-        text: 'The prototype captures a thought, reflects it back, later links supported evidence into VIPS and a timeline, and lets the student review what remains.',
+        text: 'The prototype captures a thought, reflects it back, later links supported evidence into VIPS and a timeline, and lets the student review what remains. It does not choose subjects or pathways for the student.',
         sourceIds: [],
         provenanceIds: ['repo-current-product-shape', 'repo-review-log-forget'],
         guardrailIds: ['review-log-forget-controls', 'separate-reflection-from-linking'],
@@ -180,8 +180,8 @@ export const FAQ_QUESTIONS = [
       openPilotQuestion({
         id: 'reflection-problem-pilot',
         kind: 'pilot-test',
-        heading: 'What we would test',
-        text: 'Compare reflection specificity, student ownership, revision and later recall with simpler options, while measuring burden, opt-out and any harm or human displacement.',
+        heading: 'The first proposed decision context',
+        text: 'If leadership approves this starting point, compare whether Secondary 2 students bring more specific, evidence-linked reflections into ECG and subject-combination conversations than with simpler options. Also measure burden, opt-out, harm and human displacement.',
         sourceIds: [],
         provenanceIds: ['faq-origin-requirements'],
         guardrailIds: ['multimodal-sensemaking-hypothesis', 'reflection-quality'],

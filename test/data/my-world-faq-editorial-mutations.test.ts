@@ -76,6 +76,33 @@ describe('My World FAQ editorial mutation helpers', () => {
     expect(result.intentDocument.page.why).toEqual(DEFAULT_MY_WORLD_FAQ_WHY_STORY)
   })
 
+  it('allows an unrelated edit from a revision with a partial legacy Why story', () => {
+    const historical = defaultDocument()
+    historical.page.why = {
+      eyebrow: 'Legacy label',
+      heading: 'Legacy heading',
+      introduction: 'Legacy introduction',
+    }
+    const submitted = structuredClone(materializeMyWorldFaqEditorDocument(historical))
+    const reflectionQuestion = submitted.questions.find(
+      (question) => question.id === 'reflection-problem',
+    )
+    if (!reflectionQuestion) throw new Error('Expected the reflection question')
+    reflectionQuestion.displayedQuestion = 'A clearer proposed question'
+
+    const result = prepareMyWorldFaqEditorialIntent({ base: historical, submitted })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.dirtyPaths).toEqual(['questions.reflection-problem.displayedQuestion'])
+    expect(result.intentDocument.page.why).toEqual({
+      ...DEFAULT_MY_WORLD_FAQ_WHY_STORY,
+      eyebrow: 'Legacy label',
+      heading: 'Legacy heading',
+      introduction: 'Legacy introduction',
+    })
+  })
+
   it('reads and immutably sets stable record, state, and numeric author paths', () => {
     const base = defaultDocument()
     const question = base.questions[0]

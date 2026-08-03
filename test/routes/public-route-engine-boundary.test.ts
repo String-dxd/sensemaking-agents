@@ -52,6 +52,17 @@ describe('public route engine boundary', () => {
     }
   })
 
+  it('scopes viewport-height engine rules away from normal document routes', () => {
+    const engineStyles = source('src/engine/student-space/style.css')
+    const documentRule = engineStyles.match(/html, body\s*\{(?<body>[\s\S]*?)\n\}/)?.groups?.body
+
+    expect(documentRule).toBeDefined()
+    expect(documentRule).not.toMatch(/(?:^|\s)height:\s*100%/)
+    expect(engineStyles).toMatch(
+      /html:has\(body\.student-space-shell\),\s*body\.student-space-shell\s*\{[\s\S]*?height:\s*100%/,
+    )
+  })
+
   it('keeps the public FAQ graph free of editor, database, and Runtime Cache modules', () => {
     const route = source('src/routes/my-world.faq.tsx')
     const page = source('src/components/my-world-faq/MyWorldFaqPage.tsx')

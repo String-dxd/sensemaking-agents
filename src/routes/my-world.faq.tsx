@@ -3,7 +3,6 @@ import { useEffect } from 'react'
 import { MyWorldFaqPage } from '~/components/my-world-faq/MyWorldFaqPage'
 import { type MyWorldFaqContent, prepareMyWorldFaqPublicCopy } from '~/data/my-world-faq'
 import { loadMyWorldFaqContent } from '~/server/my-world-faq-content.functions'
-import { loadMyWorldFaqPublicFeedback } from '~/server/my-world-faq-feedback.functions'
 
 export const MY_WORLD_FAQ_PUBLIC_UNAVAILABLE_MESSAGE =
   'The FAQ is temporarily unavailable. Please try again in a moment.'
@@ -12,8 +11,9 @@ export const Route = createFileRoute('/my-world/faq')({
   staleTime: 0,
   preloadStaleTime: 0,
   shouldReload: true,
-  // Feedback stays fail-closed. If the table cannot be read, the FAQ remains
-  // available and the public contribution surface is withheld.
+  // The document is the only data needed before first paint. Feedback loads
+  // independently at the bottom of the page so a database wake-up cannot hold
+  // the whole FAQ response open.
   loader: loadMyWorldFaqPublicRouteData,
   headers: () => ({
     'Cache-Control': 'no-cache, max-age=0, must-revalidate',
@@ -27,14 +27,9 @@ export const Route = createFileRoute('/my-world/faq')({
 
 export async function loadMyWorldFaqPublicRouteData() {
   try {
-    const [content, feedback] = await Promise.all([
-      loadMyWorldFaqContent(),
-      loadMyWorldFaqPublicFeedback(),
-    ])
+    const content = await loadMyWorldFaqContent()
     return {
       content: prepareMyWorldFaqPublicCopy(content),
-      feedbackEnabled: feedback.status === 'ready',
-      feedbackItems: feedback.items,
     }
   } catch {
     // The root error component renders messages. Never let a repository,
@@ -74,7 +69,7 @@ export function createMyWorldFaqPageShowHandler(revalidate: () => void | Promise
 }
 
 function MyWorldFaqRoute() {
-  const { content, feedbackEnabled, feedbackItems } = Route.useLoaderData()
+  const { content } = Route.useLoaderData()
   const router = useRouter()
 
   useEffect(() => {
@@ -88,14 +83,7 @@ function MyWorldFaqRoute() {
     return () => window.removeEventListener('pageshow', onPageShow)
   }, [router])
 
-  return (
-    <MyWorldFaqPage
-      feedbackEnabled={feedbackEnabled}
-      initialFeedbackItems={feedbackItems}
-      content={content}
-      authoringShortcutEnabled
-    />
-  )
+  return <MyWorldFaqPage feedbackEnabled content={content} authoringShortcutEnabled />
 }
 
 function MyWorldFaqUnavailable() {

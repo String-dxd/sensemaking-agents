@@ -626,7 +626,12 @@ export function prepareMyWorldFaqEditorialIntent({
   const submittedDifferences = new Set<string>()
   collectStableDiffPaths(validatedBase.document, submitted, '', submittedDifferences)
   const rawAddedQuestionIds = rawTrailingAddedQuestionIds(validatedBase.document, submitted)
-  const baseEditablePaths = editablePathsForDocument(validatedBase.document)
+  // The protected editor materialises optional narrative defaults before a
+  // colleague edits anything. Authorise those projected leaf paths even when
+  // an older stored revision contains only part of the optional section.
+  const baseEditablePaths = editablePathsForDocument(
+    materializeMyWorldFaqEditorDocument(validatedBase.document),
+  )
   const unauthorizedSubmittedDifferences = collapseDescendantPaths(
     [...submittedDifferences].filter(
       (path) =>

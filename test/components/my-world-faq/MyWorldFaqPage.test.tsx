@@ -212,7 +212,9 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     const user = userEvent.setup()
     render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
-    const question = screen.getByRole('button', { name: 'What problem is it solving?' })
+    const question = screen.getByRole('button', {
+      name: 'What first decision context is the team proposing to explore?',
+    })
     expect(question).toHaveAttribute('aria-expanded', 'false')
 
     await user.click(question)
@@ -220,14 +222,16 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     const questionCard = question.closest<HTMLElement>('[data-testid="faq-question-card"]')
     if (!questionCard) throw new Error('FAQ question card was not found')
     const shortAnswer = within(questionCard).getByTestId('faq-short-answer')
-    expect(shortAnswer).toHaveTextContent(/low-effort capture and reviewable reflection/i)
+    expect(shortAnswer).toHaveTextContent(/subject combination/i)
     await waitFor(() => expect(shortAnswer.parentElement).toHaveFocus())
 
     const evidenceTrigger = within(questionCard).getByRole('button', {
       name: 'Evidence and limits',
     })
     await user.click(evidenceTrigger)
-    const dialog = screen.getByRole('dialog', { name: 'What problem is it solving?' })
+    const dialog = screen.getByRole('dialog', {
+      name: 'What first decision context is the team proposing to explore?',
+    })
     expect(within(dialog).getAllByTestId('faq-evidence-label').length).toBeGreaterThan(0)
     expect(within(dialog).getAllByText(/^Limit:/i).length).toBeGreaterThan(0)
 

@@ -167,7 +167,10 @@ export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
     return {
       ...question,
       displayedQuestion:
-        copy?.displayedQuestion ?? question.committedQuestions[0] ?? question.title,
+        copy?.displayedQuestion ??
+        (question.id === 'reflection-problem'
+          ? 'What first decision context is the team proposing to explore?'
+          : (question.committedQuestions[0] ?? question.title)),
       shortAnswer: copy?.shortAnswer ?? question.shortAnswer,
       committedQuestions: [...question.committedQuestions],
       searchAliases: [...question.searchAliases],

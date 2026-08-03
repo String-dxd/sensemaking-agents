@@ -33,6 +33,12 @@ describe('My World FAQ publication contract', () => {
     expect(content.guardrails).toHaveLength(22)
     expect(content.questions.flatMap((question) => question.blocks)).toHaveLength(92)
 
+    const firstUseCase = content.questions.find((question) => question.id === 'reflection-problem')
+    expect(firstUseCase?.displayedQuestion).toBe(
+      'What first decision context is the team proposing to explore?',
+    )
+    expect(firstUseCase?.shortAnswer).toContain('This first use case is proposed')
+
     const canonical = canonicalizeMyWorldFaqDocument(validation.document)
     expect(canonical).toBe(canonicalizeMyWorldFaqDocument(JSON.parse(canonical)))
     expect(await digestMyWorldFaqDocument(validation.document)).toMatch(/^[a-f0-9]{64}$/)
@@ -77,7 +83,7 @@ describe('My World FAQ publication contract', () => {
       'posture',
     )
     expect(await digestMyWorldFaqDocument(historical)).toBe(
-      'fcabc6ff5e308e890806f02064071cb1440668b7319923b96e8d84b7159cf6b9',
+      '8483efed72b4109065e6c2d2a6db149bdfd2b55c259469f794343ed3397a772a',
     )
   })
 
