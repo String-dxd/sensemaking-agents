@@ -59,11 +59,11 @@ export const DEFAULT_MY_WORLD_FAQ_BUILD_STORY = {
   cartographerAction: 'When sensemaking is requested',
   cartographerBody:
     'Sketches several directions from verified patterns. It does not choose a future for the student.',
-  reviewLabel: 'Review lens',
+  reviewLabel: 'Guardrails, shaped with AI experts',
   reviewBody:
-    'A separate self-critique can flag weak grounding, flattery and overreach. It is advisory, not a fail-safe.',
+    'AI experts will work closely with us on conversational design, guardrails, evidence checks and testing before any pilot. A separate review can flag weak grounding, flattery and overreach. It is advisory, not a fail-safe.',
   reviewTeamBody:
-    'The team still decides what belongs in the product, what needs evidence and what would stop a pilot.',
+    'Human review stays central. The product team and AI experts decide what is safe to test, what needs stronger evidence and what would stop a pilot.',
   decisionEyebrow: 'One deliberate decision',
   decisionHeading: 'The world keeps the student’s time.',
   clockLabel: 'Your local time',

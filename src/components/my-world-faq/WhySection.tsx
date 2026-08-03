@@ -16,7 +16,7 @@ export function WhySection({ content, renderField }: WhySectionProps) {
         id="why"
         aria-label="Why student choice matters"
         data-testid="faq-why"
-        className="mx-auto flex min-h-[18rem] w-full max-w-7xl items-center rounded-[3rem_1rem_3rem_1rem] border border-(--color-faq-ink) bg-(--color-faq-ink) px-6 py-12 text-(--color-faq-paper) sm:px-10 sm:py-14 lg:px-16"
+        className="mx-auto flex min-h-[18rem] w-full max-w-7xl items-center rounded-[3rem_1rem_3rem_1rem] border border-(--color-faq-ink) bg-(--color-faq-blue-deep) px-6 py-12 text-(--color-faq-paper) sm:px-10 sm:py-14 lg:px-16"
       >
         <p
           data-testid="faq-build-closing"

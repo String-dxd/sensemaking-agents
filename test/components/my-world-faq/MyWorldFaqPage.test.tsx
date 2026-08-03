@@ -162,6 +162,9 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(build.querySelectorAll('svg circle')).toHaveLength(0)
     expect(connectorLayer).toContainElement(verifierPanel)
     expect(backstage).toContainElement(deliberateDecision)
+    expect(within(backstage).getByText('Guardrails, shaped with AI experts')).toBeInTheDocument()
+    expect(within(backstage).getByText(/conversational design, guardrails/i)).toBeInTheDocument()
+    expect(within(backstage).getByText(/Human review stays central/i)).toBeInTheDocument()
   })
 
   it('keeps the guiding belief by itself in the blue Why section', () => {
@@ -177,6 +180,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(within(build).queryByText(/Winning students’ hearts matters/i)).not.toBeInTheDocument()
     expect(belief).toHaveTextContent(beliefCopy)
     expect(why).toContainElement(belief)
+    expect(why).toHaveClass('bg-(--color-faq-blue-deep)')
     expect(why.querySelector('blockquote')).toBeNull()
     expect(why.textContent).not.toMatch(/[“”"]/u)
     expect(within(why).queryByText(/small signals over time/i)).not.toBeInTheDocument()
