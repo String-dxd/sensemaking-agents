@@ -13,6 +13,7 @@ import { PosturePanel } from './PosturePanel'
 import { ProductLoop } from './ProductLoop'
 import { QuestionField } from './QuestionField'
 import { SignalSourceStrip } from './SignalSourceStrip'
+import { WhySection } from './WhySection'
 
 export interface MyWorldFaqPageProps {
   feedbackEnabled: boolean
@@ -186,6 +187,7 @@ export function MyWorldFaqPage({
 
         <ProductLoop content={content} editorMode={editorMode} renderField={renderField} />
         <BuildIcebergPanel content={content} renderField={renderField} />
+        <WhySection content={content} renderField={renderField} />
         <SignalSourceStrip content={content} renderField={renderField} />
         {/* The guardrail ledger section was removed from this page on 2026-07-30, on the
             owner's call that it was not earning its place. Its DATA is deliberately still

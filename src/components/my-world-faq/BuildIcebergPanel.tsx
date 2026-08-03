@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Badge } from '~/components/ui/badge'
-import { buttonVariants } from '~/components/ui/button'
 import {
   DEFAULT_MY_WORLD_FAQ_BUILD_STORY,
   type MyWorldFaqBuildStory,
   type MyWorldFaqContent,
 } from '~/data/my-world-faq'
-import { cn } from '~/lib/utils'
 import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
 
 const SURFACE_FEATURES = [
@@ -29,7 +27,7 @@ const SURFACE_FEATURES = [
 
 const BACKSTAGE_LAYERS = [
   {
-    name: 'Mirror',
+    name: 'Collector',
     roleType: 'AI role',
     actionKey: 'mirrorAction',
     bodyKey: 'mirrorBody',
@@ -68,9 +66,9 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
       id="build"
       aria-labelledby="faq-build-title"
       data-testid="faq-build-iceberg"
-      className="border-b border-(--color-faq-line-strong) bg-(--color-faq-paper) text-(--color-faq-ink)"
+      className="bg-(--color-faq-paper) text-(--color-faq-ink)"
     >
-      <div className="mx-auto w-full max-w-7xl px-5 py-16 sm:px-8 sm:py-20 lg:px-12 lg:py-24">
+      <div className="mx-auto w-full max-w-7xl px-5 pt-16 pb-6 sm:px-8 sm:pt-20 sm:pb-7 lg:px-12 lg:pt-24 lg:pb-8">
         <div className="grid gap-7 lg:grid-cols-12 lg:items-end">
           <div className="lg:col-span-8">
             <p className="text-xs font-semibold text-(--color-faq-coral-ink)">
@@ -109,7 +107,7 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
           <div className="bg-(--color-faq-blue) px-5 pt-8 sm:px-8 sm:pt-10 lg:px-10 lg:pt-12">
             <div className="grid items-end gap-6 md:grid-cols-[minmax(12rem,0.8fr)_minmax(0,2fr)] md:gap-10">
               <IcebergCap />
-              <div className="pb-8 sm:pb-10 lg:pb-12">
+              <div className="order-1 pb-8 sm:pb-10 md:order-none lg:pb-12">
                 <Badge
                   variant="outline"
                   className="border-(--color-faq-ink) bg-(--color-faq-yellow) text-(--color-faq-ink)"
@@ -138,25 +136,16 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
             </div>
           </div>
 
-          <div className="relative bg-(--color-faq-ink) px-5 pb-9 text-(--color-faq-paper) sm:px-8 sm:pb-12 lg:px-10 lg:pb-14">
-            <div className="flex items-center gap-4 py-4">
-              <span aria-hidden="true" className="h-px flex-1 bg-(--color-faq-paper)/45" />
-              <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-(--color-faq-paper-soft)">
-                {field({
-                  path: 'page.build.waterlineLabel',
-                  label: 'Waterline label',
-                  value: copy.waterlineLabel,
-                })}
-              </span>
-              <span aria-hidden="true" className="h-px flex-1 bg-(--color-faq-paper)/45" />
-            </div>
-
+          <div
+            data-testid="faq-build-backstage"
+            className="relative bg-(--color-faq-blue-deep) px-5 pb-9 text-(--color-faq-paper) sm:px-8 sm:pb-12 lg:px-10 lg:pb-14"
+          >
             <div className="grid items-start gap-7 md:grid-cols-[minmax(12rem,0.8fr)_minmax(0,2fr)] md:gap-10">
               <IcebergBase />
-              <div>
+              <div className="pt-8 sm:pt-10 lg:pt-12">
                 <Badge
                   variant="outline"
-                  className="border-(--color-faq-paper)/55 bg-(--color-faq-ink) text-(--color-faq-paper)"
+                  className="border-(--color-faq-paper)/55 bg-(--color-faq-blue-deep) text-(--color-faq-paper)"
                 >
                   {field({
                     path: 'page.build.backstageLabel',
@@ -203,21 +192,26 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
                         })}
                       </p>
                       {'check' in layer ? (
-                        <div className="col-start-2 mt-2 border-l border-(--color-faq-green)/65 pl-4 sm:col-start-3">
-                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                            <p className="text-sm font-semibold">{layer.check.name}</p>
-                            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-(--color-faq-green)">
-                              {layer.check.roleType}
+                        <div
+                          data-testid="faq-verifier-panel"
+                          className="col-start-2 mt-3 grid gap-3 rounded-[1.25rem_0.5rem_1.25rem_0.5rem] border border-(--color-faq-paper)/25 bg-(--color-faq-paper)/5 p-4 text-left sm:col-end-4 sm:grid-cols-[10rem_minmax(0,1fr)] sm:gap-4"
+                        >
+                          <div>
+                            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                              <p className="text-sm font-semibold">{layer.check.name}</p>
+                              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-(--color-faq-green)">
+                                {layer.check.roleType}
+                              </p>
+                            </div>
+                            <p className="mt-1 text-xs text-(--color-faq-paper-soft)">
+                              {field({
+                                path: `page.build.${layer.check.actionKey}`,
+                                label: `${layer.check.name} timing`,
+                                value: copy[layer.check.actionKey],
+                              })}
                             </p>
                           </div>
-                          <p className="mt-1 text-xs text-(--color-faq-paper-soft)">
-                            {field({
-                              path: `page.build.${layer.check.actionKey}`,
-                              label: `${layer.check.name} timing`,
-                              value: copy[layer.check.actionKey],
-                            })}
-                          </p>
-                          <p className="mt-2 text-sm leading-relaxed text-(--color-faq-paper-soft)">
+                          <p className="text-sm leading-relaxed text-(--color-faq-paper-soft)">
                             {field({
                               path: `page.build.${layer.check.bodyKey}`,
                               label: `${layer.check.name} description`,
@@ -257,18 +251,10 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
                 </aside>
               </div>
             </div>
+
+            <DeliberateDecision copy={copy} field={field} />
           </div>
         </figure>
-
-        <DeliberateDecision copy={copy} field={field} editorMode={Boolean(renderField)} />
-
-        <p className="mt-9 max-w-[72ch] border-t border-(--color-faq-line-strong) pt-8 text-base font-medium leading-relaxed text-pretty">
-          {field({
-            path: 'page.build.closingBody',
-            label: 'Build section closing',
-            value: copy.closingBody,
-          })}
-        </p>
       </div>
     </section>
   )
@@ -276,7 +262,11 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
 
 function IcebergCap() {
   return (
-    <svg aria-hidden="true" viewBox="0 0 360 220" className="mx-auto w-full max-w-80 self-end">
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 360 220"
+      className="order-2 mx-auto w-full max-w-80 self-end md:order-none"
+    >
       <path
         d="M18 214 95 119 139 47 187 18 220 83 256 99 342 214Z"
         fill="var(--color-faq-surface)"
@@ -284,7 +274,6 @@ function IcebergCap() {
         strokeWidth="2"
         vectorEffect="non-scaling-stroke"
       />
-      <circle cx="265" cy="70" r="25" fill="var(--color-faq-coral)" />
       <path
         d="M102 134c23-30 48-51 77-64M220 117c22 20 38 47 49 82"
         fill="none"
@@ -320,8 +309,6 @@ function IcebergBase() {
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
       />
-      <circle cx="87" cy="112" r="18" fill="var(--color-faq-green)" />
-      <circle cx="263" cy="286" r="24" fill="var(--color-faq-pink)" />
     </svg>
   )
 }
@@ -329,16 +316,15 @@ function IcebergBase() {
 function DeliberateDecision({
   copy,
   field,
-  editorMode,
 }: {
   copy: MyWorldFaqBuildStory
   field: MyWorldFaqFieldRenderer
-  editorMode: boolean
 }) {
   return (
     <aside
       aria-labelledby="faq-deliberate-decision-title"
-      className="mt-10 grid overflow-hidden rounded-[2.5rem_0.75rem_2.5rem_0.75rem] border border-(--color-faq-line-strong) bg-(--color-faq-yellow) lg:grid-cols-[19rem_minmax(0,1fr)]"
+      data-testid="faq-deliberate-decision"
+      className="mt-10 grid overflow-hidden rounded-[2.5rem_0.75rem_2.5rem_0.75rem] border border-(--color-faq-line-strong) bg-(--color-faq-yellow) text-(--color-faq-ink) lg:grid-cols-[19rem_minmax(0,1fr)]"
     >
       <div className="grid place-items-center border-b border-(--color-faq-line-strong) p-7 lg:border-r lg:border-b-0">
         <RealTimeDisc copy={copy} field={field} />
@@ -376,47 +362,9 @@ function DeliberateDecision({
               value: copy.precedentBody,
             })}
           </p>
-          <p className="font-semibold text-(--color-faq-ink)">
-            {field({
-              path: 'page.build.caveatBody',
-              label: 'Precedent caveat',
-              value: copy.caveatBody,
-            })}
-          </p>
         </div>
-        {renderSourceLinkLabel(copy, field, editorMode)}
       </div>
     </aside>
-  )
-}
-
-function renderSourceLinkLabel(
-  copy: MyWorldFaqBuildStory,
-  field: MyWorldFaqFieldRenderer,
-  editorMode: boolean,
-) {
-  const label = field({
-    path: 'page.build.sourceLinkLabel',
-    label: 'Nintendo source link label',
-    value: copy.sourceLinkLabel,
-  })
-
-  if (editorMode) {
-    return <div className="mt-6 max-w-xl">{label}</div>
-  }
-
-  return (
-    <a
-      href="https://www.nintendo.com/en-gb/Games/Nintendo-Switch-games/Animal-Crossing-New-Horizons-1438623.html"
-      target="_blank"
-      rel="noreferrer"
-      className={cn(
-        buttonVariants({ variant: 'outline', size: 'lg' }),
-        'faq-button-secondary mt-6 min-h-11 border-(--color-faq-ink) bg-(--color-faq-surface) px-5 hover:bg-(--color-faq-paper)',
-      )}
-    >
-      {label}
-    </a>
   )
 }
 
@@ -428,6 +376,7 @@ function RealTimeDisc({
   field: MyWorldFaqFieldRenderer
 }) {
   const [now, setNow] = useState<Date | null>(null)
+  const clock = formatClockTime(now)
 
   useEffect(() => {
     setNow(new Date())
@@ -447,9 +396,9 @@ function RealTimeDisc({
   return (
     <div
       data-testid="faq-build-clock"
-      className="grid aspect-square w-full max-w-40 place-items-center rounded-full border border-(--color-faq-ink) bg-(--color-faq-coral) p-5 text-center sm:max-w-52"
+      className="grid aspect-square w-full max-w-52 place-items-center rounded-full border border-(--color-faq-ink) bg-(--color-faq-coral) p-6 text-center sm:max-w-60 sm:p-8"
     >
-      <div>
+      <div className="w-full">
         <p className="text-xs font-semibold uppercase tracking-[0.12em]">
           {field({
             path: 'page.build.clockLabel',
@@ -457,14 +406,17 @@ function RealTimeDisc({
             value: copy.clockLabel,
           })}
         </p>
-        <p
-          aria-hidden="true"
-          suppressHydrationWarning
-          className="mt-3 text-[clamp(2.25rem,6vw,3.5rem)] font-semibold leading-none tracking-[-0.06em] tabular-nums"
-        >
-          {now ? now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '\u00a0'}
-        </p>
-        <p className="mt-3 text-xs leading-relaxed">
+        <div aria-hidden="true" suppressHydrationWarning className="mt-4 tabular-nums">
+          <span className="block text-[clamp(2.15rem,4vw,3rem)] font-semibold leading-none tracking-[-0.055em]">
+            {clock.time}
+          </span>
+          {clock.dayPeriod ? (
+            <span className="mt-1.5 block text-xl font-semibold leading-none tracking-[-0.03em] sm:text-2xl">
+              {clock.dayPeriod}
+            </span>
+          ) : null}
+        </div>
+        <p className="mx-auto mt-5 max-w-32 text-xs leading-relaxed">
           {field({
             path: 'page.build.clockBody',
             label: 'Local clock description',
@@ -474,4 +426,21 @@ function RealTimeDisc({
       </div>
     </div>
   )
+}
+
+function formatClockTime(now: Date | null): { time: string; dayPeriod: string | null } {
+  if (!now) return { time: '\u00a0', dayPeriod: null }
+
+  const parts = new Intl.DateTimeFormat([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(now)
+  const dayPeriod = parts.find((part) => part.type === 'dayPeriod')?.value ?? null
+  const time = parts
+    .filter((part) => part.type !== 'dayPeriod')
+    .map((part) => part.value)
+    .join('')
+    .trim()
+
+  return { time, dayPeriod }
 }

@@ -13,10 +13,13 @@ import {
   DialogTrigger,
 } from '~/components/ui/dialog'
 import { Tabs, TabsContent, TabsIndicator, TabsList, TabsTrigger } from '~/components/ui/tabs'
-import type {
-  MyWorldFaqContent,
-  MyWorldFaqEvidenceBlock,
-  MyWorldFaqQuestion,
+import {
+  MY_WORLD_FAQ_FREQUENCY_QUESTION_ID,
+  type MyWorldFaqContent,
+  type MyWorldFaqEvidenceBlock,
+  type MyWorldFaqQuestion,
+  materializeMyWorldFaqFrequencyQuestionCopy,
+  resolveMyWorldFaqWhyStory,
 } from '~/data/my-world-faq'
 import { cn } from '~/lib/utils'
 import type { MyWorldFaqFieldRenderer } from './FaqFieldRenderer'
@@ -64,6 +67,22 @@ const CARD_SHAPES = [
   'rounded-[2.75rem_2.75rem_1rem_2.75rem]',
 ] as const
 
+const FREQUENCY_DOT_SIZES = ['size-7', 'size-8', 'size-9', 'size-10', 'size-11'] as const
+const FREQUENCY_RESEARCH_SOURCES = [
+  {
+    label: 'FDA device decision',
+    href: 'https://www.accessdata.fda.gov/cdrh_docs/reviews/DEN180042.pdf',
+  },
+  {
+    label: 'Apple Heart Study',
+    href: 'https://www.nejm.org/doi/10.1056/NEJMoa1901183',
+  },
+  {
+    label: 'Youth momentary assessment',
+    href: 'https://journals.plos.org/digitalhealth/article?id=10.1371/journal.pdig.0000448',
+  },
+] as const
+
 export interface QuestionFieldProps {
   content: MyWorldFaqContent
   editorMode?: boolean
@@ -77,7 +96,8 @@ export function QuestionField({
   renderField,
   editorControl,
 }: QuestionFieldProps) {
-  const firstCluster = content.concernClusters[0]
+  const displayContent = materializeMyWorldFaqFrequencyQuestionCopy(content)
+  const firstCluster = displayContent.concernClusters[0]
   if (!firstCluster) return null
   const field: MyWorldFaqFieldRenderer = (args) => renderField?.(args) ?? args.value
 
@@ -95,7 +115,7 @@ export function QuestionField({
               {field({
                 path: 'page.faq.eyebrow',
                 label: 'FAQ section label',
-                value: content.page.faq.eyebrow,
+                value: displayContent.page.faq.eyebrow,
               })}
             </p>
             <h2
@@ -105,14 +125,14 @@ export function QuestionField({
               {field({
                 path: 'page.faq.heading',
                 label: 'FAQ section heading',
-                value: content.page.faq.heading,
+                value: displayContent.page.faq.heading,
               })}
             </h2>
             <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
               {field({
                 path: 'page.faq.introduction',
                 label: 'FAQ section introduction',
-                value: content.page.faq.introduction,
+                value: displayContent.page.faq.introduction,
               })}
             </p>
           </div>
@@ -125,8 +145,8 @@ export function QuestionField({
 
         {editorMode && renderField ? (
           <div className="mt-8 space-y-10" data-testid="faq-editor-question-field">
-            {content.concernClusters.map((cluster) => {
-              const questions = content.questions.filter(
+            {displayContent.concernClusters.map((cluster) => {
+              const questions = displayContent.questions.filter(
                 (question) => question.clusterId === cluster.id,
               )
               return (
@@ -154,7 +174,7 @@ export function QuestionField({
                         key={question.id}
                         question={question}
                         index={index}
-                        content={content}
+                        content={displayContent}
                         renderField={renderField}
                       />
                     ))}
@@ -167,7 +187,7 @@ export function QuestionField({
           <Tabs defaultValue={firstCluster.id} className="mt-8">
             <div className="-mx-5 overflow-x-auto px-5 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0">
               <TabsList aria-label="FAQ topics">
-                {content.concernClusters.map((cluster) => (
+                {displayContent.concernClusters.map((cluster) => (
                   <TabsTrigger key={cluster.id} value={cluster.id}>
                     {cluster.label}
                   </TabsTrigger>
@@ -176,8 +196,8 @@ export function QuestionField({
               </TabsList>
             </div>
 
-            {content.concernClusters.map((cluster) => {
-              const questions = content.questions.filter(
+            {displayContent.concernClusters.map((cluster) => {
+              const questions = displayContent.questions.filter(
                 (question) => question.clusterId === cluster.id,
               )
               return (
@@ -203,7 +223,7 @@ export function QuestionField({
                         key={question.id}
                         question={question}
                         index={index}
-                        content={content}
+                        content={displayContent}
                       />
                     ))}
                   </div>
@@ -453,6 +473,13 @@ function FaqEvidenceDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="mt-3 space-y-7">
+          {question.id === MY_WORLD_FAQ_FREQUENCY_QUESTION_ID ? (
+            <FrequencyResearchDetails
+              content={content}
+              editorMode={editorMode}
+              renderField={renderField}
+            />
+          ) : null}
           {question.blocks.map((block) => (
             <EvidenceBlock
               key={block.id}
@@ -564,12 +591,157 @@ function EvidenceBlock({
           ))}
         </ul>
       ) : null}
-
       {provenance.length > 0 ? (
         <p className="mt-3 text-xs leading-relaxed text-(--color-faq-ink-faint)">
           Checked against the current prototype: {provenance.map((item) => item.title).join(', ')}.
         </p>
       ) : null}
     </section>
+  )
+}
+
+function FrequencyResearchDetails({
+  content,
+  editorMode = false,
+  renderField,
+}: {
+  content: MyWorldFaqContent
+  editorMode?: boolean
+  renderField?: MyWorldFaqFieldRenderer
+}) {
+  const copy = resolveMyWorldFaqWhyStory(content.page.why)
+  const field: MyWorldFaqFieldRenderer = (args) => renderField?.(args) ?? args.value
+
+  return (
+    <section
+      data-testid="faq-frequency-details"
+      className="rounded-[2rem_0.75rem_2rem_0.75rem] bg-(--color-faq-blue) p-5 sm:p-7"
+    >
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-faq-stage-ink)">
+        {field({
+          path: 'page.why.frequencyEyebrow',
+          label: 'Research analogy label',
+          value: copy.frequencyEyebrow,
+        })}
+      </p>
+      <h3 className="mt-3 max-w-[24ch] text-[clamp(1.5rem,3vw,2.15rem)] font-semibold leading-[1.08] tracking-[-0.04em] text-balance">
+        {field({
+          path: 'page.why.frequencyHeading',
+          label: 'Research analogy heading',
+          value: copy.frequencyHeading,
+        })}
+      </h3>
+      <div className="mt-4 max-w-[64ch] text-sm leading-relaxed text-(--color-faq-ink-soft)">
+        {field({
+          path: 'page.why.frequencyIntroduction',
+          label: 'Research analogy introduction',
+          value: copy.frequencyIntroduction,
+        })}
+      </div>
+
+      <FrequencyComparison />
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <article className="rounded-[1.5rem_0.5rem_1.5rem_0.5rem] bg-(--color-faq-paper) p-4 sm:p-5">
+          <h4 className="text-sm font-semibold">What research suggests</h4>
+          <div className="mt-2 text-sm leading-relaxed text-(--color-faq-ink-soft)">
+            {field({
+              path: 'page.why.researchBody',
+              label: 'Research explanation',
+              value: copy.researchBody,
+            })}
+          </div>
+        </article>
+        <article className="rounded-[0.5rem_1.5rem_0.5rem_1.5rem] bg-(--color-faq-paper) p-4 sm:p-5">
+          <h4 className="text-sm font-semibold">What a pilot must test</h4>
+          <div className="mt-2 text-sm leading-relaxed text-(--color-faq-ink-soft)">
+            {field({
+              path: 'page.why.hypothesisBody',
+              label: 'Limits and pilot question',
+              value: copy.hypothesisBody,
+            })}
+          </div>
+        </article>
+      </div>
+
+      {!editorMode ? <FrequencyResearchLinks /> : null}
+    </section>
+  )
+}
+
+function FrequencyComparison() {
+  return (
+    <figure className="mt-5 overflow-hidden rounded-[2rem_0.75rem_2rem_0.75rem] border border-(--color-faq-ink) bg-(--color-faq-paper)">
+      <figcaption className="sr-only">
+        One detailed check offers depth at one moment. Small captures can show change across
+        ordinary days.
+      </figcaption>
+      <div className="grid sm:grid-cols-2">
+        <div className="border-b border-(--color-faq-ink) p-5 sm:border-r sm:border-b-0">
+          <Badge
+            variant="outline"
+            className="border-(--color-faq-ink) bg-(--color-faq-surface) text-(--color-faq-ink)"
+          >
+            One detailed check
+          </Badge>
+          <div className="mt-6 flex min-h-24 items-center justify-center">
+            <span
+              aria-hidden="true"
+              className="size-20 rounded-full border border-(--color-faq-ink) bg-(--color-faq-yellow)"
+            />
+          </div>
+          <p className="mt-5 text-center text-xs font-medium">Depth at one moment</p>
+        </div>
+        <div className="p-5">
+          <Badge
+            variant="outline"
+            className="border-(--color-faq-ink) bg-(--color-faq-green) text-(--color-faq-ink)"
+          >
+            Small captures over time
+          </Badge>
+          <div
+            aria-hidden="true"
+            className="relative mt-6 flex min-h-24 items-center justify-between gap-2"
+          >
+            <span className="absolute right-0 left-0 top-1/2 h-px bg-(--color-faq-line-strong)" />
+            {FREQUENCY_DOT_SIZES.map((size) => (
+              <span
+                key={size}
+                className={cn(
+                  'relative rounded-full border border-(--color-faq-ink) bg-(--color-faq-coral)',
+                  size,
+                )}
+              />
+            ))}
+          </div>
+          <p className="mt-5 text-center text-xs font-medium">Change across ordinary days</p>
+        </div>
+      </div>
+    </figure>
+  )
+}
+
+function FrequencyResearchLinks() {
+  return (
+    <div className="mt-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-(--color-faq-stage-ink)">
+        Research used for this answer
+      </p>
+      <ul className="mt-2 flex flex-wrap gap-2">
+        {FREQUENCY_RESEARCH_SOURCES.map((source) => (
+          <li key={source.href}>
+            <a
+              href={source.href}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex min-h-11 items-center rounded-full border border-(--color-faq-ink) bg-(--color-faq-paper) px-4 text-xs font-semibold outline-none hover:bg-(--color-faq-yellow) focus-visible:ring-2 focus-visible:ring-(--color-faq-focus)"
+            >
+              {source.label}
+              <ArrowUpRight aria-hidden="true" className="ml-2 size-3.5" />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

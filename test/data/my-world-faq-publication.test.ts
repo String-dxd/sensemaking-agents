@@ -5,6 +5,7 @@ import {
   DEFAULT_MY_WORLD_FAQ_DOCUMENT,
   digestMyWorldFaqDocument,
   FAQ_EDITABLE_FIELDS,
+  MY_WORLD_FAQ_FREQUENCY_QUESTION_ID,
   validateMyWorldFaqDocument,
 } from '~/data/my-world-faq'
 
@@ -45,7 +46,8 @@ describe('My World FAQ publication contract', () => {
     expect(paths).toContain('page.hero.introduction')
     expect(paths).toContain('page.build.backstageIntroduction')
     expect(paths).toContain('page.build.quietHoursBody')
-    expect(paths).toContain('page.why.heading')
+    expect(paths).toContain('page.why.frequencyHeading')
+    expect(paths).not.toContain('page.why.heading')
     expect(paths).toContain('questions.reflection-problem.displayedQuestion')
     expect(paths).toContain('sources.moe-ai-education-2025.url')
     expect(paths).not.toContain('questions.reflection-problem.slug')
@@ -56,6 +58,13 @@ describe('My World FAQ publication contract', () => {
     delete historical.page.build
     delete historical.page.why
     delete historical.page.posture
+    const reflectionQuestion = historical.questions.find(
+      (question) => question.id === MY_WORLD_FAQ_FREQUENCY_QUESTION_ID,
+    )
+    if (!reflectionQuestion) throw new Error('Reflection research question is missing')
+    reflectionQuestion.displayedQuestion = 'What research supports reflection?'
+    reflectionQuestion.shortAnswer =
+      'Research suggests structured reflection can help adolescents, but findings are small and not decisive. It does not show that voice beats writing, AI improves reflection or My World works in Singapore.'
     const before = JSON.stringify(historical)
 
     const validation = validateMyWorldFaqDocument(historical)

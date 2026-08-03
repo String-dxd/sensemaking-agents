@@ -91,6 +91,11 @@ const whyStorySchema: z.ZodType<MyWorldFaqWhyStory> = z.strictObject({
   eyebrow: requiredText,
   heading: requiredText,
   introduction: requiredText,
+  frequencyEyebrow: requiredText.optional(),
+  frequencyHeading: requiredText.optional(),
+  frequencyIntroduction: requiredText.optional(),
+  researchBody: requiredText.optional(),
+  hypothesisBody: requiredText.optional(),
 })
 
 const postureStorySchema: z.ZodType<MyWorldFaqPostureStory> = z.strictObject({

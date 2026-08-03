@@ -125,7 +125,6 @@ const fields: FaqEditorialFieldDefinition[] = [
   { path: 'page.build.companionBody', category: 'blurb' },
   { path: 'page.build.captureBody', category: 'blurb' },
   { path: 'page.build.islandBody', category: 'blurb' },
-  { path: 'page.build.waterlineLabel', category: 'label' },
   { path: 'page.build.backstageLabel', category: 'label' },
   { path: 'page.build.backstageIntroduction', category: 'blurb' },
   { path: 'page.build.mirrorAction', category: 'label' },
@@ -145,12 +144,12 @@ const fields: FaqEditorialFieldDefinition[] = [
   { path: 'page.build.clockBody', category: 'microcopy' },
   { path: 'page.build.quietHoursBody', category: 'blurb' },
   { path: 'page.build.precedentBody', category: 'blurb' },
-  { path: 'page.build.caveatBody', category: 'blurb' },
-  { path: 'page.build.sourceLinkLabel', category: 'label' },
   { path: 'page.build.closingBody', category: 'blurb' },
-  { path: 'page.why.eyebrow', category: 'label' },
-  { path: 'page.why.heading', category: 'compact' },
-  { path: 'page.why.introduction', category: 'blurb' },
+  { path: 'page.why.frequencyEyebrow', category: 'label' },
+  { path: 'page.why.frequencyHeading', category: 'compact' },
+  { path: 'page.why.frequencyIntroduction', category: 'summary' },
+  { path: 'page.why.researchBody', category: 'blurb' },
+  { path: 'page.why.hypothesisBody', category: 'blurb' },
   { path: 'page.posture.eyebrow', category: 'label' },
   { path: 'page.posture.heading', category: 'compact' },
   { path: 'page.posture.introduction', category: 'blurb' },
@@ -285,7 +284,18 @@ export function buildMyWorldFaqEditableFields(
   }
   const includeOptionalPageField = (field: FaqEditorialFieldDefinition): boolean => {
     if (field.path.startsWith('page.build.')) return document.page?.build !== undefined
-    if (field.path.startsWith('page.why.')) return document.page?.why !== undefined
+    if (field.path.startsWith('page.why.')) {
+      if (!document.page?.why || typeof document.page.why !== 'object') return false
+      const why = document.page.why as Record<string, unknown>
+      const hasFrequencyStory = [
+        'frequencyEyebrow',
+        'frequencyHeading',
+        'frequencyIntroduction',
+        'researchBody',
+        'hypothesisBody',
+      ].some((key) => Object.hasOwn(why, key))
+      return hasFrequencyStory
+    }
     if (field.path.startsWith('page.posture.')) return document.page?.posture !== undefined
     return true
   }

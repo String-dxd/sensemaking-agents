@@ -105,6 +105,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
       screen.getByTestId('faq-product-loop'),
       screen.getByTestId('faq-build-iceberg'),
       screen.getByTestId('faq-why'),
+      screen.getByTestId('faq-signals'),
       screen.getByTestId('faq-question-field'),
       screen.getByTestId('faq-posture'),
       screen.getByTestId('faq-contribution'),
@@ -131,7 +132,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
       'Companion',
       'Capture',
       'Living island',
-      'Mirror',
+      'Collector',
       'Connector',
       'Verifier',
       'Cartographer',
@@ -147,26 +148,41 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(within(build).getByText('Deterministic check')).toBeInTheDocument()
     expect(within(build).getByText(/advisory, not a fail-safe/i)).toBeInTheDocument()
     expect(within(build).getByText(/at 10pm local time/i)).toBeInTheDocument()
-    expect(within(build).getByRole('link', { name: /Nintendo’s description/i })).toHaveAttribute(
-      'href',
-      expect.stringContaining('nintendo.com'),
-    )
+    expect(within(build).getByText(/Animal Crossing: New Horizons/i)).toBeInTheDocument()
+    expect(within(build).queryByText(/precedent is not proof/i)).not.toBeInTheDocument()
+    expect(within(build).queryByRole('link', { name: /Nintendo/i })).not.toBeInTheDocument()
     expect(within(build).queryByText(/Kira/)).not.toBeInTheDocument()
+
+    const backstage = within(build).getByTestId('faq-build-backstage')
+    const connectorLayer = within(build).getByText('Connector').closest('li')
+    const verifierPanel = within(build).getByTestId('faq-verifier-panel')
+    const deliberateDecision = within(build).getByTestId('faq-deliberate-decision')
+    expect(within(build).queryByText('The waterline')).not.toBeInTheDocument()
+    expect(within(build).queryByText('Mirror')).not.toBeInTheDocument()
+    expect(build.querySelectorAll('svg circle')).toHaveLength(0)
+    expect(connectorLayer).toContainElement(verifierPanel)
+    expect(backstage).toContainElement(deliberateDecision)
   })
 
-  it('does not nest the editable Nintendo label inside a public link', () => {
-    render(
-      <MyWorldFaqPage
-        feedbackEnabled={false}
-        content={DEFAULT_MY_WORLD_FAQ_CONTENT}
-        editorMode
-        renderField={({ label, value }) => <input aria-label={label} defaultValue={value} />}
-      />,
-    )
+  it('keeps the guiding belief by itself in the blue Why section', () => {
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
 
     const build = screen.getByTestId('faq-build-iceberg')
-    expect(within(build).getByRole('textbox', { name: 'Nintendo source link label' })).toBeVisible()
-    expect(within(build).queryByRole('link', { name: /Nintendo/i })).not.toBeInTheDocument()
+    const belief = screen.getByTestId('faq-build-closing')
+    const why = screen.getByTestId('faq-why')
+    const signals = screen.getByTestId('faq-signals')
+    const beliefCopy =
+      'Winning students’ hearts matters because a reflection tool only helps when students choose it. We intend to earn that trust without pressure loops, while feedback and evidence keep changing the design.'
+
+    expect(within(build).queryByText(/Winning students’ hearts matters/i)).not.toBeInTheDocument()
+    expect(belief).toHaveTextContent(beliefCopy)
+    expect(why).toContainElement(belief)
+    expect(why.querySelector('blockquote')).toBeNull()
+    expect(why.textContent).not.toMatch(/[“”"]/u)
+    expect(within(why).queryByText(/small signals over time/i)).not.toBeInTheDocument()
+    expect(within(why).queryByText(/does not replace a clinical test/i)).not.toBeInTheDocument()
+    expect(within(why).queryByText(/Concern is part of the work/i)).not.toBeInTheDocument()
+    expect(within(signals).getByText(/Concern is part of the work/i)).toBeInTheDocument()
   })
 
   it('keeps all six topics and all 34 canonical questions in the card grid', () => {
@@ -217,6 +233,41 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     await user.click(within(questionCard).getByRole('button', { name: 'Back to question' }))
     await waitFor(() => expect(question).toHaveFocus())
     expect(question).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('moves the small-captures rationale into an evidence FAQ card', async () => {
+    const user = userEvent.setup()
+    const questionText = 'Why capture small moments instead of relying on one long survey?'
+    render(<MyWorldFaqPage feedbackEnabled={false} content={DEFAULT_MY_WORLD_FAQ_CONTENT} />)
+
+    await user.click(screen.getByRole('tab', { name: 'Evidence and the next decision' }))
+
+    const question = screen.getByRole('button', { name: questionText })
+    await user.click(question)
+    const questionCard = question.closest<HTMLElement>('[data-testid="faq-question-card"]')
+    if (!questionCard) throw new Error('Small-captures FAQ card was not found')
+    expect(within(questionCard).getByTestId('faq-short-answer')).toHaveTextContent(
+      /Brief captures may preserve changing context and reveal patterns across days/i,
+    )
+    expect(within(questionCard).getByTestId('faq-short-answer')).toHaveTextContent(
+      /design rationale, not proof/i,
+    )
+
+    await user.click(within(questionCard).getByRole('button', { name: 'Evidence and limits' }))
+    const dialog = screen.getByRole('dialog', { name: questionText })
+    const frequencyDetails = within(dialog).getByTestId('faq-frequency-details')
+
+    expect(within(frequencyDetails).getByText('One detailed check')).toBeInTheDocument()
+    expect(within(frequencyDetails).getByText('Small captures over time')).toBeInTheDocument()
+    expect(
+      within(frequencyDetails).getByRole('link', { name: /Apple Heart Study/i }),
+    ).toHaveAttribute('href', 'https://www.nejm.org/doi/10.1056/NEJMoa1901183')
+    expect(within(frequencyDetails).getByText(/That remains a hypothesis/i)).toBeInTheDocument()
+    expect(
+      within(frequencyDetails).getByText(
+        /A pilot must compare value, burden and candour with simpler options/i,
+      ),
+    ).toBeInTheDocument()
   })
 
   it('renders hostile question and answer strings literally through the card and dialog', async () => {

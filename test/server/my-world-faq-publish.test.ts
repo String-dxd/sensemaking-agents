@@ -215,7 +215,7 @@ describe('My World FAQ publish handler', () => {
       expect.arrayContaining([
         'page.build.heading',
         'page.build.quietHoursBody',
-        'page.why.heading',
+        'page.why.frequencyHeading',
       ]),
     )
     expect(historical.page).not.toHaveProperty('build')

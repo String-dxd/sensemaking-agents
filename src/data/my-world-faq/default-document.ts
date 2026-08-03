@@ -8,6 +8,10 @@ import {
   MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
 } from './content-manifest'
 import type { MyWorldFaqEditorialDocument } from './content-schema'
+import {
+  MY_WORLD_FAQ_FREQUENCY_QUESTION_COPY,
+  MY_WORLD_FAQ_FREQUENCY_QUESTION_ID,
+} from './frequency-faq-copy'
 import { FAQ_GUARDRAILS } from './guardrails'
 import { DEFAULT_MY_WORLD_FAQ_POSTURE_STORY } from './posture-story'
 import { FAQ_CONCERN_CLUSTERS, FAQ_QUESTIONS } from './questions'
@@ -154,22 +158,31 @@ export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
     description: LEDGER_DESCRIPTIONS[item.state],
   })),
   concernClusters: FAQ_CONCERN_CLUSTERS.map((cluster) => ({ ...cluster })),
-  questions: FAQ_QUESTIONS.map((question) => ({
-    ...question,
-    displayedQuestion: question.committedQuestions[0] ?? question.title,
-    committedQuestions: [...question.committedQuestions],
-    searchAliases: [...question.searchAliases],
-    blocks: question.blocks.map((block) => ({
-      ...block,
-      sourceIds: [...block.sourceIds],
-      provenanceIds: [...block.provenanceIds],
-      guardrailIds: [...block.guardrailIds],
-      review: { ...block.review },
-    })),
-    guardrailIds: [...question.guardrailIds],
-    assetIds: [...question.assetIds],
-    review: { ...question.review },
-  })),
+  questions: FAQ_QUESTIONS.map((question) => {
+    const copy =
+      question.id === MY_WORLD_FAQ_FREQUENCY_QUESTION_ID
+        ? MY_WORLD_FAQ_FREQUENCY_QUESTION_COPY
+        : undefined
+
+    return {
+      ...question,
+      displayedQuestion:
+        copy?.displayedQuestion ?? question.committedQuestions[0] ?? question.title,
+      shortAnswer: copy?.shortAnswer ?? question.shortAnswer,
+      committedQuestions: [...question.committedQuestions],
+      searchAliases: [...question.searchAliases],
+      blocks: question.blocks.map((block) => ({
+        ...block,
+        sourceIds: [...block.sourceIds],
+        provenanceIds: [...block.provenanceIds],
+        guardrailIds: [...block.guardrailIds],
+        review: { ...block.review },
+      })),
+      guardrailIds: [...question.guardrailIds],
+      assetIds: [...question.assetIds],
+      review: { ...question.review },
+    }
+  }),
   sources: FAQ_SOURCES.map((source) => ({
     ...source,
     authors: [...source.authors],

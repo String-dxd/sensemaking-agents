@@ -67,6 +67,11 @@ export {
   stampMyWorldFaqEditorialIntent,
   updateMyWorldFaqDraftPath,
 } from './editorial-mutations'
+export {
+  MY_WORLD_FAQ_FREQUENCY_QUESTION_COPY,
+  MY_WORLD_FAQ_FREQUENCY_QUESTION_ID,
+  materializeMyWorldFaqFrequencyQuestionCopy,
+} from './frequency-faq-copy'
 export { FAQ_GUARDRAILS } from './guardrails'
 export {
   DEFAULT_MY_WORLD_FAQ_POSTURE_STORY,
@@ -124,6 +129,8 @@ export {
   DEFAULT_MY_WORLD_FAQ_WHY_STORY,
   type MyWorldFaqWhyStory,
   materializeMyWorldFaqWhyStory,
+  type ResolvedMyWorldFaqWhyStory,
+  resolveMyWorldFaqWhyStory,
 } from './why-story'
 
 import { DEFAULT_MY_WORLD_FAQ_CONTENT } from './compose-document'

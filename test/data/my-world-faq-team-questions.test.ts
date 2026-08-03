@@ -8,6 +8,7 @@ import {
   DEFAULT_MY_WORLD_FAQ_DOCUMENT,
   digestMyWorldFaqDocument,
   getTeamFaqQuestionCapacity,
+  MY_WORLD_FAQ_FREQUENCY_QUESTION_ID,
   MY_WORLD_FAQ_STRUCTURE_VERSION,
   MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
   type MyWorldFaqEditorialDocument,
@@ -31,6 +32,13 @@ function legacyDefaultDocument(): MyWorldFaqEditorialDocument {
   delete document.page.build
   delete document.page.why
   delete document.page.posture
+  const reflectionQuestion = document.questions.find(
+    (question) => question.id === MY_WORLD_FAQ_FREQUENCY_QUESTION_ID,
+  )
+  if (!reflectionQuestion) throw new Error('Reflection research question is missing')
+  reflectionQuestion.displayedQuestion = 'What research supports reflection?'
+  reflectionQuestion.shortAnswer =
+    'Research suggests structured reflection can help adolescents, but findings are small and not decisive. It does not show that voice beats writing, AI improves reflection or My World works in Singapore.'
   return document
 }
 

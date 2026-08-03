@@ -1,6 +1,7 @@
 import { materializeMyWorldFaqBuildStory } from './build-story'
 import { digestMyWorldFaqDocument } from './compose-document'
 import type { MyWorldFaqEditorialDocument } from './content-schema'
+import { materializeMyWorldFaqFrequencyQuestionCopy } from './frequency-faq-copy'
 import { materializeMyWorldFaqPostureStory } from './posture-story'
 import { materializeMyWorldFaqWhyStory } from './why-story'
 
@@ -17,8 +18,10 @@ export interface MyWorldFaqEditorProjection {
 export function materializeMyWorldFaqEditorDocument(
   document: MyWorldFaqEditorialDocument,
 ): MyWorldFaqEditorialDocument {
-  return materializeMyWorldFaqPostureStory(
-    materializeMyWorldFaqWhyStory(materializeMyWorldFaqBuildStory(document)),
+  return materializeMyWorldFaqFrequencyQuestionCopy(
+    materializeMyWorldFaqPostureStory(
+      materializeMyWorldFaqWhyStory(materializeMyWorldFaqBuildStory(document)),
+    ),
   )
 }
 
