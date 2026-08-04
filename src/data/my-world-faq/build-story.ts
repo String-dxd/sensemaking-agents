@@ -9,6 +9,7 @@ export interface MyWorldFaqBuildStory {
   waterlineLabel: string
   backstageLabel: string
   backstageIntroduction: string
+  /** Legacy timing fields retained so published revisions continue to validate. They are not shown. */
   mirrorAction: string
   mirrorBody: string
   connectorAction: string
@@ -37,46 +38,47 @@ export interface MyWorldFaqBuildStory {
  * content.
  */
 export const DEFAULT_MY_WORLD_FAQ_BUILD_STORY = {
-  eyebrow: 'How it is being built',
+  eyebrow: 'How we are building it',
   heading: 'Playful on the surface. Deliberate underneath.',
   introduction:
-    'Students meet a playful world designed to make reflection inviting and easier to begin. Below the waterline, different roles are designed for conversation, interpretation, evidence and possible directions.',
+    'Students see a playful world that makes reflection easier to begin. Behind it, each AI role has a narrow job and clear limits.',
   surfaceLabel: 'What students meet',
-  companionBody: 'Brief prompts are intended to leave most of the conversation with the student.',
-  captureBody: 'Voice or text makes one real moment easier to record.',
-  islandBody: 'Gentle progress adds warmth without scores, rankings or competition.',
+  companionBody: 'Offers brief prompts, then gives the conversation back to the student.',
+  captureBody: 'Lets students record one real moment by voice or text.',
+  islandBody: 'Shows gentle progress without scores, rankings or competition.',
   waterlineLabel: 'The waterline',
   backstageLabel: 'What happens backstage',
-  backstageIntroduction: 'These are separate stages. They do not all run after every capture.',
+  backstageIntroduction: 'Each role has one job. Human teams set the boundaries.',
   mirrorAction: 'After a capture',
-  mirrorBody: 'Drafts a tentative reflection. It offers words to inspect, not an identity label.',
+  mirrorBody:
+    'Turns a capture into a draft reflection for the student to review. It does not define who they are.',
   connectorAction: 'Later, after review',
   connectorBody:
-    'Reads confirmed reflections and proposes links between the student’s own words and Values, Interests, Personality and Skills.',
+    'Suggests links between confirmed reflections and the student’s Values, Interests, Personality and Skills.',
   verifierAction: 'For Connector links',
   verifierBody:
-    'Plain code checks the cited quote, vocabulary and confidence. Unsupported Connector links are downgraded or dropped.',
+    'Checks whether each suggested link is supported by the student’s own words. Weak or unsupported links are lowered or removed before the student reviews them.',
   cartographerAction: 'When sensemaking is requested',
   cartographerBody:
-    'Sketches several directions from verified patterns. It does not choose a future for the student.',
-  reviewLabel: 'Guardrails, shaped with AI experts',
+    'Uses reviewed patterns to suggest several directions. It does not decide the student’s future.',
+  reviewLabel: 'AI specialists and product team',
   reviewBody:
-    'AI experts will work closely with us on conversational design, guardrails, evidence checks and testing before any pilot. A separate review can flag weak grounding, flattery and overreach. It is advisory, not a fail-safe.',
+    'AI specialists help shape the conversation design, safety rules and testing. They check how the system responds before it is used with students.',
   reviewTeamBody:
-    'Human review stays central. The product team and AI experts decide what is safe to test, what needs stronger evidence and what would stop a pilot.',
+    'The product team owns the content and product direction. Together, both teams decide what is safe to test and what must change before a pilot.',
   decisionEyebrow: 'One deliberate decision',
   decisionHeading: 'The world keeps the student’s time.',
   clockLabel: 'Your local time',
   clockBody: 'My World follows this clock too.',
   quietHoursBody:
-    'At 10pm local time, the island darkens and the Companion settles into rest until 6am. It does not send an overnight prompt. A student can still choose to open Capture.',
+    'At 10pm local time, the island darkens and the Companion rests until 6am. It sends no overnight prompts. A student can still open Capture.',
   precedentBody:
-    'Animal Crossing: New Horizons also follows real-world time and continues while players are away. It shows how a world can feel alive without an infinite feed.',
+    'Animal Crossing: New Horizons also follows real-world time and continues while players are away. It shows that a world can feel alive without an infinite feed.',
   caveatBody:
     'The precedent is not proof. A pilot must still measure session time, sleep and displaced activities.',
   sourceLinkLabel: 'View Nintendo’s description',
   closingBody:
-    'Winning students’ hearts matters because a reflection tool only helps when students choose it. We intend to earn that trust without pressure loops, while feedback and evidence keep changing the design.',
+    'Reflection only helps when students choose it. We want My World to earn their trust without pressure or endless engagement. Feedback and evidence will keep shaping the design.',
 } as const satisfies MyWorldFaqBuildStory
 
 type BuildStoryDocument = {

@@ -436,7 +436,7 @@ function FaqEvidenceDialog({
   editorMode?: boolean
   renderField?: MyWorldFaqFieldRenderer
 }) {
-  const actionLabel = editorMode ? 'Edit full answer' : 'Evidence and limits'
+  const actionLabel = editorMode ? 'Edit full answer' : 'Read the evidence'
 
   return (
     <Dialog>
@@ -456,7 +456,7 @@ function FaqEvidenceDialog({
         showClose={false}
       >
         <DialogClose
-          aria-label="Close evidence"
+          aria-label="Close answer details"
           className="absolute right-3 top-3 inline-flex size-11 items-center justify-center rounded-full text-(--color-faq-ink-soft) outline-none hover:bg-(--color-faq-paper) hover:text-(--color-faq-ink) focus-visible:ring-2 focus-visible:ring-(--color-faq-focus) sm:right-5 sm:top-5"
         >
           <X aria-hidden="true" className="size-5" />

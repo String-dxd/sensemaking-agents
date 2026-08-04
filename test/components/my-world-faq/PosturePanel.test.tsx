@@ -31,7 +31,7 @@ describe('PosturePanel', () => {
       'page.posture.introduction',
       'page.posture.decisionNote',
     ])
-    expect(screen.getAllByText('questions answered here')).toHaveLength(2)
-    expect(screen.getByText(/Most recent review of any answer/i)).toBeInTheDocument()
+    expect(screen.getAllByText('questions covered')).toHaveLength(2)
+    expect(screen.getByText(/Latest answer review/i)).toBeInTheDocument()
   })
 })

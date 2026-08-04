@@ -230,7 +230,7 @@ describe('MyWorldFaqEditorPage', () => {
       await user.click(trigger)
       const dialog = screen.getByRole('dialog')
       collectVisibleEditorControls()
-      await user.click(within(dialog).getByRole('button', { name: 'Close evidence' }))
+      await user.click(within(dialog).getByRole('button', { name: 'Close answer details' }))
     }
 
     expect([...observedPaths].sort()).toEqual([...FAQ_EDITABLE_PATHS].sort())
@@ -412,7 +412,7 @@ describe('MyWorldFaqEditorPage', () => {
         value: 'The updated evidence threshold and review owner still need to be agreed.',
       },
     })
-    await user.click(within(answerDialog).getByRole('button', { name: 'Close evidence' }))
+    await user.click(within(answerDialog).getByRole('button', { name: 'Close answer details' }))
     expect(screen.getByText('7 changes')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Save & publish' }))

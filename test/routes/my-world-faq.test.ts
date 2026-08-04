@@ -83,7 +83,7 @@ describe('/my-world/faq public route', () => {
       }),
     )
 
-    expect(screen.getByText('Hello, DXD')).toBeInTheDocument()
+    expect(screen.getByText('Hello, DXD & friends :)')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'My World FAQ home' })).toHaveTextContent(
       'My World FAQ',
     )
@@ -91,8 +91,12 @@ describe('/my-world/faq public route', () => {
     expect(
       screen.queryByText(/leadership has not decided whether to run one/i),
     ).not.toBeInTheDocument()
-    expect(screen.getByText(/documents the current prototype/i)).toBeInTheDocument()
-    expect(screen.getByText(/gathers feedback to guide what we explore next/i)).toBeInTheDocument()
+    expect(
+      screen.getByText(/documents the current state of our proposed concept/i),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/gathers your feedback to guide how we take it forward/i),
+    ).toBeInTheDocument()
     expect(screen.getByTestId('faq-product-loop')).toBeInTheDocument()
     expect(screen.getAllByTestId('faq-question-trigger')).toHaveLength(34)
     expect(screen.getByRole('link', { name: 'Product at a glance' })).toHaveAttribute(
@@ -115,7 +119,7 @@ describe('/my-world/faq public route', () => {
       }),
     )
 
-    expect(screen.getByText(/anyone with this link can open or forward it/i)).toBeInTheDocument()
+    expect(screen.getByText(/anyone with this link can view or share it/i)).toBeInTheDocument()
   })
 
   it('uses a normal document-scroll root and exposes the disabled feedback capability', () => {
@@ -173,7 +177,7 @@ describe('/my-world/faq public route', () => {
       }),
     )
 
-    expect(screen.getByText('Hello, DXD')).toBeInTheDocument()
+    expect(screen.getByText('Hello, DXD & friends :)')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Share without a name' })).not.toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Loading shared feedback…')
     expect(loadMyWorldFaqPublicFeedbackMock).toHaveBeenCalledTimes(1)

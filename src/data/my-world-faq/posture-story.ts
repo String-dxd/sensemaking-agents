@@ -14,9 +14,8 @@ export const DEFAULT_MY_WORLD_FAQ_POSTURE_STORY = {
   eyebrow: 'Where this is up to',
   heading: 'Still gathering, not yet deciding.',
   introduction:
-    'We are collecting signals from sessions, evidence from research and the prototype, and questions from anyone who reads this. Each answer names what it rests on, and how much of it we have.',
-  decisionNote:
-    'No pilot has been approved and no decision has been made. When one is, it will be written here rather than announced elsewhere.',
+    'We are gathering comments, research and prototype evidence. Each answer shows what supports it and what remains unknown.',
+  decisionNote: 'No pilot has been approved. We will update this page when a decision is made.',
 } as const satisfies MyWorldFaqPostureStory
 
 type PostureStoryDocument = {

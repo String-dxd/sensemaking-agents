@@ -28,26 +28,22 @@ const SURFACE_FEATURES = [
 const BACKSTAGE_LAYERS = [
   {
     name: 'Collector',
-    roleType: 'AI role',
-    actionKey: 'mirrorAction',
+    roleType: 'AI support',
     bodyKey: 'mirrorBody',
   },
   {
     name: 'Connector',
-    roleType: 'AI role',
-    actionKey: 'connectorAction',
+    roleType: 'AI support',
     bodyKey: 'connectorBody',
     check: {
       name: 'Verifier',
-      roleType: 'Deterministic check',
-      actionKey: 'verifierAction',
+      roleType: 'Evidence check',
       bodyKey: 'verifierBody',
     },
   },
   {
     name: 'Cartographer',
-    roleType: 'AI role',
-    actionKey: 'cartographerAction',
+    roleType: 'AI support',
     bodyKey: 'cartographerBody',
   },
 ] as const
@@ -100,8 +96,8 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
 
         <figure className="mt-12 overflow-hidden rounded-[3rem_0.75rem_3rem_0.75rem] border border-(--color-faq-ink)">
           <figcaption className="sr-only">
-            An iceberg diagram. The playful student experience sits above the waterline. Four
-            specialised processing layers and a separate review lens sit below it.
+            An iceberg diagram. Students see the playful experience above the surface. AI support,
+            an evidence check and human review sit below it.
           </figcaption>
 
           <div className="bg-(--color-faq-blue) px-5 pt-8 sm:px-8 sm:pt-10 lg:px-10 lg:pt-12">
@@ -176,13 +172,6 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
                             {layer.roleType}
                           </p>
                         </div>
-                        <p className="mt-1 text-xs text-(--color-faq-paper-soft)">
-                          {field({
-                            path: `page.build.${layer.actionKey}`,
-                            label: `${layer.name} timing`,
-                            value: copy[layer.actionKey],
-                          })}
-                        </p>
                       </div>
                       <p className="col-start-2 text-sm leading-relaxed text-(--color-faq-paper-soft) sm:col-start-auto">
                         {field({
@@ -203,13 +192,6 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
                                 {layer.check.roleType}
                               </p>
                             </div>
-                            <p className="mt-1 text-xs text-(--color-faq-paper-soft)">
-                              {field({
-                                path: `page.build.${layer.check.actionKey}`,
-                                label: `${layer.check.name} timing`,
-                                value: copy[layer.check.actionKey],
-                              })}
-                            </p>
                           </div>
                           <p className="text-sm leading-relaxed text-(--color-faq-paper-soft)">
                             {field({
@@ -236,14 +218,14 @@ export function BuildIcebergPanel({ content, renderField }: BuildIcebergPanelPro
                     <p>
                       {field({
                         path: 'page.build.reviewBody',
-                        label: 'Review lens description',
+                        label: 'AI specialist team description',
                         value: copy.reviewBody,
                       })}
                     </p>
                     <p>
                       {field({
                         path: 'page.build.reviewTeamBody',
-                        label: 'Team review description',
+                        label: 'Product team description',
                         value: copy.reviewTeamBody,
                       })}
                     </p>

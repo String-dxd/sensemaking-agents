@@ -196,7 +196,7 @@ export function FeedbackPanel({ initialItems }: FeedbackPanelProps) {
         className="rounded-[2rem_0.7rem_2rem_0.7rem] border border-(--color-faq-ink) bg-(--color-faq-paper) p-5 sm:p-7"
       >
         <fieldset>
-          <legend className="text-sm font-semibold">What would you like to share?</legend>
+          <legend className="text-sm font-semibold">What are you sharing?</legend>
           <RadioGroup
             value={kind}
             onValueChange={(value) => {
@@ -243,7 +243,7 @@ export function FeedbackPanel({ initialItems }: FeedbackPanelProps) {
             maxLength={2000}
             required
             rows={5}
-            placeholder="What should we explain, question, change or keep?"
+            placeholder="What should we explain, change or keep?"
             className="mt-2 min-h-36 resize-y border-(--color-faq-ink) bg-(--color-faq-surface) text-base focus-visible:ring-(--color-faq-focus)"
           />
         </div>
@@ -251,7 +251,7 @@ export function FeedbackPanel({ initialItems }: FeedbackPanelProps) {
         <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <p className="max-w-[58ch] text-xs leading-relaxed text-(--color-faq-ink-soft)">
             Your feedback appears below without a name. Do not include personal information. This
-            browser receives a private key so you can remove your submission.
+            browser saves a private key so you can remove your submission.
           </p>
           <Button
             type="submit"

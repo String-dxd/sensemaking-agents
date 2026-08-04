@@ -16,12 +16,12 @@ export function PosturePanel({ content, renderField }: PosturePanelProps) {
    * on the page carries the same not-yet-human-reviewed status — true, and a serious understatement
    * of work that has 49 of its 92 evidence blocks checked. These four discriminate. */
   const counts = [
-    { value: tally.questions, label: 'questions answered here' },
+    { value: tally.questions, label: 'questions covered' },
     {
       value: `${tally.checked}/${tally.blocks}`,
-      label: 'pieces of evidence checked against a source or the prototype',
+      label: 'evidence checks completed',
     },
-    { value: tally.openThreads, label: 'things we still cannot answer' },
+    { value: tally.openThreads, label: 'open evidence checks' },
     { value: tally.signals, label: 'comments from sessions' },
   ]
 
@@ -90,7 +90,7 @@ export function PosturePanel({ content, renderField }: PosturePanelProps) {
 
         {tally.lastReviewed ? (
           <p className="mt-6 text-xs text-(--color-faq-ink-soft)">
-            Most recent review of any answer on this page: {tally.lastReviewed}.
+            Latest answer review: {tally.lastReviewed}.
           </p>
         ) : null}
       </div>

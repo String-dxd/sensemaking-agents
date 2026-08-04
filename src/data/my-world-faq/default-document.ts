@@ -21,9 +21,10 @@ import { DEFAULT_MY_WORLD_FAQ_WHY_STORY } from './why-story'
 const PRODUCT_COPY = {
   capture: {
     title: 'Capture',
-    heading: 'Put a moment into words.',
-    body: 'Text, voice, images and feelings offer different ways to begin.',
-    boundary: 'This demo stops before Send. Nothing is submitted.',
+    heading: 'Easily Record Moments that Matter',
+    body: "We are encouraging students to be able to pause, note moments that are important to them and store them away for later.\n\nWe hope this builds a habit amongst students to be able to incrementally sense make their school experiences; framed by MOE student development curriculum & their school's own educational approach.\n\nBe it Text, Voice, Images or Feelings; we make it meaningful for students to continue this conversation with teachers, friends, & perhaps even their parents (see next feature).",
+    boundary:
+      'This video demonstrates the student experience: encouraged by the companion for a quick input on their school life.',
   },
   identity: {
     title: 'My Identity',
@@ -95,25 +96,26 @@ export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
   schemaVersion: MY_WORLD_FAQ_SCHEMA_VERSION,
   structureVersion: MY_WORLD_FAQ_V1_STRUCTURE_VERSION,
   route: {
-    title: 'My World FAQ',
+    title: 'MyWorld FAQ',
     description:
       'Learn what My World is, how the current prototype works, and how to share questions or feedback with the team.',
   },
   page: {
     hero: {
-      eyebrow: 'Hello, DXD',
-      heading: 'Here’s what My World is.',
+      eyebrow: 'Hello, DXD & friends :)',
+      heading: 'Here’s what MyWorld is.',
       headingAccent: 'And how it works.',
       introduction:
-        'This site documents the current prototype, answers questions we have heard, and gathers feedback to guide what we explore next.',
+        'This site documents the current state of our proposed concept, answers questions we have heard, and gathers your feedback to guide how we take it forward.',
       productCta: 'See how it works',
       faqCta: 'Browse the FAQ',
     },
     product: {
       eyebrow: 'Product at a glance',
-      heading: 'See how a reflection moves.',
-      introduction: 'Four short journeys through the current desktop prototype.',
-      footnote: 'Silent clips · synthetic demo data · captured 29 July 2026',
+      heading: 'See how we take students from quick thoughts into guided introspection',
+      introduction:
+        'Four proposed features that bring students on a journey towards a self-directed development path with their teachers and friends',
+      footnote: 'Silent clips · synthetic demo data · recorded 29 July 2026',
     },
     build: { ...DEFAULT_MY_WORLD_FAQ_BUILD_STORY },
     why: { ...DEFAULT_MY_WORLD_FAQ_WHY_STORY },
@@ -133,7 +135,7 @@ export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
       eyebrow: 'FAQ',
       heading: 'Questions we are working through',
       introduction:
-        'Scan the questions. Turn a card over for our short answer, or inspect the evidence behind it.',
+        'Scan the questions. Turn over a card for a short answer, then open the evidence and limits.',
     },
     contribution: {
       eyebrow: 'Build this with us',
@@ -142,7 +144,7 @@ export const DEFAULT_MY_WORLD_FAQ_DOCUMENT: MyWorldFaqEditorialDocument = {
     },
     footer: {
       brand: 'My World FAQ',
-      sharing: 'Anyone with this link can open or forward it. Last reviewed 29 July 2026.',
+      sharing: 'Anyone with this link can view or share it. Last reviewed 29 July 2026.',
     },
   },
   productSteps: FAQ_PRODUCT_STEP_MANIFEST.map((step) => ({

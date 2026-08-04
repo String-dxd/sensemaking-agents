@@ -139,14 +139,13 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     ]) {
       expect(within(build).getByText(label)).toBeInTheDocument()
     }
-    expect(within(build).getByText(/do not all run after every capture/i)).toBeInTheDocument()
-    expect(within(build).getByText(/later, after review/i)).toBeInTheDocument()
-    expect(within(build).getByText(/for Connector links/i)).toBeInTheDocument()
-    expect(within(build).getByText(/when sensemaking is requested/i)).toBeInTheDocument()
-    expect(within(build).getByText(/plain code checks the cited quote/i)).toBeInTheDocument()
-    expect(within(build).getAllByText('AI role')).toHaveLength(3)
-    expect(within(build).getByText('Deterministic check')).toBeInTheDocument()
-    expect(within(build).getByText(/advisory, not a fail-safe/i)).toBeInTheDocument()
+    expect(within(build).queryByText(/after a capture/i)).not.toBeInTheDocument()
+    expect(within(build).queryByText(/later, after review/i)).not.toBeInTheDocument()
+    expect(within(build).queryByText(/for Connector links/i)).not.toBeInTheDocument()
+    expect(within(build).queryByText(/when sensemaking is requested/i)).not.toBeInTheDocument()
+    expect(within(build).getByText(/supported by the student’s own words/i)).toBeInTheDocument()
+    expect(within(build).getAllByText('AI support')).toHaveLength(3)
+    expect(within(build).getByText('Evidence check')).toBeInTheDocument()
     expect(within(build).getByText(/at 10pm local time/i)).toBeInTheDocument()
     expect(within(build).getByText(/Animal Crossing: New Horizons/i)).toBeInTheDocument()
     expect(within(build).queryByText(/precedent is not proof/i)).not.toBeInTheDocument()
@@ -162,9 +161,9 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(build.querySelectorAll('svg circle')).toHaveLength(0)
     expect(connectorLayer).toContainElement(verifierPanel)
     expect(backstage).toContainElement(deliberateDecision)
-    expect(within(backstage).getByText('Guardrails, shaped with AI experts')).toBeInTheDocument()
-    expect(within(backstage).getByText(/conversational design, guardrails/i)).toBeInTheDocument()
-    expect(within(backstage).getByText(/Human review stays central/i)).toBeInTheDocument()
+    expect(within(backstage).getByText('AI specialists and product team')).toBeInTheDocument()
+    expect(within(backstage).getByText(/conversation design, safety rules/i)).toBeInTheDocument()
+    expect(within(backstage).getByText(/product team owns the content/i)).toBeInTheDocument()
   })
 
   it('keeps the guiding belief by itself in the blue Why section', () => {
@@ -175,9 +174,9 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     const why = screen.getByTestId('faq-why')
     const signals = screen.getByTestId('faq-signals')
     const beliefCopy =
-      'Winning students’ hearts matters because a reflection tool only helps when students choose it. We intend to earn that trust without pressure loops, while feedback and evidence keep changing the design.'
+      'Reflection only helps when students choose it. We want My World to earn their trust without pressure or endless engagement. Feedback and evidence will keep shaping the design.'
 
-    expect(within(build).queryByText(/Winning students’ hearts matters/i)).not.toBeInTheDocument()
+    expect(within(build).queryByText(/Reflection only helps/i)).not.toBeInTheDocument()
     expect(belief).toHaveTextContent(beliefCopy)
     expect(why).toContainElement(belief)
     expect(why).toHaveClass('bg-(--color-faq-blue-deep)')
@@ -203,8 +202,8 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
 
     const posture = screen.getByTestId('faq-posture')
     expect(within(posture).queryByRole('link')).not.toBeInTheDocument()
-    expect(within(posture).getByText(/Each answer names what it rests on/i)).toBeInTheDocument()
-    expect(within(posture).getAllByText('questions answered here')).toHaveLength(2)
+    expect(within(posture).getByText(/Each answer shows what supports it/i)).toBeInTheDocument()
+    expect(within(posture).getAllByText('questions covered')).toHaveLength(2)
     expect(within(posture).getAllByText('comments from sessions')).toHaveLength(2)
   })
 
@@ -226,7 +225,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     await waitFor(() => expect(shortAnswer.parentElement).toHaveFocus())
 
     const evidenceTrigger = within(questionCard).getByRole('button', {
-      name: 'Evidence and limits',
+      name: 'Read the evidence',
     })
     await user.click(evidenceTrigger)
     const dialog = screen.getByRole('dialog', {
@@ -235,7 +234,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(within(dialog).getAllByTestId('faq-evidence-label').length).toBeGreaterThan(0)
     expect(within(dialog).getAllByText(/^Limit:/i).length).toBeGreaterThan(0)
 
-    await user.click(within(dialog).getByRole('button', { name: 'Close evidence' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Close answer details' }))
     await waitFor(() => expect(evidenceTrigger).toHaveFocus())
 
     await user.click(within(questionCard).getByRole('button', { name: 'Back to question' }))
@@ -261,7 +260,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
       /design rationale, not proof/i,
     )
 
-    await user.click(within(questionCard).getByRole('button', { name: 'Evidence and limits' }))
+    await user.click(within(questionCard).getByRole('button', { name: 'Read the evidence' }))
     const dialog = screen.getByRole('dialog', { name: questionText })
     const frequencyDetails = within(dialog).getByTestId('faq-frequency-details')
 
@@ -270,10 +269,10 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(
       within(frequencyDetails).getByRole('link', { name: /Apple Heart Study/i }),
     ).toHaveAttribute('href', 'https://www.nejm.org/doi/10.1056/NEJMoa1901183')
-    expect(within(frequencyDetails).getByText(/That remains a hypothesis/i)).toBeInTheDocument()
+    expect(within(frequencyDetails).getByText(/share honest moments/i)).toBeInTheDocument()
     expect(
       within(frequencyDetails).getByText(
-        /A pilot must compare value, burden and candour with simpler options/i,
+        /A pilot must compare its value and burden with simpler options/i,
       ),
     ).toBeInTheDocument()
   })
@@ -308,7 +307,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     if (!card) throw new Error('FAQ question card was not found')
     expect(within(card).getByTestId('faq-short-answer')).toHaveTextContent(hostileAnswer)
 
-    await user.click(within(card).getByRole('button', { name: 'Evidence and limits' }))
+    await user.click(within(card).getByRole('button', { name: 'Read the evidence' }))
     const dialog = screen.getByRole('dialog', { name: hostileQuestion })
     expect(within(dialog).getByText(hostileDetails)).toBeInTheDocument()
     expect(within(dialog).getByText(hostileLimits)).toBeInTheDocument()
@@ -346,7 +345,7 @@ describe('MyWorldFaqPage comprehension checkpoint', () => {
     expect(
       screen.queryByText(/leadership has not decided whether to run one/i),
     ).not.toBeInTheDocument()
-    expect(screen.getByText(/anyone with this link can open or forward it/i)).toBeInTheDocument()
+    expect(screen.getByText(/anyone with this link can view or share it/i)).toBeInTheDocument()
     expect(screen.getByTestId('my-world-faq-page')).toHaveAttribute(
       'data-feedback-enabled',
       'false',
